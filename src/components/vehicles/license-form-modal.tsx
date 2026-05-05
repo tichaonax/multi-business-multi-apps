@@ -33,6 +33,8 @@ export function LicenseFormModal({ vehicleId, license, isOpen, onClose, onSave }
     issuingAuthority: license?.issuingAuthority || '',
     renewalCost: license?.renewalCost?.toString() || '0',
     lateFee: license?.lateFee?.toString() || '0',
+    usage: license?.usage || '',
+    isExempt: license?.isExempt || false,
     // VehicleLicense type doesn't declare `notes` but the form supports it; use a
     // safe cast to avoid TypeScript errors while preserving runtime behavior.
     notes: (license as any)?.notes || '',
@@ -76,6 +78,8 @@ export function LicenseFormModal({ vehicleId, license, isOpen, onClose, onSave }
       issuingAuthority: license?.issuingAuthority || '',
       renewalCost: license?.renewalCost?.toString() || '0',
       lateFee: license?.lateFee?.toString() || '0',
+      usage: license?.usage || '',
+      isExempt: license?.isExempt || false,
       notes: (license as any)?.notes || '',
       isActive: license?.isActive ?? true,
       documentUrl: license?.documentUrl || '',
@@ -232,249 +236,232 @@ export function LicenseFormModal({ vehicleId, license, isOpen, onClose, onSave }
 
   if (!isOpen) return null
 
+  const fieldClass = 'w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500'
+  const labelClass = 'block text-xs font-medium text-secondary mb-1'
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full m-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-semibold text-primary">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl ring-2 ring-blue-500/30 w-full max-w-2xl flex flex-col max-h-[90vh] overflow-x-hidden">
+        {/* Sticky Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
+          <h2 className="text-base font-semibold text-primary">
             {license ? 'Edit License' : 'Add New License'}
           </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-          >
-            <X className="h-6 w-6" />
+          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-secondary">
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form id="license-form" onSubmit={handleSubmit} className="overflow-y-auto overflow-x-hidden flex-1 px-5 py-4 space-y-4">
           {error && (
             <div className="p-3 bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
               <p className="text-red-700 dark:text-red-300 text-sm">{error}</p>
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-primary mb-1">
-              License Type *
-            </label>
-            <select
-              value={formData.licenseType}
-              onChange={(e) => setFormData({ ...formData, licenseType: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary"
-              required
-            >
-              {LICENSE_TYPES.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
+          {/* Row 1: Type + Number */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>License Type *</label>
+              <select
+                value={formData.licenseType}
+                onChange={(e) => setFormData({ ...formData, licenseType: e.target.value })}
+                className={fieldClass}
+                required
+              >
+                {LICENSE_TYPES.map((type) => (
+                  <option key={type.value} value={type.value}>{type.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>License Number *</label>
+              <input
+                type="text"
+                value={formData.licenseNumber}
+                onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })}
+                className={fieldClass}
+                placeholder="Enter license number"
+                required
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-primary mb-1">
-              License Number *
-            </label>
-            <input
-              type="text"
-              value={formData.licenseNumber}
-              onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary"
-              placeholder="Enter license number"
-              required
-            />
+          {/* Row 2: Effective Date + Expiry Date */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>Effective Date *</label>
+              <DateInput
+                value={formData.issueDate}
+                onChange={(value) => setFormData({ ...formData, issueDate: value })}
+                placeholder="Select effective date"
+                required
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Expiry Date *</label>
+              <DateInput
+                value={formData.expiryDate}
+                onChange={(value) => setFormData({ ...formData, expiryDate: value })}
+                placeholder="Select expiry date"
+                required
+              />
+            </div>
           </div>
 
+          {/* Row 3: Issuing Authority */}
           <div>
-            <label className="block text-sm font-medium text-primary mb-1">
-              Effective Date *
-            </label>
-            <DateInput
-              value={formData.issueDate}
-              onChange={(value) => setFormData({ ...formData, issueDate: value })}
-              placeholder="Select effective date"
-              required
-            />
-            <p className="text-xs text-gray-500 mt-1">Date when the license becomes valid</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-primary mb-1">
-              Expiry Date *
-            </label>
-            <DateInput
-              value={formData.expiryDate}
-              onChange={(value) => setFormData({ ...formData, expiryDate: value })}
-              placeholder="Select expiry date"
-              required
-            />
-            <p className="text-xs text-gray-500 mt-1">Date when the license expires</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-primary mb-1">
-              Issuing Authority
-            </label>
+            <label className={labelClass}>Issuing Authority</label>
             {!showNewAuthorityInput ? (
-              <div className="space-y-2">
-                <select
-                  value={formData.issuingAuthority}
-                  onChange={(e) => {
-                    if (e.target.value === '__ADD_NEW__') {
-                      setShowNewAuthorityInput(true)
-                      setFormData({ ...formData, issuingAuthority: '' })
-                    } else {
-                      setFormData({ ...formData, issuingAuthority: e.target.value })
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary"
-                >
-                  <option value="">Select issuing authority</option>
-                  {authorities.map((auth) => (
-                    <option key={auth.id} value={auth.name}>
-                      {auth.name}
-                    </option>
-                  ))}
-                  <option value="__ADD_NEW__" className="font-semibold text-blue-600">
-                    + Add New Authority
-                  </option>
-                </select>
-                <p className="text-xs text-gray-500">e.g., ZIMRA, DMV, etc.</p>
-              </div>
+              <select
+                value={formData.issuingAuthority}
+                onChange={(e) => {
+                  if (e.target.value === '__ADD_NEW__') {
+                    setShowNewAuthorityInput(true)
+                    setFormData({ ...formData, issuingAuthority: '' })
+                  } else {
+                    setFormData({ ...formData, issuingAuthority: e.target.value })
+                  }
+                }}
+                className={fieldClass}
+              >
+                <option value="">Select issuing authority (e.g. ZIMRA, DMV)</option>
+                {authorities.map((auth) => (
+                  <option key={auth.id} value={auth.name}>{auth.name}</option>
+                ))}
+                <option value="__ADD_NEW__">+ Add New Authority</option>
+              </select>
             ) : (
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newAuthorityName}
-                    onChange={(e) => setNewAuthorityName(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary"
-                    placeholder="Enter new authority name"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        handleAddNewAuthority()
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddNewAuthority}
-                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                  >
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowNewAuthorityInput(false)
-                      setNewAuthorityName('')
-                    }}
-                    className="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-400 dark:hover:bg-gray-500"
-                  >
-                    Cancel
-                  </button>
-                </div>
-                <p className="text-xs text-gray-500">Enter the name of the new issuing authority</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newAuthorityName}
+                  onChange={(e) => setNewAuthorityName(e.target.value)}
+                  className={`${fieldClass} flex-1`}
+                  placeholder="Enter new authority name"
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddNewAuthority() } }}
+                />
+                <button type="button" onClick={handleAddNewAuthority} className="px-3 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700">Add</button>
+                <button type="button" onClick={() => { setShowNewAuthorityInput(false); setNewAuthorityName('') }} className="px-3 py-2 text-sm bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
               </div>
             )}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-primary mb-1">
-              Renewal Cost *
-            </label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={formData.renewalCost}
-              onChange={(e) => setFormData({ ...formData, renewalCost: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary"
-              placeholder="0"
-              required
-            />
-            <p className="text-xs text-gray-500 mt-1">Cost to renew this license (enter 0 if free)</p>
+          {/* Row 4: Renewal Cost + Late Fee + Usage (Radio only) */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>Renewal Cost *</label>
+              <input
+                type="number" min="0" step="0.01"
+                value={formData.renewalCost}
+                onChange={(e) => setFormData({ ...formData, renewalCost: e.target.value })}
+                className={fieldClass}
+                placeholder="0"
+                required
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Late Fee / Penalty</label>
+              <input
+                type="number" min="0" step="0.01"
+                value={formData.lateFee}
+                onChange={(e) => setFormData({ ...formData, lateFee: e.target.value })}
+                className={fieldClass}
+                placeholder="0"
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-primary mb-1">
-              Late Fee / Penalty
-            </label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={formData.lateFee}
-              onChange={(e) => setFormData({ ...formData, lateFee: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary"
-              placeholder="0"
-            />
-            <p className="text-xs text-gray-500 mt-1">Additional fee charged for late renewal (enter 0 if none)</p>
+          {/* Usage — Radio/TV only */}
+          {formData.licenseType === 'RADIO' && (
+            <div>
+              <label className={labelClass}>Usage</label>
+              <input
+                type="text"
+                value={formData.usage}
+                onChange={(e) => setFormData({ ...formData, usage: e.target.value })}
+                className={fieldClass}
+                placeholder="e.g. PRIVATE VEHICLE"
+              />
+            </div>
+          )}
+
+          {/* Row 5: Notes + Document side by side */}
+          <div className="grid grid-cols-2 gap-4 items-start">
+            <div>
+              <label className={labelClass}>Notes</label>
+              <textarea
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                className={`${fieldClass} resize-none`}
+                placeholder="Additional notes"
+                rows={3}
+              />
+            </div>
+            <div>
+              <DocumentUpload
+                label="License Document (PDF, JPG, JPEG)"
+                currentUrl={formData.documentUrl || null}
+                currentName={formData.documentName || null}
+                onUpload={async (file) => {
+                  const fd = new FormData()
+                  fd.append('file', file)
+                  const res = await fetch('/api/vehicles/licenses/documents', { method: 'POST', body: fd })
+                  const data = await res.json()
+                  if (!res.ok) throw new Error(data.error || 'Upload failed')
+                  setFormData(prev => ({ ...prev, documentUrl: data.documentUrl, documentName: data.documentName }))
+                }}
+                onRemove={async () => {
+                  setFormData(prev => ({ ...prev, documentUrl: '', documentName: '' }))
+                }}
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-primary mb-1">
-              Notes
+          {/* Checkboxes row */}
+          <div className="flex flex-wrap gap-6">
+            <label className="flex items-center gap-2 text-sm text-secondary cursor-pointer">
+              <input
+                type="checkbox"
+                id="licIsExempt"
+                checked={formData.isExempt}
+                onChange={(e) => setFormData({ ...formData, isExempt: e.target.checked })}
+                className="w-4 h-4 text-blue-600 rounded border-gray-300 dark:border-gray-600"
+              />
+              Exempt (licence waived / not applicable)
             </label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary"
-              placeholder="Additional notes"
-              rows={3}
-            />
-          </div>
-
-          <DocumentUpload
-            label="License Document (PDF, JPG, JPEG)"
-            currentUrl={formData.documentUrl || null}
-            currentName={formData.documentName || null}
-            onUpload={async (file) => {
-              const fd = new FormData()
-              fd.append('file', file)
-              const res = await fetch('/api/vehicles/licenses/documents', { method: 'POST', body: fd })
-              const data = await res.json()
-              if (!res.ok) throw new Error(data.error || 'Upload failed')
-              setFormData(prev => ({ ...prev, documentUrl: data.documentUrl, documentName: data.documentName }))
-            }}
-            onRemove={async () => {
-              setFormData(prev => ({ ...prev, documentUrl: '', documentName: '' }))
-            }}
-          />
-
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="isActive"
-              checked={formData.isActive}
-              onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-              className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-            />
-            <label htmlFor="isActive" className="ml-2 text-sm text-primary">
+            <label className="flex items-center gap-2 text-sm text-secondary cursor-pointer">
+              <input
+                type="checkbox"
+                id="isActive"
+                checked={formData.isActive}
+                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+              />
               Active license
             </label>
           </div>
-
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600"
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={loading}
-            >
-              {loading ? 'Saving...' : license ? 'Update License' : 'Add License'}
-            </button>
-          </div>
         </form>
+
+        {/* Sticky Footer */}
+        <div className="flex justify-end gap-3 px-5 py-4 border-t border-gray-200 dark:border-gray-700 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600"
+            disabled={loading}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="license-form"
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+            disabled={loading}
+          >
+            {loading ? 'Saving...' : license ? 'Update License' : 'Add License'}
+          </button>
+        </div>
       </div>
     </div>
   )

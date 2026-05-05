@@ -22,6 +22,9 @@ export interface Vehicle {
   notes?: string
   titleBookUrl?: string
   titleBookName?: string
+  taxClass?: string
+  vehicleUsage?: string
+  isExempt: boolean
   createdAt: string
   updatedAt: string
 
@@ -41,6 +44,8 @@ export interface Vehicle {
   trips?: VehicleTrip[]
   maintenanceRecords?: VehicleMaintenanceRecord[]
   expenseRecords?: VehicleExpense[]
+  renewalReceipts?: VehicleRenewalReceipt[]
+  exemptions?: VehicleExemption[]
 }
 
 export interface VehicleDriver {
@@ -83,9 +88,67 @@ export interface VehicleLicense {
   expiryDate: string
   renewalCost?: number
   lateFee?: number
+  usage?: string
+  isExempt: boolean
+  renewalReceiptId?: string
   isActive: boolean
   documentUrl?: string
   reminderDays: number
+  createdAt: string
+  updatedAt: string
+
+  // Relations
+  vehicle?: Vehicle
+  renewalReceipt?: VehicleRenewalReceipt
+}
+
+export interface VehicleRenewalReceipt {
+  id: string
+  vehicleId: string
+  receiptNumber?: string
+  transactionType?: string
+  datePaid?: string
+  paymentReceivedBy?: string
+  officeOfIssue?: string
+  arrears?: number
+  penalties?: number
+  administrationFee?: number
+  transactionFee?: number
+  surcharge?: number
+  debtManagementAmount?: number
+  deposit?: number
+  totalPaid?: number
+  currency: string
+  isExempt: boolean
+  documentUrl?: string
+  documentName?: string
+  notes?: string
+  createdAt: string
+  updatedAt: string
+
+  // Relations
+  vehicle?: Vehicle
+  licenses?: VehicleLicense[]
+}
+
+export interface VehicleExemption {
+  id: string
+  vehicleId: string
+  exemptionType: string
+  startDate?: string
+  endDate?: string
+  exemptionReason?: string
+  exemptionReasonDescription?: string
+  requestedByName?: string
+  requestedByEmail?: string
+  requestedByContact?: string
+  dataCapturingOfficialName?: string
+  loginUserId?: string
+  issueOffice?: string
+  issueDate?: string
+  documentUrl?: string
+  documentName?: string
+  notes?: string
   createdAt: string
   updatedAt: string
 
@@ -269,6 +332,9 @@ export interface CreateVehicleData {
   purchaseDate?: string
   purchasePrice?: number
   notes?: string
+  taxClass?: string
+  vehicleUsage?: string
+  isExempt?: boolean
 }
 
 export interface CreateDriverData {

@@ -41,7 +41,10 @@ export function VehicleForm({ vehicle, onSuccess, onCancel }: VehicleFormProps) 
     userId: session?.user?.id || '',
     purchaseDate: '',
     purchasePrice: 0,
-    notes: ''
+    notes: '',
+    taxClass: '',
+    vehicleUsage: '',
+    isExempt: false
   })
 
   const toast = useToastContext()
@@ -65,7 +68,10 @@ export function VehicleForm({ vehicle, onSuccess, onCancel }: VehicleFormProps) 
         userId: vehicle.userId || session?.user?.id || '',
         purchaseDate: vehicle.purchaseDate || '',
         purchasePrice: vehicle.purchasePrice || 0,
-        notes: vehicle.notes || ''
+        notes: vehicle.notes || '',
+        taxClass: vehicle.taxClass || '',
+        vehicleUsage: vehicle.vehicleUsage || '',
+        isExempt: vehicle.isExempt || false
       })
     }
   }, [vehicle, session?.user?.id])
@@ -370,6 +376,68 @@ export function VehicleForm({ vehicle, onSuccess, onCancel }: VehicleFormProps) 
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors"
             placeholder="Additional notes about the vehicle..."
           />
+        </div>
+
+        {/* Tax Class & Vehicle Usage */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-secondary mb-1">
+              Tax Class
+            </label>
+            <select
+              name="taxClass"
+              value={formData.taxClass || ''}
+              onChange={handleInputChange}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors"
+            >
+              <option value="">Select tax class...</option>
+              <option value="LIGHT MOTOR VEHICLE">Light Motor Vehicle</option>
+              <option value="HEAVY VEHICLE (4601-9000KG)">Heavy Vehicle (4601–9000kg)</option>
+              <option value="HEAVY VEHICLE (9001KG+)">Heavy Vehicle (9001kg+)</option>
+              <option value="MOTORCYCLE">Motorcycle</option>
+              <option value="TRAILER">Trailer</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-secondary mb-1">
+              Vehicle Usage
+            </label>
+            <select
+              name="vehicleUsage"
+              value={formData.vehicleUsage || ''}
+              onChange={(e) => {
+                const val = e.target.value
+                setFormData(prev => ({
+                  ...prev,
+                  vehicleUsage: val,
+                  isExempt: val === 'NO USE PUBLIC ROAD' ? true : prev.isExempt,
+                }))
+              }}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-700 text-primary transition-colors"
+            >
+              <option value="">Select usage...</option>
+              <option value="PRIVATE">Private</option>
+              <option value="COMMERCIAL">Commercial</option>
+              <option value="PUBLIC SERVICE">Public Service</option>
+              <option value="NO USE PUBLIC ROAD">No Use Public Road (Exempt)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Exempt Vehicle */}
+        <div className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            id="isExempt"
+            name="isExempt"
+            checked={formData.isExempt || false}
+            onChange={(e) => setFormData(prev => ({ ...prev, isExempt: e.target.checked }))}
+            className="w-4 h-4 text-blue-600 rounded border-gray-300 dark:border-gray-600"
+          />
+          <label htmlFor="isExempt" className="text-sm font-medium text-secondary">
+            Exempt vehicle (qualifies for reduced or zero licence fees)
+          </label>
         </div>
 
         {/* Submit Buttons */}

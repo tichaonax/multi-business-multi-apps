@@ -5,7 +5,7 @@ import { useConfirm } from '@/components/ui/confirm-modal'
 import { useToastContext } from '@/components/ui/toast'
 import fetchWithValidation from '@/lib/fetchWithValidation'
 import { useSession } from 'next-auth/react'
-import { Vehicle, VehicleLicense } from '@/types/vehicle'
+import { Vehicle, VehicleLicense, VehicleRenewalReceipt, VehicleExemption } from '@/types/vehicle'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,6 +17,8 @@ import { useDateFormat } from '@/contexts/settings-context'
 import { LicenseStatusIndicator } from './license-status-indicator'
 import { LicenseFormModal } from './license-form-modal'
 import { LicenseDetailModal } from './license-detail-modal'
+import { RenewalReceiptForm } from './renewal-receipt-form'
+import { ExemptionForm } from './exemption-form'
 import { DocumentUpload } from '@/components/ui/document-upload'
 import {
   X,
@@ -55,6 +57,12 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
   const [selectedLicenseIds, setSelectedLicenseIds] = useState<string[]>([])
   const [showAllLicenses, setShowAllLicenses] = useState(false)
   const [viewingLicense, setViewingLicense] = useState<VehicleLicense | null>(null)
+  const [showRenewalForm, setShowRenewalForm] = useState(false)
+  const [showExemptionForm, setShowExemptionForm] = useState(false)
+  const [renewalReceipts, setRenewalReceipts] = useState<VehicleRenewalReceipt[]>([])
+  const [exemptions, setExemptions] = useState<VehicleExemption[]>([])
+  const [loadingReceipts, setLoadingReceipts] = useState(false)
+  const [loadingExemptions, setLoadingExemptions] = useState(false)
 
   const [formData, setFormData] = useState({
     licensePlate: vehicle.licensePlate,
@@ -176,6 +184,22 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
     setEditingLicense(undefined)
     setSuccess('License saved successfully!')
     setTimeout(() => setSuccess(''), 3000)
+  }
+
+  const fetchRenewalReceipts = async () => {
+    setLoadingReceipts(true)
+    try {
+      const res = await fetchWithValidation(`/api/vehicles/renewal-receipts?vehicleId=${vehicle.id}`)
+      if (res?.success) setRenewalReceipts(res.data || [])
+    } catch { /* silent */ } finally { setLoadingReceipts(false) }
+  }
+
+  const fetchExemptions = async () => {
+    setLoadingExemptions(true)
+    try {
+      const res = await fetchWithValidation(`/api/vehicles/exemptions?vehicleId=${vehicle.id}`)
+      if (res?.success) setExemptions(res.data || [])
+    } catch { /* silent */ } finally { setLoadingExemptions(false) }
   }
 
   const handleEditLicense = (license: VehicleLicense) => {
@@ -396,8 +420,9 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
   }
 
   return (
+  <>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto overflow-x-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center space-x-3">
@@ -450,7 +475,7 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
           )}
 
           {/* Vehicle Information */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-2 gap-6">
             {/* Basic Information */}
             <div className="space-y-4">
               <h3 className="text-lg font-medium text-primary flex items-center space-x-2">
@@ -704,7 +729,7 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
               <span>Additional Information</span>
             </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               {vehicle.business && (
                 <div>
                   <Label>Business</Label>
@@ -796,7 +821,7 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
               }}
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-secondary">
+            <div className="grid grid-cols-2 gap-4 text-xs text-secondary">
               <div>
                 <Label>Created</Label>
                 <p className="bg-gray-50 dark:bg-gray-700 p-2 rounded">
@@ -1014,6 +1039,117 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
           </div>
         </div>
 
+        {/* Renewal Receipts Section */}
+        <div className="space-y-4 px-6 pb-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium text-primary flex items-center space-x-2">
+              <FileText className="h-5 w-5" />
+              <span>Renewal Receipts</span>
+            </h3>
+            <div className="flex items-center gap-2">
+              {renewalReceipts.length === 0 && !loadingReceipts && (
+                <button
+                  type="button"
+                  onClick={fetchRenewalReceipts}
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  Load
+                </button>
+              )}
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => setShowRenewalForm(true)}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  + Record Renewal
+                </button>
+              )}
+            </div>
+          </div>
+          {loadingReceipts ? (
+            <p className="text-sm text-secondary">Loading...</p>
+          ) : renewalReceipts.length > 0 ? (
+            <div className="space-y-2">
+              {renewalReceipts.map(r => (
+                <div key={r.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-sm">
+                  <div className="flex items-center gap-3">
+                    {r.isExempt && (
+                      <span className="px-1.5 py-0.5 text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded">EXEMPT</span>
+                    )}
+                    <span className="font-medium text-primary">{r.receiptNumber || 'No receipt no.'}</span>
+                    <span className="text-secondary">{r.datePaid ? new Date(r.datePaid).toLocaleDateString() : '—'}</span>
+                  </div>
+                  <span className="font-medium text-primary">{r.currency} {r.totalPaid ?? '—'}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <p className="text-sm text-gray-500">No renewal receipts recorded</p>
+              <p className="text-xs text-gray-400 mt-1">Click &quot;Load&quot; to fetch existing records or &quot;Record Renewal&quot; to add one</p>
+            </div>
+          )}
+        </div>
+
+        {/* Exemptions Section */}
+        <div className="space-y-4 px-6 pb-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium text-primary flex items-center space-x-2">
+              <FileText className="h-5 w-5" />
+              <span>Exemptions</span>
+            </h3>
+            <div className="flex items-center gap-2">
+              {exemptions.length === 0 && !loadingExemptions && (
+                <button
+                  type="button"
+                  onClick={fetchExemptions}
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  Load
+                </button>
+              )}
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => setShowExemptionForm(true)}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                >
+                  + Add Exemption
+                </button>
+              )}
+            </div>
+          </div>
+          {loadingExemptions ? (
+            <p className="text-sm text-secondary">Loading...</p>
+          ) : exemptions.length > 0 ? (
+            <div className="space-y-2">
+              {exemptions.map(ex => {
+                const isActive = ex.endDate ? new Date(ex.endDate) >= new Date() : true
+                return (
+                  <div key={ex.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-sm">
+                    <div className="flex items-center gap-3">
+                      <span className={`px-1.5 py-0.5 text-xs rounded ${isActive ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>
+                        {isActive ? 'ACTIVE' : 'EXPIRED'}
+                      </span>
+                      <span className="font-medium text-primary">{ex.exemptionType.replace(/_/g, ' ')}</span>
+                      {ex.exemptionReason && <span className="text-secondary">{ex.exemptionReason}</span>}
+                    </div>
+                    <span className="text-secondary text-xs">
+                      {ex.startDate ? new Date(ex.startDate).toLocaleDateString() : '—'} – {ex.endDate ? new Date(ex.endDate).toLocaleDateString() : '—'}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <p className="text-sm text-gray-500">No exemptions recorded</p>
+              <p className="text-xs text-gray-400 mt-1">Click &quot;Load&quot; to fetch existing records or &quot;Add Exemption&quot; to add one</p>
+            </div>
+          )}
+        </div>
+
         {/* Footer */}
         {isEditing && (
           <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700">
@@ -1044,33 +1180,57 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
           </div>
         )}
 
-        {/* License Form Modal */}
-        <LicenseFormModal
-          vehicleId={vehicle.id}
-          license={editingLicense}
-          isOpen={showLicenseModal}
-          onClose={() => {
-            setShowLicenseModal(false)
-            setEditingLicense(undefined)
-          }}
-          onSave={handleLicenseSave}
-        />
-
-        {/* License Detail Modal */}
-        {viewingLicense && (
-          <LicenseDetailModal
-            license={viewingLicense}
-            onClose={() => setViewingLicense(null)}
-            onEdit={(license) => {
-              setEditingLicense(license)
-              setShowLicenseModal(true)
-              setViewingLicense(null)
-            }}
-            onDelete={handleDeleteLicense}
-            canEdit={canEdit}
-          />
+        {/* Always-visible Close footer */}
+        {!isEditing && (
+          <div className="flex items-center justify-end px-6 py-3 border-t border-gray-200 dark:border-gray-700">
+            <Button variant="outline" onClick={onClose}>
+              Close
+            </Button>
+          </div>
         )}
+
       </div>
     </div>
+
+    {/* Sub-modals rendered outside the parent fixed container to avoid stacking context issues */}
+    <LicenseFormModal
+      vehicleId={vehicle.id}
+      license={editingLicense}
+      isOpen={showLicenseModal}
+      onClose={() => {
+        setShowLicenseModal(false)
+        setEditingLicense(undefined)
+      }}
+      onSave={handleLicenseSave}
+    />
+
+    {viewingLicense && (
+      <LicenseDetailModal
+        license={viewingLicense}
+        onClose={() => setViewingLicense(null)}
+        onEdit={(license) => {
+          setEditingLicense(license)
+          setShowLicenseModal(true)
+          setViewingLicense(null)
+        }}
+        onDelete={handleDeleteLicense}
+        canEdit={canEdit}
+      />
+    )}
+
+    <RenewalReceiptForm
+      vehicle={vehicleData}
+      isOpen={showRenewalForm}
+      onClose={() => setShowRenewalForm(false)}
+      onSave={() => { fetchRenewalReceipts() }}
+    />
+
+    <ExemptionForm
+      vehicle={vehicleData}
+      isOpen={showExemptionForm}
+      onClose={() => setShowExemptionForm(false)}
+      onSave={() => { fetchExemptions() }}
+    />
+  </>
   )
 }

@@ -13,6 +13,8 @@ const CreateLicenseSchema = z.object({
   expiryDate: z.string().min(1, 'Expiry date is required'),
   renewalCost: z.number().optional(),
   lateFee: z.number().min(0).optional(),
+  usage: z.string().optional(),
+  isExempt: z.boolean().optional().default(false),
   documentUrl: z.string().optional(),
   reminderDays: z.number().int().min(1).max(365).default(30)
 })
@@ -26,6 +28,8 @@ const UpdateLicenseSchema = z.object({
   expiryDate: z.string().min(1).optional(),
   renewalCost: z.number().optional(),
   lateFee: z.number().min(0).optional(),
+  usage: z.string().optional(),
+  isExempt: z.boolean().optional(),
   documentUrl: z.string().optional(),
   reminderDays: z.number().int().min(1).max(365).optional(),
   isActive: z.boolean().optional()

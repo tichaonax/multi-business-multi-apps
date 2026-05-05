@@ -3571,21 +3571,27 @@ model VehicleExpenses {
 }
 
 model VehicleLicenses {
-  id               String      @id @default(uuid())
-  vehicleId        String
-  licenseType      LicenseType
-  licenseNumber    String
-  issuingAuthority String?
-  issueDate        DateTime
-  expiryDate       DateTime
-  renewalCost      Decimal?    @db.Decimal(10, 2)
-  isActive         Boolean     @default(true)
-  documentUrl      String?
-  reminderDays     Int         @default(30)
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime
-  vehicles         Vehicles    @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  id                       String                  @id @default(uuid())
+  vehicleId                String
+  licenseType              LicenseType
+  licenseNumber            String
+  issuingAuthority         String?
+  issueDate                DateTime
+  expiryDate               DateTime
+  renewalCost              Decimal?                @db.Decimal(10, 2)
+  isActive                 Boolean                 @default(true)
+  documentUrl              String?
+  reminderDays             Int                     @default(30)
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime
+  usage                    String?
+  lateFee                  Decimal?                @db.Decimal(10, 2)
+  isExempt                 Boolean                 @default(false)
+  renewalReceiptId         String?
+  vehicle_renewal_receipts VehicleRenewalReceipts? @relation(fields: [renewalReceiptId], references: [id], onDelete: SetNull)
+  vehicles                 Vehicles                @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
 
+  @@index([renewalReceiptId])
   @@map("vehicle_licenses")
 }
 
@@ -3709,6 +3715,62 @@ model VehicleTrips {
   @@map("vehicle_trips")
 }
 
+model VehicleRenewalReceipts {
+  id                   String            @id @default(uuid())
+  vehicleId            String
+  receiptNumber        String?
+  transactionType      String?
+  datePaid             DateTime?
+  paymentReceivedBy    String?
+  officeOfIssue        String?
+  arrears              Decimal?          @db.Decimal(10, 2)
+  penalties            Decimal?          @db.Decimal(10, 2)
+  administrationFee    Decimal?          @db.Decimal(10, 2)
+  transactionFee       Decimal?          @db.Decimal(10, 2)
+  surcharge            Decimal?          @db.Decimal(10, 2)
+  debtManagementAmount Decimal?          @db.Decimal(10, 2)
+  deposit              Decimal?          @db.Decimal(10, 2)
+  totalPaid            Decimal?          @db.Decimal(10, 2)
+  currency             String            @default("ZiG")
+  isExempt             Boolean           @default(false)
+  documentUrl          String?
+  documentName         String?
+  notes                String?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime
+  vehicle_licenses     VehicleLicenses[]
+  vehicles             Vehicles          @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId])
+  @@map("vehicle_renewal_receipts")
+}
+
+model VehicleExemptions {
+  id                         String    @id @default(uuid())
+  vehicleId                  String
+  exemptionType              String
+  startDate                  DateTime?
+  endDate                    DateTime?
+  exemptionReason            String?
+  exemptionReasonDescription String?
+  requestedByName            String?
+  requestedByEmail           String?
+  requestedByContact         String?
+  dataCapturingOfficialName  String?
+  loginUserId                String?
+  issueOffice                String?
+  issueDate                  DateTime?
+  documentUrl                String?
+  documentName               String?
+  notes                      String?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime
+  vehicles                   Vehicles  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId])
+  @@map("vehicle_exemptions")
+}
+
 model Vehicles {
   id                          String                      @id @default(uuid())
   licensePlate                String                      @unique
@@ -3733,11 +3795,16 @@ model Vehicles {
   mileageUnit                 String                      @default("km")
   titleBookUrl                String?
   titleBookName               String?
+  taxClass                    String?
+  vehicleUsage                String?
+  isExempt                    Boolean                     @default(false)
   driver_authorizations       DriverAuthorizations[]
   vehicle_expenses            VehicleExpenses[]
+  vehicle_exemptions          VehicleExemptions[]
   vehicle_licenses            VehicleLicenses[]
   vehicle_maintenance_records VehicleMaintenanceRecords[]
   vehicle_reimbursements      VehicleReimbursements[]
+  vehicle_renewal_receipts    VehicleRenewalReceipts[]
   vehicle_trips               VehicleTrips[]
   businesses                  Businesses?                 @relation(fields: [businessId], references: [id])
   users                       Users?                      @relation(fields: [userId], references: [id])
@@ -6964,4 +7031,15 @@ model ExpenseAccountUserAccess {
   @@index([userId])
   @@index([accountId, isActive])
   @@map("expense_account_user_access")
+}
+
+model IssuingAuthorities {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  country   String?
+  type      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("issuing_authorities")
 }

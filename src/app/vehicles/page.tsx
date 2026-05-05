@@ -66,59 +66,6 @@ export default function VehiclesPage() {
   const [lastUpdatedVehicleId, setLastUpdatedVehicleId] = useState<string | null>(null)
   const [lastUpdateSeq, setLastUpdateSeq] = useState(0)
 
-  // Filter tabs based on user permissions
-  const allTabs = [
-    { id: 'overview', label: 'Overview', icon: '🚗', description: 'Fleet summary', permission: 'canAccessVehicles' as const },
-    { id: 'vehicles', label: 'Vehicles', icon: '🚙', description: 'Manage fleet', permission: 'canManageVehicles' as const },
-    { id: 'drivers', label: 'Drivers', icon: '👤', description: 'Driver management', permission: 'canManageDrivers' as const },
-    { id: 'trips', label: 'Trips', icon: '🛣️', description: 'Trip logging', permission: 'canManageTrips' as const },
-    { id: 'maintenance', label: 'Maintenance', icon: '🔧', description: 'Service records', permission: 'canManageVehicleMaintenance' as const },
-    { id: 'reports', label: 'Reports', icon: '📊', description: 'Analytics reports', permission: 'canViewVehicleReports' as const }
-  ]
-
-  const tabs = allTabs.filter(tab => {
-    if (contextIsAdmin || isSystemAdmin(currentUser)) return true
-    return hasPermission(tab.permission)
-  })
-
-  // Ensure the active tab is valid for current user permissions
-  useEffect(() => {
-    if (tabs.length > 0 && !tabs.find(tab => tab.id === activeTab)) {
-      setActiveTab(tabs[0].id as any)
-    }
-  }, [tabs, activeTab])
-
-  // Wait for permissions to load before rendering access denied (avoids false flash)
-  if (permissionsLoading) {
-    return (
-      <ProtectedRoute>
-        <ContentLayout title="Fleet Management">
-          <div className="flex items-center justify-center h-64">
-            <div className="text-secondary">Loading...</div>
-          </div>
-        </ContentLayout>
-      </ProtectedRoute>
-    )
-  }
-
-  // If no tabs available, show access denied
-  if (tabs.length === 0) {
-    return (
-      <ProtectedRoute>
-        <ContentLayout
-          title="Access Denied"
-          subtitle="You don't have permission to access vehicle management features."
-        >
-          <div className="text-center py-12">
-            <div className="text-6xl mb-4">🚫</div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Access Denied</h3>
-            <p className="text-gray-500">You don't have the required permissions to view this page.</p>
-          </div>
-        </ContentLayout>
-      </ProtectedRoute>
-    )
-  }
-
   // Fleet summary fetched from reports API (FLEET_OVERVIEW)
   const [fleetSummary, setFleetSummary] = useState<{
     totalVehicles: number
@@ -145,6 +92,29 @@ export default function VehiclesPage() {
 
   // Simple local toast implementation
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+
+  // Filter tabs based on user permissions
+  const allTabs = [
+    { id: 'overview', label: 'Overview', icon: '🚗', description: 'Fleet summary', permission: 'canAccessVehicles' as const },
+    { id: 'vehicles', label: 'Vehicles', icon: '🚙', description: 'Manage fleet', permission: 'canManageVehicles' as const },
+    { id: 'drivers', label: 'Drivers', icon: '👤', description: 'Driver management', permission: 'canManageDrivers' as const },
+    { id: 'trips', label: 'Trips', icon: '🛣️', description: 'Trip logging', permission: 'canManageTrips' as const },
+    { id: 'maintenance', label: 'Maintenance', icon: '🔧', description: 'Service records', permission: 'canManageVehicleMaintenance' as const },
+    { id: 'reports', label: 'Reports', icon: '📊', description: 'Analytics reports', permission: 'canViewVehicleReports' as const }
+  ]
+
+  const tabs = allTabs.filter(tab => {
+    if (contextIsAdmin || isSystemAdmin(currentUser)) return true
+    return hasPermission(tab.permission)
+  })
+
+  // Ensure the active tab is valid for current user permissions
+  useEffect(() => {
+    if (tabs.length > 0 && !tabs.find(tab => tab.id === activeTab)) {
+      setActiveTab(tabs[0].id as any)
+    }
+  }, [tabs, activeTab])
+
   const showToast = (msg: string, ms = 3000) => {
     setToastMessage(msg)
     setTimeout(() => setToastMessage(null), ms)
@@ -368,6 +338,37 @@ export default function VehiclesPage() {
 
   const { format: globalDateFormat } = useDateFormat()
 
+  // Wait for permissions to load before rendering access denied (avoids false flash)
+  if (permissionsLoading) {
+    return (
+      <ProtectedRoute>
+        <ContentLayout title="Fleet Management">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-secondary">Loading...</div>
+          </div>
+        </ContentLayout>
+      </ProtectedRoute>
+    )
+  }
+
+  // If no tabs available, show access denied
+  if (tabs.length === 0) {
+    return (
+      <ProtectedRoute>
+        <ContentLayout
+          title="Access Denied"
+          subtitle="You don't have permission to access vehicle management features."
+        >
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">🚫</div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Access Denied</h3>
+            <p className="text-gray-500">You don't have the required permissions to view this page.</p>
+          </div>
+        </ContentLayout>
+      </ProtectedRoute>
+    )
+  }
+
   return (
     <ProtectedRoute>
       <ContentLayout
@@ -443,22 +444,22 @@ export default function VehiclesPage() {
               🚗 Vehicle Fleet Management Features
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="card p-3 border border-blue-200 dark:border-blue-800 h-full">
+              <button onClick={() => setActiveTab('trips')} className="card p-3 border border-blue-200 dark:border-blue-800 h-full text-left hover:bg-blue-100 dark:hover:bg-blue-800/40 hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer">
                 <div className="text-blue-700 dark:text-blue-300 font-medium text-sm break-words">🛣️ Trip Tracking</div>
                 <div className="text-xs text-blue-600 dark:text-blue-400 break-words">Mileage, purpose & business attribution</div>
-              </div>
-              <div className="card p-3 border border-blue-200 dark:border-blue-800 h-full">
+              </button>
+              <button onClick={() => setActiveTab('vehicles')} className="card p-3 border border-blue-200 dark:border-blue-800 h-full text-left hover:bg-blue-100 dark:hover:bg-blue-800/40 hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer">
                 <div className="text-blue-700 dark:text-blue-300 font-medium text-sm break-words">📋 License Management</div>
                 <div className="text-xs text-blue-600 dark:text-blue-400 break-words">Registration, insurance & compliance</div>
-              </div>
-              <div className="card p-3 border border-blue-200 dark:border-blue-800 h-full">
+              </button>
+              <button onClick={() => setActiveTab('maintenance')} className="card p-3 border border-blue-200 dark:border-blue-800 h-full text-left hover:bg-blue-100 dark:hover:bg-blue-800/40 hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer">
                 <div className="text-blue-700 dark:text-blue-300 font-medium text-sm break-words">🔧 Maintenance Tracking</div>
                 <div className="text-xs text-blue-600 dark:text-blue-400 break-words">Service records & scheduling</div>
-              </div>
-              <div className="card p-3 border border-blue-200 dark:border-blue-800 h-full">
+              </button>
+              <button onClick={() => setActiveTab('reports')} className="card p-3 border border-blue-200 dark:border-blue-800 h-full text-left hover:bg-blue-100 dark:hover:bg-blue-800/40 hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer">
                 <div className="text-blue-700 dark:text-blue-300 font-medium text-sm break-words">💰 Expense Management</div>
                 <div className="text-xs text-blue-600 dark:text-blue-400 break-words">Fuel, tolls & business reimbursement</div>
-              </div>
+              </button>
             </div>
           </div>
 

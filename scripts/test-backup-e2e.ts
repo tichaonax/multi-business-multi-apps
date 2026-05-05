@@ -61,6 +61,8 @@ const NEW_TABLE_KEYS = [
   'managerOverrideCodes', 'managerOverrideCodeHistory', 'managerOverrideLogs', 'orderCancellations',
   // Expense Account Access & Combo Requests (MBM-201)
   'expenseAccountUserAccess', 'comboPaymentRequests', 'comboPaymentRequestSections', 'comboPaymentRequestItems',
+  // Vehicle Renewal Workflow & Issuing Authorities
+  'vehicleRenewalReceipts', 'vehicleExemptions', 'issuingAuthorities',
 ]
 
 async function main() {

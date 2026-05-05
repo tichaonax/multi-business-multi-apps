@@ -260,6 +260,7 @@ const RESTORE_ORDER = [
   'vehicles',
   'vehicleDrivers',
   'vehicleExpenses',
+  'vehicleRenewalReceipts',  // Must come before vehicleLicenses (renewalReceiptId FK)
   'vehicleLicenses',
   'driverAuthorizations',  // MUST come before vehicleTrips (composite FK dependency)
   'vehicleMaintenanceRecords',
@@ -267,6 +268,8 @@ const RESTORE_ORDER = [
   'vehicleMaintenanceServiceExpenses',
   'vehicleTrips',  // Depends on driverAuthorizations via composite FK
   'vehicleReimbursements',
+  'vehicleExemptions',     // depends on vehicles only
+  'issuingAuthorities',    // global lookup table, no FK dependencies
 
   // WiFi Portal - Token Configurations (ESP32 system)
   'tokenConfigurations',  // Must come before wifiTokens and businessTokenMenuItems

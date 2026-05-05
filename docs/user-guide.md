@@ -80,6 +80,17 @@
     - [Granting Access](#granting-access)
     - [Managing Existing Access](#managing-existing-access)
     - [Revoking Access](#revoking-access)
+41. [Vehicle Renewal Receipts](#41-vehicle-renewal-receipts)
+    - [Recording a Renewal Receipt](#recording-a-renewal-receipt)
+    - [Payment Breakdown Fields](#payment-breakdown-fields)
+    - [Licenses Renewed](#licenses-renewed)
+42. [Vehicle Exemptions](#42-vehicle-exemptions)
+    - [Adding an Exemption](#adding-an-exemption)
+    - [Exemption Fields](#exemption-fields)
+43. [Vehicle Licence Documents & Issuing Authorities](#43-vehicle-licence-documents--issuing-authorities)
+    - [Uploading a Licence Document](#uploading-a-licence-document)
+    - [Issuing Authorities](#issuing-authorities)
+    - [Driver Licence Documents](#driver-licence-documents)
 
 ---
 
@@ -8071,6 +8082,189 @@ A revoked user immediately loses access to the account. Their past requests rema
 
 **User reports they cannot see the account balance:**
 - The **Can view balance** toggle is OFF by default. Enable it for that user in the access list.
+
+---
+
+*For technical support, contact your system administrator.*
+
+---
+
+## 41. Vehicle Renewal Receipts
+
+### Overview
+
+When you renew a vehicle's licences at the licensing office, you receive a printed receipt. The **Record Renewal Receipt** workflow lets you capture that receipt inside the system so all payment details, fee breakdowns, and the specific licences that were renewed are stored against the vehicle record.
+
+Access: **Fleet Management → Vehicles tab → select a vehicle → Record Renewal Receipt button**.
+
+---
+
+### Recording a Renewal Receipt
+
+1. Open Fleet Management and go to the **Vehicles** tab.
+2. Click on the vehicle you are renewing.
+3. Click **Record Renewal Receipt**.
+4. Fill in the **Receipt Details** header section (see fields below).
+5. Enter the **Payment Breakdown** (arrears, penalties, fees, total).
+6. Switch between the **Registration**, **Radio / TV**, and **Insurance** tabs to record which licences were renewed and their new numbers and dates.
+7. Optionally upload a scanned copy of the physical receipt.
+8. Click **Save Receipt**.
+
+The new receipt appears in the vehicle's renewal history, and the linked licences are updated with their new expiry dates.
+
+---
+
+### Payment Breakdown Fields
+
+| Field | Description |
+|---|---|
+| Receipt Number | Reference number printed on the official receipt |
+| Transaction Type | Defaults to "VEHICLE LICENSING"; edit if different |
+| Date Paid | Date the payment was made at the licensing office |
+| Currency | ZiG, USD, or ZWL |
+| Payment Received By | Name of the official who processed the payment |
+| Office of Issue | Name / code of the licensing office |
+| Arrears | Any overdue amount included in the payment |
+| Penalties | Late-payment penalties charged |
+| Administration Fee | Admin processing charge |
+| Transaction Fee | Any bank or system transaction fee |
+| Surcharge / Debt Management | Additional charges (hidden if vehicle is exempt) |
+| Deposit | Deposit amount paid |
+| Total Paid | Grand total of the payment |
+| Notes | Free-text notes |
+
+Upload a scanned copy of the physical receipt using the **Scanned Receipt** upload field (PDF, JPG, or JPEG).
+
+---
+
+### Licenses Renewed
+
+The renewal receipt form has three tabs — **Registration**, **Radio / TV**, and **Insurance**. On each tab you can specify:
+
+| Field | Description |
+|---|---|
+| License Number | New licence number issued |
+| Issuing Authority | Authority that issued the licence (ZINARA, ZIMRA, etc.) |
+| Issue Date | Date the licence was issued |
+| Expiry Date | Date the licence expires |
+| Renewal Cost | Amount paid for this specific licence |
+| Late Fee | Any late fee charged for this licence |
+| Reminder Days | How many days before expiry to show a reminder (default: 30) |
+| Usage | Description of use — Radio / TV tab only (e.g., "PRIVATE VEHICLE") |
+| Exempt | Tick if this licence has been waived / exempted |
+
+Only fill in the tabs for licences that were actually renewed on this receipt.
+
+---
+
+## 42. Vehicle Exemptions
+
+### Overview
+
+Some vehicles qualify for exemption from certain licensing fees — for example, vehicles exempt from radio/TV licence fees. The **Vehicle Exemptions** feature records the official exemption certificate details against a vehicle so renewal staff and auditors can see what is and is not payable.
+
+Access: **Fleet Management → Vehicles tab → select a vehicle → Add Exemption**.
+
+---
+
+### Adding an Exemption
+
+1. Open the vehicle detail.
+2. Click **Add Exemption**.
+3. Select the **Exemption Type** (Radio/TV Licence, Road Use, Insurance, or Other).
+4. Set the **Start Date** and **End Date** for the exemption period.
+5. Choose the **Exemption Reason** from the dropdown (e.g., "NO RADIO/TV FITTED") and optionally add a description.
+6. Fill in the **Requested By** fields (name, email, contact number).
+7. Fill in the **Data Capturing Official** fields (name, user ID, issue office, issue date).
+8. Upload the exemption certificate document (PDF or image).
+9. Click **Save Exemption**.
+
+The exemption appears in the vehicle's exemption history. When an active exemption exists, the renewal receipt form automatically hides the surcharge / debt management field for the relevant licence type.
+
+---
+
+### Exemption Fields
+
+| Field | Description |
+|---|---|
+| Exemption Type | Category of the exemption (Radio/TV, Road Use, Insurance, Other) |
+| Start Date | Date from which the exemption is valid |
+| End Date | Date on which the exemption expires |
+| Exemption Reason | Standardised reason code (e.g., "NO RADIO/TV FITTED") |
+| Reason Description | Free-text description of the reason |
+| Requested By — Name | Name of the person who requested the exemption |
+| Requested By — Email | Contact email |
+| Requested By — Contact | Phone or other contact number |
+| Data Capturing Official — Name | Name of the licensing office official |
+| Login User ID | Official's login / system ID |
+| Issue Office | Name or code of the issuing office |
+| Issue Date | Date the certificate was issued |
+| Certificate Document | Scanned PDF or image of the exemption certificate |
+| Notes | Any additional notes |
+
+---
+
+## 43. Vehicle Licence Documents & Issuing Authorities
+
+### Overview
+
+When adding or editing a vehicle licence you can attach a scanned copy of the licence document and record the authority that issued it. Driver records also support attaching a copy of the driver's licence.
+
+---
+
+### Uploading a Licence Document
+
+1. Open **Fleet Management → Vehicles tab** and select a vehicle.
+2. Click **Add Licence** (or the edit icon on an existing licence).
+3. In the licence form, scroll to the **Licence Document** section.
+4. Click **Choose File** and select a PDF, JPG, or JPEG file, or drag and drop the file into the upload area.
+5. The file name appears once uploaded. Click the **×** to remove and replace it.
+6. Complete the rest of the form and click **Save**.
+
+The document is stored against the licence record and can be viewed or downloaded from the licence detail at any time.
+
+---
+
+### Issuing Authorities
+
+The **Issuing Authority** field on the licence form is backed by a shared list of known authorities (ZINARA, ZIMRA, etc.).
+
+**Selecting an existing authority:**
+- Click the **Issuing Authority** dropdown and type to filter the list.
+- Select the authority.
+
+**Adding a new authority:**
+- If the authority is not in the list, click **+ Add new authority**.
+- Type the name in the text field and press **Save**.
+- The authority is saved to the shared list and selected immediately.
+
+New authorities added by any user are available to all users going forward — each authority only needs to be added once.
+
+---
+
+### Driver Licence Documents
+
+When registering a new driver you can attach a copy of their driving licence:
+
+1. Go to **Fleet Management → Drivers tab** and click **Add Driver**.
+2. Fill in the driver's details.
+3. In the **Licence Document** section, upload a PDF, JPG, or JPEG copy of the licence.
+4. Click **Save Driver**.
+
+The document is stored against the driver's record and is visible in their detail panel.
+
+---
+
+### Permissions
+
+| Action | Who can do it |
+|---|---|
+| Record renewal receipt | Users with Manage Vehicles permission |
+| Add / edit vehicle exemption | Users with Manage Vehicles permission |
+| Upload licence documents | Users with Manage Vehicles permission |
+| Add issuing authority | Users with Manage Vehicles permission |
+| Upload driver licence document | Users with Manage Drivers permission |
+| View vehicle detail and documents | Users with Access Vehicle Module permission |
 
 ---
 

@@ -296,6 +296,11 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'comboPaymentRequests',        // accountId FK, no businessId
   'comboPaymentRequestSections', // requestId child, no businessId
   'comboPaymentRequestItems',    // requestId child, no businessId
+  // Vehicle renewal workflow tables — scoped by vehicleId, not businessId
+  'vehicleRenewalReceipts',      // vehicleId FK, no businessId column
+  'vehicleExemptions',           // vehicleId FK, no businessId column
+  // Global lookup tables — no businessId
+  'issuingAuthorities',          // standalone reference table
 ])
 
 /**

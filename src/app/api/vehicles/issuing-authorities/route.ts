@@ -10,9 +10,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const authorities = await prisma.issuingAuthorities.findMany({
-      orderBy: { name: 'asc' }
-    })
+    const authorities = await prisma.$queryRaw<Array<{ id: string; name: string; country: string | null; type: string | null }>>`
+      SELECT id, name, country, type FROM issuing_authorities ORDER BY name ASC
+    `
 
     return NextResponse.json({
       success: true,
@@ -50,17 +50,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Use upsert to create if doesn't exist, or return existing
-    const authority = await prisma.issuingAuthorities.upsert({
-      where: { name: name.trim() },
-      update: {},
-      create: {
-        name: name.trim(),
-        country: country?.trim() || null,
-        type: type?.trim() || null,
-        updatedAt: new Date()
-      }
-    })
+    // Upsert: insert if name doesn't exist, otherwise return existing
+    const trimmedName = name.trim()
+    const trimmedCountry = country?.trim() || null
+    const trimmedType = type?.trim() || null
+    const rows = await prisma.$queryRaw<Array<{ id: string; name: string; country: string | null; type: string | null }>>`
+      INSERT INTO issuing_authorities (id, name, country, type, "createdAt", "updatedAt")
+      VALUES (gen_random_uuid(), ${trimmedName}, ${trimmedCountry}, ${trimmedType}, NOW(), NOW())
+      ON CONFLICT (name) DO UPDATE SET "updatedAt" = NOW()
+      RETURNING id, name, country, type
+    `
+    const authority = rows[0]
 
     return NextResponse.json({
       success: true,

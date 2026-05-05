@@ -24,7 +24,7 @@ export const DateInput = /*#__PURE__*/ (function () {
     id,
     value,
     onChange,
-    label = 'Date',
+    label = '',
     placeholder,
     required = false,
     className = '',
