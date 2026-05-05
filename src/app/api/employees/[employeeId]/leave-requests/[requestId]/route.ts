@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { hasPermission } from '@/lib/permission-utils'
 import { Prisma } from '@prisma/client'
-import { randomBytes } from 'crypto'
+import { randomUUID } from 'crypto'
 import { getServerUser } from '@/lib/get-server-user'
+import { getEmployeeLeavePolicy } from '@/lib/payroll/leave-accrual'
 
 export async function PUT(
   request: NextRequest,
@@ -76,73 +77,112 @@ export async function PUT(
       }
     })
 
-    // If approved, update leave balance
-    if (status === 'approved' && leaveRequest.leaveType === 'annual') {
-      const currentYear = new Date().getFullYear()
+    // If approved, update leave balance using policy-driven defaults
+    if (status === 'approved' && (leaveRequest.leaveType === 'annual' || leaveRequest.leaveType === 'sick')) {
+      const leaveYear = new Date(leaveRequest.startDate).getFullYear()
+      const policy = await getEmployeeLeavePolicy(prisma as any, employeeId)
 
-      // Update or create leave balance
-      await prisma.employeeLeaveBalance.upsert({
-        where: {
-          employeeId_year: {
+      if (leaveRequest.leaveType === 'annual') {
+        await prisma.employeeLeaveBalance.upsert({
+          where: { employeeId_year: { employeeId, year: leaveYear } },
+          update: {
+            usedAnnualDays: { increment: leaveRequest.daysRequested },
+            remainingAnnual: { decrement: leaveRequest.daysRequested },
+            updatedAt: new Date(),
+          },
+          create: {
+            id: randomUUID(),
             employeeId,
-            year: currentYear
-          }
-        },
-        update: {
-          usedAnnualDays: {
-            increment: leaveRequest.daysRequested
+            year: leaveYear,
+            annualLeaveDays: policy.maxAnnualDays,
+            usedAnnualDays: leaveRequest.daysRequested,
+            remainingAnnual: policy.maxAnnualDays - leaveRequest.daysRequested,
+            sickLeaveDays: policy.sickDaysPerYear,
+            usedSickDays: 0,
+            remainingSick: policy.sickDaysPerYear,
+            updatedAt: new Date(),
           },
-          remainingAnnual: {
-            decrement: leaveRequest.daysRequested
+        } as Prisma.EmployeeLeaveBalanceUpsertArgs)
+      } else {
+        await prisma.employeeLeaveBalance.upsert({
+          where: { employeeId_year: { employeeId, year: leaveYear } },
+          update: {
+            usedSickDays: { increment: leaveRequest.daysRequested },
+            remainingSick: { decrement: leaveRequest.daysRequested },
+            updatedAt: new Date(),
           },
-          updatedAt: new Date()
-        },
-        create: {
-          id: randomUUID(),
-          employeeId,
-          year: currentYear,
-          annualLeaveDays: 21, // Default annual leave days
-          usedAnnualDays: leaveRequest.daysRequested,
-          remainingAnnual: 21 - leaveRequest.daysRequested,
-          sickLeaveDays: 10, // Default sick leave days
-          usedSickDays: 0,
-          remainingSick: 10,
-          updatedAt: new Date()
-        }
-      } as Prisma.EmployeeLeaveBalanceUpsertArgs)
-    } else if (status === 'approved' && leaveRequest.leaveType === 'sick') {
-      const currentYear = new Date().getFullYear()
+          create: {
+            id: randomUUID(),
+            employeeId,
+            year: leaveYear,
+            annualLeaveDays: policy.maxAnnualDays,
+            usedAnnualDays: 0,
+            remainingAnnual: policy.maxAnnualDays,
+            sickLeaveDays: policy.sickDaysPerYear,
+            usedSickDays: leaveRequest.daysRequested,
+            remainingSick: policy.sickDaysPerYear - leaveRequest.daysRequested,
+            updatedAt: new Date(),
+          },
+        } as Prisma.EmployeeLeaveBalanceUpsertArgs)
+      }
+    }
 
-      // Update or create leave balance
-      await prisma.employeeLeaveBalance.upsert({
-        where: {
-          employeeId_year: {
-            employeeId,
-            year: currentYear
+    // If approved, also update any open payroll entry for that month in real time
+    if (status === 'approved' && (leaveRequest.leaveType === 'annual' || leaveRequest.leaveType === 'sick')) {
+      try {
+        const leaveMonth = new Date(leaveRequest.startDate).getMonth() + 1
+        const leaveYear  = new Date(leaveRequest.startDate).getFullYear()
+
+        // Find the employee's primary business to locate the payroll period
+        const emp = await prisma.employees.findUnique({
+          where: { id: employeeId },
+          select: { primaryBusinessId: true },
+        })
+
+        if (emp?.primaryBusinessId) {
+          // Find an open payroll period for that month (draft or preview only — not locked)
+          const openPeriod = await prisma.payrollPeriods.findFirst({
+            where: {
+              businessId: emp.primaryBusinessId,
+              year: leaveYear,
+              month: leaveMonth,
+              status: { in: ['draft', 'preview'] },
+            },
+            select: { id: true },
+          })
+
+          if (openPeriod) {
+            // Re-count all approved leave for this employee in the month (idempotent)
+            const fromDate = new Date(leaveYear, leaveMonth - 1, 1, 0, 0, 0, 0)
+            const toDate   = new Date(leaveYear, leaveMonth, 0, 23, 59, 59, 999)
+
+            const allApproved = await prisma.employeeLeaveRequests.findMany({
+              where: {
+                employeeId,
+                status: 'approved',
+                startDate: { gte: fromDate, lte: toDate },
+              },
+              select: { leaveType: true, daysRequested: true },
+            })
+
+            const leaveDays = allApproved
+              .filter(r => r.leaveType === 'annual')
+              .reduce((sum, r) => sum + r.daysRequested, 0)
+            const sickDays = allApproved
+              .filter(r => r.leaveType === 'sick')
+              .reduce((sum, r) => sum + r.daysRequested, 0)
+
+            // Update all payroll entries for this employee in this period
+            await prisma.payrollEntries.updateMany({
+              where: { payrollPeriodId: openPeriod.id, employeeId },
+              data: { leaveDays, sickDays, updatedAt: new Date() },
+            })
           }
-        },
-        update: {
-          usedSickDays: {
-            increment: leaveRequest.daysRequested
-          },
-          remainingSick: {
-            decrement: leaveRequest.daysRequested
-          },
-          updatedAt: new Date()
-        },
-        create: {
-          id: randomUUID(),
-          employeeId,
-          year: currentYear,
-          annualLeaveDays: 21,
-          usedAnnualDays: 0,
-          remainingAnnual: 21,
-          sickLeaveDays: 10,
-          usedSickDays: leaveRequest.daysRequested,
-          remainingSick: 10 - leaveRequest.daysRequested,
-          updatedAt: new Date()
         }
-      } as Prisma.EmployeeLeaveBalanceUpsertArgs)
+      } catch (e) {
+        // Non-critical — log but don't fail the approval
+        console.error('Failed to update payroll entry after leave approval:', e)
+      }
     }
 
     // Format the response

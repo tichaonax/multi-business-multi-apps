@@ -93,6 +93,9 @@ export interface PayslipEntry {
 
   // Net
   netPay: number
+
+  // Leave balance info (optional — shown as informational footer)
+  leaveBalanceRemaining?: number | null
 }
 
 export function generatePayslipHTML(entry: PayslipEntry, index: number, total: number): string {
@@ -144,6 +147,7 @@ export function generatePayslipHTML(entry: PayslipEntry, index: number, total: n
     ${entry.jobTitle ? `<div style="font-size:11px;"><span style="color:#333;">Job Title:</span> ${entry.jobTitle}</div>` : '<div></div>'}
     <div style="font-size:11px;"><span style="color:#333;">Work Days:</span> ${entry.workDays}</div>
     <div style="font-size:11px;"><span style="color:#333;">Leave:</span> ${entry.leaveDays || 0}d &nbsp; <span style="color:#333;">Sick:</span> ${entry.sickDays || 0}d &nbsp; <span style="color:#333;">Absent:</span> ${entry.absenceDays || 0}d</div>
+    ${entry.leaveBalanceRemaining != null ? `<div style="font-size:10px;color:#555;">Leave balance: <strong>${entry.leaveBalanceRemaining} days remaining</strong></div>` : '<div></div>'}
   </div>
 
   <!-- Earnings / Deductions table -->

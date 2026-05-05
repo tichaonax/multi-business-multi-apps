@@ -227,7 +227,7 @@ function getDefaultDomainName(businessType: string): string {
 // Domains that belong to specific business types — filtered out for non-business (home) accounts
 const BUSINESS_DOMAIN_NAMES = new Set([
   'Restaurant', 'Groceries', 'Clothing', 'Hardware', 'Construction',
-  'Vehicle', 'Services', 'Retail', 'Consulting', 'Business (General)',
+  'Vehicle', 'Services', 'Retail', 'Consulting', 'Business (General)', 'Hair Salon',
 ])
 
 // Income-type domains should never appear in payment (expense) dropdowns

@@ -42,6 +42,63 @@ export function VehicleList({ onVehicleSelect, onAddVehicle, refreshSignal, upda
     return !hasTrips && !hasLicenses && !hasMaintenance && !hasExpenses && !hasAuthorizations
   }
 
+  const handleExportVehiclePdf = (vehicle: Vehicle) => {
+    const today = new Date()
+    const formatExpiry = (dateStr: string) => {
+      const d = new Date(dateStr)
+      return d.toLocaleDateString('en-GB') + (d < today ? ' ⚠️ EXPIRED' : '')
+    }
+
+    const licenseRows = (vehicle.vehicleLicenses ?? []).map(lic => `
+      <tr>
+        <td>${lic.licenseType.replace(/_/g, ' ')}</td>
+        <td>${lic.licenseNumber}</td>
+        <td>${lic.issuingAuthority ?? 'N/A'}</td>
+        <td>${lic.issueDate ? new Date(lic.issueDate).toLocaleDateString('en-GB') : 'N/A'}</td>
+        <td style="color:${new Date(lic.expiryDate) < today ? '#dc2626' : 'inherit'}">${formatExpiry(lic.expiryDate)}</td>
+        <td>${lic.isExempt ? 'EXEMPT' : lic.isActive ? 'Active' : 'Inactive'}</td>
+      </tr>`).join('')
+
+    const html = `<!DOCTYPE html><html><head><title>Vehicle Details - ${vehicle.licensePlate}</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 32px; max-width: 750px; margin: 0 auto; color: #111; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: #555; font-size: 13px; margin-bottom: 16px; }
+  h2 { font-size: 14px; margin-top: 24px; margin-bottom: 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  td, th { padding: 7px 10px; border-bottom: 1px solid #e5e7eb; text-align: left; }
+  th { background: #f3f4f6; font-weight: 600; }
+  .info td:first-child { font-weight: 600; width: 35%; color: #374151; }
+  @media print { button { display: none; } }
+</style>
+</head><body>
+<h1>${vehicle.year} ${vehicle.make} ${vehicle.model}</h1>
+<div class="sub">License Plate: <strong>${vehicle.licensePlate}</strong> &nbsp;|&nbsp; VIN: ${vehicle.vin} &nbsp;|&nbsp; ${vehicle.ownershipType}</div>
+<h2>Vehicle Details</h2>
+<table class="info">
+  <tr><td>Color</td><td>${vehicle.color ?? 'N/A'}</td></tr>
+  <tr><td>Mileage</td><td>${vehicle.currentMileage.toLocaleString()} ${vehicle.mileageUnit.toUpperCase()}</td></tr>
+  <tr><td>Business</td><td>${vehicle.business?.name ?? 'N/A'}</td></tr>
+  <tr><td>Owner</td><td>${vehicle.user?.name ?? 'N/A'}</td></tr>
+  <tr><td>Status</td><td>${vehicle.isActive ? 'Active' : 'Inactive'}</td></tr>
+  ${vehicle.notes ? `<tr><td>Notes</td><td>${vehicle.notes}</td></tr>` : ''}
+</table>
+<h2>License / Registration Status</h2>
+${licenseRows ? `<table>
+  <thead><tr><th>Type</th><th>Number</th><th>Issuing Authority</th><th>Issue Date</th><th>Expiry Date</th><th>Status</th></tr></thead>
+  <tbody>${licenseRows}</tbody>
+</table>` : '<p style="color:#777;font-size:13px">No licenses recorded.</p>'}
+<p style="font-size:11px;color:#aaa;margin-top:24px">Generated: ${today.toLocaleDateString('en-GB')} ${today.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</p>
+</body></html>`
+
+    const win = window.open('', '_blank')
+    if (win) {
+      win.document.write(html)
+      win.document.close()
+      win.print()
+    }
+  }
+
   const fetchVehicles = async () => {
     // Abort any previous in-flight request
     if (controllerRef.current) {
@@ -308,6 +365,17 @@ export function VehicleList({ onVehicleSelect, onAddVehicle, refreshSignal, upda
                         className="w-full sm:w-auto px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-md hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors text-center cursor-pointer"
                       >
                         View
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          handleExportVehiclePdf(vehicle)
+                        }}
+                        className="w-full sm:w-auto px-3 py-1 text-sm bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-md hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors text-center cursor-pointer"
+                        title="Export vehicle details to PDF"
+                      >
+                        📄 Export PDF
                       </button>
                       <button
                         onClick={(e) => {

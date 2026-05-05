@@ -219,6 +219,7 @@ export function PayrollEntryDetailModal({
     remainingDays: number
     dailyRate: number
     accrualValue: number
+    accruedToDate?: number | null
   } | null>(null)
   const [calculatingPayout, setCalculatingPayout] = useState(false)
 
@@ -258,6 +259,7 @@ export function PayrollEntryDetailModal({
   // Clock-in sync state
   const [syncingClockIn, setSyncingClockIn] = useState(false)
   const [syncingAbsences, setSyncingAbsences] = useState(false)
+  const [syncingLeave, setSyncingLeave] = useState(false)
   const [clockInAnalysis, setClockInAnalysis] = useState<{
     lateCount: number
     earlyCount: number
@@ -665,13 +667,17 @@ export function PayrollEntryDetailModal({
               const dayRateV = Math.round(hrRateV * dailyHoursV * 100) / 100
               const annualDaysV = (empForVacation?.annualVacationDays as number | null) ?? lb.annualLeaveDays ?? 14
               const usedDaysV = lb.usedAnnualDays ?? 0
-              const remainingDaysV = Math.max(0, annualDaysV - usedDaysV)
+              // Prefer remainingAnnual (kept in sync by leave approval) over recomputing
+              const remainingDaysV = lb.remainingAnnual != null
+                ? Math.max(0, Number(lb.remainingAnnual))
+                : Math.max(0, annualDaysV - usedDaysV)
               setVacationBalance({
                 annualDays: annualDaysV,
                 usedDays: usedDaysV,
                 remainingDays: remainingDaysV,
                 dailyRate: dayRateV,
                 accrualValue: Math.round(remainingDaysV * dayRateV * 100) / 100,
+                accruedToDate: lb.accruedToDate ?? null,
               })
             }
           } catch { /* non-fatal */ }
@@ -1599,6 +1605,21 @@ export function PayrollEntryDetailModal({
     }
   }
 
+  const handleSyncLeave = async () => {
+    setSyncingLeave(true)
+    try {
+      const res = await fetch(`/api/payroll/entries/${entryId}/sync-leave`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) { onError(data.error || 'Leave sync failed'); return }
+      setFormData((prev: any) => ({ ...prev, leaveDays: data.leaveDays, sickDays: data.sickDays }))
+      await loadEntry()
+    } catch {
+      onError('Failed to sync leave days')
+    } finally {
+      setSyncingLeave(false)
+    }
+  }
+
   const handleAddBenefit = async () => {
     try {
       if (!benefitForm.benefitTypeId || benefitForm.amount <= 0) {
@@ -1950,7 +1971,20 @@ export function PayrollEntryDetailModal({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-secondary mb-1">Sick Days</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-secondary">Sick Days</label>
+                    {!isLocked && (
+                      <button
+                        type="button"
+                        onClick={handleSyncLeave}
+                        disabled={syncingLeave}
+                        className="px-2 py-0.5 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap"
+                        title="Sync leave & sick days from approved leave requests"
+                      >
+                        {syncingLeave ? '…' : '↻ Sync Leave'}
+                      </button>
+                    )}
+                  </div>
                   <input
                     type="number"
                     value={formData.sickDays}
@@ -2548,14 +2582,12 @@ export function PayrollEntryDetailModal({
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-secondary">Annual days:</span>
-                    <span className="font-medium text-primary">{vacationBalance.annualDays} days</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-secondary">Daily rate:</span>
-                    <span className="font-medium text-primary">{formatCurrency(vacationBalance.dailyRate)}/day</span>
-                  </div>
+                  {vacationBalance.accruedToDate != null && (
+                    <div className="flex justify-between col-span-2">
+                      <span className="text-secondary">Accrued to date:</span>
+                      <span className="font-medium text-primary">{vacationBalance.accruedToDate} days</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-secondary">Days used:</span>
                     <span className="font-medium text-primary">{vacationBalance.usedDays} days</span>
@@ -2564,8 +2596,16 @@ export function PayrollEntryDetailModal({
                     <span className="text-secondary">Days remaining:</span>
                     <span className="font-medium text-teal-700 dark:text-teal-400">{vacationBalance.remainingDays} days</span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-secondary">Annual entitlement:</span>
+                    <span className="font-medium text-primary">{vacationBalance.annualDays} days</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-secondary">Daily rate:</span>
+                    <span className="font-medium text-primary">{formatCurrency(vacationBalance.dailyRate)}/day</span>
+                  </div>
                   <div className="flex justify-between col-span-2 border-t border-teal-200 dark:border-teal-700 pt-1 mt-1">
-                    <span className="text-secondary">Accrued value:</span>
+                    <span className="text-secondary">Estimated payout ({vacationBalance.remainingDays} days × {formatCurrency(vacationBalance.dailyRate)}):</span>
                     <span className="font-semibold text-teal-700 dark:text-teal-400">{formatCurrency(vacationBalance.accrualValue)}</span>
                   </div>
                 </div>

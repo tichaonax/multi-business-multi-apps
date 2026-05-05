@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { hasPermission } from '@/lib/permission-utils'
 import { nanoid } from 'nanoid'
+import { getEmployeeLeavePolicy, calculateAccruedLeave } from '@/lib/payroll/leave-accrual'
 
 // POST /api/payroll/entries/[entryId]/vacation-payout
 //
@@ -32,6 +33,7 @@ export async function POST(
           id: true,
           employmentStatus: true,
           annualVacationDays: true,
+          hireDate: true,
           scheduledStartTime: true,
           scheduledEndTime: true,
           scheduledDaysPerWeek: true,
@@ -87,13 +89,23 @@ export async function POST(
     },
   })
 
-  // Annual vacation days: prefer employee field, fall back to leave balance allocation
-  const annualVacationDays = (employee.annualVacationDays as number | null)
-    ?? leaveBalance?.annualLeaveDays
-    ?? 14  // default
+  // Load policy for accrual-based fallback when no balance record exists
+  const policy = await getEmployeeLeavePolicy(prisma as any, employee.id)
 
-  const usedDays    = leaveBalance?.usedAnnualDays ?? 0
-  const unusedDays  = Math.max(0, annualVacationDays - usedDays)
+  // Prefer remainingAnnual from the leave balance (kept in sync when leave is approved).
+  // If no balance record exists, compute: min(months × accrualRate, maxDays) − 0
+  let unusedDays: number
+  const usedDays = leaveBalance?.usedAnnualDays ?? 0
+  if (leaveBalance) {
+    unusedDays = Math.max(0, Number(leaveBalance.remainingAnnual ?? 0))
+  } else {
+    const hd = employee.hireDate ? new Date(employee.hireDate as any) : null
+    const accrued = hd
+      ? calculateAccruedLeave(hd, period.year, policy.annualAccrualPerMonth, policy.maxAnnualDays)
+      : policy.maxAnnualDays
+    unusedDays = Math.max(0, accrued)
+  }
+  const annualVacationDays = leaveBalance?.annualLeaveDays ?? policy.maxAnnualDays
   const payoutAmount = Math.round(unusedDays * dailyRate * 100) / 100
 
   // Remove any existing vacation payout adjustment for this entry

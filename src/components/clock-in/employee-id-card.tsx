@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { PrintCardToReceiptPrinter } from '@/components/ui/print-card-to-receipt-printer'
+import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 
 interface EmployeeIdCardProps {
   employee: {
@@ -91,7 +92,7 @@ export function EmployeeIdCard({ employee }: EmployeeIdCardProps) {
           )}
           {(employee.businessContactPhone || employee.primaryBusiness?.phone || employee.primaryBusiness?.umbrellaBusinessPhone || employee.phone) && (
             <div className="text-gray-600 text-xs mt-0.5">
-              {employee.businessContactPhone || employee.primaryBusiness?.phone || employee.primaryBusiness?.umbrellaBusinessPhone || employee.phone}
+              {formatPhoneNumberForDisplay(employee.businessContactPhone || employee.primaryBusiness?.phone || employee.primaryBusiness?.umbrellaBusinessPhone || employee.phone || '')}
             </div>
           )}
           {hours && (

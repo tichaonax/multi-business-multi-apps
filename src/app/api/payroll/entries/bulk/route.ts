@@ -115,6 +115,40 @@ export async function POST(request: NextRequest) {
       activeLoans.map((l: any) => [l.recipientEmployeeId, Number(l.monthlyInstallment ?? 0)])
     )
 
+    // Pre-fetch approved leave requests for the payroll period month (all new employees, one query)
+    const periodFromDate = new Date(period.year, period.month - 1, 1, 0, 0, 0, 0)
+    const periodToDate   = new Date(period.year, period.month, 0, 23, 59, 59, 999)
+    const approvedLeave = await prisma.employeeLeaveRequests.findMany({
+      where: {
+        employeeId: { in: newEmployeeIds },
+        status: 'approved',
+        startDate: { gte: periodFromDate, lte: periodToDate },
+      },
+      select: { employeeId: true, leaveType: true, daysRequested: true },
+    })
+    // Group by employeeId → { leaveDays, sickDays }
+    const leaveByEmployee = new Map<string, { leaveDays: number; sickDays: number }>()
+    for (const r of approvedLeave) {
+      const cur = leaveByEmployee.get(r.employeeId) ?? { leaveDays: 0, sickDays: 0 }
+      if (r.leaveType === 'annual') cur.leaveDays += r.daysRequested
+      else if (r.leaveType === 'sick') cur.sickDays += r.daysRequested
+      leaveByEmployee.set(r.employeeId, cur)
+    }
+
+    // Pre-fetch absence records for the period month (all new employees, one query)
+    const absenceRecords = await prisma.employeeAbsences.findMany({
+      where: {
+        employeeId: { in: newEmployeeIds },
+        date: { gte: periodFromDate, lte: periodToDate },
+      },
+      select: { employeeId: true },
+    })
+    // Count per employee
+    const absenceCountByEmployee = new Map<string, number>()
+    for (const r of absenceRecords) {
+      absenceCountByEmployee.set(r.employeeId, (absenceCountByEmployee.get(r.employeeId) ?? 0) + 1)
+    }
+
     // Create payroll entries using the new contract selection logic
     // This automatically handles: multiple contracts per employee, proration, signed contracts only, etc.
     const entries: any[] = []
@@ -246,9 +280,10 @@ export async function POST(request: NextRequest) {
           hireDate: employee.hireDate,
           terminationDate: employee.terminationDate,
           workDays,
-          sickDays: 0,
-          leaveDays: 0,
-          absenceDays: 0,
+          sickDays: leaveByEmployee.get(employee.id)?.sickDays ?? 0,
+          leaveDays: leaveByEmployee.get(employee.id)?.leaveDays ?? 0,
+          absenceDays: absenceCountByEmployee.get(employee.id) ?? 0,
+          absenceDaysFromRecords: absenceCountByEmployee.get(employee.id) ?? 0,
           overtimeHours: 0,
           baseSalary: proratedBaseSalary,
           commission: 0,

@@ -43,6 +43,17 @@ export default function UmbrellaBusinessManagement() {
     umbrellaBusinessRegistration: ''
   })
 
+  // Leave Policy state
+  const [leavePolicyForm, setLeavePolicyForm] = useState({
+    annualAccrualPerMonth: '2.5',
+    maxAnnualDays: '30',
+    sickDaysPerYear: '10',
+    carryoverEnabled: false,
+    maxCarryoverDays: '',
+  })
+  const [savingLeavePolicy, setSavingLeavePolicy] = useState(false)
+  const [leavePolicyLoaded, setLeavePolicyLoaded] = useState(false)
+
   useEffect(() => {
     fetchUmbrellaBusinessData()
   }, [])
@@ -62,11 +73,66 @@ export default function UmbrellaBusinessManagement() {
         })
         setInvoiceStartNumber(String(data.invoiceStartNumber ?? 0))
         setQuotationStartNumber(String(data.quotationStartNumber ?? 0))
+
+        // Fetch leave policy for this umbrella business
+        if (data.id) {
+          fetchLeavePolicy(data.id)
+        }
       }
     } catch (error) {
       console.error('Error fetching umbrella business data:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchLeavePolicy = async (umbrellaBusinessId: string) => {
+    try {
+      const res = await fetch(`/api/leave-policy?umbrellaBusinessId=${umbrellaBusinessId}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (data.policy) {
+          setLeavePolicyForm({
+            annualAccrualPerMonth: String(data.policy.annualAccrualPerMonth),
+            maxAnnualDays: String(data.policy.maxAnnualDays),
+            sickDaysPerYear: String(data.policy.sickDaysPerYear),
+            carryoverEnabled: data.policy.carryoverEnabled,
+            maxCarryoverDays: data.policy.maxCarryoverDays != null ? String(data.policy.maxCarryoverDays) : '',
+          })
+        }
+        setLeavePolicyLoaded(true)
+      }
+    } catch (error) {
+      console.error('Error fetching leave policy:', error)
+      setLeavePolicyLoaded(true)
+    }
+  }
+
+  const handleSaveLeavePolicy = async () => {
+    if (!umbrellaData?.id) return
+    setSavingLeavePolicy(true)
+    try {
+      const res = await fetch('/api/leave-policy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          umbrellaBusinessId: umbrellaData.id,
+          annualAccrualPerMonth: parseFloat(leavePolicyForm.annualAccrualPerMonth) || 2.5,
+          maxAnnualDays: parseInt(leavePolicyForm.maxAnnualDays) || 30,
+          sickDaysPerYear: parseInt(leavePolicyForm.sickDaysPerYear) || 10,
+          carryoverEnabled: leavePolicyForm.carryoverEnabled,
+          maxCarryoverDays: leavePolicyForm.maxCarryoverDays ? parseInt(leavePolicyForm.maxCarryoverDays) : null,
+        }),
+      })
+      if (res.ok) {
+        toast.push('Leave policy saved!')
+      } else {
+        toast.error('Failed to save leave policy')
+      }
+    } catch {
+      toast.error('Error saving leave policy')
+    } finally {
+      setSavingLeavePolicy(false)
     }
   }
 
@@ -417,6 +483,115 @@ export default function UmbrellaBusinessManagement() {
               >
                 Save Numbering Settings
               </button>
+            </div>
+
+            {/* Leave Policy */}
+            <div className="card p-6 mt-6">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-primary">Leave Policy</h3>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Configure how annual leave accrues and the sick leave allocation. These defaults apply across all businesses unless overridden.
+                </p>
+              </div>
+
+              {!leavePolicyLoaded ? (
+                <p className="text-sm text-secondary">Loading...</p>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-1">
+                        Annual leave accrual (days / month)
+                      </label>
+                      <input
+                        type="number"
+                        min="0.1"
+                        max="5"
+                        step="0.1"
+                        value={leavePolicyForm.annualAccrualPerMonth}
+                        onChange={(e) => setLeavePolicyForm(p => ({ ...p, annualAccrualPerMonth: e.target.value }))}
+                        className="input w-full px-3 py-2 text-sm"
+                        placeholder="2.5"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">
+                        e.g. 2.5 days/month = 30 days/year
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-1">
+                        Max annual leave days (cap)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="60"
+                        value={leavePolicyForm.maxAnnualDays}
+                        onChange={(e) => setLeavePolicyForm(p => ({ ...p, maxAnnualDays: e.target.value }))}
+                        className="input w-full px-3 py-2 text-sm"
+                        placeholder="30"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-1">
+                        Sick days per year
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="30"
+                        value={leavePolicyForm.sickDaysPerYear}
+                        onChange={(e) => setLeavePolicyForm(p => ({ ...p, sickDaysPerYear: e.target.value }))}
+                        className="input w-full px-3 py-2 text-sm"
+                        placeholder="10"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-6 pt-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={leavePolicyForm.carryoverEnabled}
+                        onChange={(e) => setLeavePolicyForm(p => ({ ...p, carryoverEnabled: e.target.checked }))}
+                        className="w-4 h-4 rounded"
+                      />
+                      <span className="text-sm font-medium text-secondary">Allow unused leave to carry over to next year</span>
+                    </label>
+
+                    {leavePolicyForm.carryoverEnabled && (
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-secondary whitespace-nowrap">Max carryover days</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="30"
+                          value={leavePolicyForm.maxCarryoverDays}
+                          onChange={(e) => setLeavePolicyForm(p => ({ ...p, maxCarryoverDays: e.target.value }))}
+                          className="input w-20 px-3 py-1.5 text-sm"
+                          placeholder="∞"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-2 border-t flex items-center justify-between">
+                    <p className="text-xs text-gray-400">
+                      Accrual preview: {leavePolicyForm.annualAccrualPerMonth || '2.5'} days × 12 months ={' '}
+                      {(parseFloat(leavePolicyForm.annualAccrualPerMonth || '2.5') * 12).toFixed(1)} days/year
+                      {leavePolicyForm.maxAnnualDays ? ` (capped at ${leavePolicyForm.maxAnnualDays})` : ''}
+                    </p>
+                    <button
+                      onClick={handleSaveLeavePolicy}
+                      disabled={savingLeavePolicy}
+                      className="btn-primary text-sm"
+                    >
+                      {savingLeavePolicy ? 'Saving...' : 'Save Leave Policy'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Preview Section */}

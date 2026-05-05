@@ -1,89 +1,85 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { Prisma } from '@prisma/client'
 import { randomUUID } from 'crypto'
 import { hasPermission } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
+import { getEmployeeLeavePolicy, calculateAccruedLeave } from '@/lib/payroll/leave-accrual'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ employeeId: string }> }
-)
- {
-
-    const { employeeId } = await params
+) {
+  const { employeeId } = await params
   try {
     const user = await getServerUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { employeeId } = await params
-    const url = new URL(request.url)
-    const year = parseInt(url.searchParams.get('year') || new Date().getFullYear().toString())
-
-    // Check if user has permission to view employee leave balance
     if (!hasPermission(user, 'canAccessPayroll')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    // Check if employee exists
+    const url = new URL(request.url)
+    const year = parseInt(url.searchParams.get('year') || new Date().getFullYear().toString())
+
     const employee = await prisma.employees.findUnique({
       where: { id: employeeId },
-      select: { 
-        isActive: true, 
-        fullName: true,
-        employeeNumber: true,
-        hireDate: true
-      }
+      select: { isActive: true, fullName: true, employeeNumber: true, hireDate: true },
     })
 
     if (!employee || !employee.isActive) {
       return NextResponse.json({ error: 'Employee not found or inactive' }, { status: 404 })
     }
 
-    // Get or create leave balance for the year
+    // Fetch the configured leave policy (never hardcode defaults again)
+    const policy = await getEmployeeLeavePolicy(prisma as any, employeeId)
+
     let leaveBalance = await prisma.employeeLeaveBalance.findUnique({
-      where: {
-        employeeId_year: {
-          employeeId,
-          year
-        }
-      }
+      where: { employeeId_year: { employeeId, year } },
     })
 
-    // If no balance exists, create default balance
     if (!leaveBalance) {
-      const { Prisma } = require('@prisma/client')
-      const { randomUUID } = require('crypto')
-      const leaveBalanceData: Prisma.EmployeeLeaveBalanceUncheckedCreateInput = {
-        id: randomUUID(),
-        employeeId,
-        year,
-        annualLeaveDays: 21,
-        usedAnnualDays: 0,
-        remainingAnnual: 21,
-        sickLeaveDays: 10,
-        usedSickDays: 0,
-        remainingSick: 10,
-        updatedAt: new Date()
-      }
       leaveBalance = await prisma.employeeLeaveBalance.create({
-        data: leaveBalanceData
+        data: {
+          id: randomUUID(),
+          employeeId,
+          year,
+          annualLeaveDays: policy.maxAnnualDays,
+          usedAnnualDays: 0,
+          remainingAnnual: policy.maxAnnualDays,
+          sickLeaveDays: policy.sickDaysPerYear,
+          usedSickDays: 0,
+          remainingSick: policy.sickDaysPerYear,
+          updatedAt: new Date(),
+        },
       })
     }
 
-    // Convert Decimal fields to numbers for JSON serialization
-    const formattedBalance = {
+    // Compute accrued-to-date so the UI can show true current entitlement
+    const accruedToDate = employee.hireDate
+      ? calculateAccruedLeave(
+          new Date(employee.hireDate),
+          year,
+          policy.annualAccrualPerMonth,
+          policy.maxAnnualDays
+        )
+      : policy.maxAnnualDays
+
+    return NextResponse.json({
       ...leaveBalance,
+      accruedToDate,
+      policy: {
+        annualAccrualPerMonth: policy.annualAccrualPerMonth,
+        maxAnnualDays: policy.maxAnnualDays,
+        sickDaysPerYear: policy.sickDaysPerYear,
+        carryoverEnabled: policy.carryoverEnabled,
+        maxCarryoverDays: policy.maxCarryoverDays,
+      },
       employee: {
         fullName: employee.fullName,
         employeeNumber: employee.employeeNumber,
-        hireDate: employee.hireDate
-      }
-    }
-
-    return NextResponse.json(formattedBalance)
+        hireDate: employee.hireDate,
+      },
+    })
   } catch (error) {
     console.error('Leave balance fetch error:', error)
     return NextResponse.json({ error: 'Failed to fetch leave balance' }, { status: 500 })
@@ -93,72 +89,55 @@ export async function GET(
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ employeeId: string }> }
-)
- {
-
-    const { employeeId } = await params
+) {
+  const { employeeId } = await params
   try {
     const user = await getServerUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { employeeId } = await params
-
-    // Check if user has permission to manage employee leave balance
     if (!hasPermission(user, 'canManageEmployees')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const {
-      year,
-      annualLeaveDays,
-      sickLeaveDays,
-      usedAnnualDays,
-      usedSickDays
-    } = await request.json()
+    const { year, annualLeaveDays, sickLeaveDays, usedAnnualDays, usedSickDays } =
+      await request.json()
 
-    if (!year) {
-      return NextResponse.json({ error: 'Year is required' }, { status: 400 })
-    }
+    if (!year) return NextResponse.json({ error: 'Year is required' }, { status: 400 })
 
-    // Calculate remaining days
-    const remainingAnnual = Math.max(0, (annualLeaveDays || 0) - (usedAnnualDays || 0))
-    const remainingSick = Math.max(0, (sickLeaveDays || 0) - (usedSickDays || 0))
+    // Use policy as the fallback when caller omits a value — never hardcode 21/10
+    const policy = await getEmployeeLeavePolicy(prisma as any, employeeId)
 
-    // Update or create leave balance
-    const { Prisma } = require('@prisma/client')
-    const { randomUUID } = require('crypto')
-    const upsertCreate: Prisma.EmployeeLeaveBalanceUncheckedCreateInput = {
-      id: randomUUID(),
-      employeeId,
-      year: parseInt(year),
-      annualLeaveDays: annualLeaveDays || 21,
-      sickLeaveDays: sickLeaveDays || 10,
-      usedAnnualDays: usedAnnualDays || 0,
-      usedSickDays: usedSickDays || 0,
-      remainingAnnual,
-      remainingSick,
-      updatedAt: new Date()
-    }
-    const upsertUpdate: Prisma.EmployeeLeaveBalanceUncheckedUpdateInput = {
-      annualLeaveDays: annualLeaveDays || 21,
-      sickLeaveDays: sickLeaveDays || 10,
-      usedAnnualDays: usedAnnualDays || 0,
-      usedSickDays: usedSickDays || 0,
-      remainingAnnual,
-      remainingSick,
-      updatedAt: new Date()
-    }
+    const resolvedAnnual = annualLeaveDays ?? policy.maxAnnualDays
+    const resolvedSick   = sickLeaveDays   ?? policy.sickDaysPerYear
+    const resolvedUsedA  = usedAnnualDays  ?? 0
+    const resolvedUsedS  = usedSickDays    ?? 0
+
+    const remainingAnnual = Math.max(0, resolvedAnnual - resolvedUsedA)
+    const remainingSick   = Math.max(0, resolvedSick   - resolvedUsedS)
+
     const leaveBalance = await prisma.employeeLeaveBalance.upsert({
-      where: {
-        employeeId_year: {
-          employeeId,
-          year: parseInt(year)
-        }
+      where: { employeeId_year: { employeeId, year: parseInt(year) } },
+      update: {
+        annualLeaveDays: resolvedAnnual,
+        sickLeaveDays:   resolvedSick,
+        usedAnnualDays:  resolvedUsedA,
+        usedSickDays:    resolvedUsedS,
+        remainingAnnual,
+        remainingSick,
+        updatedAt: new Date(),
       },
-      update: upsertUpdate,
-      create: upsertCreate
+      create: {
+        id: randomUUID(),
+        employeeId,
+        year: parseInt(year),
+        annualLeaveDays: resolvedAnnual,
+        sickLeaveDays:   resolvedSick,
+        usedAnnualDays:  resolvedUsedA,
+        usedSickDays:    resolvedUsedS,
+        remainingAnnual,
+        remainingSick,
+        updatedAt: new Date(),
+      },
     })
 
     return NextResponse.json(leaveBalance)

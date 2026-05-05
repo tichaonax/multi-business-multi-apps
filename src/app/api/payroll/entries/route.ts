@@ -234,6 +234,32 @@ export async function POST(req: NextRequest) {
     // Use caller-supplied value if provided, otherwise auto-populate from records
     const finalAbsenceDays = absenceDays !== undefined ? absenceDays : recordedAbsences
 
+    // Auto-populate leave/sick days from approved leave requests when caller omits them
+    let finalLeaveDays = leaveDays !== undefined ? leaveDays : 0
+    let finalSickDays  = sickDays  !== undefined ? sickDays  : 0
+    if (leaveDays === undefined || sickDays === undefined) {
+      const periodFromDate = new Date(period.year, period.month - 1, 1, 0, 0, 0, 0)
+      const periodToDate   = new Date(period.year, period.month, 0, 23, 59, 59, 999)
+      const approvedLeave  = await prisma.employeeLeaveRequests.findMany({
+        where: {
+          employeeId,
+          status: 'approved',
+          startDate: { gte: periodFromDate, lte: periodToDate },
+        },
+        select: { leaveType: true, daysRequested: true },
+      })
+      if (leaveDays === undefined) {
+        finalLeaveDays = approvedLeave
+          .filter(r => r.leaveType === 'annual')
+          .reduce((sum, r) => sum + r.daysRequested, 0)
+      }
+      if (sickDays === undefined) {
+        finalSickDays = approvedLeave
+          .filter(r => r.leaveType === 'sick')
+          .reduce((sum, r) => sum + r.daysRequested, 0)
+      }
+    }
+
     // Calculate compensation
     const baseSalary = new Decimal(proratedBaseSalary || 0)
     const commissionAmount = new Decimal(commission || 0)
@@ -294,8 +320,8 @@ export async function POST(req: NextRequest) {
         hireDate: employee.hireDate,
         terminationDate: employee.terminationDate,
         workDays: finalWorkDays,
-        sickDays: sickDays || 0,
-        leaveDays: leaveDays || 0,
+        sickDays: finalSickDays,
+        leaveDays: finalLeaveDays,
         absenceDays: finalAbsenceDays,
         absenceDaysFromRecords: recordedAbsences,
         overtimeHours: overtimeHours || 0,

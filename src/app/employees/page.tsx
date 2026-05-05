@@ -11,6 +11,8 @@ import { SalaryIncreaseModal } from '@/components/employees/salary-increase-moda
 import { PayrollExportModal } from '@/components/payroll/payroll-export-modal'
 import { AddEmployeeModal } from '@/components/employees/add-employee-modal'
 import { EmployeeIdCardModal } from '@/components/clock-in/employee-id-card'
+import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
+import { formatDate } from '@/lib/utils'
 
 interface Employee {
   id: string
@@ -280,6 +282,44 @@ export default function EmployeesPage() {
   const handleDepartmentFilter = (department: string) => {
     setDepartmentFilter(department)
     setCurrentPage(1) // Reset to first page when filtering
+  }
+
+  const handleExportEmployeePdf = (employee: any) => {
+    const phone = employee.phone ? formatPhoneNumberForDisplay(employee.phone) : 'N/A'
+    const hireDate = employee.hireDate ? formatDate(employee.hireDate) : 'N/A'
+    const supervisorName = employee.supervisor?.fullName ?? 'N/A'
+    const supervisorTitle = employee.supervisor?.jobTitle ?? ''
+    const html = `<!DOCTYPE html><html><head><title>Employee Details - ${employee.fullName}</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 32px; max-width: 600px; margin: 0 auto; color: #111; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: #555; font-size: 13px; margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+  td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; }
+  td:first-child { font-weight: 600; width: 40%; color: #374151; }
+  @media print { button { display: none; } }
+</style>
+</head><body>
+<h1>${employee.fullName}</h1>
+<div class="sub">${employee.jobTitle?.title ?? ''} — ${employee.primaryBusiness?.name ?? ''}</div>
+<table>
+  <tr><td>Employee #</td><td>${employee.employeeNumber ?? ''}</td></tr>
+  <tr><td>National ID</td><td>${employee.nationalId ?? 'N/A'}</td></tr>
+  <tr><td>Phone</td><td>${phone}</td></tr>
+  <tr><td>Email</td><td>${employee.email ?? 'N/A'}</td></tr>
+  <tr><td>Date of Engagement</td><td>${hireDate}</td></tr>
+  <tr><td>Department</td><td>${employee.jobTitle?.department ?? 'N/A'}</td></tr>
+  <tr><td>Business</td><td>${employee.primaryBusiness?.name ?? 'N/A'}</td></tr>
+  <tr><td>Status</td><td>${employee.employmentStatus ?? ''}</td></tr>
+  <tr><td>Supervisor</td><td>${supervisorName}${supervisorTitle ? ` (${supervisorTitle})` : ''}</td></tr>
+</table>
+</body></html>`
+    const win = window.open('', '_blank')
+    if (win) {
+      win.document.write(html)
+      win.document.close()
+      win.print()
+    }
   }
 
   const handleSalaryIncrease = (employee: any) => {
@@ -581,8 +621,14 @@ export default function EmployeesPage() {
                             </div>
                           )}
                           <p className="text-xs text-secondary">{employee.employeeNumber}</p>
+                          {employee.nationalId && (
+                            <p className="text-xs text-secondary">ID: {employee.nationalId}</p>
+                          )}
                           {employee.phone && (
-                            <p className="text-xs text-secondary">{employee.phone}</p>
+                            <p className="text-xs text-secondary">{formatPhoneNumberForDisplay(employee.phone)}</p>
+                          )}
+                          {employee.hireDate && (
+                            <p className="text-xs text-secondary">Engaged: {formatDate(employee.hireDate)}</p>
                           )}
                           {employee.email && (
                             <p className="text-xs text-secondary truncate">{employee.email}</p>
@@ -702,6 +748,13 @@ export default function EmployeesPage() {
                           title="Print ID Card"
                         >
                           🪪 ID Card
+                        </button>
+                        <button
+                          className="text-xs px-3 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded font-medium"
+                          onClick={() => handleExportEmployeePdf(employee)}
+                          title="Export employee details to PDF"
+                        >
+                          📄 Export PDF
                         </button>
                       </div>
                     </div>

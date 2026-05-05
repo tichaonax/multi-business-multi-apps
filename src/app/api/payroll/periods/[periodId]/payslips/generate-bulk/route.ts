@@ -151,6 +151,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }
     }
 
+    // Batch-fetch leave balances for the payroll year (shown as informational footer on payslip)
+    const leaveBalanceRows = employeeIds.length > 0
+      ? await (prisma as any).employeeLeaveBalance.findMany({
+          where: { employeeId: { in: employeeIds }, year: period.year },
+          select: { employeeId: true, remainingAnnual: true },
+        })
+      : []
+    const leaveBalanceByEmployee: Record<string, number> = {}
+    for (const lb of leaveBalanceRows) {
+      if (lb.employeeId != null) leaveBalanceByEmployee[lb.employeeId] = Number(lb.remainingAnnual ?? 0)
+    }
+
     // Build per-entry payslip data using computeTotalsForEntry (same as export route)
     // so that merged benefits (incl. contract PDF benefits) and gross/net match the spreadsheet.
     const entries: PayslipEntry[] = []
@@ -235,6 +247,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         sickDays: Number(e.sickDays),
         leaveDays: Number(e.leaveDays),
         absenceDays: Number(e.absenceDays),
+        leaveBalanceRemaining: empId != null && leaveBalanceByEmployee[empId] != null
+          ? leaveBalanceByEmployee[empId]
+          : null,
 
         contractualBasicSalary: Number(e.baseSalary),
         proratedBasicSalary: Number(e.baseSalary),
