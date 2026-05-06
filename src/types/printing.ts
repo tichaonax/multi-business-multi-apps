@@ -236,6 +236,14 @@ export interface ReceiptData {
     subsidyAmount: string; // e.g. "0.50"
     cashAmount: string;    // e.g. "0.50"
   };
+
+  // Credit payment info (restaurant — when customer credit was applied or change saved to credit)
+  creditPayment?: {
+    openingBalance: number;
+    creditUsed: number;
+    changeToCredit?: number;
+    closingBalance: number;
+  };
 }
 
 export interface ReceiptItem {

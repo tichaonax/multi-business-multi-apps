@@ -150,7 +150,7 @@ export default function RestaurantPOS() {
   const [quickStockExistingProduct, setQuickStockExistingProduct] = useState<{ id: string; name: string; variantId?: string } | null>(null)
   const [showBulkStockPanel, setShowBulkStockPanel] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'MOBILE' | 'ECOCASH' | 'ON_DELIVERY' | 'ON_PICKUP'>('CASH')
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'MOBILE' | 'ECOCASH' | 'ON_DELIVERY' | 'ON_PICKUP' | 'CREDIT'>('CASH')
   const [ecocashTxCode, setEcocashTxCode] = useState('')
   const [amountReceived, setAmountReceived] = useState('')
   const [showReceiptModal, setShowReceiptModal] = useState(false)
@@ -170,6 +170,8 @@ export default function RestaurantPOS() {
   const [deliveryNote, setDeliveryNote] = useState('')
   const [deliveryAccount, setDeliveryAccount] = useState<{ balance: number; isBlacklisted: boolean; blacklistReason?: string } | null>(null)
   const [deliveryAccountLoading, setDeliveryAccountLoading] = useState(false)
+  const [applyCredit, setApplyCredit] = useState(true)
+  const [saveChangeToCredit, setSaveChangeToCredit] = useState(false)
   const [businessDetails, setBusinessDetails] = useState<any>(null)
   const [taxIncludedInPrice, setTaxIncludedInPrice] = useState(true) // Default: tax included
   const [taxRate, setTaxRate] = useState(0) // Default: 0% - businesses configure their own tax rate
@@ -229,22 +231,27 @@ export default function RestaurantPOS() {
     else setPaymentMethod('CASH')
   }, [orderType])
 
-  // Fetch delivery account when order type is delivery and a customer is selected
+  // Fetch credit account whenever a customer is selected (any order type)
   useEffect(() => {
-    if (orderType !== 'delivery' || !selectedCustomer) {
+    if (!selectedCustomer) {
       setDeliveryAccount(null)
+      setApplyCredit(true)
       return
     }
     setDeliveryAccountLoading(true)
     fetch(`/api/restaurant/delivery/accounts/${selectedCustomer.id}`)
       .then(r => r.json())
       .then(d => {
-        if (d.success) setDeliveryAccount({ balance: Number(d.account.balance), isBlacklisted: d.account.isBlacklisted, blacklistReason: d.account.blacklistReason })
+        if (d.success) {
+          const bal = Number(d.account.balance)
+          setDeliveryAccount({ balance: bal, isBlacklisted: d.account.isBlacklisted, blacklistReason: d.account.blacklistReason })
+          setApplyCredit(bal > 0)
+        }
       })
       .catch(() => {})
       .finally(() => setDeliveryAccountLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderType, selectedCustomer?.id])
+  }, [selectedCustomer?.id])
 
   // Toast context (hook) must be called unconditionally to preserve hooks order
   const toast = useToastContext()
@@ -1631,6 +1638,14 @@ export default function RestaurantPOS() {
             cashAmount: String(order.attributes.cashAmount || '0.00'),
           }
         : undefined,
+      creditPayment: order.creditPayment
+        ? {
+            openingBalance: Number(order.creditPayment.openingBalance),
+            creditUsed: Number(order.creditPayment.creditUsed),
+            changeToCredit: order.creditPayment.changeToCredit ? Number(order.creditPayment.changeToCredit) : undefined,
+            closingBalance: Number(order.creditPayment.closingBalance),
+          }
+        : undefined,
     }
   }
 
@@ -2155,6 +2170,13 @@ export default function RestaurantPOS() {
       paymentMethod: paymentMethod
     })
 
+    // If credit fully covers a dine-in/takeaway order, auto-select CREDIT payment
+    const creditAvailable = (applyCredit && deliveryAccount && !deliveryAccount.isBlacklisted)
+      ? Math.min(deliveryAccount.balance, total) : 0
+    if (creditAvailable >= total && total > 0 && orderType !== 'delivery') {
+      setPaymentMethod('CREDIT')
+    }
+
     // Open payment modal
     setAmountReceived('') // Start at zero so cashier can enter amount received
     setEcocashTxCode('')
@@ -2251,7 +2273,7 @@ export default function RestaurantPOS() {
           couponCustomerPhone: appliedCoupon.customerPhone
         } : {}),
         businessId: businessId,
-        paymentMethod: paymentMethod,
+        paymentMethod: paymentMethod === 'CREDIT' ? 'STORE_CREDIT' : paymentMethod,
         amountReceived: paymentMethod === 'CASH' ? parseFloat(amountReceived)
           : (paymentMethod === 'ON_DELIVERY' || paymentMethod === 'ON_PICKUP') ? 0
           : total,
@@ -2308,6 +2330,8 @@ export default function RestaurantPOS() {
           ecocashFeeAmount?: number; ecocashTransactionCode?: string;
           customerAddress?: string; customerCity?: string;
           orderId?: string; orderType?: string; deliveryNote?: string;
+          creditPayment?: { openingBalance: number; creditUsed: number; changeToCredit?: number; closingBalance: number };
+          customerCreditBalance?: number;
         } = {
           orderNumber: result.orderNumber,
           items: receiptItems,
@@ -2333,6 +2357,25 @@ export default function RestaurantPOS() {
           orderId: result.id,
           orderType: orderType,
           deliveryNote: deliveryNote || undefined,
+          customerCreditBalance: (() => {
+            if (!selectedCustomer || (deliveryAccount?.balance ?? 0) <= 0) return undefined
+            const creditApplied = (applyCredit && !deliveryAccount?.isBlacklisted)
+              ? Math.min(deliveryAccount!.balance, total) : 0
+            const cashChange = parseFloat(amountReceived || '0') - total
+            const changeSaved = (saveChangeToCredit && cashChange > 0) ? cashChange : 0
+            return Math.max(0, deliveryAccount!.balance - creditApplied + changeSaved)
+          })(),
+          creditPayment: (() => {
+            const creditToApply = (applyCredit && (deliveryAccount?.balance ?? 0) > 0)
+              ? Math.min(deliveryAccount!.balance, total) : 0
+            const cashReceived = parseFloat(amountReceived || '0')
+            const cashChange = Math.max(0, cashReceived - total)
+            const changeSave = (saveChangeToCredit && cashChange > 0) ? cashChange : 0
+            if (creditToApply <= 0 && changeSave <= 0) return undefined
+            const openingBal = deliveryAccount?.balance ?? 0
+            const closingBal = Math.max(0, openingBal - creditToApply + changeSave)
+            return { openingBalance: openingBal, creditUsed: creditToApply, changeToCredit: changeSave > 0 ? changeSave : undefined, closingBalance: closingBal }
+          })(),
         }
 
         // Post-checkout: run campaign eligibility for attached customer
@@ -2373,6 +2416,13 @@ export default function RestaurantPOS() {
           const dailyCountRes = await fetch(`/api/restaurant/delivery/daily-count?businessId=${bizId}`).catch(() => null)
           const dailyCountData = dailyCountRes?.ok ? await dailyCountRes.json().catch(() => null) : null
           const dailyDeliveryCount: number | undefined = dailyCountData?.deliveryCount
+          // Compute delivery credit fields from POS state
+          const _openingBal = deliveryAccount?.balance ?? 0
+          const _creditUsed = (applyCredit && _openingBal > 0) ? Math.min(_openingBal, total) : 0
+          const _creditBal = Math.max(0, _openingBal - _creditUsed)
+          const _payMode: 'PREPAID' | 'PARTIAL' | 'ON_DELIVERY' =
+            _creditUsed >= total ? 'PREPAID' : _creditUsed > 0 ? 'PARTIAL' : 'ON_DELIVERY'
+
           const deliveryPrintData: DeliveryReceiptData = {
             businessName: biz?.businessName || orderForReceipt.businessInfo?.businessName || '',
             businessAddress: biz?.address || orderForReceipt.businessInfo?.address || undefined,
@@ -2385,6 +2435,10 @@ export default function RestaurantPOS() {
             deliveryNote: deliveryNote || undefined,
             transactionDate: new Date(),
             orderTotal: total,
+            openingCreditBalance: _openingBal > 0 ? _openingBal : undefined,
+            creditUsed: _creditUsed > 0 ? _creditUsed : undefined,
+            creditBalance: _openingBal > 0 ? _creditBal : undefined,
+            paymentMode: _payMode,
             barcodeEscPos,
             dailyDeliveryCount,
           }
@@ -2400,13 +2454,36 @@ export default function RestaurantPOS() {
           setPendingDeliveryEscPos([])
         }
 
-        // Delivery: attach delivery meta
+        // Delivery: attach delivery meta (pass explicit applyCredit flag)
         if (orderType === 'delivery' && selectedCustomer) {
           fetch('/api/restaurant/delivery/orders', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orderId: result.id, customerId: selectedCustomer.id, deliveryNote: deliveryNote || undefined }),
+            body: JSON.stringify({ orderId: result.id, customerId: selectedCustomer.id, deliveryNote: deliveryNote || undefined, applyCredit }),
           }).catch(() => {})
+        }
+
+        // Dine-in / takeaway: apply credit and/or save change to credit (one combined call)
+        if (orderType !== 'delivery' && selectedCustomer && currentBusinessId) {
+          const creditToApply = (applyCredit && (deliveryAccount?.balance ?? 0) > 0)
+            ? Math.min(deliveryAccount!.balance, total) : 0
+          const cashReceived = parseFloat(amountReceived || '0')
+          const cashChange = Math.max(0, cashReceived - total)
+          const changeSave = (saveChangeToCredit && cashChange > 0) ? cashChange : 0
+          if (creditToApply > 0 || changeSave > 0) {
+            fetch('/api/restaurant/orders/apply-credit', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                orderId: result.id,
+                customerId: selectedCustomer.id,
+                businessId: currentBusinessId,
+                creditToApply,
+                changeToCredit: changeSave > 0 ? changeSave : undefined,
+                orderType,
+              }),
+            }).catch(() => {})
+          }
         }
 
         // Close payment modal
@@ -2448,6 +2525,8 @@ export default function RestaurantPOS() {
         setAppliedReward(null)
         setSkipRewardThisTime(false)
         setShowRewardHistory(false)
+        setApplyCredit(true)
+        setSaveChangeToCredit(false)
         autoAppliedForRef.current = null
         setShowQuickRegister(false)
         setOrderType('dine-in')
@@ -3318,7 +3397,8 @@ export default function RestaurantPOS() {
 
             {/* Live POS Mode */}
             {posMode === 'live' && (<>
-            <div ref={menuSectionRef} className="flex items-center gap-2 mb-2">
+            <div ref={menuSectionRef} className="sticky top-20 z-10 bg-white dark:bg-gray-900 pb-2">
+            <div className="flex items-center gap-2 mb-2">
               <div className="relative flex-1">
                 <input
                   type="text"
@@ -3378,7 +3458,7 @@ export default function RestaurantPOS() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 mb-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 mb-0">
               {categories.map(category => (
                 <button
                   key={category}
@@ -3393,7 +3473,8 @@ export default function RestaurantPOS() {
                 </button>
               ))}
             </div>
-            
+            </div>{/* end sticky search+categories */}
+
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2 sm:gap-4">
               {filteredItems.map(item => {
                 const hasDiscount = !!(item.originalPrice) && Number(item.originalPrice) > 0 && Number(item.originalPrice) > Number(item.price)
@@ -3902,18 +3983,18 @@ export default function RestaurantPOS() {
                   </div>
                 )}
 
-                {/* Delivery account info */}
-                {orderType === 'delivery' && selectedCustomer && (
+                {/* Customer credit account info (all order types) */}
+                {selectedCustomer && (
                   deliveryAccountLoading ? (
                     <div className="p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-xs text-gray-500">
                       Loading account...
                     </div>
-                  ) : deliveryAccount?.isBlacklisted ? (
+                  ) : (orderType === 'delivery' && deliveryAccount?.isBlacklisted) ? (
                     <div className="p-3 bg-red-50 dark:bg-red-900/30 border-2 border-red-400 dark:border-red-600 rounded-lg">
                       <p className="text-sm font-bold text-red-700 dark:text-red-300">🚫 Delivery Blocked</p>
                       <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                         This customer is blacklisted from delivery.
-                        {deliveryAccount.blacklistReason && (
+                        {deliveryAccount?.blacklistReason && (
                           <span className="block mt-0.5 font-medium">Reason: {deliveryAccount.blacklistReason}</span>
                         )}
                       </p>
@@ -3921,13 +4002,13 @@ export default function RestaurantPOS() {
                         The customer may still purchase in-store for cash.
                       </p>
                     </div>
-                  ) : (
+                  ) : (deliveryAccount?.balance ?? 0) > 0 ? (
                     <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg text-xs">
                       <span className="text-blue-700 dark:text-blue-300">
                         Credit balance: <span className="font-semibold">${(deliveryAccount?.balance ?? 0).toFixed(2)}</span>
                       </span>
                     </div>
-                  )
+                  ) : null
                 )}
 
                 {/* Outside delivery window warning */}
@@ -4081,28 +4162,44 @@ export default function RestaurantPOS() {
                 <span className="font-bold text-xl text-green-600">${total.toFixed(2)}</span>
               </div>
 
-              {orderType === 'delivery' && selectedCustomer && !deliveryAccount?.isBlacklisted && (
+              {selectedCustomer && !deliveryAccount?.isBlacklisted && (deliveryAccount?.balance ?? 0) > 0 && (
                 <div className="mb-4 px-3 py-2 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-700 rounded-lg text-sm space-y-1">
-                  {(() => {
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={applyCredit}
+                      onChange={e => setApplyCredit(e.target.checked)}
+                      className="rounded w-3.5 h-3.5"
+                    />
+                    <span className="text-sky-700 dark:text-sky-300 font-medium">
+                      Apply ${Math.min(deliveryAccount?.balance ?? 0, total).toFixed(2)} credit
+                    </span>
+                  </label>
+                  {applyCredit && (() => {
                     const credit = Math.min(deliveryAccount?.balance ?? 0, total)
                     const due = total - credit
                     return credit > 0 ? (
                       <>
+                        <div className="flex justify-between text-sky-600 dark:text-sky-400 text-xs">
+                          <span>Opening balance:</span>
+                          <span>${(deliveryAccount?.balance ?? 0).toFixed(2)}</span>
+                        </div>
                         <div className="flex justify-between text-sky-700 dark:text-sky-300">
                           <span>Credit applied:</span>
                           <span className="font-semibold">-${credit.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between font-semibold">
-                          <span>{due === 0 ? 'Fully prepaid' : 'Due on delivery:'}  </span>
+                          <span>{due === 0 ? (orderType === 'delivery' ? 'Fully prepaid' : 'Fully covered') : (orderType === 'delivery' ? 'Due on delivery:' : 'Remaining due:')}</span>
                           <span className={due === 0 ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}>
                             ${due.toFixed(2)}
                           </span>
                         </div>
                       </>
-                    ) : (
-                      <div className="text-gray-500 dark:text-gray-400">No credit — payment due on delivery</div>
-                    )
+                    ) : null
                   })()}
+                  {!applyCredit && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Credit will not be applied to this order</div>
+                  )}
                 </div>
               )}
 
@@ -4122,6 +4219,8 @@ export default function RestaurantPOS() {
                   setAppliedReward(null)
                   setSkipRewardThisTime(false)
                   setShowRewardHistory(false)
+                  setApplyCredit(true)
+                  setSaveChangeToCredit(false)
                   autoAppliedForRef.current = null
                   // Clear any coupon applied via mini-cart
                   removeCoupon()
@@ -4141,7 +4240,14 @@ export default function RestaurantPOS() {
       </div>
 
       {/* Payment Modal */}
-      {showPaymentModal && (
+      {showPaymentModal && (() => {
+        // Credit fully covers the order — hide all payment options
+        const isFullyCovered = mealProgramCashDue === null
+          && applyCredit
+          && !deliveryAccount?.isBlacklisted
+          && (deliveryAccount?.balance ?? 0) >= total
+          && total > 0
+        return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
             <h2 className="text-2xl font-bold text-primary mb-4">
@@ -4172,12 +4278,31 @@ export default function RestaurantPOS() {
                       const _rawFee = _feeType === 'PERCENTAGE' ? total * (_feeValue / 100) : (_feeType === 'FIXED' ? _feeValue : 0)
                       const _fee = _feeType === 'PERCENTAGE' ? Math.max(_rawFee, _minFee) : _rawFee
                       const _isEcocash = paymentMethod === 'ECOCASH'
-                      const _displayTotal = _isEcocash ? total + _fee : total
+                      const _creditApplied = (applyCredit && deliveryAccount && !deliveryAccount.isBlacklisted)
+                        ? Math.min(deliveryAccount.balance, total) : 0
+                      const _amountDue = Math.max(0, total - _creditApplied)
+                      const _displayTotal = _isEcocash ? _amountDue + _fee : _amountDue
                       return (
                         <>
+                          {_creditApplied > 0 && (
+                            <>
+                              <div className="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400 mb-1">
+                                <span>Order total:</span>
+                                <span>${total.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between items-center text-sm text-sky-600 dark:text-sky-400 mb-2">
+                                <span>Credit applied:</span>
+                                <span>−${_creditApplied.toFixed(2)}</span>
+                              </div>
+                            </>
+                          )}
                           <div className="flex justify-between items-center">
-                            <span className="text-lg font-medium">Total Amount:</span>
-                            <span className="text-2xl font-bold text-green-600">${_displayTotal.toFixed(2)}</span>
+                            <span className="text-lg font-medium">
+                              {_creditApplied > 0 ? 'Amount Due:' : 'Total Amount:'}
+                            </span>
+                            <span className={`text-2xl font-bold ${_displayTotal === 0 ? 'text-green-600' : 'text-green-600'}`}>
+                              ${_displayTotal.toFixed(2)}
+                            </span>
                           </div>
                           <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                             {cart.length} item{cart.length !== 1 ? 's' : ''}
@@ -4192,8 +4317,8 @@ export default function RestaurantPOS() {
                 )}
               </div>
 
-              {/* Payment Method — hidden for meal-program tender (always cash) */}
-              {mealProgramCashDue === null && <div>
+              {/* Payment Method — hidden for meal-program tender (always cash) and when fully covered by credit */}
+              {mealProgramCashDue === null && !isFullyCovered && <div>
                 <label className="block text-sm font-medium text-primary mb-2">Payment Method</label>
                 <div className="grid gap-2 grid-cols-2 sm:grid-cols-3">
                   {orderType !== 'delivery' && orderType !== 'takeaway' && (
@@ -4271,21 +4396,43 @@ export default function RestaurantPOS() {
                 </div>
               </div>}
 
-              {/* Deferred payment notice */}
-              {(paymentMethod === 'ON_DELIVERY' || paymentMethod === 'ON_PICKUP') && (
+              {/* Full credit payment notice */}
+              {paymentMethod === 'CREDIT' && (
                 <div className="p-4 bg-sky-50 dark:bg-sky-900/30 border border-sky-300 dark:border-sky-700 rounded-lg">
-                  <div className="font-semibold text-sky-800 dark:text-sky-200 text-lg">
-                    {paymentMethod === 'ON_DELIVERY' ? '🛵 Pay on Delivery' : '🛍️ Pay on Pickup'}
-                  </div>
-                  <div className="text-sky-700 dark:text-sky-300 mt-1">
-                    Collect <span className="font-bold">${total.toFixed(2)}</span> when {paymentMethod === 'ON_DELIVERY' ? 'delivering to customer' : 'customer picks up'}.
+                  <div className="font-semibold text-sky-800 dark:text-sky-200 text-lg">💳 Fully Covered by Credit</div>
+                  <div className="text-sky-700 dark:text-sky-300 mt-1 text-sm">
+                    <span className="font-bold">${total.toFixed(2)}</span> will be deducted from the customer&apos;s credit account.
+                    Remaining balance: <span className="font-bold">${Math.max(0, (deliveryAccount?.balance ?? 0) - total).toFixed(2)}</span>
                   </div>
                 </div>
               )}
 
+              {/* Deferred payment notice */}
+              {(paymentMethod === 'ON_DELIVERY' || paymentMethod === 'ON_PICKUP') && (() => {
+                const creditApplied = (applyCredit && deliveryAccount && !deliveryAccount.isBlacklisted)
+                  ? Math.min(deliveryAccount.balance, total) : 0
+                const amountDue = Math.max(0, total - creditApplied)
+                const isFullyPrepaid = creditApplied >= total && total > 0
+                return (
+                  <div className={`p-4 border rounded-lg ${isFullyPrepaid ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700' : 'bg-sky-50 dark:bg-sky-900/30 border-sky-300 dark:border-sky-700'}`}>
+                    <div className={`font-semibold text-lg ${isFullyPrepaid ? 'text-green-800 dark:text-green-200' : 'text-sky-800 dark:text-sky-200'}`}>
+                      {isFullyPrepaid ? '✅ Fully Prepaid by Credit' : paymentMethod === 'ON_DELIVERY' ? '🛵 Pay on Delivery' : '🛍️ Pay on Pickup'}
+                    </div>
+                    <div className={`mt-1 text-sm ${isFullyPrepaid ? 'text-green-700 dark:text-green-300' : 'text-sky-700 dark:text-sky-300'}`}>
+                      {isFullyPrepaid
+                        ? `$${total.toFixed(2)} covered by credit — nothing to collect on delivery.`
+                        : <span>Collect <span className="font-bold">${amountDue.toFixed(2)}</span> when {paymentMethod === 'ON_DELIVERY' ? 'delivering to customer' : 'customer picks up'}.</span>
+                      }
+                    </div>
+                  </div>
+                )
+              })()}
+
               {/* Amount Received — shown for cash (regular or meal-program tender) */}
               {(mealProgramCashDue !== null || (paymentMethod === 'CASH' && total > 0)) && (() => {
-                const cashRef = mealProgramCashDue ?? total
+                const _creditAppliedForCash = (applyCredit && deliveryAccount && !deliveryAccount.isBlacklisted)
+                  ? Math.min(deliveryAccount.balance, total) : 0
+                const cashRef = mealProgramCashDue ?? Math.max(0, total - _creditAppliedForCash)
                 return (
                   <div>
                     <label className="block text-sm font-medium text-primary mb-2">Amount Received</label>
@@ -4300,9 +4447,33 @@ export default function RestaurantPOS() {
                       autoFocus
                     />
                     {amountReceived && parseFloat(amountReceived) >= cashRef && (
-                      <div className="mt-2 p-2 bg-green-100 dark:bg-green-900 rounded text-green-800 dark:text-green-200 font-medium">
-                        💵 Change: ${(parseFloat(amountReceived) - cashRef).toFixed(2)}
-                      </div>
+                      <>
+                        <div className="mt-2 p-2 bg-green-100 dark:bg-green-900 rounded text-green-800 dark:text-green-200 font-medium">
+                          💵 Change: ${(parseFloat(amountReceived) - cashRef).toFixed(2)}
+                        </div>
+                        {/* Save change to credit — dine-in/takeaway only */}
+                        {mealProgramCashDue === null && orderType !== 'delivery' && parseFloat(amountReceived) > cashRef && (
+                          <div className="mt-2 px-2 py-2 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-700 rounded-lg">
+                            {selectedCustomer ? (
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={saveChangeToCredit}
+                                  onChange={e => setSaveChangeToCredit(e.target.checked)}
+                                  className="rounded w-3.5 h-3.5"
+                                />
+                                <span className="text-sm text-sky-700 dark:text-sky-300">
+                                  Save ${(parseFloat(amountReceived) - cashRef).toFixed(2)} change to credit account
+                                </span>
+                              </label>
+                            ) : (
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                💳 Select a customer to save change to their credit account
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </>
                     )}
                     {amountReceived && parseFloat(amountReceived) < cashRef && (
                       <div className="mt-2 p-2 bg-red-100 dark:bg-red-900 rounded text-red-800 dark:text-red-200 text-sm">
@@ -4314,8 +4485,11 @@ export default function RestaurantPOS() {
               })()}
 
               {/* EcoCash transaction code input */}
-              {mealProgramCashDue === null && paymentMethod === 'ECOCASH' && (() => {
-                const { fee, total: ecocashTotal, feeLabel } = getEcocashSummary(total, currentBusiness)
+              {mealProgramCashDue === null && !isFullyCovered && paymentMethod === 'ECOCASH' && (() => {
+                const _ecoCredit = (applyCredit && deliveryAccount && !deliveryAccount.isBlacklisted)
+                  ? Math.min(deliveryAccount.balance, total) : 0
+                const _ecoBase = Math.max(0, total - _ecoCredit)
+                const { fee, total: ecocashTotal, feeLabel } = getEcocashSummary(_ecoBase, currentBusiness)
                 return (
                   <div className="space-y-2">
                     <div>
@@ -4332,7 +4506,7 @@ export default function RestaurantPOS() {
                     </div>
                     {fee > 0 && (
                       <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded text-sm text-yellow-800 dark:text-yellow-200 space-y-0.5">
-                        <div className="flex justify-between"><span>Subtotal:</span><span>${total.toFixed(2)}</span></div>
+                        <div className="flex justify-between"><span>Subtotal:</span><span>${_ecoBase.toFixed(2)}</span></div>
                         <div className="flex justify-between"><span>EcoCash fee ({feeLabel}):</span><span>${fee.toFixed(2)}</span></div>
                         <div className="flex justify-between font-bold"><span>Total to charge:</span><span>${ecocashTotal.toFixed(2)}</span></div>
                       </div>
@@ -4369,6 +4543,7 @@ export default function RestaurantPOS() {
                     setPendingMealTransaction(null)
                     setAmountReceived('')
                     setEcocashTxCode('')
+                    setSaveChangeToCredit(false)
                     setMealPanelKey(k => k + 1)
                   }}
                   disabled={orderSubmitting}
@@ -4378,13 +4553,13 @@ export default function RestaurantPOS() {
                 </button>
                 <button
                   onClick={completeOrderWithPayment}
-                  disabled={orderSubmitting || (
+                  disabled={orderSubmitting || (isFullyCovered ? false : (
                     mealProgramCashDue !== null
                       ? (mealProgramCashDue > 0 && (!amountReceived || parseFloat(amountReceived) < mealProgramCashDue))
                       : paymentMethod === 'ECOCASH' ? !ecocashTxCode.trim()
-                      : paymentMethod === 'ON_DELIVERY' || paymentMethod === 'ON_PICKUP' ? false
+                      : paymentMethod === 'ON_DELIVERY' || paymentMethod === 'ON_PICKUP' || paymentMethod === 'CREDIT' ? false
                       : (paymentMethod === 'CASH' && total > 0 && (!amountReceived || parseFloat(amountReceived) < total))
-                  )}
+                  ))}
                   className="flex-1 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {orderSubmitting ? 'Processing...' : mealProgramCashDue !== null ? 'Confirm & Print Receipt' : 'Complete Order'}
@@ -4393,7 +4568,8 @@ export default function RestaurantPOS() {
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* Completed Order Receipt Modal */}
       {showReceiptModal && completedOrder && (() => {
@@ -4426,6 +4602,23 @@ export default function RestaurantPOS() {
                   <div className="text-sm text-gray-600 dark:text-gray-400">Order Number</div>
                   <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{completedOrder.orderNumber}</div>
                 </div>
+
+                {/* Customer info */}
+                {completedOrder.customerName && (
+                  <div className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg text-sm">
+                    <div>
+                      <span className="font-medium text-gray-800 dark:text-gray-200">{completedOrder.customerName}</span>
+                      {completedOrder.customerPhone && (
+                        <span className="text-gray-500 dark:text-gray-400 ml-2">{completedOrder.customerPhone}</span>
+                      )}
+                    </div>
+                    {completedOrder.customerCreditBalance !== undefined && (
+                      <span className="text-xs text-sky-600 dark:text-sky-400 font-medium">
+                        Credit: ${Number(completedOrder.customerCreditBalance).toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Order Items */}
                 <div>
@@ -4627,6 +4820,38 @@ export default function RestaurantPOS() {
                       </div>
                     </div>
                   )}
+
+                  {/* Credit payment section */}
+                  {completedOrder.creditPayment && (
+                    <div className="mt-3 p-3 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-700 rounded-lg text-sm space-y-1">
+                      <div className="font-semibold text-sky-700 dark:text-sky-300 text-xs uppercase tracking-wide mb-1">💳 Credit Payment</div>
+                      <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                        <span>Opening balance:</span>
+                        <span>${Number(completedOrder.creditPayment.openingBalance).toFixed(2)}</span>
+                      </div>
+                      {Number(completedOrder.creditPayment.creditUsed) > 0 && (
+                        <div className="flex justify-between text-sky-700 dark:text-sky-300">
+                          <span>Credit applied:</span>
+                          <span className="font-semibold">−${Number(completedOrder.creditPayment.creditUsed).toFixed(2)}</span>
+                        </div>
+                      )}
+                      {completedOrder.creditPayment.changeToCredit && (
+                        <div className="flex justify-between text-green-600 dark:text-green-400">
+                          <span>Change saved to credit:</span>
+                          <span className="font-semibold">+${Number(completedOrder.creditPayment.changeToCredit).toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between font-semibold border-t border-sky-200 dark:border-sky-700 pt-1">
+                        <span>Remaining balance:</span>
+                        <span>${Number(completedOrder.creditPayment.closingBalance).toFixed(2)}</span>
+                      </div>
+                      {Number(completedOrder.creditPayment.creditUsed) >= Number(completedOrder.total) && (
+                        <div className="text-center font-bold text-green-600 dark:text-green-400 text-base tracking-widest pt-1">
+                          ✅ PAID
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Print Button */}
@@ -4769,6 +4994,7 @@ export default function RestaurantPOS() {
             // After standard receipts: print delivery kitchen + customer copies
             if (completedOrder?.orderType === 'delivery' && completedOrder?.orderId && options.printerId && currentBusinessId) {
               const biz = businessDetails || currentBusiness
+              const _cp = completedOrder.creditPayment
               const deliveryPrintData: DeliveryReceiptData = {
                 businessName: biz?.businessName || pendingReceiptData?.businessName || '',
                 businessAddress: biz?.address || pendingReceiptData?.businessAddress || undefined,
@@ -4781,6 +5007,13 @@ export default function RestaurantPOS() {
                 deliveryNote: completedOrder.deliveryNote,
                 transactionDate: new Date(),
                 orderTotal: completedOrder.total,
+                openingCreditBalance: _cp ? Number(_cp.openingBalance) : undefined,
+                creditUsed: _cp && Number(_cp.creditUsed) > 0 ? Number(_cp.creditUsed) : undefined,
+                creditBalance: _cp ? Number(_cp.closingBalance) : undefined,
+                paymentMode: _cp
+                  ? (Number(_cp.creditUsed) >= Number(completedOrder.total) ? 'PREPAID'
+                    : Number(_cp.creditUsed) > 0 ? 'PARTIAL' : 'ON_DELIVERY')
+                  : undefined,
               }
               const toB64 = (s: string) => {
                 const bytes = new Uint8Array(s.length)

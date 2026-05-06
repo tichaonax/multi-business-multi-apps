@@ -306,6 +306,29 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
   receipt += formatPaymentLines(data);
 
   // ============================================================================
+  // 7b. CREDIT PAYMENT SECTION (if credit was applied or change saved to credit)
+  // ============================================================================
+  if (data.creditPayment && (data.creditPayment.creditUsed > 0 || (data.creditPayment.changeToCredit ?? 0) > 0)) {
+    receipt += line('-') + LF
+    receipt += ALIGN_CENTER + 'CREDIT PAYMENT' + LF + ALIGN_LEFT
+    receipt += formatTotal('Opening balance', data.creditPayment.openingBalance)
+    if (data.creditPayment.creditUsed > 0) {
+      receipt += formatTotal('Credit applied', -data.creditPayment.creditUsed)
+    }
+    if (data.creditPayment.changeToCredit && data.creditPayment.changeToCredit > 0) {
+      receipt += formatTotal('Change to credit', data.creditPayment.changeToCredit)
+    }
+    receipt += formatTotal('Remaining balance', data.creditPayment.closingBalance)
+    receipt += line('-') + LF
+    if (data.creditPayment.creditUsed >= data.total) {
+      receipt += ALIGN_CENTER
+      receipt += '** PAID **' + LF
+      receipt += 'Paid in full by credit' + LF
+      receipt += ALIGN_LEFT
+    }
+  }
+
+  // ============================================================================
   // 8. WIFI TOKENS SECTION (if any)
   // ============================================================================
   if (data.wifiTokens && data.wifiTokens.length > 0) {
@@ -1433,6 +1456,7 @@ export interface DeliveryReceiptData {
   dailyDeliveryCount?: number  // today's delivery order sequence count
   // Credit / payment fields (customer copy only)
   orderTotal?: number
+  openingCreditBalance?: number  // balance before this order
   creditUsed?: number
   creditBalance?: number  // remaining after this order
   paymentMode?: 'PREPAID' | 'PARTIAL' | 'ON_DELIVERY'
@@ -1567,7 +1591,15 @@ export function generateDeliveryCustomerReceipt(data: DeliveryReceiptData): stri
     r += formatTotal('Order Total', data.orderTotal)
   }
   if (data.creditUsed && data.creditUsed > 0) {
-    r += formatTotal('Credit Used', -data.creditUsed)
+    r += line('-') + LF
+    r += ALIGN_CENTER + 'CREDIT PAYMENT' + LF + ALIGN_LEFT
+    if (data.openingCreditBalance !== undefined) {
+      r += formatTotal('Opening balance', data.openingCreditBalance)
+    }
+    r += formatTotal('Credit applied', -data.creditUsed)
+    if (data.creditBalance !== undefined) {
+      r += formatTotal('Remaining balance', data.creditBalance)
+    }
   }
 
   const balanceDue = (data.orderTotal || 0) - (data.creditUsed || 0)
@@ -1577,16 +1609,12 @@ export function generateDeliveryCustomerReceipt(data: DeliveryReceiptData): stri
 
   if (data.paymentMode === 'PREPAID') {
     r += ALIGN_CENTER
-    r += 'PAID IN FULL (prepaid credit)' + LF
-    if (data.creditBalance !== undefined) {
-      r += `Remaining credit: $${data.creditBalance.toFixed(2)}` + LF
-    }
+    r += '** PAID **' + LF
+    r += 'Paid in full by credit' + LF
   } else if (data.paymentMode === 'PARTIAL') {
     r += ALIGN_CENTER
-    r += 'PARTIAL PREPAY -- balance due on delivery' + LF
-    if (data.creditBalance !== undefined) {
-      r += `Remaining credit: $${data.creditBalance.toFixed(2)}` + LF
-    }
+    r += 'PARTIAL PREPAY' + LF
+    r += `Balance due on delivery: $${balanceDue.toFixed(2)}` + LF
   } else {
     r += ALIGN_CENTER
     r += 'PAYMENT DUE ON DELIVERY' + LF

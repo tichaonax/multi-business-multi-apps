@@ -140,9 +140,13 @@ export default function DeliveryAccountsPage() {
       if (data.success) {
         setSelectedAccount({
           ...data.account,
+          balance: Number(data.account.balance),
           customerName: customer.name,
           customerPhone: customer.phone,
-          transactions: data.account.transactions || [],
+          transactions: (data.account.transactions || []).map((t: any) => ({
+            ...t,
+            amount: Number(t.amount),
+          })),
         })
         setKnownBlacklist(prev => ({ ...prev, [customer.id]: !!data.account.isBlacklisted }))
       }

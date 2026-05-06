@@ -10,7 +10,8 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await request.json()
-    const { orderId, customerId, deliveryNote } = body
+    // applyCredit: explicit opt-in from POS (default true for backward compat)
+    const { orderId, customerId, deliveryNote, applyCredit = true } = body
 
     // Resolve businessId from the order for permission check
     const orderForPerms = orderId
@@ -47,16 +48,19 @@ export async function POST(request: NextRequest) {
 
     const orderTotal = Number(order.totalAmount) || 0
     const availableCredit = Number(account?.balance || 0)
+    const openingBalance = availableCredit
 
     let creditUsed = 0
     let paymentMode: string
 
-    if (availableCredit >= orderTotal) {
-      creditUsed = orderTotal
-      paymentMode = 'PREPAID'
-    } else if (availableCredit > 0) {
-      creditUsed = availableCredit
-      paymentMode = 'PARTIAL'
+    if (applyCredit && availableCredit > 0) {
+      if (availableCredit >= orderTotal) {
+        creditUsed = orderTotal
+        paymentMode = 'PREPAID'
+      } else {
+        creditUsed = availableCredit
+        paymentMode = 'PARTIAL'
+      }
     } else {
       creditUsed = 0
       paymentMode = 'ON_DELIVERY'
@@ -64,7 +68,7 @@ export async function POST(request: NextRequest) {
 
     const newBalance = availableCredit - creditUsed
 
-    // Deduct credit and record transaction in a single transaction
+    // Deduct credit and record transaction in a single DB transaction
     await prisma.$transaction(async (tx) => {
       if (creditUsed > 0 && account) {
         await tx.deliveryCustomerAccounts.update({
@@ -77,7 +81,7 @@ export async function POST(request: NextRequest) {
             type: 'DEBIT',
             amount: creditUsed,
             orderId,
-            notes: `Delivery order ${orderId}`,
+            notes: `Delivery order — credit applied`,
             createdBy: user.id,
           },
         })
@@ -88,6 +92,7 @@ export async function POST(request: NextRequest) {
           orderId,
           deliveryNote: deliveryNote || null,
           creditUsed,
+          openingCreditBalance: openingBalance,
           creditBalance: newBalance,
           paymentMode,
           status: 'PENDING',
@@ -104,6 +109,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       creditUsed,
+      openingCreditBalance: openingBalance,
       creditBalance: newBalance,
       paymentMode,
       outsideDeliveryWindow: outsideWindow,

@@ -107,7 +107,7 @@ ${licenseRows ? `<table>
 </div>
 </body></html>`
 
-    const win = window.open('', '_blank')
+    const win = window.open('', '_blank', 'width=900,height=700,scrollbars=yes,resizable=yes')
     if (win) {
       win.document.write(html)
       win.document.close()

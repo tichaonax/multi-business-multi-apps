@@ -155,8 +155,9 @@ model BusinessCustomers {
   customer_laybys           CustomerLayby[]
   customer_rewards          CustomerRewards[]
   invoices                  Invoices[]
-  delivery_customer_account DeliveryCustomerAccounts?
-  order_cancellations       OrderCancellation[]       @relation("CustomerOrderCancellations")
+  delivery_customer_account   DeliveryCustomerAccounts?
+  restaurant_credit_payments  RestaurantCreditPayments[]
+  order_cancellations         OrderCancellation[]       @relation("CustomerOrderCancellations")
 
   @@map("business_customers")
 }
@@ -229,7 +230,8 @@ model BusinessOrders {
   coupon_usages            CouponUsages[]
   meal_program_transaction MealProgramTransactions?
   customer_rewards         CustomerRewards[]        @relation("RedeemedReward")
-  order_cancellation       OrderCancellation?
+  order_cancellation         OrderCancellation?
+  restaurant_credit_payment  RestaurantCreditPayments?
 
   @@index([orderNumber])
   @@index([businessId, createdAt(sort: Desc)])
@@ -576,6 +578,7 @@ model Businesses {
   combo_item_payee                                                         ComboPaymentRequestItems[]    @relation("ComboItemPayeeBusiness")
   leave_policies_umbrella                                                  LeavePolicies[]               @relation("LeavePolicyUmbrella")
   leave_policies_business                                                  LeavePolicies[]               @relation("LeavePolicyBusiness")
+  restaurant_credit_payments                                               RestaurantCreditPayments[]
 
   @@map("businesses")
 }
@@ -6495,9 +6498,10 @@ model DeliveryOrderMeta {
   id                 String    @id @default(uuid())
   orderId            String    @unique
   deliveryNote       String?
-  creditUsed         Decimal   @default(0) @db.Decimal(10, 2)
-  creditBalance      Decimal   @default(0) @db.Decimal(10, 2)
-  paymentMode        String    @default("ON_DELIVERY")
+  creditUsed             Decimal   @default(0) @db.Decimal(10, 2)
+  openingCreditBalance   Decimal   @default(0) @db.Decimal(10, 2)
+  creditBalance          Decimal   @default(0) @db.Decimal(10, 2)
+  paymentMode            String    @default("ON_DELIVERY")
   status             String    @default("PENDING")
   paymentCollected   Decimal?  @db.Decimal(10, 2)
   paymentCollectedAt DateTime?
@@ -6512,6 +6516,28 @@ model DeliveryOrderMeta {
   @@index([status])
   @@index([runId])
   @@map("delivery_order_meta")
+}
+
+model RestaurantCreditPayments {
+  id             String   @id @default(uuid())
+  orderId        String   @unique
+  customerId     String
+  businessId     String
+  openingBalance Decimal  @db.Decimal(10, 2)
+  creditUsed     Decimal  @db.Decimal(10, 2)
+  closingBalance Decimal  @db.Decimal(10, 2)
+  changeToCredit Decimal? @db.Decimal(10, 2)
+  orderType      String
+  createdBy      String
+  createdAt      DateTime @default(now())
+
+  order    BusinessOrders   @relation(fields: [orderId], references: [id])
+  customer BusinessCustomers @relation(fields: [customerId], references: [id])
+  business Businesses        @relation(fields: [businessId], references: [id])
+
+  @@index([customerId])
+  @@index([businessId])
+  @@map("restaurant_credit_payments")
 }
 
 model DeliveryStatusHistory {
