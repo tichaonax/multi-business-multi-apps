@@ -55,7 +55,7 @@ const PRINTER_TABLES_SKIP_CROSS_MACHINE = [
  * Get current node ID (matches backup-clean.ts implementation)
  */
 async function getCurrentNodeId(prisma: PrismaClient): Promise<string> {
-  const node = await (prisma as any).syncNodes.findFirst({
+  const node = await prisma.syncNodes.findFirst({
     where: { isActive: true },
     orderBy: { lastSeen: 'desc' }
   })
@@ -139,6 +139,7 @@ const RESTORE_ORDER = [
   'employeeDeductions',
   'employeeLoans',
   'employeeSalaryIncreases',
+  'leavePolicies',              // depends on businesses only (umbrella + optional business FK)
   'employeeLeaveRequests',
   'employeeLeaveBalance',
   'employeeAttendance',
@@ -478,6 +479,9 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
 
   // Prep Inventory Config: unique on (businessProductId, businessId)
   'menuItemInventoryConfigs': { fields: ['businessProductId', 'businessId'] },
+
+  // Leave Policies: composite unique on umbrellaBusinessId + businessId
+  'leavePolicies': { fields: ['umbrellaBusinessId', 'businessId'] },
 
   // Policy Management: composite unique constraints
   'policyVersions': { fields: ['policyId', 'version'] },             // @@unique([policyId, version])

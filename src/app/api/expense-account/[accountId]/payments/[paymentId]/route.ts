@@ -620,10 +620,9 @@ export async function PATCH(
     if (isOwnRequestEdit && existingPayment.status === 'REJECTED') {
       updateData.status = 'REQUEST'
     }
-    // lineItems handled via raw SQL after the transaction (Prisma client not yet regenerated)
-    const lineItemsValue = lineItems !== undefined
-      ? (Array.isArray(lineItems) && lineItems.length > 0 ? lineItems : null)
-      : undefined
+    if (lineItems !== undefined) {
+      updateData.lineItems = Array.isArray(lineItems) && lineItems.length > 0 ? lineItems : null
+    }
     if (projectId !== undefined) {
       if (projectId) {
         const project = await prisma.projects.findUnique({ where: { id: projectId }, select: { id: true } })
@@ -728,15 +727,6 @@ export async function PATCH(
 
       return { updatedPayment, newBalance, adjustmentDepositId, businessCredited }
     })
-
-    // Update line_items via raw SQL (Prisma client not yet regenerated for this column)
-    if (lineItemsValue !== undefined) {
-      if (lineItemsValue === null) {
-        await prisma.$executeRaw`UPDATE expense_account_payments SET line_items = NULL WHERE id = ${paymentId}`
-      } else {
-        await prisma.$executeRaw`UPDATE expense_account_payments SET line_items = ${JSON.stringify(lineItemsValue)}::jsonb WHERE id = ${paymentId}`
-      }
-    }
 
     return NextResponse.json({
       success: true,

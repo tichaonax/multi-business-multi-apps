@@ -317,6 +317,8 @@ export async function createCleanBackup(
     }
   })
 
+  businessData.leavePolicies = await prisma.leavePolicies.findMany()
+
   businessData.employeeLeaveRequests = await prisma.employeeLeaveRequests.findMany({
     where: {
       employees_employee_leave_requests_employeeIdToemployees: {
@@ -798,32 +800,17 @@ export async function createCleanBackup(
     }
   })
 
-  // Vehicle Renewal Receipts & Exemptions (added with vehicle renewal workflow)
-  // Use (prisma as any) guard: Prisma client may not yet include these models
-  // if prisma generate hasn't been re-run since the schema was updated.
-  const _anyPrisma = prisma as any
-  if (_anyPrisma.vehicleRenewalReceipts) {
-    businessData.vehicleRenewalReceipts = await _anyPrisma.vehicleRenewalReceipts.findMany({
-      where: { vehicles: { businessId: { in: businessIds } } }
-    })
-  } else {
-    businessData.vehicleRenewalReceipts = []
-  }
+  // Vehicle Renewal Receipts & Exemptions
+  businessData.vehicleRenewalReceipts = await prisma.vehicleRenewalReceipts.findMany({
+    where: { vehicles: { businessId: { in: businessIds } } }
+  })
 
-  if (_anyPrisma.vehicleExemptions) {
-    businessData.vehicleExemptions = await _anyPrisma.vehicleExemptions.findMany({
-      where: { vehicles: { businessId: { in: businessIds } } }
-    })
-  } else {
-    businessData.vehicleExemptions = []
-  }
+  businessData.vehicleExemptions = await prisma.vehicleExemptions.findMany({
+    where: { vehicles: { businessId: { in: businessIds } } }
+  })
 
   // Issuing Authorities — global lookup table, no business scope
-  if (_anyPrisma.issuingAuthorities) {
-    businessData.issuingAuthorities = await _anyPrisma.issuingAuthorities.findMany()
-  } else {
-    businessData.issuingAuthorities = []
-  }
+  businessData.issuingAuthorities = await prisma.issuingAuthorities.findMany()
 
   // 13. Restaurant/Menu data
   businessData.menuItems = await prisma.menuItems.findMany()

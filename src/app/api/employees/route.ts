@@ -113,6 +113,7 @@ export async function GET(req: NextRequest) {
           nationalId: true,
           hireDate: true,
           employmentStatus: true,
+          terminationDate: true,
           isActive: true,
           jobTitleId: true,
           compensationTypeId: true,
@@ -185,20 +186,31 @@ export async function GET(req: NextRequest) {
     // Fetch employee contracts separately to avoid relying on fragile relation include names
     // Include active and pending contracts for proper status display
     const employeeIds = employees.map(e => e.id)
-    const contracts = employeeIds.length > 0 ? await prisma.employeeContracts.findMany({
+    const [contracts, leaveBalances] = await Promise.all([
+      employeeIds.length > 0 ? prisma.employeeContracts.findMany({
       where: {
         employeeId: { in: employeeIds },
         status: { in: ['active', 'pending_signature', 'pending_approval', 'draft'] }
       },
       select: { id: true, employeeId: true, status: true, baseSalary: true, employeeSignedAt: true, managerSignedAt: true, notes: true },
       orderBy: { createdAt: 'desc' }
-    }) : []
+    }) : [],
+      employeeIds.length > 0 ? prisma.employeeLeaveBalance.findMany({
+        where: { employeeId: { in: employeeIds }, year: new Date().getFullYear() },
+        select: { employeeId: true, remainingAnnual: true, usedSickDays: true, annualLeaveDays: true, sickLeaveDays: true }
+      }) : []
+    ])
 
     const contractsByEmployee = new Map<string, any[]>()
     for (const c of contracts) {
       const arr = contractsByEmployee.get(c.employeeId) || []
       arr.push(c)
       contractsByEmployee.set(c.employeeId, arr)
+    }
+
+    const leaveBalanceByEmployee = new Map<string, any>()
+    for (const lb of leaveBalances) {
+      leaveBalanceByEmployee.set(lb.employeeId, lb)
     }
 
     // OPTIMIZED: Format response data using lookup maps
@@ -227,6 +239,7 @@ export async function GET(req: NextRequest) {
         businessContactPhone,
         nationalId: employee.nationalId,
         hireDate: employee.hireDate,
+        terminationDate: employee.terminationDate ?? null,
         employmentStatus: employee.employmentStatus,
         isActive: employee.isActive,
         user: employee.users,
@@ -255,7 +268,8 @@ export async function GET(req: NextRequest) {
         } : null,
         // Include active contract data for salary increase functionality
         employeeContracts: contractsByEmployee.get(employee.id) || [],
-        contractCount: (contractsByEmployee.get(employee.id) || []).length
+        contractCount: (contractsByEmployee.get(employee.id) || []).length,
+        leaveBalance: leaveBalanceByEmployee.get(employee.id) || null
       }
     })
 

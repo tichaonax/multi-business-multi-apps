@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
       const dayStart = new Date(date)
       const dayEnd = new Date(date)
       dayEnd.setDate(dayEnd.getDate() + 1)
-      const orders = await (prisma as any).orders.findMany({
+      const orders = await prisma.orders.findMany({
         where: {
           businessId,
           paymentMethod: 'ECOCASH',

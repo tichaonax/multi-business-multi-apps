@@ -632,6 +632,7 @@ export default function NewContractPage() {
           dailyStartTime: formData.dailyStartTime || null,
           dailyEndTime: formData.dailyEndTime || null,
           annualVacationDays: formData.annualVacationDays ? parseInt(formData.annualVacationDays) : null,
+          sickDaysPerYear: (formData as any).sickDaysPerYear ? parseInt((formData as any).sickDaysPerYear) : null,
           benefits: formData.benefits.map(benefit => ({
             ...benefit,
             amount: parseFloat(benefit.amount)
@@ -759,6 +760,7 @@ export default function NewContractPage() {
       dailyStartTime: formData.dailyStartTime || null,
       dailyEndTime: formData.dailyEndTime || null,
       annualVacationDays: formData.annualVacationDays ? parseInt(formData.annualVacationDays, 10) : null,
+      sickDaysPerYear: (formData as any).sickDaysPerYear ? parseInt((formData as any).sickDaysPerYear, 10) : null,
       businessAssignments: employee.employeeBusinessAssignments?.map(assignment => ({
         businessId: assignment.businessId,
         businessName: assignment.businesses?.name || selectedBusiness?.name || '',
@@ -1443,6 +1445,17 @@ export default function NewContractPage() {
                           min="0"
                           value={formData.annualVacationDays}
                           onChange={(e) => setFormData(prev => ({ ...prev, annualVacationDays: e.target.value }))}
+                          className="input w-full h-10 px-2 py-1 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-secondary mb-1">Sick Days / Year <span className="text-gray-400">(leave blank for policy default)</span></label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={(formData as any).sickDaysPerYear ?? ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, sickDaysPerYear: e.target.value } as any))}
+                          placeholder="Policy default"
                           className="input w-full h-10 px-2 py-1 text-sm"
                         />
                       </div>

@@ -40,7 +40,13 @@ interface Employee {
   // contracts may be returned as `contracts` (legacy) or `employeeContracts` (canonical)
   contracts?: any[]
   employeeContracts?: any[]
-  leaveBalance?: any
+  terminationDate?: string | null
+  leaveBalance?: {
+    remainingAnnual?: number
+    annualLeaveDays?: number
+    usedSickDays?: number
+    sickLeaveDays?: number
+  } | null
   currentContract?: any | null
   contractCount?: number
   profilePhotoUrl?: string | null
@@ -102,6 +108,10 @@ export default function EmployeesPage() {
   const [printCardEmployee, setPrintCardEmployee] = useState<Employee | null>(null)
   const [clockedInIds, setClockedInIds] = useState<Set<string>>(new Set())
   const [loggedInIds, setLoggedInIds] = useState<Set<string>>(new Set())
+  const [leaveStatusMap, setLeaveStatusMap] = useState<Map<string, { leaveType: string; startDate: string; leaveRequestId: string }>>(new Map())
+  const [returnToWorkModal, setReturnToWorkModal] = useState<{ isOpen: boolean; employee: Employee | null; leaveRequestId: string | null }>({ isOpen: false, employee: null, leaveRequestId: null })
+  const [returnDate, setReturnDate] = useState<string>(new Date().toISOString().split('T')[0])
+  const [returnToWorkLoading, setReturnToWorkLoading] = useState(false)
 
 
   const canViewEmployees = hasPermission('canViewEmployees')
@@ -134,6 +144,7 @@ export default function EmployeesPage() {
       fetchEmployees()
       fetchDepartments()
       fetchClockInStatus()
+      fetchLeaveStatus()
     }
   }, [canViewEmployees, initialFilterSet, currentPage, statusFilter, departmentFilter, businessFilter, searchTerm])
   
@@ -269,6 +280,49 @@ export default function EmployeesPage() {
     }
   }
 
+  const fetchLeaveStatus = async () => {
+    try {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(businessFilter)
+      const query = businessFilter && isUuid ? `?businessId=${businessFilter}` : ''
+      const res = await fetch(`/api/employees/leave-status${query}`)
+      if (res.ok) {
+        const data = await res.json()
+        const map = new Map<string, { leaveType: string; startDate: string; leaveRequestId: string }>()
+        for (const entry of data.onLeave ?? []) {
+          map.set(entry.employeeId, entry)
+        }
+        setLeaveStatusMap(map)
+      }
+    } catch {
+      // non-critical
+    }
+  }
+
+  const handleReturnToWork = async () => {
+    if (!returnToWorkModal.employee || !returnToWorkModal.leaveRequestId) return
+    setReturnToWorkLoading(true)
+    try {
+      const res = await fetch(`/api/employees/${returnToWorkModal.employee.id}/return-to-work`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leaveRequestId: returnToWorkModal.leaveRequestId, returnDate }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setMessage({ type: 'success', text: data.message ?? 'Employee returned to work' })
+        setReturnToWorkModal({ isOpen: false, employee: null, leaveRequestId: null })
+        fetchLeaveStatus()
+      } else {
+        setMessage({ type: 'error', text: data.error ?? 'Failed to process return to work' })
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Failed to process return to work' })
+    } finally {
+      setReturnToWorkLoading(false)
+      setTimeout(() => setMessage(null), 6000)
+    }
+  }
+
   const handleSearch = (value: string) => {
     setSearchTerm(value)
     setCurrentPage(1) // Reset to first page when searching
@@ -312,6 +366,8 @@ export default function EmployeesPage() {
   <tr><td>Business</td><td>${employee.primaryBusiness?.name ?? 'N/A'}</td></tr>
   <tr><td>Status</td><td>${employee.employmentStatus ?? ''}</td></tr>
   <tr><td>Supervisor</td><td>${supervisorName}${supervisorTitle ? ` (${supervisorTitle})` : ''}</td></tr>
+  ${employee.terminationDate ? `<tr><td>Termination Date</td><td>${formatDate(employee.terminationDate)}</td></tr>` : ''}
+  ${employee.leaveBalance ? `<tr><td>Annual Leave Remaining</td><td>${employee.leaveBalance.remainingAnnual ?? 0} / ${employee.leaveBalance.annualLeaveDays ?? 0} days</td></tr><tr><td>Sick Days Used</td><td>${employee.leaveBalance.usedSickDays ?? 0} / ${employee.leaveBalance.sickLeaveDays ?? 0} days</td></tr>` : ''}
 </table>
 </body></html>`
     const win = window.open('', '_blank')
@@ -407,6 +463,13 @@ export default function EmployeesPage() {
       ]}
       headerActions={
         <div className="flex space-x-3">
+          <button
+            className="btn-secondary"
+            onClick={() => window.location.href = '/employees/leave-management'}
+          >
+            <span className="mr-2">🗓️</span>
+            Leave
+          </button>
           <button
             className="btn-secondary"
             onClick={() => window.location.href = '/employees/clock-in'}
@@ -630,6 +693,27 @@ export default function EmployeesPage() {
                           {employee.hireDate && (
                             <p className="text-xs text-secondary">Engaged: {formatDate(employee.hireDate)}</p>
                           )}
+                          {employee.terminationDate && (
+                            <p className="text-xs text-red-500">Terminated: {formatDate(employee.terminationDate)}</p>
+                          )}
+                          {employee.leaveBalance && (
+                            <>
+                              <p className="text-xs text-secondary">Leave rem: {employee.leaveBalance.remainingAnnual ?? 0} / {employee.leaveBalance.annualLeaveDays ?? 0} days</p>
+                              <p className="text-xs text-secondary">Sick used: {employee.leaveBalance.usedSickDays ?? 0} / {employee.leaveBalance.sickLeaveDays ?? 0} days</p>
+                            </>
+                          )}
+                          {leaveStatusMap.has(employee.id) && (() => {
+                            const ls = leaveStatusMap.get(employee.id)!
+                            return ls.leaveType === 'sick' ? (
+                              <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 rounded border border-amber-300 mt-1">
+                                On Sick Leave since {formatDate(ls.startDate)}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200 rounded border border-teal-300 mt-1">
+                                On Annual Leave since {formatDate(ls.startDate)}
+                              </span>
+                            )
+                          })()}
                           {employee.email && (
                             <p className="text-xs text-secondary truncate">{employee.email}</p>
                           )}
@@ -720,6 +804,17 @@ export default function EmployeesPage() {
 
                       {/* Action Buttons */}
                       <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                        {leaveStatusMap.has(employee.id) && (
+                          <button
+                            className="w-full text-xs px-3 py-2 bg-teal-100 dark:bg-teal-900/30 text-teal-800 dark:text-teal-200 rounded font-medium border border-teal-300"
+                            onClick={() => {
+                              setReturnDate(new Date().toISOString().split('T')[0])
+                              setReturnToWorkModal({ isOpen: true, employee, leaveRequestId: leaveStatusMap.get(employee.id)!.leaveRequestId })
+                            }}
+                          >
+                            ✓ Return to Work
+                          </button>
+                        )}
                         <button
                           className="flex-1 text-xs px-3 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 rounded font-medium"
                           onClick={() => window.location.href = `/employees/${employee.id}`}
@@ -830,9 +925,38 @@ export default function EmployeesPage() {
                                   </div>
                                 )}
                                 <div className="text-sm text-secondary">{employee.employeeNumber}</div>
+                                {employee.nationalId && (
+                                  <div className="text-xs text-secondary">ID: {employee.nationalId}</div>
+                                )}
+                                {employee.phone && (
+                                  <div className="text-xs text-secondary">{formatPhoneNumberForDisplay(employee.phone)}</div>
+                                )}
                                 {employee.email && (
                                   <div className="text-xs text-secondary">{employee.email}</div>
                                 )}
+                                {employee.hireDate && (
+                                  <div className="text-xs text-secondary">Engaged: {formatDate(employee.hireDate)}</div>
+                                )}
+                                {employee.terminationDate && (
+                                  <div className="text-xs text-red-500">Terminated: {formatDate(employee.terminationDate)}</div>
+                                )}
+                                {employee.leaveBalance && (
+                                  <div className="text-xs text-secondary">
+                                    Leave rem: {employee.leaveBalance.remainingAnnual ?? 0} / {employee.leaveBalance.annualLeaveDays ?? 0} days · Sick used: {employee.leaveBalance.usedSickDays ?? 0} / {employee.leaveBalance.sickLeaveDays ?? 0}
+                                  </div>
+                                )}
+                                {leaveStatusMap.has(employee.id) && (() => {
+                                  const ls = leaveStatusMap.get(employee.id)!
+                                  return ls.leaveType === 'sick' ? (
+                                    <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 rounded border border-amber-300 mt-1">
+                                      On Sick Leave since {formatDate(ls.startDate)}
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200 rounded border border-teal-300 mt-1">
+                                      On Annual Leave since {formatDate(ls.startDate)}
+                                    </span>
+                                  )
+                                })()}
                               </div>
                             </div>
                           </td>
@@ -931,6 +1055,18 @@ export default function EmployeesPage() {
 
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <div className="flex items-center justify-end space-x-2">
+                              {leaveStatusMap.has(employee.id) && (
+                                <button
+                                  className="text-teal-600 hover:text-teal-900 dark:text-teal-400 dark:hover:text-teal-200 font-medium"
+                                  onClick={() => {
+                                    setReturnDate(new Date().toISOString().split('T')[0])
+                                    setReturnToWorkModal({ isOpen: true, employee, leaveRequestId: leaveStatusMap.get(employee.id)!.leaveRequestId })
+                                  }}
+                                  title="Return to Work"
+                                >
+                                  ✓ Return
+                                </button>
+                              )}
                               <button
                                 className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                                 onClick={() => window.location.href = `/employees/${employee.id}`}
@@ -960,6 +1096,13 @@ export default function EmployeesPage() {
                                 title="Print ID Card"
                               >
                                 🪪
+                              </button>
+                              <button
+                                className="text-red-500 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200"
+                                onClick={() => handleExportEmployeePdf(employee)}
+                                title="Export employee details to PDF"
+                              >
+                                📄
                               </button>
                             </div>
                           </td>
@@ -1040,6 +1183,42 @@ export default function EmployeesPage() {
               {message.type === 'success' ? '✅' : '❌'}
             </span>
             {message.text}
+          </div>
+        </div>
+      )}
+
+      {/* Return to Work Modal */}
+      {returnToWorkModal.isOpen && returnToWorkModal.employee && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-sm shadow-xl">
+            <h3 className="text-lg font-semibold text-primary mb-1">Return to Work</h3>
+            <p className="text-sm text-secondary mb-4">{returnToWorkModal.employee.fullName}</p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-secondary mb-1">Return Date</label>
+              <input
+                type="date"
+                value={returnDate}
+                onChange={(e) => setReturnDate(e.target.value)}
+                className="input-field w-full"
+              />
+              <p className="text-xs text-secondary mt-1">First day back at work</p>
+            </div>
+            <div className="flex space-x-3">
+              <button
+                className="flex-1 btn-secondary"
+                onClick={() => setReturnToWorkModal({ isOpen: false, employee: null, leaveRequestId: null })}
+                disabled={returnToWorkLoading}
+              >
+                Cancel
+              </button>
+              <button
+                className="flex-1 btn-primary"
+                onClick={handleReturnToWork}
+                disabled={returnToWorkLoading || !returnDate}
+              >
+                {returnToWorkLoading ? 'Processing...' : 'Confirm Return'}
+              </button>
+            </div>
           </div>
         </div>
       )}

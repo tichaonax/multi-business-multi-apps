@@ -100,10 +100,10 @@ export default function UmbrellaBusinessManagement() {
             maxCarryoverDays: data.policy.maxCarryoverDays != null ? String(data.policy.maxCarryoverDays) : '',
           })
         }
-        setLeavePolicyLoaded(true)
       }
     } catch (error) {
       console.error('Error fetching leave policy:', error)
+    } finally {
       setLeavePolicyLoaded(true)
     }
   }

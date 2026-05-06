@@ -108,6 +108,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       dailyStartTime,
       dailyEndTime,
       annualVacationDays,
+      sickDaysPerYear,
     } = data
 
     // Debug logging
@@ -226,6 +227,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         dailyStartTime: dailyStartTime ?? null,
         dailyEndTime: dailyEndTime ?? null,
         annualVacationDays: annualVacationDays ?? null,
+        sickDaysPerYear: sickDaysPerYear ?? null,
         // updatedAt has a default in the schema; not required here
       }
 

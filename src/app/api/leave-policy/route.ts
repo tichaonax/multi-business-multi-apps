@@ -21,8 +21,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'umbrellaBusinessId is required' }, { status: 400 })
     }
 
-    // Business-specific override first, then umbrella default
-    const policy = await (prisma as any).leavePolicies.findFirst({
+    const policy = await prisma.leavePolicies.findFirst({
       where: {
         umbrellaBusinessId,
         isActive: true,
@@ -32,7 +31,6 @@ export async function GET(request: NextRequest) {
         ],
       },
       orderBy: [
-        // business-specific (non-null businessId) ranks higher
         { businessId: 'desc' },
         { createdAt: 'desc' },
       ],
@@ -66,7 +64,6 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/leave-policy
  * Create or update the leave policy for an umbrella business (and optional business override).
- * Requires admin role or canManageEmployees permission.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -101,44 +98,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'annualAccrualPerMonth must be greater than 0' }, { status: 400 })
     }
 
-    const existing = await (prisma as any).leavePolicies.findUnique({
+    const accrual  = Number(annualAccrualPerMonth)
+    const maxDays  = Number(maxAnnualDays)
+    const sickDays = Number(sickDaysPerYear)
+    const carryMax = maxCarryoverDays != null ? Number(maxCarryoverDays) : null
+
+    const policy = await prisma.leavePolicies.upsert({
       where: {
-        umbrellaBusinessId_businessId: {
-          umbrellaBusinessId,
-          businessId,
-        },
+        umbrellaBusinessId_businessId: { umbrellaBusinessId, businessId },
+      },
+      update: {
+        annualAccrualPerMonth: accrual,
+        maxAnnualDays: maxDays,
+        sickDaysPerYear: sickDays,
+        carryoverEnabled: Boolean(carryoverEnabled),
+        maxCarryoverDays: carryMax,
+        isActive: true,
+        updatedAt: new Date(),
+      },
+      create: {
+        id: randomUUID(),
+        umbrellaBusinessId,
+        businessId,
+        annualAccrualPerMonth: accrual,
+        maxAnnualDays: maxDays,
+        sickDaysPerYear: sickDays,
+        carryoverEnabled: Boolean(carryoverEnabled),
+        maxCarryoverDays: carryMax,
+        isActive: true,
       },
     })
-
-    let policy
-    if (existing) {
-      policy = await (prisma as any).leavePolicies.update({
-        where: { id: existing.id },
-        data: {
-          annualAccrualPerMonth: Number(annualAccrualPerMonth),
-          maxAnnualDays: Number(maxAnnualDays),
-          sickDaysPerYear: Number(sickDaysPerYear),
-          carryoverEnabled: Boolean(carryoverEnabled),
-          maxCarryoverDays: maxCarryoverDays != null ? Number(maxCarryoverDays) : null,
-          isActive: true,
-          updatedAt: new Date(),
-        },
-      })
-    } else {
-      policy = await (prisma as any).leavePolicies.create({
-        data: {
-          id: randomUUID(),
-          umbrellaBusinessId,
-          businessId,
-          annualAccrualPerMonth: Number(annualAccrualPerMonth),
-          maxAnnualDays: Number(maxAnnualDays),
-          sickDaysPerYear: Number(sickDaysPerYear),
-          carryoverEnabled: Boolean(carryoverEnabled),
-          maxCarryoverDays: maxCarryoverDays != null ? Number(maxCarryoverDays) : null,
-          isActive: true,
-        },
-      })
-    }
 
     return NextResponse.json({
       policy: {

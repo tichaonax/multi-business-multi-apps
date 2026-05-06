@@ -153,7 +153,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     // Batch-fetch leave balances for the payroll year (shown as informational footer on payslip)
     const leaveBalanceRows = employeeIds.length > 0
-      ? await (prisma as any).employeeLeaveBalance.findMany({
+      ? await prisma.employeeLeaveBalance.findMany({
           where: { employeeId: { in: employeeIds }, year: period.year },
           select: { employeeId: true, remainingAnnual: true },
         })

@@ -4,6 +4,8 @@
  * uses the same numbers — no more hardcoded 21 / 10.
  */
 
+import { PrismaClient } from '@prisma/client'
+
 export interface LeavePolicy {
   maxAnnualDays: number
   sickDaysPerYear: number
@@ -26,7 +28,7 @@ const DEFAULTS: LeavePolicy = {
  * umbrella-level default.  Returns hard-coded defaults if no policy exists yet.
  */
 export async function getEmployeeLeavePolicy(
-  prismaClient: any,
+  prismaClient: PrismaClient,
   employeeId: string
 ): Promise<LeavePolicy> {
   try {
@@ -58,15 +60,25 @@ export async function getEmployeeLeavePolicy(
       ],
     })
 
-    if (!policy) return DEFAULTS
-
-    return {
+    const base: LeavePolicy = policy ? {
       maxAnnualDays: policy.maxAnnualDays,
       sickDaysPerYear: policy.sickDaysPerYear,
       annualAccrualPerMonth: Number(policy.annualAccrualPerMonth),
       carryoverEnabled: policy.carryoverEnabled,
       maxCarryoverDays: policy.maxCarryoverDays,
+    } : DEFAULTS
+
+    // Contract-level sick days override: check the employee's active signed contract
+    const activeContract = await prismaClient.employeeContracts.findFirst({
+      where: { employeeId, status: { in: ['active', 'pending_signature'] } },
+      orderBy: { startDate: 'desc' },
+      select: { sickDaysPerYear: true },
+    })
+    if (activeContract?.sickDaysPerYear != null) {
+      base.sickDaysPerYear = activeContract.sickDaysPerYear
     }
+
+    return base
   } catch {
     return DEFAULTS
   }

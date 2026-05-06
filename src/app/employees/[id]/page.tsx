@@ -1362,6 +1362,7 @@ export default function EmployeeDetailPage() {
             dailyStartTime: selectedContractForRenewal.dailyStartTime ?? null,
             dailyEndTime: selectedContractForRenewal.dailyEndTime ?? null,
             annualVacationDays: selectedContractForRenewal.annualVacationDays ?? null,
+            sickDaysPerYear: (selectedContractForRenewal as any).sickDaysPerYear ?? null,
           }}
           isOpen={showRenewalModal}
           onClose={() => {

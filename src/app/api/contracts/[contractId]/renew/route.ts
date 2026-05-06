@@ -17,6 +17,7 @@ const RenewalSchema = z.object({
   dailyStartTime: z.string().optional(),
   dailyEndTime: z.string().optional(),
   annualVacationDays: z.number().int().optional(),
+  sickDaysPerYear: z.number().int().optional(),
 })
 
 // POST - Renew an existing contract
@@ -139,6 +140,7 @@ export async function POST(
         dailyStartTime:     validatedData.dailyStartTime     ?? (originalContract as any).dailyStartTime     ?? null,
         dailyEndTime:       validatedData.dailyEndTime       ?? (originalContract as any).dailyEndTime       ?? null,
         annualVacationDays: validatedData.annualVacationDays ?? (originalContract as any).annualVacationDays ?? null,
+        sickDaysPerYear:    validatedData.sickDaysPerYear    ?? (originalContract as any).sickDaysPerYear    ?? null,
 
         // New contract specific fields
         contractNumber: newContractNumber,

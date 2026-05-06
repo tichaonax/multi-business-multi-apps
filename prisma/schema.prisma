@@ -1098,6 +1098,7 @@ model EmployeeContracts {
   dailyStartTime                                                             String?
   dailyEndTime                                                               String?
   annualVacationDays                                                         Int?
+  sickDaysPerYear                                                            Int?
   contract_benefits                                                          ContractBenefits[]
   contract_renewals_contract_renewals_newContractIdToemployee_contracts      ContractRenewals[]  @relation("contract_renewals_newContractIdToemployee_contracts")
   contract_renewals_contract_renewals_originalContractIdToemployee_contracts ContractRenewals[]  @relation("contract_renewals_originalContractIdToemployee_contracts")
@@ -1174,6 +1175,7 @@ model EmployeeLeaveRequests {
   rejectionReason                                         String?
   startDate                                               DateTime
   updatedAt                                               DateTime
+  actualReturnDate                                        DateTime?
   employees_employee_leave_requests_approvedByToemployees Employees? @relation("employee_leave_requests_approvedByToemployees", fields: [approvedBy], references: [id])
   employees_employee_leave_requests_employeeIdToemployees Employees  @relation("employee_leave_requests_employeeIdToemployees", fields: [employeeId], references: [id], onDelete: Cascade)
 

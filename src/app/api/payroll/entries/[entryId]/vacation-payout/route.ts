@@ -90,7 +90,7 @@ export async function POST(
   })
 
   // Load policy for accrual-based fallback when no balance record exists
-  const policy = await getEmployeeLeavePolicy(prisma as any, employee.id)
+  const policy = await getEmployeeLeavePolicy(prisma, employee.id)
 
   // Prefer remainingAnnual from the leave balance (kept in sync when leave is approved).
   // If no balance record exists, compute: min(months × accrualRate, maxDays) − 0

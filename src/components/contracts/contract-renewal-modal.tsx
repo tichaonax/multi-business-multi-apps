@@ -18,6 +18,7 @@ interface ContractRenewalModalProps {
     dailyStartTime?: string | null
     dailyEndTime?: string | null
     annualVacationDays?: number | null
+    sickDaysPerYear?: number | null
   }
   isOpen: boolean
   onClose: () => void
@@ -34,6 +35,7 @@ interface RenewalData {
   dailyStartTime?: string
   dailyEndTime?: string
   annualVacationDays?: number
+  sickDaysPerYear?: number
 }
 
 export function ContractRenewalModal({
@@ -57,6 +59,9 @@ export function ContractRenewalModal({
   const [schedEndTime, setSchedEndTime] = useState(contract.dailyEndTime ?? '17:00')
   const [schedVacationDays, setSchedVacationDays] = useState(
     contract.annualVacationDays != null ? String(contract.annualVacationDays) : '14'
+  )
+  const [schedSickDays, setSchedSickDays] = useState(
+    contract.sickDaysPerYear != null ? String(contract.sickDaysPerYear) : ''
   )
 
   // Live hrs/year calculation
@@ -131,6 +136,7 @@ export function ContractRenewalModal({
         dailyStartTime: schedStartTime || undefined,
         dailyEndTime: schedEndTime || undefined,
         annualVacationDays: parseInt(schedVacationDays) || undefined,
+        sickDaysPerYear: schedSickDays ? parseInt(schedSickDays) : undefined,
       }
 
       await onRenew(renewalData)
@@ -334,6 +340,18 @@ export function ContractRenewalModal({
                     max="365"
                     value={schedVacationDays}
                     onChange={(e) => setSchedVacationDays(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-secondary mb-1">Sick Days / Year <span className="text-gray-400">(leave blank for policy default)</span></label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="365"
+                    value={schedSickDays}
+                    onChange={(e) => setSchedSickDays(e.target.value)}
+                    placeholder="Policy default"
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>

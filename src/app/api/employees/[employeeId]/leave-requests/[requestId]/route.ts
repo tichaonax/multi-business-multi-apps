@@ -80,7 +80,7 @@ export async function PUT(
     // If approved, update leave balance using policy-driven defaults
     if (status === 'approved' && (leaveRequest.leaveType === 'annual' || leaveRequest.leaveType === 'sick')) {
       const leaveYear = new Date(leaveRequest.startDate).getFullYear()
-      const policy = await getEmployeeLeavePolicy(prisma as any, employeeId)
+      const policy = await getEmployeeLeavePolicy(prisma, employeeId)
 
       if (leaveRequest.leaveType === 'annual') {
         await prisma.employeeLeaveBalance.upsert({

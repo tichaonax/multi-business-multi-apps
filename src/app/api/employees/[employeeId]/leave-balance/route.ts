@@ -31,7 +31,7 @@ export async function GET(
     }
 
     // Fetch the configured leave policy (never hardcode defaults again)
-    const policy = await getEmployeeLeavePolicy(prisma as any, employeeId)
+    const policy = await getEmployeeLeavePolicy(prisma, employeeId)
 
     let leaveBalance = await prisma.employeeLeaveBalance.findUnique({
       where: { employeeId_year: { employeeId, year } },
@@ -105,7 +105,7 @@ export async function PUT(
     if (!year) return NextResponse.json({ error: 'Year is required' }, { status: 400 })
 
     // Use policy as the fallback when caller omits a value — never hardcode 21/10
-    const policy = await getEmployeeLeavePolicy(prisma as any, employeeId)
+    const policy = await getEmployeeLeavePolicy(prisma, employeeId)
 
     const resolvedAnnual = annualLeaveDays ?? policy.maxAnnualDays
     const resolvedSick   = sickLeaveDays   ?? policy.sickDaysPerYear

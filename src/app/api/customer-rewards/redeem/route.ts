@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     // If the reward includes WiFi, pull an available token from the pool
     let wifiToken: { tokenCode: string; packageName: string; duration: number; ssid?: string } | null = null
     if (reward.wifiReward) {
-      const token = await (prisma as any).wifiTokens.findFirst({
+      const token = await prisma.wifiTokens.findFirst({
         where: {
           businessId: reward.businessId,
           status: 'AVAILABLE'
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
         }
       })
       if (token) {
-        await (prisma as any).wifiTokens.update({
+        await prisma.wifiTokens.update({
           where: { id: token.id },
           data: { status: 'SOLD' }
         })

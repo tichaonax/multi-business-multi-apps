@@ -780,6 +780,9 @@ export async function POST(
             submittedBy: paymentStatus === 'SUBMITTED' ? user.id : null,
             submittedAt: paymentStatus === 'SUBMITTED' ? new Date() : null,
             projectId: payment.projectId || null,
+            lineItems: (payment.lineItems && Array.isArray(payment.lineItems) && payment.lineItems.length > 0)
+              ? payment.lineItems
+              : undefined,
           },
           include: {
             payeeUser: {
@@ -813,11 +816,6 @@ export async function POST(
             },
           },
         })
-
-        // Store lineItems via raw SQL (Prisma client not yet regenerated for this column)
-        if (payment.lineItems && Array.isArray(payment.lineItems) && payment.lineItems.length > 0) {
-          await tx.$executeRaw`UPDATE expense_account_payments SET line_items = ${JSON.stringify(payment.lineItems)}::jsonb WHERE id = ${newPayment.id}`
-        }
 
         // If LOAN_REPAYMENT, update loan remaining balance.
         // Interest is a charge that increases the balance (not an extra payment).
