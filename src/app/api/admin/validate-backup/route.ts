@@ -115,8 +115,6 @@ export async function POST(request: NextRequest) {
       'employeeAllowances': 'businessId',
       'employeeBonuses': 'businessId',
       'employeeSalaryIncreases': 'businessId',
-      'employeeLeaveBalance': 'businessId',
-      'employeeLeaveRequests': 'businessId',
       'employeeLoans': 'businessId',
       'employeeLoanPayments': 'businessId',
       'employeeDeductions': 'businessId',

@@ -103,31 +103,22 @@ export async function POST(request: NextRequest) {
     const sickDays = Number(sickDaysPerYear)
     const carryMax = maxCarryoverDays != null ? Number(maxCarryoverDays) : null
 
-    const policy = await prisma.leavePolicies.upsert({
-      where: {
-        umbrellaBusinessId_businessId: { umbrellaBusinessId, businessId },
-      },
-      update: {
-        annualAccrualPerMonth: accrual,
-        maxAnnualDays: maxDays,
-        sickDaysPerYear: sickDays,
-        carryoverEnabled: Boolean(carryoverEnabled),
-        maxCarryoverDays: carryMax,
-        isActive: true,
-        updatedAt: new Date(),
-      },
-      create: {
-        id: randomUUID(),
-        umbrellaBusinessId,
-        businessId,
-        annualAccrualPerMonth: accrual,
-        maxAnnualDays: maxDays,
-        sickDaysPerYear: sickDays,
-        carryoverEnabled: Boolean(carryoverEnabled),
-        maxCarryoverDays: carryMax,
-        isActive: true,
-      },
+    const existing = await prisma.leavePolicies.findFirst({
+      where: { umbrellaBusinessId, businessId: businessId ?? null },
     })
+
+    const policyData = {
+      annualAccrualPerMonth: accrual,
+      maxAnnualDays: maxDays,
+      sickDaysPerYear: sickDays,
+      carryoverEnabled: Boolean(carryoverEnabled),
+      maxCarryoverDays: carryMax,
+      isActive: true,
+    }
+
+    const policy = existing
+      ? await prisma.leavePolicies.update({ where: { id: existing.id }, data: policyData })
+      : await prisma.leavePolicies.create({ data: { id: randomUUID(), umbrellaBusinessId, businessId: businessId ?? null, ...policyData } })
 
     return NextResponse.json({
       policy: {

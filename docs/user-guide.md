@@ -12,6 +12,7 @@
 3. [Cash Office — Cash Handling & End of Day](#3-cash-office--cash-handling--end-of-day)
 4. [Manager — Approvals, Payroll & Reports](#4-manager--approvals-payroll--reports)
 5. [HR & Employee Management](#5-hr--employee-management)
+    - [Leave Management — HR Direct Actions](#leave-management--hr-direct-actions)
     - [Employee Scan Cards (ID / Clock-In Cards)](#employee-scan-cards-id--clock-in-cards)
     - [Printer Troubleshooting — Clearing Stuck Jobs](#printer-troubleshooting--clearing-stuck-jobs)
 6. [Employees — Clock-In, Leave & Per Diem](#6-employees--clock-in-leave--per-diem)
@@ -1515,6 +1516,96 @@ Employees can submit leave requests through the system. When they do:
 5. Click **Approve** or **Decline**.
 
 The employee will be notified of your decision.
+
+---
+
+### Leave Management — HR Direct Actions
+
+HR managers can place employees on leave and record their return directly from two places: the **Employees list** and the dedicated **Leave Management** page.
+
+#### Leave Status Badges on the Employee List
+
+When you open **Employees**, the system automatically checks who is currently on approved leave. Each employee on leave shows a coloured pill next to their name:
+
+| Pill colour | Meaning |
+|-------------|---------|
+| **Amber** — "On Sick Leave since …" | Employee is on approved sick leave |
+| **Teal** — "On Annual Leave since …" | Employee is on approved annual leave |
+
+No pill = not currently on leave.
+
+---
+
+#### Placing an Employee on Leave (HR Direct Action)
+
+Unlike the self-service leave request flow (where employees submit and managers approve), this path is instant — no approval step.
+
+**From the Employee List:**
+1. Find the employee.
+2. Click **✓ Return to Work** if they are already on leave, or go to the **Leave Management** page for placement actions.
+
+**From the Leave Management page (`Employees → Leave Management`):**
+1. Use the search bar to find the employee by name or employee number.
+2. Click **Sick Leave** or **Annual Leave** next to their name.
+3. Fill in the modal:
+   - **Start date** — first day of leave (defaults to today)
+   - **Expected return date** — first day back at work
+   - **Reason** (optional)
+4. Click **Confirm**.
+
+The system will:
+- Create an approved leave request immediately (no pending step).
+- Deduct the days from the employee's leave balance.
+- Sync the open payroll entry for the period with the correct `sickDays` / `leaveDays` count.
+
+> The employee's amber or teal badge will appear on the Employees list as soon as the action is saved.
+
+---
+
+#### Recording a Return to Work
+
+When an employee returns — whether on the expected date or earlier — you must record their actual return so the system can correct the balance and payroll.
+
+**From the Employee List or Leave Management page:**
+1. Find the employee (they will be showing a leave badge).
+2. Click **✓ Return to Work**.
+3. Pick the **return date** (first day back at work — defaults to today).
+4. Click **Confirm**.
+
+The system will:
+- Record the actual return date on the leave request (the leave badge disappears).
+- If the employee returned **early** — refund the unused days back to their leave balance.
+- If sick leave days taken **exceeded the allocation** — automatically create absence records for the excess days (see below).
+- Correct the payroll entry for the leave period.
+
+---
+
+#### Sick Day Overflow — When Sick Leave Runs Out
+
+If an employee takes more sick days than their annual allocation allows, the excess days automatically become **unpaid absent days**:
+
+- The system calculates: `excess = actual sick days taken − sick leave allocation`.
+- The last N days of the sick leave period (where N = excess) are converted to individual absence records.
+- These absence records feed into payroll as absent days — they are **not** paid.
+- A toast notification appears when you record the return, showing how many days overflowed.
+
+**Example:** Employee has 5 sick days allocated. They take 8 days. On return, 3 days become absent/unpaid and appear in the absence log.
+
+> Overflow days do **not** consume annual leave — they are treated as unpaid absence.
+
+---
+
+#### Leave Management Page — Reports Tab
+
+Go to **Employees → Leave Management → Reports** for three live report cards:
+
+| Report | What it shows |
+|--------|--------------|
+| **Currently on Leave** | All employees on approved leave right now — name, type, start date, expected return |
+| **Sick Leave Usage** | All employees for the current year: allocated days, used days, remaining. Rows in red if ≥ 80% of allocation has been used. |
+| **Sick Day Overflow Log** | Employees who have exceeded their sick allocation this year and how many days became unpaid absent days |
+
+---
 
 ### Employee Scan Cards (ID / Clock-In Cards)
 

@@ -301,6 +301,26 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'vehicleExemptions',           // vehicleId FK, no businessId column
   // Global lookup tables — no businessId
   'issuingAuthorities',          // standalone reference table
+  // Vehicle sub-tables — no direct businessId (linked via vehicleId)
+  'vehicleDrivers',              // global driver table, no businessId
+  'vehicleLicenses',             // vehicleId FK, no businessId
+  'driverAuthorizations',        // composite driverId+vehicleId FK, no businessId
+  'vehicleMaintenanceRecords',   // vehicleId FK, no businessId
+  'vehicleMaintenanceServices',  // maintenanceRecordId child, no businessId
+  'vehicleMaintenanceServiceExpenses', // serviceId child, no businessId
+  // Project sub-tables — no direct businessId (linked via projectId)
+  'projectStages',               // projectId FK, no businessId
+  'projectContractors',          // projectId FK, no businessId
+  'stageContractorAssignments',  // projectContractorId FK, no businessId
+  'projectTransactions',         // projectId FK, no businessId
+  'constructionExpenses',        // projectId FK, no businessId
+  'constructionProjects',        // no businessId column
+  // Leave policies — uses umbrellaBusinessId, backed up globally
+  'leavePolicies',               // umbrellaBusinessId + optional businessId, backed up unscoped
+  // Employee leave — linked via employeeId, not businessId
+  'employeeLeaveRequests',       // employeeId FK, no direct businessId
+  'employeeLeaveBalance',        // employeeId FK, no direct businessId
+  'employeeAbsences',            // backed up globally, not scoped by business
 ])
 
 /**

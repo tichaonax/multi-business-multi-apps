@@ -106,6 +106,7 @@ export default function EmployeesPage() {
   const [payrollExportModal, setPayrollExportModal] = useState(false)
   const [addEmployeeModal, setAddEmployeeModal] = useState(false)
   const [printCardEmployee, setPrintCardEmployee] = useState<Employee | null>(null)
+  const [exportPdfEmployee, setExportPdfEmployee] = useState<any | null>(null)
   const [clockedInIds, setClockedInIds] = useState<Set<string>>(new Set())
   const [loggedInIds, setLoggedInIds] = useState<Set<string>>(new Set())
   const [leaveStatusMap, setLeaveStatusMap] = useState<Map<string, { leaveType: string; startDate: string; leaveRequestId: string }>>(new Map())
@@ -339,21 +340,35 @@ export default function EmployeesPage() {
   }
 
   const handleExportEmployeePdf = (employee: any) => {
+    setExportPdfEmployee(employee)
+  }
+
+  const handlePrintEmployeePdf = (employee: any) => {
     const phone = employee.phone ? formatPhoneNumberForDisplay(employee.phone) : 'N/A'
     const hireDate = employee.hireDate ? formatDate(employee.hireDate) : 'N/A'
     const supervisorName = employee.supervisor?.fullName ?? 'N/A'
     const supervisorTitle = employee.supervisor?.jobTitle ?? ''
-    const html = `<!DOCTYPE html><html><head><title>Employee Details - ${employee.fullName}</title>
+    const html = `<!DOCTYPE html><html><head><title>Employee Details — ${employee.fullName}</title>
 <style>
-  body { font-family: Arial, sans-serif; padding: 32px; max-width: 600px; margin: 0 auto; color: #111; }
-  h1 { font-size: 20px; margin-bottom: 4px; }
-  .sub { color: #555; font-size: 13px; margin-bottom: 16px; }
-  table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-  td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; }
-  td:first-child { font-weight: 600; width: 40%; color: #374151; }
-  @media print { button { display: none; } }
+  html,body{margin:0;padding:0;}
+  .print-toolbar{position:sticky;top:0;background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:10px 16px;display:flex;align-items:center;gap:12px;z-index:100;}
+  .print-btn{background:#1f2937;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:14px;font-weight:600;cursor:pointer;}
+  .print-btn:hover{background:#374151;}
+  .print-title{font-size:13px;color:#64748b;font-family:sans-serif;}
+  .content{font-family:Arial,sans-serif;padding:32px;max-width:600px;margin:0 auto;color:#111;}
+  h1{font-size:20px;margin-bottom:4px;}
+  .sub{color:#555;font-size:13px;margin-bottom:16px;}
+  table{width:100%;border-collapse:collapse;margin-top:16px;}
+  td{padding:8px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;}
+  td:first-child{font-weight:600;width:40%;color:#374151;}
+  @media print{.print-toolbar{display:none;}.content{padding:16px;}}
 </style>
 </head><body>
+<div class="print-toolbar">
+  <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+  <span class="print-title">Employee Details — ${employee.fullName}</span>
+</div>
+<div class="content">
 <h1>${employee.fullName}</h1>
 <div class="sub">${employee.jobTitle?.title ?? ''} — ${employee.primaryBusiness?.name ?? ''}</div>
 <table>
@@ -369,12 +384,12 @@ export default function EmployeesPage() {
   ${employee.terminationDate ? `<tr><td>Termination Date</td><td>${formatDate(employee.terminationDate)}</td></tr>` : ''}
   ${employee.leaveBalance ? `<tr><td>Annual Leave Remaining</td><td>${employee.leaveBalance.remainingAnnual ?? 0} / ${employee.leaveBalance.annualLeaveDays ?? 0} days</td></tr><tr><td>Sick Days Used</td><td>${employee.leaveBalance.usedSickDays ?? 0} / ${employee.leaveBalance.sickLeaveDays ?? 0} days</td></tr>` : ''}
 </table>
+</div>
 </body></html>`
     const win = window.open('', '_blank')
     if (win) {
       win.document.write(html)
       win.document.close()
-      win.print()
     }
   }
 
@@ -462,7 +477,7 @@ export default function EmployeesPage() {
         { label: 'Employees', isActive: true }
       ]}
       headerActions={
-        <div className="flex space-x-3">
+        <div className="flex flex-wrap gap-2">
           <button
             className="btn-secondary"
             onClick={() => window.location.href = '/employees/leave-management'}
@@ -683,23 +698,20 @@ export default function EmployeesPage() {
                               )}
                             </div>
                           )}
-                          <p className="text-xs text-secondary">{employee.employeeNumber}</p>
+                          <p className="text-xs text-sky-500 dark:text-sky-400 font-medium">{employee.employeeNumber}</p>
                           {employee.nationalId && (
-                            <p className="text-xs text-secondary">ID: {employee.nationalId}</p>
+                            <p className="text-xs text-slate-400 dark:text-slate-500">ID: {employee.nationalId}</p>
                           )}
                           {employee.phone && (
-                            <p className="text-xs text-secondary">{formatPhoneNumberForDisplay(employee.phone)}</p>
+                            <p className="text-xs text-emerald-600 dark:text-emerald-400">{formatPhoneNumberForDisplay(employee.phone)}</p>
                           )}
                           {employee.hireDate && (
-                            <p className="text-xs text-secondary">Engaged: {formatDate(employee.hireDate)}</p>
-                          )}
-                          {employee.terminationDate && (
-                            <p className="text-xs text-red-500">Terminated: {formatDate(employee.terminationDate)}</p>
+                            <p className="text-xs text-amber-600 dark:text-amber-400">Engaged: {formatDate(employee.hireDate)}</p>
                           )}
                           {employee.leaveBalance && (
                             <>
-                              <p className="text-xs text-secondary">Leave rem: {employee.leaveBalance.remainingAnnual ?? 0} / {employee.leaveBalance.annualLeaveDays ?? 0} days</p>
-                              <p className="text-xs text-secondary">Sick used: {employee.leaveBalance.usedSickDays ?? 0} / {employee.leaveBalance.sickLeaveDays ?? 0} days</p>
+                              <p className="text-xs text-teal-600 dark:text-teal-400">Leave rem: {employee.leaveBalance.remainingAnnual ?? 0} / {employee.leaveBalance.annualLeaveDays ?? 0} days</p>
+                              <p className="text-xs text-orange-500 dark:text-orange-400">Sick used: {employee.leaveBalance.usedSickDays ?? 0} / {employee.leaveBalance.sickLeaveDays ?? 0} days</p>
                             </>
                           )}
                           {leaveStatusMap.has(employee.id) && (() => {
@@ -750,6 +762,9 @@ export default function EmployeesPage() {
                               employee.employmentStatus === 'pending_contract' ? 'PENDING CONTRACT' :
                                 employee.employmentStatus.replace('_', ' ').toUpperCase()}
                         </span>
+                        {employee.employmentStatus === 'terminated' && employee.terminationDate && (
+                          <span className="text-xs text-red-400 self-center">{formatDate(employee.terminationDate)}</span>
+                        )}
 
                         {/* Contract Signature Status */}
                         {currentContract && (
@@ -924,25 +939,24 @@ export default function EmployeesPage() {
                                     )}
                                   </div>
                                 )}
-                                <div className="text-sm text-secondary">{employee.employeeNumber}</div>
+                                <div className="text-sm text-sky-500 dark:text-sky-400 font-medium">{employee.employeeNumber}</div>
                                 {employee.nationalId && (
-                                  <div className="text-xs text-secondary">ID: {employee.nationalId}</div>
+                                  <div className="text-xs text-slate-400 dark:text-slate-500">ID: {employee.nationalId}</div>
                                 )}
                                 {employee.phone && (
-                                  <div className="text-xs text-secondary">{formatPhoneNumberForDisplay(employee.phone)}</div>
+                                  <div className="text-xs text-emerald-600 dark:text-emerald-400">{formatPhoneNumberForDisplay(employee.phone)}</div>
                                 )}
                                 {employee.email && (
                                   <div className="text-xs text-secondary">{employee.email}</div>
                                 )}
                                 {employee.hireDate && (
-                                  <div className="text-xs text-secondary">Engaged: {formatDate(employee.hireDate)}</div>
-                                )}
-                                {employee.terminationDate && (
-                                  <div className="text-xs text-red-500">Terminated: {formatDate(employee.terminationDate)}</div>
+                                  <div className="text-xs text-amber-600 dark:text-amber-400">Engaged: {formatDate(employee.hireDate)}</div>
                                 )}
                                 {employee.leaveBalance && (
-                                  <div className="text-xs text-secondary">
-                                    Leave rem: {employee.leaveBalance.remainingAnnual ?? 0} / {employee.leaveBalance.annualLeaveDays ?? 0} days · Sick used: {employee.leaveBalance.usedSickDays ?? 0} / {employee.leaveBalance.sickLeaveDays ?? 0}
+                                  <div className="text-xs">
+                                    <span className="text-teal-600 dark:text-teal-400">Leave rem: {employee.leaveBalance.remainingAnnual ?? 0} / {employee.leaveBalance.annualLeaveDays ?? 0} days</span>
+                                    <span className="text-slate-400 dark:text-slate-500"> · </span>
+                                    <span className="text-orange-500 dark:text-orange-400">Sick used: {employee.leaveBalance.usedSickDays ?? 0} / {employee.leaveBalance.sickLeaveDays ?? 0}</span>
                                   </div>
                                 )}
                                 {leaveStatusMap.has(employee.id) && (() => {
@@ -1006,6 +1020,9 @@ export default function EmployeesPage() {
                                     employee.employmentStatus === 'pending_contract' ? 'PENDING CONTRACT' :
                                       employee.employmentStatus.replace('_', ' ').toUpperCase()}
                               </span>
+                              {employee.employmentStatus === 'terminated' && employee.terminationDate && (
+                                <span className="text-xs text-red-400">{formatDate(employee.terminationDate)}</span>
+                              )}
                               {/* Contract Signature Status */}
                               {currentContract && (
                                 <>
@@ -1269,6 +1286,56 @@ export default function EmployeesPage() {
             setTimeout(() => setMessage(null), 5000)
           }}
         />
+      )}
+
+      {/* Export PDF Modal */}
+      {exportPdfEmployee && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-5 mx-4 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900 dark:text-white">📄 Employee Details</h3>
+              <button onClick={() => setExportPdfEmployee(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
+            </div>
+            <div className="text-sm text-gray-700 dark:text-gray-300 space-y-1 mb-4">
+              <p className="font-semibold text-base text-gray-900 dark:text-white">{exportPdfEmployee.fullName}</p>
+              <p className="text-xs text-gray-500">{exportPdfEmployee.jobTitle?.title ?? ''}{exportPdfEmployee.primaryBusiness?.name ? ` — ${exportPdfEmployee.primaryBusiness.name}` : ''}</p>
+              <table className="w-full text-xs mt-2 border-collapse">
+                <tbody>
+                  {[
+                    ['Employee #', exportPdfEmployee.employeeNumber ?? ''],
+                    ['National ID', exportPdfEmployee.nationalId ?? 'N/A'],
+                    ['Phone', exportPdfEmployee.phone ? formatPhoneNumberForDisplay(exportPdfEmployee.phone) : 'N/A'],
+                    ['Email', exportPdfEmployee.email ?? 'N/A'],
+                    ['Engaged', exportPdfEmployee.hireDate ? formatDate(exportPdfEmployee.hireDate) : 'N/A'],
+                    ['Department', exportPdfEmployee.jobTitle?.department ?? 'N/A'],
+                    ['Business', exportPdfEmployee.primaryBusiness?.name ?? 'N/A'],
+                    ['Status', exportPdfEmployee.employmentStatus ?? ''],
+                    ...(exportPdfEmployee.terminationDate ? [['Termination Date', formatDate(exportPdfEmployee.terminationDate)]] : []),
+                  ].map(([label, value]) => (
+                    <tr key={label} className="border-b border-gray-100 dark:border-gray-700">
+                      <td className="py-1 pr-3 font-medium text-gray-600 dark:text-gray-400 w-2/5">{label}</td>
+                      <td className="py-1 text-gray-800 dark:text-gray-200">{value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-3 mt-2">
+              <button
+                onClick={() => setExportPdfEmployee(null)}
+                className="flex-1 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => handlePrintEmployeePdf(exportPdfEmployee)}
+                className="flex-1 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-700"
+              >
+                🖨️ Print / Save as PDF
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Print ID Card Modal */}

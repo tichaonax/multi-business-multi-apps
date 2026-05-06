@@ -25,6 +25,7 @@ export function VehicleList({ onVehicleSelect, onAddVehicle, refreshSignal, upda
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [viewingLicense, setViewingLicense] = useState<VehicleLicense | null>(null)
+  const [exportPdfVehicle, setExportPdfVehicle] = useState<Vehicle | null>(null)
   // Keep a ref to the current in-flight request so we can cancel it
   const controllerRef = useRef<AbortController | null>(null)
 
@@ -43,6 +44,10 @@ export function VehicleList({ onVehicleSelect, onAddVehicle, refreshSignal, upda
   }
 
   const handleExportVehiclePdf = (vehicle: Vehicle) => {
+    setExportPdfVehicle(vehicle)
+  }
+
+  const handlePrintVehiclePdf = (vehicle: Vehicle) => {
     const today = new Date()
     const formatExpiry = (dateStr: string) => {
       const d = new Date(dateStr)
@@ -61,17 +66,27 @@ export function VehicleList({ onVehicleSelect, onAddVehicle, refreshSignal, upda
 
     const html = `<!DOCTYPE html><html><head><title>Vehicle Details - ${vehicle.licensePlate}</title>
 <style>
-  body { font-family: Arial, sans-serif; padding: 32px; max-width: 750px; margin: 0 auto; color: #111; }
-  h1 { font-size: 20px; margin-bottom: 4px; }
-  .sub { color: #555; font-size: 13px; margin-bottom: 16px; }
-  h2 { font-size: 14px; margin-top: 24px; margin-bottom: 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
-  table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  td, th { padding: 7px 10px; border-bottom: 1px solid #e5e7eb; text-align: left; }
-  th { background: #f3f4f6; font-weight: 600; }
-  .info td:first-child { font-weight: 600; width: 35%; color: #374151; }
-  @media print { button { display: none; } }
+  html,body{margin:0;padding:0;}
+  .print-toolbar{position:sticky;top:0;background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:10px 16px;display:flex;align-items:center;gap:12px;z-index:100;}
+  .print-btn{background:#1f2937;color:#fff;border:none;border-radius:6px;padding:8px 20px;font-size:14px;font-weight:600;cursor:pointer;}
+  .print-btn:hover{background:#374151;}
+  .print-title{font-size:13px;color:#64748b;font-family:sans-serif;}
+  .content{font-family:Arial,sans-serif;padding:32px;max-width:750px;margin:0 auto;color:#111;}
+  h1{font-size:20px;margin-bottom:4px;}
+  .sub{color:#555;font-size:13px;margin-bottom:16px;}
+  h2{font-size:14px;margin-top:24px;margin-bottom:8px;border-bottom:1px solid #e5e7eb;padding-bottom:4px;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  td,th{padding:7px 10px;border-bottom:1px solid #e5e7eb;text-align:left;}
+  th{background:#f3f4f6;font-weight:600;}
+  .info td:first-child{font-weight:600;width:35%;color:#374151;}
+  @media print{.print-toolbar{display:none;}.content{padding:16px;}}
 </style>
 </head><body>
+<div class="print-toolbar">
+  <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+  <span class="print-title">Vehicle Details — ${vehicle.licensePlate}</span>
+</div>
+<div class="content">
 <h1>${vehicle.year} ${vehicle.make} ${vehicle.model}</h1>
 <div class="sub">License Plate: <strong>${vehicle.licensePlate}</strong> &nbsp;|&nbsp; VIN: ${vehicle.vin} &nbsp;|&nbsp; ${vehicle.ownershipType}</div>
 <h2>Vehicle Details</h2>
@@ -89,13 +104,13 @@ ${licenseRows ? `<table>
   <tbody>${licenseRows}</tbody>
 </table>` : '<p style="color:#777;font-size:13px">No licenses recorded.</p>'}
 <p style="font-size:11px;color:#aaa;margin-top:24px">Generated: ${today.toLocaleDateString('en-GB')} ${today.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</p>
+</div>
 </body></html>`
 
     const win = window.open('', '_blank')
     if (win) {
       win.document.write(html)
       win.document.close()
-      win.print()
     }
   }
 
@@ -436,6 +451,58 @@ ${licenseRows ? `<table>
           onClose={() => setViewingLicense(null)}
           canEdit={false}
         />
+      )}
+
+      {/* Export PDF Modal */}
+      {exportPdfVehicle && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-5 mx-4 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900 dark:text-white">📄 Vehicle Details</h3>
+              <button onClick={() => setExportPdfVehicle(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
+            </div>
+            <div className="mb-4">
+              <p className="font-semibold text-base text-gray-900 dark:text-white">
+                {exportPdfVehicle.year} {exportPdfVehicle.make} {exportPdfVehicle.model}
+              </p>
+              <p className="text-xs text-gray-500 mb-3">
+                {exportPdfVehicle.licensePlate} &nbsp;|&nbsp; {exportPdfVehicle.ownershipType}
+              </p>
+              <table className="w-full text-xs border-collapse">
+                <tbody>
+                  {[
+                    ['Color', exportPdfVehicle.color ?? 'N/A'],
+                    ['Mileage', `${exportPdfVehicle.currentMileage.toLocaleString()} ${exportPdfVehicle.mileageUnit.toUpperCase()}`],
+                    ['VIN', exportPdfVehicle.vin],
+                    ['Business', exportPdfVehicle.business?.name ?? 'N/A'],
+                    ['Owner', exportPdfVehicle.user?.name ?? 'N/A'],
+                    ['Status', exportPdfVehicle.isActive ? 'Active' : 'Inactive'],
+                    ['Licenses', `${(exportPdfVehicle.vehicleLicenses ?? []).length} recorded`],
+                  ].map(([label, value]) => (
+                    <tr key={label} className="border-b border-gray-100 dark:border-gray-700">
+                      <td className="py-1 pr-3 font-medium text-gray-600 dark:text-gray-400 w-2/5">{label}</td>
+                      <td className="py-1 text-gray-800 dark:text-gray-200">{value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setExportPdfVehicle(null)}
+                className="flex-1 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => handlePrintVehiclePdf(exportPdfVehicle)}
+                className="flex-1 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-700"
+              >
+                🖨️ Print / Save as PDF
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
