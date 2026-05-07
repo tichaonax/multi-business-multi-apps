@@ -6828,6 +6828,7 @@ Manager closes run → odometer end saved, run marked complete
 1. Open the restaurant POS.
 2. Select **Delivery** as the order type (alongside Dine-In / Takeaway).
 3. Search for the customer by name or phone number, **or** click **New Customer** to register them on the spot — enter their name and phone number, then click **Create & Select**. Phone numbers are formatted automatically as you type.
+   - **Credit badge:** Any customer with a delivery credit balance shows a green **$X.XX credit** badge next to their name in the search dropdown. This lets you confirm the balance at a glance without opening the account. Blacklisted customers show a red **Blocked** badge instead.
 4. Add items to the cart as normal.
 5. (Optional) Enter a **Delivery Note** — address or special instructions.
 6. The customer panel shows their **delivery credit balance** and blacklist status:
@@ -6837,6 +6838,39 @@ Manager closes run → odometer end saved, run marked complete
 8. Complete the sale. Two receipts print automatically:
    - **Kitchen copy** — full item names and quantities, no prices, "DELIVERY" header, plus a scannable barcode (`DEL-XXXX`) matching the order.
    - **Customer copy** — full receipt with credit used, balance due, remaining credit, and the barcode. This receipt stays with the customer.
+
+#### Paying the Remainder with EcoCash (Credit + EcoCash Split)
+
+If a customer's credit only partially covers the order total, you can collect the remainder via EcoCash at the POS:
+
+1. At checkout the credit section shows the amount being applied and the **remaining balance due**.
+2. Select **EcoCash** as the payment method.
+3. Enter the EcoCash reference code.
+4. Click **Complete Sale**.
+
+The EcoCash fee is calculated **only on the remainder** (not the full order total). For example, if the order is $51.84 and the customer has $45.00 credit, EcoCash is charged on $6.84 — the fee is a fraction of what it would be on the full amount.
+
+What the **customer receipt** shows:
+```
+CREDIT PAYMENT
+  Opening balance      $45.00
+  Credit applied      -$45.00
+  Remaining balance    $0.00
+
+Payment: EcoCash + Credit
+  EcoCash Ref: XXXX
+  EcoCash charged      $6.84
+  EcoCash Fee          $0.24
+  EcoCash Total        $7.08
+```
+
+What the **delivery copy** (printed at POS) shows:
+```
+** PAID **
+Credit + EcoCash $7.08
+```
+
+The delivery copy confirms the order is fully settled — the driver does not need to collect any cash on delivery.
 
 ---
 
@@ -6854,10 +6888,11 @@ The page opens with a **Customer Balances** list showing all customers who curre
 3. Enter the amount and optional notes, then click **Add Credit**.
 4. The balance on the row updates immediately — no page reload.
 
-**Adding credit via search (for any customer):**
+**Adding credit via search (including new accounts):**
 1. Use the **Find Customer** search box to look up by name or phone.
 2. Click the customer to open their account detail.
 3. Click **Add Credit**, enter the amount and notes, then save.
+4. The Customer Balances list updates instantly — if the customer was not previously on the list (first ever top-up), they are added automatically. No page reload required.
 
 **Partial credit:** If a customer's credit is less than their order total, available credit is deducted and the remainder is collected on delivery.
 
