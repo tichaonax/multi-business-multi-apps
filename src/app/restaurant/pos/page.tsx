@@ -103,7 +103,7 @@ export default function RestaurantPOS() {
   // Stable ref to sendToDisplay so barcode-scan handler (empty-deps effect) always calls the latest version
   const sendToDisplayRef = useRef<((type: string, payload: Record<string, unknown>) => void) | null>(null)
   const [cart, setCart] = useState<CartItem[]>([])
-  const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerNumber: string; name: string; email?: string; phone?: string; address?: string; city?: string; customerType: string } | null>(null)
+  const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerNumber: string; name: string; email?: string; phone?: string; address?: string; city?: string; customerType: string; creditBalance?: number; isBlacklisted?: boolean; blacklistReason?: string | null } | null>(null)
   const [selectedSalesperson, setSelectedSalesperson] = useState<SelectedSalesperson | null>(null)
   const selectedSalespersonRef = useRef<SelectedSalesperson | null>(null)
   const [appliedReward, setAppliedReward] = useState<CustomerReward | null>(null)
@@ -231,11 +231,19 @@ export default function RestaurantPOS() {
     else setPaymentMethod('CASH')
   }, [orderType])
 
-  // Fetch credit account whenever a customer is selected (any order type)
+  // Fetch credit account whenever a customer is selected (any order type).
+  // If the customer was selected from search results, credit data is already present — skip the fetch.
   useEffect(() => {
     if (!selectedCustomer) {
       setDeliveryAccount(null)
       setApplyCredit(true)
+      return
+    }
+    // Credit data pre-loaded from customer search — use it directly
+    if (selectedCustomer.creditBalance !== undefined) {
+      const bal = selectedCustomer.creditBalance
+      setDeliveryAccount({ balance: bal, isBlacklisted: selectedCustomer.isBlacklisted ?? false, blacklistReason: selectedCustomer.blacklistReason ?? undefined })
+      setApplyCredit(bal > 0)
       return
     }
     setDeliveryAccountLoading(true)
@@ -836,8 +844,12 @@ export default function RestaurantPOS() {
     const baseTotal = taxIncludedInPrice ? subtotal : subtotal + tax
     const total = Math.max(0, baseTotal - rewardCredit - couponDiscount)
     const tendered = parseFloat(amountReceived) || 0
+    // A5 — subtract credit before computing EcoCash display total
+    const creditAvailableForDisplay = (applyCredit && (deliveryAccount?.balance ?? 0) > 0 && orderType !== 'delivery')
+      ? Math.min(deliveryAccount!.balance, total) : 0
+    const ecoBaseForDisplay = Math.max(0, total - creditAvailableForDisplay)
     const displayTotal2 = paymentMethod === 'ECOCASH'
-      ? getEcocashSummary(total, currentBusiness).total
+      ? getEcocashSummary(ecoBaseForDisplay, currentBusiness).total
       : total
 
     sendToDisplay('PAYMENT_AMOUNT', {
@@ -859,8 +871,12 @@ export default function RestaurantPOS() {
       : subtotal * (taxRate / 100)
     const baseTotal = taxIncludedInPrice ? subtotal : subtotal + tax
     const total = Math.max(0, baseTotal - rewardCredit - couponDiscount)
+    // A5 — subtract credit before computing EcoCash display total
+    const creditAvailableForStarted = (applyCredit && (deliveryAccount?.balance ?? 0) > 0 && orderType !== 'delivery')
+      ? Math.min(deliveryAccount!.balance, total) : 0
+    const ecoBaseForStarted = Math.max(0, total - creditAvailableForStarted)
     const { fee, total: displayTotal } = paymentMethod === 'ECOCASH'
-      ? getEcocashSummary(total, currentBusiness)
+      ? getEcocashSummary(ecoBaseForStarted, currentBusiness)
       : { fee: 0, total }
     sendToDisplay('PAYMENT_STARTED', {
       subtotal, tax,
@@ -1561,12 +1577,26 @@ export default function RestaurantPOS() {
       tax: 0,
       total: order.total,
       paymentMethod: order.paymentMethod?.toLowerCase() || 'cash',
+      // D5 — amountPaid for EcoCash should be based on ecocashBase (post-credit) when available
       amountPaid: order.paymentMethod?.toUpperCase() === 'ECOCASH'
-        ? order.total + (order.ecocashFeeAmount || 0)
+        ? (order.ecocashBase ?? order.total) + (order.ecocashFeeAmount || 0)
         : order.amountReceived,
       changeDue: order.change,
       ecocashFeeAmount: order.ecocashFeeAmount,
       ecocashTransactionCode: order.ecocashTransactionCode,
+      // D4 — pass ecocashBase so receipt templates use post-credit amount in EcoCash section
+      ecocashBase: order.ecocashBase,
+      // D4 — derive split-tender payment label
+      paymentLabel: (() => {
+        const m = order.paymentMethod?.toUpperCase()
+        const hasCredit = !!(order.creditPayment && order.creditPayment.creditUsed > 0)
+        if (!hasCredit) return undefined
+        if (m === 'ECOCASH') return 'EcoCash + Credit'
+        if (m === 'CASH') return 'Cash + Credit'
+        if (m === 'CARD') return 'Card + Credit'
+        if (m === 'STORE_CREDIT' || m === 'CREDIT') return 'Store Credit'
+        return undefined
+      })(),
       wifiTokens: order.wifiTokens?.map((token: any) => {
         console.log('📡 [Restaurant] Mapping ESP32 WiFi token:', token)
         const mapped = {
@@ -2261,6 +2291,16 @@ export default function RestaurantPOS() {
       // Generate a simple idempotency key per submission
       const idempotencyKey = generateUuid()
 
+      // A1 — Compute credit/EcoCash split ONCE so every downstream use is consistent
+      // Note: delivery credit is applied via the delivery API separately, but ecoBase must still
+      // account for the credit amount so the EcoCash fee is calculated on the correct remainder.
+      const creditApplied = (applyCredit && (deliveryAccount?.balance ?? 0) > 0)
+        ? Math.min(deliveryAccount!.balance, total) : 0
+      const ecoBase = Math.max(0, total - creditApplied)  // the portion EcoCash actually charges
+      const ecocashFee = paymentMethod === 'ECOCASH'
+        ? calcEcocashFeeFromBusiness(ecoBase, currentBusiness)  // A1: was `total`
+        : 0
+
       const requestBody = {
         items: cart,
         total,
@@ -2274,13 +2314,18 @@ export default function RestaurantPOS() {
         } : {}),
         businessId: businessId,
         paymentMethod: paymentMethod === 'CREDIT' ? 'STORE_CREDIT' : paymentMethod,
+        // A2 — For EcoCash send only the post-credit remainder, not the full food total
         amountReceived: paymentMethod === 'CASH' ? parseFloat(amountReceived)
           : (paymentMethod === 'ON_DELIVERY' || paymentMethod === 'ON_PICKUP') ? 0
+          : paymentMethod === 'ECOCASH' ? ecoBase
           : total,
         ...(paymentMethod === 'ECOCASH' ? {
           ecocashTxCode: ecocashTxCode.trim(),
           ecocashFeeType: currentBusiness?.ecocashFeeType,
           ecocashFeeValue: currentBusiness?.ecocashFeeValue,
+          // A3 — Send pre-computed values so server trusts client calculation (incl. minimumFee)
+          ecocashBase: ecoBase,
+          ecocashFeeAmount: ecocashFee,
         } : {}),
         idempotencyKey,
         customerId: selectedCustomer?.id || null,
@@ -2315,11 +2360,7 @@ export default function RestaurantPOS() {
         }
 
         console.log('🟢 [completeOrder] paymentMethod:', paymentMethod, 'ecocashTxCode:', ecocashTxCode)
-
-        // Compute EcoCash fee client-side (more reliable than reading from API response attributes)
-        const ecocashFee = paymentMethod === 'ECOCASH'
-          ? calcEcocashFeeFromBusiness(total, currentBusiness)
-          : 0
+        // Note: ecocashFee and ecoBase are computed above (A1) and reused here
 
         const orderForReceipt: {
           orderNumber: any; items: any[]; subtotal: number; total: number;
@@ -2327,7 +2368,7 @@ export default function RestaurantPOS() {
           paymentMethod: string; amountReceived: number; change: number; date: string;
           wifiTokens: any; r710Tokens: any; businessInfo: any; footerMessage?: string;
           customerName?: string; customerPhone?: string;
-          ecocashFeeAmount?: number; ecocashTransactionCode?: string;
+          ecocashFeeAmount?: number; ecocashTransactionCode?: string; ecocashBase?: number;
           customerAddress?: string; customerCity?: string;
           orderId?: string; orderType?: string; deliveryNote?: string;
           creditPayment?: { openingBalance: number; creditUsed: number; changeToCredit?: number; closingBalance: number };
@@ -2346,6 +2387,8 @@ export default function RestaurantPOS() {
             : paymentMethod === 'CASH' ? parseFloat(amountReceived) - total : 0,
           ecocashFeeAmount: paymentMethod === 'ECOCASH' ? ecocashFee : undefined,
           ecocashTransactionCode: paymentMethod === 'ECOCASH' ? ecocashTxCode.trim() : undefined,
+          // A4 — ecocashBase: the post-credit portion that EcoCash actually charged
+          ecocashBase: paymentMethod === 'ECOCASH' ? ecoBase : undefined,
           date: formatDateTime(new Date()),
           wifiTokens: result.wifiTokens || [], // ESP32 tokens
           r710Tokens: result.r710Tokens || [],  // R710 tokens
@@ -2420,8 +2463,13 @@ export default function RestaurantPOS() {
           const _openingBal = deliveryAccount?.balance ?? 0
           const _creditUsed = (applyCredit && _openingBal > 0) ? Math.min(_openingBal, total) : 0
           const _creditBal = Math.max(0, _openingBal - _creditUsed)
+          // When EcoCash paid the remainder at POS, the delivery is fully prepaid — no balance owed on delivery
+          const _ecoCoversRemainder = paymentMethod === 'ECOCASH' && _creditUsed > 0 && _creditUsed < total
           const _payMode: 'PREPAID' | 'PARTIAL' | 'ON_DELIVERY' =
-            _creditUsed >= total ? 'PREPAID' : _creditUsed > 0 ? 'PARTIAL' : 'ON_DELIVERY'
+            _creditUsed >= total ? 'PREPAID'
+            : _ecoCoversRemainder ? 'PREPAID'
+            : _creditUsed > 0 ? 'PARTIAL'
+            : 'ON_DELIVERY'
 
           const deliveryPrintData: DeliveryReceiptData = {
             businessName: biz?.businessName || orderForReceipt.businessInfo?.businessName || '',
@@ -2439,6 +2487,7 @@ export default function RestaurantPOS() {
             creditUsed: _creditUsed > 0 ? _creditUsed : undefined,
             creditBalance: _openingBal > 0 ? _creditBal : undefined,
             paymentMode: _payMode,
+            ecocashPaid: _ecoCoversRemainder ? ecoBase + ecocashFee : undefined,
             barcodeEscPos,
             dailyDeliveryCount,
           }
@@ -3360,6 +3409,25 @@ export default function RestaurantPOS() {
                                       <span>Total</span>
                                       <span>${Number(order.totalAmount || 0).toFixed(2)}</span>
                                     </div>
+                                    {/* E1 — EcoCash payment details in expanded order history */}
+                                    {order.attributes?.ecocashTransactionCode && (
+                                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                                        <span>EcoCash Ref:</span>
+                                        <span className="font-mono">{order.attributes.ecocashTransactionCode}</span>
+                                      </div>
+                                    )}
+                                    {Number(order.attributes?.ecocashBase) > 0 && (
+                                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                                        <span>EcoCash charged:</span>
+                                        <span>${Number(order.attributes.ecocashBase).toFixed(2)}</span>
+                                      </div>
+                                    )}
+                                    {Number(order.attributes?.ecocashFeeAmount) > 0 && (
+                                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                                        <span>EcoCash Fee:</span>
+                                        <span>${Number(order.attributes.ecocashFeeAmount).toFixed(2)}</span>
+                                      </div>
+                                    )}
                                     <div className="pt-2">
                                       <button
                                         onClick={() => handleReorder(items)}
@@ -4772,16 +4840,30 @@ export default function RestaurantPOS() {
                   </div>
                   {completedOrder.paymentMethod === 'ECOCASH' && (
                     <>
+                      {/* C1 — when credit was also applied, show the EcoCash-charged sub-amount */}
+                      {completedOrder.creditPayment && completedOrder.ecocashBase != null && (
+                        <div className="flex justify-between text-sm mt-1">
+                          <span className="text-gray-600 dark:text-gray-400">EcoCash charged:</span>
+                          <span className="text-gray-900 dark:text-gray-100">${Number(completedOrder.ecocashBase).toFixed(2)}</span>
+                        </div>
+                      )}
                       {completedOrder.ecocashFeeAmount > 0 && (
                         <div className="flex justify-between text-sm mt-1">
                           <span className="text-gray-600 dark:text-gray-400">EcoCash Fee:</span>
                           <span className="text-gray-900 dark:text-gray-100">${Number(completedOrder.ecocashFeeAmount).toFixed(2)}</span>
                         </div>
                       )}
-                      {completedOrder.ecocashFeeAmount > 0 && (
+                      {/* C2 — EcoCash total = ecoBase + fee; C3 — hide "Total Charged" for split orders */}
+                      {completedOrder.ecocashFeeAmount > 0 && !completedOrder.creditPayment && (
                         <div className="flex justify-between text-sm font-bold">
                           <span className="text-gray-600 dark:text-gray-400">Total Charged:</span>
                           <span className="text-gray-900 dark:text-gray-100">${(Number(completedOrder.total) + Number(completedOrder.ecocashFeeAmount)).toFixed(2)}</span>
+                        </div>
+                      )}
+                      {completedOrder.ecocashFeeAmount > 0 && completedOrder.creditPayment && (
+                        <div className="flex justify-between text-sm font-bold">
+                          <span className="text-gray-600 dark:text-gray-400">EcoCash Total:</span>
+                          <span className="text-gray-900 dark:text-gray-100">${(Number(completedOrder.ecocashBase ?? 0) + Number(completedOrder.ecocashFeeAmount)).toFixed(2)}</span>
                         </div>
                       )}
                       {completedOrder.ecocashTransactionCode && (

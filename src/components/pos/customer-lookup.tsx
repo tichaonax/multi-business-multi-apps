@@ -15,6 +15,9 @@ interface Customer {
   address?: string
   city?: string
   customerType: string
+  creditBalance?: number
+  isBlacklisted?: boolean
+  blacklistReason?: string | null
 }
 
 interface CustomerLookupProps {
@@ -338,9 +341,17 @@ export function CustomerLookup({
                       className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                     >
                       <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-blue-600" />
-                        <div>
-                          <div className="font-medium text-primary">{customer.name}</div>
+                        <User className={`h-4 w-4 flex-shrink-0 ${customer.isBlacklisted ? 'text-red-500' : 'text-blue-600'}`} />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-medium text-primary">{customer.name}</span>
+                            {customer.isBlacklisted && (
+                              <span className="text-xs px-1 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400 font-medium">Blocked</span>
+                            )}
+                            {!customer.isBlacklisted && (customer.creditBalance ?? 0) > 0 && (
+                              <span className="text-xs px-1 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 font-medium">${customer.creditBalance!.toFixed(2)} credit</span>
+                            )}
+                          </div>
                           <div className="text-xs text-secondary">
                             {customer.customerNumber}
                             {customer.phone && ` • ${formatPhone(customer.phone)}`}

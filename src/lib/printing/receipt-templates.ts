@@ -293,20 +293,18 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
   if (isCustomerCopy) {
     receipt += line('.') + LF;
   }
-  const grandTotal = data.total + (data.paymentMethod.toUpperCase() === 'ECOCASH' ? (data.ecocashFeeAmount || 0) : 0);
+  // D7 — Only fold EcoCash fee into TOTAL for pure EcoCash (no credit applied).
+  //      For split credit+EcoCash orders keep TOTAL = food price; fee appears in EcoCash section.
+  const hasCreditApplied = !!(data.creditPayment && data.creditPayment.creditUsed > 0)
+  const grandTotal = data.total + (
+    data.paymentMethod.toUpperCase() === 'ECOCASH' && !hasCreditApplied
+      ? (data.ecocashFeeAmount || 0) : 0
+  );
   receipt += formatTotal('TOTAL', grandTotal, true);
 
   // ============================================================================
-  // 7. PAYMENT SECTION
-  // ============================================================================
-  // Blank line only for customer copy
-  if (isCustomerCopy) {
-    // receipt += LF;
-  }
-  receipt += formatPaymentLines(data);
-
-  // ============================================================================
-  // 7b. CREDIT PAYMENT SECTION (if credit was applied or change saved to credit)
+  // 7. CREDIT PAYMENT SECTION (D6 — moved BEFORE payment lines)
+  //    Credit must print first so the EcoCash section that follows is visually on the remainder.
   // ============================================================================
   if (data.creditPayment && (data.creditPayment.creditUsed > 0 || (data.creditPayment.changeToCredit ?? 0) > 0)) {
     receipt += line('-') + LF
@@ -326,6 +324,13 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
       receipt += 'Paid in full by credit' + LF
       receipt += ALIGN_LEFT
     }
+  }
+
+  // ============================================================================
+  // 7b. PAYMENT SECTION (D6 — after credit block; skip when credit fully covered the bill)
+  // ============================================================================
+  if (!(hasCreditApplied && data.creditPayment!.creditUsed >= data.total)) {
+    receipt += formatPaymentLines(data);
   }
 
   // ============================================================================
@@ -1351,7 +1356,8 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 
 function formatPaymentLines(data: ReceiptData): string {
   const method = data.paymentMethod.toUpperCase()
-  const label = PAYMENT_METHOD_LABELS[method] || data.paymentMethod
+  // D3 — use paymentLabel override (e.g. "EcoCash + Credit") when provided
+  const label = data.paymentLabel || PAYMENT_METHOD_LABELS[method] || data.paymentMethod
   let out = `Payment: ${label}` + LF;
   if (method === 'ECOCASH') {
     if (data.ecocashTransactionCode) {
@@ -1359,9 +1365,11 @@ function formatPaymentLines(data: ReceiptData): string {
     }
     const fee = data.ecocashFeeAmount || 0;
     if (fee > 0) {
-      out += formatTotal('Sub-total', data.total);
+      // D2 — use ecocashBase when set (split order); fall back to full total (pure EcoCash)
+      const ecoAmt = data.ecocashBase ?? data.total;
+      out += formatTotal('EcoCash charged', ecoAmt);
       out += formatTotal('EcoCash Fee', fee);
-      out += formatTotal('Total Paid', data.total + fee);
+      out += formatTotal('EcoCash Total', ecoAmt + fee);
     }
   } else if (method === 'ON_DELIVERY') {
     out += formatTotal('Due on Delivery', data.total);
@@ -1460,6 +1468,7 @@ export interface DeliveryReceiptData {
   creditUsed?: number
   creditBalance?: number  // remaining after this order
   paymentMode?: 'PREPAID' | 'PARTIAL' | 'ON_DELIVERY'
+  ecocashPaid?: number   // EcoCash amount paid at POS for remainder (credit + EcoCash split)
 }
 
 export interface DeliveryRunSheetData {
@@ -1610,7 +1619,11 @@ export function generateDeliveryCustomerReceipt(data: DeliveryReceiptData): stri
   if (data.paymentMode === 'PREPAID') {
     r += ALIGN_CENTER
     r += '** PAID **' + LF
-    r += 'Paid in full by credit' + LF
+    if (data.ecocashPaid) {
+      r += `Credit + EcoCash $${data.ecocashPaid.toFixed(2)}` + LF
+    } else {
+      r += 'Paid in full by credit' + LF
+    }
   } else if (data.paymentMode === 'PARTIAL') {
     r += ALIGN_CENTER
     r += 'PARTIAL PREPAY' + LF

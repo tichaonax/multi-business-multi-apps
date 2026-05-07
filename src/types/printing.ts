@@ -190,6 +190,10 @@ export interface ReceiptData {
   changeDue?: number;
   ecocashFeeAmount?: number;        // EcoCash service fee charged to customer
   ecocashTransactionCode?: string;  // EcoCash confirmation code
+  // D1 — post-credit EcoCash sub-amount; undefined means full total went through EcoCash
+  ecocashBase?: number;
+  // D1 — override label for split-tender display (e.g. "EcoCash + Credit")
+  paymentLabel?: string;
 
   // WiFi tokens (if any were purchased)
   wifiTokens?: WifiTokenInfo[];

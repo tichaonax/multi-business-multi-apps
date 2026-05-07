@@ -61,12 +61,32 @@ export async function GET(request: NextRequest) {
         address: true,
         city: true,
         customerType: true,
+        delivery_customer_account: {
+          select: { balance: true, isBlacklisted: true, blacklistReason: true },
+        },
       },
       orderBy: { name: 'asc' },
       take: limit,
     })
 
-    return NextResponse.json({ customers })
+    const formatted = customers.map(c => {
+      const acct = c.delivery_customer_account
+      return {
+        id: c.id,
+        customerNumber: c.customerNumber,
+        name: c.name,
+        email: c.email,
+        phone: c.phone,
+        address: c.address,
+        city: c.city,
+        customerType: c.customerType,
+        creditBalance: acct ? Number(acct.balance) : 0,
+        isBlacklisted: acct?.isBlacklisted ?? false,
+        blacklistReason: acct?.blacklistReason ?? null,
+      }
+    })
+
+    return NextResponse.json({ customers: formatted })
   } catch (error) {
     console.error('[POS Customer Search] Error:', error)
     return NextResponse.json(

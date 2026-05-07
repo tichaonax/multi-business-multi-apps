@@ -8,6 +8,8 @@ import { generateDirectSaleUsername } from '@/lib/r710/username-generator'
 import { getOrCreateR710ExpenseAccount } from '@/lib/r710-expense-account-utils'
 import { decrypt } from '@/lib/encryption'
 import { generateAndSellR710Token } from '@/lib/r710/generate-and-sell-token'
+// B1 — Import centralised EcoCash helpers so the server uses the same logic as the client
+import { getEcocashConfig, calcEcocashFee } from '@/lib/ecocash-utils'
 
 import { randomBytes } from 'crypto';
 import { getServerUser } from '@/lib/get-server-user'
@@ -280,9 +282,17 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { items, total, tableNumber, businessId = 'restaurant-demo', paymentMethod = 'CASH', amountReceived, idempotencyKey, customerId, discountAmount: reqDiscountAmount = 0, rewardId, couponId, couponCode: reqCouponCode, couponDiscount: reqCouponDiscount = 0, couponCustomerPhone, timezone, ecocashTxCode, ecocashFeeType, ecocashFeeValue, salespersonEmployeeId } = await req.json()
-    const ecocashFeeAmount = paymentMethod === 'ECOCASH' && ecocashFeeType
-      ? (ecocashFeeType === 'PERCENTAGE' ? total * ((ecocashFeeValue || 0) / 100) : (ecocashFeeValue || 0))
+    const { items, total, tableNumber, businessId = 'restaurant-demo', paymentMethod = 'CASH', amountReceived, idempotencyKey, customerId, discountAmount: reqDiscountAmount = 0, rewardId, couponId, couponCode: reqCouponCode, couponDiscount: reqCouponDiscount = 0, couponCustomerPhone, timezone, ecocashTxCode, ecocashFeeType, ecocashFeeValue, ecocashBase: clientEcoBase, ecocashFeeAmount: clientFeeAmount, salespersonEmployeeId } = await req.json()
+    // B2 — Trust the client-computed fee (includes minimumFee); fall back to server calculation
+    const ecoBase = clientEcoBase ?? total  // backward compat: default to full total
+    const ecocashFeeAmount = paymentMethod === 'ECOCASH'
+      ? (clientFeeAmount != null
+          ? clientFeeAmount  // client already applied minimumFee correctly
+          : (() => {
+              // Server fallback: use ecocash-utils (handles minimumFee, FIXED/PERCENTAGE)
+              const config = getEcocashConfig({ ecocashFeeType, ecocashFeeValue, ecocashMinimumFee: 0 })
+              return calcEcocashFee(ecoBase, config.feeType, config.feeValue, config.minimumFee)
+            })())
       : 0
 
     // Derive local date string (YYYYMMDD) for receipt prefix — falls back to UTC if no timezone sent
@@ -371,7 +381,8 @@ export async function POST(req: NextRequest) {
 
     // Determine payment status based on payment received
     let paymentStatus = 'PENDING'
-    if (amountReceived && amountReceived >= total) {
+    // B4 — EcoCash is always collected at the point of sale; mark PAID immediately
+    if (paymentMethod === 'ECOCASH' || (amountReceived && amountReceived >= total)) {
       paymentStatus = 'PAID'
     }
 
@@ -450,6 +461,8 @@ export async function POST(req: NextRequest) {
             ...(paymentMethod === 'ECOCASH' && ecocashTxCode ? {
               ecocashTransactionCode: ecocashTxCode,
               ecocashFeeAmount: ecocashFeeAmount,
+              // B3 — Store the post-credit EcoCash base for audit trail and receipt reprints
+              ecocashBase: ecoBase,
             } : {}),
           },
           notes: null,

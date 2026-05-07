@@ -179,7 +179,22 @@ export default function DeliveryAccountsPage() {
       setShowAddCredit(false)
       setCreditAmount('')
       setCreditNotes('')
-      // Reload account
+      // Upsert accountsList: update balance if customer is already in list, else insert at top
+      const newBalance = Number(data.account.balance)
+      setAccountsList(prev => {
+        const exists = prev.some(a => a.customerId === selectedAccount.customerId)
+        if (exists) {
+          return prev.map(a => a.customerId === selectedAccount.customerId ? { ...a, balance: newBalance } : a)
+        }
+        return [{
+          id: data.account.id,
+          customerId: selectedAccount.customerId,
+          balance: newBalance,
+          isBlacklisted: data.account.isBlacklisted ?? false,
+          customer: { id: selectedAccount.customerId, name: selectedAccount.customerName, phone: selectedAccount.customerPhone || null, customerNumber: '' },
+        }, ...prev]
+      })
+      // Reload account detail panel
       await loadAccount({ id: selectedAccount.customerId, name: selectedAccount.customerName, phone: selectedAccount.customerPhone, customerNumber: '' })
     } catch {
       toast.error('Failed to add credit')
