@@ -22,6 +22,16 @@ export async function POST(
     const body = await request.json().catch(() => ({}))
     const notes: string | undefined = body?.notes?.trim() || undefined
 
+    // Optional payee fields — provided when the payment was created without a payee
+    // (cashier-approval / REQUEST flow) and the requester is now confirming the handover.
+    const incomingPayeeType: string | undefined = body?.payeeType || undefined
+    const incomingPayeeName: string | undefined = body?.payeeName || undefined
+    const incomingPayeeUserId: string | undefined = body?.payeeUserId || undefined
+    const incomingPayeeEmployeeId: string | undefined = body?.payeeEmployeeId || undefined
+    const incomingPayeePersonId: string | undefined = body?.payeePersonId || undefined
+    const incomingPayeeBusinessId: string | undefined = body?.payeeBusinessId || undefined
+    const incomingPayeeSupplierId: string | undefined = body?.payeeSupplierId || undefined
+
     const payment = await prisma.expenseAccountPayments.findUnique({
       where: { id: paymentId },
       select: {
@@ -31,6 +41,7 @@ export async function POST(
         createdBy: true,
         amount: true,
         paymentChannel: true,
+        payeeType: true,
       },
     })
 
@@ -62,6 +73,26 @@ export async function POST(
       )
     }
 
+    // If the payment was created without a payee (REQUEST flow), a payee must be provided now
+    const hasExistingPayee = payment.payeeType && payment.payeeType !== 'NONE'
+    const hasIncomingPayee = incomingPayeeType && incomingPayeeType !== 'NONE'
+    if (!hasExistingPayee && !hasIncomingPayee) {
+      return NextResponse.json(
+        { error: 'A payee is required to mark this payment as paid.' },
+        { status: 400 }
+      )
+    }
+
+    const payeeUpdate = hasIncomingPayee ? {
+      payeeType: incomingPayeeType,
+      payeeName: incomingPayeeName,
+      payeeUserId: incomingPayeeUserId ?? null,
+      payeeEmployeeId: incomingPayeeEmployeeId ?? null,
+      payeePersonId: incomingPayeePersonId ?? null,
+      payeeBusinessId: incomingPayeeBusinessId ?? null,
+      payeeSupplierId: incomingPayeeSupplierId ?? null,
+    } : {}
+
     const now = new Date()
     const updated = await prisma.$transaction(async (tx: any) => {
       const p = await tx.expenseAccountPayments.update({
@@ -72,6 +103,7 @@ export async function POST(
           submittedBy: user.id,
           submittedAt: now,
           ...(notes ? { notes } : {}),
+          ...payeeUpdate,
         },
         select: { id: true, status: true, paidAt: true, submittedAt: true, submittedBy: true },
       })

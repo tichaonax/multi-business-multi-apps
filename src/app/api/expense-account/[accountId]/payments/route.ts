@@ -399,7 +399,8 @@ export async function POST(
       const paymentIndex = i + 1
 
       // Validate required fields
-      if (!payment.payeeType) {
+      // Payee is optional for cashier-approval (REQUEST) flow — the requester adds it when marking as paid
+      if (!isRequestFlow && !payment.payeeType) {
         return NextResponse.json(
           { error: `Payment ${paymentIndex}: Payee type is required`, index: i },
           { status: 400 }
@@ -408,40 +409,41 @@ export async function POST(
 
       // NONE payee type is not allowed — every payment must have a known payee
       // Exception: classified payments (RENT, LOAN_REPAYMENT, TRANSFER_RETURN) may omit a payee
+      // Exception: REQUEST flow (cashier approval) — payee will be added when marking as paid
       const isClassifiedForPayee = payment.paymentType === 'RENT_PAYMENT' || payment.paymentType === 'LOAN_REPAYMENT' || payment.paymentType === 'TRANSFER_RETURN'
-      if (payment.payeeType === 'NONE' && !isClassifiedForPayee) {
+      if (!isRequestFlow && payment.payeeType === 'NONE' && !isClassifiedForPayee) {
         return NextResponse.json(
           { error: `Payment ${paymentIndex}: A payee is required — please select a supplier, employee, person, or user`, index: i },
           { status: 400 }
         )
       }
 
-      // Validate payee ID based on type
-      if (payment.payeeType === 'USER' && !payment.payeeUserId) {
+      // Validate payee ID based on type (skip for REQUEST flow — payee added at mark-paid time)
+      if (!isRequestFlow && payment.payeeType === 'USER' && !payment.payeeUserId) {
         return NextResponse.json(
           { error: `Payment ${paymentIndex}: User ID is required for USER payee`, index: i },
           { status: 400 }
         )
       }
-      if (payment.payeeType === 'EMPLOYEE' && !payment.payeeEmployeeId) {
+      if (!isRequestFlow && payment.payeeType === 'EMPLOYEE' && !payment.payeeEmployeeId) {
         return NextResponse.json(
           { error: `Payment ${paymentIndex}: Employee ID is required for EMPLOYEE payee`, index: i },
           { status: 400 }
         )
       }
-      if (payment.payeeType === 'PERSON' && !payment.payeePersonId) {
+      if (!isRequestFlow && payment.payeeType === 'PERSON' && !payment.payeePersonId) {
         return NextResponse.json(
           { error: `Payment ${paymentIndex}: Person ID is required for PERSON payee`, index: i },
           { status: 400 }
         )
       }
-      if (payment.payeeType === 'BUSINESS' && !payment.payeeBusinessId) {
+      if (!isRequestFlow && payment.payeeType === 'BUSINESS' && !payment.payeeBusinessId) {
         return NextResponse.json(
           { error: `Payment ${paymentIndex}: Business ID is required for BUSINESS payee`, index: i },
           { status: 400 }
         )
       }
-      if (payment.payeeType === 'SUPPLIER' && !payment.payeeSupplierId) {
+      if (!isRequestFlow && payment.payeeType === 'SUPPLIER' && !payment.payeeSupplierId) {
         return NextResponse.json(
           { error: `Payment ${paymentIndex}: Supplier ID is required for SUPPLIER payee`, index: i },
           { status: 400 }

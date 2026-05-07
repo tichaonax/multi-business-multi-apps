@@ -720,7 +720,10 @@ export function QuickPaymentModal({
       notes: '',
     }
 
-    if (!formData.payee) {
+    // Payee is optional when requesting cashier approval on a personal account
+    // (funds can be released before payee is known; payee is required at mark-paid time)
+    const payeeRequired = !(requestCashierApproval && isPersonalAccount)
+    if (payeeRequired && !formData.payee) {
       newErrors.payee = 'Please select a payee'
     }
 
@@ -847,8 +850,8 @@ export function QuickPaymentModal({
         ? (formData.subcategoryId ? subcategories.find(s => s.id === formData.subcategoryId) : topCat)
         : topCat
       const payment = {
-        payeeType: formData.payee!.type,
-        payeeName: formData.payee!.name,
+        payeeType: formData.payee ? formData.payee.type : 'NONE',
+        payeeName: formData.payee ? formData.payee.name : undefined,
         payeeUserId: formData.payee?.type === 'USER' ? formData.payee.id : undefined,
         payeeEmployeeId: formData.payee?.type === 'EMPLOYEE' ? formData.payee.id : undefined,
         payeePersonId: formData.payee?.type === 'PERSON' ? formData.payee.id : undefined,
@@ -1400,7 +1403,9 @@ export function QuickPaymentModal({
           <div className="mb-4">
             <div className="flex items-center justify-between mb-1">
               <label className="block text-sm font-medium text-secondary">
-                Payee <span className="text-red-500">*</span>
+                Payee {requestCashierApproval && isPersonalAccount
+                  ? <span className="text-gray-400 font-normal text-xs">(optional — required at payment)</span>
+                  : <span className="text-red-500">*</span>}
               </label>
             </div>
             {isRentAccount && presetPayee ? (

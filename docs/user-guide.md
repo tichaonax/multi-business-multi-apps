@@ -5662,15 +5662,32 @@ This is available on **personal expense accounts only**. Business accounts use t
 #### For the Requester — Submitting a Payment Request
 
 1. Open quick payment from your personal expense account.
-2. Fill in all payment details (payee, amount, category, notes).
+2. Fill in the payment details (amount, category, notes).
 3. Tick the **"Request cashier approval before payment"** checkbox (appears only on personal accounts).
-4. Click **Submit Payment**.
+4. **Payee is optional** when this box is ticked — you can leave it blank if the recipient is not yet known. The label changes to *(optional — required at payment)* as a reminder.
+5. Click **Submit Payment**.
 
 The payment is created with status **⏳ Awaiting Cashier** — your balance is **not** debited yet.
 
 You will receive a **bell notification** once a cashier approves or rejects your request.
 
 > **Tip:** Only tick this box when you need a cashier to physically handle or verify the cash. For normal personal payments you process yourself, leave it unticked.
+
+---
+
+#### Marking the Payment as Paid — Adding the Payee
+
+Once the cashier approves your request, the payment moves to **APPROVED** and appears in the **My Queue** panel on your account page with a green **✓ Mark as Paid** button.
+
+**If you submitted the request without a payee:**
+
+Clicking **✓ Mark as Paid** will open a small popup asking you to select the payee **before the payment can be confirmed**. Select the person or supplier who received the funds and click **✓ Mark as Paid** to finalise.
+
+**If you already provided a payee upfront:**
+
+Clicking **✓ Mark as Paid** opens the standard confirmation dialog and marks the payment immediately.
+
+> **Why is the payee required at this point?** The payment record must have a payee before it is finalised so that expense reports and receipts are accurate. The flexibility to skip it during submission is provided so that approval can start before all details are available — but the name must be captured before funds are confirmed.
 
 ---
 

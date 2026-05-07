@@ -28,6 +28,7 @@ import { PaymentBatchModal } from '@/components/expense-account/payment-batch-mo
 import { ExpensePaymentVoucherModal, PaymentSummary } from '@/components/expense-account/expense-payment-voucher-modal'
 import { ComboRequestsTab } from '@/components/expense-account/combo-requests-tab'
 import { ExpenseAccountAccessPanel } from '@/components/expense-account/expense-account-access-panel'
+import { PayeeSelector } from '@/components/expense-account/payee-selector'
 import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
 import { useToastContext } from '@/components/ui/toast'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
@@ -296,6 +297,7 @@ function MyQueuePanel({
   const pendingApprovalRef = useRef<QueuedPayment[]>([])
   const [ecocashModal, setEcocashModal] = useState<{ paymentId: string; amount: number } | null>(null)
   const [ecocashTxCode, setEcocashTxCode] = useState('')
+  const [payeeForMarkPaid, setPayeeForMarkPaid] = useState<{ payment: QueuedPayment; selectedPayee: { type: string; id: string; name: string } | null } | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editAmount, setEditAmount] = useState('')
   const [editNotes, setEditNotes] = useState('')
@@ -471,19 +473,40 @@ function MyQueuePanel({
     }
   }
 
-  const handleMarkPaid = async (paymentId: string) => {
+  const handleMarkPaid = async (p: QueuedPayment) => {
+    // If the payment was created without a payee (REQUEST flow), capture one before submitting
+    const hasPayee = p.payeeType && p.payeeType !== 'NONE'
+    if (!hasPayee) {
+      setPayeeForMarkPaid({ payment: p, selectedPayee: null })
+      return
+    }
     const ok = await confirm({ title: 'Mark as Paid', description: 'Confirm physical handover and mark this payment as submitted?', confirmText: 'Yes, Mark as Paid' })
     if (!ok) return
+    await submitMarkPaid(p.id)
+  }
+
+  const submitMarkPaid = async (paymentId: string, payee?: { type: string; id: string; name: string }) => {
     setActionId(paymentId)
     try {
+      const body: Record<string, unknown> = {}
+      if (payee) {
+        body.payeeType = payee.type
+        body.payeeName = payee.name
+        if (payee.type === 'USER') body.payeeUserId = payee.id
+        if (payee.type === 'EMPLOYEE') body.payeeEmployeeId = payee.id
+        if (payee.type === 'PERSON') body.payeePersonId = payee.id
+        if (payee.type === 'BUSINESS') body.payeeBusinessId = payee.id
+        if (payee.type === 'SUPPLIER') body.payeeSupplierId = payee.id
+      }
       const res = await fetch(`/api/expense-account/${accountId}/payments/${paymentId}/submit`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
+        body: JSON.stringify(body),
       })
       if (res.ok) {
         dismissedIdsRef.current.add(paymentId)
         setApproved(prev => prev.filter(p => p.id !== paymentId))
-        // onActionDone refreshes balance + increments paymentRefreshKey (drives TransactionHistory)
         onActionDone()
         fetchAll(true)
       } else {
@@ -667,7 +690,7 @@ function MyQueuePanel({
                 </button>
               ) : (
                 <button
-                  onClick={() => handleMarkPaid(p.id)}
+                  onClick={() => handleMarkPaid(p)}
                   disabled={actionId === p.id}
                   className="px-2 py-0.5 text-[10px] font-semibold bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
                 >
@@ -903,6 +926,44 @@ function MyQueuePanel({
               className="px-3 py-1.5 text-sm text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:opacity-50"
             >
               {ecocashSubmitting ? 'Sending…' : 'Confirm Sent'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Payee required — mark as paid for REQUEST-flow payments without a payee */}
+    {payeeForMarkPaid && (
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="bg-white dark:bg-gray-900 rounded-lg p-5 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-700">
+          <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-1">Select Payee to Mark as Paid</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            This payment was approved without a payee. Please select who received the funds before confirming.
+          </p>
+          <PayeeSelector
+            value={payeeForMarkPaid.selectedPayee}
+            onChange={(payee) => setPayeeForMarkPaid(prev => prev ? { ...prev, selectedPayee: payee } : null)}
+          />
+          <div className="flex justify-end gap-2 mt-4">
+            <button
+              type="button"
+              onClick={() => setPayeeForMarkPaid(null)}
+              className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!payeeForMarkPaid.selectedPayee || actionId === payeeForMarkPaid.payment.id}
+              onClick={async () => {
+                if (!payeeForMarkPaid.selectedPayee) return
+                const { payment, selectedPayee } = payeeForMarkPaid
+                setPayeeForMarkPaid(null)
+                await submitMarkPaid(payment.id, selectedPayee)
+              }}
+              className="px-3 py-1.5 text-sm text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {actionId === payeeForMarkPaid.payment.id ? '…' : '✓ Mark as Paid'}
             </button>
           </div>
         </div>
