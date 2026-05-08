@@ -7602,7 +7602,42 @@ System-wide policy templates are pre-written starting points. When creating a ne
 2. Browse templates by category.
 3. Select one — its content is copied into your new policy for editing.
 
-Templates are managed by system administrators. Your customised copy is entirely separate from the template.
+Your customised copy is entirely separate from the template — edits you make do not affect the original.
+
+---
+
+### Managing Policy Templates (System Admins Only)
+
+System administrators can create, edit, and manage all global policy templates via **Admin → Policy Templates**.
+
+#### Creating a Template
+
+1. Click **+ New Template**.
+2. Fill in the **Title**, **Category**, and optional **Description**.
+3. Write the **Content** — full HTML is supported.
+   - Use `{{BUSINESS_NAME}}` anywhere in the content; it will be substituted with the actual business name when an employee views a policy created from this template.
+4. Use the **Preview** tab to see how the rendered HTML will look (with `{{BUSINESS_NAME}}` shown as *[Your Business Name]*) before saving.
+5. Click **Create Template**.
+
+#### Editing a Template
+
+1. Click **Edit** next to the template in the list.
+2. Update any fields — Title, Category, Description, or Content.
+3. Switch to the **Preview** tab at any time to review the rendered output before saving.
+4. Click **Save Changes**.
+
+> Changes to a template do not retroactively affect policies that were already created from it.
+
+#### Deactivating / Restoring a Template
+
+- Click **Deactivate** to hide a template from the template picker (it is soft-deleted — data is preserved).
+- Click **Restore** to make it available again.
+- Use the **Show inactive** checkbox to include deactivated templates in the list.
+
+#### Filtering
+
+- Search by **title** using the text box.
+- Filter by **Category** (HR, Safety, IT, Finance, Code of Conduct, Other).
 
 ---
 

@@ -38,6 +38,9 @@ export default function PolicyCreateEditModal({ businessId, policy, onClose, onS
     (policy?.contentType as any) ?? 'RICH_TEXT'
   )
   const [content, setContent] = useState<string>('')
+  const [fileId, setFileId] = useState<string | null>(null)
+  const [pdfFileName, setPdfFileName] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
   const [changeNote, setChangeNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [loadingContent, setLoadingContent] = useState(false)
@@ -57,6 +60,10 @@ export default function PolicyCreateEditModal({ businessId, policy, onClose, onS
         const published = data.versions?.find((v: any) => v.status === 'PUBLISHED')
         const source = draft ?? published
         setContent(source?.content ?? '')
+        if (source?.fileId) {
+          setFileId(source.fileId)
+          setPdfFileName('Existing PDF')
+        }
       })
       .catch(() => {})
       .finally(() => setLoadingContent(false))
@@ -76,33 +83,33 @@ export default function PolicyCreateEditModal({ businessId, policy, onClose, onS
         if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
         const newPolicy = await res.json()
 
-        // Save content to a draft version
-        if (content) {
+        // Save content/fileId to a draft version
+        if (content || fileId) {
           await fetch(`/api/policies/${newPolicy.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content }),
+            body: JSON.stringify({ content, fileId }),
           })
           // Create the draft version row
           await fetch(`/api/policies/${newPolicy.id}/new-version`, { method: 'POST' })
         }
         onSuccess(newPolicy)
       } else {
-        // Update existing policy fields
+        // Update existing policy fields (title, description, category only)
         await fetch(`/api/policies/${policy.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, description, category, content }),
+          body: JSON.stringify({ title, description, category }),
         })
         // If PUBLISHED and no draft version exists yet, create one first
         if (isPublished && !draftVersion) {
           await fetch(`/api/policies/${policy.id}/new-version`, { method: 'POST' })
         }
-        // Now save content to draft version
+        // Now save content/fileId to draft version
         await fetch(`/api/policies/${policy.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content }),
+          body: JSON.stringify({ content, fileId }),
         })
         onSuccess()
       }
@@ -129,15 +136,21 @@ export default function PolicyCreateEditModal({ businessId, policy, onClose, onS
         const pubRes = await fetch(`/api/policies/${newPolicy.id}/publish`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content, changeNote }),
+          body: JSON.stringify({ content, fileId, changeNote }),
         })
         if (!pubRes.ok) { const d = await pubRes.json(); throw new Error(d.error) }
         onSuccess(newPolicy)
       } else {
+        // Save title/description/category changes before publishing
+        await fetch(`/api/policies/${policy.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, description, category }),
+        })
         const pubRes = await fetch(`/api/policies/${policy.id}/publish`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content, changeNote }),
+          body: JSON.stringify({ content, fileId, changeNote }),
         })
         if (!pubRes.ok) { const d = await pubRes.json(); throw new Error(d.error) }
         onSuccess()
@@ -242,8 +255,64 @@ export default function PolicyCreateEditModal({ businessId, policy, onClose, onS
           )}
 
           {contentType === 'PDF' && (
-            <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-center">
-              <p className="text-sm text-gray-500 dark:text-gray-400">PDF upload coming in next phase. Use rich text for now.</p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">PDF File</label>
+              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-dashed border-gray-300 dark:border-gray-600">
+                {fileId && pdfFileName ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <span className="text-red-500">📄</span>
+                      <span className="truncate max-w-xs">{pdfFileName}</span>
+                      <span className="text-xs text-green-600 dark:text-green-400 font-medium">✓ Uploaded</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setFileId(null); setPdfFileName(null) }}
+                      className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center gap-2 cursor-pointer">
+                    <span className="text-2xl">📄</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {uploading ? 'Uploading…' : 'Click to select a PDF file (max 20 MB)'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      disabled={uploading || !policy?.id}
+                      className="sr-only"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        if (!policy?.id) { onError('Save the draft first before uploading a PDF'); return }
+                        setUploading(true)
+                        try {
+                          const form = new FormData()
+                          form.append('file', file)
+                          const res = await fetch(`/api/policies/${policy.id}/upload`, { method: 'POST', body: form })
+                          if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
+                          const { fileId: newFileId } = await res.json()
+                          setFileId(newFileId)
+                          setPdfFileName(file.name)
+                        } catch (err: any) {
+                          onError(err.message)
+                        } finally {
+                          setUploading(false)
+                          e.target.value = ''
+                        }
+                      }}
+                    />
+                  </label>
+                )}
+                {!policy?.id && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 text-center">
+                    Save as draft first, then re-open to upload the PDF.
+                  </p>
+                )}
+              </div>
             </div>
           )}
 

@@ -15,6 +15,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default function PolicyPreviewModal({ policy, onClose }: Props) {
   const [content, setContent] = useState<string | null>(null)
+  const [fileId, setFileId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [scrolledToEnd, setScrolledToEnd] = useState(false)
 
@@ -26,6 +27,7 @@ export default function PolicyPreviewModal({ policy, onClose }: Props) {
         const published = data.versions?.find((v: any) => v.status === 'PUBLISHED')
         const source = draft ?? published
         setContent(source?.content ?? null)
+        setFileId(source?.fileId ?? null)
       })
       .catch(() => setContent(null))
       .finally(() => setLoading(false))
@@ -63,7 +65,7 @@ export default function PolicyPreviewModal({ policy, onClose }: Props) {
         ) : (
           <PolicyViewer
             content={content}
-            fileId={null}
+            fileId={fileId}
             contentType={policy.contentType as any}
             onScrolledToEnd={() => setScrolledToEnd(true)}
             hasScrolledToEnd={scrolledToEnd}

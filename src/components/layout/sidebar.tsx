@@ -2104,6 +2104,16 @@ export function Sidebar() {
                 <span>Global Contractors</span>
               </Link>
             )}
+
+            {isSystemAdmin(currentUser) && (
+              <Link
+                href="/admin/policy-templates"
+                className="sidebar-link flex items-center space-x-3"
+              >
+                <span className="text-lg">📋</span>
+                <span>Policy Templates</span>
+              </Link>
+            )}
             
             {hasPermission('canManageBusinessUsers') && (
               <Link 

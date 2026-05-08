@@ -35,13 +35,13 @@ export default function PolicyAssignModal({ policy, businessId, onClose, onSucce
   useEffect(() => {
     if (scope !== 'INDIVIDUAL') return
     setLoadingMembers(true)
-    fetch(`/api/user/business-memberships?businessId=${businessId}`)
+    fetch(`/api/businesses/${businessId}/members`)
       .then(r => r.json())
       .then(data => {
-        const list = Array.isArray(data) ? data : data.memberships ?? []
+        const list = Array.isArray(data) ? data : []
         setMembers(list.map((m: any) => ({
-          userId: m.userId ?? m.id,
-          userName: m.userName ?? m.name ?? m.users?.name ?? 'Unknown',
+          userId: m.userId,
+          userName: m.user?.name ?? m.user?.email ?? 'Unknown',
           role: m.role,
         })))
       })

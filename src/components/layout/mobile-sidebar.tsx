@@ -482,6 +482,9 @@ export function MobileSidebar() {
                       {hasBusinessPermission('canManageJobTitles') && (
                         <Link href="/admin/job-titles" className={sectionLinkClass} onClick={close}>💼 Job Titles</Link>
                       )}
+                      {isAdmin && (
+                        <Link href="/admin/policy-templates" className={sectionLinkClass} onClick={close}>📋 Policy Templates</Link>
+                      )}
                       {hasBusinessPermission('canEditEmployees') && (
                         <Link href="/admin/hierarchy" className={sectionLinkClass} onClick={close}>🌳 Hierarchy</Link>
                       )}

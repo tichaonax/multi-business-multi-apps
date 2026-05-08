@@ -820,13 +820,13 @@ export async function GET(req: NextRequest) {
     }
 
     // --- Compute financial summary via direct aggregate queries (not from the limited activity list) ---
-    // Determine which business IDs to aggregate over
-    const financialBusinessIds: string[] | null =
-      isSystemAdmin(user) && targetBusinessIds === null
-        ? null // admin viewing all — no filter
-        : (targetBusinessIds && targetBusinessIds.length > 0)
-          ? targetBusinessIds
-          : ownedBusinessIds // default: businesses user owns/manages
+    // Determine which business IDs to aggregate over.
+    // null means "all businesses" (admin unrestricted).
+    const financialBusinessIds: string[] | null = isSystemAdmin(user)
+      // Admin: use specific business filter if provided, otherwise show all
+      ? (targetBusinessIds && targetBusinessIds.length > 0 ? targetBusinessIds : null)
+      // Non-admin: use specific filter, then owned/managed businesses
+      : (targetBusinessIds && targetBusinessIds.length > 0 ? targetBusinessIds : ownedBusinessIds)
 
     if (financialBusinessIds === null || financialBusinessIds.length > 0) {
       // Revenue: sum of all COMPLETED orders (exclude EXPENSE_ACCOUNT payment method = meal subsidies)
@@ -843,7 +843,9 @@ export async function GET(req: NextRequest) {
 
       // Expenses: sum of expense account payments for these businesses
       const expenseAccounts = await prisma.expenseAccounts.findMany({
-        where: { business: { id: { in: financialBusinessIds ?? [] } } },
+        where: financialBusinessIds
+          ? { business: { id: { in: financialBusinessIds } } }
+          : {}, // no filter = all businesses (admin)
         select: { id: true },
       })
       if (expenseAccounts.length > 0) {
