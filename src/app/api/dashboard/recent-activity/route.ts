@@ -169,7 +169,7 @@ export async function GET(req: NextRequest) {
         // console.log('  - user permissions canViewOrders:', hasUserPermission(user, 'canViewOrders'))
         // console.log('  - isSystemAdmin:', isSystemAdmin(user))
 
-        const recentOrders = await safePrisma.findMany('businessOrder', {
+        const recentOrders = await safePrisma.findMany('businessOrders', {
           where: orderWhereClause,
           select: {
             id: true,
@@ -276,7 +276,7 @@ export async function GET(req: NextRequest) {
         console.log('  - filterScope:', filterScope)
         console.log('  - filterBusinessId:', filterBusinessId)
 
-        const recentProjects = await safePrisma.findMany('constructionProject', {
+        const recentProjects = await safePrisma.findMany('constructionProjects', {
           where: whereClause,
           select: {
             id: true,
@@ -327,7 +327,7 @@ export async function GET(req: NextRequest) {
         console.log('  - whereClause:', JSON.stringify(transactionWhereClause, null, 2))
         console.log('  - targetBusinessIds applied:', targetBusinessIds)
 
-        const recentTransactions = await safePrisma.findMany('projectTransaction', {
+        const recentTransactions = await safePrisma.findMany('projectTransactions', {
           where: transactionWhereClause,
           include: {
             // relation name in schema is `project` (singular)
@@ -528,7 +528,7 @@ export async function GET(req: NextRequest) {
         console.log('  - user permissions canAccessFinancialData:', hasPermissionInAnyBusiness(user, 'canAccessFinancialData'))
         console.log('  - isSystemAdmin:', isSystemAdmin(user))
 
-        const recentBusinessOrders = await safePrisma.findMany('businessOrder', {
+        const recentBusinessOrders = await safePrisma.findMany('businessOrders', {
           where: businessWhereClause,
           include: {
             businesses: {
@@ -819,7 +819,47 @@ export async function GET(req: NextRequest) {
       }, {} as Record<string, number>)
     }
 
-    // Calculate net amount
+    // --- Compute financial summary via direct aggregate queries (not from the limited activity list) ---
+    // Determine which business IDs to aggregate over
+    const financialBusinessIds: string[] | null =
+      isSystemAdmin(user) && targetBusinessIds === null
+        ? null // admin viewing all — no filter
+        : (targetBusinessIds && targetBusinessIds.length > 0)
+          ? targetBusinessIds
+          : ownedBusinessIds // default: businesses user owns/manages
+
+    if (financialBusinessIds === null || financialBusinessIds.length > 0) {
+      // Revenue: sum of all COMPLETED orders (exclude EXPENSE_ACCOUNT payment method = meal subsidies)
+      const revenueAgg = await prisma.businessOrders.aggregate({
+        where: {
+          ...(financialBusinessIds ? { businessId: { in: financialBusinessIds } } : {}),
+          status: 'COMPLETED',
+          NOT: { paymentMethod: 'EXPENSE_ACCOUNT' },
+          createdAt: { gte: sevenDaysAgo },
+        },
+        _sum: { totalAmount: true },
+      })
+      financialSummary.totalRevenue = Number(revenueAgg._sum.totalAmount ?? 0)
+
+      // Expenses: sum of expense account payments for these businesses
+      const expenseAccounts = await prisma.expenseAccounts.findMany({
+        where: { business: { id: { in: financialBusinessIds ?? [] } } },
+        select: { id: true },
+      })
+      if (expenseAccounts.length > 0) {
+        const expenseAgg = await prisma.expenseAccountPayments.aggregate({
+          where: {
+            expenseAccountId: { in: expenseAccounts.map(a => a.id) },
+            createdAt: { gte: sevenDaysAgo },
+            cancelledAt: null,
+            reversedAt: null,
+          },
+          _sum: { amount: true },
+        })
+        financialSummary.totalExpenses = Number(expenseAgg._sum.amount ?? 0)
+      }
+    }
+
     financialSummary.netAmount = financialSummary.totalRevenue - financialSummary.totalExpenses
 
     return NextResponse.json({

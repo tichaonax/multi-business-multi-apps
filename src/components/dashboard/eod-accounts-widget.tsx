@@ -83,7 +83,7 @@ export function EodAccountsWidget() {
       >
         <div className="flex items-center gap-3">
           <span className="text-lg font-semibold text-primary">📦 Cash Box Balances</span>
-          <span className="text-sm font-medium text-blue-600 dark:text-blue-400">${grandTotal.toFixed(2)} set aside</span>
+          <span className="text-sm font-medium text-blue-600 dark:text-blue-400">${grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} set aside</span>
           <span className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs rounded-full px-2 py-0.5">
             {groups.length} business{groups.length !== 1 ? 'es' : ''}
           </span>

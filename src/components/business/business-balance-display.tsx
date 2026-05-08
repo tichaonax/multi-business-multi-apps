@@ -60,7 +60,7 @@ export function BusinessBalanceDisplay({
       <span className={`text-sm ${className}`}>
         {balanceInfo.hasAccount ? (
           <span className="font-medium text-green-600">
-            ${balanceInfo.balance.toFixed(2)}
+            ${balanceInfo.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         ) : (
           <span className="text-orange-600">Not initialized</span>
@@ -78,7 +78,7 @@ export function BusinessBalanceDisplay({
         <div className="flex items-center space-x-2">
           {balanceInfo.hasAccount ? (
             <span className="text-sm font-bold text-green-600">
-              ${balanceInfo.balance.toFixed(2)}
+              ${balanceInfo.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           ) : (
             <span className="text-sm text-orange-600">Not initialized</span>
@@ -120,7 +120,7 @@ export function BusinessBalanceDisplay({
           <span className="text-sm text-blue-700 dark:text-blue-300">Available Balance:</span>
           {balanceInfo.hasAccount ? (
             <span className="text-lg font-bold text-green-600 dark:text-green-400">
-              ${balanceInfo.balance.toFixed(2)}
+              ${balanceInfo.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           ) : (
             <span className="text-sm text-orange-600 dark:text-orange-400">
