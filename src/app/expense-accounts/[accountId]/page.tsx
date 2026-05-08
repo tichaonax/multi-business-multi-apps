@@ -235,7 +235,7 @@ interface QueuedPayment {
   paymentDate: string
   createdAt?: string
   createdBy?: { id: string } | null
-  description?: string | null
+  notes?: string | null
   status: string
   payeeUser?: { name: string } | null
   payeeEmployee?: { fullName: string } | null
@@ -325,7 +325,7 @@ function MyQueuePanel({
       paymentDate: new Date().toISOString(),
       payeeName: pName,
       payeeType: p.payeeType ?? 'GENERAL',
-      purpose: p.description ?? '',
+      purpose: p.notes ?? '',
       category: p.category ? `${p.category.emoji} ${p.category.name}` : undefined,
       businessId: businessId!,
       businessName: businessName ?? '',
@@ -442,7 +442,7 @@ function MyQueuePanel({
   const startEdit = (p: QueuedPayment) => {
     setEditingId(p.id)
     setEditAmount(String(p.amount))
-    setEditNotes(p.description ?? '')
+    setEditNotes(p.notes ?? '')
   }
 
   const handleSaveEdit = async () => {
@@ -461,7 +461,7 @@ function MyQueuePanel({
         body: JSON.stringify({ amount: amt, notes: editNotes.trim() || null }),
       })
       if (res.ok) {
-        setQueued(prev => prev.map(p => p.id === editingId ? { ...p, amount: amt, description: editNotes.trim() || null } : p))
+        setQueued(prev => prev.map(p => p.id === editingId ? { ...p, amount: amt, notes: editNotes.trim() || null } : p))
         setEditingId(null)
         onActionDone()
       } else {
@@ -576,7 +576,7 @@ function MyQueuePanel({
     !queueSearch ||
     payeeName(p).toLowerCase().includes(searchLower) ||
     (p.category?.name ?? '').toLowerCase().includes(searchLower) ||
-    (p.description ?? '').toLowerCase().includes(searchLower)
+    (p.notes ?? '').toLowerCase().includes(searchLower)
   const matchesPettySearch = (p: PettyCashQueueItem) =>
     !queueSearch ||
     p.purpose.toLowerCase().includes(searchLower) ||
@@ -641,6 +641,7 @@ function MyQueuePanel({
                 }
               </div>
               <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}{p.createdAt && <span className="ml-1 text-gray-300 dark:text-gray-600">· {timeAgo(p.createdAt)}</span>}</p>
+              {p.notes && <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5 italic">{p.notes}</p>}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-xs font-semibold text-red-600 dark:text-red-400">−{fmt(p.amount)}</span>
@@ -668,6 +669,7 @@ function MyQueuePanel({
                 }
               </div>
               <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}{p.createdAt && <span className="ml-1 text-gray-300 dark:text-gray-600">· {timeAgo(p.createdAt)}</span>}</p>
+              {p.notes && <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5 italic">{p.notes}</p>}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-xs font-semibold text-red-600 dark:text-red-400">−{fmt(p.amount)}</span>
