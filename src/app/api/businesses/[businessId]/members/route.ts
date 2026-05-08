@@ -37,7 +37,11 @@ export async function GET(req: NextRequest, { params }: Context) {
       }
 
       const userPermissions = userMembership.permissions as any;
-      if (!userPermissions.canViewUsers) {
+      const canView =
+        userPermissions?.canViewUsers === true ||
+        userMembership.role === 'business-owner' ||
+        userMembership.role === 'business-manager'
+      if (!canView) {
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
       }
     }

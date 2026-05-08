@@ -44,6 +44,7 @@ export default function PolicyCreateEditModal({ businessId, policy, onClose, onS
   const [changeNote, setChangeNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [loadingContent, setLoadingContent] = useState(false)
+  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit')
 
   const isEditing = !!policy
   const isPublished = policy?.status === 'PUBLISHED'
@@ -239,10 +240,38 @@ export default function PolicyCreateEditModal({ businessId, policy, onClose, onS
 
           {contentType === 'RICH_TEXT' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Policy Content</label>
+              {/* Edit / Preview tabs */}
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Policy Content</label>
+                <div className="flex gap-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('edit')}
+                    className={`px-3 py-1 rounded-md font-medium transition-colors ${
+                      activeTab === 'edit'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    ✏️ Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('preview')}
+                    className={`px-3 py-1 rounded-md font-medium transition-colors ${
+                      activeTab === 'preview'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    👁️ Preview
+                  </button>
+                </div>
+              </div>
+
               {loadingContent ? (
                 <div className="text-sm text-gray-400 py-4 text-center">Loading content…</div>
-              ) : (
+              ) : activeTab === 'edit' ? (
                 <textarea
                   value={content}
                   onChange={e => setContent(e.target.value)}
@@ -250,6 +279,17 @@ export default function PolicyCreateEditModal({ businessId, policy, onClose, onS
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-mono bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none resize-y"
                   placeholder="Write your policy content here. HTML formatting is supported (e.g. <h2>, <p>, <ul>)."
                 />
+              ) : (
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 p-4 min-h-[18rem] overflow-y-auto">
+                  {content ? (
+                    <div
+                      className="prose prose-sm dark:prose-invert max-w-none text-gray-800 dark:text-gray-200"
+                      dangerouslySetInnerHTML={{ __html: content }}
+                    />
+                  ) : (
+                    <p className="text-sm text-gray-400 dark:text-gray-500 italic text-center py-10">No content to preview yet.</p>
+                  )}
+                </div>
               )}
             </div>
           )}
