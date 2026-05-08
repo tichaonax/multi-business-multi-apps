@@ -103,6 +103,7 @@ export async function GET() {
       business: { id: string; name: string; type: string }
       accounts: { id: string; accountName: string; dailyAmount: number; cashBoxBalance: number }[]
       payrollCashBox: number
+      canViewPayroll: boolean
     }>()
 
     for (const c of configs) {
@@ -112,6 +113,7 @@ export async function GET() {
           business: c.business,
           accounts: [],
           payrollCashBox: payrollCashByBusiness.get(bizId) ?? 0,
+          canViewPayroll: isSystemAdmin(user) || hasPermission(user, 'canAccessPayroll', bizId),
         })
       }
       byBusiness.get(bizId)!.accounts.push({
@@ -130,7 +132,12 @@ export async function GET() {
           select: { id: true, name: true, type: true },
         })
         if (biz) {
-          byBusiness.set(bizId, { business: biz, accounts: [], payrollCashBox: payrollAmount })
+          byBusiness.set(bizId, {
+            business: biz,
+            accounts: [],
+            payrollCashBox: payrollAmount,
+            canViewPayroll: isSystemAdmin(user) || hasPermission(user, 'canAccessPayroll', bizId),
+          })
         }
       }
     }

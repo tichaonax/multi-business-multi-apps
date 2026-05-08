@@ -558,6 +558,17 @@ export async function GET(req: NextRequest) {
                               businessType === 'clothing' ? '👕' :
                               businessType === 'hardware' ? '🔧' : '🏪'
 
+          const orderAmount = Number(order.totalAmount)
+          const isOwnedBusiness = order.businessId && ownedBusinessIds.includes(order.businessId)
+          const canViewFinancials = isSystemAdmin(user) || isOwnedBusiness
+
+          // Track revenue for owned/admin businesses with completed orders
+          if (canViewFinancials && order.status === 'COMPLETED') {
+            financialSummary.totalRevenue += orderAmount
+          } else if (!canViewFinancials && order.businessId) {
+            financialSummary.hasRestrictedData = true
+          }
+
           activities.push({
             id: `business-order-${order.id}`,
             type: 'business_order',
@@ -718,6 +729,78 @@ export async function GET(req: NextRequest) {
         })
       } catch (error) {
         console.warn('Failed to fetch R710 sync activities:', error)
+      }
+    }
+
+    // 10. Recent Stock Additions (PURCHASE_RECEIVED movements for barcode inventory)
+    if (hasPermissionInAnyBusiness(user, 'canAccessFinancialData') ||
+        hasPermissionInAnyBusiness(user, 'canManageInventory') ||
+        isSystemAdmin(user)) {
+      try {
+        const stockWhereClause: any = {
+          movementType: 'PURCHASE_RECEIVED',
+          createdAt: { gte: sevenDaysAgo },
+          barcodeInventoryItemId: { not: null },
+        }
+
+        if (targetBusinessIds && targetBusinessIds.length > 0) {
+          stockWhereClause.businessId = { in: targetBusinessIds }
+        } else if (!isSystemAdmin(user) && userBusinessIds.length > 0) {
+          stockWhereClause.businessId = { in: userBusinessIds }
+        }
+
+        const recentStockAdditions = await safePrisma.findMany('businessStockMovements', {
+          where: stockWhereClause,
+          select: {
+            id: true,
+            businessId: true,
+            quantity: true,
+            createdAt: true,
+            barcode_inventory_items: {
+              select: { name: true, sku: true }
+            },
+            businesses: {
+              select: { id: true, name: true, type: true }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+        })
+
+        recentStockAdditions.forEach((movement: any) => {
+          const hasBusinessAccess = isSystemAdmin(user) || (movement.businessId && userBusinessIds.includes(movement.businessId))
+          const itemName = movement.barcode_inventory_items?.name ?? 'Unknown Item'
+          const itemSku = movement.barcode_inventory_items?.sku ?? null
+          const businessName = movement.businesses?.name ?? 'Business'
+
+          activities.push({
+            id: `stock-addition-${movement.id}`,
+            type: 'stock_addition',
+            title: 'Stock Added',
+            description: `${movement.quantity} unit${movement.quantity !== 1 ? 's' : ''} of ${itemName} received`,
+            createdAt: movement.createdAt,
+            module: `inventory(${businessName})`,
+            icon: '📦',
+            status: 'completed',
+            entityId: movement.id,
+            sku: itemSku,
+            link: hasBusinessAccess && movement.businesses?.type
+              ? `/${movement.businesses.type}/reports/stock-additions?businessId=${movement.businessId}${itemSku ? `&sku=${encodeURIComponent(itemSku)}` : ''}`
+              : null,
+            businessInfo: movement.businesses ? {
+              businessId: movement.businessId,
+              businessName: businessName.length > 20 ? businessName.substring(0, 20) + '...' : businessName,
+              businessType: movement.businesses.type,
+              userHasAccess: hasBusinessAccess,
+            } : null,
+            linkAccess: {
+              hasAccess: hasBusinessAccess,
+              reason: !hasBusinessAccess ? 'No access to this business' : undefined,
+            },
+          })
+        })
+      } catch (error) {
+        console.warn('Failed to fetch recent stock additions:', error)
       }
     }
 

@@ -30,6 +30,7 @@ export function BusinessLoansWidget() {
   const router = useRouter()
   const [loans, setLoans] = useState<BusinessLoan[]>([])
   const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
     fetch('/api/business-loans')
@@ -41,21 +42,39 @@ export function BusinessLoansWidget() {
 
   if (loading || loans.length === 0) return null
 
-  return (
-    <div className="card p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-primary flex items-center gap-2">
-          💳 Business Loan Repayments
-          <span className="text-sm font-normal text-secondary">({loans.length} loan{loans.length !== 1 ? 's' : ''})</span>
-        </h3>
-        <button
-          onClick={() => router.push('/admin/loans')}
-          className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400"
-        >
-          View All →
-        </button>
-      </div>
+  const totalOutstanding = loans.reduce((sum, loan) => {
+    const bal = Number(loan.expenseAccount?.balance ?? 0)
+    return sum + Math.abs(bal)
+  }, 0)
 
+  return (
+    <div className="card overflow-hidden">
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center justify-between p-4 sm:p-6 text-left hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-lg font-semibold text-primary">💳 Business Loan Repayments</span>
+          <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-bold rounded-full px-2 py-0.5">
+            {loans.length} loan{loans.length !== 1 ? 's' : ''}
+          </span>
+          <span className="text-sm text-red-600 dark:text-red-400 font-medium">{fmt(totalOutstanding)} outstanding</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={e => { e.stopPropagation(); router.push('/admin/loans') }}
+            className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400"
+          >
+            View All →
+          </button>
+          <svg className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </button>
+
+      {expanded && (
+      <div className="px-4 sm:px-6 pb-6">
       <div className="space-y-3">
         {loans.map(loan => {
           const currentBalance = Number(loan.expenseAccount?.balance ?? 0)
@@ -104,6 +123,8 @@ export function BusinessLoansWidget() {
           )
         })}
       </div>
+      </div>
+      )}
     </div>
   )
 }

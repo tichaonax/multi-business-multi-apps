@@ -68,6 +68,13 @@ export default function RestaurantReportsPage() {
       href: `/${businessType}/reports/reorder`,
       icon: '📦',
       color: 'bg-amber-600 hover:bg-amber-700'
+    },
+    {
+      title: '🗃️ Stock Additions',
+      description: 'See all inventory received in any date range — quantities, costs, suppliers and who added them',
+      href: `/${businessType}/reports/stock-additions`,
+      icon: '🗃️',
+      color: 'bg-teal-600 hover:bg-teal-700'
     }
   ]
 

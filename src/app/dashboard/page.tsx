@@ -68,6 +68,7 @@ function DashboardContent() {
   const [activityLoading, setActivityLoading] = useState<boolean>(true)
   const [activitySearchTerm, setActivitySearchTerm] = useState<string>('')
   const [activityFinancialSummary, setActivityFinancialSummary] = useState<any>(null)
+  const [activityExpanded, setActivityExpanded] = useState<boolean>(false)
 
   // Activity filter states
   const [todayStats, setTodayStats] = useState<Record<string, any>>({})
@@ -338,6 +339,12 @@ function DashboardContent() {
       case 'business_order':
         setSelectedBusinessOrderId(entityId)
         setShowBusinessOrderModal(true)
+        break
+      case 'stock_addition':
+        // Navigate to the stock additions report for the relevant business
+        if (activity.link) {
+          router.push(activity.link)
+        }
         break
       case 'user_created':
         // Fetch user data and open UserEditModal
@@ -1080,36 +1087,31 @@ function DashboardContent() {
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8 mt-6">
-          <div className="card p-4 sm:p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-semibold text-primary">Recent Activity</h3>
+          <div className="card overflow-hidden">
+            <button
+              onClick={() => setActivityExpanded(v => !v)}
+              className="w-full flex flex-wrap items-center justify-between gap-2 p-4 sm:p-6 text-left hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+            >
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-lg font-semibold text-primary">Recent Activity</span>
+                <span className="text-sm text-gray-500">Last 7 days</span>
                 {activityFinancialSummary && hasPermission('canAccessFinancialData') && (
-                  <div className="text-sm text-gray-600 mt-1 flex flex-wrap items-center gap-2 sm:gap-4">
-                    <span>
-                      Revenue: <span className="text-green-600 font-medium">${activityFinancialSummary.totalRevenue.toFixed(2)}</span>
-                    </span>
-                    <span className="hidden sm:inline">|</span>
-                    <span>
-                      Expenses: <span className="text-red-600 font-medium">${activityFinancialSummary.totalExpenses.toFixed(2)}</span>
-                    </span>
-                    <span className="hidden sm:inline">|</span>
-                    <span>
-                      Net: <span className={`font-medium ${activityFinancialSummary.netAmount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        ${activityFinancialSummary.netAmount.toFixed(2)}
-                      </span>
-                    </span>
-                    {activityFinancialSummary.hasRestrictedData && (
-                      <>
-                        <span className="hidden sm:inline">|</span>
-                        <span className="text-orange-600 text-xs">* Some data restricted</span>
-                      </>
-                    )}
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <span>Revenue: <span className="text-green-600 dark:text-green-400 font-medium">${activityFinancialSummary.totalRevenue.toFixed(2)}</span></span>
+                    <span className="hidden sm:inline text-gray-300 dark:text-gray-600">|</span>
+                    <span>Expenses: <span className="text-red-600 dark:text-red-400 font-medium">${activityFinancialSummary.totalExpenses.toFixed(2)}</span></span>
+                    <span className="hidden sm:inline text-gray-300 dark:text-gray-600">|</span>
+                    <span>Net: <span className={`font-medium ${activityFinancialSummary.netAmount >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>${activityFinancialSummary.netAmount.toFixed(2)}</span></span>
                   </div>
                 )}
               </div>
-              <span className="text-sm text-gray-500">Last 7 days</span>
-            </div>
+              <svg className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${activityExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {activityExpanded && (
+            <div className="p-4 sm:p-6 pt-0">
 
             {/* Search Input */}
             {recentActivity.length > 0 && (
@@ -1291,7 +1293,27 @@ function DashboardContent() {
                           <p className={`text-sm font-medium text-primary truncate ${isClickable ? 'group-hover:text-blue-600' : ''}`}>
                             {activity.title}
                           </p>
-                          <p className="text-xs text-gray-500 truncate">{activity.description}</p>
+                          {activity.type === 'stock_addition' ? (() => {
+                            const match = activity.description.match(/^(\d+)\s+units?\s+of\s+(.+?)\s+received$/i)
+                            if (match) {
+                              return (
+                                <>
+                                  <p className="text-xs truncate">
+                                    <span className="font-semibold text-teal-600 dark:text-teal-400">{match[1]} units</span>
+                                    <span className="text-gray-500"> of </span>
+                                    <span className="font-medium text-indigo-600 dark:text-indigo-400">{match[2]}</span>
+                                    <span className="text-gray-500"> received</span>
+                                  </p>
+                                  {activity.sku && (
+                                    <p className="text-xs font-mono text-amber-600 dark:text-amber-400 truncate">{activity.sku}</p>
+                                  )}
+                                </>
+                              )
+                            }
+                            return <p className="text-xs text-gray-500 truncate">{activity.description}</p>
+                          })() : (
+                            <p className="text-xs text-gray-500 truncate">{activity.description}</p>
+                          )}
                           <p className="text-xs text-blue-600 capitalize">{activity.module}</p>
                         </div>
                         <div className="text-right flex-shrink-0">
@@ -1360,6 +1382,8 @@ function DashboardContent() {
                 return null
               })()}
             </div>
+            </div>
+            )}
           </div>
           
           <div className="card p-4 sm:p-6">

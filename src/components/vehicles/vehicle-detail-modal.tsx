@@ -46,6 +46,8 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
   const { data: session } = useSession()
   const { permissions } = useUserPermissions()
   const { format: globalDateFormat } = useDateFormat()
+  const toast = useToastContext()
+  const confirm = useConfirm()
   const [isEditing, setIsEditing] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -112,7 +114,6 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
         isActive: formData.isActive
       }
 
-      const toast = useToastContext()
       const result = await fetchWithValidation('/api/vehicles', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -134,7 +135,7 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to update vehicle'
       setError(message)
-      try { useToastContext().push(message) } catch (e) { }
+      try { toast.push(message) } catch (e) { }
     } finally {
       setIsSubmitting(false)
     }
@@ -274,9 +275,6 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
       toast.error(err instanceof Error ? err.message : 'Failed to delete selected licenses')
     }
   }
-
-  const confirm = useConfirm()
-  const toast = useToastContext()
 
   const toggleLicenseSelection = (licenseId: string) => {
     setSelectedLicenseIds(prev =>

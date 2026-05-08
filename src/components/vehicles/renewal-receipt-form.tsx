@@ -28,6 +28,94 @@ const emptyLicense = () => ({
   reminderDays: '30',
 })
 
+const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-primary transition-colors'
+const labelClass = 'block text-xs font-medium text-secondary mb-1'
+
+interface LicenseFieldsProps {
+  lic: ReturnType<typeof emptyLicense>
+  setter: React.Dispatch<React.SetStateAction<any>>
+  showUsage?: boolean
+  licId: 'radio' | 'insurance' | 'reg'
+  onLicChange: (setter: React.Dispatch<React.SetStateAction<any>>, e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void
+}
+
+const LicenseFields = ({ lic, setter, showUsage, licId, onLicChange }: LicenseFieldsProps) => (
+  <div className="space-y-3">
+    <div className="flex items-center gap-2">
+      <input
+        type="checkbox"
+        id={`include-${licId}`}
+        checked={lic.include}
+        onChange={e => setter((p: any) => ({ ...p, include: e.target.checked }))}
+        className="w-4 h-4 text-blue-600 rounded"
+      />
+      <label htmlFor={`include-${licId}`} className="text-sm text-secondary">
+        Include this licence in the renewal
+      </label>
+    </div>
+
+    {lic.include && (
+      <>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelClass}>Licence Number *</label>
+            <input name="licenseNumber" value={lic.licenseNumber} onChange={e => onLicChange(setter, e)} className={inputClass} required />
+          </div>
+          <div>
+            <label className={labelClass}>Issuing Authority</label>
+            <input name="issuingAuthority" value={lic.issuingAuthority} onChange={e => onLicChange(setter, e)} className={inputClass} placeholder={lic.isExempt ? 'NOT APPLICABLE' : ''} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelClass}>Issue Date *</label>
+            <DateInput name="issueDate" value={lic.issueDate} onChange={v => setter((p: any) => ({ ...p, issueDate: v }))} required />
+          </div>
+          <div>
+            <label className={labelClass}>Expiry Date *</label>
+            <DateInput name="expiryDate" value={lic.expiryDate} onChange={v => setter((p: any) => ({ ...p, expiryDate: v }))} required />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className={labelClass}>Renewal Cost</label>
+            <input type="number" name="renewalCost" value={lic.renewalCost} onChange={e => onLicChange(setter, e)} className={inputClass} min="0" step="0.01" placeholder="0" />
+          </div>
+          <div>
+            <label className={labelClass}>Late Fee</label>
+            <input type="number" name="lateFee" value={lic.lateFee} onChange={e => onLicChange(setter, e)} className={inputClass} min="0" step="0.01" placeholder="0" />
+          </div>
+          <div>
+            <label className={labelClass}>Reminder Days</label>
+            <input type="number" name="reminderDays" value={lic.reminderDays} onChange={e => onLicChange(setter, e)} className={inputClass} min="1" max="365" />
+          </div>
+        </div>
+
+        {showUsage && (
+          <div>
+            <label className={labelClass}>Usage</label>
+            <input name="usage" value={lic.usage} onChange={e => onLicChange(setter, e)} className={inputClass} placeholder="e.g. PRIVATE VEHICLE" />
+          </div>
+        )}
+
+        <label className="flex items-center gap-2 text-sm text-secondary cursor-pointer">
+          <input
+            type="checkbox"
+            id={`exempt-${licId}`}
+            name="isExempt"
+            checked={lic.isExempt}
+            onChange={e => setter((p: any) => ({ ...p, isExempt: e.target.checked }))}
+            className="w-4 h-4 text-blue-600 rounded"
+          />
+          Exempt (licence waived / not applicable)
+        </label>
+      </>
+    )}
+  </div>
+)
+
 export function RenewalReceiptForm({ vehicle, isOpen, onClose, onSave }: RenewalReceiptFormProps) {
   const toast = useToastContext()
   const [loading, setLoading] = useState(false)
@@ -198,94 +286,6 @@ export function RenewalReceiptForm({ vehicle, isOpen, onClose, onSave }: Renewal
 
   if (!isOpen) return null
 
-  const inputClass = 'w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-primary transition-colors'
-  const labelClass = 'block text-xs font-medium text-secondary mb-1'
-
-  const LicenseFields = ({
-    lic,
-    setter,
-    showUsage,
-  }: {
-    lic: ReturnType<typeof emptyLicense>
-    setter: React.Dispatch<React.SetStateAction<any>>
-    showUsage?: boolean
-  }) => (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id={`include-${showUsage ? 'radio' : lic === insuranceLic ? 'insurance' : 'reg'}`}
-          checked={lic.include}
-          onChange={e => setter((p: any) => ({ ...p, include: e.target.checked }))}
-          className="w-4 h-4 text-blue-600 rounded"
-        />
-        <label htmlFor={`include-${showUsage ? 'radio' : lic === insuranceLic ? 'insurance' : 'reg'}`} className="text-sm text-secondary">
-          Include this licence in the renewal
-        </label>
-      </div>
-
-      {lic.include && (
-        <>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>Licence Number *</label>
-              <input name="licenseNumber" value={lic.licenseNumber} onChange={e => handleLicChange(setter, e)} className={inputClass} required />
-            </div>
-            <div>
-              <label className={labelClass}>Issuing Authority</label>
-              <input name="issuingAuthority" value={lic.issuingAuthority} onChange={e => handleLicChange(setter, e)} className={inputClass} placeholder={lic.isExempt ? 'NOT APPLICABLE' : ''} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>Issue Date *</label>
-              <DateInput name="issueDate" value={lic.issueDate} onChange={v => setter((p: any) => ({ ...p, issueDate: v }))} required />
-            </div>
-            <div>
-              <label className={labelClass}>Expiry Date *</label>
-              <DateInput name="expiryDate" value={lic.expiryDate} onChange={v => setter((p: any) => ({ ...p, expiryDate: v }))} required />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className={labelClass}>Renewal Cost</label>
-              <input type="number" name="renewalCost" value={lic.renewalCost} onChange={e => handleLicChange(setter, e)} className={inputClass} min="0" step="0.01" placeholder="0" />
-            </div>
-            <div>
-              <label className={labelClass}>Late Fee</label>
-              <input type="number" name="lateFee" value={lic.lateFee} onChange={e => handleLicChange(setter, e)} className={inputClass} min="0" step="0.01" placeholder="0" />
-            </div>
-            <div>
-              <label className={labelClass}>Reminder Days</label>
-              <input type="number" name="reminderDays" value={lic.reminderDays} onChange={e => handleLicChange(setter, e)} className={inputClass} min="1" max="365" />
-            </div>
-          </div>
-
-          {showUsage && (
-            <div>
-              <label className={labelClass}>Usage</label>
-              <input name="usage" value={lic.usage} onChange={e => handleLicChange(setter, e)} className={inputClass} placeholder="e.g. PRIVATE VEHICLE" />
-            </div>
-          )}
-
-          <label className="flex items-center gap-2 text-sm text-secondary cursor-pointer">
-            <input
-              type="checkbox"
-              id={`exempt-${showUsage ? 'radio' : lic === insuranceLic ? 'insurance' : 'reg'}`}
-              name="isExempt"
-              checked={lic.isExempt}
-              onChange={e => setter((p: any) => ({ ...p, isExempt: e.target.checked }))}
-              className="w-4 h-4 text-blue-600 rounded"
-            />
-            Exempt (licence waived / not applicable)
-          </label>
-        </>
-      )}
-    </div>
-  )
-
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60">
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl ring-2 ring-purple-500/30 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-x-hidden">
@@ -406,9 +406,9 @@ export function RenewalReceiptForm({ vehicle, isOpen, onClose, onSave }: Renewal
                 </button>
               ))}
             </div>
-            {activeTab === 'REGISTRATION' && <LicenseFields lic={registrationLic} setter={setRegistrationLic} />}
-            {activeTab === 'RADIO' && <LicenseFields lic={radioLic} setter={setRadioLic} showUsage />}
-            {activeTab === 'INSURANCE' && <LicenseFields lic={insuranceLic} setter={setInsuranceLic} />}
+            {activeTab === 'REGISTRATION' && <LicenseFields lic={registrationLic} setter={setRegistrationLic} licId="reg" onLicChange={handleLicChange} />}
+            {activeTab === 'RADIO' && <LicenseFields lic={radioLic} setter={setRadioLic} showUsage licId="radio" onLicChange={handleLicChange} />}
+            {activeTab === 'INSURANCE' && <LicenseFields lic={insuranceLic} setter={setInsuranceLic} licId="insurance" onLicChange={handleLicChange} />}
           </div>
 
           {/* Section 6: Document + Notes side by side */}

@@ -92,6 +92,12 @@
     - [Uploading a Licence Document](#uploading-a-licence-document)
     - [Issuing Authorities](#issuing-authorities)
     - [Driver Licence Documents](#driver-licence-documents)
+44. [Stock Additions Report](#44-stock-additions-report)
+    - [Opening the Report](#opening-the-report-1)
+    - [Date Range Filters](#date-range-filters)
+    - [Summary Cards](#summary-cards)
+    - [The Movements Table](#the-movements-table)
+    - [Dashboard Activity Feed — Stock Additions](#dashboard-activity-feed--stock-additions)
 
 ---
 
@@ -8412,3 +8418,100 @@ The document is stored against the driver's record and is visible in their detai
 ---
 
 *For technical support, contact your system administrator.*
+
+---
+
+## 44. Stock Additions Report
+
+> **Who reads this:** Store managers, purchasing staff, and business owners who need to track what inventory was received, when, from which suppliers, and by whom.
+
+The **Stock Additions Report** shows every inventory receipt — bulk restocks, stock-take submissions, and individual add-stock operations — for a selected date range. It is available under **Grocery → Reports → Stock Additions**.
+
+> **Note:** The report covers items with stock movement records. Items created before movement logging was introduced may not appear for the period before that date.
+
+---
+
+### Opening the Report
+
+1. Go to **Grocery → Reports**.
+2. Click the **🗃️ Stock Additions** card.
+3. The report loads automatically showing the last **7 days**.
+
+---
+
+### Date Range Filters
+
+Use the date-range pills at the top of the page to change the period:
+
+| Pill | What it shows |
+|------|---------------|
+| **Today** | Movements recorded today only |
+| **Yesterday** | Movements recorded yesterday only |
+| **7 Days** | Last 7 days (default) |
+| **30 Days** | Last 30 days |
+| **All Time** | Every movement on record |
+
+---
+
+### Summary Cards
+
+Below the date pills, four summary cards give a quick snapshot of the period:
+
+| Card | Meaning |
+|------|---------|
+| **Movements** | Total number of stock-in events |
+| **Units In** | Combined units received across all items |
+| **Total Value** | Combined cost value of all received stock |
+| **Suppliers** | Number of distinct suppliers involved |
+
+---
+
+### The Movements Table
+
+Each row represents one stock addition event:
+
+| Column | What it shows |
+|--------|---------------|
+| **Item** | Product name and SKU |
+| **Category** | Product category |
+| **Supplier** | Supplier the item is linked to (if set) |
+| **Qty Added** | Number of units received in this event |
+| **Unit Cost** | Cost per unit at time of receipt |
+| **Total Cost** | Qty × Unit Cost |
+| **Added By** | The employee who processed the receipt |
+| **Date / Time** | When the movement was recorded |
+| **Reference** | Purchase order or reference number (if entered) |
+
+**Exporting:**
+Click **Export CSV** (top right of the table) to download the current filtered view as a spreadsheet.
+
+**Pagination:**
+Results are paginated at 50 rows per page. Use the **Next / Previous** buttons at the bottom of the table to navigate.
+
+**Zero results:**
+If no stock was added in the selected period, the table shows an empty-state message. Try widening the date range.
+
+---
+
+### Dashboard Activity Feed — Stock Additions
+
+Recent stock additions appear in the **Recent Activity** feed on the main Dashboard (visible to managers and owners). Each card shows:
+
+```
+📦  Stock Added  ·  [Business Name]
+    [Qty] units of [Item Name] received      > View Report
+    [Date / Time]
+```
+
+The feed shows stock additions from the **last 7 days** (up to 5 entries).
+Clicking **View Report** navigates directly to the Stock Additions report filtered to the business and today's date.
+
+---
+
+### Permissions
+
+| Action | Who can do it |
+|--------|---------------|
+| View Stock Additions report | Users with financial data access or manager role |
+| Export CSV | Users with financial data access or manager role |
+| See stock additions in dashboard feed | Managers and business owners |

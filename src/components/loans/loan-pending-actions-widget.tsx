@@ -14,6 +14,8 @@ interface PendingData {
 export function LoanPendingActionsWidget() {
   const [data, setData] = useState<PendingData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [cashAllocExpanded, setCashAllocExpanded] = useState(false)
+  const [pettyCashExpanded, setPettyCashExpanded] = useState(false)
 
   useEffect(() => {
     fetch('/api/admin/pending-actions', { credentials: 'include' })
@@ -64,42 +66,48 @@ export function LoanPendingActionsWidget() {
 
       {/* Cash allocation reports */}
       {data.pendingCashAllocations?.length > 0 && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">💰</span>
-              <h3 className="font-semibold text-blue-800 dark:text-blue-200">
-                Cash Allocation
-                <span className="ml-2 bg-blue-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{data.pendingCashAllocations.length}</span>
-              </h3>
-            </div>
-            <Link href="/admin/pending-actions" className="text-xs text-blue-700 dark:text-blue-300 underline hover:no-underline">View all</Link>
-          </div>
-          <div className="space-y-2">
-            {data.pendingCashAllocations.slice(0, 3).map(item => {
-              const isGrouped = item.isGrouped || item.reportDate === null
-              const url = isGrouped
-                ? `/${item.business?.type ?? 'restaurant'}/reports/cash-allocation?reportId=${item.id}&businessId=${item.business?.id ?? ''}`
-                : `/${item.business?.type ?? 'restaurant'}/reports/cash-allocation?date=${item.reportDate?.split('T')[0]}&businessId=${item.business?.id ?? ''}`
-              const dateLabel = isGrouped
-                ? 'Grouped Catch-Up'
-                : item.reportDate ? new Date(item.reportDate).toLocaleDateString('en-US', { timeZone: 'UTC' }) : '—'
-              return (
-                <div key={item.id} className="flex items-center justify-between bg-white dark:bg-gray-800 rounded px-3 py-2 border border-blue-200 dark:border-blue-700">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{item.business?.name ?? 'Unknown'}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {dateLabel} · {item._count.lineItems} items · {item.status}
-                      {isGrouped
-                        ? (item.groupedRun?.totalCashReceived != null && item.groupedRun.totalCashReceived > 0 && <> · <span className="text-emerald-600 dark:text-emerald-400 font-semibold">${Number(item.groupedRun.totalCashReceived).toFixed(2)}</span></>)
-                        : (item.totalReported != null && item.totalReported > 0 && <> · <span className="text-emerald-600 dark:text-emerald-400 font-semibold">${Number(item.totalReported).toFixed(2)}</span></>)}
-                    </p>
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 rounded-lg overflow-hidden">
+          <button
+            onClick={() => setCashAllocExpanded(v => !v)}
+            className="w-full flex items-center gap-2 px-4 py-3 hover:bg-blue-100/50 dark:hover:bg-blue-800/20 transition-colors text-left"
+          >
+            <span className="text-lg">💰</span>
+            <span className="font-semibold text-blue-800 dark:text-blue-200 flex-1">
+              Cash Allocation
+              <span className="ml-2 bg-blue-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{data.pendingCashAllocations.length}</span>
+            </span>
+            <Link href="/admin/pending-actions" onClick={e => e.stopPropagation()} className="text-xs text-blue-700 dark:text-blue-300 underline hover:no-underline mr-2">View all</Link>
+            <svg className={`w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 transition-transform duration-200 ${cashAllocExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {cashAllocExpanded && (
+            <div className="px-4 pb-4 space-y-2">
+              {data.pendingCashAllocations.slice(0, 3).map(item => {
+                const isGrouped = item.isGrouped || item.reportDate === null
+                const url = isGrouped
+                  ? `/${item.business?.type ?? 'restaurant'}/reports/cash-allocation?reportId=${item.id}&businessId=${item.business?.id ?? ''}`
+                  : `/${item.business?.type ?? 'restaurant'}/reports/cash-allocation?date=${item.reportDate?.split('T')[0]}&businessId=${item.business?.id ?? ''}`
+                const dateLabel = isGrouped
+                  ? 'Grouped Catch-Up'
+                  : item.reportDate ? new Date(item.reportDate).toLocaleDateString('en-US', { timeZone: 'UTC' }) : '—'
+                return (
+                  <div key={item.id} className="flex items-center justify-between bg-white dark:bg-gray-800 rounded px-3 py-2 border border-blue-200 dark:border-blue-700">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{item.business?.name ?? 'Unknown'}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {dateLabel} · {item._count.lineItems} items · {item.status}
+                        {isGrouped
+                          ? (item.groupedRun?.totalCashReceived != null && item.groupedRun.totalCashReceived > 0 && <> · <span className="text-emerald-600 dark:text-emerald-400 font-semibold">${Number(item.groupedRun.totalCashReceived).toFixed(2)}</span></>)
+                          : (item.totalReported != null && item.totalReported > 0 && <> · <span className="text-emerald-600 dark:text-emerald-400 font-semibold">${Number(item.totalReported).toFixed(2)}</span></>)}
+                      </p>
+                    </div>
+                    <Link href={url} className="ml-3 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors shrink-0">Reconcile</Link>
                   </div>
-                  <Link href={url} className="ml-3 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors shrink-0">Reconcile</Link>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -135,35 +143,41 @@ export function LoanPendingActionsWidget() {
 
       {/* Petty cash requests */}
       {data.pendingPettyCash.length > 0 && (
-        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">💵</span>
-              <h3 className="font-semibold text-orange-800 dark:text-orange-200">
-                Petty Cash Requests
-                <span className="ml-2 bg-orange-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{data.pendingPettyCash.length}</span>
-              </h3>
-            </div>
-            <Link href="/admin/pending-actions" className="text-xs text-orange-700 dark:text-orange-300 underline hover:no-underline">View all</Link>
-          </div>
-          <div className="space-y-2">
-            {data.pendingPettyCash.slice(0, 3).map(item => (
-              <div key={item.id} className="flex items-center justify-between bg-white dark:bg-gray-800 rounded px-3 py-2 border border-orange-200 dark:border-orange-700">
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{item.purpose}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    ${Number(item.requestedAmount).toFixed(2)} · {item.requester?.name ?? 'Unknown'} · {new Date(item.requestedAt).toLocaleDateString()}
-                  </p>
+        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700 rounded-lg overflow-hidden">
+          <button
+            onClick={() => setPettyCashExpanded(v => !v)}
+            className="w-full flex items-center gap-2 px-4 py-3 hover:bg-orange-100/50 dark:hover:bg-orange-800/20 transition-colors text-left"
+          >
+            <span className="text-lg">💵</span>
+            <span className="font-semibold text-orange-800 dark:text-orange-200 flex-1">
+              Petty Cash Requests
+              <span className="ml-2 bg-orange-500 text-white text-xs font-bold rounded-full px-2 py-0.5">{data.pendingPettyCash.length}</span>
+            </span>
+            <Link href="/admin/pending-actions" onClick={e => e.stopPropagation()} className="text-xs text-orange-700 dark:text-orange-300 underline hover:no-underline mr-2">View all</Link>
+            <svg className={`w-4 h-4 text-orange-600 dark:text-orange-400 shrink-0 transition-transform duration-200 ${pettyCashExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {pettyCashExpanded && (
+            <div className="px-4 pb-4 space-y-2">
+              {data.pendingPettyCash.slice(0, 3).map(item => (
+                <div key={item.id} className="flex items-center justify-between bg-white dark:bg-gray-800 rounded px-3 py-2 border border-orange-200 dark:border-orange-700">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{item.purpose}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      ${Number(item.requestedAmount).toFixed(2)} · {item.requester?.name ?? 'Unknown'} · {new Date(item.requestedAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <Link href={`/petty-cash/${item.id}`} className="ml-3 px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded transition-colors shrink-0">Handle</Link>
                 </div>
-                <Link href={`/petty-cash/${item.id}`} className="ml-3 px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded transition-colors shrink-0">Handle</Link>
-              </div>
-            ))}
-            {data.pendingPettyCash.length > 3 && (
-              <p className="text-xs text-orange-700 dark:text-orange-400 text-center pt-1">
-                +{data.pendingPettyCash.length - 3} more — <Link href="/admin/pending-actions" className="underline">see all</Link>
-              </p>
-            )}
-          </div>
+              ))}
+              {data.pendingPettyCash.length > 3 && (
+                <p className="text-xs text-orange-700 dark:text-orange-400 text-center pt-1">
+                  +{data.pendingPettyCash.length - 3} more — <Link href="/admin/pending-actions" className="underline">see all</Link>
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

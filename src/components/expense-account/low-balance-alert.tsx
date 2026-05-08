@@ -15,6 +15,7 @@ export function LowBalanceAlert() {
   const router = useRouter()
   const [lowBalanceAccounts, setLowBalanceAccounts] = useState<LowBalanceAccount[]>([])
   const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
     loadLowBalanceAccounts()
@@ -78,35 +79,48 @@ export function LowBalanceAlert() {
   )
 
   return (
-    <div className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 shadow-md">
-      <div className="flex items-start space-x-3">
-        <div className="flex-shrink-0">
-          <svg
-            className="w-6 h-6 text-yellow-600 dark:text-yellow-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-            />
-          </svg>
-        </div>
-
+    <div className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg shadow-md overflow-hidden">
+      {/* Collapsed header — always visible, click to toggle */}
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-yellow-100/50 dark:hover:bg-yellow-800/20 transition-colors text-left"
+      >
+        <svg
+          className="w-5 h-5 text-yellow-600 dark:text-yellow-400 shrink-0"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+          />
+        </svg>
         <div className="flex-1 min-w-0">
-          <h3 className="text-lg font-semibold text-yellow-900 dark:text-yellow-200 mb-2">
+          <span className="font-semibold text-yellow-900 dark:text-yellow-200 text-sm">
             Low Balance Alert
-          </h3>
-
-          <p className="text-sm text-yellow-800 dark:text-yellow-300 mb-3">
+          </span>
+          <span className="ml-2 text-xs text-yellow-800 dark:text-yellow-300">
             {lowBalanceAccounts.length === 1
               ? '1 expense account needs attention'
               : `${lowBalanceAccounts.length} expense accounts need attention`}
-          </p>
+          </span>
+        </div>
+        <svg
+          className={`w-4 h-4 text-yellow-600 dark:text-yellow-400 shrink-0 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
 
+      {/* Expanded body */}
+      {expanded && (
+        <div className="px-4 pb-4">
           <div className="space-y-2">
             {/* Critical Accounts */}
             {criticalAccounts.map((account) => (
@@ -205,7 +219,7 @@ export function LowBalanceAlert() {
             </button>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
