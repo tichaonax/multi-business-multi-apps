@@ -130,7 +130,7 @@ export async function GET(req: NextRequest) {
 
     // Get businesses the user owns/manages (for financial calculations)
     const ownedBusinessIds = user.businessMemberships
-      ?.filter(m => m.role === 'owner' || m.role === 'manager')
+      ?.filter(m => m.role === 'business-owner' || m.role === 'business-manager')
       ?.map(m => m.businessId) || []
 
     // Date 7 days ago
@@ -544,10 +544,6 @@ export async function GET(req: NextRequest) {
           take: 10
         })
 
-        console.log(`🏪 Found ${recentBusinessOrders.length} business orders matching filter`)
-        recentBusinessOrders.forEach((order, index) => {
-          console.log(`  ${index + 1}. ${order.orderNumber}: ${order.businesses?.type} - ${order.businesses?.name}`)
-        })
         // recentBusinessOrders.forEach((order, index) => {
         //   console.log(`  ${index + 1}. ${order.orderNumber}: ${order.status} - $${order.subtotal} (Business: ${order.businesses?.name})`)
         // })

@@ -1097,11 +1097,11 @@ function DashboardContent() {
                 <span className="text-sm text-gray-500">Last 7 days</span>
                 {activityFinancialSummary && hasPermission('canAccessFinancialData') && (
                   <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <span>Revenue: <span className="text-green-600 dark:text-green-400 font-medium">${activityFinancialSummary.totalRevenue.toFixed(2)}</span></span>
+                    <span>Revenue: <span className="text-green-600 dark:text-green-400 font-medium">${activityFinancialSummary.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
                     <span className="hidden sm:inline text-gray-300 dark:text-gray-600">|</span>
-                    <span>Expenses: <span className="text-red-600 dark:text-red-400 font-medium">${activityFinancialSummary.totalExpenses.toFixed(2)}</span></span>
+                    <span>Expenses: <span className="text-red-600 dark:text-red-400 font-medium">${activityFinancialSummary.totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
                     <span className="hidden sm:inline text-gray-300 dark:text-gray-600">|</span>
-                    <span>Net: <span className={`font-medium ${activityFinancialSummary.netAmount >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>${activityFinancialSummary.netAmount.toFixed(2)}</span></span>
+                    <span>Net: <span className={`font-medium ${activityFinancialSummary.netAmount >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>${activityFinancialSummary.netAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
                   </div>
                 )}
               </div>

@@ -23,7 +23,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 function fmt(val: string | number | null | undefined) {
   if (val == null) return '—'
-  return `$${Number(val).toFixed(2)}`
+  return `$${Number(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 export function BusinessLoansWidget() {
@@ -61,12 +61,13 @@ export function BusinessLoansWidget() {
           <span className="text-sm text-red-600 dark:text-red-400 font-medium">{fmt(totalOutstanding)} outstanding</span>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={e => { e.stopPropagation(); router.push('/admin/loans') }}
+          <a
+            href="/admin/loans"
+            onClick={e => e.stopPropagation()}
             className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400"
           >
             View All →
-          </button>
+          </a>
           <svg className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
