@@ -254,21 +254,7 @@ export async function GET(req: NextRequest) {
           createdAt: { gte: sevenDaysAgo }
         }
 
-        // Apply business filtering based on target
-        if (targetBusinessIds && targetBusinessIds.length > 0) {
-          whereClause.businessId = { in: targetBusinessIds }
-        } else if (!isSystemAdmin(user)) {
-          // Filter by user's business access if not system admin and no specific business target
-          const canAccessCrossBusinessProjects = hasUserPermission(user, 'canAccessCrossBusinessProjects')
-
-          if (!canAccessCrossBusinessProjects) {
-            whereClause.OR = [
-              { businessId: null }, // Personal projects
-              { businessId: { in: userBusinessIds } } // Projects from user's businesses
-            ]
-          }
-        }
-
+        // ConstructionProjects has no businessId field, so no business filtering is applied
         // Debug logging for project filtering
         console.log('🏗️ Project Activities Filter:')
         console.log('  - whereClause:', JSON.stringify(whereClause, null, 2))
@@ -314,12 +300,12 @@ export async function GET(req: NextRequest) {
 
         // Apply business filtering based on target
         if (targetBusinessIds && targetBusinessIds.length > 0) {
-          transactionWhereClause.project = { businessId: { in: targetBusinessIds } }
+          transactionWhereClause.projects = { businessId: { in: targetBusinessIds } }
         } else if (!isSystemAdmin(user) && !hasUserPermission(user, 'canAccessCrossBusinessProjects')) {
           // Non-admin users without cross-business access
           transactionWhereClause.OR = [
-            { project: { businessId: null } },
-            { project: { businessId: { in: userBusinessIds } } }
+            { projects: { businessId: null } },
+            { projects: { businessId: { in: userBusinessIds } } }
           ]
         }
 
@@ -330,8 +316,8 @@ export async function GET(req: NextRequest) {
         const recentTransactions = await safePrisma.findMany('projectTransactions', {
           where: transactionWhereClause,
           include: {
-            // relation name in schema is `project` (singular)
-            project: {
+            // relation name in schema is `projects` (plural)
+            projects: {
               select: {
                 id: true,
                 name: true,
@@ -350,7 +336,7 @@ export async function GET(req: NextRequest) {
             id: `transaction-${transaction.id}`,
             type: 'transaction',
             title: `Transaction: $${Number(transaction.amount).toFixed(2)}`,
-            description: `${transaction.description} in "${transaction.project?.name}" project`,
+            description: `${transaction.description} in "${transaction.projects?.name}" project`,
             createdAt: transaction.createdAt,
             module: 'projects',
             icon: '💰',
@@ -382,7 +368,7 @@ export async function GET(req: NextRequest) {
           // Personal expenses are only business-related if they have project_transactions linking to business projects
           const businessProjectTransactions = await prisma.projectTransactions.findMany({
             where: ({
-              project: {
+              projects: {
                 businessId: { in: targetBusinessIds }
               },
               personalExpenseId: { not: null }
@@ -508,16 +494,16 @@ export async function GET(req: NextRequest) {
           businessWhereClause.businessId = { in: targetBusinessIds }
           // Always exclude restaurants when filtering by specific business
           // because Section 1 "Recent Orders (Restaurant business)" handles restaurant orders
-          businessWhereClause.business = { type: { not: 'restaurant' } }
+          businessWhereClause.businesses = { type: { not: 'restaurant' } }
         } else if (!isSystemAdmin(user) && userBusinessIds.length > 0) {
           // Fallback for non-admin users - limit to their businesses
           businessWhereClause.businessId = { in: userBusinessIds }
           // Also exclude restaurants to avoid duplication with Section 1
-          businessWhereClause.business = { type: { not: 'restaurant' } }
+          businessWhereClause.businesses = { type: { not: 'restaurant' } }
         } else {
           // When not filtering by specific business, exclude restaurants
           // since they're handled in Section 1 "Recent Orders (Restaurant business)"
-          businessWhereClause.business = { type: { not: 'restaurant' } }
+          businessWhereClause.businesses = { type: { not: 'restaurant' } }
         }
         // If targetBusinessIds is null and user is admin, show all businesses
 
@@ -844,7 +830,7 @@ export async function GET(req: NextRequest) {
       // Expenses: sum of expense account payments for these businesses
       const expenseAccounts = await prisma.expenseAccounts.findMany({
         where: financialBusinessIds
-          ? { business: { id: { in: financialBusinessIds } } }
+          ? { businessId: { in: financialBusinessIds } }
           : {}, // no filter = all businesses (admin)
         select: { id: true },
       })
