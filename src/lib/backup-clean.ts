@@ -1361,6 +1361,12 @@ export async function createCleanBackup(
     where: { orderId: { in: _deliveryOrderIdList } }
   })
 
+  // 58. Restaurant Credit Payments (MBM-206 / 20260506)
+  // One record per business order where customer credit was used (unique on orderId)
+  businessData.restaurantCreditPayments = await prisma.restaurantCreditPayments.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
   // 53. Business Asset Management (MBM-185)
   // Include system-wide categories (businessId: null) + business-specific ones
   businessData.assetCategories = await prisma.assetCategory.findMany({
@@ -1497,7 +1503,7 @@ export async function createCleanBackup(
       deviceRecords,
       uncompressedSize
     },
-    schemaVersion: '6.24.0',
+    schemaVersion: '6.25.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

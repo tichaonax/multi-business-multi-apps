@@ -47,6 +47,8 @@
 21. [Grocery POS — Desk Mode](#21-grocery-pos--desk-mode)
 22. [Expense Account — Quick Payment & My Payment Queue](#22-expense-account--quick-payment--my-payment-queue)
     - [Recent Payments to Payee](#recent-payments-to-payee)
+    - [My Payments Page — Approved & Rejected Tabs](#my-payments-page--approved--rejected-tabs)
+    - [Cancelling a Submitted Request](#cancelling-a-submitted-request-before-the-cashier-acts)
     - [Cashier-Assisted Payment Requests (Personal Accounts)](#cashier-assisted-payment-requests-personal-accounts)
 23. [Quick Deposit — Income Categorisation](#23-quick-deposit--income-categorisation)
 24. [Payment Vouchers — Creating, Viewing & Locking](#24-payment-vouchers--creating-viewing--locking)
@@ -1059,14 +1061,20 @@ When enough approved requests have accumulated, the manager creates a batch:
 2. The system groups all **APPROVED** requests into a single batch.
 3. Review the batch — you see each payee, their amount, and the source account.
 4. On the review screen, **Approve** or **Reject** each individual payment:
-   - Approved items are paid out; rejected items are returned to the queue for the next cycle.
-   - You may reject all items (e.g. to defer the entire batch) — the batch can still be processed.
-5. Click **Process & Print Report** once every payment has a decision.
-6. Print the **Batch Payment Voucher** as a physical record.
+   - Approved items are paid out; rejected items are moved to **REJECTED** status and the requester is notified with the reason.
+   - You may approve some payments and leave others undecided — undecided items are deferred to the next EOD batch automatically.
+   - You may reject all items if needed — the batch can still be processed.
+5. If any payments are being rejected, enter a **rejection reason** (required):
+   - Choose a predefined reason from the dropdown (e.g. "Insufficient funds", "Incorrect payee or amount").
+   - Or type a custom reason in the text box.
+   - The global reason applies to all rejected items. You can override it per-item using the inline text box that appears below each rejected payment's row.
+6. Click **Process X of Y** (or **Process & Print Report** when all are decided) once you are ready.
+7. Print the **Batch Payment Voucher** as a physical record.
 
 **What happens:**
 - Approved requests move to status **APPROVED** and cash is disbursed from the cash bucket.
-- Rejected requests return to **QUEUED** and will appear in the next EOD batch.
+- Rejected requests move to status **REJECTED** with the reason recorded. The requester receives a 🔔 notification linking them to their **Rejected** tab where they can act on it.
+- Undecided items (neither approved nor rejected) are automatically deferred to the next EOD batch — they remain in the queue with no notification.
 - The cashier receives a 🔔 notification that a payment batch needs physical cash disbursement.
 - The batch appears in the Cash Office payment queue.
 
@@ -1095,6 +1103,7 @@ The cashier opens the batch from their queue:
 | Employee submits a request | Manager (🔔 +1 on bell) |
 | Manager approves | Employee (🔔 "Your request was approved") |
 | Manager declines | Employee (🔔 "Your request was declined: [reason]") |
+| Batch review — payment **rejected** | Requester (🔔 notification links directly to the **Rejected** tab of My Payments — shows the rejection reason and action buttons) |
 | Batch created / ready to pay | Cashier (🔔 "Payment batch ready for disbursement") |
 | Batch marked complete / paid | Each payee in the batch (🔔 "Your payment has been processed") |
 
@@ -1121,11 +1130,18 @@ When several approved payments have built up:
 4. Click **Review Batch** to open the final review screen.
 5. For each payment, click **Approve** or **Reject**:
    - **Approve** — the payment will be processed and cash disbursed.
-   - **Reject** — the payment is returned to the queue for the next EOD cycle (useful when funds are unavailable or timing is wrong). You can reject **all** payments in a batch — the batch can still be processed with zero approvals.
-6. Once every payment has a decision, click **Process & Print Report**.
-7. Print the **Batch Payment Voucher** as a record.
+   - **Reject** — the payment moves to **REJECTED** status. The requester is notified immediately with your rejection reason and can then edit and resubmit, resubmit as-is, or cancel their request.
+   - **Leave undecided** — you do not have to decide every item. Undecided items are automatically deferred to the next EOD batch with no notification to the requester.
+6. If any payments are being rejected, a **Rejection Reason** field appears:
+   - Select from the predefined list (Insufficient funds, Incorrect payee or amount, Duplicate request, Not in budget, Needs manager approval, Other).
+   - Or type a custom reason. This reason applies to all rejected items.
+   - To give a different reason for a specific payment, use the per-item override input that appears below that payment's **Reject** button.
+7. Click **Process X of Y** (partial) or **Process & Print Report** (all decided).
+8. Print the **Batch Payment Voucher** as a record.
 
-> **Rejecting a rent payment:** If the rent payment is not ready to go out (e.g., landlord gave an extension), reject it in the batch review — it will reappear in the queue for the following EOD and can be approved then.
+> **Rejecting a rent payment:** If the rent payment is not ready to go out (e.g., landlord gave an extension), reject it in the batch review — it will move to REJECTED and the requester can resubmit it in the next cycle.
+
+> **Partial processing:** You do not need to decide every item before submitting. Click **Process X of Y** to process only the items you've actioned — the rest are quietly deferred to the next EOD batch without any notification.
 
 ---
 
@@ -5641,17 +5657,55 @@ Payments in the queue are grouped by status, each with a colour-coded badge:
 - **📱 Mark as Sent** (EcoCash only) — enter the EcoCash transaction code to confirm mobile transfer. Balance also updates instantly.
 
 **AWAITING CASHIER payments** (personal accounts) — requests pending cashier approval:
-- **✕ Cancel** — withdraw the request before the cashier acts on it.
+- **✕ Cancel** — withdraw the request before the cashier acts on it. A confirmation modal appears requiring you to enter a reason for cancellation (required for audit trail).
 
 **IN QUEUE payments** (business accounts) — payments awaiting the next batch submission:
 - **✎ Edit** — change the amount or notes before the batch is submitted.
-- **✕ Cancel** — withdraw the payment request entirely.
+- **✕ Cancel Request** — withdraw the payment request entirely. A confirmation modal appears requiring a cancellation reason. The reason is stored in the payment notes for audit purposes.
 
 > **Activity banner:** The queue polls for changes every 10 seconds when you have payments awaiting cashier approval. If a payment is approved or rejected while you have the page open, an amber banner appears at the top of the queue:
 >
 > **"Payment activity detected on this account. Refresh now"**
 >
 > Click **Refresh now** to update the transaction list and balance. The page does **not** refresh automatically — this protects any unsaved work (open forms, amounts being typed) from being wiped mid-entry.
+
+---
+
+### My Payments Page — Approved & Rejected Tabs
+
+Go to **Expense Accounts → My Payments** (or click the notification link from a rejection notification) to see a full view of your payments organised into two tabs.
+
+#### ✓ Approved Tab
+
+Lists all your approved payments that are awaiting physical collection. For each payment you will see:
+- Amount, category, business name, and payee.
+- Tap **Payment Made** once you have physically received the cash — the payment is marked complete.
+
+#### ✗ Rejected Tab
+
+Lists all your payment requests that were **rejected** by the cashier during a batch review. The tab badge shows the count of rejected requests requiring your attention.
+
+For each rejected payment you will see:
+- **Rejection reason** (amber panel) — the message the cashier provided when rejecting.
+- **Rejected by** and **date** of rejection.
+- Three action buttons:
+
+| Button | What it does |
+|--------|--------------|
+| **Edit & Resubmit** | Opens the payment edit page with the rejection banner visible. Update the details (e.g. fix the payee phone number), then click **Save & Resubmit** to return the payment to the EOD queue for the next batch. |
+| **Resubmit As-Is** | Resubmits the payment with no changes. Use this when the rejection was due to a temporary issue (e.g. insufficient funds) and the details are correct. |
+| **Cancel Request** | Permanently withdraws the request. A confirmation modal appears — you must enter a reason. The reason is stored in the payment record for audit purposes. |
+
+> **Notification link:** When the cashier rejects your payment, the 🔔 notification links directly to the **Rejected** tab so you see it immediately. The tab badge also appears on the **My Payments** page header.
+
+#### Cancelling a Submitted Request (Before the Cashier Acts)
+
+If you submitted a payment but want to withdraw it **before** it reaches a batch review:
+
+1. Open the payment via **Expense Accounts → [Account] → [Payment]**.
+2. In the status panel at the top of the detail page, click **Cancel Request**.
+3. A confirmation modal appears. Enter a reason for cancellation (required).
+4. Click **Confirm Cancel**. The request is withdrawn and will not appear in any future batch.
 
 ---
 

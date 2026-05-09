@@ -175,6 +175,9 @@ const RESTORE_ORDER = [
   'customerLaybys',
   'customerLaybyPayments',
 
+  // Restaurant Credit Payments (MBM-206 / 20260506 — unique on orderId)
+  'restaurantCreditPayments', // Depends on businesses, businessOrders, businessCustomers
+
   // Promo Campaigns, Coupons and Customer Rewards
   'promoCampaigns',           // Depends on businesses
   'customerRewards',          // Depends on businesses, businessCustomers, promoCampaigns, businessOrders
@@ -476,6 +479,12 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
 
   // Order Cancellations: unique on orderId (one cancellation per order)
   'orderCancellations': 'orderId',
+
+  // Restaurant Credit Payments: unique on orderId (one credit record per order)
+  'restaurantCreditPayments': 'orderId',
+
+  // Issuing Authorities: global lookup table, unique on name
+  'issuingAuthorities': 'name',
 
   // Prep Inventory Config: unique on (businessProductId, businessId)
   'menuItemInventoryConfigs': { fields: ['businessProductId', 'businessId'] },
