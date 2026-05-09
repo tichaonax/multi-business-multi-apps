@@ -153,6 +153,9 @@ export async function GET(req: NextRequest) {
           createdAt: { gte: sevenDaysAgo }
         }
 
+        // Section 1 is RESTAURANT-only. All other business types are handled in Section 4.
+        orderWhereClause.businesses = { type: 'restaurant' }
+
         // Apply business filtering based on target
         if (targetBusinessIds && targetBusinessIds.length > 0) {
           orderWhereClause.businessId = { in: targetBusinessIds }
@@ -350,10 +353,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 3. Recent Personal Expenses
-    if (hasUserPermission(user, 'canAccessPersonalFinance') ||
+    // 3. Recent Personal Expenses — skipped when filtering by a specific business
+    // (personal expenses have no businessId and would skew the financial summary)
+    if (filterScope !== 'business' &&
+        (hasUserPermission(user, 'canAccessPersonalFinance') ||
         hasUserPermission(user, 'canCreatePersonalProjects') ||
-        isSystemAdmin(user)) {
+        isSystemAdmin(user))) {
       try {
         // Build dynamic where clause for personal expenses
         const expenseWhereClause: any = {
@@ -569,7 +574,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 5. Recent User Activities (if admin and not filtering by specific user/business)
+    // 5. Recent User Activities (admin only, not when filtering by user or business)
     if (isSystemAdmin(user) && filterScope !== 'user' && filterScope !== 'business') {
       try {
         console.log('👤 User Activities: Showing admin user creation activities (no user/business filter)')
@@ -850,10 +855,24 @@ export async function GET(req: NextRequest) {
 
     financialSummary.netAmount = financialSummary.totalRevenue - financialSummary.totalExpenses
 
+    // Build a human-readable scope label for the UI header
+    let scopeLabel = 'Last 7 days'
+    if (filterScope === 'business' && filterBusinessId) {
+      const bizName = (await prisma.businesses.findUnique({ where: { id: filterBusinessId }, select: { name: true } }))?.name ?? 'Business'
+      scopeLabel = `${bizName} · Last 7 days`
+    } else if (filterScope === 'all') {
+      scopeLabel = 'All Businesses · Last 7 days'
+    } else if (filterScope === 'user' && filterUserId) {
+      const userName = (await prisma.users.findUnique({ where: { id: filterUserId }, select: { name: true } }))?.name ?? 'User'
+      scopeLabel = `${userName} · Last 7 days`
+    } else if (filterScope === 'my') {
+      scopeLabel = 'My Activity · Last 7 days'
+    }
+
     return NextResponse.json({
       activities,
       summary,
-      financialSummary,
+      financialSummary: { ...financialSummary, scopeLabel },
       dateRange: {
         from: sevenDaysAgo.toISOString(),
         to: new Date().toISOString()

@@ -8,6 +8,7 @@ interface EodAccount {
   accountName: string
   dailyAmount: number
   cashBoxBalance: number
+  businessContributions?: { businessId: string; businessName: string; cashBoxBalance: number }[]
 }
 
 interface BusinessGroup {
@@ -15,6 +16,7 @@ interface BusinessGroup {
   accounts: EodAccount[]
   payrollCashBox: number
   canViewPayroll: boolean
+  subtotal?: number
 }
 
 interface SelectedAccount {
@@ -53,6 +55,7 @@ function CashBox({ label, balance, dailyAmount, icon, onClick }: {
 
 export function EodAccountsWidget() {
   const [groups, setGroups] = useState<BusinessGroup[]>([])
+  const [sharedAccounts, setSharedAccounts] = useState<EodAccount[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<SelectedAccount | null>(null)
   const [expanded, setExpanded] = useState(false)
@@ -60,20 +63,23 @@ export function EodAccountsWidget() {
   useEffect(() => {
     fetch('/api/dashboard/eod-accounts')
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.data) setGroups(data.data) })
+      .then(data => {
+        if (data?.data) setGroups(data.data)
+        if (data?.sharedAccounts) setSharedAccounts(data.sharedAccounts)
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
   if (loading || groups.length === 0) return null
 
-  const grandTotal = groups.reduce(
-    (sum, g) =>
-      sum +
-      g.accounts.reduce((s, a) => s + a.cashBoxBalance, 0) +
-      g.payrollCashBox,
+  // Grand total = shared accounts (counted once) + per-business subtotals
+  const sharedTotal = sharedAccounts.reduce((s, a) => s + a.cashBoxBalance, 0)
+  const businessTotal = groups.reduce(
+    (sum, g) => sum + (g.subtotal ?? g.accounts.reduce((s, a) => s + a.cashBoxBalance, 0) + g.payrollCashBox),
     0
   )
+  const grandTotal = sharedTotal + businessTotal
 
   return (
     <div className="card overflow-hidden">
@@ -100,10 +106,50 @@ export function EodAccountsWidget() {
       </p>
 
       <div className="space-y-4">
-        {groups.map(({ business, accounts, payrollCashBox, canViewPayroll }) => (
+        {/* Shared accounts (appear in more than one business) */}
+        {sharedAccounts.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-secondary uppercase tracking-wide mb-2">
+              Shared Across Businesses
+              <span className="ml-2 font-normal normal-case text-gray-400">
+                ${sharedTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {sharedAccounts.map(acc => (
+                <div key={acc.id} className="flex flex-col gap-1">
+                  <CashBox
+                    icon="🔗"
+                    label={acc.accountName}
+                    balance={acc.cashBoxBalance}
+                    dailyAmount={acc.dailyAmount}
+                    onClick={() => setSelected({ id: acc.id, accountName: acc.accountName, businessName: 'Shared', type: 'account' })}
+                  />
+                  {acc.businessContributions && acc.businessContributions.length > 0 && (
+                    <div className="flex flex-col gap-0.5 pl-2 border-l-2 border-gray-200 dark:border-gray-700">
+                      {acc.businessContributions.map(c => (
+                        <span key={c.businessId} className="text-xs text-gray-500 dark:text-gray-400 flex justify-between gap-3">
+                          <span className="truncate">{c.businessName}</span>
+                          <span className="font-mono text-gray-700 dark:text-gray-300">${c.cashBoxBalance.toFixed(2)}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {groups.map(({ business, accounts, payrollCashBox, canViewPayroll, subtotal }) => {
+          const bizTotal = subtotal ?? accounts.reduce((s, a) => s + a.cashBoxBalance, 0) + payrollCashBox
+          return (
           <div key={business.id}>
             <p className="text-xs font-semibold text-secondary uppercase tracking-wide mb-2">
               {business.name}
+              <span className="ml-2 font-normal normal-case text-gray-400">
+                ${bizTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
             </p>
             <div className="flex flex-wrap gap-2">
               {accounts.map(acc => (
@@ -126,7 +172,8 @@ export function EodAccountsWidget() {
               )}
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
       </div>
       )}

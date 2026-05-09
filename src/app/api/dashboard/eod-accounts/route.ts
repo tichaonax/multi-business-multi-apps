@@ -75,14 +75,27 @@ export async function GET() {
             actualAmount: { not: null },
             report: { status: 'LOCKED' },
           },
-          select: { expenseAccountId: true, actualAmount: true },
+          select: {
+            expenseAccountId: true,
+            actualAmount: true,
+            report: { select: { businessId: true } },
+          },
         })
       : []
 
     const cashBoxByAccountId = new Map<string, number>()
+    // Per-business contribution: Map<accountId, Map<businessId, amount>>
+    const cashBoxByAccountAndBiz = new Map<string, Map<string, number>>()
     for (const li of lineItems) {
-      const prev = cashBoxByAccountId.get(li.expenseAccountId) ?? 0
-      cashBoxByAccountId.set(li.expenseAccountId, prev + Number(li.actualAmount))
+      const accountId = li.expenseAccountId
+      const bizId = li.report?.businessId
+      const amount = Number(li.actualAmount)
+      cashBoxByAccountId.set(accountId, (cashBoxByAccountId.get(accountId) ?? 0) + amount)
+      if (bizId) {
+        if (!cashBoxByAccountAndBiz.has(accountId)) cashBoxByAccountAndBiz.set(accountId, new Map())
+        const bizMap = cashBoxByAccountAndBiz.get(accountId)!
+        bizMap.set(bizId, (bizMap.get(bizId) ?? 0) + amount)
+      }
     }
 
     // Sum EOD payroll contributions per business (cash set aside for payroll)
@@ -142,11 +155,64 @@ export async function GET() {
       }
     }
 
+    const allGroups = Array.from(byBusiness.values()).filter(
+      g => g.accounts.length > 0 || g.payrollCashBox > 0
+    )
+
+    // Detect shared accounts: expenseAccountIds that appear in more than one business group
+    const accountIdCount = new Map<string, number>()
+    for (const g of allGroups) {
+      for (const a of g.accounts) {
+        accountIdCount.set(a.id, (accountIdCount.get(a.id) ?? 0) + 1)
+      }
+    }
+    const sharedAccountIds = new Set<string>(
+      [...accountIdCount.entries()].filter(([, count]) => count > 1).map(([id]) => id)
+    )
+
+    // Build deduplicated sharedAccounts list (one entry per unique shared account)
+    // Include per-business contributions so the UI can show which business contributes more
+    const seenShared = new Set<string>()
+    const sharedAccounts: {
+      id: string
+      accountName: string
+      dailyAmount: number
+      cashBoxBalance: number
+      businessContributions: { businessId: string; businessName: string; cashBoxBalance: number }[]
+    }[] = []
+    for (const g of allGroups) {
+      for (const a of g.accounts) {
+        if (sharedAccountIds.has(a.id) && !seenShared.has(a.id)) {
+          seenShared.add(a.id)
+          const bizMap = cashBoxByAccountAndBiz.get(a.id)
+          const contributions = bizMap
+            ? [...bizMap.entries()]
+                .map(([bizId, balance]) => ({
+                  businessId: bizId,
+                  businessName: allGroups.find(grp => grp.business.id === bizId)?.business.name ?? bizId,
+                  cashBoxBalance: balance,
+                }))
+                .sort((x, y) => y.cashBoxBalance - x.cashBoxBalance)
+            : []
+          sharedAccounts.push({ ...a, businessContributions: contributions })
+        }
+      }
+    }
+
+    // Remove shared accounts from each business group and add per-business subtotal
+    const groups = allGroups.map(g => ({
+      ...g,
+      accounts: g.accounts.filter(a => !sharedAccountIds.has(a.id)),
+      subtotal:
+        g.accounts
+          .filter(a => !sharedAccountIds.has(a.id))
+          .reduce((s, a) => s + a.cashBoxBalance, 0) + g.payrollCashBox,
+    }))
+
     return NextResponse.json({
       success: true,
-      data: Array.from(byBusiness.values()).filter(
-        g => g.accounts.length > 0 || g.payrollCashBox > 0
-      ),
+      sharedAccounts,
+      data: groups,
     })
   } catch (err) {
     console.error('[GET /api/dashboard/eod-accounts]', err)

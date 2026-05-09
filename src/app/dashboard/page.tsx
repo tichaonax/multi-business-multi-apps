@@ -68,6 +68,7 @@ function DashboardContent() {
   const [activityLoading, setActivityLoading] = useState<boolean>(true)
   const [activitySearchTerm, setActivitySearchTerm] = useState<string>('')
   const [activityFinancialSummary, setActivityFinancialSummary] = useState<any>(null)
+  const [activityScopeLabel, setActivityScopeLabel] = useState<string>('Last 7 days')
   const [activityExpanded, setActivityExpanded] = useState<boolean>(false)
 
   // Activity filter states
@@ -240,6 +241,7 @@ function DashboardContent() {
         console.log('✅ Recent activity API response received:', data)
         setRecentActivity(data.activities || [])
         setActivityFinancialSummary(data.financialSummary || null)
+        setActivityScopeLabel(data.financialSummary?.scopeLabel ?? 'Last 7 days')
       } else {
         console.error('❌ Recent activity API response failed:', response.status, response.statusText)
       }
@@ -1094,8 +1096,10 @@ function DashboardContent() {
             >
               <div className="flex flex-wrap items-center gap-3">
                 <span className="text-lg font-semibold text-primary">Recent Activity</span>
-                <span className="text-sm text-gray-500">Last 7 days</span>
-                {activityFinancialSummary && hasPermission('canAccessFinancialData') && (
+                <span className="text-sm text-gray-500">{activityScopeLabel}</span>
+                {activityFilterScope === 'business' && !activityFilterBusinessId ? (
+                  <span className="text-sm text-gray-400 italic">Select a business to see its figures</span>
+                ) : activityFinancialSummary && hasPermission('canAccessFinancialData') && (
                   <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                     <span>Revenue: <span className="text-green-600 dark:text-green-400 font-medium">${activityFinancialSummary.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
                     <span className="hidden sm:inline text-gray-300 dark:text-gray-600">|</span>
@@ -1311,9 +1315,19 @@ function DashboardContent() {
                               )
                             }
                             return <p className="text-xs text-gray-500 truncate">{activity.description}</p>
-                          })() : (
-                            <p className="text-xs text-gray-500 truncate">{activity.description}</p>
-                          )}
+                          })() : (() => {
+                            // Highlight dollar amounts in description (e.g. "COMPLETED order from HXI Fashions - $17.00")
+                            const parts = activity.description.split(/(\$[\d,]+\.?\d*)/)
+                            return (
+                              <p className="text-xs text-gray-500 truncate">
+                                {parts.map((part, i) =>
+                                  /^\$[\d,]+\.?\d*$/.test(part)
+                                    ? <span key={i} className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">{part}</span>
+                                    : part
+                                )}
+                              </p>
+                            )
+                          })()}
                           <p className="text-xs text-blue-600 capitalize">{activity.module}</p>
                         </div>
                         <div className="text-right flex-shrink-0">

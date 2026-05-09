@@ -467,11 +467,11 @@ export function BusinessOrderDetailModal({ orderId, isOpen, onClose, onUpdate }:
               </div>
 
               {/* Business Information */}
-              {order.business && (
+              {order.businesses && (
                 <div className="p-4 bg-blue-50 dark:bg-blue-900 dark:bg-opacity-20 border border-blue-200 dark:border-blue-700 rounded-md">
                   <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">Business</h3>
-                  <p className="text-blue-900 dark:text-blue-100">{order.businesses.businessName}</p>
-                  <p className="text-sm text-blue-700 dark:text-blue-300 capitalize">{order.businesses.businessType}</p>
+                  <p className="text-blue-900 dark:text-blue-100">{order.businesses.name ?? order.businesses.businessName}</p>
+                  <p className="text-sm text-blue-700 dark:text-blue-300 capitalize">{order.businesses.type ?? order.businesses.businessType}</p>
                 </div>
               )}
 

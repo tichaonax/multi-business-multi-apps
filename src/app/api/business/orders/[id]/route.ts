@@ -32,7 +32,7 @@ export async function GET(
             type: true
           }
         },
-        employee: {
+        employees: {
           select: {
             fullName: true
           }
@@ -79,8 +79,8 @@ export async function GET(
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
       businessId: order.businessId,
-      business: order.business,
-      employee: order.employee,
+      business: order.businesses,
+      employee: order.employees,
       businessType: order.businessType,
       orderType: order.attributes?.orderType || order.orderType || 'SALE', // Add orderType at root level
       attributes: order.attributes
