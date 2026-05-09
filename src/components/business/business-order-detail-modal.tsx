@@ -160,7 +160,7 @@ export function BusinessOrderDetailModal({ orderId, isOpen, onClose, onUpdate }:
       const res = await fetch(`/api/universal/receipts/${order.id}`)
       if (res.ok) {
         const json = await res.json()
-        setReceiptData(json.receiptData ?? json.data ?? json)
+        setReceiptData(json.receipt ?? json.receiptData ?? json.data ?? json)
         setShowReceipt(true)
       }
     } catch (e) {
