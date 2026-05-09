@@ -126,6 +126,8 @@ export default function BatchReviewPage() {
   const [approved, setApproved] = useState<Set<string>>(new Set())
   const [rejected, setRejected] = useState<Set<string>>(new Set())
   const [submitting, setSubmitting] = useState(false)
+  const [globalRejectionReason, setGlobalRejectionReason] = useState('')
+  const [rejectionReasons, setRejectionReasons] = useState<Record<string, string>>({})
 
   // Ad-hoc form
   const [showAdHoc, setShowAdHoc] = useState(false)
@@ -183,7 +185,7 @@ export default function BatchReviewPage() {
   const rejectedPayments = pendingPayments.filter(p => rejected.has(p.id))
   const undecidedPayments = pendingPayments.filter(p => !approved.has(p.id) && !rejected.has(p.id))
   const totalApproved = approvedPayments.reduce((s, p) => s + p.amount, 0)
-  const totalCashApproved = approvedPayments.filter(p => p.paymentChannel !== 'ECOCASH').reduce((s, p) => s + p.amount, 0)
+  const totalCashApproved = approvedPayments.filter(p => p.paymentChannel !== 'ECOCASH' && p.paymentType !== 'RENT_PAYMENT').reduce((s, p) => s + p.amount, 0)
   const totalEcocashApproved = approvedPayments.filter(p => p.paymentChannel === 'ECOCASH').reduce((s, p) => s + p.amount, 0)
   const allDecided = undecidedPayments.length === 0 && pendingPayments.length > 0
 
@@ -219,6 +221,10 @@ export default function BatchReviewPage() {
         body: JSON.stringify({
           approvedPaymentIds: [...approved],
           rejectedPaymentIds: rejectedPayments.map(p => p.id),
+          globalRejectionReason: (globalRejectionReason.startsWith('__custom:')
+            ? globalRejectionReason.replace('__custom:', '')
+            : globalRejectionReason).trim() || undefined,
+          rejectionReasons,
         }),
       })
       const json = await res.json()
@@ -583,6 +589,15 @@ export default function BatchReviewPage() {
                             ✗ Reject
                           </button>
                           </div>
+                          {isRejectedDecision && (
+                            <input
+                              type="text"
+                              placeholder="Override reason (optional)"
+                              value={rejectionReasons[p.id] ?? ''}
+                              onChange={e => setRejectionReasons(prev => ({ ...prev, [p.id]: e.target.value }))}
+                              className="mt-1 w-full text-xs px-2 py-1 rounded border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 placeholder-red-300 dark:placeholder-red-600 focus:outline-none focus:ring-1 focus:ring-red-400"
+                            />
+                          )}
                         </div>
                       )}
                     </div>
@@ -605,9 +620,38 @@ export default function BatchReviewPage() {
                 <span className="font-bold text-gray-900 dark:text-gray-100 text-base tabular-nums">{fmt(totalApproved)}</span>
               </div>
               {rejectedPayments.length > 0 && (
-                <p className="text-xs text-amber-600 dark:text-amber-400">
-                  {rejectedPayments.length} payment(s) will be returned to the queue for the next EOD cycle.
-                </p>
+                <div className="space-y-1.5">
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    {rejectedPayments.length} payment(s) will be rejected. The requester will be notified and can resubmit or cancel.
+                  </p>
+                  <div className="flex gap-2 items-center">
+                    <select
+                      value={globalRejectionReason.startsWith('__custom') ? '__custom' : globalRejectionReason}
+                      onChange={e => {
+                        if (e.target.value === '__custom') setGlobalRejectionReason('__custom:')
+                        else setGlobalRejectionReason(e.target.value)
+                      }}
+                      className="flex-1 text-xs px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    >
+                      <option value="">— Select rejection reason (optional) —</option>
+                      <option value="Insufficient funds — please resubmit later">Insufficient funds — please resubmit later</option>
+                      <option value="Incorrect payee or amount — please review and resubmit">Incorrect payee or amount — please review and resubmit</option>
+                      <option value="Duplicate request — this has already been processed">Duplicate request — already processed</option>
+                      <option value="Not in budget this period — please resubmit next cycle">Not in budget this period</option>
+                      <option value="Needs manager approval before processing">Needs manager approval first</option>
+                      <option value="__custom">Other (type below)</option>
+                    </select>
+                  </div>
+                  {globalRejectionReason.startsWith('__custom') && (
+                    <input
+                      type="text"
+                      placeholder="Type rejection reason…"
+                      value={globalRejectionReason.replace('__custom:', '')}
+                      onChange={e => setGlobalRejectionReason(`__custom:${e.target.value}`)}
+                      className="w-full text-xs px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    />
+                  )}
+                </div>
               )}
               <div className="flex gap-3">
                 <button

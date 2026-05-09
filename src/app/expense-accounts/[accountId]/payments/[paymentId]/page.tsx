@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -10,6 +10,8 @@ import { formatCurrency } from '@/lib/format-currency'
 export default function ExpensePaymentDetailPage() {
   const params = useParams() as { accountId: string; paymentId: string }
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const resubmitMode = searchParams.get('resubmit') === 'true'
   const { accountId, paymentId } = params
   const { hasPermission } = useBusinessPermissionsContext()
   const { data: session } = useSession()
@@ -53,6 +55,10 @@ export default function ExpensePaymentDetailPage() {
           receiptReason: data.data.payment.receiptReason || '',
           isFullPayment: data.data.payment.isFullPayment || false,
         })
+        // Auto-open edit mode when arriving from the rejected tab via ?resubmit=true
+        if (resubmitMode && data.data.payment.status === 'REJECTED') {
+          setIsEditing(true)
+        }
       } catch (err) {
         console.error('Error loading payment', err)
         router.push(`/expense-accounts/${accountId}`)
@@ -60,7 +66,7 @@ export default function ExpensePaymentDetailPage() {
         setLoading(false)
       }
     })()
-  }, [accountId, paymentId, router])
+  }, [accountId, paymentId, router, resubmitMode])
 
   useEffect(() => {
     if (!accountId) return
@@ -104,10 +110,12 @@ export default function ExpensePaymentDetailPage() {
     payment.payeeSupplier?.name ||
     'Unknown'
 
-  // Own-request edit: creator can edit REQUEST/REJECTED payments on personal accounts
+  // Own-request edit: creator can edit REQUEST/REJECTED payments on personal accounts,
+  // OR edit their own REJECTED payments from any account (EOD rejections)
   const isPersonalAccount = !payment.expenseAccount?.businessId || payment.expenseAccount?.accountType === 'PERSONAL'
   const isOwnRequest = !!currentUserId && payment.creator?.id === currentUserId && isPersonalAccount
-  const canEditOwnRequest = isOwnRequest && ['REQUEST', 'REJECTED'].includes(payment.status)
+  const isOwnRejected = !!currentUserId && payment.creator?.id === currentUserId && payment.status === 'REJECTED'
+  const canEditOwnRequest = (isOwnRequest && ['REQUEST', 'REJECTED'].includes(payment.status)) || isOwnRejected
 
   const payeePhone =
     payment.payeeEmployee?.phone ||
@@ -265,6 +273,9 @@ export default function ExpensePaymentDetailPage() {
       const patchBody: any = { ...editFormData }
       if (isDownwardEdit && inlineAdjustmentReason.trim()) {
         patchBody.adjustmentReason = inlineAdjustmentReason.trim()
+      }
+      if (resubmitMode && payment.status === 'REJECTED') {
+        patchBody.resubmit = true
       }
       const res = await fetch(`/api/expense-account/${accountId}/payments/${paymentId}`, {
         method: 'PATCH',
@@ -578,8 +589,19 @@ export default function ExpensePaymentDetailPage() {
             </h3>
 
             {canEditOwnRequest && payment.status === 'REJECTED' && (
-              <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-200 rounded text-sm">
-                ⚠️ This request was rejected. Update the details below and save — it will be re-submitted to the cashier for review.
+              <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-200 rounded text-sm space-y-1">
+                <p className="font-medium">⚠️ This request was rejected. {resubmitMode ? 'Edit the details below, then click Save & Resubmit to return it to the queue.' : 'Update the details below and save — it will be re-submitted for review.'}</p>
+                {payment.rejectionReason && (
+                  <p className="text-amber-700 dark:text-amber-300">Reason: "{payment.rejectionReason}"</p>
+                )}
+                {(payment.rejectedBy || payment.rejectedAt) && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    {[
+                      payment.rejectedBy ? `Rejected by ${payment.rejectedBy}` : null,
+                      payment.rejectedAt ? new Date(payment.rejectedAt).toLocaleDateString() : null,
+                    ].filter(Boolean).join(' · ')}
+                  </p>
+                )}
               </div>
             )}
 
@@ -702,7 +724,7 @@ export default function ExpensePaymentDetailPage() {
                   disabled={saving}
                   className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50"
                 >
-                  {saving ? 'Saving...' : canEditOwnRequest && payment.status === 'REJECTED' ? 'Save & Re-submit' : 'Save Changes'}
+                  {saving ? 'Saving…' : (resubmitMode || (canEditOwnRequest && payment.status === 'REJECTED')) ? 'Save & Resubmit' : 'Save Changes'}
                 </button>
                 <button
                   onClick={handleCancelEdit}

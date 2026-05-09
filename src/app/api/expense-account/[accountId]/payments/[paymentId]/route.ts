@@ -91,6 +91,9 @@ export async function GET(
         submitter: {
           select: { id: true, name: true, email: true },
         },
+        rejector: {
+          select: { id: true, name: true },
+        },
         destinationDeposit: {
           select: {
             id: true,
@@ -178,6 +181,10 @@ export async function GET(
           destinationDepositId: (payment as any).destinationDepositId ?? null,
           destinationAccountId: (payment as any).destinationDeposit?.expenseAccountId ?? null,
           destinationAccountName: (payment as any).destinationDeposit?.expenseAccount?.accountName ?? null,
+          // Rejection audit trail (MBM-207)
+          rejectedBy: (payment as any).rejector?.name ?? null,
+          rejectedAt: (payment as any).rejectedAt?.toISOString() ?? null,
+          rejectionReason: (payment as any).rejectionReason ?? null,
         },
       },
     })
@@ -247,8 +254,11 @@ export async function PATCH(
       existingPayment.createdBy === user.id &&
       ['REQUEST', 'REJECTED'].includes(existingPayment.status) &&
       isPersonalAccount
+    // Creator can also edit their own REJECTED payments on business accounts (EOD rejections)
+    const isOwnRejectedEdit =
+      existingPayment.createdBy === user.id && existingPayment.status === 'REJECTED'
 
-    if (!permissions.canEditExpenseTransactions && !isOwnRequestEdit) {
+    if (!permissions.canEditExpenseTransactions && !isOwnRequestEdit && !isOwnRejectedEdit) {
       return NextResponse.json(
         { error: 'You do not have permission to edit expense transactions' },
         { status: 403 }
@@ -396,9 +406,9 @@ export async function PATCH(
       )
     }
 
-    // Check if within edit window (5 days for non-admins) — own-request edits bypass this
+    // Check if within edit window (5 days for non-admins) — own-request and own-rejected edits bypass this
     const editWindowCheck = isWithinEditWindow(existingPayment.createdAt, isAdmin)
-    if (!editWindowCheck.allowed && !isOwnRequestEdit) {
+    if (!editWindowCheck.allowed && !isOwnRequestEdit && !isOwnRejectedEdit) {
       return NextResponse.json(
         { error: editWindowCheck.error },
         { status: 403 }
@@ -433,6 +443,7 @@ export async function PATCH(
       priority,
       projectId,
       lineItems,
+      resubmit,
     } = body
 
     // Pre-compute adjustment metadata used in notes check, amount block, and transaction
@@ -616,9 +627,18 @@ export async function PATCH(
     if (paymentChannel !== undefined) updateData.paymentChannel = paymentChannel === 'ECOCASH' ? 'ECOCASH' : 'CASH'
     if (priority !== undefined) updateData.priority = priority === 'URGENT' ? 'URGENT' : 'NORMAL'
 
-    // Own-request edit of a REJECTED payment: reset to REQUEST so cashier sees it again
-    if (isOwnRequestEdit && existingPayment.status === 'REJECTED') {
-      updateData.status = 'REQUEST'
+    // When editing a REJECTED payment with resubmit=true, return it to the submission queue.
+    // resubmit=true → SUBMITTED (re-enters EOD queue, works for all rejected payments)
+    // no resubmit flag + personal account → REQUEST (existing cashier-queue behaviour)
+    if (existingPayment.status === 'REJECTED') {
+      if (resubmit === true) {
+        updateData.status = 'SUBMITTED'
+        updateData.rejectedBy = null
+        updateData.rejectedAt = null
+        updateData.rejectionReason = null
+      } else if (isOwnRequestEdit) {
+        updateData.status = 'REQUEST'
+      }
     }
     if (lineItems !== undefined) {
       updateData.lineItems = Array.isArray(lineItems) && lineItems.length > 0 ? lineItems : null

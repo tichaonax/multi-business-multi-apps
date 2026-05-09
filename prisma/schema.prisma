@@ -1644,9 +1644,10 @@ model ExpenseAccountPayments {
   reversedBy                String?                          @map("reversed_by")
   reversalNote              String?                          @map("reversal_note")
   reversalPettyCashId       String?                          @map("reversal_petty_cash_id")
-  // Rejection audit trail (MBM-171)
+  // Rejection audit trail (MBM-171, MBM-207)
   rejectedBy                String?                          @map("rejected_by")
   rejectedAt                DateTime?                        @map("rejected_at")
+  rejectionReason           String?                          @map("rejection_reason")
   // Amount override audit trail — set when approver approves a different amount than requested
   approvedAmount            Decimal?                         @map("approved_amount") @db.Decimal(12, 2)
   amountChangeNote          String?                          @map("amount_change_note")

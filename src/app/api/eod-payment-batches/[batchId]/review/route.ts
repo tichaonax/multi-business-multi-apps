@@ -42,7 +42,15 @@ export async function POST(
       approvedPaymentIds = [],
       rejectedPaymentIds = [],
       notes,
-    }: { approvedPaymentIds: string[]; rejectedPaymentIds: string[]; notes?: string } = body
+      globalRejectionReason,
+      rejectionReasons = {},
+    }: {
+      approvedPaymentIds: string[]
+      rejectedPaymentIds: string[]
+      notes?: string
+      globalRejectionReason?: string
+      rejectionReasons?: Record<string, string>
+    } = body
 
     if (approvedPaymentIds.length === 0 && rejectedPaymentIds.length === 0) {
       return NextResponse.json({ error: 'No payment IDs provided' }, { status: 400 })
@@ -97,10 +105,10 @@ export async function POST(
     const totalCashApproved = cashApproved.reduce((s, p) => s + Number(p.amount), 0)
 
     // Determine which cash accounts are pre-funded via EOD (EOD_AUTO_DEPOSIT or EOD_RENT_TRANSFER).
-    // Pre-funded accounts: the expense account balance was built up daily via EOD deposits.
-    // All deposits (EOD and direct) are physically stored in the cash bucket.
-    // At approval: the cash bucket is debited for the full amount; the expense account is NOT
-    // given another BUSINESS deposit (it's already pre-funded — adding one would double-fund it).
+    // Pre-funded accounts: the expense account balance was built up daily via EOD deposits from the
+    // business account. At approval: the expense account balance is the source of truth — the cash
+    // bucket is NOT checked or debited for these accounts (the money flowed Business Account →
+    // Expense Account, not through the cash bucket).
     const preFundedAccountIds = new Set<string>()
     if (cashApproved.length > 0) {
       const byCashAccountIds = [...new Set(cashApproved.map(p => p.expenseAccountId))]
@@ -115,8 +123,13 @@ export async function POST(
       }
     }
 
-    // Verify sufficient CASH bucket balance (full payment amount — all funds are in the bucket)
-    if (cashApproved.length > 0) {
+    // Non-pre-funded cash payments are settled from the physical cash bucket.
+    // Pre-funded payments (rent, auto-deposit) are settled from their expense account balance.
+    const nonPreFundedCashApproved = cashApproved.filter(p => !preFundedAccountIds.has(p.expenseAccountId))
+    const totalNonPreFundedCash = nonPreFundedCashApproved.reduce((s, p) => s + Number(p.amount), 0)
+
+    // Verify sufficient CASH bucket balance (only for non-pre-funded cash payments)
+    if (nonPreFundedCashApproved.length > 0) {
       const bucketRows = await prisma.cashBucketEntry.groupBy({
         by: ['direction'],
         where: { businessId: batch.businessId, paymentChannel: 'CASH' },
@@ -125,9 +138,9 @@ export async function POST(
       const bucketInflow = Number(bucketRows.find(r => r.direction === 'INFLOW')?._sum.amount ?? 0)
       const bucketOutflow = Number(bucketRows.find(r => r.direction === 'OUTFLOW')?._sum.amount ?? 0)
       const bucketBalance = bucketInflow - bucketOutflow
-      if (bucketBalance < totalCashApproved) {
+      if (bucketBalance < totalNonPreFundedCash) {
         return NextResponse.json(
-          { error: `Insufficient 💵 cash in bucket for ${batch.business?.name ?? 'this business'}. Available: $${bucketBalance.toFixed(2)}, Required: $${totalCashApproved.toFixed(2)}` },
+          { error: `Insufficient 💵 cash in bucket for ${batch.business?.name ?? 'this business'}. Available: $${bucketBalance.toFixed(2)}, Required: $${totalNonPreFundedCash.toFixed(2)}` },
           { status: 400 }
         )
       }
@@ -173,19 +186,20 @@ export async function POST(
       const batchSubmissions: { id: string; expenseAccountId: string; totalAmount: number }[] = []
 
       if (approvedPayments.length > 0) {
-        // Debit cash bucket for CASH payments only
-        // EcoCash payments are only approved here — CashBucketEntry is created when "Mark as Sent" later
-        if (cashApproved.length > 0) {
+        // Debit cash bucket for non-pre-funded CASH payments only.
+        // Pre-funded (rent, auto-deposit) payments skip the bucket — their balance is in the expense account.
+        // EcoCash payments are only approved here — CashBucketEntry is created when "Mark as Sent" later.
+        if (nonPreFundedCashApproved.length > 0) {
           await tx.cashBucketEntry.create({
             data: {
               businessId: batch.businessId,
               entryType: 'PAYMENT_APPROVAL',
               direction: 'OUTFLOW',
-              amount: totalCashApproved,
+              amount: totalNonPreFundedCash,
               paymentChannel: 'CASH',
               referenceType: 'EOD_BATCH',
               referenceId: batchId,
-              notes: `${cashApproved.length} cash payment(s) approved`,
+              notes: `${nonPreFundedCashApproved.length} cash payment(s) approved`,
               entryDate: now,
               createdBy: user.id,
             },
@@ -259,12 +273,22 @@ export async function POST(
         }
       }
 
-      // Rejected payments return to QUEUED (re-enter queue for next EOD)
+      // Rejected payments: set REJECTED status so the requester must explicitly act.
+      // Each payment gets the per-item reason if provided, falling back to the global reason.
       if (rejectedPayments.length > 0) {
-        await tx.expenseAccountPayments.updateMany({
-          where: { id: { in: rejectedPayments.map((p) => p.id) } },
-          data: { status: 'QUEUED', eodBatchId: null },
-        })
+        for (const p of rejectedPayments) {
+          const reason = rejectionReasons[p.id]?.trim() || globalRejectionReason?.trim() || null
+          await tx.expenseAccountPayments.update({
+            where: { id: p.id },
+            data: {
+              status: 'REJECTED',
+              eodBatchId: null,
+              rejectedBy: user.id,
+              rejectedAt: now,
+              rejectionReason: reason,
+            },
+          })
+        }
       }
 
       // Update EOD batch status
@@ -340,7 +364,7 @@ export async function POST(
             type: 'PAYMENT_REJECTED',
             title: 'Payment Returned to Queue',
             message: `Returned by ${user.name} — ${preview}`,
-            linkUrl: '/expense-accounts/my-payments',
+            linkUrl: '/expense-accounts/my-payments?tab=rejected',
           })
         }
       }
