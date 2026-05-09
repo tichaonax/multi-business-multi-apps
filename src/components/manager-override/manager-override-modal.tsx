@@ -261,7 +261,7 @@ export function ManagerOverrideModal({
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div ref={modalRef} tabIndex={-1} className="bg-white rounded-2xl shadow-2xl w-full max-w-md outline-none">
+      <div ref={modalRef} tabIndex={-1} className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md outline-none">
 
         {/* ── Step 1: Staff Reason ─────────────────────────────────── */}
         {step === 'REASON' && (
@@ -342,14 +342,14 @@ export function ManagerOverrideModal({
               </p>
             </div>
 
-            <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 border border-gray-200">
-              <p className="text-xs text-gray-500 mb-1 font-medium">Staff reason:</p>
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-sm text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-medium">Staff reason:</p>
               <p>{staffReason}</p>
             </div>
 
             {/* Manager selection dropdown */}
             <div className="relative">
-              <label className="block text-xs text-gray-500 mb-1 font-medium">
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1 font-medium">
                 Select manager <span className="text-red-500">*</span>
               </label>
               {managersLoading ? (
@@ -364,12 +364,12 @@ export function ManagerOverrideModal({
                     onChange={(e) => { setManagerSearch(e.target.value); setShowManagerDropdown(true) }}
                     onFocus={() => setShowManagerDropdown(true)}
                     onBlur={() => setTimeout(() => setShowManagerDropdown(false), 150)}
-                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      selectedManagerId ? 'border-green-400 bg-green-50' : 'border-gray-300'
+                    className={`w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      selectedManagerId ? 'border-green-400 dark:border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-gray-300 dark:border-gray-600'
                     }`}
                   />
                   {showManagerDropdown && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-44 overflow-y-auto">
+                    <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-44 overflow-y-auto">
                       {managers
                         .filter(m => m.name.toLowerCase().includes(managerSearch.toLowerCase()))
                         .map(m => (
@@ -381,8 +381,8 @@ export function ManagerOverrideModal({
                               setManagerSearch(m.name)
                               setShowManagerDropdown(false)
                             }}
-                            className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 ${
-                              selectedManagerId === m.id ? 'bg-blue-100 font-medium' : ''
+                            className={`w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-blue-50 dark:hover:bg-blue-900/30 ${
+                              selectedManagerId === m.id ? 'bg-blue-100 dark:bg-blue-900/40 font-medium' : ''
                             }`}
                           >
                             {m.name}
