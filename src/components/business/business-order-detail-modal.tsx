@@ -5,6 +5,8 @@ import { useSession } from 'next-auth/react'
 import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { formatDateByFormat, formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
+import { ReceiptPreviewModal } from '@/components/printing/receipt-preview-modal'
+import type { ReceiptData } from '@/types/printing'
 
 interface OrderItem {
   id: string
@@ -18,6 +20,7 @@ interface OrderItem {
     name: string
     sku?: string
     category?: string
+    categoryEmoji?: string
   }
 }
 
@@ -44,6 +47,8 @@ interface BusinessOrder {
     businessName?: string
     businessType?: string
   }
+  paymentMethod?: string
+  paymentStatus?: string
   items?: OrderItem[]
   supplier?: {
     id: string
@@ -67,6 +72,9 @@ export function BusinessOrderDetailModal({ orderId, isOpen, onClose, onUpdate }:
   const [order, setOrder] = useState<BusinessOrder | null>(null)
   const [loading, setLoading] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null)
+  const [showReceipt, setShowReceipt] = useState(false)
+  const [loadingReceipt, setLoadingReceipt] = useState(false)
   const [editForm, setEditForm] = useState({
     status: '',
     customerName: '',
@@ -141,6 +149,24 @@ export function BusinessOrderDetailModal({ orderId, isOpen, onClose, onUpdate }:
       console.error('Error fetching business order:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleViewReceipt = async () => {
+    if (!order) return
+    if (receiptData) { setShowReceipt(true); return }
+    try {
+      setLoadingReceipt(true)
+      const res = await fetch(`/api/universal/receipts/${order.id}`)
+      if (res.ok) {
+        const json = await res.json()
+        setReceiptData(json.receiptData ?? json.data ?? json)
+        setShowReceipt(true)
+      }
+    } catch (e) {
+      console.error('Failed to load receipt:', e)
+    } finally {
+      setLoadingReceipt(false)
     }
   }
 
@@ -220,6 +246,7 @@ export function BusinessOrderDetailModal({ orderId, isOpen, onClose, onUpdate }:
   }
 
   return (
+    <>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="card max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
@@ -351,11 +378,16 @@ export function BusinessOrderDetailModal({ orderId, isOpen, onClose, onUpdate }:
                       <div key={item.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
                         <div className="flex-1">
                           <p className="font-medium text-primary">{item.productName}</p>
-                          <div className="flex gap-4 text-sm text-secondary">
+                          <div className="flex flex-wrap gap-3 text-sm text-secondary">
                             <span>Qty: {item.quantity}</span>
                             <span>Unit Price: ${item.unitPrice.toFixed(2)}</span>
-                            {item.product?.sku && <span>SKU: {item.product.sku}</span>}
-                            {item.product?.category && <span>Category: {item.product.category}</span>}
+                            {item.product?.sku && <span className="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">SKU: {item.product.sku}</span>}
+                            {item.product?.category && (
+                              <span className="text-xs">
+                                {item.product.categoryEmoji && <span className="mr-1">{item.product.categoryEmoji}</span>}
+                                {item.product.category}
+                              </span>
+                            )}
                           </div>
                           {item.attributes?.scannedBarcode && (
                             <div className="mt-1 flex items-center gap-2 text-xs">
@@ -382,6 +414,41 @@ export function BusinessOrderDetailModal({ orderId, isOpen, onClose, onUpdate }:
                         <p className="font-medium text-primary">${item.total.toFixed(2)}</p>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Payment */}
+              {(order.paymentMethod || order.paymentStatus) && (
+                <div className="flex flex-wrap gap-4">
+                  {order.paymentMethod && (
+                    <div>
+                      <h3 className="text-sm font-medium text-secondary mb-1">Payment Method</h3>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-200 capitalize">
+                        💳 {order.paymentMethod.replace(/_/g, ' ').toLowerCase()}
+                      </span>
+                    </div>
+                  )}
+                  {order.paymentStatus && (
+                    <div>
+                      <h3 className="text-sm font-medium text-secondary mb-1">Payment Status</h3>
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium capitalize ${
+                        order.paymentStatus === 'PAID' ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200' :
+                        order.paymentStatus === 'PENDING' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-200' :
+                        'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+                      }`}>
+                        {order.paymentStatus.toLowerCase()}
+                      </span>
+                    </div>
+                  )}
+                  <div className="ml-auto self-end">
+                    <button
+                      onClick={handleViewReceipt}
+                      disabled={loadingReceipt}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-primary transition-colors disabled:opacity-50"
+                    >
+                      🧾 {loadingReceipt ? 'Loading…' : 'View Receipt'}
+                    </button>
                   </div>
                 </div>
               )}
@@ -532,5 +599,16 @@ export function BusinessOrderDetailModal({ orderId, isOpen, onClose, onUpdate }:
         </div>
       </div>
     </div>
+
+    {showReceipt && receiptData && (
+      <ReceiptPreviewModal
+        isOpen={showReceipt}
+        onClose={() => setShowReceipt(false)}
+        receiptData={receiptData}
+        onPrint={async () => {}}
+        businessType={order?.businesses?.type ?? order?.businessType ?? 'retail'}
+      />
+    )}
+    </>
   )
 }

@@ -55,7 +55,7 @@ export async function GET(
                   select: {
                     name: true,
                     sku: true,
-                    business_categories: { select: { name: true } }
+                    business_categories: { select: { name: true, emoji: true } }
                   }
                 }
               }
@@ -110,6 +110,8 @@ export async function GET(
       employee: order.employees,
       businessType: order.businessType,
       orderType: order.attributes?.orderType || order.orderType || 'SALE',
+      paymentMethod: order.paymentMethod || '',
+      paymentStatus: order.paymentStatus || '',
       attributes: order.attributes,
       items: (order.business_order_items ?? []).map((item: any) => {
         const variant = item.product_variants
@@ -127,7 +129,8 @@ export async function GET(
           product: product ? {
             name: product.name,
             sku: variant?.sku ?? product.sku,
-            category: product.business_categories?.name
+            category: product.business_categories?.name,
+            categoryEmoji: product.business_categories?.emoji
           } : undefined
         }
       })
