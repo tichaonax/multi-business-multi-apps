@@ -36,6 +36,32 @@ export async function GET(
           select: {
             fullName: true
           }
+        },
+        business_order_items: {
+          select: {
+            id: true,
+            createdAt: true,
+            quantity: true,
+            unitPrice: true,
+            discountAmount: true,
+            totalPrice: true,
+            attributes: true,
+            product_variants: {
+              select: {
+                id: true,
+                name: true,
+                sku: true,
+                business_products: {
+                  select: {
+                    name: true,
+                    sku: true,
+                    business_categories: { select: { name: true } }
+                  }
+                }
+              }
+            }
+          },
+          orderBy: { createdAt: 'asc' }
         }
       }
     })
@@ -80,10 +106,31 @@ export async function GET(
       updatedAt: order.updatedAt,
       businessId: order.businessId,
       business: order.businesses,
+      businesses: order.businesses,
       employee: order.employees,
       businessType: order.businessType,
-      orderType: order.attributes?.orderType || order.orderType || 'SALE', // Add orderType at root level
-      attributes: order.attributes
+      orderType: order.attributes?.orderType || order.orderType || 'SALE',
+      attributes: order.attributes,
+      items: (order.business_order_items ?? []).map((item: any) => {
+        const variant = item.product_variants
+        const product = variant?.business_products
+        // Prefer variant name if set, otherwise fall back to product name
+        const productName = variant?.name || product?.name || 'Unknown Product'
+        return {
+          id: item.id,
+          productId: variant?.id ?? '',
+          productName,
+          quantity: item.quantity,
+          unitPrice: Number(item.unitPrice),
+          total: Number(item.totalPrice),
+          attributes: item.attributes,
+          product: product ? {
+            name: product.name,
+            sku: variant?.sku ?? product.sku,
+            category: product.business_categories?.name
+          } : undefined
+        }
+      })
     }
 
     return NextResponse.json({
