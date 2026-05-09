@@ -36,6 +36,8 @@ type Customer = {
   name: string
   phone?: string
   customerNumber: string
+  creditBalance?: number
+  isBlacklisted?: boolean
 }
 
 type AccountSummary = {
@@ -118,7 +120,14 @@ export default function DeliveryAccountsPage() {
     try {
       const res = await fetch(`/api/customers?businessId=${currentBusinessId}&search=${encodeURIComponent(search)}&limit=20`)
       const data = await res.json()
-      if (data.customers) setCustomers(data.customers)
+      if (data.customers) setCustomers(data.customers.map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        phone: c.phone,
+        customerNumber: c.customerNumber,
+        creditBalance: c.delivery_customer_account ? Number(c.delivery_customer_account.balance) : 0,
+        isBlacklisted: c.delivery_customer_account?.isBlacklisted ?? false,
+      })))
     } catch {
       // silent
     } finally {
@@ -325,8 +334,11 @@ export default function DeliveryAccountsPage() {
                     >
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-gray-800 dark:text-gray-200">{c.name}</span>
-                        {knownBlacklist[c.id] && (
+                        {(c.isBlacklisted || knownBlacklist[c.id]) && (
                           <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 font-medium">Blacklisted</span>
+                        )}
+                        {!c.isBlacklisted && !knownBlacklist[c.id] && (c.creditBalance ?? 0) > 0 && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 font-medium">${c.creditBalance!.toFixed(2)} credit</span>
                         )}
                         {c.phone && <span className="text-gray-400">{formatPhoneNumberForDisplay(c.phone)}</span>}
                         <span className="text-gray-400 font-mono text-xs">{c.customerNumber}</span>

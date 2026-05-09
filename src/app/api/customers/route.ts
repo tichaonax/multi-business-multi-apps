@@ -101,6 +101,9 @@ export async function GET(request: NextRequest) {
           businesses: {
             select: { id: true, name: true, type: true, phone: true }
           },
+          delivery_customer_account: {
+            select: { balance: true, isBlacklisted: true }
+          },
           business_orders: {
             select: {
               id: true,
