@@ -291,6 +291,19 @@ export async function POST(
         }
       }
 
+      // Deferred payments: any PENDING_APPROVAL payments in this batch not explicitly decided
+      // go back to QUEUED so they re-enter the queue for the next EOD cycle.
+      const decidedIds = [...approvedPaymentIds, ...rejectedPaymentIds]
+      const deferred = await tx.expenseAccountPayments.updateMany({
+        where: {
+          eodBatchId: batchId,
+          status: 'PENDING_APPROVAL',
+          ...(decidedIds.length > 0 ? { id: { notIn: decidedIds } } : {}),
+        },
+        data: { status: 'QUEUED', eodBatchId: null },
+      })
+      const deferredCount = deferred.count
+
       // Update EOD batch status
       await tx.eODPaymentBatch.update({
         where: { id: batchId },
@@ -301,11 +314,11 @@ export async function POST(
           approvedCount: approvedPayments.length,
           rejectedCount: rejectedPayments.length,
           totalApproved: totalApproved > 0 ? totalApproved : null,
-          notes: notes?.trim() || null,
+          notes: [notes?.trim(), deferredCount > 0 ? `${deferredCount} deferred to next EOD` : null].filter(Boolean).join(' | ') || null,
         },
       })
 
-      return { batchSubmissions, totalApproved, approvedCount: approvedPayments.length }
+      return { batchSubmissions, totalApproved, approvedCount: approvedPayments.length, deferredCount }
     })
 
     // Propagate APPROVED status to any linked supplier payment requests (non-blocking)
@@ -412,7 +425,7 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: `Review submitted: ${result.approvedCount} approved, ${rejectedPayments.length} returned to queue`,
+      message: `Review submitted: ${result.approvedCount} approved, ${rejectedPayments.length} rejected${result.deferredCount > 0 ? `, ${result.deferredCount} deferred to next EOD` : ''}`,
       data: { printData },
     })
   } catch (error) {

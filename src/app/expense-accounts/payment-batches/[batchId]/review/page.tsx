@@ -103,10 +103,27 @@ function payeeName(p: BatchPayment): string {
   return 'General'
 }
 
+function formatPhone(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  const d = raw.replace(/[\s\-\(\)]/g, '')
+  if (d.startsWith('+263') && d.length === 13) {
+    const n = d.slice(4)
+    return `+263 ${n.slice(0, 2)} ${n.slice(2, 5)} ${n.slice(5)}`
+  }
+  if (d.startsWith('263') && d.length === 12) {
+    const n = d.slice(3)
+    return `+263 ${n.slice(0, 2)} ${n.slice(2, 5)} ${n.slice(5)}`
+  }
+  if (d.startsWith('0') && d.length === 10) {
+    return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`
+  }
+  return raw
+}
+
 function payeePhone(p: BatchPayment): string | null {
   const phone = p.payeeEmployee?.phone ?? p.payeePerson?.phone ?? p.payeeBusiness?.phone ?? p.payeeSupplier?.phone ?? null
   const contact = p.payeeSupplier?.contactPerson ?? null
-  return [phone, contact].filter(Boolean).join(' · ') || null
+  return [formatPhone(phone), contact].filter(Boolean).join(' · ') || null
 }
 
 const fmt = (n: number) =>
@@ -188,6 +205,7 @@ export default function BatchReviewPage() {
   const totalCashApproved = approvedPayments.filter(p => p.paymentChannel !== 'ECOCASH' && p.paymentType !== 'RENT_PAYMENT').reduce((s, p) => s + p.amount, 0)
   const totalEcocashApproved = approvedPayments.filter(p => p.paymentChannel === 'ECOCASH').reduce((s, p) => s + p.amount, 0)
   const allDecided = undecidedPayments.length === 0 && pendingPayments.length > 0
+  const hasAnyDecision = approvedPayments.length > 0 || rejectedPayments.length > 0
 
   // For each RENT_PAYMENT, check if the expense account balance covers the amount.
   // Returns { earmarked, required, shortfall } if blocked, null if ok.
@@ -230,7 +248,11 @@ export default function BatchReviewPage() {
       const json = await res.json()
       if (!res.ok) { toast.error(json.error || 'Failed to submit review'); return }
 
-      toast.push(`${approvedPayments.length} approved, ${rejectedPayments.length} returned to queue`, { type: 'success' })
+      const deferredCount = undecidedPayments.length
+      toast.push(
+        `${approvedPayments.length} approved, ${rejectedPayments.length} rejected${deferredCount > 0 ? `, ${deferredCount} deferred to next EOD` : ''}`,
+        { type: 'success' }
+      )
 
       load()
       // Refresh bell notification count across the app
@@ -373,8 +395,8 @@ export default function BatchReviewPage() {
                 <p className="font-medium text-green-700 dark:text-green-400">{batch.approvedCount} payments · {batch.totalApproved != null ? fmt(batch.totalApproved) : '—'}</p>
               </div>
               <div>
-                <p className="text-gray-500 dark:text-gray-400">Returned to Queue</p>
-                <p className="font-medium text-amber-700 dark:text-amber-400">{batch.rejectedCount} payments</p>
+                <p className="text-gray-500 dark:text-gray-400">Rejected</p>
+                <p className="font-medium text-red-600 dark:text-red-400">{batch.rejectedCount} payments</p>
               </div>
             </>
           )}
@@ -527,7 +549,7 @@ export default function BatchReviewPage() {
                               ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
                               : 'bg-gray-100 dark:bg-gray-700 text-gray-500'
                           }`}>
-                            {p.status === 'QUEUED' ? 'Returned to Queue' : p.status}
+                            {p.status === 'QUEUED' ? 'Returned to Queue' : p.status === 'REJECTED' ? 'Rejected' : p.status}
                           </span>
                         )}
                       </div>
@@ -595,7 +617,7 @@ export default function BatchReviewPage() {
                               placeholder="Override reason (optional)"
                               value={rejectionReasons[p.id] ?? ''}
                               onChange={e => setRejectionReasons(prev => ({ ...prev, [p.id]: e.target.value }))}
-                              className="mt-1 w-full text-xs px-2 py-1 rounded border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 placeholder-red-300 dark:placeholder-red-600 focus:outline-none focus:ring-1 focus:ring-red-400"
+                              className="mt-1 w-full text-xs px-2 py-1 rounded border border-orange-300 dark:border-orange-600 bg-orange-50 dark:bg-orange-900/20 text-orange-800 dark:text-orange-200 placeholder-orange-400 dark:placeholder-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-400"
                             />
                           )}
                         </div>
@@ -612,9 +634,14 @@ export default function BatchReviewPage() {
             <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 space-y-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-600 dark:text-gray-400">
-                  {undecidedPayments.length > 0
-                    ? <span className="text-amber-600 dark:text-amber-400">⚠ {undecidedPayments.length} payment(s) still need a decision</span>
-                    : <span>{approvedPayments.length} approved · {rejectedPayments.length} returned to queue</span>
+                  {!hasAnyDecision
+                    ? <span className="text-gray-400 dark:text-gray-500">Approve or reject at least one payment to submit.</span>
+                    : <span>
+                        {approvedPayments.length > 0 && <span className="text-green-700 dark:text-green-400">{approvedPayments.length} approved</span>}
+                        {approvedPayments.length > 0 && rejectedPayments.length > 0 && <span className="text-gray-400 dark:text-gray-500"> · </span>}
+                        {rejectedPayments.length > 0 && <span className="text-orange-700 dark:text-orange-300">{rejectedPayments.length} rejected</span>}
+                        {undecidedPayments.length > 0 && <span className="text-gray-400 dark:text-gray-500"> · {undecidedPayments.length} deferred to next EOD</span>}
+                      </span>
                   }
                 </span>
                 <span className="font-bold text-gray-900 dark:text-gray-100 text-base tabular-nums">{fmt(totalApproved)}</span>
@@ -668,10 +695,15 @@ export default function BatchReviewPage() {
                 </button>
                 <button
                   onClick={handleSubmitReview}
-                  disabled={submitting || !allDecided || (cashBoxBalance !== null && cashBoxBalance < totalCashApproved) || (ecocashBalance !== null && ecocashBalance < totalEcocashApproved)}
+                  disabled={submitting || !hasAnyDecision || (cashBoxBalance !== null && cashBoxBalance < totalCashApproved) || (ecocashBalance !== null && ecocashBalance < totalEcocashApproved)}
                   className="px-5 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50"
                 >
-                  {submitting ? 'Processing…' : `🖨 Process & Print Report — ${fmt(totalApproved)}`}
+                  {submitting
+                    ? 'Processing…'
+                    : undecidedPayments.length > 0
+                      ? `🖨 Process ${approvedPayments.length + rejectedPayments.length} of ${pendingPayments.length} — ${fmt(totalApproved)}`
+                      : `🖨 Process & Print Report — ${fmt(totalApproved)}`
+                  }
                 </button>
               </div>
             </div>

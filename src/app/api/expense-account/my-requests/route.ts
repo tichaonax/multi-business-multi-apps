@@ -14,7 +14,7 @@ function resolvePayeeName(p: any): string | null {
   return p.payeeUser?.name ?? p.payeeEmployee?.fullName ?? p.payeePerson?.fullName ?? p.payeeBusiness?.name ?? p.payeeSupplier?.name ?? null
 }
 
-function mapPayment(p: any) {
+function mapPayment(p: any, rejectorName?: string | null) {
   return {
     id: p.id,
     status: p.status,
@@ -33,7 +33,7 @@ function mapPayment(p: any) {
     // Rejection fields
     rejectionReason: p.rejectionReason ?? null,
     rejectedAt: p.rejectedAt?.toISOString() ?? null,
-    rejectedByName: p.rejector?.name ?? null,
+    rejectedByName: rejectorName ?? null,
   }
 }
 
@@ -60,9 +60,9 @@ export async function GET() {
       updatedAt: true,
       rejectionReason: true,
       rejectedAt: true,
+      rejectedBy: true,
       expenseAccount: { select: { id: true, accountName: true, business: { select: { name: true } } } },
       category: { select: { name: true, emoji: true } },
-      rejector: { select: { name: true } },
       ...PAYEE_SELECT,
     }
 
@@ -97,12 +97,19 @@ export async function GET() {
       }),
     ])
 
+    // Resolve rejector names for rejected payments (rejectedBy is a plain ID, not a relation)
+    const rejectorIds = [...new Set(rejected.map((p: any) => p.rejectedBy).filter(Boolean))]
+    const rejectors = rejectorIds.length > 0
+      ? await prisma.users.findMany({ where: { id: { in: rejectorIds as string[] } }, select: { id: true, name: true } })
+      : []
+    const rejectorMap = Object.fromEntries(rejectors.map((u: any) => [u.id, u.name]))
+
     return NextResponse.json({
       success: true,
       data: {
-        active: active.map(mapPayment),
-        rejected: rejected.map(mapPayment),
-        recentApproved: recentApproved.map(mapPayment),
+        active: active.map((p: any) => mapPayment(p)),
+        rejected: rejected.map((p: any) => mapPayment(p, rejectorMap[p.rejectedBy] ?? null)),
+        recentApproved: recentApproved.map((p: any) => mapPayment(p)),
       },
     })
   } catch (error) {

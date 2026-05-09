@@ -28,6 +28,9 @@ export default function ExpensePaymentDetailPage() {
   const [saving, setSaving] = useState(false)
   const [actionState, setActionState] = useState<'idle' | 'approving' | 'rejecting'>('idle')
   const [cancelling, setCancelling] = useState(false)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelReasonError, setCancelReasonError] = useState('')
   const [inlineAdjustmentReason, setInlineAdjustmentReason] = useState('')
 
   useEffect(() => {
@@ -116,6 +119,8 @@ export default function ExpensePaymentDetailPage() {
   const isOwnRequest = !!currentUserId && payment.creator?.id === currentUserId && isPersonalAccount
   const isOwnRejected = !!currentUserId && payment.creator?.id === currentUserId && payment.status === 'REJECTED'
   const canEditOwnRequest = (isOwnRequest && ['REQUEST', 'REJECTED'].includes(payment.status)) || isOwnRejected
+  // Creator can self-cancel any non-terminal payment that hasn't been approved yet
+  const canSelfCancel = !!currentUserId && payment.creator?.id === currentUserId && ['SUBMITTED', 'QUEUED', 'REQUEST', 'REJECTED'].includes(payment.status)
 
   const payeePhone =
     payment.payeeEmployee?.phone ||
@@ -303,21 +308,37 @@ export default function ExpensePaymentDetailPage() {
     }
   }
 
+  const openCancelModal = () => {
+    setCancelReason('')
+    setCancelReasonError('')
+    setShowCancelModal(true)
+  }
+
   const handleCancelRequest = async () => {
-    if (!confirm('Cancel this payment request? This cannot be undone.')) return
+    if (!cancelReason.trim()) {
+      setCancelReasonError('A reason is required to cancel this request.')
+      return
+    }
     setCancelling(true)
     try {
       const res = await fetch(`/api/expense-account/${accountId}/payments/${paymentId}/cancel`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
+        body: JSON.stringify({ reason: cancelReason.trim() }),
       })
       if (!res.ok) {
         const e = await res.json()
-        alert(e.error || 'Failed to cancel')
+        setCancelReasonError(e.error || 'Failed to cancel')
         return
       }
-      const data = await res.json()
-      setPayment((prev: any) => ({ ...prev, status: data.data.status, cancelledAt: data.data.cancelledAt }))
+      setShowCancelModal(false)
+      // Reload to show CANCELLED status
+      const reloaded = await fetch(`/api/expense-account/${accountId}/payments/${paymentId}`, { credentials: 'include' })
+      if (reloaded.ok) {
+        const data = await reloaded.json()
+        setPayment(data.data.payment)
+      }
     } finally {
       setCancelling(false)
     }
@@ -525,6 +546,14 @@ export default function ExpensePaymentDetailPage() {
                       ✏️ Edit / Adjust Request
                     </button>
                   )}
+                  {canSelfCancel && (
+                    <button
+                      onClick={openCancelModal}
+                      className="px-3 py-1 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 text-xs font-medium rounded transition-colors"
+                    >
+                      Cancel Request
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -534,13 +563,14 @@ export default function ExpensePaymentDetailPage() {
               <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg text-sm text-amber-700 dark:text-amber-300">
                 <div className="flex flex-wrap items-center gap-3">
                   <span>⏳ This payment is awaiting cashier approval. You will be notified when it is reviewed.</span>
-                  <button
-                    onClick={handleCancelRequest}
-                    disabled={cancelling}
-                    className="px-3 py-1 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-xs font-medium rounded transition-colors disabled:opacity-50"
-                  >
-                    {cancelling ? 'Cancelling…' : 'Cancel Request'}
-                  </button>
+                  {canSelfCancel && (
+                    <button
+                      onClick={openCancelModal}
+                      className="px-3 py-1 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-xs font-medium rounded transition-colors"
+                    >
+                      Cancel Request
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -738,6 +768,49 @@ export default function ExpensePaymentDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Cancel Request confirmation modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md mx-4 p-6 space-y-4">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Cancel Request</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              This will permanently withdraw your payment request. Please provide a reason — this is recorded for audit purposes.
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Reason <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => { setCancelReason(e.target.value); setCancelReasonError('') }}
+                rows={3}
+                placeholder="e.g. No longer needed, submitted by mistake…"
+                className={`w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none focus:outline-none focus:ring-2 focus:ring-red-400 ${cancelReasonError ? 'border-red-400' : 'border-gray-300 dark:border-gray-600'}`}
+              />
+              {cancelReasonError && (
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">{cancelReasonError}</p>
+              )}
+            </div>
+            <div className="flex justify-end gap-3 pt-1">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                disabled={cancelling}
+                className="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+              >
+                Back
+              </button>
+              <button
+                onClick={handleCancelRequest}
+                disabled={cancelling}
+                className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium disabled:opacity-50"
+              >
+                {cancelling ? 'Cancelling…' : 'Confirm Cancel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </ContentLayout>
   )
 }

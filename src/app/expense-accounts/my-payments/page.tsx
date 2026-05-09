@@ -37,6 +37,23 @@ interface RejectedPayment {
 
 const fmt = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 
+function formatPhone(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  const d = raw.replace(/[\s\-\(\)]/g, '')
+  if (d.startsWith('+263') && d.length === 13) {
+    const n = d.slice(4)
+    return `+263 ${n.slice(0, 2)} ${n.slice(2, 5)} ${n.slice(5)}`
+  }
+  if (d.startsWith('263') && d.length === 12) {
+    const n = d.slice(3)
+    return `+263 ${n.slice(0, 2)} ${n.slice(2, 5)} ${n.slice(5)}`
+  }
+  if (d.startsWith('0') && d.length === 10) {
+    return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`
+  }
+  return raw
+}
+
 export default function MyPaymentsPage() {
   const toast = useToastContext()
   const searchParams = useSearchParams()
@@ -51,6 +68,9 @@ export default function MyPaymentsPage() {
   const [loadingRejected, setLoadingRejected] = useState(true)
   const [collecting, setCollecting] = useState<string | null>(null)
   const [acting, setActing] = useState<string | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<string | null>(null)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelReasonError, setCancelReasonError] = useState('')
 
   const loadApproved = useCallback(async () => {
     setLoadingApproved(true)
@@ -120,16 +140,30 @@ export default function MyPaymentsPage() {
     }
   }
 
-  const handleCancel = async (paymentId: string) => {
-    setActing(paymentId)
+  const openCancelModal = (paymentId: string) => {
+    setCancelTarget(paymentId)
+    setCancelReason('')
+    setCancelReasonError('')
+  }
+
+  const handleCancel = async () => {
+    if (!cancelTarget) return
+    if (!cancelReason.trim()) {
+      setCancelReasonError('A reason is required to cancel this request.')
+      return
+    }
+    setActing(cancelTarget)
     try {
-      const res = await fetch(`/api/expense-account/payments/${paymentId}/cancel`, {
+      const res = await fetch(`/api/expense-account/payments/${cancelTarget}/cancel`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
+        body: JSON.stringify({ reason: cancelReason.trim() }),
       })
       const data = await res.json()
       if (!res.ok) { toast.error(data.error || 'Failed to cancel'); return }
-      toast.push('Payment cancelled', { type: 'success' })
+      setCancelTarget(null)
+      toast.push('Payment request cancelled', { type: 'success' })
       loadRejected()
     } catch (e: any) {
       toast.error(e.message)
@@ -208,7 +242,7 @@ export default function MyPaymentsPage() {
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{p.businessName}</p>
                       {p.payeeName && (
                         <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mt-0.5">
-                          Hand to: {p.payeeName}{p.payeePhone ? ` · ${p.payeePhone}` : ''}
+                          Hand to: {p.payeeName}{p.payeePhone ? ` · ${formatPhone(p.payeePhone)}` : ''}
                         </p>
                       )}
                       {p.notes && <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{p.notes}</p>}
@@ -305,11 +339,11 @@ export default function MyPaymentsPage() {
                           {isActing ? '…' : 'Resubmit As-Is'}
                         </button>
                         <button
-                          onClick={() => handleCancel(p.id)}
+                          onClick={() => openCancelModal(p.id)}
                           disabled={isActing}
                           className="px-3 py-1.5 text-xs font-medium rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
                         >
-                          {isActing ? '…' : 'Cancel'}
+                          Cancel Request
                         </button>
                       </div>
                     </div>
@@ -320,6 +354,48 @@ export default function MyPaymentsPage() {
           </>
         )}
       </div>
+      {/* Cancel Request confirmation modal */}
+      {cancelTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md mx-4 p-6 space-y-4">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Cancel Request</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              This will permanently withdraw your payment request. Please provide a reason — this is recorded for audit purposes.
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Reason <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={cancelReason}
+                onChange={(e) => { setCancelReason(e.target.value); setCancelReasonError('') }}
+                rows={3}
+                placeholder="e.g. No longer needed, submitted by mistake…"
+                className={`w-full px-3 py-2 text-sm border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 resize-none focus:outline-none focus:ring-2 focus:ring-red-400 ${cancelReasonError ? 'border-red-400' : 'border-gray-300 dark:border-gray-600'}`}
+              />
+              {cancelReasonError && (
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">{cancelReasonError}</p>
+              )}
+            </div>
+            <div className="flex justify-end gap-3 pt-1">
+              <button
+                onClick={() => setCancelTarget(null)}
+                disabled={!!acting}
+                className="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+              >
+                Back
+              </button>
+              <button
+                onClick={handleCancel}
+                disabled={!!acting}
+                className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium disabled:opacity-50"
+              >
+                {acting ? 'Cancelling…' : 'Confirm Cancel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </ContentLayout>
   )
 }

@@ -1132,6 +1132,23 @@ export async function restoreCleanBackup(
               } else {
                 await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
               }
+            } else if (tableName === 'businessRentConfigs') {
+              // BusinessRentConfig has TWO @unique fields: businessId AND expenseAccountId.
+              // On cross-machine restores the expenseAccountIds can be swapped between businesses,
+              // causing circular unique-constraint failures when using update alone.
+              // Fix: delete any record that conflicts on either unique field, then create fresh.
+              const [existingByBiz, existingByExpAcc] = await Promise.all([
+                model.findFirst({ where: { businessId: recordToInsert.businessId } }),
+                model.findFirst({ where: { expenseAccountId: recordToInsert.expenseAccountId } }),
+              ])
+              const toDelete = new Set<string>()
+              if (existingByBiz) toDelete.add(existingByBiz.id)
+              if (existingByExpAcc) toDelete.add(existingByExpAcc.id)
+              for (const deleteId of toDelete) {
+                if (VERBOSE_LOGGING) console.log(`[restore-clean] businessRentConfigs: Removing conflicting record (${deleteId}) to restore backup record (${record.id})`)
+                await model.delete({ where: { id: deleteId } }).catch(() => {})
+              }
+              await withUnknownFieldRetry(recordToInsert, r => model.create({ data: r }))
             } else if (uniqueConstraint) {
               if (typeof uniqueConstraint === 'string' && record[uniqueConstraint]) {
                 const existing = await model.findFirst({ where: { [uniqueConstraint]: record[uniqueConstraint] } })

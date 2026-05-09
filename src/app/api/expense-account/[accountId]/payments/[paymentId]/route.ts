@@ -91,9 +91,6 @@ export async function GET(
         submitter: {
           select: { id: true, name: true, email: true },
         },
-        rejector: {
-          select: { id: true, name: true },
-        },
         destinationDeposit: {
           select: {
             id: true,
@@ -115,6 +112,14 @@ export async function GET(
         { status: 400 }
       )
     }
+
+    // Resolve rejector name (rejectedBy is a plain user ID scalar, not a relation)
+    const rejectorUser = (payment as any).rejectedBy
+      ? await prisma.users.findUnique({
+          where: { id: (payment as any).rejectedBy },
+          select: { name: true },
+        })
+      : null
 
     // Fetch sub-subcategory separately (no Prisma relation defined on payments model)
     const subSubcategory = payment.subSubcategoryId
@@ -182,7 +187,7 @@ export async function GET(
           destinationAccountId: (payment as any).destinationDeposit?.expenseAccountId ?? null,
           destinationAccountName: (payment as any).destinationDeposit?.expenseAccount?.accountName ?? null,
           // Rejection audit trail (MBM-207)
-          rejectedBy: (payment as any).rejector?.name ?? null,
+          rejectedBy: rejectorUser?.name ?? null,
           rejectedAt: (payment as any).rejectedAt?.toISOString() ?? null,
           rejectionReason: (payment as any).rejectionReason ?? null,
         },
