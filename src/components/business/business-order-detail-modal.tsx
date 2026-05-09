@@ -441,6 +441,14 @@ export function BusinessOrderDetailModal({ orderId, isOpen, onClose, onUpdate }:
                       </span>
                     </div>
                   )}
+                  {order.paymentMethod?.toUpperCase() === 'ECOCASH' && order.attributes?.ecocashTransactionCode && (
+                    <div>
+                      <h3 className="text-sm font-medium text-secondary mb-1">EcoCash Ref</h3>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200 font-mono">
+                        📱 {order.attributes.ecocashTransactionCode}
+                      </span>
+                    </div>
+                  )}
                   <div className="ml-auto self-end">
                     <button
                       onClick={handleViewReceipt}
