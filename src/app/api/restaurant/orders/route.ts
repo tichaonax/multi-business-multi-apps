@@ -352,7 +352,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Find employee record — use salespersonEmployeeId override when provided (shared terminal)
-    let employeeId = salespersonEmployeeId || null
+    let employeeId: string | null = null
     let employeeName = user.name || 'Unknown'
     try {
       if (salespersonEmployeeId) {
@@ -360,7 +360,12 @@ export async function POST(req: NextRequest) {
         const employee = await prisma.employees.findFirst({
           where: { id: salespersonEmployeeId, isActive: true }
         })
-        if (employee) employeeName = employee.fullName || user.name || 'Unknown'
+        if (employee) {
+          employeeId = employee.id
+          employeeName = employee.fullName || user.name || 'Unknown'
+        }
+        // if no employee found, employeeId stays null — do not use the raw salespersonEmployeeId
+        // as it may be a userId which would violate the employees FK constraint
       } else {
         // Default: resolve from session user
         const employee = await prisma.employees.findFirst({

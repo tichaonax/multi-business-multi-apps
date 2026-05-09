@@ -93,7 +93,7 @@ export function SalespersonSelector({
     const meEmp = list.find(e => e.userId === currentUserId)
     const me: SelectedSalesperson = meEmp
       ? { employeeId: meEmp.id, userId: currentUserId, name: meEmp.fullName, photoUrl: meEmp.profilePhotoUrl }
-      : { employeeId: currentUserId, userId: currentUserId, name: currentUserName, photoUrl: null }
+      : { employeeId: '', userId: currentUserId, name: currentUserName, photoUrl: null }
     setMyEmployee(me)
 
     try {
