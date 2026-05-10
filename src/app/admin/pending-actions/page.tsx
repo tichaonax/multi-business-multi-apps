@@ -149,6 +149,10 @@ export default function PendingActionsPage() {
   const [pendingMealPrograms, setPendingMealPrograms] = useState<PendingMealProgram[]>([])
   const [personalPaymentRequests, setPersonalPaymentRequests] = useState<PersonalPaymentRequest[]>([])
   const [pendingEcocashConversions, setPendingEcocashConversions] = useState<PendingEcocashConversion[]>([])
+  const [withdrawalRequests, setWithdrawalRequests] = useState<any[]>([])
+  const [withdrawalActionState, setWithdrawalActionState] = useState<Record<string, boolean>>({})
+  const [withdrawalDenyModal, setWithdrawalDenyModal] = useState<{ requestId: string; loanId: string; amount: number } | null>(null)
+  const [withdrawalDenyReason, setWithdrawalDenyReason] = useState('Insufficient funds')
   const [personalActionState, setPersonalActionState] = useState<Record<string, 'approving' | 'rejecting' | null>>({})
   const [voucherItem, setVoucherItem] = useState<PersonalPaymentRequest | null>(null)
   const [loading, setLoading] = useState(true)
@@ -170,7 +174,10 @@ export default function PendingActionsPage() {
   const fetchItems = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/admin/pending-actions', { credentials: 'include' })
+      const [res, wRes] = await Promise.all([
+        fetch('/api/admin/pending-actions', { credentials: 'include' }),
+        fetch('/api/business-loans/withdrawal-requests/pending', { credentials: 'include' }),
+      ])
       const json = await res.json()
       if (res.ok) {
         setLoanLockRequests(json.loanLockRequests || [])
@@ -185,6 +192,10 @@ export default function PendingActionsPage() {
         setPendingMealPrograms(json.pendingMealPrograms || [])
         setPersonalPaymentRequests(json.personalPaymentRequests || [])
         setPendingEcocashConversions(json.pendingEcocashConversions || [])
+      }
+      if (wRes.ok) {
+        const wJson = await wRes.json()
+        setWithdrawalRequests(wJson.data ?? [])
       }
     } catch { /* ignore */ } finally {
       setLoading(false)
@@ -519,6 +530,96 @@ export default function PendingActionsPage() {
                       </Link>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Loan Withdrawal Requests */}
+            {withdrawalRequests.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <span>💸</span> Loan Withdrawal Requests
+                  <span className="bg-purple-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
+                    {withdrawalRequests.length}
+                  </span>
+                </h2>
+                <div className="space-y-3">
+                  {withdrawalRequests.map((item: any) => {
+                    const isPending = item.status === 'PENDING'
+                    const isDraft = item.status === 'DRAFT'
+                    const isApproved = item.status === 'APPROVED'
+                    const isActioning = withdrawalActionState[item.id]
+                    return (
+                      <div key={item.id} className={`bg-white dark:bg-gray-800 border rounded-lg p-4 ${
+                        isApproved ? 'border-purple-400 dark:border-purple-600' :
+                        isDraft ? 'border-gray-300 dark:border-gray-600 opacity-75' :
+                        'border-purple-200 dark:border-purple-800'
+                      }`}>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              {isPending && <span className="bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 text-xs font-medium px-2 py-0.5 rounded">🔒 Pending Admin Approval</span>}
+                              {isDraft && <span className="bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 text-xs font-medium px-2 py-0.5 rounded">✏️ Lender is Editing</span>}
+                              {isApproved && <span className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 text-xs font-medium px-2 py-0.5 rounded">✅ Approved — Ready to Disburse</span>}
+                            </div>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                              <span className="font-semibold text-gray-900 dark:text-white">{item.creator?.name ?? '—'}</span>
+                              <span className="font-mono text-purple-600 dark:text-purple-400">${Number(isApproved ? item.approvedAmount : item.requestedAmount).toFixed(2)}{isDraft ? '*' : ''}</span>
+                              <span className="text-gray-500 dark:text-gray-400">Loan {item.loan?.loanNumber}</span>
+                              <span className="text-gray-500 dark:text-gray-400">{item.requestMonth}</span>
+                              {isApproved && item.loan?.lenderContactInfo && (
+                                <span className="text-gray-500 dark:text-gray-400">{item.loan.lenderContactInfo}</span>
+                              )}
+                            </div>
+                            {item.notes && !isDraft && (
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">"{item.notes}"</p>
+                            )}
+                            {isDraft && (
+                              <p className="text-xs text-sky-600 dark:text-sky-400 mt-0.5 italic">Values may change — no action available until lender resubmits</p>
+                            )}
+                            {isApproved && item.approver && (
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Approved by {item.approver.name}</p>
+                            )}
+                          </div>
+                          {isApproved && (
+                            <div className="flex gap-2 shrink-0">
+                              <button
+                                disabled={isActioning}
+                                onClick={async () => {
+                                  if (!await confirm({ title: 'Confirm Disbursement', description: `You are about to disburse $${Number(item.approvedAmount).toFixed(2)} to ${item.creator?.name}. This cannot be undone.`, confirmText: 'Confirm Disbursement' })) return
+                                  setWithdrawalActionState(s => ({ ...s, [item.id]: true }))
+                                  try {
+                                    const res = await fetch(`/api/business-loans/${item.loanId}/withdrawal-requests/${item.id}`, {
+                                      method: 'PUT',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      credentials: 'include',
+                                      body: JSON.stringify({ action: 'pay' }),
+                                    })
+                                    const json = await res.json()
+                                    if (!res.ok) throw new Error(json.error || 'Failed to mark paid')
+                                    toast.push('Disbursement confirmed', { type: 'success' })
+                                    fetchItems()
+                                  } catch (e: any) { toast.error(e.message) } finally {
+                                    setWithdrawalActionState(s => ({ ...s, [item.id]: false }))
+                                  }
+                                }}
+                                className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded transition-colors disabled:opacity-50"
+                              >
+                                {isActioning ? 'Processing…' : 'Mark as Paid'}
+                              </button>
+                              <button
+                                disabled={isActioning}
+                                onClick={() => setWithdrawalDenyModal({ requestId: item.id, loanId: item.loanId, amount: Number(item.approvedAmount) })}
+                                className="px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-700 text-sm font-medium rounded transition-colors hover:bg-red-100 disabled:opacity-50"
+                              >
+                                Deny — Insufficient Funds
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}
@@ -938,6 +1039,59 @@ export default function PendingActionsPage() {
         )}
       </div>
     </ContentLayout>
+
+    {/* Withdrawal — cashier deny modal */}
+    {withdrawalDenyModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 w-full max-w-sm space-y-4">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Deny Disbursement</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Amount: <strong>${withdrawalDenyModal.amount.toFixed(2)}</strong></p>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Reason for denial</label>
+            <textarea
+              rows={3}
+              value={withdrawalDenyReason}
+              onChange={e => setWithdrawalDenyReason(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-red-500 resize-none"
+            />
+          </div>
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={() => { setWithdrawalDenyModal(null); setWithdrawalDenyReason('Insufficient funds') }}
+              className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              disabled={!withdrawalDenyReason.trim() || withdrawalActionState[withdrawalDenyModal.requestId]}
+              onClick={async () => {
+                const { requestId, loanId } = withdrawalDenyModal
+                setWithdrawalActionState(s => ({ ...s, [requestId]: true }))
+                try {
+                  const res = await fetch(`/api/business-loans/${loanId}/withdrawal-requests/${requestId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ action: 'deny', deniedByRole: 'CASHIER', denialReason: withdrawalDenyReason }),
+                  })
+                  const json = await res.json()
+                  if (!res.ok) throw new Error(json.error || 'Failed to deny')
+                  toast.push('Disbursement denied', { type: 'success' })
+                  setWithdrawalDenyModal(null)
+                  setWithdrawalDenyReason('Insufficient funds')
+                  fetchItems()
+                } catch (e: any) { toast.error(e.message) } finally {
+                  setWithdrawalActionState(s => ({ ...s, [requestId]: false }))
+                }
+              }}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
+            >
+              Confirm Denial
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* Standalone account payment review modal */}
     {standaloneReview && (() => {

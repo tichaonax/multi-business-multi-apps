@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { emitNotification } from '@/lib/notifications/notification-emitter'
 
 /**
  * POST /api/business-loans/[loanId]/withdrawal-requests
@@ -106,6 +107,49 @@ export async function POST(
         createdBy: user.id,
       },
     })
+
+    // Dual notifications — admin approval + cashier heads-up (non-blocking)
+    try {
+      const [adminUsers, cashierMembers] = await Promise.all([
+        prisma.users.findMany({
+          where: { role: 'admin', isActive: true },
+          select: { id: true },
+        }),
+        prisma.businessMemberships.findMany({
+          where: { isActive: true, role: { in: ['owner', 'manager', 'cashier'] } },
+          select: { userId: true },
+          distinct: ['userId'],
+        }),
+      ])
+      const adminIds = adminUsers.map(u => u.id)
+      const cashierIds = [...new Set(cashierMembers.map(m => m.userId))].filter(
+        id => !adminIds.includes(id) && id !== user.id
+      )
+      const notesSummary = notes?.trim() ? ` Notes: "${notes.trim()}"` : ''
+
+      if (adminIds.length > 0) {
+        await emitNotification({
+          userIds: adminIds,
+          type: 'WITHDRAWAL_SUBMITTED',
+          title: 'New Withdrawal Request',
+          message: `${user.name} requested $${amount.toFixed(2)} from loan ${loan.loanNumber}.${notesSummary}`,
+          linkUrl: '/admin/loans',
+          metadata: { requestId: withdrawalRequest.id, loanId, requestNumber },
+        })
+      }
+      if (cashierIds.length > 0) {
+        await emitNotification({
+          userIds: cashierIds,
+          type: 'WITHDRAWAL_CASHIER_ALERT',
+          title: 'Withdrawal Request — Awaiting Admin Approval',
+          message: `${user.name} requested $${amount.toFixed(2)} from loan ${loan.loanNumber}. Admin must approve before you can disburse.`,
+          linkUrl: '/admin/pending-actions',
+          metadata: { requestId: withdrawalRequest.id, loanId, requestNumber },
+        })
+      }
+    } catch (notifErr) {
+      console.error('[withdrawal] Notification error (non-blocking):', notifErr)
+    }
 
     return NextResponse.json({ withdrawalRequest }, { status: 201 })
   } catch (error) {

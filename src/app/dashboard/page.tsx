@@ -1317,14 +1317,31 @@ function DashboardContent() {
                             return <p className="text-xs text-gray-500 truncate">{activity.description}</p>
                           })() : (() => {
                             // Highlight dollar amounts in description (e.g. "COMPLETED order from HXI Fashions - $17.00")
-                            const parts = activity.description.split(/(\$[\d,]+\.?\d*)/)
+                            const parts: string[] = activity.description.split(/(\$[\d,]+\.?\d*)/)
+                            const amountColorClass = (() => {
+                              const palette = [
+                                'text-indigo-600 dark:text-indigo-400',
+                                'text-emerald-600 dark:text-emerald-400',
+                                'text-amber-600 dark:text-amber-400',
+                                'text-orange-600 dark:text-orange-400',
+                                'text-cyan-600 dark:text-cyan-400',
+                                'text-violet-600 dark:text-violet-400',
+                              ]
+                              const businessKey = activity.businessInfo?.businessId || activity.businessInfo?.businessName || activity.module || ''
+                              let hash = 0
+                              for (let index = 0; index < businessKey.length; index++) {
+                                hash = businessKey.charCodeAt(index) + ((hash << 5) - hash)
+                              }
+                              return palette[Math.abs(hash) % palette.length]
+                            })()
+                            const highlightedDescription: Array<string | JSX.Element> = parts.map((part, index) =>
+                              /^\$[\d,]+\.?\d*$/.test(part)
+                                ? <span key={index} className={`font-mono font-semibold ${amountColorClass}`}>{part}</span>
+                                : part
+                            )
                             return (
                               <p className="text-xs text-gray-500 truncate">
-                                {parts.map((part, i) =>
-                                  /^\$[\d,]+\.?\d*$/.test(part)
-                                    ? <span key={i} className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">{part}</span>
-                                    : part
-                                )}
+                                {highlightedDescription}
                               </p>
                             )
                           })()}

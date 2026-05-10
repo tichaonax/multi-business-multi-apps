@@ -1799,7 +1799,7 @@ model LoanWithdrawalRequest {
   requestNumber   String    @unique @map("request_number")
   requestedAmount Decimal   @map("requested_amount") @db.Decimal(12, 2)
   requestMonth    String    @map("request_month") // "2026-03" — 1-per-month enforcement
-  status          String    @default("PENDING") // PENDING | APPROVED | PAID | REJECTED
+  status          String    @default("PENDING") // PENDING | DRAFT | APPROVED | PAID | DENIED | RESCINDED
   notes           String?
   approvedAmount  Decimal?  @map("approved_amount") @db.Decimal(12, 2)
   approvedBy      String?   @map("approved_by")
@@ -1807,6 +1807,9 @@ model LoanWithdrawalRequest {
   rejectedBy      String?   @map("rejected_by")
   rejectedAt      DateTime? @map("rejected_at")
   rejectionReason String?   @map("rejection_reason")
+  deniedByRole    String?   @map("denied_by_role")   // 'ADMIN' | 'CASHIER'
+  rescindedBy     String?   @map("rescinded_by")
+  rescindedAt     DateTime? @map("rescinded_at")
   paidAt          DateTime? @map("paid_at")
   paidBy          String?   @map("paid_by")
   paymentId       String?   @unique @map("payment_id") // FK to ExpenseAccountPayments
@@ -1814,12 +1817,13 @@ model LoanWithdrawalRequest {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  loan     BusinessLoan            @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  approver Users?                  @relation("WithdrawalApprover", fields: [approvedBy], references: [id])
-  rejector Users?                  @relation("WithdrawalRejector", fields: [rejectedBy], references: [id])
-  payer    Users?                  @relation("WithdrawalPayer", fields: [paidBy], references: [id])
-  payment  ExpenseAccountPayments? @relation("WithdrawalPayment", fields: [paymentId], references: [id])
-  creator  Users                   @relation("WithdrawalRequester", fields: [createdBy], references: [id])
+  loan      BusinessLoan            @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  approver  Users?                  @relation("WithdrawalApprover", fields: [approvedBy], references: [id])
+  rejector  Users?                  @relation("WithdrawalRejector", fields: [rejectedBy], references: [id])
+  rescinder Users?                  @relation("WithdrawalRescinder", fields: [rescindedBy], references: [id])
+  payer     Users?                  @relation("WithdrawalPayer", fields: [paidBy], references: [id])
+  payment   ExpenseAccountPayments? @relation("WithdrawalPayment", fields: [paymentId], references: [id])
+  creator   Users                   @relation("WithdrawalRequester", fields: [createdBy], references: [id])
 
   @@unique([loanId, requestMonth])
   @@index([loanId])
@@ -3448,6 +3452,7 @@ model Users {
   loan_withdrawal_requests_created                                LoanWithdrawalRequest[]          @relation("WithdrawalRequester")
   loan_withdrawal_requests_approved                               LoanWithdrawalRequest[]          @relation("WithdrawalApprover")
   loan_withdrawal_requests_rejected                               LoanWithdrawalRequest[]          @relation("WithdrawalRejector")
+  loan_withdrawal_requests_rescinded                              LoanWithdrawalRequest[]          @relation("WithdrawalRescinder")
   loan_withdrawal_requests_paid                                   LoanWithdrawalRequest[]          @relation("WithdrawalPayer")
   app_notifications                                               AppNotification[]
   bale_bogo_history                                               ClothingBaleBogoHistory[]        @relation("BaleBogoHistoryUser")

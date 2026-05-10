@@ -40,11 +40,14 @@ interface WithdrawalRequest {
   status: string
   notes: string | null
   rejectionReason: string | null
+  deniedByRole: string | null
   createdAt: string
   approvedAt: string | null
   paidAt: string | null
+  rescindedAt: string | null
   approver: { id: string; name: string } | null
   payer: { id: string; name: string } | null
+  creator: { id: string; name: string }
 }
 
 interface Loan {
@@ -104,9 +107,12 @@ const STATUS_COLORS: Record<string, string> = {
 }
 const WITHDRAWAL_STATUS_COLORS: Record<string, string> = {
   PENDING: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
+  DRAFT: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
   APPROVED: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
   PAID: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+  DENIED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
   REJECTED: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+  RESCINDED: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500',
 }
 
 function fmt(val: string | number | null | undefined) {
@@ -159,6 +165,10 @@ export default function LoanDetailPage() {
   const [approveAmount, setApproveAmount] = useState('')
   const [rejectReason, setRejectReason] = useState('')
   const [actionSubmitting, setActionSubmitting] = useState(false)
+
+  // Lender inline edit state
+  const [editingRequestId, setEditingRequestId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ requestedAmount: '', notes: '' })
 
   const currentUser = session?.user as any
 
@@ -359,22 +369,47 @@ export default function LoanDetailPage() {
     } catch (e: any) { toast.error(e.message) }
   }
 
-  async function adminWithdrawalAction(requestId: string, action: 'approve' | 'reject' | 'pay', extra?: { approvedAmount?: number; rejectionReason?: string }) {
+  async function withdrawalAction(requestId: string, body: Record<string, unknown>, successMsg: string) {
     setActionSubmitting(true)
     try {
       const res = await fetch(`/api/business-loans/${loanId}/withdrawal-requests/${requestId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ action, ...extra }),
+        body: JSON.stringify(body),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || `Failed to ${action}`)
-      toast.push(`Withdrawal ${action}d successfully`, { type: 'success' })
+      if (!res.ok) throw new Error(json.error || 'Action failed')
+      toast.push(successMsg, { type: 'success' })
       setApproveModal(null)
       setRejectModal(null)
       setApproveAmount('')
       setRejectReason('')
+      setEditingRequestId(null)
+      setEditForm({ requestedAmount: '', notes: '' })
+      fetchLoan()
+    } catch (e: any) { toast.error(e.message) } finally { setActionSubmitting(false) }
+  }
+
+  // Shorthand for admin actions
+  async function adminWithdrawalAction(requestId: string, action: 'approve' | 'deny' | 'pay', extra?: { approvedAmount?: number; denialReason?: string }) {
+    await withdrawalAction(requestId, { action, deniedByRole: action === 'deny' ? 'ADMIN' : undefined, ...extra }, `Withdrawal ${action === 'deny' ? 'denied' : action + 'd'} successfully`)
+  }
+
+  // Lender: begin-edit — fires API call first to flip status to DRAFT, then opens the form
+  async function beginEdit(w: WithdrawalRequest) {
+    setActionSubmitting(true)
+    try {
+      const res = await fetch(`/api/business-loans/${loanId}/withdrawal-requests/${w.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'begin-edit' }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to begin edit')
+      setEditingRequestId(w.id)
+      setEditForm({ requestedAmount: w.requestedAmount, notes: w.notes ?? '' })
       fetchLoan()
     } catch (e: any) { toast.error(e.message) } finally { setActionSubmitting(false) }
   }
@@ -473,35 +508,168 @@ export default function LoanDetailPage() {
             </div>
           )}
 
-          {loan.withdrawalRequests && loan.withdrawalRequests.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-              <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Withdrawal History</h2>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-700">
-                    <th className="py-2 text-left text-gray-500">Request #</th>
-                    <th className="py-2 text-left text-gray-500">Month</th>
-                    <th className="py-2 text-right text-gray-500">Requested</th>
-                    <th className="py-2 text-right text-gray-500">Approved</th>
-                    <th className="py-2 text-left text-gray-500">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loan.withdrawalRequests.map(w => (
-                    <tr key={w.id} className="border-b border-gray-100 dark:border-gray-700">
-                      <td className="py-2 font-mono text-xs">{w.requestNumber}</td>
-                      <td className="py-2">{w.requestMonth}</td>
-                      <td className="py-2 text-right font-mono">{fmt(w.requestedAmount)}</td>
-                      <td className="py-2 text-right font-mono">{fmt(w.approvedAmount)}</td>
-                      <td className="py-2">
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs ${WITHDRAWAL_STATUS_COLORS[w.status]}`}>{w.status}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+            <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">Withdrawal History</h2>
+            {(!loan.withdrawalRequests || loan.withdrawalRequests.length === 0) ? (
+              <p className="text-sm text-gray-400">No withdrawal requests yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {loan.withdrawalRequests.map(w => {
+                  const isEditing = editingRequestId === w.id
+                  const isDraft = w.status === 'DRAFT'
+                  return (
+                    <div key={w.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs text-gray-500">{w.requestNumber}</span>
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${WITHDRAWAL_STATUS_COLORS[w.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                            {w.status === 'DRAFT' ? 'Editing' : w.status}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs text-gray-500">{w.requestMonth}</span>
+                          <span className="ml-3 font-mono font-semibold text-sm text-gray-900 dark:text-gray-100">{fmt(w.requestedAmount)}</span>
+                          {w.approvedAmount && <span className="ml-1 text-xs text-green-600 dark:text-green-400">(approved {fmt(w.approvedAmount)})</span>}
+                        </div>
+                      </div>
+
+                      {/* Denial reason */}
+                      {(w.status === 'DENIED' || w.status === 'REJECTED') && w.rejectionReason && (
+                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded px-3 py-2 text-xs text-red-700 dark:text-red-300">
+                          Denied by {w.deniedByRole === 'CASHIER' ? 'cashier' : 'admin'}: {w.rejectionReason}
+                        </div>
+                      )}
+
+                      {/* Inline edit form — shown when DRAFT (begin-edit) or when editing a DENIED request */}
+                      {(isEditing || isDraft) && (
+                        <div className="border-t border-gray-100 dark:border-gray-700 pt-2 space-y-2">
+                          <p className="text-xs text-sky-600 dark:text-sky-400 font-medium">Editing — admin cannot approve until you resubmit or cancel</p>
+                          <div className="flex flex-wrap gap-2 items-end">
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-0.5">Amount</label>
+                              <input
+                                type="number" min="0.01" max={summary?.availableToWithdraw} step="0.01"
+                                value={editForm.requestedAmount}
+                                onChange={e => setEditForm(f => ({ ...f, requestedAmount: e.target.value }))}
+                                className="px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-1 focus:ring-blue-500 w-32"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <label className="block text-xs text-gray-500 mb-0.5">Notes</label>
+                              <input
+                                type="text" placeholder="Optional"
+                                value={editForm.notes}
+                                onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                                className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              disabled={actionSubmitting || !editForm.requestedAmount}
+                              onClick={() => withdrawalAction(w.id, { action: 'resubmit', requestedAmount: parseFloat(editForm.requestedAmount), notes: editForm.notes || undefined }, 'Request resubmitted')}
+                              className="px-3 py-1.5 bg-purple-600 text-white rounded text-xs font-medium hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                            >
+                              {actionSubmitting ? 'Resubmitting…' : 'Resubmit'}
+                            </button>
+                            <button
+                              disabled={actionSubmitting}
+                              onClick={() => {
+                                if (isDraft && !isEditing) {
+                                  // Cancel edit: restore PENDING via API
+                                  withdrawalAction(w.id, { action: 'cancel-edit' }, 'Edit cancelled')
+                                } else {
+                                  setEditingRequestId(null)
+                                  setEditForm({ requestedAmount: '', notes: '' })
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs font-medium hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
+                            >
+                              Cancel Edit
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Action buttons per status */}
+                      {!isEditing && !isDraft && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {w.status === 'PENDING' && (
+                            <>
+                              <button
+                                disabled={actionSubmitting}
+                                onClick={() => beginEdit(w)}
+                                className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs font-medium hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
+                              >
+                                Edit Request
+                              </button>
+                              <button
+                                disabled={actionSubmitting}
+                                onClick={async () => {
+                                  if (await confirm({ title: 'Rescind Request', description: 'Cancel this withdrawal request? This cannot be undone.', confirmText: 'Rescind' }))
+                                    withdrawalAction(w.id, { action: 'rescind' }, 'Request rescinded')
+                                }}
+                                className="px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-700 rounded text-xs font-medium hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-50 transition-colors"
+                              >
+                                Rescind
+                              </button>
+                            </>
+                          )}
+                          {(w.status === 'DENIED' || w.status === 'REJECTED') && (
+                            <button
+                              disabled={actionSubmitting}
+                              onClick={() => {
+                                setEditingRequestId(w.id)
+                                setEditForm({ requestedAmount: w.requestedAmount, notes: w.notes ?? '' })
+                              }}
+                              className="px-3 py-1.5 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700 rounded text-xs font-medium hover:bg-purple-100 dark:hover:bg-purple-900/40 disabled:opacity-50 transition-colors"
+                            >
+                              Edit &amp; Resubmit
+                            </button>
+                          )}
+                          {w.status === 'APPROVED' && (
+                            <span className="text-xs text-blue-600 dark:text-blue-400 py-1.5">Approved — cashier will disburse the funds shortly</span>
+                          )}
+                          {w.status === 'PAID' && (
+                            <span className="text-xs text-green-600 dark:text-green-400 py-1.5">Paid {fmtDate(w.paidAt)}</span>
+                          )}
+                          {w.status === 'RESCINDED' && (
+                            <span className="text-xs text-gray-400 py-1.5">Rescinded {fmtDate(w.rescindedAt)}</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* DRAFT state visible to lender if they navigate away and back */}
+                      {isDraft && !isEditing && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <button
+                            disabled={actionSubmitting}
+                            onClick={() => {
+                              setEditingRequestId(w.id)
+                              setEditForm({ requestedAmount: w.requestedAmount, notes: w.notes ?? '' })
+                            }}
+                            className="px-3 py-1.5 bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-700 rounded text-xs font-medium hover:bg-sky-100 transition-colors"
+                          >
+                            Continue Editing
+                          </button>
+                          <button
+                            disabled={actionSubmitting}
+                            onClick={async () => {
+                              if (await confirm({ title: 'Rescind Request', description: 'Cancel this withdrawal request? This cannot be undone.', confirmText: 'Rescind' }))
+                                withdrawalAction(w.id, { action: 'rescind' }, 'Request rescinded')
+                            }}
+                            className="px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-700 rounded text-xs font-medium hover:bg-red-100 transition-colors"
+                          >
+                            Rescind
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </ContentLayout>
     )
@@ -1079,23 +1247,24 @@ export default function LoanDetailPage() {
                                   onClick={() => setRejectModal({ requestId: w.id })}
                                   className="px-2 py-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded text-xs font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
                                 >
-                                  Reject
+                                  Deny
                                 </button>
                               </div>
                             )}
+                            {w.status === 'DRAFT' && (
+                              <span className="text-sky-600 dark:text-sky-400 italic">Lender is editing…</span>
+                            )}
                             {w.status === 'APPROVED' && (
-                              <button
-                                onClick={async () => { if (await confirm({ title: 'Mark as Paid', description: `Mark this withdrawal as paid? Amount: $${Number(w.approvedAmount).toFixed(2)}`, confirmText: 'Mark Paid' })) adminWithdrawalAction(w.id, 'pay') }}
-                                className="px-2 py-1 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 transition-colors"
-                              >
-                                Mark Paid
-                              </button>
+                              <span className="text-blue-600 dark:text-blue-400">Awaiting cashier disbursement</span>
                             )}
                             {w.status === 'PAID' && (
                               <span className="text-gray-500 dark:text-gray-400">Paid {fmtDate(w.paidAt)}</span>
                             )}
-                            {w.status === 'REJECTED' && (
-                              <span className="text-gray-500 dark:text-gray-400">Rejected</span>
+                            {(w.status === 'DENIED' || w.status === 'REJECTED') && (
+                              <span className="text-red-600 dark:text-red-400">Denied</span>
+                            )}
+                            {w.status === 'RESCINDED' && (
+                              <span className="text-gray-400">Rescinded</span>
                             )}
                           </td>
                         )}
@@ -1148,18 +1317,18 @@ export default function LoanDetailPage() {
         </div>
       )}
 
-      {/* ── Reject modal ──────────────────────────────────────────────────── */}
+      {/* ── Deny modal ────────────────────────────────────────────────────── */}
       {rejectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 w-full max-w-sm space-y-4">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Reject Withdrawal</h3>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Deny Withdrawal</h3>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Reason for rejection</label>
+              <label className="block text-xs text-gray-500 mb-1">Reason for denial</label>
               <textarea
                 rows={3}
                 value={rejectReason}
                 onChange={e => setRejectReason(e.target.value)}
-                placeholder="Explain why this request is being rejected…"
+                placeholder="Explain why this request is being denied…"
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-red-500 resize-none"
               />
             </div>
@@ -1172,10 +1341,10 @@ export default function LoanDetailPage() {
               </button>
               <button
                 disabled={actionSubmitting || !rejectReason.trim()}
-                onClick={() => adminWithdrawalAction(rejectModal.requestId, 'reject', { rejectionReason: rejectReason })}
+                onClick={() => adminWithdrawalAction(rejectModal.requestId, 'deny', { denialReason: rejectReason } as any)}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
               >
-                {actionSubmitting ? 'Rejecting…' : 'Reject'}
+                {actionSubmitting ? 'Denying…' : 'Deny'}
               </button>
             </div>
           </div>

@@ -61,6 +61,7 @@ export default function AdminLoansPage() {
   const [loans, setLoans] = useState<Loan[]>([])
   const [users, setUsers] = useState<UserOption[]>([])
   const [loading, setLoading] = useState(true)
+  const [pendingWithdrawals, setPendingWithdrawals] = useState<any[]>([])
   const [showNewModal, setShowNewModal] = useState(false)
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -93,10 +94,17 @@ export default function AdminLoansPage() {
   async function fetchLoans() {
     setLoading(true)
     try {
-      const res = await fetch('/api/business-loans', { credentials: 'include' })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Failed to load loans')
-      setLoans(json.loans)
+      const [loansRes, withdrawalsRes] = await Promise.all([
+        fetch('/api/business-loans', { credentials: 'include' }),
+        fetch('/api/business-loans/withdrawal-requests/pending', { credentials: 'include' }),
+      ])
+      const loansJson = await loansRes.json()
+      if (!loansRes.ok) throw new Error(loansJson.error || 'Failed to load loans')
+      setLoans(loansJson.loans)
+      if (withdrawalsRes.ok) {
+        const wJson = await withdrawalsRes.json()
+        setPendingWithdrawals(wJson.data ?? [])
+      }
     } catch (e: any) {
       toast.error(e.message)
     } finally {
@@ -230,6 +238,56 @@ export default function AdminLoansPage() {
             </div>
           </div>
         )}
+
+        {/* Withdrawal requests banner */}
+        {pendingWithdrawals.length > 0 && (() => {
+          const actionable = pendingWithdrawals.filter(w => w.status === 'PENDING')
+          const editing = pendingWithdrawals.filter(w => w.status === 'DRAFT')
+          return (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-xl p-4 space-y-3">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                ⚠️ {actionable.length > 0 ? `${actionable.length} withdrawal request${actionable.length > 1 ? 's' : ''} awaiting your approval` : 'Withdrawal requests in progress'}
+              </p>
+              {actionable.length > 0 && (
+                <div className="space-y-2">
+                  {actionable.map((w: any) => (
+                    <div key={w.id} className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="text-sm text-amber-700 dark:text-amber-400">
+                        <span className="font-medium">{w.creator?.name ?? '—'}</span>
+                        {' · '}{fmt(w.requestedAmount)}
+                        {' · '}{w.loan?.loanNumber}
+                        {' · '}{w.requestMonth}
+                        {w.notes && <span className="italic ml-1 text-xs">"{w.notes}"</span>}
+                      </div>
+                      <Link
+                        href={`/loans/${w.loanId}?tab=withdrawals`}
+                        className="px-3 py-1 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700 transition-colors"
+                      >
+                        Review →
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {editing.length > 0 && (
+                <div className="border-t border-amber-200 dark:border-amber-700 pt-2 space-y-1">
+                  <p className="text-xs text-amber-600 dark:text-amber-500 font-medium">Lender editing — no action available:</p>
+                  {editing.map((w: any) => (
+                    <div key={w.id} className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="text-sm text-amber-600 dark:text-amber-500 italic">
+                        <span className="font-medium not-italic">{w.creator?.name ?? '—'}</span>
+                        {' · '}${Number(w.requestedAmount).toFixed(2)}*
+                        {' · '}{w.loan?.loanNumber}
+                        {' · '}editing…
+                      </div>
+                      <span className="text-xs text-amber-500 dark:text-amber-600">Values may change</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
         {/* Loans table */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
