@@ -58,6 +58,7 @@ async function getLoanFull(loanId: string) {
         include: {
           approver: { select: { id: true, name: true } },
           payer: { select: { id: true, name: true } },
+          creator: { select: { id: true, name: true } },
         },
       },
     },

@@ -70,6 +70,13 @@ export async function POST(
     const currentBalance = Number(loan.expenseAccount?.balance ?? 0)
     const availableToWithdraw = Math.max(0, Math.abs(lockedBalance) - Math.abs(currentBalance))
 
+    if (availableToWithdraw <= 0) {
+      return NextResponse.json(
+        { error: 'Loan is fully repaid — no amount is available to withdraw' },
+        { status: 422 }
+      )
+    }
+
     if (amount > availableToWithdraw) {
       return NextResponse.json(
         {
@@ -110,21 +117,22 @@ export async function POST(
 
     // Dual notifications — admin approval + cashier heads-up (non-blocking)
     try {
-      const [adminUsers, cashierMembers] = await Promise.all([
+      const [adminUsers, cashierUsers] = await Promise.all([
         prisma.users.findMany({
           where: { role: 'admin', isActive: true },
           select: { id: true },
         }),
-        prisma.businessMemberships.findMany({
-          where: { isActive: true, role: { in: ['owner', 'manager', 'cashier'] } },
-          select: { userId: true },
-          distinct: ['userId'],
+        prisma.users.findMany({
+          where: {
+            isActive: true,
+            role: { not: 'admin' },
+            permissions: { path: ['canSubmitPaymentBatch'], equals: true },
+          },
+          select: { id: true },
         }),
       ])
       const adminIds = adminUsers.map(u => u.id)
-      const cashierIds = [...new Set(cashierMembers.map(m => m.userId))].filter(
-        id => !adminIds.includes(id) && id !== user.id
-      )
+      const cashierIds = cashierUsers.map(u => u.id).filter(id => !adminIds.includes(id) && id !== user.id)
       const notesSummary = notes?.trim() ? ` Notes: "${notes.trim()}"` : ''
 
       if (adminIds.length > 0) {

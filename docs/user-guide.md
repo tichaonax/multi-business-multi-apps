@@ -2609,25 +2609,104 @@ While the loan is in *Recording* status, you can link **expenses** to it — for
 
 ---
 
-#### Withdrawal Requests
+#### Loan Repayments — Requesting Money Back
 
-For loans that are drawn down in tranches (e.g. a revolving credit facility), you raise a **Withdrawal Request** each time you need to draw funds:
+> **Who uses this:** Anyone who lent money to the business (a lender) and wants to request a repayment. Also used by loan managers who submit requests on behalf of a lender.
 
-- **One withdrawal request per month** per loan.
-- Format: `WR-{LoanNumber}-{YYYYMM}` (e.g. `WR-LN-20260101-001-202601`).
-- Statuses: **Pending → Approved → Paid**
+When the business is ready to return funds to the lender, the lender submits a **Withdrawal Request**. This is how money flows back out — it goes through admin approval and then cashier disbursement before funds are released.
 
-**To create a withdrawal request:**
-1. Open the locked loan.
-2. Click **Request Withdrawal**.
-3. Enter the amount needed and the purpose.
-4. Click **Submit** — manager receives a notification.
-5. Manager reviews and clicks **Approve**.
-6. Once funds arrive, mark it as **Paid**.
+##### Finding the Loan Repayments Screen
+
+1. In the left sidebar, click **Loan Repayments**.
+2. A list of loans you are associated with appears.
+3. Click on a loan to open it.
+4. Select the **Withdrawals** tab to see all requests and the **Request Withdrawal** button.
 
 ---
 
-#### Recording Loan Repayments
+##### Withdrawal Request Statuses
+
+| Status | What it means |
+|--------|--------------|
+| **Pending** | Submitted and waiting for admin review |
+| **Draft** | You clicked "Edit Request" — the request is temporarily on hold while you make changes |
+| **Approved** | Admin approved it; waiting for the cashier to disburse the funds |
+| **Paid** | Funds have been disbursed to the lender |
+| **Denied** | The request was declined — by the admin (wrong amount, wrong timing) or by the cashier (insufficient funds) |
+| **Rescinded** | You cancelled the request before it was approved |
+
+> **One withdrawal request per month** per loan. The reference number format is `WR-{LoanNumber}-{YYYYMM}` (e.g. `WR-LN-20260317-001-202605`).
+
+---
+
+##### Submitting a Withdrawal Request
+
+1. Open the loan (via **Loan Repayments** in the sidebar).
+2. Go to the **Withdrawals** tab.
+3. Click **Request Withdrawal**.
+4. Enter:
+   - **Amount** — how much you are requesting
+   - **Notes** — reason or reference (optional)
+5. Click **Submit**.
+
+The admin and cashier are automatically notified. Your request appears with status **Pending**.
+
+---
+
+##### Editing a Pending Request
+
+If you need to change the amount or notes **before the admin approves it**:
+
+1. Find the request on the Withdrawals tab (status: **Pending**).
+2. Click **Edit Request**.
+   - The system immediately sets the status to **Draft** — this prevents the admin from approving stale figures while you are editing.
+3. Update the amount or notes in the form that appears.
+4. Click **Resubmit** to send the updated request back for admin review.
+   - Status returns to **Pending** and the admin is notified again.
+
+> If you open the edit form and change your mind, click **Cancel Edit** — the request goes back to Pending without any changes.
+
+---
+
+##### Rescinding a Request
+
+To cancel a request you no longer need (while it is still **Pending** or **Draft**):
+
+1. Find the request on the Withdrawals tab.
+2. Click **Rescind** and confirm.
+
+The request is permanently cancelled. You can submit a new one if needed.
+
+---
+
+##### What Happens After You Submit
+
+The request moves through two stages before funds are released:
+
+**Stage 1 — Admin Review (Pending → Approved or Denied)**
+- The admin sees your request in the **Loans** admin page (amber banner) and in **Pending Actions**.
+- Admin either **Approves** (moves to Approved, cashier is notified) or **Denies** with a reason (moves to Denied, you are notified).
+
+**Stage 2 — Cashier Disbursement (Approved → Paid or Denied)**
+- The cashier sees the approved request in **Pending Actions**.
+- Cashier either **Marks as Paid** (funds disbursed, you are notified) or **Denies — Insufficient Funds** (moved to Denied, you are notified).
+
+---
+
+##### If Your Request Is Denied
+
+You will receive a notification with the denial reason. Your request shows as **Denied** on the Withdrawals tab.
+
+To resubmit:
+1. Click **Edit & Resubmit** on the denied request.
+2. Adjust the amount or notes if needed.
+3. Click **Resubmit** — a fresh **Pending** request is created and the admin is notified again.
+
+---
+
+#### Recording Pre-Lock Repayments (Manager/Admin)
+
+> **Note:** This is a manager-only action for recording repayments that happened **before** the loan was locked (e.g. an early part-payment during setup). It is separate from the lender's withdrawal request process described above.
 
 Each repayment reduces the outstanding balance:
 1. Open the loan (must be in **Locked** status).

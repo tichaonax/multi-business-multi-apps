@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react'
 import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { formatDateByFormat, formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
-import { ReceiptPreviewModal } from '@/components/printing/receipt-preview'
+import { ReceiptPreviewModal } from '@/components/printing/receipt-preview-modal'
 import type { ReceiptData } from '@/types/printing'
 
 interface OrderItem {
@@ -39,6 +39,7 @@ interface Order {
   orderType?: string
   estimatedReadyTime?: string
   customerEmail?: string
+  salesperson?: string | null
   businessId?: string
   business?: {
     businessName?: string
@@ -298,7 +299,7 @@ export function OrderDetailModal({ orderId, isOpen, onClose, onUpdate }: OrderDe
               </div>
 
               {/* Customer Information */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <h3 className="text-sm font-medium text-secondary mb-1">Customer Name</h3>
                   {isEditing ? (
@@ -326,6 +327,10 @@ export function OrderDetailModal({ orderId, isOpen, onClose, onUpdate }: OrderDe
                   ) : (
                     <p className="text-primary">{order.tableNumber || 'Not assigned'}</p>
                   )}
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-secondary mb-1">Salesperson</h3>
+                  <p className="text-primary font-medium">{order.salesperson || '—'}</p>
                 </div>
               </div>
 

@@ -37,6 +37,12 @@ export async function GET(
             fullName: true
           }
         },
+        business_customers: {
+          select: {
+            name: true,
+            phone: true,
+          }
+        },
         business_order_items: {
           select: {
             id: true,
@@ -108,6 +114,9 @@ export async function GET(
       business: order.businesses,
       businesses: order.businesses,
       employee: order.employees,
+      salesperson: order.employees?.fullName || null,
+      customerName: order.business_customers?.name || (order.attributes as any)?.customerName || null,
+      customerPhone: order.business_customers?.phone || (order.attributes as any)?.customerPhone || null,
       businessType: order.businessType,
       orderType: order.attributes?.orderType || order.orderType || 'SALE',
       paymentMethod: order.paymentMethod || '',

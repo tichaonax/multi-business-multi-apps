@@ -151,11 +151,15 @@ export default function PendingActionsPage() {
   const [pendingEcocashConversions, setPendingEcocashConversions] = useState<PendingEcocashConversion[]>([])
   const [withdrawalRequests, setWithdrawalRequests] = useState<any[]>([])
   const [withdrawalActionState, setWithdrawalActionState] = useState<Record<string, boolean>>({})
-  const [withdrawalDenyModal, setWithdrawalDenyModal] = useState<{ requestId: string; loanId: string; amount: number } | null>(null)
+  const [withdrawalDenyModal, setWithdrawalDenyModal] = useState<{ requestId: string; loanId: string; amount: number; deniedByRole: 'ADMIN' | 'CASHIER' } | null>(null)
   const [withdrawalDenyReason, setWithdrawalDenyReason] = useState('Insufficient funds')
+  const [withdrawalApproveModal, setWithdrawalApproveModal] = useState<{ requestId: string; loanId: string; requestedAmount: number } | null>(null)
+  const [withdrawalApproveAmount, setWithdrawalApproveAmount] = useState('')
   const [personalActionState, setPersonalActionState] = useState<Record<string, 'approving' | 'rejecting' | null>>({})
   const [voucherItem, setVoucherItem] = useState<PersonalPaymentRequest | null>(null)
   const [loading, setLoading] = useState(true)
+  const currentUser = session?.user as any
+  const isAdminUser = currentUser?.role === 'admin'
   const total = loanLockRequests.length + pendingSupplierPayments.length + pendingPettyCash.length +
     pendingCashAllocations.length + pendingPaymentBatches.length + pendingPaymentRequests.length +
     pendingMealPrograms.length + personalPaymentRequests.length + pendingEcocashConversions.length
@@ -581,6 +585,24 @@ export default function PendingActionsPage() {
                               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Approved by {item.approver.name}</p>
                             )}
                           </div>
+                          {isPending && isAdminUser && (
+                            <div className="flex gap-2 shrink-0">
+                              <button
+                                disabled={isActioning}
+                                onClick={() => { setWithdrawalApproveModal({ requestId: item.id, loanId: item.loanId, requestedAmount: Number(item.requestedAmount) }); setWithdrawalApproveAmount(String(item.requestedAmount)) }}
+                                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors disabled:opacity-50"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                disabled={isActioning}
+                                onClick={() => setWithdrawalDenyModal({ requestId: item.id, loanId: item.loanId, amount: Number(item.requestedAmount), deniedByRole: 'ADMIN' })}
+                                className="px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-700 text-sm font-medium rounded transition-colors hover:bg-red-100 disabled:opacity-50"
+                              >
+                                Deny
+                              </button>
+                            </div>
+                          )}
                           {isApproved && (
                             <div className="flex gap-2 shrink-0">
                               <button
@@ -609,7 +631,7 @@ export default function PendingActionsPage() {
                               </button>
                               <button
                                 disabled={isActioning}
-                                onClick={() => setWithdrawalDenyModal({ requestId: item.id, loanId: item.loanId, amount: Number(item.approvedAmount) })}
+                                onClick={() => setWithdrawalDenyModal({ requestId: item.id, loanId: item.loanId, amount: Number(item.approvedAmount), deniedByRole: 'CASHIER' })}
                                 className="px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-700 text-sm font-medium rounded transition-colors hover:bg-red-100 disabled:opacity-50"
                               >
                                 Deny — Insufficient Funds
@@ -1044,7 +1066,7 @@ export default function PendingActionsPage() {
     {withdrawalDenyModal && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 w-full max-w-sm space-y-4">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Deny Disbursement</h3>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{withdrawalDenyModal.deniedByRole === 'ADMIN' ? 'Deny Withdrawal Request' : 'Deny Disbursement'}</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">Amount: <strong>${withdrawalDenyModal.amount.toFixed(2)}</strong></p>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Reason for denial</label>
@@ -1072,7 +1094,7 @@ export default function PendingActionsPage() {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
-                    body: JSON.stringify({ action: 'deny', deniedByRole: 'CASHIER', denialReason: withdrawalDenyReason }),
+                    body: JSON.stringify({ action: 'deny', deniedByRole: withdrawalDenyModal.deniedByRole, denialReason: withdrawalDenyReason }),
                   })
                   const json = await res.json()
                   if (!res.ok) throw new Error(json.error || 'Failed to deny')
@@ -1087,6 +1109,61 @@ export default function PendingActionsPage() {
               className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
             >
               Confirm Denial
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Withdrawal — admin approve modal */}
+    {withdrawalApproveModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 w-full max-w-sm space-y-4">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Approve Withdrawal</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Requested: <strong>${withdrawalApproveModal.requestedAmount.toFixed(2)}</strong></p>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Approved amount</label>
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={withdrawalApproveAmount}
+              onChange={e => setWithdrawalApproveAmount(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={() => { setWithdrawalApproveModal(null); setWithdrawalApproveAmount('') }}
+              className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              disabled={!withdrawalApproveAmount || Number(withdrawalApproveAmount) <= 0 || withdrawalActionState[withdrawalApproveModal.requestId]}
+              onClick={async () => {
+                const { requestId, loanId } = withdrawalApproveModal
+                setWithdrawalActionState(s => ({ ...s, [requestId]: true }))
+                try {
+                  const res = await fetch(`/api/business-loans/${loanId}/withdrawal-requests/${requestId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ action: 'approve', approvedAmount: parseFloat(withdrawalApproveAmount) }),
+                  })
+                  const json = await res.json()
+                  if (!res.ok) throw new Error(json.error || 'Failed to approve')
+                  toast.push('Withdrawal approved', { type: 'success' })
+                  setWithdrawalApproveModal(null)
+                  setWithdrawalApproveAmount('')
+                  fetchItems()
+                } catch (e: any) { toast.error(e.message) } finally {
+                  setWithdrawalActionState(s => ({ ...s, [requestId]: false }))
+                }
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {withdrawalActionState[withdrawalApproveModal.requestId] ? 'Approving…' : 'Confirm Approval'}
             </button>
           </div>
         </div>

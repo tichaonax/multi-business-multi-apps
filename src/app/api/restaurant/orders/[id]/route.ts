@@ -225,6 +225,12 @@ export async function GET(
             fullName: true
           }
         },
+        business_customers: {
+          select: {
+            name: true,
+            phone: true,
+          }
+        },
         business_order_items: {
           select: {
             id: true,
@@ -274,9 +280,10 @@ export async function GET(
     const transformedOrder = {
       id: order.id,
       orderNumber: order.orderNumber,
-      customerName: 'Walk-in Customer', // businessOrder doesn't have customer info
-      customerPhone: '',
+      customerName: order.business_customers?.name || (order.attributes as any)?.customerName || 'Walk-in Customer',
+      customerPhone: order.business_customers?.phone || (order.attributes as any)?.customerPhone || '',
       customerEmail: '',
+      salesperson: order.employees?.fullName || null,
   tableNumber: (order.attributes as any)?.tableNumber || '',
       orderType: mapOrderTypeFromUniversal(order.orderType || 'SALE'),
       status: mapStatusFromUniversal(order.status),

@@ -2170,6 +2170,11 @@ export default function RestaurantPOS() {
       return
     }
 
+    if (paymentMethod === 'CREDIT' && !selectedCustomer) {
+      toast.error('Select a customer before using store credit.')
+      return
+    }
+
     // Delivery validations
     if (orderType === 'delivery' && !selectedCustomer) {
       toast.error('Please select a customer for delivery orders')

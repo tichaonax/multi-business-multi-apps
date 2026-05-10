@@ -1203,77 +1203,175 @@ export default function LoanDetailPage() {
               </div>
             )}
 
-            {/* Withdrawals table */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-gray-500 font-medium">Request #</th>
-                    <th className="px-4 py-3 text-left text-gray-500 font-medium">Month</th>
-                    <th className="px-4 py-3 text-right text-gray-500 font-medium">Requested</th>
-                    <th className="px-4 py-3 text-right text-gray-500 font-medium">Approved</th>
-                    <th className="px-4 py-3 text-left text-gray-500 font-medium">Status</th>
-                    <th className="px-4 py-3 text-left text-gray-500 font-medium">Notes</th>
-                    {isAdmin && <th className="px-4 py-3 text-left text-gray-500 font-medium">Actions</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {loan.withdrawalRequests.length === 0 ? (
-                    <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No withdrawal requests yet</td></tr>
-                  ) : (
-                    loan.withdrawalRequests.map(w => (
-                      <tr key={w.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
-                        <td className="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">{w.requestNumber}</td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{w.requestMonth}</td>
-                        <td className="px-4 py-3 text-right font-mono">{fmt(w.requestedAmount)}</td>
-                        <td className="px-4 py-3 text-right font-mono">{fmt(w.approvedAmount)}</td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs ${WITHDRAWAL_STATUS_COLORS[w.status]}`}>{w.status}</span>
-                        </td>
-                        <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
-                          {w.rejectionReason ?? w.notes ?? '—'}
-                        </td>
-                        {isAdmin && (
-                          <td className="px-4 py-3 text-xs">
-                            {w.status === 'PENDING' && (
+            {/* Withdrawals — card layout for all roles */}
+            {loan.withdrawalRequests.length === 0 ? (
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center text-gray-400">
+                No withdrawal requests yet
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {loan.withdrawalRequests.map(w => {
+                  const isMine = w.createdBy === currentUser?.id
+                  const isEditing = editingRequestId === w.id
+                  const isDraft = w.status === 'DRAFT'
+                  return (
+                    <div key={w.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-2">
+                      {/* Header row */}
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{w.requestNumber}</span>
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${WITHDRAWAL_STATUS_COLORS[w.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                            {w.status === 'DRAFT' ? 'Editing' : w.status}
+                          </span>
+                          {w.creator && <span className="text-xs text-gray-400">by {w.creator.name}</span>}
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs text-gray-500">{w.requestMonth}</span>
+                          <span className="ml-3 font-mono font-semibold text-sm text-gray-900 dark:text-gray-100">{fmt(w.requestedAmount)}</span>
+                          {w.approvedAmount && <span className="ml-1 text-xs text-green-600 dark:text-green-400">(approved {fmt(w.approvedAmount)})</span>}
+                        </div>
+                      </div>
+
+                      {/* Notes */}
+                      {w.notes && <p className="text-xs text-gray-500 dark:text-gray-400">"{w.notes}"</p>}
+
+                      {/* Denial reason */}
+                      {(w.status === 'DENIED' || w.status === 'REJECTED') && w.rejectionReason && (
+                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded px-3 py-2 text-xs text-red-700 dark:text-red-300">
+                          Denied by {w.deniedByRole === 'CASHIER' ? 'cashier' : 'admin'}: {w.rejectionReason}
+                        </div>
+                      )}
+
+                      {/* ── Admin actions ── */}
+                      {(isAdmin || isSystemAdmin) && !isMine && (
+                        <div className="flex flex-wrap gap-2 pt-1 border-t border-gray-100 dark:border-gray-700">
+                          {w.status === 'PENDING' && (
+                            <>
+                              <button onClick={() => { setApproveModal({ requestId: w.id, requestedAmount: w.requestedAmount }); setApproveAmount(w.requestedAmount) }}
+                                className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 transition-colors">
+                                Approve
+                              </button>
+                              <button onClick={() => setRejectModal({ requestId: w.id })}
+                                className="px-2 py-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded text-xs font-medium hover:bg-red-200 transition-colors">
+                                Deny
+                              </button>
+                            </>
+                          )}
+                          {w.status === 'DRAFT' && <span className="text-xs text-sky-600 dark:text-sky-400 italic py-1">Lender is editing…</span>}
+                          {w.status === 'APPROVED' && <span className="text-xs text-blue-600 dark:text-blue-400 py-1">Awaiting cashier disbursement</span>}
+                          {w.status === 'PAID' && <span className="text-xs text-gray-500 py-1">Paid {fmtDate(w.paidAt)}</span>}
+                          {(w.status === 'DENIED' || w.status === 'REJECTED') && <span className="text-xs text-red-600 py-1">Denied — lender can edit &amp; resubmit</span>}
+                          {w.status === 'RESCINDED' && <span className="text-xs text-gray-400 py-1">Rescinded</span>}
+                        </div>
+                      )}
+
+                      {/* ── Requester (lender/manager) actions for their own rows ── */}
+                      {isMine && (
+                        <div className="border-t border-gray-100 dark:border-gray-700 pt-2 space-y-2">
+                          {/* Inline edit form — shown when DRAFT or editing a DENIED request */}
+                          {(isEditing || (isDraft && !isEditing)) && (
+                            <div className="space-y-2">
+                              {isDraft && !isEditing && (
+                                <p className="text-xs text-sky-600 dark:text-sky-400 font-medium">You have an open edit — admin cannot approve until you resubmit or cancel</p>
+                              )}
+                              {isEditing && (
+                                <p className="text-xs text-sky-600 dark:text-sky-400 font-medium">Editing — admin cannot approve until you resubmit or cancel</p>
+                              )}
+                              <div className="flex flex-wrap gap-2 items-end">
+                                <div>
+                                  <label className="block text-xs text-gray-500 mb-0.5">Amount</label>
+                                  <input type="number" min="0.01" max={summary.availableToWithdraw} step="0.01"
+                                    value={editForm.requestedAmount}
+                                    onChange={e => setEditForm(f => ({ ...f, requestedAmount: e.target.value }))}
+                                    className="px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-1 focus:ring-blue-500 w-32" />
+                                </div>
+                                <div className="flex-1">
+                                  <label className="block text-xs text-gray-500 mb-0.5">Notes</label>
+                                  <input type="text" placeholder="Optional"
+                                    value={editForm.notes}
+                                    onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                                    className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:ring-1 focus:ring-blue-500" />
+                                </div>
+                              </div>
                               <div className="flex gap-2">
-                                <button
-                                  onClick={() => { setApproveModal({ requestId: w.id, requestedAmount: w.requestedAmount }); setApproveAmount(w.requestedAmount) }}
-                                  className="px-2 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 transition-colors"
-                                >
-                                  Approve
+                                <button disabled={actionSubmitting || !editForm.requestedAmount}
+                                  onClick={() => withdrawalAction(w.id, { action: 'resubmit', requestedAmount: parseFloat(editForm.requestedAmount), notes: editForm.notes || undefined }, 'Request resubmitted')}
+                                  className="px-3 py-1.5 bg-purple-600 text-white rounded text-xs font-medium hover:bg-purple-700 disabled:opacity-50 transition-colors">
+                                  {actionSubmitting ? 'Resubmitting…' : 'Resubmit'}
                                 </button>
-                                <button
-                                  onClick={() => setRejectModal({ requestId: w.id })}
-                                  className="px-2 py-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded text-xs font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
-                                >
-                                  Deny
+                                <button disabled={actionSubmitting}
+                                  onClick={() => {
+                                    if (isDraft) {
+                                      withdrawalAction(w.id, { action: 'cancel-edit' }, 'Edit cancelled')
+                                    } else {
+                                      setEditingRequestId(null)
+                                      setEditForm({ requestedAmount: '', notes: '' })
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs font-medium hover:bg-gray-200 disabled:opacity-50 transition-colors">
+                                  Cancel Edit
                                 </button>
                               </div>
-                            )}
-                            {w.status === 'DRAFT' && (
-                              <span className="text-sky-600 dark:text-sky-400 italic">Lender is editing…</span>
-                            )}
-                            {w.status === 'APPROVED' && (
-                              <span className="text-blue-600 dark:text-blue-400">Awaiting cashier disbursement</span>
-                            )}
-                            {w.status === 'PAID' && (
-                              <span className="text-gray-500 dark:text-gray-400">Paid {fmtDate(w.paidAt)}</span>
-                            )}
-                            {(w.status === 'DENIED' || w.status === 'REJECTED') && (
-                              <span className="text-red-600 dark:text-red-400">Denied</span>
-                            )}
-                            {w.status === 'RESCINDED' && (
-                              <span className="text-gray-400">Rescinded</span>
-                            )}
-                          </td>
-                        )}
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                            </div>
+                          )}
+
+                          {/* Per-status action buttons */}
+                          {!isEditing && !isDraft && (
+                            <div className="flex flex-wrap gap-2">
+                              {w.status === 'PENDING' && (
+                                <>
+                                  <button disabled={actionSubmitting} onClick={() => beginEdit(w)}
+                                    className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs font-medium hover:bg-gray-200 disabled:opacity-50 transition-colors">
+                                    Edit Request
+                                  </button>
+                                  <button disabled={actionSubmitting}
+                                    onClick={async () => {
+                                      if (await confirm({ title: 'Rescind Request', description: 'Cancel this withdrawal request? This cannot be undone.', confirmText: 'Rescind' }))
+                                        withdrawalAction(w.id, { action: 'rescind' }, 'Request rescinded')
+                                    }}
+                                    className="px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-700 rounded text-xs font-medium hover:bg-red-100 disabled:opacity-50 transition-colors">
+                                    Rescind
+                                  </button>
+                                </>
+                              )}
+                              {(w.status === 'DENIED' || w.status === 'REJECTED') && (
+                                <button disabled={actionSubmitting}
+                                  onClick={() => { setEditingRequestId(w.id); setEditForm({ requestedAmount: w.requestedAmount, notes: w.notes ?? '' }) }}
+                                  className="px-3 py-1.5 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700 rounded text-xs font-medium hover:bg-purple-100 disabled:opacity-50 transition-colors">
+                                  Edit &amp; Resubmit
+                                </button>
+                              )}
+                              {w.status === 'APPROVED' && <span className="text-xs text-blue-600 dark:text-blue-400 py-1.5">Approved — cashier will disburse shortly</span>}
+                              {w.status === 'PAID' && <span className="text-xs text-green-600 dark:text-green-400 py-1.5">Paid {fmtDate(w.paidAt)}</span>}
+                              {w.status === 'RESCINDED' && <span className="text-xs text-gray-400 py-1.5">Rescinded {fmtDate(w.rescindedAt)}</span>}
+                            </div>
+                          )}
+
+                          {/* DRAFT: show "Continue Editing" if the edit form isn't open yet */}
+                          {isDraft && !isEditing && (
+                            <div className="flex flex-wrap gap-2">
+                              <button disabled={actionSubmitting}
+                                onClick={() => { setEditingRequestId(w.id); setEditForm({ requestedAmount: w.requestedAmount, notes: w.notes ?? '' }) }}
+                                className="px-3 py-1.5 bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-700 rounded text-xs font-medium hover:bg-sky-100 transition-colors">
+                                Continue Editing
+                              </button>
+                              <button disabled={actionSubmitting}
+                                onClick={async () => {
+                                  if (await confirm({ title: 'Rescind Request', description: 'Cancel this request? This cannot be undone.', confirmText: 'Rescind' }))
+                                    withdrawalAction(w.id, { action: 'rescind' }, 'Request rescinded')
+                                }}
+                                className="px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-700 rounded text-xs font-medium hover:bg-red-100 transition-colors">
+                                Rescind
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
 

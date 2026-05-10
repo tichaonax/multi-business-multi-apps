@@ -393,6 +393,13 @@ export async function POST(req: NextRequest) {
       paymentStatus = 'PAID'
     }
 
+    if ((paymentMethod === 'STORE_CREDIT' || paymentMethod === 'CREDIT') && !customerId) {
+      return NextResponse.json(
+        { success: false, error: 'Store credit requires a selected customer.' },
+        { status: 400 }
+      )
+    }
+
     // Fetch AP info for WiFi tokens (if any will be sold)
     let apInfo = null
     const hasWifiTokens = items.some(item => item.wifiToken === true)

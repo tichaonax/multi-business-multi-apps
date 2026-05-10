@@ -103,14 +103,17 @@ export async function PUT(
       return admins.map(u => u.id)
     }
 
-    // Helper: find all cashier user IDs (excludes admins to avoid double-notify)
+    // Helper: find all cashier user IDs (users with canSubmitPaymentBatch permission, excluding admins)
     async function getCashierIds(excludeIds: string[] = []): Promise<string[]> {
-      const members = await prisma.businessMemberships.findMany({
-        where: { isActive: true, role: { in: ['owner', 'manager', 'cashier'] } },
-        select: { userId: true },
-        distinct: ['userId'],
+      const cashiers = await prisma.users.findMany({
+        where: {
+          isActive: true,
+          role: { not: 'admin' },
+          permissions: { path: ['canSubmitPaymentBatch'], equals: true },
+        },
+        select: { id: true },
       })
-      return [...new Set(members.map(m => m.userId))].filter(id => !excludeIds.includes(id))
+      return cashiers.map(u => u.id).filter(id => !excludeIds.includes(id))
     }
 
     const { loan } = withdrawalRequest
@@ -284,30 +287,17 @@ export async function PUT(
       const payAmount = Number(withdrawalRequest.approvedAmount)
 
       const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        const payment = await tx.expenseAccountPayments.create({
-          data: {
-            expenseAccountId,
-            payeeType: 'LOAN_LENDER',
-            amount: payAmount,
-            paymentDate: new Date(),
-            paymentType: 'LOAN_WITHDRAWAL',
-            createdBy: user.id,
-            status: 'SUBMITTED',
-            isFullPayment: true,
-          },
-        })
-
         await tx.expenseAccounts.update({
           where: { id: expenseAccountId },
-          data: { balance: { decrement: payAmount } },
+          data: { balance: { increment: payAmount } },
         })
 
         const updatedRequest = await tx.loanWithdrawalRequest.update({
           where: { id: requestId },
-          data: { status: 'PAID', paidBy: user.id, paidAt: new Date(), paymentId: payment.id },
+          data: { status: 'PAID', paidBy: user.id, paidAt: new Date() },
         })
 
-        return { payment, withdrawalRequest: updatedRequest }
+        return { withdrawalRequest: updatedRequest }
       })
 
       // Notify lender

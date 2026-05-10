@@ -50,6 +50,7 @@ interface BusinessOrder {
   paymentMethod?: string
   paymentStatus?: string
   items?: OrderItem[]
+  salesperson?: string | null
   supplier?: {
     id: string
     name: string
@@ -320,7 +321,7 @@ export function BusinessOrderDetailModal({ orderId, isOpen, onClose, onUpdate }:
               </div>
 
               {/* Customer Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <h3 className="text-sm font-medium text-secondary mb-1">Customer Name</h3>
                   {isEditing ? (
@@ -350,6 +351,10 @@ export function BusinessOrderDetailModal({ orderId, isOpen, onClose, onUpdate }:
                       {order.customerPhone ? formatPhoneNumberForDisplay(order.customerPhone) : 'Not provided'}
                     </p>
                   )}
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-secondary mb-1">Salesperson</h3>
+                  <p className="text-primary font-medium">{order.salesperson || '—'}</p>
                 </div>
               </div>
 
