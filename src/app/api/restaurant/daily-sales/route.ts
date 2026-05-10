@@ -121,6 +121,7 @@ export async function GET(request: NextRequest) {
         where: {
           businessId,
           businessType: business.type,
+          status: { not: 'CANCELLED' },
           OR: [
             { transactionDate: { gte: start, lt: end } },
             { transactionDate: null, createdAt: { gte: start, lt: end } },
@@ -133,13 +134,14 @@ export async function GET(request: NextRequest) {
         where: {
           businessId,
           businessType: business.type,
+          status: { not: 'CANCELLED' },
           createdAt: { gte: start, lt: end },
         },
         include: ORDER_INCLUDE,
       })
     }
 
-    // Calculate totals — include ALL orders (meal program is real revenue)
+    // Calculate totals — include ALL orders (meal program is real revenue), exclude CANCELLED
     const regularOrders = orders.filter((o: any) => o.paymentMethod?.toUpperCase() !== 'EXPENSE_ACCOUNT')
     const totalOrders = orders.length
     const totalSales = orders.reduce((sum: number, order: any) => sum + Number(order.totalAmount || 0), 0)

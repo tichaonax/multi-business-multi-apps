@@ -70,6 +70,24 @@ export async function POST(
     )
   }
 
+  // Guard: cannot cancel after EOD is locked for the order's date
+  const orderDateStr = order.createdAt.toISOString().split('T')[0]
+  const eodLocked = await prisma.savedReports.findFirst({
+    where: {
+      businessId: order.businessId,
+      reportType: 'END_OF_DAY',
+      isLocked: true,
+      reportDate: new Date(orderDateStr + 'T00:00:00.000Z'),
+    },
+    select: { id: true },
+  })
+  if (eodLocked) {
+    return NextResponse.json(
+      { error: 'Order cannot be cancelled — EOD has already been run for this day' },
+      { status: 409 }
+    )
+  }
+
   // Calculate refund amounts
   const isEcocash = (order.paymentMethod as string)?.toUpperCase() === 'ECOCASH'
   const gross = Number(order.totalAmount)
