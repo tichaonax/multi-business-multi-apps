@@ -2,12 +2,21 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/get-server-user'
 
 // Get restaurant business IDs that user can access
-async function getRestaurantBusinessIds(session: any) {
+async function getRestaurantBusinessIds(currentUser: any) {
   const { prisma } = await import('@/lib/prisma')
 
-  // Check if user is system admin - they can access all restaurant orders
+  // If user is admin, get ALL active restaurant businesses
+  if (currentUser?.role === 'admin') {
+    const allRestaurantBusinesses = await prisma.businesses.findMany({
+      where: { type: 'restaurant', isActive: true },
+      select: { id: true, name: true }
+    })
+    return allRestaurantBusinesses.map(b => b.id)
+  }
+
+  // For non-admin users, look up their memberships
   const dbUser = await prisma.users.findUnique({
-      where: { id: user.id },
+    where: { id: currentUser.id },
     select: {
       role: true,
       business_memberships: {
@@ -22,18 +31,7 @@ async function getRestaurantBusinessIds(session: any) {
     }
   })
 
-  // If user is admin, get ALL active restaurant businesses
-  if (user?.role === 'admin') {
-    const allRestaurantBusinesses = await prisma.businesses.findMany({
-      where: { type: 'restaurant', isActive: true },
-      select: { id: true, name: true }
-    })
-
-    return allRestaurantBusinesses.map(b => b.id)
-  }
-
-  // For non-admin users, only return businesses they have membership to
-  return user?.business_memberships?.map(m => m.businesses.id) || []
+  return dbUser?.business_memberships?.map(m => m.businesses.id) || []
 }
 
 // PUT - Update order status using universal orders API
@@ -222,17 +220,18 @@ export async function GET(
             type: true
           }
         },
-        employee: {
+        employees: {
           select: {
             fullName: true
           }
         },
-        businessOrderItems: {
+        business_order_items: {
           select: {
             id: true,
             quantity: true,
             unitPrice: true,
             totalPrice: true,
+            attributes: true,
             product_variants: {
               select: {
                 name: true,
@@ -262,7 +261,7 @@ export async function GET(
     })
 
     if (userRole?.role !== 'admin') {
-      const restaurantBusinessIds = await getRestaurantBusinessIds(session)
+      const restaurantBusinessIds = await getRestaurantBusinessIds(user)
       if (!restaurantBusinessIds.includes(order.businessId)) {
         return NextResponse.json(
           { error: 'Access denied to this order' },
@@ -292,12 +291,12 @@ export async function GET(
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
       businessId: order.businessId,
-      items: order.businessOrderItems.map((item: any) => ({
+      items: order.business_order_items.map((item: any) => ({
         id: item.id,
         quantity: item.quantity,
         unitPrice: Number(item.unitPrice),
         totalPrice: Number(item.totalPrice),
-        productName: item.product_variants?.businessProducts?.name || item.product_variants?.name || 'Unknown Item'
+        productName: item.product_variants?.business_products?.name || item.product_variants?.name || (item.attributes as any)?.productName || 'Unknown Item'
       }))
     }
 

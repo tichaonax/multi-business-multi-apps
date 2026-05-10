@@ -218,12 +218,12 @@ export async function GET(req: NextRequest) {
             title: `Order #${order.orderNumber}`,
             description: `${order.status} order`,
             createdAt: order.createdAt,
-            module: order.business ? `restaurant(${order.businesses.name})` : 'restaurant',
+            module: order.businesses ? `restaurant(${order.businesses.name})` : 'restaurant',
             icon: '🍽️',
             status: order.status,
             entityId: order.id,
             link: hasBusinessAccess ? '/restaurant/orders' : null,
-            businessInfo: order.business ? {
+            businessInfo: order.businesses ? {
               businessId: order.businessId,
               businessName: order.businesses.name.length > 20
                 ? order.businesses.name.substring(0, 20) + '...'

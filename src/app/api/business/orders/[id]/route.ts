@@ -117,7 +117,13 @@ export async function GET(
         const variant = item.product_variants
         const product = variant?.business_products
         // Prefer variant name if set, otherwise fall back to product name
-        const productName = variant?.name || product?.name || 'Unknown Product'
+        const attrProductName = (item.attributes as any)?.productName
+        const baseProductName = product?.name || attrProductName || 'Unknown Product'
+        const variantName = variant?.name
+        // Show "Product (Variant)" only when variant name differs from product name
+        const productName = variantName && variantName !== baseProductName
+          ? `${baseProductName} (${variantName})`
+          : baseProductName
         return {
           id: item.id,
           productId: variant?.id ?? '',
@@ -126,11 +132,11 @@ export async function GET(
           unitPrice: Number(item.unitPrice),
           total: Number(item.totalPrice),
           attributes: item.attributes,
-          product: product ? {
-            name: product.name,
-            sku: variant?.sku ?? product.sku,
-            category: product.business_categories?.name,
-            categoryEmoji: product.business_categories?.emoji
+          product: (product || attrProductName) ? {
+            name: product?.name ?? attrProductName,
+            sku: variant?.sku ?? product?.sku,
+            category: product?.business_categories?.name,
+            categoryEmoji: product?.business_categories?.emoji
           } : undefined
         }
       })
