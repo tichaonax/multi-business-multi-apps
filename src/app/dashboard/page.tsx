@@ -32,6 +32,8 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { useAlert } from '@/components/ui/confirm-modal'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { usePendingActionsCount } from '@/hooks/use-pending-actions-count'
+import { SalesExpenseSnapshot } from '@/components/reports/sales-expense-snapshot'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 export default function Dashboard() {
   return (
@@ -101,6 +103,8 @@ function DashboardContent() {
   const [showTransactionModal, setShowTransactionModal] = useState<boolean>(false)
   const [showBusinessOrderModal, setShowBusinessOrderModal] = useState<boolean>(false)
   const [showUserModal, setShowUserModal] = useState<boolean>(false)
+  const [showBizSalesModal, setShowBizSalesModal] = useState<boolean>(false)
+  const [bizSalesModalData, setBizSalesModalData] = useState<{ businessId: string; businessName: string; businessType: string } | null>(null)
 
   // Fetch available users for filtering (admin only)
   const fetchAvailableUsers = async () => {
@@ -1099,15 +1103,39 @@ function DashboardContent() {
                 <span className="text-sm text-gray-500">{activityScopeLabel}</span>
                 {activityFilterScope === 'business' && !activityFilterBusinessId ? (
                   <span className="text-sm text-gray-400 italic">Select a business to see its figures</span>
-                ) : activityFinancialSummary && hasPermission('canAccessFinancialData') && (
-                  <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <span>Revenue: <span className="text-green-600 dark:text-green-400 font-medium">${activityFinancialSummary.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
-                    <span className="hidden sm:inline text-gray-300 dark:text-gray-600">|</span>
-                    <span>Expenses: <span className="text-red-600 dark:text-red-400 font-medium">${activityFinancialSummary.totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
-                    <span className="hidden sm:inline text-gray-300 dark:text-gray-600">|</span>
-                    <span>Net: <span className={`font-medium ${activityFinancialSummary.netAmount >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>${activityFinancialSummary.netAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
-                  </div>
-                )}
+                ) : activityFinancialSummary && hasPermission('canAccessFinancialData') && (() => {
+                  const selectedBiz = activityFilterScope === 'business' && activityFilterBusinessId
+                    ? availableBusinesses.find(b => b.id === activityFilterBusinessId)
+                    : null
+                  const openSalesModal = selectedBiz
+                    ? (e: React.MouseEvent) => {
+                        e.stopPropagation()
+                        setBizSalesModalData({ businessId: selectedBiz.id, businessName: selectedBiz.name, businessType: selectedBiz.type })
+                        setShowBizSalesModal(true)
+                      }
+                    : undefined
+                  return (
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                      {openSalesModal ? (
+                        <button onClick={openSalesModal} className="hover:underline underline-offset-2">
+                          Revenue: <span className="text-green-600 dark:text-green-400 font-medium">${activityFinancialSummary.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </button>
+                      ) : (
+                        <span>Revenue: <span className="text-green-600 dark:text-green-400 font-medium">${activityFinancialSummary.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
+                      )}
+                      <span className="hidden sm:inline text-gray-300 dark:text-gray-600">|</span>
+                      {openSalesModal ? (
+                        <button onClick={openSalesModal} className="hover:underline underline-offset-2">
+                          Expenses: <span className="text-red-600 dark:text-red-400 font-medium">${activityFinancialSummary.totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </button>
+                      ) : (
+                        <span>Expenses: <span className="text-red-600 dark:text-red-400 font-medium">${activityFinancialSummary.totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
+                      )}
+                      <span className="hidden sm:inline text-gray-300 dark:text-gray-600">|</span>
+                      <span>Net: <span className={`font-medium ${activityFinancialSummary.netAmount >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>${activityFinancialSummary.netAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
+                    </div>
+                  )
+                })()}
               </div>
               <svg className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${activityExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -2289,6 +2317,43 @@ function DashboardContent() {
             console.error('User update error:', error)
           }}
         />
+      )}
+
+      {showBizSalesModal && bizSalesModalData && (
+        <ModalPortal>
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60"
+            onClick={() => setShowBizSalesModal(false)}
+          >
+            <div
+              className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-3xl mx-auto flex flex-col overflow-hidden"
+              style={{ maxHeight: 'min(85vh, calc(100dvh - 2rem))' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                    📈 {bizSalesModalData.businessName}
+                  </h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Last 7 days — Sales &amp; Expenses</p>
+                </div>
+                <button
+                  onClick={() => setShowBizSalesModal(false)}
+                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4">
+                <SalesExpenseSnapshot
+                  businessId={bizSalesModalData.businessId}
+                  businessType={bizSalesModalData.businessType}
+                  initialPeriod="7d"
+                />
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
       )}
     </ProtectedRoute>
   )

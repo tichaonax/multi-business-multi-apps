@@ -141,39 +141,42 @@ export function EodAccountsWidget() {
           </div>
         )}
 
-        {groups.map(({ business, accounts, payrollCashBox, canViewPayroll, subtotal }) => {
-          const bizTotal = subtotal ?? accounts.reduce((s, a) => s + a.cashBoxBalance, 0) + payrollCashBox
-          return (
-          <div key={business.id}>
-            <p className="text-xs font-semibold text-secondary uppercase tracking-wide mb-2">
-              {business.name}
-              <span className="ml-2 font-normal normal-case text-gray-400">
-                ${bizTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {accounts.map(acc => (
-                <CashBox
-                  key={acc.id}
-                  icon="🏦"
-                  label={acc.accountName}
-                  balance={acc.cashBoxBalance}
-                  dailyAmount={acc.dailyAmount}
-                  onClick={() => setSelected({ id: acc.id, accountName: acc.accountName, businessName: business.name, type: 'account' })}
-                />
-              ))}
-              {payrollCashBox > 0 && canViewPayroll && (
-                <CashBox
-                  icon="💼"
-                  label="Payroll"
-                  balance={payrollCashBox}
-                  onClick={() => setSelected({ accountName: 'Payroll', businessName: business.name, type: 'payroll', businessId: business.id })}
-                />
-              )}
+        {/* Per-business groups — laid out side by side */}
+        <div className="flex flex-wrap gap-4">
+          {groups.map(({ business, accounts, payrollCashBox, canViewPayroll, subtotal }) => {
+            const bizTotal = subtotal ?? accounts.reduce((s, a) => s + a.cashBoxBalance, 0) + payrollCashBox
+            return (
+            <div key={business.id} className="flex flex-col gap-2">
+              <p className="text-xs font-semibold text-secondary uppercase tracking-wide">
+                {business.name}
+                <span className="ml-2 font-normal normal-case text-gray-400">
+                  ${bizTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {accounts.map(acc => (
+                  <CashBox
+                    key={acc.id}
+                    icon="🏦"
+                    label={acc.accountName}
+                    balance={acc.cashBoxBalance}
+                    dailyAmount={acc.dailyAmount}
+                    onClick={() => setSelected({ id: acc.id, accountName: acc.accountName, businessName: business.name, type: 'account' })}
+                  />
+                ))}
+                {payrollCashBox > 0 && canViewPayroll && (
+                  <CashBox
+                    icon="💼"
+                    label="Payroll"
+                    balance={payrollCashBox}
+                    onClick={() => setSelected({ accountName: 'Payroll', businessName: business.name, type: 'payroll', businessId: business.id })}
+                  />
+                )}
+              </div>
             </div>
-          </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
       </div>
       )}

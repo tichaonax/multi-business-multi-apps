@@ -30,6 +30,7 @@ interface SummaryData {
 interface SalesExpenseSnapshotProps {
   businessId: string
   businessType: string
+  initialPeriod?: Period
 }
 
 type Period = 'today' | 'yesterday' | '7d' | '30d' | 'custom'
@@ -83,13 +84,13 @@ function MiniTooltip({ active, payload, label }: any) {
   )
 }
 
-export function SalesExpenseSnapshot({ businessId, businessType }: SalesExpenseSnapshotProps) {
+export function SalesExpenseSnapshot({ businessId, businessType, initialPeriod }: SalesExpenseSnapshotProps) {
   const today     = getLocalDateString(new Date())
   const yesterday = getLocalDateString(new Date(Date.now() - 1  * 86400000))
   const minus7    = getLocalDateString(new Date(Date.now() - 6  * 86400000))
   const minus30   = getLocalDateString(new Date(Date.now() - 29 * 86400000))
 
-  const [period,           setPeriod]           = useState<Period>('30d')
+  const [period,           setPeriod]           = useState<Period>(initialPeriod ?? '30d')
   const [customStart,      setCustomStart]      = useState(minus30)
   const [customEnd,        setCustomEnd]        = useState(today)
   const [chartData,        setChartData]        = useState<DayData[]>([])
