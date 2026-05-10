@@ -5,6 +5,8 @@ import { useSession } from 'next-auth/react'
 import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { formatDateByFormat, formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
+import { ReceiptPreviewModal } from '@/components/printing/receipt-preview'
+import type { ReceiptData } from '@/types/printing'
 
 interface OrderItem {
   id: string
@@ -19,6 +21,7 @@ interface Order {
   id: string
   orderNumber: string
   status?: string
+  businessType?: string
   totalAmount: number
   subtotal: number
   taxAmount: number
@@ -32,13 +35,16 @@ interface Order {
   updatedAt: string
   paymentStatus?: string
   paymentMethod?: string
+  ecocashTransactionCode?: string
   orderType?: string
   estimatedReadyTime?: string
   customerEmail?: string
   businessId?: string
   business?: {
-    businessName: string
-    businessType: string
+    businessName?: string
+    businessType?: string
+    name?: string
+    type?: string
   }
   user?: {
     name: string
@@ -58,6 +64,9 @@ export function OrderDetailModal({ orderId, isOpen, onClose, onUpdate }: OrderDe
   const { format: globalDateFormat } = useDateFormat()
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(false)
+  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null)
+  const [showReceipt, setShowReceipt] = useState(false)
+  const [loadingReceipt, setLoadingReceipt] = useState(false)
   const fetchInFlightRef = useRef(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState({
@@ -170,6 +179,23 @@ export function OrderDetailModal({ orderId, isOpen, onClose, onUpdate }: OrderDe
     }
   }
 
+  const handleViewReceipt = async () => {
+    if (!order) return
+    setLoadingReceipt(true)
+    try {
+      const res = await fetch(`/api/universal/receipts/${order.id}`)
+      const json = await res.json()
+      if (json.success && (json.receipt ?? json.receiptData ?? json.data)) {
+        setReceiptData(json.receipt ?? json.receiptData ?? json.data)
+        setShowReceipt(true)
+      }
+    } catch (e) {
+      console.error('Failed to load receipt:', e)
+    } finally {
+      setLoadingReceipt(false)
+    }
+  }
+
   const handleCancel = () => {
     setIsEditing(false)
     if (order) {
@@ -196,6 +222,16 @@ export function OrderDetailModal({ orderId, isOpen, onClose, onUpdate }: OrderDe
   }
 
   return (
+    <>
+    {receiptData && (
+      <ReceiptPreviewModal
+        isOpen={showReceipt}
+        onClose={() => setShowReceipt(false)}
+        receiptData={receiptData}
+        onPrint={async () => {}}
+        businessType={order?.businessType ?? 'restaurant'}
+      />
+    )}
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="card max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
@@ -330,6 +366,49 @@ export function OrderDetailModal({ orderId, isOpen, onClose, onUpdate }: OrderDe
                 </div>
               </div>
 
+              {/* Payment */}
+              {(order.paymentMethod || order.paymentStatus) && (
+                <div className="flex flex-wrap gap-4">
+                  {order.paymentMethod && (
+                    <div>
+                      <h3 className="text-sm font-medium text-secondary mb-1">Payment Method</h3>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-200 capitalize">
+                        💳 {order.paymentMethod.replace(/_/g, ' ').toLowerCase()}
+                      </span>
+                    </div>
+                  )}
+                  {order.paymentStatus && (
+                    <div>
+                      <h3 className="text-sm font-medium text-secondary mb-1">Payment Status</h3>
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium capitalize ${
+                        order.paymentStatus === 'PAID' ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200' :
+                        order.paymentStatus === 'PENDING' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-200' :
+                        'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+                      }`}>
+                        {order.paymentStatus.toLowerCase()}
+                      </span>
+                    </div>
+                  )}
+                  {order.paymentMethod?.toUpperCase() === 'ECOCASH' && order.ecocashTransactionCode && (
+                    <div>
+                      <h3 className="text-sm font-medium text-secondary mb-1">EcoCash Ref</h3>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200 font-mono">
+                        📱 {order.ecocashTransactionCode}
+                      </span>
+                    </div>
+                  )}
+                  <div className="ml-auto self-end">
+                    <button
+                      onClick={handleViewReceipt}
+                      disabled={loadingReceipt}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 text-primary transition-colors disabled:opacity-50"
+                    >
+                      🧾 {loadingReceipt ? 'Loading…' : 'View Receipt'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Order Total */}
               <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
                 <div className="space-y-2">
@@ -376,8 +455,8 @@ export function OrderDetailModal({ orderId, isOpen, onClose, onUpdate }: OrderDe
               {order.business && (
                 <div className="p-4 bg-blue-50 dark:bg-blue-900 dark:bg-opacity-20 border border-blue-200 dark:border-blue-700 rounded-md">
                   <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">Business</h3>
-                  <p className="text-blue-900 dark:text-blue-100">{order.businesses.businessName}</p>
-                  <p className="text-sm text-blue-700 dark:text-blue-300 capitalize">{order.businesses.businessType}</p>
+                  <p className="text-blue-900 dark:text-blue-100">{order.business.businessName || order.business.name}</p>
+                  <p className="text-sm text-blue-700 dark:text-blue-300 capitalize">{order.business.businessType || order.business.type}</p>
                 </div>
               )}
 
@@ -438,5 +517,6 @@ export function OrderDetailModal({ orderId, isOpen, onClose, onUpdate }: OrderDe
         </div>
       </div>
     </div>
+    </>
   )
 }

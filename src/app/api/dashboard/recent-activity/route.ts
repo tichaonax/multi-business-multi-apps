@@ -216,7 +216,7 @@ export async function GET(req: NextRequest) {
             id: `order-${order.id}`,
             type: 'order',
             title: `Order #${order.orderNumber}`,
-            description: `${order.status} order`,
+            description: `${order.status} order from ${order.businesses?.name || 'Restaurant'} - $${orderAmount.toFixed(2)}`,
             createdAt: order.createdAt,
             module: order.businesses ? `restaurant(${order.businesses.name})` : 'restaurant',
             icon: '🍽️',

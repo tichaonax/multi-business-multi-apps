@@ -286,6 +286,7 @@ export async function GET(
       totalAmount: Number(order.totalAmount),
       paymentStatus: mapPaymentStatusFromUniversal(order.paymentStatus),
       paymentMethod: order.paymentMethod || '',
+        ecocashTransactionCode: (order.attributes as any)?.ecocashTransactionCode || '',
       notes: order.notes || '',
   estimatedReadyTime: (order.attributes as any)?.estimatedReadyTime || '',
       createdAt: order.createdAt,
