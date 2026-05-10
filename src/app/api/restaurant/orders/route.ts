@@ -143,6 +143,7 @@ export async function GET(request: NextRequest) {
             quantity: true,
             unitPrice: true,
             totalPrice: true,
+            attributes: true,
             product_variants: {
               select: {
                 name: true,
@@ -188,9 +189,10 @@ export async function GET(request: NextRequest) {
       items: order.business_order_items.map((item: any) => ({
         id: item.id,
         quantity: item.quantity,
-        unitPrice: Number(item.unitPrice),
-        totalPrice: Number(item.totalPrice),
-        productName: item.product_variants?.business_products?.name || item.product_variants?.name || 'Unknown Item'
+        price: Number(item.unitPrice),
+        total: Number(item.totalPrice),
+        name: item.product_variants?.business_products?.name || item.product_variants?.name || (item.attributes as any)?.productName || 'Unknown Item',
+        attributes: item.attributes
       }))
     }))
 

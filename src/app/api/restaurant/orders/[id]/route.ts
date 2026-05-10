@@ -294,9 +294,10 @@ export async function GET(
       items: order.business_order_items.map((item: any) => ({
         id: item.id,
         quantity: item.quantity,
-        unitPrice: Number(item.unitPrice),
-        totalPrice: Number(item.totalPrice),
-        productName: item.product_variants?.business_products?.name || item.product_variants?.name || (item.attributes as any)?.productName || 'Unknown Item'
+        price: Number(item.unitPrice),
+        total: Number(item.totalPrice),
+        name: item.product_variants?.business_products?.name || item.product_variants?.name || (item.attributes as any)?.productName || 'Unknown Item',
+        attributes: item.attributes
       }))
     }
 
