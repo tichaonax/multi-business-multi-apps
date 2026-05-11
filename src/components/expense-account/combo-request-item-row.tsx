@@ -43,6 +43,7 @@ interface Suggestion {
   subcategoryEmoji: string | null
   subSubcategoryId: string | null
   subSubcategoryName: string | null
+  _group: 'targeted' | 'global'
 }
 
 // Generic searchable dropdown used at each hierarchy level
@@ -167,11 +168,24 @@ function ItemCategorySelector({
     setShowSuggestions(true)
     setSuggestions([])
     try {
-      const params = new URLSearchParams({ q })
-      if (domainId) params.set('domainId', domainId)
-      const res = await fetch(`/api/expense-categories/suggest?${params}`, { credentials: 'include' })
-      const data = await res.json()
-      setSuggestions(data.suggestions ?? [])
+      if (domainId) {
+        // Fire targeted + global in parallel; de-dupe global against targeted
+        const [r1, r2] = await Promise.all([
+          fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}&domainId=${encodeURIComponent(domainId)}`, { credentials: 'include' }),
+          fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}`, { credentials: 'include' }),
+        ])
+        const [d1, d2] = await Promise.all([r1.json(), r2.json()])
+        const targeted = (d1.suggestions ?? []).map((s: any) => ({ ...s, _group: 'targeted' as const }))
+        const targetedIds = new Set(targeted.map((s: any) => s.subcategoryId as string))
+        const global = (d2.suggestions ?? [])
+          .filter((s: any) => !targetedIds.has(s.subcategoryId))
+          .map((s: any) => ({ ...s, _group: 'global' as const }))
+        setSuggestions([...targeted, ...global])
+      } else {
+        const res = await fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}`, { credentials: 'include' })
+        const data = await res.json()
+        setSuggestions((data.suggestions ?? []).map((s: any) => ({ ...s, _group: 'global' as const })))
+      }
     } catch {
       setSuggestions([])
     } finally {
@@ -186,6 +200,9 @@ function ItemCategorySelector({
   }
 
   const canSuggest = description.trim().length >= 2
+  const targetedSugs = suggestions.filter(s => s._group === 'targeted')
+  const globalSugs = suggestions.filter(s => s._group === 'global')
+  const domainLabel = domains.find(d => d.id === domainId)?.label ?? 'In Domain'
 
   return (
     <div className="space-y-1.5">
@@ -223,29 +240,39 @@ function ItemCategorySelector({
             <div className="px-3 py-2 text-xs text-gray-400 dark:text-gray-500">No suggestions found for this description.</div>
           ) : (
             <div className="divide-y divide-purple-100 dark:divide-purple-800/50">
-              {suggestions.map((s, idx) => (
-                <button
-                  key={`${s.subcategoryId}-${idx}`}
-                  type="button"
-                  onClick={() => applySuggestion(s)}
-                  className="w-full px-3 py-2 text-left hover:bg-purple-100 dark:hover:bg-purple-800/30 transition-colors"
-                >
+              {/* Targeted section header — only when both groups have results */}
+              {targetedSugs.length > 0 && globalSugs.length > 0 && (
+                <div className="px-3 py-1 bg-purple-100/60 dark:bg-purple-800/20">
+                  <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">{domainLabel}</span>
+                </div>
+              )}
+              {targetedSugs.map((s, idx) => (
+                <button key={`t-${s.subcategoryId}-${idx}`} type="button" onClick={() => applySuggestion(s)}
+                  className="w-full px-3 py-2 text-left hover:bg-purple-100 dark:hover:bg-purple-800/30 transition-colors">
                   <div className="text-xs text-gray-900 dark:text-gray-100">
-                    {!domainId && (
-                      <>
-                        <span className="text-gray-400 dark:text-gray-500">{s.domainEmoji} {s.domainName}</span>
-                        <span className="text-gray-400 mx-1">›</span>
-                      </>
-                    )}
                     <span className="text-purple-600 dark:text-purple-400">{s.categoryEmoji} {s.categoryName}</span>
                     <span className="text-gray-400 mx-1">›</span>
                     <span>{s.subcategoryEmoji} {s.subcategoryName}</span>
-                    {s.subSubcategoryName && (
-                      <>
-                        <span className="text-gray-400 mx-1">›</span>
-                        <span className="text-gray-500 dark:text-gray-400">{s.subSubcategoryName}</span>
-                      </>
-                    )}
+                    {s.subSubcategoryName && (<><span className="text-gray-400 mx-1">›</span><span className="text-gray-500 dark:text-gray-400">{s.subSubcategoryName}</span></>)}
+                  </div>
+                </button>
+              ))}
+              {/* Global section header — only when targeted also has results */}
+              {globalSugs.length > 0 && targetedSugs.length > 0 && (
+                <div className="px-3 py-1 bg-purple-100/60 dark:bg-purple-800/20">
+                  <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">Other Categories</span>
+                </div>
+              )}
+              {globalSugs.map((s, idx) => (
+                <button key={`g-${s.subcategoryId}-${idx}`} type="button" onClick={() => applySuggestion(s)}
+                  className="w-full px-3 py-2 text-left hover:bg-purple-100 dark:hover:bg-purple-800/30 transition-colors">
+                  <div className="text-xs text-gray-900 dark:text-gray-100">
+                    <span className="text-gray-400 dark:text-gray-500">{s.domainEmoji} {s.domainName}</span>
+                    <span className="text-gray-400 mx-1">›</span>
+                    <span className="text-purple-600 dark:text-purple-400">{s.categoryEmoji} {s.categoryName}</span>
+                    <span className="text-gray-400 mx-1">›</span>
+                    <span>{s.subcategoryEmoji} {s.subcategoryName}</span>
+                    {s.subSubcategoryName && (<><span className="text-gray-400 mx-1">›</span><span className="text-gray-500 dark:text-gray-400">{s.subSubcategoryName}</span></>)}
                   </div>
                 </button>
               ))}

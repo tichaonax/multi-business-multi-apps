@@ -377,6 +377,7 @@ export function QuickPaymentModal({
     subcategoryId: string; subcategoryName: string; subcategoryEmoji: string | null
     subSubcategoryId: string | null; subSubcategoryName: string | null; subSubcategoryEmoji: string | null
     score: number
+    _group: 'targeted' | 'global'
   }[]>([])
 
   // Skip cascade effects when applying a suggestion (prevents clearing fields mid-apply)
@@ -1062,25 +1063,33 @@ export function QuickPaymentModal({
     setSuggestions([])
     setSuggestOpen(true)
     try {
-      // Scope suggestions to the selected domain/business — prevents cross-business noise
-      // Domain-override: use the override ID directly.
-      // Normal business: derive the matching domain from the active business type.
       const derivedDomainId = activeDomainOverrideId
         ?? (activeBusinessType
           ? domainOptions.find(d => d.name === getDefaultDomainName(activeBusinessType))?.id ?? null
           : null)
-      const domainParam = derivedDomainId ? `&domainId=${encodeURIComponent(derivedDomainId)}` : ''
-      const res = await fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}${domainParam}`, { credentials: 'include' })
-      if (res.ok) {
-        const data = await res.json()
-        let allSuggestions = data.suggestions ?? []
-        // Normal mode only has 3 pickers (Domain/Subcategory/Sub-Subcategory mapped to
-        // domainId/categoryId/subcategoryId). 4-level sub-subcategory results can't be
-        // fully applied there — only show them in domain-override mode where 4 pickers exist.
-        if (!activeDomainOverride) {
-          allSuggestions = allSuggestions.filter((s: typeof suggestions[0]) => !s.subSubcategoryId)
+
+      const applyFilter = (list: any[]) =>
+        activeDomainOverride ? list : list.filter((s: any) => !s.subSubcategoryId)
+
+      if (derivedDomainId) {
+        // Fire targeted + global in parallel; de-dupe global against targeted
+        const [r1, r2] = await Promise.all([
+          fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}&domainId=${encodeURIComponent(derivedDomainId)}`, { credentials: 'include' }),
+          fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}`, { credentials: 'include' }),
+        ])
+        const [d1, d2] = await Promise.all([r1.ok ? r1.json() : {}, r2.ok ? r2.json() : {}])
+        const targeted = applyFilter(d1.suggestions ?? []).map((s: any) => ({ ...s, _group: 'targeted' as const }))
+        const targetedIds = new Set(targeted.map((s: any) => s.subcategoryId as string))
+        const global = applyFilter(d2.suggestions ?? [])
+          .filter((s: any) => !targetedIds.has(s.subcategoryId))
+          .map((s: any) => ({ ...s, _group: 'global' as const }))
+        setSuggestions([...targeted, ...global])
+      } else {
+        const res = await fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}`, { credentials: 'include' })
+        if (res.ok) {
+          const data = await res.json()
+          setSuggestions(applyFilter(data.suggestions ?? []).map((s: any) => ({ ...s, _group: 'global' as const })))
         }
-        setSuggestions(allSuggestions)
       }
     } catch {
       // Silently fail — user can still pick manually
@@ -2192,30 +2201,54 @@ export function QuickPaymentModal({
                 <p className="text-sm text-secondary py-4 text-center">No matches found — please select manually.</p>
               )}
               {!suggestLoading && suggestions.length > 0 && (
-                <ul className="space-y-2">
-                  {suggestions.map((s, i) => (
-                    <li key={`${s.subcategoryId}-${i}`}>
-                      <button
-                        type="button"
-                        onClick={() => applySuggestion(s)}
-                        className="w-full text-left px-3 py-2.5 rounded-md border border-border hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                      >
-                        <div className="text-xs text-secondary mb-0.5">
-                          {s.subSubcategoryId
-                            ? <>{s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName} › {s.subcategoryEmoji} {s.subcategoryName}</>
-                            : <>{s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName}</>
-                          }
-                        </div>
-                        <div className="text-sm font-medium text-primary">
-                          {s.subSubcategoryId
-                            ? <>{s.subSubcategoryEmoji} {s.subSubcategoryName}</>
-                            : <>{s.subcategoryEmoji} {s.subcategoryName}</>
-                          }
-                        </div>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                <div className="space-y-1">
+                  {/* Targeted section header — only shown when both groups have results */}
+                  {suggestions.some(s => s._group === 'targeted') && suggestions.some(s => s._group === 'global') && (
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 pb-1">In this business</p>
+                  )}
+                  {suggestions.some(s => s._group === 'targeted') && (
+                    <ul className="space-y-2">
+                      {suggestions.filter(s => s._group === 'targeted').map((s, i) => (
+                        <li key={`t-${s.subcategoryId}-${i}`}>
+                          <button type="button" onClick={() => applySuggestion(s)}
+                            className="w-full text-left px-3 py-2.5 rounded-md border border-border hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                            <div className="text-xs text-secondary mb-0.5">
+                              {s.subSubcategoryId
+                                ? <>{s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName} › {s.subcategoryEmoji} {s.subcategoryName}</>
+                                : <>{s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName}</>}
+                            </div>
+                            <div className="text-sm font-medium text-primary">
+                              {s.subSubcategoryId ? <>{s.subSubcategoryEmoji} {s.subSubcategoryName}</> : <>{s.subcategoryEmoji} {s.subcategoryName}</>}
+                            </div>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {/* Global section header + results */}
+                  {suggestions.some(s => s._group === 'targeted') && suggestions.some(s => s._group === 'global') && (
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 pt-2 pb-1">Other Categories</p>
+                  )}
+                  {suggestions.some(s => s._group === 'global') && (
+                    <ul className="space-y-2">
+                      {suggestions.filter(s => s._group === 'global').map((s, i) => (
+                        <li key={`g-${s.subcategoryId}-${i}`}>
+                          <button type="button" onClick={() => applySuggestion(s)}
+                            className="w-full text-left px-3 py-2.5 rounded-md border border-border hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                            <div className="text-xs text-secondary mb-0.5">
+                              {s.subSubcategoryId
+                                ? <>{s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName} › {s.subcategoryEmoji} {s.subcategoryName}</>
+                                : <>{s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName}</>}
+                            </div>
+                            <div className="text-sm font-medium text-primary">
+                              {s.subSubcategoryId ? <>{s.subSubcategoryEmoji} {s.subSubcategoryName}</> : <>{s.subcategoryEmoji} {s.subcategoryName}</>}
+                            </div>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               )}
             </div>
           </div>
