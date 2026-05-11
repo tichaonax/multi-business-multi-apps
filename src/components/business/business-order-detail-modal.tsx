@@ -112,6 +112,8 @@ export function BusinessOrderDetailModal({ orderId, isOpen, onClose, onUpdate }:
 
   useEffect(() => {
     if (isOpen && orderId) {
+      setReceiptData(null)
+      setShowReceipt(false)
       fetchOrder()
     }
   }, [isOpen, orderId])
