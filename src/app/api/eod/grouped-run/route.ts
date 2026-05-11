@@ -144,6 +144,42 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    // ── Pre-query actual order totals per date ─────────────────────────────
+    // Re-query from DB so we don't trust the stale client preview values.
+    const actualTotalsMap: Record<string, { actualSales: number; actualOrders: number }> = {}
+    for (const entry of sortedDates) {
+      const dayStart = new Date(entry.date + 'T00:00:00Z')
+      const dayEnd = new Date(entry.date + 'T23:59:59.999Z')
+      const ordersAgg = await prisma.businessOrders.aggregate({
+        where: {
+          businessId,
+          status: 'COMPLETED',
+          OR: [
+            { transactionDate: { gte: dayStart, lte: dayEnd } },
+            { transactionDate: null, createdAt: { gte: dayStart, lte: dayEnd } },
+          ],
+        },
+        _sum: { totalAmount: true },
+        _count: { id: true },
+      })
+      actualTotalsMap[entry.date] = {
+        actualSales: Number(ordersAgg._sum.totalAmount ?? 0),
+        actualOrders: ordersAgg._count.id,
+      }
+    }
+
+    // Proportional cash per date: (daySales / runTotal) × totalCashReceived
+    // Edge case: if all days have $0 sales, split cash equally.
+    const runActualTotalSales = Object.values(actualTotalsMap).reduce((s, d) => s + d.actualSales, 0)
+    const cashCountedMap: Record<string, number> = {}
+    for (const entry of sortedDates) {
+      const daySales = actualTotalsMap[entry.date].actualSales
+      cashCountedMap[entry.date] =
+        runActualTotalSales > 0
+          ? (daySales / runActualTotalSales) * totalCashReceived
+          : totalCashReceived / sortedDates.length
+    }
+
     // ── Process each date ───────────────────────────────────────────────────
     const dateResults: {
       date: string
@@ -154,7 +190,9 @@ export async function POST(request: NextRequest) {
     }[] = []
 
     for (const entry of sortedDates) {
-      const { date, totalSales } = entry
+      const { date } = entry
+      const { actualSales, actualOrders } = actualTotalsMap[date]
+      const dayCashCounted = cashCountedMap[date]
       const dayStart = new Date(date + 'T00:00:00Z')
       const dayEnd = new Date(date + 'T23:59:59.999Z')
 
@@ -212,14 +250,15 @@ export async function POST(request: NextRequest) {
             type: 'GROUPED_EOD_CATCHUP',
             groupedRunId: groupedRun.id,
             date,
-            summary: { totalSales, totalOrders: 0, receiptsIssued: 0 },
+            summary: { totalSales: actualSales, totalOrders: actualOrders, receiptsIssued: actualOrders },
           },
           managerName,
           managerUserId: user.id,
           signedAt: new Date(),
-          totalSales,
-          totalOrders: 0,
-          receiptsIssued: 0,
+          totalSales: actualSales,
+          totalOrders: actualOrders,
+          receiptsIssued: actualOrders,
+          cashCounted: dayCashCounted,
           createdBy: user.id,
           isLocked: true,
           groupedRunId: groupedRun.id,
@@ -231,13 +270,13 @@ export async function POST(request: NextRequest) {
         data: {
           groupedRunId: groupedRun.id,
           date,
-          totalSales,
-          cashCounted: 0,            // individual cash tracked at grouped report level
+          totalSales: actualSales,
+          cashCounted: dayCashCounted,
           allocationBreakdown,
         },
       })
 
-      dateResults.push({ date, totalSales, rentAmount, autoDepositTotal, savedReportId: savedReport.id })
+      dateResults.push({ date, totalSales: actualSales, rentAmount, autoDepositTotal, savedReportId: savedReport.id })
     }
 
     // ── Create grouped CashAllocationReport ────────────────────────────────
