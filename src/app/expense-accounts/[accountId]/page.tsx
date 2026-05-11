@@ -1911,7 +1911,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                   onBalanceRefresh={refreshBalanceSilent}
                 />
 
-                <TransactionHistory accountId={accountId} canEditPayments={canEditPayments} isAdmin={isSystemAdmin} refreshKey={paymentRefreshKey} businessId={account.businessId || currentBusiness?.businessId} businessName={currentBusiness?.businessName ?? ''} onRepeatPayment={canMakeExpensePayments || canEditPayments ? (id) => { setRepeatPaymentId(id); setShowQuickPaymentModal(true) } : undefined} />
+                <TransactionHistory accountId={accountId} canEditPayments={canEditPayments} isAdmin={isSystemAdmin} refreshKey={paymentRefreshKey} businessId={account.businessId || currentBusiness?.businessId} businessName={currentBusiness?.businessName ?? ''} onRepeatPayment={!isRestrictedUser ? (id) => { setRepeatPaymentId(id); setShowQuickPaymentModal(true) } : undefined} />
               </div>
             )}
 
@@ -2001,7 +2001,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                   onDataChanged={() => { refreshBalanceSilent(); setPaymentRefreshKey(k => k + 1) }}
                   businessId={account.businessId || currentBusiness?.businessId}
                   businessName={currentBusiness?.businessName ?? ''}
-                  onRepeatPayment={canMakeExpensePayments || canEditPayments ? (id) => { setRepeatPaymentId(id); setShowQuickPaymentModal(true) } : undefined}
+                  onRepeatPayment={!isRestrictedUser ? (id) => { setRepeatPaymentId(id); setShowQuickPaymentModal(true) } : undefined}
                 />
               </div>
             )}

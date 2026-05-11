@@ -383,6 +383,8 @@ export function QuickPaymentModal({
   const skipCascadeRef = useRef(false)
   // Stores category IDs from a repeat payment fetch, applied once categories state is loaded
   const pendingRepeatRef = useRef<{ domainId: string; categoryId: string; subcategoryId: string } | null>(null)
+  // Ref mirror of categories — allows async callbacks to see the latest value without stale closure
+  const categoriesRef = useRef<ExpenseCategory[]>([])
   const customAlert = useAlert()
   const customConfirm = useConfirm()
 
@@ -512,11 +514,31 @@ export function QuickPaymentModal({
           paymentDate: getTodayLocalDateString(),
         }))
 
-        // Store category IDs for Phase 2 — applied once categories state is loaded
-        pendingRepeatRef.current = {
+        // Store category IDs — applied once categories are available
+        const repeatPending = {
           domainId: p.category?.domainId ?? '',
           categoryId: p.category?.id ?? '',
           subcategoryId: p.subcategory?.id ?? '',
+        }
+
+        if (categoriesRef.current.length > 0 && repeatPending.domainId) {
+          // Categories already loaded — apply immediately to avoid race condition
+          skipCascadeRef.current = true
+          setFormData(prev => ({
+            ...prev,
+            categoryId: repeatPending.domainId,
+            subcategoryId: repeatPending.categoryId,
+            subSubcategoryId: repeatPending.subcategoryId,
+          }))
+          const applyDropdowns = async () => {
+            if (repeatPending.domainId) await loadSubcategories(repeatPending.domainId)
+            if (repeatPending.categoryId) await loadSubSubcategories(repeatPending.categoryId)
+            requestAnimationFrame(() => { skipCascadeRef.current = false })
+          }
+          applyDropdowns()
+        } else {
+          // Phase 2 will pick this up once categories finish loading
+          pendingRepeatRef.current = repeatPending
         }
 
         setRepeatSource(p.notes?.trim() || 'previous payment')
@@ -744,6 +766,7 @@ export function QuickPaymentModal({
         })
 
         setCategories(deduped)
+        categoriesRef.current = deduped
 
         // For PERSONAL accounts: auto-select the first Personal category
         // Skip if a repeat payment is pending — it will apply its own category after this
