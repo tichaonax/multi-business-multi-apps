@@ -1154,6 +1154,32 @@ export function QuickPaymentModal({
         // formData.subcategoryId = ExpenseSubcategory.id    (s.subcategoryId)
         // formData.subSubcategoryId = ExpenseSubSubcategory.id (s.subSubcategoryId, optional)
 
+        // If the suggestion is from a different domain than the currently active one
+        // (e.g. user is in "Personal Expenses" but clicked a "Construction" global suggestion),
+        // switch the Business/Domain picker to match before applying the category chain.
+        if (s.domainId && s.domainId !== activeDomainOverrideId) {
+          const targetDomain = domainOptions.find(d => d.id === s.domainId)
+          if (targetDomain) {
+            const dropVal = `domain:${targetDomain.id}`
+            setSelectedDropdownValue(dropVal)
+            setActiveDomainOverride(targetDomain.name)
+            setActiveDomainOverrideId(targetDomain.id)
+            setFormData(prev => ({ ...prev, categoryId: '', subcategoryId: '', subSubcategoryId: '' }))
+            setSubcategories([])
+            setSubSubcategories([])
+            setDomainOverrideItems([])
+            setLoadingDomainOverrideItems(true)
+            try {
+              const r = await fetch(`/api/expense-categories/${targetDomain.id}/subcategories`, { credentials: 'include' })
+              if (r.ok) {
+                const d = await r.json()
+                setDomainOverrideItems(d.subcategories || [])
+              }
+            } catch {}
+            finally { setLoadingDomainOverrideItems(false) }
+          }
+        }
+
         // Step 1: pick the Category — load its Subcategories (ExpenseSubcategories)
         const res1 = await fetch(`/api/expense-categories/${s.categoryId}/subcategories`, { credentials: 'include' })
         if (res1.ok) {
