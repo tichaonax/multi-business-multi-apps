@@ -19,7 +19,7 @@ interface Message {
   recipients: Recipient[]
 }
 
-interface UserOption { id: string; name: string }
+interface UserOption { id: string; name: string; online?: boolean }
 
 const PANEL_W = 360
 const PANEL_H = 500
@@ -63,6 +63,7 @@ export function FloatingChat() {
   const [recipientNames, setRecipientNames] = useState<string[]>([])
   const [userSearch, setUserSearch] = useState('')
   const [userOptions, setUserOptions] = useState<UserOption[]>([])
+  const [allUsers, setAllUsers] = useState<UserOption[]>([])
   const [showUserSearch, setShowUserSearch] = useState(false)
   const [expandedThreads, setExpandedThreads] = useState<Record<string, Message[]>>({})
   const [loadingThreads, setLoadingThreads] = useState<Record<string, boolean>>({})
@@ -157,6 +158,19 @@ export function FloatingChat() {
       setMessages(prev => prev.map(m => m.id === id ? { ...m, deletedAt: new Date().toISOString() } : m))
     })
 
+    // Presence events — live updates when users come online/offline
+    socket.on('user:online', ({ userId }: { userId: string }) => {
+      setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, online: true } : u))
+    })
+    socket.on('user:offline', ({ userId }: { userId: string }) => {
+      setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, online: false } : u))
+    })
+    // Snapshot of currently online users (server reads its own room membership)
+    socket.on('chat:online-users', ({ onlineIds }: { onlineIds: string[] }) => {
+      const onlineSet = new Set(onlineIds)
+      setAllUsers(prev => prev.map(u => ({ ...u, online: onlineSet.has(u.id) })))
+    })
+
     return () => { socket.disconnect(); socketRef.current = null }
   }, [status, scrollToBottom])
 
@@ -201,19 +215,26 @@ export function FloatingChat() {
     }
   }, [])
 
-  // ── User search for recipient picker ──────────────────────────────────────
+  // ── Load all users when picker opens ─────────────────────────────────────
   useEffect(() => {
-    if (!userSearch.trim()) { setUserOptions([]); return }
-    const t = setTimeout(() => {
-      fetch(`/api/users?search=${encodeURIComponent(userSearch.trim())}`, { credentials: 'include' })
-        .then(r => r.ok ? r.json() : [])
-        .then((data: any[]) => setUserOptions(
-          data.filter((u: any) => u.id !== currentUserId).map((u: any) => ({ id: u.id, name: u.name }))
-        ))
-        .catch(() => {})
-    }, 300)
-    return () => clearTimeout(t)
-  }, [userSearch, currentUserId])
+    if (!showUserSearch || !currentUserId) return
+    fetch('/api/users', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: any[]) => {
+        setAllUsers(data.filter((u: any) => u.id !== currentUserId))
+        // Ask socket server for live room membership to get accurate online status
+        socketRef.current?.emit('chat:get-online-users')
+      })
+      .catch(() => {})
+  }, [showUserSearch, currentUserId])
+
+  // ── Filter displayed options from the full list ───────────────────────────
+  useEffect(() => {
+    const q = userSearch.trim().toLowerCase()
+    setUserOptions(
+      allUsers.filter(u => !q || u.name.toLowerCase().includes(q))
+    )
+  }, [userSearch, allUsers])
 
   const addRecipient = (user: UserOption) => {
     if (!recipientIds.includes(user.id)) {
@@ -536,28 +557,33 @@ export function FloatingChat() {
                 @ Add
               </button>
               {showUserSearch && (
-                <div className="absolute bottom-full left-0 mb-1 z-10 bg-white dark:bg-gray-800 border border-border rounded-lg shadow-lg w-48">
+                <div className="absolute bottom-full left-0 mb-1 z-10 bg-white dark:bg-gray-800 border border-border rounded-lg shadow-lg w-56">
                   <input
                     type="text"
                     autoFocus
                     value={userSearch}
                     onChange={e => setUserSearch(e.target.value)}
-                    placeholder="Search people…"
+                    placeholder="Filter people…"
                     className="w-full px-3 py-2 text-xs bg-transparent focus:outline-none border-b border-border"
                   />
-                  {userOptions.length === 0 && userSearch && (
-                    <p className="text-[11px] text-secondary px-3 py-2">No users found</p>
-                  )}
-                  {userOptions.map(u => (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => addRecipient(u)}
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-700"
-                    >
-                      {u.name}
-                    </button>
-                  ))}
+                  <div className="max-h-48 overflow-y-auto">
+                    {userOptions.length === 0 ? (
+                      <p className="text-[11px] text-secondary px-3 py-2">
+                        {allUsers.length === 0 ? 'Loading…' : 'No users found'}
+                      </p>
+                    ) : userOptions.map(u => (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => addRecipient(u)}
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                      >
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${u.online ? 'bg-green-400' : 'bg-gray-400'}`} />
+                        <span className="truncate">{u.name}</span>
+                        {u.online && <span className="ml-auto text-[10px] text-green-500 shrink-0">online</span>}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

@@ -522,23 +522,42 @@ export function QuickPaymentModal({
           subcategoryId: p.subcategory?.id ?? '',
         }
 
-        if (categoriesRef.current.length > 0 && repeatPending.domainId) {
-          // Categories already loaded — apply immediately to avoid race condition
+        if (categoriesRef.current.length > 0) {
+          // Categories already loaded — apply immediately
           skipCascadeRef.current = true
-          setFormData(prev => ({
-            ...prev,
-            categoryId: repeatPending.domainId,
-            subcategoryId: repeatPending.categoryId,
-            subSubcategoryId: repeatPending.subcategoryId,
-          }))
-          const applyDropdowns = async () => {
-            if (repeatPending.domainId) await loadSubcategories(repeatPending.domainId)
-            if (repeatPending.categoryId) await loadSubSubcategories(repeatPending.categoryId)
-            requestAnimationFrame(() => { skipCascadeRef.current = false })
+          const isOverride = !!activeDomainOverrideRef.current
+          if (isOverride) {
+            // Domain-override mode (personal, home, business-domain): categoryId = ExpenseCategory.id
+            setFormData(prev => ({
+              ...prev,
+              categoryId: repeatPending.categoryId,
+              subcategoryId: repeatPending.subcategoryId,
+              subSubcategoryId: '',
+            }))
+            ;(async () => {
+              if (repeatPending.categoryId) await loadSubcategories(repeatPending.categoryId)
+              if (repeatPending.subcategoryId) {
+                const r = await fetch(`/api/expense-categories/sub-subcategories/${repeatPending.subcategoryId}/items`, { credentials: 'include' })
+                if (r.ok) { const d = await r.json(); setDomainOverrideSubItems(d.items || []) }
+              }
+              requestAnimationFrame(() => { skipCascadeRef.current = false })
+            })()
+          } else {
+            // Normal mode: categoryId = ExpenseDomain.id
+            setFormData(prev => ({
+              ...prev,
+              categoryId: repeatPending.domainId,
+              subcategoryId: repeatPending.categoryId,
+              subSubcategoryId: repeatPending.subcategoryId,
+            }))
+            ;(async () => {
+              if (repeatPending.domainId) await loadSubcategories(repeatPending.domainId)
+              if (repeatPending.categoryId) await loadSubSubcategories(repeatPending.categoryId)
+              requestAnimationFrame(() => { skipCascadeRef.current = false })
+            })()
           }
-          applyDropdowns()
         } else {
-          // Phase 2 will pick this up once categories finish loading
+          // Phase 2 will pick this up once categories and domain-override mode are ready
           pendingRepeatRef.current = repeatPending
         }
 
@@ -548,28 +567,53 @@ export function QuickPaymentModal({
       .catch(() => {})
   }, [isOpen, repeatPaymentId])
 
-  // Phase 2: apply category pre-fill once categories state is populated
+  // Phase 2: apply category pre-fill once categories and domain-override mode are ready.
+  // Depends on activeDomainOverride so it re-fires after the auto-domain-activate effect sets it
+  // for personal/home accounts (which run in domain-override mode).
   useEffect(() => {
     const pending = pendingRepeatRef.current
     if (!pending || categories.length === 0) return
-    if (!pending.domainId) return
-    pendingRepeatRef.current = null  // consume so it doesn't re-apply on subsequent category changes
 
+    const isOverride = !!activeDomainOverride
+    // For personal/home accounts the override is activated asynchronously — wait for it
+    if (!isOverride && (isPersonalAccount || isHomeAccount)) return
+
+    pendingRepeatRef.current = null
     skipCascadeRef.current = true
-    setFormData(prev => ({
-      ...prev,
-      categoryId: pending.domainId,
-      subcategoryId: pending.categoryId,
-      subSubcategoryId: pending.subcategoryId,
-    }))
 
-    const applyDropdowns = async () => {
-      if (pending.domainId) await loadSubcategories(pending.domainId)
-      if (pending.categoryId) await loadSubSubcategories(pending.categoryId)
-      requestAnimationFrame(() => { skipCascadeRef.current = false })
+    if (isOverride) {
+      // Domain-override mode: categoryId = ExpenseCategory.id (e.g. Housing within Personal Expenses)
+      setFormData(prev => ({
+        ...prev,
+        categoryId: pending.categoryId,
+        subcategoryId: pending.subcategoryId,
+        subSubcategoryId: '',
+      }))
+      ;(async () => {
+        if (pending.categoryId) await loadSubcategories(pending.categoryId)
+        if (pending.subcategoryId) {
+          const r = await fetch(`/api/expense-categories/sub-subcategories/${pending.subcategoryId}/items`, { credentials: 'include' })
+          if (r.ok) { const d = await r.json(); setDomainOverrideSubItems(d.items || []) }
+        }
+        requestAnimationFrame(() => { skipCascadeRef.current = false })
+      })()
+    } else {
+      // Normal mode: categoryId = ExpenseDomain.id
+      if (!pending.domainId) { requestAnimationFrame(() => { skipCascadeRef.current = false }); return }
+      setFormData(prev => ({
+        ...prev,
+        categoryId: pending.domainId,
+        subcategoryId: pending.categoryId,
+        subSubcategoryId: pending.subcategoryId,
+      }))
+      ;(async () => {
+        if (pending.domainId) await loadSubcategories(pending.domainId)
+        if (pending.categoryId) await loadSubSubcategories(pending.categoryId)
+        requestAnimationFrame(() => { skipCascadeRef.current = false })
+      })()
     }
-    applyDropdowns()
-  }, [categories])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories, activeDomainOverride])
 
   const fetchLiveBalance = async () => {
     setBalanceLoading(true)

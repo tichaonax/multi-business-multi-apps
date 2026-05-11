@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { ContentLayout } from '@/components/layout/content-layout'
 
@@ -174,6 +174,21 @@ export default function PendingActionsPage() {
     rejected: Set<string>
     submitting: boolean
   } | null>(null)
+  const [pageSearch, setPageSearch] = useState('')
+  const [highlightId, setHighlightId] = useState<string | null>(null)
+  const searchParams = useSearchParams()
+
+  // After data loads, scroll to and highlight the target request if ?requestId= is in the URL
+  useEffect(() => {
+    const requestId = searchParams.get('requestId')
+    if (!requestId || loading) return
+    const el = document.getElementById(`request-${requestId}`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setHighlightId(requestId)
+    const t = setTimeout(() => setHighlightId(null), 2500)
+    return () => clearTimeout(t)
+  }, [loading, searchParams])
 
   const fetchItems = useCallback(async () => {
     setLoading(true)
@@ -383,7 +398,7 @@ export default function PendingActionsPage() {
     <>
     <ContentLayout title="Pending Actions">
       <div className="max-w-3xl mx-auto py-6 px-4">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <p className="text-sm text-gray-500 dark:text-gray-400">Items requiring your attention</p>
           {!loading && total > 0 && (
             <span className="bg-red-500 text-white text-sm font-bold rounded-full px-3 py-1">
@@ -391,6 +406,20 @@ export default function PendingActionsPage() {
             </span>
           )}
         </div>
+        {!loading && total > 0 && (
+          <div className="mb-6">
+            <input
+              type="text"
+              value={pageSearch}
+              onChange={e => setPageSearch(e.target.value)}
+              placeholder="Search by name, purpose, account…"
+              className="w-full px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {pageSearch && (
+              <button onClick={() => setPageSearch('')} className="mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline">Clear search</button>
+            )}
+          </div>
+        )}
 
         {loading ? (
           <div className="text-gray-500 dark:text-gray-400 text-center py-12">Loading…</div>
@@ -403,16 +432,16 @@ export default function PendingActionsPage() {
           <div className="space-y-8">
 
             {/* Loan Lock Requests */}
-            {loanLockRequests.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? loanLockRequests.filter(i => [i.loanNumber, i.description, i.lenderName, i.lockRequester?.name, i.managedBy?.name].some(v => v?.toLowerCase().includes(_ps))) : loanLockRequests; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>🔒</span> Loan Lock Requests
                   <span className="bg-yellow-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
-                    {loanLockRequests.length}
+                    {items.length}
                   </span>
                 </h2>
                 <div className="space-y-3">
-                  {loanLockRequests.map(item => (
+                  {items.map(item => (
                     <div key={item.id} className="bg-white dark:bg-gray-800 border border-yellow-300 dark:border-yellow-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -451,19 +480,19 @@ export default function PendingActionsPage() {
                   ))}
                 </div>
               </div>
-            )}
+            )})()}
 
             {/* Pending Petty Cash Requests */}
-            {pendingPettyCash.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingPettyCash.filter(i => [i.purpose, i.notes, i.requester?.name, i.business?.name].some(v => v?.toLowerCase().includes(_ps))) : pendingPettyCash; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>💵</span> Petty Cash Requests
                   <span className="bg-orange-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
-                    {pendingPettyCash.length}
+                    {items.length}
                   </span>
                 </h2>
                 <div className="space-y-3">
-                  {pendingPettyCash.map(item => {
+                  {items.map(item => {
                     const isUrgent = item.priority === 'URGENT'
                     const isEcocash = item.paymentChannel === 'ECOCASH'
                     return (
@@ -497,19 +526,19 @@ export default function PendingActionsPage() {
                   })}
                 </div>
               </div>
-            )}
+            )})()}
 
             {/* Pending Eco-Cash Conversions */}
-            {pendingEcocashConversions.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingEcocashConversions.filter(i => [i.business?.name, i.requester?.name, i.notes].some(v => v?.toLowerCase().includes(_ps))) : pendingEcocashConversions; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>📱</span> Eco-Cash to Cash Conversions
                   <span className="bg-teal-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
-                    {pendingEcocashConversions.length}
+                    {items.length}
                   </span>
                 </h2>
                 <div className="space-y-3">
-                  {pendingEcocashConversions.map(item => (
+                  {items.map(item => (
                     <div key={item.id} className="bg-white dark:bg-gray-800 border border-teal-300 dark:border-teal-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -536,19 +565,19 @@ export default function PendingActionsPage() {
                   ))}
                 </div>
               </div>
-            )}
+            )})()}
 
             {/* Loan Withdrawal Requests */}
-            {withdrawalRequests.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? withdrawalRequests.filter((i: any) => [i.creator?.name, i.loan?.loanNumber, i.requestMonth, i.notes].some((v: any) => typeof v === 'string' && v.toLowerCase().includes(_ps))) : withdrawalRequests; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>💸</span> Loan Withdrawal Requests
                   <span className="bg-purple-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
-                    {withdrawalRequests.length}
+                    {items.length}
                   </span>
                 </h2>
                 <div className="space-y-3">
-                  {withdrawalRequests.map((item: any) => {
+                  {items.map((item: any) => {
                     const isPending = item.status === 'PENDING'
                     const isDraft = item.status === 'DRAFT'
                     const isApproved = item.status === 'APPROVED'
@@ -644,19 +673,19 @@ export default function PendingActionsPage() {
                   })}
                 </div>
               </div>
-            )}
+            )})()}
 
             {/* Pending Cash Allocation Reports */}
-            {pendingCashAllocations.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingCashAllocations.filter(i => i.business?.name?.toLowerCase().includes(_ps)) : pendingCashAllocations; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>💰</span> Cash Allocation Reports
                   <span className="bg-blue-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
-                    {pendingCashAllocations.length}
+                    {items.length}
                   </span>
                 </h2>
                 <div className="space-y-3">
-                  {pendingCashAllocations.map(item => {
+                  {items.map(item => {
                     const isGrouped = item.isGrouped === true
                     const cashAllocUrl = isGrouped
                       ? `/${item.business?.type ?? 'restaurant'}/reports/cash-allocation?reportId=${item.id}&businessId=${item.business?.id ?? ''}`
@@ -719,19 +748,19 @@ export default function PendingActionsPage() {
                   })}
                 </div>
               </div>
-            )}
+            )})()}
 
             {/* EOD Payment Batches awaiting cashier review */}
-            {pendingPaymentBatches.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingPaymentBatches.filter(i => [i.business?.name, i.eodDate].some(v => v?.toLowerCase().includes(_ps))) : pendingPaymentBatches; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>📋</span> EOD Payment Batches
                   <span className="bg-amber-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
-                    {pendingPaymentBatches.length}
+                    {items.length}
                   </span>
                 </h2>
                 <div className="space-y-3">
-                  {pendingPaymentBatches.map(item => (
+                  {items.map(item => (
                     <div key={item.id} className="bg-white dark:bg-gray-800 border border-amber-300 dark:border-amber-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -766,23 +795,24 @@ export default function PendingActionsPage() {
                   ))}
                 </div>
               </div>
-            )}
+            )})()}
 
             {/* Personal Payment Requests — cashier-assisted payments awaiting approval */}
-            {personalPaymentRequests.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? personalPaymentRequests.filter(i => [i.accountName, i.payeeName, i.creatorName, i.notes, i.categoryName].some(v => v?.toLowerCase().includes(_ps))) : personalPaymentRequests; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>🙋</span> Personal Payment Requests
                   <span className="bg-amber-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
-                    {personalPaymentRequests.length}
+                    {items.length}
                   </span>
                 </h2>
                 <div className="space-y-3">
-                  {personalPaymentRequests.map(item => {
+                  {items.map(item => {
                     const isUrgent = item.priority === 'URGENT'
                     const actionState = personalActionState[item.id]
+                    const isHighlighted = highlightId === item.id
                     return (
-                      <div key={item.id} className={`bg-white dark:bg-gray-800 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4 ${isUrgent ? 'border-2 border-red-500 dark:border-red-400' : 'border border-amber-300 dark:border-amber-700'}`}>
+                      <div id={`request-${item.id}`} key={item.id} className={`bg-white dark:bg-gray-800 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4 transition-shadow ${isHighlighted ? 'ring-4 ring-indigo-400 ring-offset-2' : ''} ${isUrgent ? 'border-2 border-red-500 dark:border-red-400' : 'border border-amber-300 dark:border-amber-700'}`}>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             {isUrgent && <span className="text-lg">🚨</span>}
@@ -824,19 +854,19 @@ export default function PendingActionsPage() {
                   })}
                 </div>
               </div>
-            )}
+            )})()}
 
             {/* Pending Payment Batch Requests */}
-            {pendingPaymentRequests.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingPaymentRequests.filter(i => [i.accountName, i.business?.name].some(v => v?.toLowerCase().includes(_ps))) : pendingPaymentRequests; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>📦</span> Payment Requests
                   <span className="bg-indigo-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
-                    {pendingPaymentRequests.length}
+                    {items.length}
                   </span>
                 </h2>
                 <div className="space-y-3">
-                  {pendingPaymentRequests.map(item => {
+                  {items.map(item => {
                     const hasUrgent = (item.urgentCount ?? 0) > 0
                     return (
                     <div key={item.id} className={`bg-white dark:bg-gray-800 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4 ${hasUrgent ? 'border-2 border-red-500 dark:border-red-400' : 'border border-indigo-300 dark:border-indigo-700'}`}>
@@ -869,19 +899,19 @@ export default function PendingActionsPage() {
                   )})}
                 </div>
               </div>
-            )}
+            )})()}
 
             {/* My Pending Payment Requests — own QUEUED payments awaiting cashier batching */}
-            {myPendingPayments.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? myPendingPayments.filter(i => [i.accountName, i.business?.name].some(v => v?.toLowerCase().includes(_ps))) : myPendingPayments; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>📤</span> My Payment Requests
                   <span className="bg-blue-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
-                    {myPendingPayments.length}
+                    {items.length}
                   </span>
                 </h2>
                 <div className="space-y-3">
-                  {myPendingPayments.map(item => (
+                  {items.map(item => (
                     <div key={item.id} className="bg-white dark:bg-gray-800 border border-blue-300 dark:border-blue-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -907,19 +937,19 @@ export default function PendingActionsPage() {
                   ))}
                 </div>
               </div>
-            )}
+            )})()}
 
             {/* My Approved Petty Cash — collect cash */}
-            {myApprovedPettyCash.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? myApprovedPettyCash.filter((i: any) => [i.purpose, i.business?.name].some((v: any) => typeof v === 'string' && v.toLowerCase().includes(_ps))) : myApprovedPettyCash; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>🪙</span> Petty Cash Approved — Collect Cash
                   <span className="bg-green-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
-                    {myApprovedPettyCash.length}
+                    {items.length}
                   </span>
                 </h2>
                 <div className="space-y-3">
-                  {myApprovedPettyCash.map((item: any) => (
+                  {items.map((item: any) => (
                     <div key={item.id} className="bg-white dark:bg-gray-800 border border-green-300 dark:border-green-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -944,19 +974,19 @@ export default function PendingActionsPage() {
                   ))}
                 </div>
               </div>
-            )}
+            )})()}
 
             {/* My Approved Payments — collect cash */}
-            {myApprovedPayments.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? myApprovedPayments.filter((i: any) => [i.businessName, i.payeeName, i.categoryName, i.notes].some((v: any) => typeof v === 'string' && v.toLowerCase().includes(_ps))) : myApprovedPayments; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>✅</span> Payment Approved — Collect Cash
                   <span className="bg-green-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
-                    {myApprovedPayments.length}
+                    {items.length}
                   </span>
                 </h2>
                 <div className="space-y-3">
-                  {myApprovedPayments.map((item: any) => (
+                  {items.map((item: any) => (
                     <div key={item.id} className="bg-white dark:bg-gray-800 border border-green-300 dark:border-green-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -981,19 +1011,19 @@ export default function PendingActionsPage() {
                   ))}
                 </div>
               </div>
-            )}
+            )})()}
 
             {/* Pending Meal Program Approvals */}
-            {pendingMealPrograms.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingMealPrograms.filter(i => [i.accountName, i.business?.name].some(v => v?.toLowerCase().includes(_ps))) : pendingMealPrograms; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>🍽️</span> Meal Program Approvals
                   <span className="bg-teal-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
-                    {pendingMealPrograms.length}
+                    {items.length}
                   </span>
                 </h2>
                 <div className="space-y-3">
-                  {pendingMealPrograms.map(item => (
+                  {items.map(item => (
                     <div key={item.batchPaymentId} className="bg-white dark:bg-gray-800 border border-teal-300 dark:border-teal-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -1018,19 +1048,19 @@ export default function PendingActionsPage() {
                   ))}
                 </div>
               </div>
-            )}
+            )})()}
 
             {/* Pending Supplier Payment Requests */}
-            {pendingSupplierPayments.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingSupplierPayments.filter(i => [i.supplier?.name, i.business?.name, i.notes, i.submitter?.name].some(v => v?.toLowerCase().includes(_ps))) : pendingSupplierPayments; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>🧾</span> Supplier Payment Requests
                   <span className="bg-orange-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
-                    {pendingSupplierPayments.length}
+                    {items.length}
                   </span>
                 </h2>
                 <div className="space-y-3">
-                  {pendingSupplierPayments.map(item => (
+                  {items.map(item => (
                     <div key={item.id} className="bg-white dark:bg-gray-800 border border-orange-300 dark:border-orange-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -1055,7 +1085,7 @@ export default function PendingActionsPage() {
                   ))}
                 </div>
               </div>
-            )}
+            )})()}
 
           </div>
         )}

@@ -158,6 +158,18 @@ Click the **🔔 bell** to open your notifications panel.
 - Click a notification to go directly to the item it relates to.
 - Click **Mark all as read** to clear the list.
 
+#### Searching Notifications
+
+Both the bell preview dropdown and the blue notification side-panel include a **search bar** (appears automatically when there are more than 4 items).
+
+- Type any part of a name, amount, date, or note to filter the list instantly.
+- Click the **×** button inside the search box to clear the filter.
+- The search works across all sections of the panel simultaneously.
+
+#### Jumping Directly to a Payment Request
+
+When a **Personal Payment Request** appears in the bell preview, clicking it takes you straight to that specific request on the Pending Actions page — it scrolls into view automatically and is highlighted with a blue ring so you can spot it instantly. You do not need to scroll through the list manually.
+
 ### Trusting the Site Certificate on a New Device
 
 If your browser shows a **NET::ERR_CERT_AUTHORITY_INVALID** warning when you open the system, it means that device doesn't yet trust the server's root certificate. The fix depends on the device type. You only need to do this once per device.
@@ -688,6 +700,12 @@ Click the bell or go to **Pending Actions** to see everything in one place. Item
 - Eco-Cash to Cash conversion requests (cashiers only)
 
 Click any item to review and approve or decline it.
+
+**Searching the bell dropdown:** When there are more than 4 pending items, a search box appears at the top of the bell preview. Type to filter by name, amount, account, or note. Click **×** to clear.
+
+**Searching the full Pending Actions page:** A search bar at the top of the page filters all sections at once — useful when you have many items across different categories.
+
+**Going straight to a request:** Clicking a Personal Payment Request in the bell preview opens the Pending Actions page and scrolls directly to that card, which is highlighted with a blue ring for 2–3 seconds.
 
 ---
 
@@ -5371,7 +5389,7 @@ Click **Lock Allocation**. The report is locked, Cash Bucket INFLOW and OUTFLOW 
 
 Team Chat is a built-in **company-wide messaging tool** that lets all staff communicate in real time — no need for WhatsApp groups or external apps. It is always available from any screen in the system.
 
-There is one shared room: **General**. All users with a system account can see and send messages here.
+There is one shared room: **General**. All users with a system account can see and post here. You can also send **private messages** to one or more specific people, and have **threaded reply conversations** within any message.
 
 ---
 
@@ -5383,12 +5401,13 @@ The chat lives in a **floating panel** that you can open without leaving whateve
 - **Mobile:** Tap the chat icon in the mobile menu.
 - **Dashboard:** Click the chat shortcut button on the dashboard.
 
-The panel opens as a draggable window — you can move it to any corner of the screen so it does not cover your work.
+The panel opens as a draggable window — move it to any corner of the screen so it does not cover your work.
 
 ---
 
 ### Sending a Message
 
+**Broadcasting to everyone (default):**
 1. Open the chat panel.
 2. Type your message in the input field at the bottom.
 3. Press **Enter** or click **Send**.
@@ -5397,9 +5416,62 @@ Your message appears immediately for all connected users.
 
 ---
 
+### Sending a Private Message
+
+You can target a message to one or more specific people. Only those recipients (and you) will see it — no one else.
+
+1. In the input area, click **@ Add**.
+2. A search box appears. Type part of a person's name and select them from the list.
+3. Their name appears as a **chip** above the input field.
+4. Add more people if needed. Click **✕** on a chip to remove them.
+5. Type your message and send.
+
+Private messages are marked with a **🔒 Private** badge so the recipients clearly know it is not a broadcast.
+
+To return to a normal broadcast, click **Clear** next to the recipient chips.
+
+#### Online Presence Indicators
+
+When the recipient picker is open, each person in the list shows a small presence dot next to their name:
+
+| Dot colour | Meaning |
+|------------|---------|
+| 🟢 Green | Currently connected to the system |
+| ⚫ Grey | Offline or not currently logged in |
+
+An **online** label also appears to the right of any user who is active. The presence updates in real time — if someone signs in or closes the browser while the picker is open, their dot changes automatically.
+
+> **Tip:** Sending a private message to an online user means they will see it immediately. Offline users will see it the next time they open the system.
+
+---
+
+### Threaded Replies
+
+Any top-level message can have a thread of replies attached to it. Threads keep conversations focused without cluttering the main chat.
+
+**Starting a reply:**
+1. Hover over the message you want to reply to — a **↩ Reply** button appears.
+2. Click **↩ Reply**.
+3. A banner appears above the input field showing who you are replying to and two scope buttons:
+
+   | Button | What it does |
+   |--------|-------------|
+   | **Reply to sender** | Your reply goes only to the person who wrote the original message |
+   | **Reply to all** | Your reply is visible to everyone who could see the original message |
+
+4. Choose the scope, type your reply, and send.
+5. To cancel the reply and return to normal, click **✕** in the banner.
+
+**Viewing replies:**
+- After a message receives replies, a **▼ N replies** link appears below it.
+- Click the link to expand the thread inline. Replies are indented under the original message.
+- Click **▲ Hide replies** to collapse the thread.
+
+---
+
 ### Real-Time Updates
 
-Messages are delivered using **WebSockets** — they appear instantly without needing to refresh the page. If the connection drops temporarily, the system falls back to polling automatically and reconnects.
+Messages and replies are delivered using **WebSockets** — they appear instantly without refreshing. Private messages arrive via your personal notification channel, so you receive them even if you are on a different page.
 
 ---
 
@@ -5409,22 +5481,22 @@ When the chat panel is closed and a new message arrives:
 - A **red badge** appears on the chat button showing the number of unread messages.
 - The badge shows `9+` if there are more than nine unread messages.
 - The count clears as soon as you open the panel.
-
-You also receive a **🔔 bell notification** in the notification panel for each message sent while you were inactive.
+- You also receive a **🔔 bell notification** in the notification panel — private messages are labelled *(private)* so you can spot them at a glance.
 
 ---
 
 ### Message History
 
-When you open chat, the last **100 messages** are loaded automatically. Messages are grouped by date:
+When you open chat, the last **100 messages** you can see are loaded automatically. Messages are grouped by date:
 
 ```
 ── Monday, 10 March 2026 ──────────────────────
-  09:14  Alice      Good morning everyone
-  09:16  Bob        Morning! Till 3 is open
-  09:45  Manager    All staff meeting at 14:00
+  09:14  Alice       Good morning everyone
+  09:16  Bob         Morning! Till 3 is open
+  09:45  Manager     All staff meeting at 14:00
+                     ▼ 3 replies
 ── Tuesday, 11 March 2026 ─────────────────────
-  08:55  Alice      Running 5 mins late
+  08:55  Alice  🔒 Private    Running 5 mins late
 ```
 
 > Messages older than **7 days** are automatically deleted. Chat is intended for day-to-day communication — it is not a permanent record store.
@@ -5433,24 +5505,29 @@ When you open chat, the last **100 messages** are loaded automatically. Messages
 
 ### Deleting a Message
 
-You can delete your **own** messages:
+You can delete your **own most recent** message:
 1. Hover over the message.
 2. Click the **Delete** button that appears.
 3. The message is replaced with: *🚫 This message was deleted.*
 
-The placeholder is visible to everyone — deleted messages are not hidden from the chat history, only their content is removed.
+The placeholder is visible to everyone who could see the original — only its content is removed.
 
 > Only the message author can delete a message. You cannot delete other people's messages.
 
 ---
 
-### What Chat Does Not Support
+### Feature Summary
 
 | Feature | Available? |
 |---------|-----------|
+| Broadcast to all users | ✅ Yes |
+| Private messages (targeted recipients) | ✅ Yes |
+| Threaded replies | ✅ Yes |
+| Reply to sender only | ✅ Yes |
+| Real-time delivery via WebSocket | ✅ Yes |
+| 🔒 Private badge on targeted messages | ✅ Yes |
 | File or image attachments | Not yet |
-| Direct messages (person to person) | Not yet — all messages go to General |
-| Per-business or per-team channels | Not yet — one shared room for all users |
+| Per-business channels | Not yet |
 | Read receipts | Not yet |
 | Typing indicators | Not yet |
 | Message search | Not yet |
@@ -5460,13 +5537,14 @@ The placeholder is visible to everyone — deleted messages are not hidden from 
 
 ### Chat Tips
 
-- **Tag people by name** in your message so they know it is for them (e.g. *"@Alice, please check till 2 float"*). The system does not parse mentions automatically, but other users will see the name and know.
-- **Keep sensitive information out of chat** — chat messages are visible to all users and auto-delete after 7 days. Use Expense Account notes or payroll records for financial records.
-- **Use it for quick coordination** — shift handovers, quick questions, daily briefings, closing reminders.
+- **Use private messages for sensitive coordination** — e.g. alerting a specific manager about a till discrepancy without broadcasting it to all staff.
+- **Use threads to keep replies organised** — if a broadcast message needs follow-up, reply in the thread rather than sending a new top-level message.
+- **Keep sensitive financial information out of general chat** — general messages are visible to all users. Use Expense Account notes or payroll records for financial records.
+- **Use broadcast for quick coordination** — shift handovers, daily briefings, closing reminders, stock alerts.
 
 ---
 
----
+
 
 ## 21. Grocery POS — Desk Mode
 
@@ -5621,23 +5699,36 @@ Instead of manually stepping through Domain → Category → Sub-category dropdo
 
 1. Type a description in the **"What is this payment for?"** field (at least 3 characters).
 2. Click **💡 Suggest Classification** (button next to the field label).
-3. A **Suggested Classifications** modal opens, showing up to 5 best matches:
+3. A **Suggested Classifications** modal opens with up to two sections:
 
 ```
 💡 Suggested Classifications
 Based on: "office printer ink"
 
-🏢 Business (General) › 🖨️ Office Supplies
-   🖨️ Printer & Ink Supplies
+In this business
+  🏢 Business (General) › 🖨️ Office Supplies
+     🖨️ Printer & Ink Supplies
 
-📋 Consulting › 🏢 Business and Office Services
-   🖥️ Office Equipment & Supplies
+Other Categories
+  📋 Consulting › 🏢 Business and Office Services
+     🖥️ Office Equipment & Supplies
+
+  🛒 Grocery › 🏪 Store Operations
+     🖨️ Print & Packaging Supplies
 ```
 
+| Section | What it shows |
+|---------|--------------|
+| **In this business** | Best matches within the current business's expense domain |
+| **Other Categories** | Additional matches from across all domains — shown when the business search alone isn't enough |
+
+If the current business domain returns no matches, **Other Categories** results are shown automatically — there is no separate step. A true "no results" is only shown when there are no matches anywhere.
+
 4. Click any suggestion to **instantly fill** the Domain, Category, and Sub-category fields — no manual selection required.
+   - Picking from **Other Categories** automatically switches the Domain picker to match the selected category.
 5. While the fields are being filled, a pulsing "💡 Applying suggestion…" indicator appears. The fields are ready when it disappears.
 
-If no matches are found, the message "No matches found — please select manually." is shown — use the dropdowns to select manually.
+If no matches are found anywhere, the message "No matches found — please select manually." is shown — use the dropdowns to select manually.
 
 > **Tip:** The more specific your description, the better the suggestions. "fuel pump repair" will match Vehicle Maintenance sub-categories more precisely than just "fuel".
 
@@ -5698,6 +5789,38 @@ The Payment Detail overlay shows:
 | **Created by** | Staff member who created the payment |
 
 Close the overlay by clicking **Close** or clicking anywhere outside the popup. The Quick Payment or Edit Payment modal remains open underneath.
+
+---
+
+#### Repeating a Previous Payment
+
+The **Repeat** button in the transaction history lets you open the Quick Payment modal pre-filled with all the details of an existing payment — saving time for recurring payments such as rent, regular supplier runs, or standing wages.
+
+**Where the button appears:**
+
+The **Repeat** link appears on any payment row in the transaction history that is:
+- A regular payment (not a deposit, not an auto-transfer, not a combo request disbursement)
+
+Any user with access to make or edit payments on the account can see the button.
+
+**How to use it:**
+
+1. Open the expense account detail page and scroll to the **Transaction History**.
+2. Find the payment you want to repeat and click **Repeat** on the right side of the row.
+3. The **Quick Payment** modal opens, pre-filled with:
+   - **Payee** — same person, employee, or supplier
+   - **Amount** — same amount (edit as needed)
+   - **Payment date** — today's date (not the original date)
+   - **Category / Sub-category** — same classification
+   - **Notes** — same description
+   - **Payment channel** — same channel (Cash, EcoCash, etc.)
+   - **Priority** — same priority
+4. A blue banner at the top of the modal confirms: *"Pre-filled from a previous payment — review and adjust as needed."*
+5. Make any adjustments (amount, date, notes) and click **Submit Payment**.
+
+> **Note:** The **Requester** field always defaults to you (the currently logged-in user), not the original requester. This is intentional — the repeat creates a new payment request under your name.
+
+> **Tip:** Use Repeat for recurring fixed payments (same payee, same amount, same category). For payments where only the amount changes, it is faster to Repeat and update the amount than to fill in the form from scratch.
 
 ---
 
@@ -8133,9 +8256,11 @@ If only some items are funded, the status will be **PARTIALLY APPROVED** and you
    - **Description** (required) — what is being bought or paid
    - **Quantity** and **Unit** (optional) — e.g. "3 × bags"
    - **Estimated Amount** — how much you expect to spend
-   - **Category / Sub-category** — expense classification
+   - **Domain / Category / Sub-category** — expense classification. You can select these manually or click **✨ Suggest** to auto-classify based on the description (see below).
    - **Payee** — who is being paid (person, employee, supplier, business, or leave blank)
    - **Item Notes** — any extra details
+
+> **✨ Suggest on combo items:** After typing a description, click **✨ Suggest** next to the Domain field. The system searches for matching expense categories and displays results in up to two sections — **matches within the selected domain** (if one is chosen) and **Other Categories** from across all domains. Selecting a result from either section fills in the Domain, Category, and Sub-category automatically. If no domain is selected, all results are shown as a flat list so you can discover the right classification from scratch.
 
 7. Repeat for all sections and items. The **Grand Total** at the bottom updates automatically.
 8. Click **Save Draft** at any time to save your work without submitting.

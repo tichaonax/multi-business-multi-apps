@@ -90,11 +90,26 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
       try {
         const room = `user:${data.userId}`
         socket.join(room)
+        ;(socket as any).__userId = data.userId
+        // Broadcast presence change to chat room
+        io.to('chat:general').emit('user:online', { userId: data.userId })
         console.log(`[Socket.io] Client ${clientId} joined notification room: ${room}`)
         socket.emit('notification-room-joined', { room })
       } catch (error) {
         console.error('[Socket.io] Error joining notification room:', error)
       }
+    })
+
+    // Return list of currently online user IDs by inspecting live room membership
+    socket.on('chat:get-online-users', () => {
+      const rooms = io.sockets.adapter.rooms
+      const onlineIds: string[] = []
+      rooms.forEach((_sockets, roomName) => {
+        if (roomName.startsWith('user:')) {
+          onlineIds.push(roomName.slice(5))
+        }
+      })
+      socket.emit('chat:online-users', { onlineIds })
     })
 
     // Ping/pong for keepalive
@@ -105,6 +120,15 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
     // Disconnection
     socket.on('disconnect', (reason) => {
       console.log(`[Socket.io] Client disconnected: ${clientId}, reason: ${reason}`)
+      const userId = (socket as any).__userId as string | undefined
+      if (userId) {
+        // Only broadcast offline if no other socket is still in the room
+        const room = `user:${userId}`
+        const roomSockets = io.sockets.adapter.rooms.get(room)
+        if (!roomSockets || roomSockets.size === 0) {
+          io.to('chat:general').emit('user:offline', { userId })
+        }
+      }
     })
 
     // Error handling

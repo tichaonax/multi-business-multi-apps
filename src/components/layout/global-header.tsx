@@ -89,6 +89,8 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const [pendingDraftNav, setPendingDraftNav] = useState<{ businessId: string; businessName: string; url: string; title: string } | null>(null)
   const [showUnreadOnly, setShowUnreadOnly] = useState(true)
   const [canPettyCashRequest, setCanPettyCashRequest] = useState(false)
+  const [bellSearch, setBellSearch] = useState('')
+  const [notifSearch, setNotifSearch] = useState('')
 
   // Fetch petty cash permission once on mount (system-level, not covered by hasPermission)
   useEffect(() => {
@@ -788,7 +790,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                       setShowBellPreview(true)
                     }}
                     onMouseLeave={() => {
-                      bellHideTimer.current = setTimeout(() => setShowBellPreview(false), 150)
+                      bellHideTimer.current = setTimeout(() => { setShowBellPreview(false); setBellSearch('') }, 150)
                     }}
                   >
                     <Link
@@ -812,9 +814,31 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                           <span className="text-xs font-semibold text-primary">Pending Actions</span>
                           <span className="text-xs text-secondary">{pendingCount} total</span>
                         </div>
+                        {pendingCount > 4 && (
+                          <div className="px-3 py-1.5 border-b border-border bg-white dark:bg-gray-800">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={bellSearch}
+                                onChange={e => setBellSearch(e.target.value)}
+                                placeholder="Search pending actions…"
+                                className="w-full text-xs px-2 py-1 pr-6 rounded border border-border bg-gray-50 dark:bg-gray-700 text-primary focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                              />
+                              {bellSearch && (
+                                <button
+                                  type="button"
+                                  onClick={() => setBellSearch('')}
+                                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 leading-none"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
                         <div className="divide-y divide-border max-h-80 overflow-y-auto">
-                          {(pendingActions as any).personalPaymentRequests?.map((r: any) => (
-                            <Link key={r.id} href="/admin/pending-actions" onClick={() => setShowBellPreview(false)} className={`flex items-start gap-2 px-3 py-2 hover:bg-purple-50 dark:hover:bg-purple-900/10 text-xs ${r.priority === 'URGENT' ? 'border-l-2 border-red-500' : 'border-l-2 border-purple-400'}`}>
+                          {(pendingActions as any).personalPaymentRequests?.filter((r: any) => !bellSearch || [r.creatorName, r.accountName, r.payeeName, r.notes, r.amount?.toString()].some(v => v?.toLowerCase().includes(bellSearch.toLowerCase()))).map((r: any) => (
+                            <Link key={r.id} href={`/admin/pending-actions?requestId=${r.id}`} onClick={() => setShowBellPreview(false)} className={`flex items-start gap-2 px-3 py-2 hover:bg-purple-50 dark:hover:bg-purple-900/10 text-xs ${r.priority === 'URGENT' ? 'border-l-2 border-red-500' : 'border-l-2 border-purple-400'}`}>
                               <span className="mt-0.5 shrink-0">{r.priority === 'URGENT' ? '🚨' : '🙋'}</span>
                               <div className="min-w-0">
                                 <p className="font-medium text-purple-700 dark:text-purple-300 truncate">
@@ -830,7 +854,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               </div>
                             </Link>
                           ))}
-                          {pendingActions.pendingPaymentBatches?.map((b: any) => (
+                          {pendingActions.pendingPaymentBatches?.filter((b: any) => !bellSearch || [b.business?.name, b.eodDate].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase()))).map((b: any) => (
                             <Link key={b.id} href={`/expense-accounts/payment-batches/${b.id}/review`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
                               <span className="mt-0.5 shrink-0">📋</span>
                               <div className="min-w-0">
@@ -844,7 +868,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               </div>
                             </Link>
                           ))}
-                          {pendingActions.pendingPettyCash?.map((p: any) => (
+                          {pendingActions.pendingPettyCash?.filter((p: any) => !bellSearch || [p.requester?.name, p.purpose, p.business?.name].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase()))).map((p: any) => (
                             <Link
                               key={p.id}
                               href={`/petty-cash/${p.id}`}
@@ -862,14 +886,14 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               </div>
                             </Link>
                           ))}
-                          {(pendingActions.outstandingPettyCash?.length ?? 0) > 0 && (
+                          {(() => { const _opc = (pendingActions.outstandingPettyCash ?? []).filter((r: any) => !bellSearch || [r.requesterName, r.purpose, r.businessName].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase()))); return _opc.length > 0 && (
                             <>
                               <div className="px-3 py-1.5 bg-amber-50 dark:bg-amber-900/20 border-t border-border">
                                 <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
-                                  💵 Cash In-Hand — {pendingActions.outstandingPettyCash!.length} request{pendingActions.outstandingPettyCash!.length !== 1 ? 's' : ''} · ${Number(pendingActions.outstandingPettyCashTotal ?? 0).toFixed(2)} outstanding
+                                  💵 Cash In-Hand — {_opc.length} request{_opc.length !== 1 ? 's' : ''} · ${Number(pendingActions.outstandingPettyCashTotal ?? 0).toFixed(2)} outstanding
                                 </span>
                               </div>
-                              {pendingActions.outstandingPettyCash!.map((r) => (
+                              {_opc.map((r: any) => (
                                 <Link key={r.id} href={`/petty-cash/${r.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/10 text-xs">
                                   <span className="mt-0.5 shrink-0">💵</span>
                                   <div className="min-w-0 flex-1">
@@ -879,8 +903,8 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                 </Link>
                               ))}
                             </>
-                          )}
-                          {pendingActions.pendingCashAllocations?.map((r: any) => {
+                          )})()}
+                          {pendingActions.pendingCashAllocations?.filter((r: any) => !bellSearch || (r.business?.name as string | undefined)?.toLowerCase().includes(bellSearch.toLowerCase())).map((r: any) => {
                             const isGrouped = r.isGrouped === true
                             const cashAllocUrl = isGrouped
                               ? `/${r.business?.type ?? 'restaurant'}/reports/cash-allocation?reportId=${r.id}&businessId=${r.business?.id ?? ''}`
@@ -916,14 +940,14 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               </Link>
                             )
                           })}
-                          {(pendingActions.pendingStockTakeDrafts?.length ?? 0) > 0 && (
+                          {(() => { const _psd = (pendingActions.pendingStockTakeDrafts ?? []).filter((d: any) => !bellSearch || [d.title, d.businessName].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase()))); return _psd.length > 0 && (
                             <>
                               <div className="px-3 py-1.5 bg-teal-50 dark:bg-teal-900/20 border-t border-border">
                                 <span className="text-[10px] font-semibold text-teal-700 dark:text-teal-400 uppercase tracking-wide">
-                                  📦 Bulk Stock — {pendingActions.pendingStockTakeDrafts!.length} draft{pendingActions.pendingStockTakeDrafts!.length !== 1 ? 's' : ''} in progress
+                                  📦 Bulk Stock — {_psd.length} draft{_psd.length !== 1 ? 's' : ''} in progress
                                 </span>
                               </div>
-                              {pendingActions.pendingStockTakeDrafts!.map((d) => (
+                              {_psd.map((d: any) => (
                                 <button
                                   key={d.id}
                                   onClick={() => {
@@ -945,8 +969,8 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                 </button>
                               ))}
                             </>
-                          )}
-                          {pendingActions.pendingSupplierPayments?.map((s: any) => (
+                          )})()}
+                          {pendingActions.pendingSupplierPayments?.filter((s: any) => !bellSearch || (s.supplier?.name as string | undefined)?.toLowerCase().includes(bellSearch.toLowerCase())).map((s: any) => (
                             <Link key={s.id} href="/supplier-payments" onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
                               <span className="mt-0.5 shrink-0">🏭</span>
                               <div className="min-w-0">
@@ -955,14 +979,14 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               </div>
                             </Link>
                           ))}
-                          {(pendingActions.pendingEcocashConversions?.length ?? 0) > 0 && (
+                          {(() => { const _pec = (pendingActions.pendingEcocashConversions ?? []).filter((e: any) => !bellSearch || [e.business?.name, e.requester?.name].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase()))); return _pec.length > 0 && (
                             <>
                               <div className="px-3 py-1.5 bg-teal-50 dark:bg-teal-900/20 border-t border-border">
                                 <span className="text-[10px] font-semibold text-teal-700 dark:text-teal-400 uppercase tracking-wide">
-                                  📱 Eco-Cash Conversions — {pendingActions.pendingEcocashConversions!.length} pending
+                                  📱 Eco-Cash Conversions — {_pec.length} pending
                                 </span>
                               </div>
-                              {pendingActions.pendingEcocashConversions!.map((e: any) => (
+                              {_pec.map((e: any) => (
                                 <Link key={e.id} href="/cash-bucket" onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-900/10 text-xs">
                                   <span className="mt-0.5 shrink-0">📱→💵</span>
                                   <div className="min-w-0">
@@ -975,8 +999,8 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                 </Link>
                               ))}
                             </>
-                          )}
-                          {pendingActions.pendingPaymentRequests?.map((r: any) => {
+                          )})()}
+                          {pendingActions.pendingPaymentRequests?.filter((r: any) => !bellSearch || [r.accountName, r.business?.name].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase()))).map((r: any) => {
                             const hasUrgent = (r.urgentCount ?? 0) > 0
                             const isSingle = !!r.singlePaymentId
                             const href = isSingle
@@ -997,7 +1021,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                             </Link>
                             )
                           })}
-                          {(pendingActions as any).myPendingPayments?.map((r: any) => (
+                          {(pendingActions as any).myPendingPayments?.filter((r: any) => !bellSearch || [r.accountName, r.business?.name].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase()))).map((r: any) => (
                             <Link key={r.id} href={`/expense-accounts/${r.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
                               <span className="mt-0.5 shrink-0">📤</span>
                               <div className="min-w-0">
@@ -1012,7 +1036,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               </div>
                             </Link>
                           ))}
-                          {(pendingActions as any).myApprovedPayments?.map((r: any) => (
+                          {(pendingActions as any).myApprovedPayments?.filter((r: any) => !bellSearch || [r.businessName, r.categoryName, r.payeeName, r.notes].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase()))).map((r: any) => (
                             <Link key={r.id} href={`/expense-accounts/my-payments`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs border-l-2 border-green-400">
                               <span className="mt-0.5 shrink-0">✅</span>
                               <div className="min-w-0">
@@ -1022,7 +1046,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               </div>
                             </Link>
                           ))}
-                          {(pendingActions as any).myApprovedPettyCash?.map((r: any) => (
+                          {(pendingActions as any).myApprovedPettyCash?.filter((r: any) => !bellSearch || [r.business?.name, r.purpose].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase()))).map((r: any) => (
                             <Link key={r.id} href={`/petty-cash/${r.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs border-l-2 border-green-400">
                               <span className="mt-0.5 shrink-0">🪙</span>
                               <div className="min-w-0">
@@ -1063,7 +1087,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                     ref={notifRef}
                     className="relative"
                     onMouseEnter={() => { if (notifHideTimer.current) clearTimeout(notifHideTimer.current); setShowNotifPanel(true) }}
-                    onMouseLeave={() => { notifHideTimer.current = setTimeout(() => setShowNotifPanel(false), 150) }}
+                    onMouseLeave={() => { notifHideTimer.current = setTimeout(() => { setShowNotifPanel(false); setNotifSearch('') }, 150) }}
                   >
                     <button
                       className="relative flex p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -1119,10 +1143,34 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                             )}
                           </div>
                         </div>
+                        {notifList.length > 4 && (
+                          <div className="px-3 py-1.5 border-b border-border bg-white dark:bg-gray-800">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={notifSearch}
+                                onChange={e => setNotifSearch(e.target.value)}
+                                placeholder="Search notifications…"
+                                className="w-full text-xs px-2 py-1 pr-6 rounded border border-border bg-gray-50 dark:bg-gray-700 text-primary focus:outline-none focus:ring-1 focus:ring-blue-400"
+                              />
+                              {notifSearch && (
+                                <button
+                                  type="button"
+                                  onClick={() => setNotifSearch('')}
+                                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 leading-none"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
                         <div className="divide-y divide-border max-h-80 overflow-y-auto">
-                          {(showUnreadOnly ? notifList.filter(n => !n.isRead) : notifList).length === 0 ? (
-                            <div className="px-3 py-4 text-xs text-secondary text-center">{showUnreadOnly ? 'No unread notifications' : 'No notifications'}</div>
-                          ) : (showUnreadOnly ? notifList.filter(n => !n.isRead) : notifList).map(n => {
+                          {(() => {
+                            const baseList = showUnreadOnly ? notifList.filter(n => !n.isRead) : notifList
+                            const filtered = notifSearch.trim() ? baseList.filter(n => `${n.title ?? ''} ${n.message ?? ''}`.toLowerCase().includes(notifSearch.toLowerCase())) : baseList
+                            if (filtered.length === 0) return <div className="px-3 py-4 text-xs text-secondary text-center">{notifSearch ? 'No matching notifications' : showUnreadOnly ? 'No unread notifications' : 'No notifications'}</div>
+                            return filtered.map(n => {
                             const isUrgent = n.title?.includes('Urgent') || n.title?.includes('URGENT') || n.message?.includes('🚨')
                             const hasCash = n.message?.includes('💵')
                             const hasEcoCash = n.message?.includes('📱')
@@ -1155,7 +1203,8 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               {!n.isRead && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1" />}
                             </div>
                             )
-                          })}
+                          })
+                          })()}
                         </div>
                       </div>
                     )}
