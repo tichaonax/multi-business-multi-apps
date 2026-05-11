@@ -528,13 +528,32 @@ export function QuickPaymentModal({
           const isOverride = !!activeDomainOverrideRef.current
           if (isOverride) {
             // Domain-override mode (personal, home, business-domain): categoryId = ExpenseCategory.id
-            setFormData(prev => ({
-              ...prev,
-              categoryId: repeatPending.categoryId,
-              subcategoryId: repeatPending.subcategoryId,
-              subSubcategoryId: '',
-            }))
             ;(async () => {
+              // Cross-domain: if original payment is from a different domain, switch first
+              if (repeatPending.domainId && repeatPending.domainId !== activeDomainOverrideIdRef.current) {
+                const domainOpts = categoriesRef.current.filter((c: any) => c.isDomainCategory && !INCOME_DOMAIN_NAMES.has(c.name))
+                const targetDomain = domainOpts.find((d: any) => d.id === repeatPending.domainId)
+                if (targetDomain) {
+                  setSelectedDropdownValue(`domain:${targetDomain.id}`)
+                  setActiveDomainOverride(targetDomain.name)
+                  setActiveDomainOverrideId(targetDomain.id)
+                  setFormData(prev => ({ ...prev, categoryId: '', subcategoryId: '', subSubcategoryId: '' }))
+                  setSubcategories([])
+                  setSubSubcategories([])
+                  setDomainOverrideItems([])
+                  setLoadingDomainOverrideItems(true)
+                  try {
+                    const r = await fetch(`/api/expense-categories/${targetDomain.id}/subcategories`, { credentials: 'include' })
+                    if (r.ok) { const d = await r.json(); setDomainOverrideItems(d.subcategories || []) }
+                  } catch {} finally { setLoadingDomainOverrideItems(false) }
+                }
+              }
+              setFormData(prev => ({
+                ...prev,
+                categoryId: repeatPending.categoryId,
+                subcategoryId: repeatPending.subcategoryId,
+                subSubcategoryId: '',
+              }))
               if (repeatPending.categoryId) await loadSubcategories(repeatPending.categoryId)
               if (repeatPending.subcategoryId) {
                 const r = await fetch(`/api/expense-categories/sub-subcategories/${repeatPending.subcategoryId}/items`, { credentials: 'include' })
@@ -583,13 +602,32 @@ export function QuickPaymentModal({
 
     if (isOverride) {
       // Domain-override mode: categoryId = ExpenseCategory.id (e.g. Housing within Personal Expenses)
-      setFormData(prev => ({
-        ...prev,
-        categoryId: pending.categoryId,
-        subcategoryId: pending.subcategoryId,
-        subSubcategoryId: '',
-      }))
       ;(async () => {
+        // Cross-domain: if original payment is from a different domain, switch first
+        if (pending.domainId && pending.domainId !== activeDomainOverrideId) {
+          const domainOpts = categories.filter((c: any) => c.isDomainCategory && !INCOME_DOMAIN_NAMES.has(c.name))
+          const targetDomain = domainOpts.find((d: any) => d.id === pending.domainId)
+          if (targetDomain) {
+            setSelectedDropdownValue(`domain:${targetDomain.id}`)
+            setActiveDomainOverride(targetDomain.name)
+            setActiveDomainOverrideId(targetDomain.id)
+            setFormData(prev => ({ ...prev, categoryId: '', subcategoryId: '', subSubcategoryId: '' }))
+            setSubcategories([])
+            setSubSubcategories([])
+            setDomainOverrideItems([])
+            setLoadingDomainOverrideItems(true)
+            try {
+              const r = await fetch(`/api/expense-categories/${targetDomain.id}/subcategories`, { credentials: 'include' })
+              if (r.ok) { const d = await r.json(); setDomainOverrideItems(d.subcategories || []) }
+            } catch {} finally { setLoadingDomainOverrideItems(false) }
+          }
+        }
+        setFormData(prev => ({
+          ...prev,
+          categoryId: pending.categoryId,
+          subcategoryId: pending.subcategoryId,
+          subSubcategoryId: '',
+        }))
         if (pending.categoryId) await loadSubcategories(pending.categoryId)
         if (pending.subcategoryId) {
           const r = await fetch(`/api/expense-categories/sub-subcategories/${pending.subcategoryId}/items`, { credentials: 'include' })
@@ -761,6 +799,8 @@ export function QuickPaymentModal({
   // Load sub-subcategories when subcategory changes (normal mode only — domain-override handles this in onChange directly)
   const activeDomainOverrideRef = useRef(activeDomainOverride)
   useEffect(() => { activeDomainOverrideRef.current = activeDomainOverride }, [activeDomainOverride])
+  const activeDomainOverrideIdRef = useRef(activeDomainOverrideId)
+  useEffect(() => { activeDomainOverrideIdRef.current = activeDomainOverrideId }, [activeDomainOverrideId])
 
   useEffect(() => {
     if (skipCascadeRef.current) return
