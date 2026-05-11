@@ -3,6 +3,7 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
 import { formatCurrency, formatDateFull, formatDateTime } from '@/lib/date-format'
@@ -17,6 +18,8 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
   const [report, setReport] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const router = useRouter()
 
   const {
     currentBusiness,
@@ -139,6 +142,12 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
       {/* Navigation */}
       <div className="no-print mb-6 max-w-4xl mx-auto">
         <div className="flex items-center justify-center gap-4 flex-wrap">
+          <button
+            onClick={() => router.back()}
+            className="inline-flex items-center px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm whitespace-nowrap"
+          >
+            ← Back
+          </button>
           <Link
             href={posLink}
             className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm whitespace-nowrap"

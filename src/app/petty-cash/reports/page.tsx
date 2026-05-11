@@ -8,6 +8,8 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useToastContext } from '@/components/ui/toast'
 import Link from 'next/link'
+import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
+import { getLocalDateString } from '@/lib/utils'
 
 const STATUS_STYLES: Record<string, string> = {
   PENDING:   'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
@@ -28,8 +30,10 @@ export default function PettyCashReportsPage() {
 
   const [reportData, setReportData] = useState<any>(null)
   const [loading, setLoading] = useState(false)
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const [allTime, setAllTime] = useState(true)
+  const [dateRange, setDateRange] = useState<DateRange>(() => {
+    const end = new Date(); const start = new Date(); start.setDate(end.getDate() - 30); return { start, end }
+  })
   const [statusFilter, setStatusFilter] = useState('')
   const [channelFilter, setChannelFilter] = useState('')
 
@@ -43,8 +47,10 @@ export default function PettyCashReportsPage() {
     setLoading(true)
     try {
       const params = new URLSearchParams({ businessId: currentBusinessId })
-      if (dateFrom) params.set('dateFrom', dateFrom)
-      if (dateTo) params.set('dateTo', dateTo)
+      if (!allTime) {
+        params.set('dateFrom', getLocalDateString(dateRange.start))
+        params.set('dateTo', getLocalDateString(dateRange.end))
+      }
       if (statusFilter) params.set('status', statusFilter)
       if (channelFilter) params.set('paymentChannel', channelFilter)
       const res = await fetch(`/api/petty-cash/reports?${params}`, { credentials: 'include' })
@@ -56,7 +62,7 @@ export default function PettyCashReportsPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentBusinessId, dateFrom, dateTo, statusFilter, channelFilter, toast])
+  }, [currentBusinessId, allTime, dateRange, statusFilter, channelFilter, toast])
 
   useEffect(() => { fetchReport() }, [fetchReport])
 
@@ -81,16 +87,8 @@ export default function PettyCashReportsPage() {
           <Link href="/petty-cash" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">&larr; Back to list</Link>
         </div>
 
-        {/* Filters */}
+        {/* Other Filters */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex flex-wrap gap-4 items-end">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">From</label>
-            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">To</label>
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
-          </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Status</label>
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
@@ -109,8 +107,16 @@ export default function PettyCashReportsPage() {
               <option value="ECOCASH">📱 EcoCash</option>
             </select>
           </div>
-          <button onClick={fetchReport} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">Apply</button>
         </div>
+
+        {/* Date Range */}
+        <DateRangeSelector
+          value={dateRange}
+          onChange={(range) => { setAllTime(false); setDateRange(range) }}
+          showAllTime={true}
+          allTime={allTime}
+          onAllTimeChange={setAllTime}
+        />
 
         {/* Summary cards */}
         {summary && (

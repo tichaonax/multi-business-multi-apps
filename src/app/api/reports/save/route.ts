@@ -154,10 +154,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 9. Extract summary metrics from reportData
-    const totalSales = parseFloat(reportData.summary?.totalSales || 0)
-    const totalOrders = parseInt(reportData.summary?.totalOrders || 0)
-    const receiptsIssued = parseInt(reportData.summary?.receiptsIssued || 0)
+    // 9. Re-query actual order totals server-side so we don't trust the stale client snapshot
+    const ordersAgg = await prisma.businessOrders.aggregate({
+      where: {
+        businessId,
+        status: 'COMPLETED',
+        OR: [
+          { transactionDate: { gte: new Date(periodStart), lte: new Date(periodEnd) } },
+          { transactionDate: null, createdAt: { gte: new Date(periodStart), lte: new Date(periodEnd) } },
+        ],
+      },
+      _sum: { totalAmount: true },
+      _count: { id: true },
+    })
+    const totalSales = Number(ordersAgg._sum.totalAmount ?? 0)
+    const totalOrders = ordersAgg._count.id
+    const receiptsIssued = totalOrders
 
     // 10. Save report to database
     const savedReport = await prisma.savedReports.create({

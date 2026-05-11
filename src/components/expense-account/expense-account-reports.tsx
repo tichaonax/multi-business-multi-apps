@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts'
-import { DateInput } from '@/components/ui/date-input'
+import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
+import { getLocalDateString } from '@/lib/utils'
 
 interface ReportData {
   byCategory: Array<{
@@ -85,19 +86,23 @@ const CHART_COLORS = [
 export function ExpenseAccountReports({ accountId }: ExpenseAccountReportsProps) {
   const [reportData, setReportData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const [dateRange, setDateRange] = useState<DateRange>(() => {
+    const end = new Date(); const start = new Date(); start.setDate(end.getDate() - 30); return { start, end }
+  })
+  const [allTime, setAllTime] = useState(true)
 
   useEffect(() => {
     loadReports()
-  }, [accountId, startDate, endDate])
+  }, [accountId, dateRange, allTime])
 
   const loadReports = async () => {
     try {
       setLoading(true)
       const params = new URLSearchParams()
-      if (startDate) params.append('startDate', startDate)
-      if (endDate) params.append('endDate', endDate)
+      if (!allTime) {
+        params.append('startDate', getLocalDateString(dateRange.start))
+        params.append('endDate', getLocalDateString(dateRange.end))
+      }
 
       const response = await fetch(
         `/api/expense-account/${accountId}/reports?${params.toString()}`,
@@ -198,35 +203,13 @@ export function ExpenseAccountReports({ accountId }: ExpenseAccountReportsProps)
   return (
     <div className="space-y-6">
       {/* Date Range Filter */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="flex-1 min-w-[180px]">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Start Date
-            </label>
-            <DateInput value={startDate} onChange={setStartDate} label="" />
-          </div>
-
-          <div className="flex-1 min-w-[180px]">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              End Date
-            </label>
-            <DateInput value={endDate} onChange={setEndDate} label="" />
-          </div>
-
-          <div>
-            <button
-              onClick={() => {
-                setStartDate('')
-                setEndDate('')
-              }}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 whitespace-nowrap"
-            >
-              Reset Filter
-            </button>
-          </div>
-        </div>
-      </div>
+      <DateRangeSelector
+        value={dateRange}
+        onChange={(range) => { setAllTime(false); setDateRange(range) }}
+        showAllTime={true}
+        allTime={allTime}
+        onAllTimeChange={setAllTime}
+      />
 
       {/* Summary Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

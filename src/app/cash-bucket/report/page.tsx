@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { SearchableSelect } from '@/components/ui/searchable-select'
+import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
+import { getLocalDateString } from '@/lib/utils'
 
 interface Business { id: string; name: string; type: string }
 
@@ -47,11 +49,6 @@ const ENTRY_TYPE_LABEL: Record<string, string> = {
   CASH_ALLOCATION:  '📋 Cash Allocation',
 }
 
-const localToday = () => new Date().toISOString().split('T')[0]
-const local30DaysAgo = () => {
-  const d = new Date(); d.setDate(d.getDate() - 29); return d.toISOString().split('T')[0]
-}
-
 export default function CashBucketReportPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -67,8 +64,10 @@ export default function CashBucketReportPage() {
   const [bizFilter, setBizFilter] = useState('')
   const [dirFilter, setDirFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
-  const [startDate, setStartDate] = useState(local30DaysAgo)
-  const [endDate, setEndDate] = useState(localToday)
+  const [dateRange, setDateRange] = useState<DateRange>(() => {
+    const end = new Date(); const start = new Date(); start.setDate(end.getDate() - 30); return { start, end }
+  })
+  const [allTime, setAllTime] = useState(false)
   const [showEdited, setShowEdited] = useState(false)
   const [showDeleted, setShowDeleted] = useState(false)
   const [offset, setOffset] = useState(0)
@@ -82,12 +81,14 @@ export default function CashBucketReportPage() {
     if (bizFilter)  p.set('businessId', bizFilter)
     if (dirFilter)  p.set('direction', dirFilter)
     if (typeFilter) p.set('entryType', typeFilter)
-    if (startDate)  p.set('startDate', startDate)
-    if (endDate)    p.set('endDate', endDate)
+    if (!allTime) {
+      p.set('startDate', getLocalDateString(dateRange.start))
+      p.set('endDate', getLocalDateString(dateRange.end))
+    }
     p.set('limit', String(limit))
     p.set('offset', String(offset))
     return `/api/cash-bucket?${p.toString()}`
-  }, [bizFilter, dirFilter, typeFilter, startDate, endDate, offset])
+  }, [bizFilter, dirFilter, typeFilter, allTime, dateRange, offset])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -116,8 +117,6 @@ export default function CashBucketReportPage() {
     if (status === 'unauthenticated') { router.push('/auth/signin'); return }
     if (status === 'authenticated') { load(); loadBusinesses() }
   }, [status, load, loadBusinesses, router])
-
-  const applyFilters = () => { setOffset(0); load() }
 
   const totalInflow  = balances.filter(b => !bizFilter || b.businessId === bizFilter).reduce((s, b) => s + b.inflow, 0)
   const totalOutflow = balances.filter(b => !bizFilter || b.businessId === bizFilter).reduce((s, b) => s + b.outflow, 0)
@@ -163,7 +162,7 @@ export default function CashBucketReportPage() {
         <div className="hidden print:block mb-4">
           <h1 className="text-xl font-bold">Cash Bucket Report</h1>
           <p className="text-sm text-gray-500">
-            {startDate} — {endDate}
+            {allTime ? 'All time' : `${getLocalDateString(dateRange.start)} — ${getLocalDateString(dateRange.end)}`}
             {bizFilter && ` · ${businesses.find(b => b.id === bizFilter)?.name}`}
           </p>
         </div>
@@ -239,10 +238,21 @@ export default function CashBucketReportPage() {
           </div>
         </div>
 
+        {/* Date Range */}
+        <div className="print:hidden">
+          <DateRangeSelector
+            value={dateRange}
+            onChange={(range) => { setAllTime(false); setDateRange(range) }}
+            showAllTime={true}
+            allTime={allTime}
+            onAllTimeChange={setAllTime}
+          />
+        </div>
+
         {/* Filters */}
         <div className="print:hidden rounded-lg border border-border bg-card p-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[180px] flex-1">
               <label className="block text-xs font-medium text-secondary mb-1">Business</label>
               <SearchableSelect
                 options={businesses.map(b => ({ value: b.id, label: b.name }))}
@@ -255,7 +265,7 @@ export default function CashBucketReportPage() {
             <div>
               <label className="block text-xs font-medium text-secondary mb-1">Direction</label>
               <select value={dirFilter} onChange={e => setDirFilter(e.target.value)}
-                className="w-full border border-border rounded px-2 py-1.5 text-sm bg-background text-primary">
+                className="border border-border rounded px-2 py-1.5 text-sm bg-background text-primary">
                 <option value="">All</option>
                 <option value="INFLOW">Inflow</option>
                 <option value="OUTFLOW">Outflow</option>
@@ -264,7 +274,7 @@ export default function CashBucketReportPage() {
             <div>
               <label className="block text-xs font-medium text-secondary mb-1">Type</label>
               <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
-                className="w-full border border-border rounded px-2 py-1.5 text-sm bg-background text-primary">
+                className="border border-border rounded px-2 py-1.5 text-sm bg-background text-primary">
                 <option value="">All</option>
                 <option value="EOD_RECEIPT">EOD Receipt</option>
                 <option value="PAYMENT_APPROVAL">Payment Approval</option>
@@ -272,26 +282,10 @@ export default function CashBucketReportPage() {
                 <option value="CASH_ALLOCATION">Cash Allocation</option>
               </select>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-secondary mb-1">From</label>
-              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-                className="w-full border border-border rounded px-2 py-1.5 text-sm bg-background text-primary" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-secondary mb-1">To</label>
-              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-                className="w-full border border-border rounded px-2 py-1.5 text-sm bg-background text-primary" />
-            </div>
-            <div className="flex items-end gap-2">
-              <button onClick={applyFilters}
-                className="flex-1 py-1.5 px-3 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700">
-                Apply
-              </button>
-              <button onClick={() => window.print()}
-                className="py-1.5 px-3 border border-border text-sm rounded hover:bg-gray-100 dark:hover:bg-gray-700">
-                🖨
-              </button>
-            </div>
+            <button onClick={() => window.print()}
+              className="py-1.5 px-3 border border-border text-sm rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+              🖨
+            </button>
           </div>
           <div className="flex gap-4 mt-2 pt-2 border-t border-border">
             <label className="flex items-center gap-2 text-xs text-secondary cursor-pointer">

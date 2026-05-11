@@ -96,6 +96,11 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const managerName = searchParams.get('managerName')
+    if (managerName) {
+      where.managerName = { contains: managerName, mode: 'insensitive' }
+    }
+
     // 5. Get total count
     const total = await prisma.savedReports.count({ where })
 

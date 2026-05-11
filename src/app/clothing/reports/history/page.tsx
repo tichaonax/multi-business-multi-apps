@@ -6,11 +6,24 @@ import { useState, useEffect } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
 import { formatCurrency, formatDateFull, formatDateTime } from '@/lib/date-format'
+import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
+import { getLocalDateString } from '@/lib/utils'
+
+const defaultDateRange = (): DateRange => {
+  const end = new Date()
+  const start = new Date()
+  start.setDate(end.getDate() - 30)
+  return { start, end }
+}
 
 export default function ReportsHistory() {
   const [reports, setReports] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [reportType, setReportType] = useState<string>('ALL')
+  const [allTime, setAllTime] = useState(true)
+  const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange)
+  const [managerSearch, setManagerSearch] = useState<string>('')
+  const [managerSearchDebounced, setManagerSearchDebounced] = useState<string>('')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalReports, setTotalReports] = useState(0)
@@ -25,6 +38,12 @@ export default function ReportsHistory() {
   const posLink = `/${businessType}/pos`
   const limit = 20
 
+  // Debounce manager search
+  useEffect(() => {
+    const timer = setTimeout(() => setManagerSearchDebounced(managerSearch), 300)
+    return () => clearTimeout(timer)
+  }, [managerSearch])
+
   // Load reports
   useEffect(() => {
     const loadReports = async () => {
@@ -37,6 +56,12 @@ export default function ReportsHistory() {
         let url = `/api/reports/saved?businessId=${currentBusinessId}&limit=${limit}&offset=${offset}`
         if (reportType !== 'ALL') {
           url += `&reportType=${reportType}`
+        }
+        if (!allTime) {
+          url += `&startDate=${getLocalDateString(dateRange.start)}&endDate=${getLocalDateString(dateRange.end)}`
+        }
+        if (managerSearchDebounced) {
+          url += `&managerName=${encodeURIComponent(managerSearchDebounced)}`
         }
 
         const response = await fetch(url)
@@ -54,12 +79,12 @@ export default function ReportsHistory() {
     }
 
     loadReports()
-  }, [currentBusinessId, reportType, currentPage])
+  }, [currentBusinessId, reportType, allTime, dateRange, managerSearchDebounced, currentPage])
 
-  // Reset to page 1 when filter changes
+  // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [reportType])
+  }, [reportType, allTime, dateRange, managerSearchDebounced])
 
   if (!isAuthenticated || !currentBusinessId) {
     return (
@@ -99,7 +124,7 @@ export default function ReportsHistory() {
       </div>
 
       {/* Page Header */}
-      <div className="max-w-6xl mx-auto mb-6">
+      <div className="max-w-6xl mx-auto mb-4">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -115,7 +140,7 @@ export default function ReportsHistory() {
           </div>
 
           {/* Filters */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
             <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Filter by Type:</label>
             <select
               value={reportType}
@@ -126,8 +151,26 @@ export default function ReportsHistory() {
               <option value="END_OF_DAY">End of Day</option>
               <option value="END_OF_WEEK">End of Week</option>
             </select>
+            <input
+              type="text"
+              placeholder="Search by manager..."
+              value={managerSearch}
+              onChange={(e) => setManagerSearch(e.target.value)}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 text-sm"
+            />
           </div>
         </div>
+      </div>
+
+      {/* Date Range Selector */}
+      <div className="max-w-6xl mx-auto">
+        <DateRangeSelector
+          value={dateRange}
+          onChange={(range) => { setAllTime(false); setDateRange(range) }}
+          showAllTime={true}
+          allTime={allTime}
+          onAllTimeChange={setAllTime}
+        />
       </div>
 
       {/* Reports Table */}

@@ -12,6 +12,9 @@ export interface DateRange {
 interface DateRangeSelectorProps {
   value: DateRange
   onChange: (range: DateRange) => void
+  showAllTime?: boolean
+  allTime?: boolean
+  onAllTimeChange?: (allTime: boolean) => void
 }
 
 const presets = [
@@ -22,21 +25,27 @@ const presets = [
   { key: '90', label: 'Last 90 Days', days: 90 },
 ]
 
-export function DateRangeSelector({ value, onChange }: DateRangeSelectorProps) {
+export function DateRangeSelector({ value, onChange, showAllTime, allTime, onAllTimeChange }: DateRangeSelectorProps) {
   const [showCustom, setShowCustom] = useState(false)
   const [selectedPreset, setSelectedPreset] = useState<string | null>('30')
   const { format: dateFormat } = useDateFormat()
 
-  // Local text state so the user can type freely; only committed on valid parse
+  // Local text state so the user can type freely
   const [startText, setStartText] = useState('')
   const [endText, setEndText] = useState('')
   const [startError, setStartError] = useState(false)
   const [endError, setEndError] = useState(false)
 
-  // Keep text inputs in sync when the value prop changes from outside (preset clicks, etc.)
+  // Pending dates for custom range — committed only when Search is clicked
+  const [pendingStart, setPendingStart] = useState<Date>(value.start)
+  const [pendingEnd, setPendingEnd] = useState<Date>(value.end)
+
+  // Keep text inputs and pending state in sync when the value prop changes (preset clicks, etc.)
   useEffect(() => {
     setStartText(formatDateByFormat(value.start, dateFormat))
     setEndText(formatDateByFormat(value.end, dateFormat))
+    setPendingStart(value.start)
+    setPendingEnd(value.end)
   }, [value.start, value.end, dateFormat])
 
   // Synchronize selectedPreset with the value prop
@@ -66,7 +75,14 @@ export function DateRangeSelector({ value, onChange }: DateRangeSelectorProps) {
     }
   }, [value])
 
+  const handleAllTimeClick = () => {
+    setShowCustom(false)
+    setSelectedPreset(null)
+    onAllTimeChange?.(true)
+  }
+
   const handlePresetClick = (key: string, days?: number) => {
+    onAllTimeChange?.(false)
     const now = new Date()
     let start: Date
     let end: Date = now
@@ -98,34 +114,37 @@ export function DateRangeSelector({ value, onChange }: DateRangeSelectorProps) {
     }
   }
 
+  // Validate on blur and update pending state — does NOT call onChange
   const handleDateTextBlur = (type: 'start' | 'end') => {
     const text = type === 'start' ? startText : endText
     const isoString = parseDateFromFormat(text, dateFormat)
 
     if (!isoString) {
-      // Reset to current valid value on bad input
       if (type === 'start') {
-        setStartText(formatDateByFormat(value.start, dateFormat))
+        setStartText(formatDateByFormat(pendingStart, dateFormat))
         setStartError(true)
         setTimeout(() => setStartError(false), 2000)
       } else {
-        setEndText(formatDateByFormat(value.end, dateFormat))
+        setEndText(formatDateByFormat(pendingEnd, dateFormat))
         setEndError(true)
         setTimeout(() => setEndError(false), 2000)
       }
       return
     }
 
-    // Parse as local date (YYYY-MM-DD at noon to avoid timezone shifts)
     const newDate = new Date(isoString + 'T12:00:00')
-
     if (type === 'start') {
-      onChange({ start: newDate, end: value.end })
+      setPendingStart(newDate)
     } else {
-      onChange({ start: value.start, end: newDate })
+      setPendingEnd(newDate)
     }
-
     setSelectedPreset(null)
+  }
+
+  // Commit the custom range — called by the Search button
+  const handleCustomSearch = () => {
+    onAllTimeChange?.(false)
+    onChange({ start: pendingStart, end: pendingEnd })
   }
 
   return (
@@ -137,6 +156,18 @@ export function DateRangeSelector({ value, onChange }: DateRangeSelectorProps) {
 
         {/* Preset Buttons */}
         <div className="flex flex-wrap gap-2">
+          {showAllTime && (
+            <button
+              onClick={handleAllTimeClick}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                allTime
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              All time
+            </button>
+          )}
           {presets.map((preset) => (
             <button
               key={preset.key}
@@ -155,6 +186,7 @@ export function DateRangeSelector({ value, onChange }: DateRangeSelectorProps) {
             onClick={() => {
               setShowCustom(!showCustom)
               setSelectedPreset(null)
+              onAllTimeChange?.(false)
             }}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               showCustom
@@ -205,6 +237,13 @@ export function DateRangeSelector({ value, onChange }: DateRangeSelectorProps) {
           <span className="text-xs text-gray-400 dark:text-gray-500">
             Format: {dateFormat.toUpperCase()}
           </span>
+
+          <button
+            onClick={handleCustomSearch}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+          >
+            Search
+          </button>
         </div>
       )}
     </div>

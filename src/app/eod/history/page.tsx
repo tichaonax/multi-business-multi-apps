@@ -6,6 +6,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
 import { formatCurrency } from '@/lib/date-format'
+import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
+import { getLocalDateString } from '@/lib/utils'
 
 interface EodRecord {
   id: string
@@ -27,18 +29,13 @@ function StatusBadge({ status }: { status: string }) {
   return <span className="px-2 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 rounded text-xs font-semibold">Pending</span>
 }
 
-function toInputDate(d: Date): string {
-  return d.toISOString().slice(0, 10)
-}
 
 export default function EodHistoryPage() {
   const { currentBusinessId, currentBusiness } = useBusinessPermissionsContext()
 
-  const defaultTo = toInputDate(new Date())
-  const defaultFrom = toInputDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
-
-  const [from, setFrom] = useState(defaultFrom)
-  const [to, setTo] = useState(defaultTo)
+  const [dateRange, setDateRange] = useState<DateRange>(() => {
+    const end = new Date(); const start = new Date(); start.setDate(end.getDate() - 30); return { start, end }
+  })
   const [page, setPage] = useState(1)
   const [records, setRecords] = useState<EodRecord[]>([])
   const [pagination, setPagination] = useState<{ total: number; totalPages: number } | null>(null)
@@ -55,6 +52,8 @@ export default function EodHistoryPage() {
     setLoading(true)
     setError(null)
     try {
+      const from = getLocalDateString(dateRange.start)
+      const to = getLocalDateString(dateRange.end)
       const res = await fetch(`/api/eod/salesperson/history?businessId=${currentBusinessId}&from=${from}&to=${to}&page=${p}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to load')
@@ -66,13 +65,11 @@ export default function EodHistoryPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentBusinessId, from, to])
+  }, [currentBusinessId, dateRange])
 
   useEffect(() => {
     if (currentBusinessId) loadData(1)
   }, [currentBusinessId, loadData])
-
-  const handleApply = () => loadData(1)
 
   const handleExpand = async (record: EodRecord) => {
     const isOpening = expandedId !== record.id
@@ -134,36 +131,11 @@ export default function EodHistoryPage() {
           </p>
         </div>
 
-        {/* Filters */}
-        <div className="mb-6 bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-end gap-4 flex-wrap">
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">From</label>
-              <input
-                type="date"
-                value={from}
-                onChange={e => setFrom(e.target.value)}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-lg text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">To</label>
-              <input
-                type="date"
-                value={to}
-                onChange={e => setTo(e.target.value)}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-lg text-sm"
-              />
-            </div>
-            <button
-              onClick={handleApply}
-              disabled={loading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-semibold disabled:opacity-50"
-            >
-              {loading ? 'Loading…' : 'Apply'}
-            </button>
-          </div>
-        </div>
+        {/* Date Range */}
+        <DateRangeSelector
+          value={dateRange}
+          onChange={setDateRange}
+        />
 
         {/* Error */}
         {error && (
