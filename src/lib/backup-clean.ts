@@ -1127,6 +1127,7 @@ export async function createCleanBackup(
   businessData.chatRooms = await prisma.chatRooms.findMany()
   businessData.chatMessages = await prisma.chatMessages.findMany()
   businessData.chatParticipants = await prisma.chatParticipants.findMany()
+  businessData.chatMessageRecipients = await prisma.chatMessageRecipients.findMany()
 
   // 37. Employee Absences
   businessData.employeeAbsences = await prisma.employeeAbsences.findMany({
@@ -1503,7 +1504,7 @@ export async function createCleanBackup(
       deviceRecords,
       uncompressedSize
     },
-    schemaVersion: '6.25.0',
+    schemaVersion: '6.26.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

@@ -63,6 +63,14 @@ const NEW_TABLE_KEYS = [
   'expenseAccountUserAccess', 'comboPaymentRequests', 'comboPaymentRequestSections', 'comboPaymentRequestItems',
   // Vehicle Renewal Workflow & Issuing Authorities
   'vehicleRenewalReceipts', 'vehicleExemptions', 'issuingAuthorities',
+  // Leave Policies (MBM-202/203)
+  'leavePolicies',
+  // Restaurant Credit Payments (MBM-204/205)
+  'restaurantCreditPayments',
+  // Expense Payment Receipts (MBM-194)
+  'expensePaymentReceipts',
+  // Chat Targeted Replies (MBM-210)
+  'chatMessageRecipients',
 ]
 
 async function main() {

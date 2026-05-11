@@ -328,9 +328,10 @@ const RESTORE_ORDER = [
   'receiptSequences',
 
   // Chat
-  'chatRooms',          // Depends on users
-  'chatMessages',       // Depends on chatRooms, users
-  'chatParticipants',   // Depends on chatRooms, users
+  'chatRooms',               // Depends on users
+  'chatMessages',            // Depends on chatRooms, users
+  'chatParticipants',        // Depends on chatRooms, users
+  'chatMessageRecipients',   // Depends on chatMessages, users (MBM-210 targeted replies)
 
   // Notifications
   'appNotifications',   // Depends on users
@@ -491,6 +492,9 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
 
   // Leave Policies: composite unique on umbrellaBusinessId + businessId
   'leavePolicies': { fields: ['umbrellaBusinessId', 'businessId'] },
+
+  // Chat Message Recipients: composite unique on (messageId, userId)
+  'chatMessageRecipients': { fields: ['messageId', 'userId'] },
 
   // Policy Management: composite unique constraints
   'policyVersions': { fields: ['policyId', 'version'] },             // @@unique([policyId, version])
