@@ -127,6 +127,7 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
   const [showSubmitPanel, setShowSubmitPanel] = useState(false)
   const [overrideAmountStr, setOverrideAmountStr] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [duplicating, setDuplicating] = useState(false)
   const [showReturnPanel, setShowReturnPanel] = useState(false)
   const [returnNoteInput, setReturnNoteInput] = useState('')
   const [returning, setReturning] = useState(false)
@@ -473,6 +474,28 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
               Edit Request
             </button>
           )}
+          <button
+            onClick={async () => {
+              setDuplicating(true)
+              try {
+                const res = await fetch(`/api/expense-account/${accountId}/combo-requests/${requestId}/duplicate`, {
+                  method: 'POST', credentials: 'include',
+                })
+                const json = await res.json()
+                if (!res.ok) throw new Error(json.error || 'Failed to duplicate')
+                router.push(`/expense-accounts/${accountId}/combo-requests/${json.newRequestId}/edit`)
+              } catch (err: any) {
+                toast.error(err.message || 'Could not duplicate request')
+              } finally {
+                setDuplicating(false)
+              }
+            }}
+            disabled={duplicating}
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
+            title="Create a new draft pre-filled from this request"
+          >
+            {duplicating ? 'Duplicating...' : 'Duplicate'}
+          </button>
           {canSubmit && (
             <button
               onClick={() => {

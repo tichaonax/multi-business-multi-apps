@@ -156,6 +156,7 @@ export default function PettyCashListPage() {
                   <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Approved</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Status</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Date</th>
+                  {canRequest && <th className="px-4 py-3" />}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -183,6 +184,17 @@ export default function PettyCashListPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{fmtDate(r.requestedAt)}</td>
+                    {canRequest && (
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => router.push(`/petty-cash/new?repeat=${r.id}`)}
+                          className="px-2.5 py-1 text-xs font-medium border border-gray-300 dark:border-gray-600 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors whitespace-nowrap"
+                          title="Create a new request pre-filled from this one"
+                        >
+                          Repeat
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

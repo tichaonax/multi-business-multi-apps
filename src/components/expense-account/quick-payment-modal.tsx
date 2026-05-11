@@ -277,6 +277,8 @@ interface QuickPaymentModalProps {
   businesses?: BusinessMembership[]
   /** When set, the payee is locked to this value and shown as read-only (e.g. rent account → landlord) */
   presetPayee?: { type: string; id: string; name: string } | null
+  /** When set, the modal opens pre-filled from this payment ID */
+  repeatPaymentId?: string | null
 }
 
 export function QuickPaymentModal({
@@ -295,6 +297,7 @@ export function QuickPaymentModal({
   businessName,
   businesses,
   presetPayee = null,
+  repeatPaymentId = null,
 }: QuickPaymentModalProps) {
   const isPersonalAccount = accountType === 'PERSONAL' || !businessId
   const isRentAccount = accountType === 'RENT'
@@ -360,6 +363,10 @@ export function QuickPaymentModal({
   const [selectedSavedNote, setSelectedSavedNote] = useState<{ id: string; domainId?: string | null; categoryId?: string | null; subcategoryId?: string | null } | null>(null)
   const [requestCashierApproval, setRequestCashierApproval] = useState(false)
 
+  // Repeat-from-history
+  const [repeatSource, setRepeatSource] = useState<string | null>(null)
+  const [repeatBannerDismissed, setRepeatBannerDismissed] = useState(false)
+
   // Classification suggestion
   const [suggestOpen, setSuggestOpen] = useState(false)
   const [suggestLoading, setSuggestLoading] = useState(false)
@@ -374,6 +381,8 @@ export function QuickPaymentModal({
 
   // Skip cascade effects when applying a suggestion (prevents clearing fields mid-apply)
   const skipCascadeRef = useRef(false)
+  // Stores category IDs from a repeat payment fetch, applied once categories state is loaded
+  const pendingRepeatRef = useRef<{ domainId: string; categoryId: string; subcategoryId: string } | null>(null)
   const customAlert = useAlert()
   const customConfirm = useConfirm()
 
@@ -468,6 +477,76 @@ export function QuickPaymentModal({
       setRentDueInfo(null)
     }
   }, [isOpen])
+
+  // Pre-fill from a previous payment when repeatPaymentId is set — Phase 1: basic fields
+  useEffect(() => {
+    if (!isOpen || !repeatPaymentId) return
+    fetch(`/api/expense-account/${accountId}/payments/${repeatPaymentId}`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        const p = data.data?.payment
+        if (!p) return
+
+        // Resolve payee
+        let payee: { type: string; id: string; name: string } | null = null
+        if (p.payeeType === 'USER' && p.payeeUser) {
+          payee = { type: 'USER', id: p.payeeUser.id, name: p.payeeUser.name }
+        } else if (p.payeeType === 'PERSON' && p.payeePerson) {
+          payee = { type: 'PERSON', id: p.payeePerson.id, name: p.payeePerson.fullName }
+        } else if (p.payeeType === 'EMPLOYEE' && p.payeeEmployee) {
+          payee = { type: 'EMPLOYEE', id: p.payeeEmployee.id, name: p.payeeEmployee.name }
+        } else if (p.payeeType === 'SUPPLIER' && p.payeeSupplier) {
+          payee = { type: 'SUPPLIER', id: p.payeeSupplier.id, name: p.payeeSupplier.name }
+        } else if (p.payeeType === 'BUSINESS' && p.payeeBusiness) {
+          payee = { type: 'BUSINESS', id: p.payeeBusiness.id, name: p.payeeBusiness.name }
+        }
+
+        // Set non-category fields immediately
+        setFormData(prev => ({
+          ...prev,
+          payee: presetPayee ?? payee,
+          notes: p.notes ?? '',
+          paymentChannel: p.paymentChannel === 'ECOCASH' ? 'ECOCASH' : 'CASH',
+          priority: p.priority === 'URGENT' ? 'URGENT' : 'NORMAL',
+          amount: '',
+          paymentDate: getTodayLocalDateString(),
+        }))
+
+        // Store category IDs for Phase 2 — applied once categories state is loaded
+        pendingRepeatRef.current = {
+          domainId: p.category?.domainId ?? '',
+          categoryId: p.category?.id ?? '',
+          subcategoryId: p.subcategory?.id ?? '',
+        }
+
+        setRepeatSource(p.notes?.trim() || 'previous payment')
+        setRepeatBannerDismissed(false)
+      })
+      .catch(() => {})
+  }, [isOpen, repeatPaymentId])
+
+  // Phase 2: apply category pre-fill once categories state is populated
+  useEffect(() => {
+    const pending = pendingRepeatRef.current
+    if (!pending || categories.length === 0) return
+    if (!pending.domainId) return
+    pendingRepeatRef.current = null  // consume so it doesn't re-apply on subsequent category changes
+
+    skipCascadeRef.current = true
+    setFormData(prev => ({
+      ...prev,
+      categoryId: pending.domainId,
+      subcategoryId: pending.categoryId,
+      subSubcategoryId: pending.subcategoryId,
+    }))
+
+    const applyDropdowns = async () => {
+      if (pending.domainId) await loadSubcategories(pending.domainId)
+      if (pending.categoryId) await loadSubSubcategories(pending.categoryId)
+      requestAnimationFrame(() => { skipCascadeRef.current = false })
+    }
+    applyDropdowns()
+  }, [categories])
 
   const fetchLiveBalance = async () => {
     setBalanceLoading(true)
@@ -667,7 +746,8 @@ export function QuickPaymentModal({
         setCategories(deduped)
 
         // For PERSONAL accounts: auto-select the first Personal category
-        if (isPersonalAccount && deduped.length > 0) {
+        // Skip if a repeat payment is pending — it will apply its own category after this
+        if (isPersonalAccount && deduped.length > 0 && !pendingRepeatRef.current) {
           setFormData(prev => ({ ...prev, categoryId: deduped[0].id }))
         }
       }
@@ -947,6 +1027,9 @@ export function QuickPaymentModal({
     setLineItems([])
     setSuggestions([])
     setSuggestOpen(false)
+    setRepeatSource(null)
+    setRepeatBannerDismissed(false)
+    pendingRepeatRef.current = null
   }
 
   const handleSuggest = async () => {
@@ -1292,6 +1375,14 @@ export function QuickPaymentModal({
             )})
           </p>
         </div>
+
+        {/* Repeat pre-fill banner */}
+        {repeatSource && !repeatBannerDismissed && (
+          <div className="mb-4 flex items-start gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg text-xs text-blue-700 dark:text-blue-300">
+            <span className="flex-1">Pre-filled from a previous payment — review and adjust before submitting as new.</span>
+            <button type="button" onClick={() => setRepeatBannerDismissed(true)} className="shrink-0 text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 text-sm leading-none">×</button>
+          </div>
+        )}
 
         {/* Rent Due Summary Banner */}
         {isRentAccount && (

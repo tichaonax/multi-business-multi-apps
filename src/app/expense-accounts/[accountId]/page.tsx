@@ -1103,6 +1103,7 @@ export default function ExpenseAccountDetailPage() {
   const [showDepositModal, setShowDepositModal] = useState(false)
   const [showTransferModal, setShowTransferModal] = useState(false)
   const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false)
+  const [repeatPaymentId, setRepeatPaymentId] = useState<string | null>(null)
   const [showSmartQuickPayModal, setShowSmartQuickPayModal] = useState(false)
   const [showReturnTransferModal, setShowReturnTransferModal] = useState(false)
   const [showLendMoneyModal, setShowLendMoneyModal] = useState(false)
@@ -1910,7 +1911,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                   onBalanceRefresh={refreshBalanceSilent}
                 />
 
-                <TransactionHistory accountId={accountId} canEditPayments={canEditPayments} isAdmin={isSystemAdmin} refreshKey={paymentRefreshKey} businessId={account.businessId || currentBusiness?.businessId} businessName={currentBusiness?.businessName ?? ''} />
+                <TransactionHistory accountId={accountId} canEditPayments={canEditPayments} isAdmin={isSystemAdmin} refreshKey={paymentRefreshKey} businessId={account.businessId || currentBusiness?.businessId} businessName={currentBusiness?.businessName ?? ''} onRepeatPayment={canMakeExpensePayments || canEditPayments ? (id) => { setRepeatPaymentId(id); setShowQuickPaymentModal(true) } : undefined} />
               </div>
             )}
 
@@ -2000,6 +2001,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                   onDataChanged={() => { refreshBalanceSilent(); setPaymentRefreshKey(k => k + 1) }}
                   businessId={account.businessId || currentBusiness?.businessId}
                   businessName={currentBusiness?.businessName ?? ''}
+                  onRepeatPayment={canMakeExpensePayments || canEditPayments ? (id) => { setRepeatPaymentId(id); setShowQuickPaymentModal(true) } : undefined}
                 />
               </div>
             )}
@@ -2103,7 +2105,8 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
       {account && (
         <QuickPaymentModal
           isOpen={showQuickPaymentModal}
-          onClose={() => setShowQuickPaymentModal(false)}
+          onClose={() => { setShowQuickPaymentModal(false); setRepeatPaymentId(null) }}
+          repeatPaymentId={repeatPaymentId}
           accountId={accountId}
           accountName={account.accountName}
           currentBalance={Number(account.balance)}
@@ -2116,6 +2119,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
               setActiveTab('payments')
             }
             setShowQuickPaymentModal(false)
+            setRepeatPaymentId(null)
           }}
           onError={(error) => toast.error(error)}
           canCreatePayees={canCreatePayees}

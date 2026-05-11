@@ -365,23 +365,32 @@ export default function MyRequestsPage() {
                         </td>
                         <td className="px-4 py-3 text-center text-gray-500 dark:text-gray-400 text-xs">{fmtDate(r.submittedAt)}</td>
                         <td className="px-4 py-3 text-center">
-                          {canEdit && (
-                            <div className="flex gap-1 justify-center">
-                              <button
-                                onClick={() => router.push(`/supplier-payments/request?edit=${r.id}`)}
-                                className="px-2 py-1 text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-700"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => cancelRequest(r.id)}
-                                disabled={cancellingId === r.id}
-                                className="px-2 py-1 text-xs bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded hover:bg-red-100 dark:hover:bg-red-900/50 border border-red-200 dark:border-red-700 disabled:opacity-50"
-                              >
-                                {cancellingId === r.id ? '...' : 'Cancel'}
-                              </button>
-                            </div>
-                          )}
+                          <div className="flex gap-1 justify-center">
+                            {canEdit && (
+                              <>
+                                <button
+                                  onClick={() => router.push(`/supplier-payments/request?edit=${r.id}`)}
+                                  className="px-2 py-1 text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-700"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => cancelRequest(r.id)}
+                                  disabled={cancellingId === r.id}
+                                  className="px-2 py-1 text-xs bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded hover:bg-red-100 dark:hover:bg-red-900/50 border border-red-200 dark:border-red-700 disabled:opacity-50"
+                                >
+                                  {cancellingId === r.id ? '...' : 'Cancel'}
+                                </button>
+                              </>
+                            )}
+                            <button
+                              onClick={() => router.push(`/supplier-payments/request?repeat=${r.id}`)}
+                              className="px-2 py-1 text-xs bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600"
+                              title="Create a new request pre-filled from this one"
+                            >
+                              Repeat
+                            </button>
+                          </div>
                         </td>
                       </tr>
 

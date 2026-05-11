@@ -199,21 +199,19 @@ function ItemCategorySelector({
             placeholder="Domain (optional)"
           />
         </div>
-        {domainId && (
-          <button
-            type="button"
-            onClick={fetchSuggestions}
-            disabled={!canSuggest || loadingSuggest}
-            title={canSuggest ? 'Suggest category based on description' : 'Enter at least 2 characters in description first'}
-            className="shrink-0 text-xs px-2 py-1.5 rounded border border-purple-200 dark:border-purple-700 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-          >
-            {loadingSuggest ? '…' : '✨ Suggest'}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={fetchSuggestions}
+          disabled={!canSuggest || loadingSuggest}
+          title={canSuggest ? 'Suggest category based on description' : 'Enter at least 2 characters in description first'}
+          className="shrink-0 text-xs px-2 py-1.5 rounded border border-purple-200 dark:border-purple-700 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+        >
+          {loadingSuggest ? '…' : '✨ Suggest'}
+        </button>
       </div>
 
       {/* Suggest results panel */}
-      {showSuggestions && domainId && (
+      {showSuggestions && (
         <div className="border border-purple-200 dark:border-purple-700 rounded-lg bg-purple-50 dark:bg-purple-900/10 overflow-hidden">
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-purple-200 dark:border-purple-700">
             <span className="text-xs font-medium text-purple-700 dark:text-purple-300">Suggestions for "{description.trim()}"</span>
@@ -233,6 +231,12 @@ function ItemCategorySelector({
                   className="w-full px-3 py-2 text-left hover:bg-purple-100 dark:hover:bg-purple-800/30 transition-colors"
                 >
                   <div className="text-xs text-gray-900 dark:text-gray-100">
+                    {!domainId && (
+                      <>
+                        <span className="text-gray-400 dark:text-gray-500">{s.domainEmoji} {s.domainName}</span>
+                        <span className="text-gray-400 mx-1">›</span>
+                      </>
+                    )}
                     <span className="text-purple-600 dark:text-purple-400">{s.categoryEmoji} {s.categoryName}</span>
                     <span className="text-gray-400 mx-1">›</span>
                     <span>{s.subcategoryEmoji} {s.subcategoryName}</span>

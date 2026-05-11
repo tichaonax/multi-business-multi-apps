@@ -183,13 +183,9 @@ export function ComboRequestDetailModal({
                   {statusInfo.label}
                 </span>
                 <span className="text-xs text-gray-500 dark:text-gray-400">
-                  by <span className="font-medium text-primary">{request.creator.name}</span>
+                  Requested by <span className="font-medium text-primary">{request.creator.name}</span>
+                  {request.submittedAt && <> · submitted {fmtDate(request.submittedAt)}</>}
                 </span>
-                {request.submittedAt && (
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    · submitted {fmtDate(request.submittedAt)}
-                  </span>
-                )}
               </div>
 
               {/* Amount pills */}

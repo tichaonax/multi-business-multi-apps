@@ -13,6 +13,7 @@ export default function NewPettyCashRequestPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const returnUrl = searchParams.get('returnUrl')
+  const repeatId = searchParams.get('repeat')
   const toast = useToastContext()
   const { currentBusinessId, currentBusiness, isAuthenticated, loading: bizLoading } = useBusinessPermissionsContext()
 
@@ -23,6 +24,8 @@ export default function NewPettyCashRequestPage() {
   const [priority, setPriority] = useState<'NORMAL' | 'URGENT'>('NORMAL')
   const [submitting, setSubmitting] = useState(false)
   const [canRequest, setCanRequest] = useState<boolean | null>(null)
+  const [repeatSource, setRepeatSource] = useState<string | null>(null)
+  const [bannerDismissed, setBannerDismissed] = useState(false)
 
   useEffect(() => {
     if (status === 'loading') return
@@ -32,6 +35,22 @@ export default function NewPettyCashRequestPage() {
       .then(j => setCanRequest(j.canRequest ?? false))
       .catch(() => setCanRequest(false))
   }, [session, status, router])
+
+  useEffect(() => {
+    if (!repeatId) return
+    fetch(`/api/petty-cash/requests/${repeatId}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(json => {
+        const req = json?.data?.request
+        if (!req) return
+        setPurpose(req.purpose || '')
+        setNotes(req.notes || '')
+        setPriority(req.priority === 'URGENT' ? 'URGENT' : 'NORMAL')
+        setPaymentChannel(req.paymentChannel === 'ECOCASH' ? 'ECOCASH' : 'CASH')
+        setRepeatSource(req.purpose || 'previous request')
+      })
+      .catch(() => {})
+  }, [repeatId])
 
   if (status === 'loading' || bizLoading || canRequest === null) {
     return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-16 w-16 border-b-2 border-gray-900 dark:border-gray-100" /></div>
@@ -90,6 +109,14 @@ export default function NewPettyCashRequestPage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 space-y-5">
+            {repeatSource && !bannerDismissed && (
+              <div className="flex items-start justify-between gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg px-4 py-3">
+                <p className="text-sm text-blue-800 dark:text-blue-300">
+                  ℹ️ Pre-filled from <span className="font-medium">"{repeatSource}"</span> — review and edit before submitting as new. Amount has been cleared intentionally.
+                </p>
+                <button type="button" onClick={() => setBannerDismissed(true)} className="text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 shrink-0 text-lg leading-none">✕</button>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Amount Requested <span className="text-red-500">*</span></label>
               <div className="relative">

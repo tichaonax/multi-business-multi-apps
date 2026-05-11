@@ -711,6 +711,15 @@ export default function PettyCashDetailPage() {
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{req.business?.name}</p>
           </div>
           <div className="flex items-center gap-2">
+            {canRequest && (
+              <button
+                onClick={() => router.push(`/petty-cash/new?repeat=${req.id}`)}
+                className="px-3 py-1.5 text-xs font-medium border border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                title="Create a new request pre-filled from this one"
+              >
+                Repeat
+              </button>
+            )}
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[req.status] || 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>
               {req.status}
             </span>

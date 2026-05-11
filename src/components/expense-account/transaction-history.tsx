@@ -76,6 +76,7 @@ interface TransactionHistoryProps {
   // Payment voucher support — if businessId/businessName provided, voucher icon appears
   businessId?: string
   businessName?: string
+  onRepeatPayment?: (paymentId: string) => void
 }
 
 function localDateStr(d: Date): string {
@@ -118,7 +119,7 @@ function shortDescription(transaction: Transaction): string {
   return desc
 }
 
-export function TransactionHistory({ accountId, defaultType = '', defaultSortOrder = 'desc', pageLimit = 50, canEditPayments = false, isAdmin = false, initialStartDate, initialEndDate, refreshKey, onDataChanged, businessId, businessName }: TransactionHistoryProps) {
+export function TransactionHistory({ accountId, defaultType = '', defaultSortOrder = 'desc', pageLimit = 50, canEditPayments = false, isAdmin = false, initialStartDate, initialEndDate, refreshKey, onDataChanged, businessId, businessName, onRepeatPayment }: TransactionHistoryProps) {
   const { data: session } = useSession()
   const currentUserId = (session?.user as any)?.id as string | undefined
   const currentUserName = session?.user?.name ?? 'Staff'
@@ -852,6 +853,15 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                             title="Edit payment"
                           >
                             Edit
+                          </button>
+                        )}
+                        {onRepeatPayment && !isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO' && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onRepeatPayment(transaction.id) }}
+                            className="text-xs text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:underline px-1 py-0.5"
+                            title="Create a new payment pre-filled from this one"
+                          >
+                            Repeat
                           </button>
                         )}
                         {canEditPayments && isDeposit && !transaction.isAutoTransfer && transaction.sourceType !== 'ACCOUNT_TRANSFER' && transaction.sourceType !== 'PAYMENT_ADJUSTMENT' && (transaction.sourceType !== 'COMBO_SETTLE' || isAdmin) && (isAdmin || isWithin7Days(transaction.createdAt)) && (

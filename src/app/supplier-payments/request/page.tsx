@@ -72,6 +72,7 @@ export default function SubmitSupplierPaymentRequestPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const editId = searchParams.get('edit')
+  const repeatId = searchParams.get('repeat')
   const toast = useToastContext()
   const { currentBusinessId, loading: businessLoading, hasPermission, activeBusinesses } = useBusinessPermissionsContext()
 
@@ -85,6 +86,8 @@ export default function SubmitSupplierPaymentRequestPage() {
   const [loadingData, setLoadingData] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [successId, setSuccessId] = useState<string | null>(null)
+  const [repeatSource, setRepeatSource] = useState<string | null>(null)
+  const [bannerDismissed, setBannerDismissed] = useState(false)
 
   const todayStr = new Date().toISOString().slice(0, 10)
   const [supplierId, setSupplierId] = useState('')
@@ -172,6 +175,33 @@ export default function SubmitSupplierPaymentRequestPage() {
       toast.error('Could not load expense categories: ' + (err.message || 'unknown error'))
     }
 
+    // Helper: load line items from a request's items array
+    const loadItemsFromRequest = async (req: any) => {
+      if (req.items && req.items.length > 0) {
+        const loadedLines: LineItem[] = await Promise.all(
+          req.items.map(async (item: any) => {
+            const line = makeLineItem(item.description || '')
+            line.categoryId = item.categoryId || ''
+            line.subcategoryId = item.subcategoryId || ''
+            line.amount = item.amount?.toString() || ''
+            if (item.categoryId) {
+              try {
+                const subRes = await fetch(`/api/expense-categories/subcategories/${item.categoryId}/sub-subcategories`, { credentials: 'include' })
+                if (subRes.ok) {
+                  const subJson = await subRes.json()
+                  line.subcategoryItems = (subJson.subSubcategories || []).map((s: any) => ({
+                    id: s.id, name: s.name, emoji: s.emoji || null,
+                  }))
+                }
+              } catch {}
+            }
+            return line
+          })
+        )
+        setLines(loadedLines)
+      }
+    }
+
     // If editing, pre-populate from existing request
     if (editId) {
       try {
@@ -182,30 +212,26 @@ export default function SubmitSupplierPaymentRequestPage() {
           setDueDate(req.dueDate?.slice(0, 10) || todayStr)
           setNotes(req.notes || '')
           setReceiptNumber(req.receiptNumber || '')
+          await loadItemsFromRequest(req)
+        }
+      } catch (err: any) {
+        toast.error('Failed to load request: ' + (err.message || 'unknown error'))
+      }
+    }
 
-          if (req.items && req.items.length > 0) {
-            const loadedLines: LineItem[] = await Promise.all(
-              req.items.map(async (item: any) => {
-                const line = makeLineItem(item.description || '')
-                line.categoryId = item.categoryId || ''
-                line.subcategoryId = item.subcategoryId || ''
-                line.amount = item.amount?.toString() || ''
-                if (item.categoryId) {
-                  try {
-                    const subRes = await fetch(`/api/expense-categories/subcategories/${item.categoryId}/sub-subcategories`, { credentials: 'include' })
-                    if (subRes.ok) {
-                      const subJson = await subRes.json()
-                      line.subcategoryItems = (subJson.subSubcategories || []).map((s: any) => ({
-                        id: s.id, name: s.name, emoji: s.emoji || null,
-                      }))
-                    }
-                  } catch {}
-                }
-                return line
-              })
-            )
-            setLines(loadedLines)
-          }
+    // If repeating, pre-populate from existing request but submit as new
+    if (repeatId) {
+      try {
+        const reqRes = await fetchWithValidation(`/api/supplier-payments/requests/${repeatId}`)
+        const req = reqRes.data
+        if (req) {
+          setSupplierId(req.supplierId)
+          setDueDate(todayStr) // always reset due date
+          setNotes(req.notes || '')
+          setReceiptNumber('') // clear — unique per submission
+          await loadItemsFromRequest(req)
+          const supplier = suppliers.find((s: Supplier) => s.id === req.supplierId)
+          setRepeatSource(supplier?.name || 'previous request')
         }
       } catch (err: any) {
         toast.error('Failed to load request: ' + (err.message || 'unknown error'))
@@ -336,6 +362,15 @@ export default function SubmitSupplierPaymentRequestPage() {
     <ContentLayout title={editId ? 'Edit Payment Request' : 'Submit Payment Request'}>
       <div className="max-w-2xl mx-auto">
         <form onSubmit={handleSubmit} className="space-y-5">
+
+          {repeatSource && !bannerDismissed && (
+            <div className="flex items-start justify-between gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg px-4 py-3">
+              <p className="text-sm text-blue-800 dark:text-blue-300">
+                ℹ️ Pre-filled from a previous request for <span className="font-medium">{repeatSource}</span> — review and edit before submitting as new. Receipt number and due date have been reset.
+              </p>
+              <button type="button" onClick={() => setBannerDismissed(true)} className="text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 shrink-0 text-lg leading-none">✕</button>
+            </div>
+          )}
 
           {/* Supplier + receipt details */}
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 space-y-4">
