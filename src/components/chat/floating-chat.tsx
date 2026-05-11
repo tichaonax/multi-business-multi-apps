@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { io, Socket } from 'socket.io-client'
 
+interface Recipient { id: string; name: string }
+
 interface Message {
   id: string
   userId: string
@@ -11,7 +13,13 @@ interface Message {
   message: string
   createdAt: string
   deletedAt: string | null
+  parentId: string | null
+  replyScope: string | null
+  replyCount: number
+  recipients: Recipient[]
 }
+
+interface UserOption { id: string; name: string }
 
 const PANEL_W = 360
 const PANEL_H = 500
@@ -48,8 +56,19 @@ export function FloatingChat() {
   const [connected, setConnected] = useState(false)
   const [unread, setUnread] = useState(0)
 
+  // Targeted messaging state
+  const [replyingTo, setReplyingTo] = useState<{ id: string; userName: string } | null>(null)
+  const [replyScope, setReplyScope] = useState<'OWNER' | 'ALL'>('ALL')
+  const [recipientIds, setRecipientIds] = useState<string[]>([])
+  const [recipientNames, setRecipientNames] = useState<string[]>([])
+  const [userSearch, setUserSearch] = useState('')
+  const [userOptions, setUserOptions] = useState<UserOption[]>([])
+  const [showUserSearch, setShowUserSearch] = useState(false)
+  const [expandedThreads, setExpandedThreads] = useState<Record<string, Message[]>>({})
+  const [loadingThreads, setLoadingThreads] = useState<Record<string, boolean>>({})
+  const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null)
+
   // Drag offset from the CSS bottom-right anchor (right: 24, bottom: 72)
-  // dx positive = moved left, dy positive = moved up
   const [drag, setDrag] = useState({ dx: 0, dy: 0 })
   const dragRef = useRef<{ startMouseX: number; startMouseY: number; startDx: number; startDy: number } | null>(null)
 
@@ -103,6 +122,21 @@ export function FloatingChat() {
     socket.on('disconnect', () => setConnected(false))
 
     socket.on('chat:message', (msg: Message) => {
+      if (msg.parentId) {
+        // It's a reply — update the thread if it's expanded or increment replyCount
+        setExpandedThreads(prev => {
+          if (prev[msg.parentId!]) {
+            const already = prev[msg.parentId!].some(m => m.id === msg.id)
+            if (already) return prev
+            return { ...prev, [msg.parentId!]: [...prev[msg.parentId!], msg] }
+          }
+          return prev
+        })
+        setMessages(prev => prev.map(m =>
+          m.id === msg.parentId ? { ...m, replyCount: m.replyCount + 1 } : m
+        ))
+        return
+      }
       setMessages(prev => {
         if (prev.some(m => m.id === msg.id)) return prev
         return [...prev, msg]
@@ -110,8 +144,6 @@ export function FloatingChat() {
       setTimeout(scrollToBottom, 50)
       if (!isOpenRef.current) {
         setUnread(u => u + 1)
-        // Auto-open for 5 s when a message arrives and the panel was closed.
-        // Reset the timer on each new message so it's always 5 s from the last one.
         cancelAutoClose()
         setIsOpen(true)
         autoCloseTimerRef.current = setTimeout(() => {
@@ -169,6 +201,59 @@ export function FloatingChat() {
     }
   }, [])
 
+  // ── User search for recipient picker ──────────────────────────────────────
+  useEffect(() => {
+    if (!userSearch.trim()) { setUserOptions([]); return }
+    const t = setTimeout(() => {
+      fetch(`/api/users?search=${encodeURIComponent(userSearch.trim())}`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : [])
+        .then((data: any[]) => setUserOptions(
+          data.filter((u: any) => u.id !== currentUserId).map((u: any) => ({ id: u.id, name: u.name }))
+        ))
+        .catch(() => {})
+    }, 300)
+    return () => clearTimeout(t)
+  }, [userSearch, currentUserId])
+
+  const addRecipient = (user: UserOption) => {
+    if (!recipientIds.includes(user.id)) {
+      setRecipientIds(p => [...p, user.id])
+      setRecipientNames(p => [...p, user.name])
+    }
+    setUserSearch('')
+    setUserOptions([])
+    setShowUserSearch(false)
+  }
+
+  const removeRecipient = (id: string) => {
+    const idx = recipientIds.indexOf(id)
+    setRecipientIds(p => p.filter((_, i) => i !== idx))
+    setRecipientNames(p => p.filter((_, i) => i !== idx))
+  }
+
+  const cancelReply = () => {
+    setReplyingTo(null)
+    setReplyScope('ALL')
+  }
+
+  // ── Load thread replies ────────────────────────────────────────────────────
+  const toggleThread = async (msgId: string) => {
+    if (expandedThreads[msgId]) {
+      setExpandedThreads(prev => { const n = { ...prev }; delete n[msgId]; return n })
+      return
+    }
+    setLoadingThreads(prev => ({ ...prev, [msgId]: true }))
+    try {
+      const res = await fetch(`/api/chat/messages/${msgId}/replies`, { credentials: 'include' })
+      if (res.ok) {
+        const replies: Message[] = await res.json()
+        setExpandedThreads(prev => ({ ...prev, [msgId]: replies }))
+      }
+    } catch { /* non-critical */ } finally {
+      setLoadingThreads(prev => ({ ...prev, [msgId]: false }))
+    }
+  }
+
   // ── Helpers ────────────────────────────────────────────────────────────────
   const sendMessage = async () => {
     const text = newMessage.trim()
@@ -176,18 +261,38 @@ export function FloatingChat() {
     setSending(true)
     setNewMessage('')
     try {
+      const body: any = { message: text }
+      if (recipientIds.length > 0) body.recipientIds = recipientIds
+      if (replyingTo) { body.parentId = replyingTo.id; body.replyScope = replyScope }
       const res = await fetch('/api/chat/messages', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify(body),
       })
       if (res.ok) {
         const saved: Message = await res.json()
-        // Add own message immediately — socket event deduplicates if it also arrives
-        setMessages(prev => prev.some(m => m.id === saved.id) ? prev : [...prev, saved])
-        setTimeout(scrollToBottom, 50)
+        if (saved.parentId) {
+          // Add reply to thread if expanded, bump replyCount
+          setExpandedThreads(prev => {
+            if (prev[saved.parentId!]) {
+              const already = prev[saved.parentId!].some(m => m.id === saved.id)
+              return already ? prev : { ...prev, [saved.parentId!]: [...prev[saved.parentId!], saved] }
+            }
+            return prev
+          })
+          setMessages(prev => prev.map(m =>
+            m.id === saved.parentId ? { ...m, replyCount: m.replyCount + 1 } : m
+          ))
+        } else {
+          setMessages(prev => prev.some(m => m.id === saved.id) ? prev : [...prev, saved])
+          setTimeout(scrollToBottom, 50)
+        }
       }
+      setReplyingTo(null)
+      setReplyScope('ALL')
+      setRecipientIds([])
+      setRecipientNames([])
     } catch {
       setNewMessage(text)
     } finally {
@@ -218,6 +323,97 @@ export function FloatingChat() {
     else acc.push({ date: d, msgs: [msg] })
     return acc
   }, [])
+
+  /** Render a single message bubble (used for both top-level and thread replies) */
+  const renderMessage = (msg: Message, isReply = false) => {
+    const isOwn = msg.userId === currentUserId
+    const color = isOwn ? null : getUserColor(msg.userId)
+    const isPrivate = msg.recipients.length > 0
+    const myLatestId = [...messages].reverse().find(m => m.userId === currentUserId)?.id
+    const isLatestOwn = isOwn && msg.id === myLatestId && !isReply
+    const isHovered = hoveredMsgId === msg.id
+
+    return (
+      <div
+        key={msg.id}
+        className={`flex gap-2 mb-2 group ${isOwn ? 'flex-row-reverse' : ''}`}
+        onMouseEnter={() => setHoveredMsgId(msg.id)}
+        onMouseLeave={() => setHoveredMsgId(null)}
+      >
+        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 text-white ${
+          isOwn ? 'bg-indigo-500' : color!.avatar
+        }`}>
+          {msg.userName.charAt(0).toUpperCase()}
+        </div>
+        <div className={`max-w-[75%] flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
+          <div className={`flex items-center gap-1.5 mb-0.5 ${isOwn ? 'flex-row-reverse' : ''}`}>
+            {!isOwn && (
+              <span className={`text-[10px] font-semibold ml-1 ${color!.name}`}>{msg.userName}</span>
+            )}
+            {isPrivate && (
+              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-700">
+                🔒 Private
+              </span>
+            )}
+          </div>
+          <div className={`px-3 py-1.5 rounded-2xl text-xs leading-relaxed ${
+            msg.deletedAt
+              ? 'bg-gray-100 dark:bg-gray-800 text-secondary italic border border-dashed border-gray-300 dark:border-gray-600'
+              : isOwn
+                ? 'bg-indigo-600 text-white rounded-tr-sm'
+                : `bg-white dark:bg-gray-800 text-primary border border-border border-l-4 ${color!.border} rounded-tl-sm shadow-sm`
+          }`}>
+            {msg.deletedAt ? '🚫 This message was deleted' : msg.message}
+          </div>
+          <div className="flex items-center gap-2 mt-1 mx-1">
+            <span className="text-[10px] text-secondary">{formatTime(msg.createdAt)}</span>
+            {/* Reply button — shows on hover, not for deleted or already-reply messages */}
+            {!msg.deletedAt && !isReply && isHovered && (
+              <button
+                type="button"
+                onClick={() => { setReplyingTo({ id: msg.id, userName: msg.userName }); setReplyScope('ALL'); inputRef.current?.focus() }}
+                className="flex items-center gap-1 text-[11px] text-indigo-500 hover:text-indigo-700 transition-colors font-medium"
+                title="Reply in thread"
+              >
+                ↩ Reply
+              </button>
+            )}
+            {isLatestOwn && !msg.deletedAt && (
+              <button
+                type="button"
+                onClick={() => deleteMessage(msg.id)}
+                className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-600 transition-colors font-medium"
+                title="Delete message"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Delete
+              </button>
+            )}
+          </div>
+          {/* Thread toggle */}
+          {!isReply && msg.replyCount > 0 && !msg.deletedAt && (
+            <button
+              type="button"
+              onClick={() => toggleThread(msg.id)}
+              className="mt-1 mx-1 text-[11px] text-indigo-500 hover:text-indigo-700 font-medium flex items-center gap-1"
+            >
+              {expandedThreads[msg.id] ? '▲ Hide replies' : `▼ ${msg.replyCount} ${msg.replyCount === 1 ? 'reply' : 'replies'}`}
+              {loadingThreads[msg.id] && <span className="text-secondary"> loading…</span>}
+            </button>
+          )}
+          {/* Thread replies */}
+          {!isReply && expandedThreads[msg.id] && (
+            <div className="mt-1.5 pl-3 border-l-2 border-indigo-200 dark:border-indigo-700 space-y-1 w-full">
+              {expandedThreads[msg.id].map(r => renderMessage(r, true))}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   if (status !== 'authenticated') return null
 
@@ -280,71 +476,99 @@ export function FloatingChat() {
         {messages.length === 0 && (
           <p className="text-center text-xs text-secondary mt-8">No messages yet. Say hello!</p>
         )}
-        {grouped.map(({ date, msgs }) => {
-          // Find the id of the current user's most recent message in the full list
-          const myLatestId = [...messages].reverse().find(m => m.userId === currentUserId)?.id
-          return (
-            <div key={date}>
-              <div className="flex items-center gap-2 my-2">
-                <div className="flex-1 h-px bg-border" />
-                <span className="text-[10px] text-secondary font-medium">{date}</span>
-                <div className="flex-1 h-px bg-border" />
-              </div>
-              {msgs.map(msg => {
-                const isOwn = msg.userId === currentUserId
-                const color = isOwn ? null : getUserColor(msg.userId)
-                const isLatestOwn = isOwn && msg.id === myLatestId
-                return (
-                  <div key={msg.id} className={`flex gap-2 mb-2 ${isOwn ? 'flex-row-reverse' : ''}`}>
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 text-white ${
-                      isOwn ? 'bg-indigo-500' : color!.avatar
-                    }`}>
-                      {msg.userName.charAt(0).toUpperCase()}
-                    </div>
-                    <div className={`max-w-[75%] flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
-                      {!isOwn && (
-                        <span className={`text-[10px] font-semibold mb-0.5 ml-1 ${color!.name}`}>
-                          {msg.userName}
-                        </span>
-                      )}
-                      <div className={`px-3 py-1.5 rounded-2xl text-xs leading-relaxed ${
-                        msg.deletedAt
-                          ? 'bg-gray-100 dark:bg-gray-800 text-secondary italic border border-dashed border-gray-300 dark:border-gray-600'
-                          : isOwn
-                            ? 'bg-indigo-600 text-white rounded-tr-sm'
-                            : `bg-white dark:bg-gray-800 text-primary border border-border border-l-4 ${color!.border} rounded-tl-sm shadow-sm`
-                      }`}>
-                        {msg.deletedAt ? '🚫 This message was deleted' : msg.message}
-                      </div>
-                      <div className="flex items-center gap-2 mt-1 mx-1">
-                        <span className="text-[10px] text-secondary">{formatTime(msg.createdAt)}</span>
-                        {isLatestOwn && !msg.deletedAt && (
-                          <button
-                            type="button"
-                            onClick={() => deleteMessage(msg.id)}
-                            className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-600 transition-colors font-medium"
-                            title="Delete message"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                            Delete
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
+        {grouped.map(({ date, msgs }) => (
+          <div key={date}>
+            <div className="flex items-center gap-2 my-2">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-[10px] text-secondary font-medium">{date}</span>
+              <div className="flex-1 h-px bg-border" />
             </div>
-          )
-        })}
+            {msgs.map(msg => renderMessage(msg))}
+          </div>
+        ))}
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <div className="border-t border-border bg-white dark:bg-gray-900 px-3 py-3 shrink-0">
+      {/* Input area */}
+      <div className="border-t border-border bg-white dark:bg-gray-900 px-3 py-3 shrink-0 space-y-2">
+        {/* Reply-to banner */}
+        {replyingTo && (
+          <div className="flex items-center gap-2 text-xs bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-700 rounded-lg px-3 py-1.5">
+            <span className="text-indigo-600 dark:text-indigo-400 flex-1 truncate">
+              ↩ Replying to <strong>{replyingTo.userName}</strong>
+            </span>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => setReplyScope('OWNER')}
+                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors ${replyScope === 'OWNER' ? 'bg-indigo-600 text-white border-indigo-600' : 'text-indigo-600 border-indigo-300 hover:bg-indigo-50'}`}
+              >
+                Reply to sender
+              </button>
+              <button
+                type="button"
+                onClick={() => setReplyScope('ALL')}
+                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors ${replyScope === 'ALL' ? 'bg-indigo-600 text-white border-indigo-600' : 'text-indigo-600 border-indigo-300 hover:bg-indigo-50'}`}
+              >
+                Reply to all
+              </button>
+              <button type="button" onClick={cancelReply} className="text-secondary hover:text-primary ml-1" title="Cancel reply">✕</button>
+            </div>
+          </div>
+        )}
+
+        {/* Recipient chips */}
+        {!replyingTo && (
+          <div className="flex flex-wrap items-center gap-1">
+            {recipientIds.map((id, i) => (
+              <span key={id} className="flex items-center gap-1 text-[11px] bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-700">
+                {recipientNames[i]}
+                <button type="button" onClick={() => removeRecipient(id)} className="hover:text-red-500">✕</button>
+              </span>
+            ))}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowUserSearch(s => !s)}
+                className="text-[11px] text-indigo-500 hover:text-indigo-700 font-medium flex items-center gap-0.5"
+                title="Add recipient (make private)"
+              >
+                @ Add
+              </button>
+              {showUserSearch && (
+                <div className="absolute bottom-full left-0 mb-1 z-10 bg-white dark:bg-gray-800 border border-border rounded-lg shadow-lg w-48">
+                  <input
+                    type="text"
+                    autoFocus
+                    value={userSearch}
+                    onChange={e => setUserSearch(e.target.value)}
+                    placeholder="Search people…"
+                    className="w-full px-3 py-2 text-xs bg-transparent focus:outline-none border-b border-border"
+                  />
+                  {userOptions.length === 0 && userSearch && (
+                    <p className="text-[11px] text-secondary px-3 py-2">No users found</p>
+                  )}
+                  {userOptions.map(u => (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => addRecipient(u)}
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
+                      {u.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {recipientIds.length > 0 && (
+              <button type="button" onClick={() => { setRecipientIds([]); setRecipientNames([]) }} className="text-[11px] text-secondary hover:text-red-500">
+                Clear
+              </button>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center gap-2">
           <input
             ref={inputRef}
@@ -353,7 +577,7 @@ export function FloatingChat() {
             value={newMessage}
             onChange={e => setNewMessage(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
-            placeholder="Type a message…"
+            placeholder={replyingTo ? `Reply to ${replyingTo.userName}…` : recipientIds.length > 0 ? `Private message…` : 'Type a message…'}
             className="flex-1 px-4 py-2 rounded-full border border-border bg-gray-50 dark:bg-gray-800
               text-primary text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           />

@@ -1,0 +1,48 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
+
+/** GET /api/chat/messages/[id]/replies — fetch all replies to a message */
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const user = await getServerUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const replies = await prisma.chatMessages.findMany({
+      where: {
+        parentId: params.id,
+        OR: [
+          { chat_message_recipients: { none: {} } },
+          { userId: user.id },
+          { chat_message_recipients: { some: { userId: user.id } } },
+        ],
+      },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        users: { select: { name: true } },
+        chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
+      },
+    })
+
+    return NextResponse.json(
+      replies.map(m => ({
+        id: m.id,
+        userId: m.userId,
+        userName: m.users?.name ?? 'Unknown',
+        message: m.message,
+        createdAt: m.createdAt.toISOString(),
+        deletedAt: m.deletedAt?.toISOString() ?? null,
+        parentId: m.parentId ?? null,
+        replyScope: m.replyScope ?? null,
+        replyCount: 0,
+        recipients: m.chat_message_recipients.map(r => ({
+          id: r.users?.id ?? r.userId,
+          name: r.users?.name ?? 'Unknown',
+        })),
+      }))
+    )
+  } catch (err) {
+    console.error('[GET /api/chat/messages/[id]/replies]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}

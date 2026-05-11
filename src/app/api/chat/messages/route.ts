@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
-import { emitToRoom } from '@/lib/customer-display/socket-server'
+import { emitToRoom, emitToUsers } from '@/lib/customer-display/socket-server'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
 
 const GENERAL_ROOM_NAME = 'General'
@@ -19,7 +19,26 @@ async function getGeneralRoom() {
   return room
 }
 
-/** GET /api/chat/messages — fetch last 100 messages (prunes >7 days old) */
+/** Shape a raw DB message into the API payload */
+function shapeMessage(m: any, replyCount = 0) {
+  return {
+    id: m.id,
+    userId: m.userId,
+    userName: m.users?.name ?? 'Unknown',
+    message: m.message,
+    createdAt: m.createdAt.toISOString(),
+    deletedAt: m.deletedAt?.toISOString() ?? null,
+    parentId: m.parentId ?? null,
+    replyScope: m.replyScope ?? null,
+    replyCount,
+    recipients: (m.chat_message_recipients ?? []).map((r: any) => ({
+      id: r.users?.id ?? r.userId,
+      name: r.users?.name ?? 'Unknown',
+    })),
+  }
+}
+
+/** GET /api/chat/messages — fetch last 100 messages visible to the current user */
 export async function GET() {
   try {
     const user = await getServerUser()
@@ -31,30 +50,40 @@ export async function GET() {
     const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
     prisma.chatMessages.deleteMany({ where: { roomId: room.id, createdAt: { lt: cutoff } } }).catch(() => {})
 
+    // Fetch top-level messages (no parentId) the current user can see:
+    //  - message has no recipients (public), OR
+    //  - user is the sender, OR
+    //  - user is listed as a recipient
     const messages = await prisma.chatMessages.findMany({
-      where: { roomId: room.id },
+      where: {
+        roomId: room.id,
+        parentId: null,
+        OR: [
+          // Public broadcast: no recipient rows exist
+          { chat_message_recipients: { none: {} } },
+          // Sender always sees their own messages
+          { userId: user.id },
+          // Explicitly listed as recipient
+          { chat_message_recipients: { some: { userId: user.id } } },
+        ],
+      },
       orderBy: { createdAt: 'asc' },
       take: 100,
-      include: { users: { select: { name: true } } },
+      include: {
+        users: { select: { name: true } },
+        chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
+        replies: { where: { deletedAt: null }, select: { id: true } },
+      },
     })
 
-    return NextResponse.json(
-      messages.map(m => ({
-        id: m.id,
-        userId: m.userId,
-        userName: m.users?.name ?? 'Unknown',
-        message: m.message,
-        createdAt: m.createdAt.toISOString(),
-        deletedAt: m.deletedAt?.toISOString() ?? null,
-      }))
-    )
+    return NextResponse.json(messages.map(m => shapeMessage(m, m.replies.length)))
   } catch (err) {
     console.error('[GET /api/chat/messages]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-/** POST /api/chat/messages — send a message */
+/** POST /api/chat/messages — send a message (broadcast or targeted) */
 export async function POST(request: NextRequest) {
   try {
     const user = await getServerUser()
@@ -64,40 +93,103 @@ export async function POST(request: NextRequest) {
     const message: string = body?.message?.trim()
     if (!message) return NextResponse.json({ error: 'message is required' }, { status: 400 })
 
+    const recipientIds: string[] = Array.isArray(body?.recipientIds) ? body.recipientIds : []
+    const parentId: string | null = body?.parentId ?? null
+    const replyScope: 'OWNER' | 'ALL' | null = body?.replyScope ?? null
+
     const room = await getGeneralRoom()
 
+    // Validate parent when replying
+    let resolvedRecipientIds = recipientIds
+    if (parentId) {
+      if (!replyScope) {
+        return NextResponse.json({ error: 'replyScope is required when parentId is set' }, { status: 400 })
+      }
+
+      const parent = await prisma.chatMessages.findUnique({
+        where: { id: parentId },
+        include: { chat_message_recipients: { select: { userId: true } } },
+      })
+      if (!parent) return NextResponse.json({ error: 'Parent message not found' }, { status: 404 })
+
+      if (replyScope === 'OWNER') {
+        // Reply only goes to the thread owner
+        resolvedRecipientIds = parent.userId ? [parent.userId] : []
+      } else {
+        // 'ALL' — inherit the recipient set of the parent thread (empty = everyone)
+        resolvedRecipientIds = parent.chat_message_recipients.map(r => r.userId)
+      }
+    }
+
+    // Create the message
     const created = await prisma.chatMessages.create({
-      data: { roomId: room.id, userId: user.id, message },
+      data: {
+        roomId: room.id,
+        userId: user.id,
+        message,
+        parentId,
+        replyScope,
+      },
       include: { users: { select: { name: true } } },
     })
 
-    const payload = {
-      id: created.id,
-      userId: created.userId,
-      userName: created.users?.name ?? 'Unknown',
-      message: created.message,
-      createdAt: created.createdAt.toISOString(),
+    // Persist recipient rows if targeted
+    if (resolvedRecipientIds.length > 0) {
+      await prisma.chatMessageRecipients.createMany({
+        data: resolvedRecipientIds.map(uid => ({ messageId: created.id, userId: uid })),
+        skipDuplicates: true,
+      })
     }
 
-    // Push to all connected chat clients in real time (non-blocking)
-    try { emitToRoom('chat:general', 'chat:message', payload) } catch { /* non-critical */ }
+    // Reload with recipients for the payload
+    const full = await prisma.chatMessages.findUnique({
+      where: { id: created.id },
+      include: {
+        users: { select: { name: true } },
+        chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
+      },
+    })
 
-    // Notify all other users via bell so they know there's a new message even if chat is closed
-    try {
-      const otherUsers = await prisma.users.findMany({
-        where: { id: { not: user.id }, isActive: true },
-        select: { id: true },
-      })
-      if (otherUsers.length > 0) {
-        await emitNotification({
-          userIds: otherUsers.map(u => u.id),
-          type: 'CHAT_MESSAGE',
-          title: `💬 ${payload.userName}`,
-          message: payload.message.length > 80 ? payload.message.slice(0, 80) + '…' : payload.message,
-          linkUrl: '/chat',
+    const payload = shapeMessage(full, 0)
+    const isTargeted = resolvedRecipientIds.length > 0
+
+    if (isTargeted) {
+      // Emit only to sender + recipients via personal rooms
+      const involvedIds = Array.from(new Set([user.id, ...resolvedRecipientIds]))
+      try { emitToUsers(involvedIds, 'chat:message', payload) } catch { /* non-critical */ }
+
+      try {
+        const recipientsOnly = resolvedRecipientIds.filter(id => id !== user.id)
+        if (recipientsOnly.length > 0) {
+          await emitNotification({
+            userIds: recipientsOnly,
+            type: 'CHAT_MESSAGE',
+            title: `💬 ${payload.userName} (private)`,
+            message: payload.message.length > 80 ? payload.message.slice(0, 80) + '…' : payload.message,
+            linkUrl: '/chat',
+          })
+        }
+      } catch { /* non-critical */ }
+    } else {
+      // Broadcast to all clients in the general room
+      try { emitToRoom('chat:general', 'chat:message', payload) } catch { /* non-critical */ }
+
+      try {
+        const otherUsers = await prisma.users.findMany({
+          where: { id: { not: user.id }, isActive: true },
+          select: { id: true },
         })
-      }
-    } catch { /* non-critical */ }
+        if (otherUsers.length > 0) {
+          await emitNotification({
+            userIds: otherUsers.map(u => u.id),
+            type: 'CHAT_MESSAGE',
+            title: `💬 ${payload.userName}`,
+            message: payload.message.length > 80 ? payload.message.slice(0, 80) + '…' : payload.message,
+            linkUrl: '/chat',
+          })
+        }
+      } catch { /* non-critical */ }
+    }
 
     return NextResponse.json(payload, { status: 201 })
   } catch (err) {
@@ -105,3 +197,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
+

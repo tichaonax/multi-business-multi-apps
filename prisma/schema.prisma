@@ -130,34 +130,34 @@ model BusinessCategories {
 }
 
 model BusinessCustomers {
-  id                        String                    @id @default(uuid())
-  businessId                String
-  customerNumber            String
-  name                      String
-  email                     String?
-  phone                     String?
-  dateOfBirth               DateTime?
-  address                   String?
-  city                      String?
-  country                   String?
-  customerType              CustomerType              @default(INDIVIDUAL)
-  segment                   String?
-  loyaltyPoints             Int                       @default(0)
-  totalSpent                Decimal                   @default(0) @db.Decimal(12, 2)
-  isActive                  Boolean                   @default(true)
-  businessType              String
-  attributes                Json?
-  photoUrl                  String?
-  createdAt                 DateTime                  @default(now())
-  updatedAt                 DateTime
-  businesses                Businesses                @relation(fields: [businessId], references: [id])
-  business_orders           BusinessOrders[]
-  customer_laybys           CustomerLayby[]
-  customer_rewards          CustomerRewards[]
-  invoices                  Invoices[]
-  delivery_customer_account   DeliveryCustomerAccounts?
-  restaurant_credit_payments  RestaurantCreditPayments[]
-  order_cancellations         OrderCancellation[]       @relation("CustomerOrderCancellations")
+  id                         String                     @id @default(uuid())
+  businessId                 String
+  customerNumber             String
+  name                       String
+  email                      String?
+  phone                      String?
+  dateOfBirth                DateTime?
+  address                    String?
+  city                       String?
+  country                    String?
+  customerType               CustomerType               @default(INDIVIDUAL)
+  segment                    String?
+  loyaltyPoints              Int                        @default(0)
+  totalSpent                 Decimal                    @default(0) @db.Decimal(12, 2)
+  isActive                   Boolean                    @default(true)
+  businessType               String
+  attributes                 Json?
+  photoUrl                   String?
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime
+  businesses                 Businesses                 @relation(fields: [businessId], references: [id])
+  business_orders            BusinessOrders[]
+  customer_laybys            CustomerLayby[]
+  customer_rewards           CustomerRewards[]
+  invoices                   Invoices[]
+  delivery_customer_account  DeliveryCustomerAccounts?
+  restaurant_credit_payments RestaurantCreditPayments[]
+  order_cancellations        OrderCancellation[]        @relation("CustomerOrderCancellations")
 
   @@map("business_customers")
 }
@@ -198,40 +198,40 @@ model BusinessOrderItems {
 }
 
 model BusinessOrders {
-  id                       String                   @id @default(uuid())
-  businessId               String
-  orderNumber              String
-  customerId               String?
-  employeeId               String?
-  orderType                OrderType                @default(SALE)
-  status                   OrderStatus              @default(PENDING)
-  subtotal                 Decimal                  @db.Decimal(10, 2)
-  taxAmount                Decimal                  @db.Decimal(10, 2)
-  discountAmount           Decimal                  @default(0) @db.Decimal(10, 2)
-  totalAmount              Decimal                  @db.Decimal(10, 2)
-  paymentMethod            PaymentMethod?
-  paymentStatus            PaymentStatus            @default(PENDING)
-  businessType             String
-  attributes               Json?
-  notes                    String?
-  processedAt              DateTime?
-  transactionDate          DateTime?
-  isManualEntry            Boolean                  @default(false)
-  manualEntryNote          String?
-  createdBy                String?
-  createdAt                DateTime                 @default(now())
-  updatedAt                DateTime
-  business_order_items     BusinessOrderItems[]
-  businesses               Businesses               @relation(fields: [businessId], references: [id])
-  business_customers       BusinessCustomers?       @relation(fields: [customerId], references: [id])
-  employees                Employees?               @relation(fields: [employeeId], references: [id])
-  creator                  Users?                   @relation("BusinessOrderCreator", fields: [createdBy], references: [id])
-  reprint_logs             ReprintLog[]
-  coupon_usages            CouponUsages[]
-  meal_program_transaction MealProgramTransactions?
-  customer_rewards         CustomerRewards[]        @relation("RedeemedReward")
-  order_cancellation         OrderCancellation?
-  restaurant_credit_payment  RestaurantCreditPayments?
+  id                        String                    @id @default(uuid())
+  businessId                String
+  orderNumber               String
+  customerId                String?
+  employeeId                String?
+  orderType                 OrderType                 @default(SALE)
+  status                    OrderStatus               @default(PENDING)
+  subtotal                  Decimal                   @db.Decimal(10, 2)
+  taxAmount                 Decimal                   @db.Decimal(10, 2)
+  discountAmount            Decimal                   @default(0) @db.Decimal(10, 2)
+  totalAmount               Decimal                   @db.Decimal(10, 2)
+  paymentMethod             PaymentMethod?
+  paymentStatus             PaymentStatus             @default(PENDING)
+  businessType              String
+  attributes                Json?
+  notes                     String?
+  processedAt               DateTime?
+  transactionDate           DateTime?
+  isManualEntry             Boolean                   @default(false)
+  manualEntryNote           String?
+  createdBy                 String?
+  createdAt                 DateTime                  @default(now())
+  updatedAt                 DateTime
+  business_order_items      BusinessOrderItems[]
+  businesses                Businesses                @relation(fields: [businessId], references: [id])
+  business_customers        BusinessCustomers?        @relation(fields: [customerId], references: [id])
+  employees                 Employees?                @relation(fields: [employeeId], references: [id])
+  creator                   Users?                    @relation("BusinessOrderCreator", fields: [createdBy], references: [id])
+  reprint_logs              ReprintLog[]
+  coupon_usages             CouponUsages[]
+  meal_program_transaction  MealProgramTransactions?
+  customer_rewards          CustomerRewards[]         @relation("RedeemedReward")
+  order_cancellation        OrderCancellation?
+  restaurant_credit_payment RestaurantCreditPayments?
 
   @@index([orderNumber])
   @@index([businessId, createdAt(sort: Desc)])
@@ -644,16 +644,34 @@ model SavedReports {
 }
 
 model ChatMessages {
-  id         String     @id @default(uuid())
-  message    String
-  createdAt  DateTime   @default(now())
-  deletedAt  DateTime?
-  roomId     String?
-  userId     String?
-  chat_rooms ChatRooms? @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  users      Users?     @relation(fields: [userId], references: [id])
+  id                      String                  @id @default(uuid())
+  message                 String
+  createdAt               DateTime                @default(now())
+  deletedAt               DateTime?
+  roomId                  String?
+  userId                  String?
+  parentId                String?
+  replyScope              String?
+  chat_rooms              ChatRooms?              @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  users                   Users?                  @relation(fields: [userId], references: [id])
+  parent                  ChatMessages?           @relation("ChatReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies                 ChatMessages[]          @relation("ChatReplies")
+  chat_message_recipients ChatMessageRecipients[]
 
+  @@index([parentId])
   @@map("chat_messages")
+}
+
+model ChatMessageRecipients {
+  id            String       @id @default(uuid())
+  messageId     String
+  userId        String
+  chat_messages ChatMessages @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  users         Users        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId])
+  @@map("chat_message_recipients")
 }
 
 model ChatParticipants {
@@ -1186,18 +1204,18 @@ model EmployeeLeaveRequests {
 }
 
 model LeavePolicies {
-  id                    String     @id @default(uuid())
+  id                    String      @id @default(uuid())
   umbrellaBusinessId    String
   businessId            String?
-  annualAccrualPerMonth Decimal    @db.Decimal(5, 2)
+  annualAccrualPerMonth Decimal     @db.Decimal(5, 2)
   maxAnnualDays         Int
   sickDaysPerYear       Int
-  carryoverEnabled      Boolean    @default(false)
+  carryoverEnabled      Boolean     @default(false)
   maxCarryoverDays      Int?
-  isActive              Boolean    @default(true)
-  createdAt             DateTime   @default(now())
-  updatedAt             DateTime   @default(now()) @updatedAt
-  umbrella_business     Businesses @relation("LeavePolicyUmbrella", fields: [umbrellaBusinessId], references: [id])
+  isActive              Boolean     @default(true)
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @default(now()) @updatedAt
+  umbrella_business     Businesses  @relation("LeavePolicyUmbrella", fields: [umbrellaBusinessId], references: [id])
   business              Businesses? @relation("LeavePolicyBusiness", fields: [businessId], references: [id])
 
   @@unique([umbrellaBusinessId, businessId])
@@ -1807,7 +1825,7 @@ model LoanWithdrawalRequest {
   rejectedBy      String?   @map("rejected_by")
   rejectedAt      DateTime? @map("rejected_at")
   rejectionReason String?   @map("rejection_reason")
-  deniedByRole    String?   @map("denied_by_role")   // 'ADMIN' | 'CASHIER'
+  deniedByRole    String?   @map("denied_by_role") // 'ADMIN' | 'CASHIER'
   rescindedBy     String?   @map("rescinded_by")
   rescindedAt     DateTime? @map("rescinded_at")
   paidAt          DateTime? @map("paid_at")
@@ -3341,6 +3359,7 @@ model Users {
   business_memberships                                            BusinessMemberships[]
   business_transactions                                           BusinessTransactions[]
   chat_messages                                                   ChatMessages[]
+  chat_message_recipients                                         ChatMessageRecipients[]
   chat_participants                                               ChatParticipants[]
   chat_rooms                                                      ChatRooms[]
   construction_expenses                                           ConstructionExpenses[]
@@ -6501,21 +6520,21 @@ model DeliveryAccountTransactions {
 }
 
 model DeliveryOrderMeta {
-  id                 String    @id @default(uuid())
-  orderId            String    @unique
-  deliveryNote       String?
-  creditUsed             Decimal   @default(0) @db.Decimal(10, 2)
-  openingCreditBalance   Decimal   @default(0) @db.Decimal(10, 2)
-  creditBalance          Decimal   @default(0) @db.Decimal(10, 2)
-  paymentMode            String    @default("ON_DELIVERY")
-  status             String    @default("PENDING")
-  paymentCollected   Decimal?  @db.Decimal(10, 2)
-  paymentCollectedAt DateTime?
-  paymentCollectedBy String?
-  returnReason       String?
-  runId              String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id                   String    @id @default(uuid())
+  orderId              String    @unique
+  deliveryNote         String?
+  creditUsed           Decimal   @default(0) @db.Decimal(10, 2)
+  openingCreditBalance Decimal   @default(0) @db.Decimal(10, 2)
+  creditBalance        Decimal   @default(0) @db.Decimal(10, 2)
+  paymentMode          String    @default("ON_DELIVERY")
+  status               String    @default("PENDING")
+  paymentCollected     Decimal?  @db.Decimal(10, 2)
+  paymentCollectedAt   DateTime?
+  paymentCollectedBy   String?
+  returnReason         String?
+  runId                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   run DeliveryRuns? @relation(fields: [runId], references: [id])
 
@@ -6537,7 +6556,7 @@ model RestaurantCreditPayments {
   createdBy      String
   createdAt      DateTime @default(now())
 
-  order    BusinessOrders   @relation(fields: [orderId], references: [id])
+  order    BusinessOrders    @relation(fields: [orderId], references: [id])
   customer BusinessCustomers @relation(fields: [customerId], references: [id])
   business Businesses        @relation(fields: [businessId], references: [id])
 

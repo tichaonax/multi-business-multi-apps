@@ -162,3 +162,15 @@ export function emitToRoom(room: string, eventName: string, payload: unknown): v
   if (!io) return
   io.to(room).emit(eventName, payload)
 }
+
+/**
+ * Emit an event to a specific set of users via their personal rooms.
+ * Useful for targeted/private chat messages.
+ */
+export function emitToUsers(userIds: string[], eventName: string, payload: unknown): void {
+  const io = getIo()
+  if (!io) return
+  for (const userId of userIds) {
+    io.to(`user:${userId}`).emit(eventName, payload)
+  }
+}
