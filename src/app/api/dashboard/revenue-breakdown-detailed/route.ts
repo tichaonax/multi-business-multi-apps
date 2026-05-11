@@ -57,20 +57,44 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // --- Batch fetch rent configs + expense account balances ---
+    // --- Batch fetch rent configs + current-month contributions ---
+    // Use this month's EOD_RENT_TRANSFER deposits, not the all-time account balance,
+    // so the "Contributed / Target" progress bar reflects the current month only.
+    const now = new Date()
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+    const monthEnd   = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999))
+
     const rentConfigs = await prisma.businessRentConfig.findMany({
       where: { businessId: { in: allBusinessIds }, isActive: true },
       select: {
         businessId: true,
         monthlyRentAmount: true,
-        expenseAccount: { select: { balance: true } },
+        expenseAccountId: true,
       },
     })
+
+    // Fetch current-month rent deposits for all rent accounts in one query
+    const rentAccountIds = rentConfigs.map(rc => rc.expenseAccountId)
+    const rentDepositRows = rentAccountIds.length > 0
+      ? await prisma.expenseAccountDeposits.groupBy({
+          by: ['expenseAccountId'],
+          where: {
+            expenseAccountId: { in: rentAccountIds },
+            sourceType: 'EOD_RENT_TRANSFER',
+            depositDate: { gte: monthStart, lte: monthEnd },
+          },
+          _sum: { amount: true },
+        })
+      : []
+    const rentContributedMap = new Map(
+      rentDepositRows.map(r => [r.expenseAccountId, Number(r._sum.amount ?? 0)])
+    )
+
     const rentMap = new Map<string, { monthlyRent: number; contributed: number }>()
     for (const rc of rentConfigs) {
       rentMap.set(rc.businessId, {
-        monthlyRent: Number(rc.monthlyRentAmount),
-        contributed: Number(rc.expenseAccount.balance),
+        monthlyRent:  Number(rc.monthlyRentAmount),
+        contributed:  rentContributedMap.get(rc.expenseAccountId) ?? 0,
       })
     }
 

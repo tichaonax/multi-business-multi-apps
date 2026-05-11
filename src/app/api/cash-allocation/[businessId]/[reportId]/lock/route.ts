@@ -183,32 +183,39 @@ export async function POST(request: NextRequest, { params }: Params) {
         }, { status: 422 })
       }
 
-      // Overdraft check: if cash box has insufficient funds, skip outflow entries rather than blocking
+      // Overdraft check: use the live CashBucketEntry balance so the check matches
+      // what the dashboard shows. The previous check used report.totalReported which
+      // does not exist on the schema, causing cashBoxBefore to always be 0 and
+      // skipOutflow to always trigger — meaning OUTFLOWs were never recorded.
       if (allocationTotal > 0) {
-        const lockedReports = await prisma.cashAllocationReport.findMany({
-          where: { businessId, status: 'LOCKED', id: { not: reportId } },
-          include: { lineItems: true, groupedRun: true },
+        // Compute current EOD deposit being brought in (cash + ecocash counted today)
+        let depositNow = 0
+        if (!report.isGrouped && report.reportDate) {
+          const dayStart = new Date(Date.UTC(report.reportDate.getUTCFullYear(), report.reportDate.getUTCMonth(), report.reportDate.getUTCDate(), 0, 0, 0))
+          const dayEnd   = new Date(Date.UTC(report.reportDate.getUTCFullYear(), report.reportDate.getUTCMonth(), report.reportDate.getUTCDate(), 23, 59, 59, 999))
+          const eodSaved = await prisma.savedReports.findFirst({
+            where: { businessId, reportType: 'END_OF_DAY', reportDate: { gte: dayStart, lte: dayEnd } },
+            select: { cashCounted: true, confirmedEcocashAmount: true },
+          })
+          if (eodSaved?.cashCounted != null) depositNow += Number(eodSaved.cashCounted)
+          if ((eodSaved as any)?.confirmedEcocashAmount != null) depositNow += Number((eodSaved as any).confirmedEcocashAmount)
+        } else if (report.isGrouped && report.groupedRun?.totalCashReceived != null) {
+          depositNow += Number(report.groupedRun.totalCashReceived)
+          if ((report.groupedRun as any).totalEcocashReceived != null) {
+            depositNow += Number((report.groupedRun as any).totalEcocashReceived)
+          }
+        }
+
+        const bucketRows = await prisma.cashBucketEntry.groupBy({
+          by: ['direction'] as any,
+          where: { businessId },
+          _sum: { amount: true },
         })
-        let totalReceived = 0
-        let totalAllocated = 0
-        for (const r of lockedReports) {
-          if (r.isGrouped && r.groupedRun?.totalCashReceived != null) {
-            totalReceived += Number(r.groupedRun.totalCashReceived)
-          } else if (!r.isGrouped && r.totalReported != null) {
-            totalReceived += Number(r.totalReported)
-          }
-          for (const li of r.lineItems) {
-            if (li.actualAmount != null) totalAllocated += Number(li.actualAmount)
-          }
-        }
-        let thisDeposit = 0
-        if (report.isGrouped && report.groupedRunId && report.groupedRun?.totalCashReceived != null) {
-          thisDeposit = Number(report.groupedRun.totalCashReceived)
-        } else if (!report.isGrouped && report.totalReported != null) {
-          thisDeposit = Number(report.totalReported)
-        }
-        const cashBoxBefore = totalReceived - totalAllocated + thisDeposit
-        if (allocationTotal > cashBoxBefore) {
+        const bucketBalance =
+          Number((bucketRows as any[]).find(r => r.direction === 'INFLOW')?._sum.amount ?? 0) -
+          Number((bucketRows as any[]).find(r => r.direction === 'OUTFLOW')?._sum.amount ?? 0)
+
+        if (allocationTotal > bucketBalance + depositNow) {
           // Insufficient cash box — lock successfully but skip outflow transactions
           skipOutflow = true
         }
@@ -329,9 +336,13 @@ export async function POST(request: NextRequest, { params }: Params) {
         })
       }
 
-      // OUTFLOW: one entry per line item allocation (skipped if forceClose or insufficient funds)
+      // OUTFLOW: one entry per confirmed line item (skipped if forceClose or insufficient funds)
+      // Only checked items (or auto-confirmed rent) — unchecked items were skipped by the cashier.
       if (!skipOutflow) {
-        for (const item of finalLineItems) {
+        const confirmedItems = finalLineItems.filter(
+          item => item.isChecked || item.sourceType === 'EOD_RENT_TRANSFER'
+        )
+        for (const item of confirmedItems) {
           await prisma.cashBucketEntry.create({
             data: {
               businessId,
