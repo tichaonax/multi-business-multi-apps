@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
     const from = searchParams.get('from')
     const to = searchParams.get('to')
     const groupBy = (searchParams.get('groupBy') || 'day') as 'day' | 'week' | 'month'
+    const allTime = searchParams.get('allTime') === 'true'
 
     if (!businessId) return NextResponse.json({ error: 'businessId required' }, { status: 400 })
 
@@ -49,18 +50,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Default: last 30 days
-    const toDate = to ? new Date(to) : new Date()
-    toDate.setHours(23, 59, 59, 999)
-    const fromDate = from ? new Date(from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    fromDate.setHours(0, 0, 0, 0)
+    let dateFilter: { gte: Date; lte: Date } | undefined
+    if (!allTime) {
+      const toDate = to ? new Date(to) : new Date()
+      toDate.setHours(23, 59, 59, 999)
+      const fromDate = from ? new Date(from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      fromDate.setHours(0, 0, 0, 0)
+      dateFilter = { gte: fromDate, lte: toDate }
+    }
 
     // Fetch manager EOD saved reports for the date range
     const managerReports = await prisma.savedReports.findMany({
       where: {
         businessId,
         reportType: 'END_OF_DAY',
-        reportDate: { gte: fromDate, lte: toDate },
+        ...(dateFilter ? { reportDate: dateFilter } : {}),
       },
       select: {
         id: true,
@@ -80,7 +84,7 @@ export async function GET(request: NextRequest) {
       by: ['reportDate'],
       where: {
         businessId,
-        reportDate: { gte: fromDate, lte: toDate },
+        ...(dateFilter ? { reportDate: dateFilter } : {}),
         status: { in: ['SUBMITTED', 'OVERRIDDEN'] },
       },
       _sum: { cashAmount: true, ecocashAmount: true },
@@ -92,7 +96,7 @@ export async function GET(request: NextRequest) {
       by: ['reportDate'],
       where: {
         businessId,
-        reportDate: { gte: fromDate, lte: toDate },
+        ...(dateFilter ? { reportDate: dateFilter } : {}),
         status: 'PENDING',
       },
       _count: { id: true },
@@ -119,6 +123,7 @@ export async function GET(request: NextRequest) {
 
       return {
         date: dateKey,
+        savedReportId: mr.id,
         managerName: mr.managerName,
         signedAt: mr.signedAt,
         managerCash,

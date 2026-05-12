@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { formatReprintDate } from '@/lib/receipts/watermark'
+import { getCategoryEmoji } from '@/lib/category-emojis'
 import { UnifiedReceiptPreviewModal } from '@/components/receipts/unified-receipt-preview-modal'
 import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
 import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
@@ -111,6 +112,13 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
       feeDeducted: isEcocash ? ecocashFee : undefined,
       refundAmount: isEcocash ? Number(order.totalAmount) - ecocashFee : Number(order.totalAmount),
     })
+  }
+
+  function getItemEmoji(item: any): string | null {
+    if (item.attributes?.emoji) return item.attributes.emoji
+    if (item.attributes?.categoryName) return getCategoryEmoji(item.attributes.categoryName)
+    const emoji = getCategoryEmoji(item.name || '')
+    return emoji !== '📦' ? emoji : null
   }
 
   const formatCurrency = (amount: number | string) => {
@@ -267,30 +275,36 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
                     Items ({receipt.items.length})
                   </h4>
                   <div className="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
-                    {receipt.items.map((item: any, index: number) => (
-                      <div key={index} className="px-4 py-3">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1 min-w-0 pr-3">
-                            <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                              {item.name || 'Unknown Product'}
-                            </p>
-                            {item.notes && (
-                              <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
-                                {item.notes}
-                              </p>
+                    {receipt.items.map((item: any, index: number) => {
+                      const emoji = getItemEmoji(item)
+                      return (
+                        <div key={index} className="px-4 py-3">
+                          <div className="flex justify-between items-start gap-3">
+                            {emoji && (
+                              <span className="text-xl leading-none mt-0.5 flex-shrink-0">{emoji}</span>
                             )}
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                              Qty: {item.quantity} × {formatCurrency(item.unitPrice)}
-                            </p>
-                          </div>
-                          <div className="text-right flex-shrink-0">
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {formatCurrency(item.totalPrice)}
-                            </p>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                                {item.name || 'Unknown Product'}
+                              </p>
+                              {item.notes && (
+                                <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                                  {item.notes}
+                                </p>
+                              )}
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                Qty: {item.quantity} × {formatCurrency(item.unitPrice)}
+                              </p>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                {formatCurrency(item.totalPrice)}
+                              </p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
 

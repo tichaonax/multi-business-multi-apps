@@ -5,9 +5,10 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -189,20 +190,34 @@ function OverrideModal({ record, businessId, onClose, onSuccess }: OverrideModal
 export default function ManagerEodPage() {
   const { currentBusiness, currentBusinessId, hasPermission, isSystemAdmin, loading: bizLoading } = useBusinessPermissionsContext()
   const searchParams = useSearchParams()
+  const router = useRouter()
 
   const [tab, setTab] = useState<Tab>('status')
-  const [selectedDate, setSelectedDate] = useState(() => searchParams.get('date') ?? new Date().toISOString().split('T')[0])
+
+  const [dateRange, setDateRange] = useState<DateRange>(() => {
+    const initDate = searchParams.get('date')
+    const d = initDate ? new Date(initDate + 'T00:00:00') : new Date()
+    d.setHours(0, 0, 0, 0)
+    return { start: d, end: d }
+  })
+  const [overrideDateRange, setOverrideDateRange] = useState<DateRange>(() => {
+    const end = new Date(); end.setHours(23, 59, 59, 999)
+    const start = new Date(); start.setDate(start.getDate() - 30); start.setHours(0, 0, 0, 0)
+    return { start, end }
+  })
+  const [overrideAllTime, setOverrideAllTime] = useState(false)
+
+  const selectedDate = dateRange.start.toISOString().split('T')[0]
+  const isMultiDay = dateRange.start.toISOString().split('T')[0] !== dateRange.end.toISOString().split('T')[0]
+
   const [records, setRecords] = useState<EodRecord[]>([])
   const [totals, setTotals] = useState<Totals>({ cashTotal: 0, ecocashTotal: 0 })
   const [counts, setCounts] = useState<Counts>({ total: 0, pending: 0, submitted: 0, overridden: 0 })
   const [loading, setLoading] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'SUBMITTED' | 'OVERRIDDEN'>('ALL')
 
   const [overrides, setOverrides] = useState<EodRecord[]>([])
   const [overridesLoading, setOverridesLoading] = useState(false)
-  const [overrideFromDate, setOverrideFromDate] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0]
-  })
-  const [overrideToDate, setOverrideToDate] = useState(() => new Date().toISOString().split('T')[0])
 
   const [overrideModal, setOverrideModal] = useState<EodRecord | null>(null)
 
@@ -212,23 +227,32 @@ export default function ManagerEodPage() {
   const [wifiLoading, setWifiLoading] = useState(false)
 
   const canAccess = isSystemAdmin || hasPermission('canCloseBooks')
+  const canViewOrders = isSystemAdmin || hasPermission('canAccessFinancialData')
 
-  // Deadline passed check — past dates are always overdue; today checks against configured deadline time
-  const deadlinePassed = (() => {
+  // Per-record deadline check: past dates are always overdue
+  function isDeadlinePassed(recordDateIso: string) {
     const today = new Date().toISOString().split('T')[0]
-    if (selectedDate < today) return true
+    const recordDate = recordDateIso.slice(0, 10)
+    if (recordDate < today) return true
     const t = currentBusiness?.eodDeadlineTime
     if (!t) return false
     const [h, m] = t.split(':').map(Number)
     const now = new Date()
     return now.getHours() > h || (now.getHours() === h && now.getMinutes() >= m)
-  })()
+  }
+
+  function ordersUrl(dateIso: string) {
+    const date = dateIso.slice(0, 10)
+    return `/reports/orders?businessId=${currentBusinessId}&from=${date}&to=${date}`
+  }
 
   const fetchRecords = useCallback(async () => {
     if (!currentBusinessId) return
     setLoading(true)
     try {
-      const res = await fetch(`/api/eod/salesperson/all?businessId=${currentBusinessId}&date=${selectedDate}`)
+      const from = dateRange.start.toISOString().split('T')[0]
+      const to = dateRange.end.toISOString().split('T')[0]
+      const res = await fetch(`/api/eod/salesperson/all?businessId=${currentBusinessId}&from=${from}&to=${to}`)
       const json = await res.json()
       if (json.success) {
         setRecords(json.data)
@@ -236,30 +260,33 @@ export default function ManagerEodPage() {
         setCounts(json.counts)
       }
     } finally { setLoading(false) }
-  }, [currentBusinessId, selectedDate])
+  }, [currentBusinessId, dateRange])
 
   const fetchOverrides = useCallback(async () => {
     if (!currentBusinessId) return
     setOverridesLoading(true)
     try {
-      const res = await fetch(`/api/eod/overrides?businessId=${currentBusinessId}&from=${overrideFromDate}&to=${overrideToDate}`)
+      const from = overrideDateRange.start.toISOString().split('T')[0]
+      const to = overrideDateRange.end.toISOString().split('T')[0]
+      const params = new URLSearchParams({ businessId: currentBusinessId })
+      if (!overrideAllTime) { params.set('from', from); params.set('to', to) }
+      const res = await fetch(`/api/eod/overrides?${params}`)
       const json = await res.json()
       if (json.success) setOverrides(json.data)
     } finally { setOverridesLoading(false) }
-  }, [currentBusinessId, overrideFromDate, overrideToDate])
+  }, [currentBusinessId, overrideDateRange, overrideAllTime])
 
   const fetchWifiSales = useCallback(async () => {
     if (!currentBusinessId) return
     setWifiLoading(true)
     try {
-      const today = selectedDate
-      const startDate = `${today}T00:00:00`
-      const endDate = `${today}T23:59:59`
-      const res = await fetch(`/api/business/${currentBusinessId}/wifi-token-sales?startDate=${startDate}&endDate=${endDate}&limit=100`)
+      const startDate = new Date(dateRange.start); startDate.setHours(0, 0, 0, 0)
+      const endDate = new Date(dateRange.end); endDate.setHours(23, 59, 59, 999)
+      const res = await fetch(`/api/business/${currentBusinessId}/wifi-token-sales?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}&limit=100`)
       const json = await res.json()
       if (json.success) setWifiSales(json)
     } finally { setWifiLoading(false) }
-  }, [currentBusinessId, selectedDate])
+  }, [currentBusinessId, dateRange])
 
   useEffect(() => { if (tab === 'status') fetchRecords() }, [fetchRecords, tab])
   useEffect(() => { if (tab === 'overrides') fetchOverrides() }, [fetchOverrides, tab])
@@ -267,8 +294,9 @@ export default function ManagerEodPage() {
 
   useEffect(() => {
     if (!currentBusinessId) return
+    const date = dateRange.start.toISOString().split('T')[0]
     setSavedReport('checking')
-    fetch(`/api/reports/save?businessId=${currentBusinessId}&reportType=END_OF_DAY&reportDate=${selectedDate}`)
+    fetch(`/api/reports/save?businessId=${currentBusinessId}&reportType=END_OF_DAY&reportDate=${date}`)
       .then(r => r.json())
       .then(d => {
         if (d.canSave === false && d.existingReport) {
@@ -278,7 +306,7 @@ export default function ManagerEodPage() {
         }
       })
       .catch(() => setSavedReport(null))
-  }, [currentBusinessId, selectedDate])
+  }, [currentBusinessId, dateRange])
 
   if (bizLoading) return (
     <ContentLayout title="Staff EOD Status"><div className="text-sm text-gray-500 py-8 text-center">Loading…</div></ContentLayout>
@@ -329,18 +357,34 @@ export default function ManagerEodPage() {
         {/* ── TODAY'S STATUS TAB ── */}
         {tab === 'status' && (
           <div className="space-y-5">
-            {/* Date picker + summary counts */}
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-gray-600 dark:text-gray-400">Date:</label>
-                <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-                  className="px-3 py-1.5 text-sm border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700 text-primary" />
-              </div>
-              <div className="flex gap-3 ml-auto text-xs">
-                <span className="px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium">{counts.pending} pending</span>
-                <span className="px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 font-medium">{counts.submitted} submitted</span>
-                <span className="px-2.5 py-1 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 font-medium">{counts.overridden} overridden</span>
-              </div>
+            {/* Date selector */}
+            <DateRangeSelector
+              value={dateRange}
+              onChange={range => { setDateRange(range); setStatusFilter('ALL') }}
+            />
+
+            {/* Status filter pills */}
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  { key: 'ALL', label: `All (${counts.total})` },
+                  { key: 'PENDING', label: `Pending (${counts.pending})`, activeColor: 'bg-amber-500 text-white', inactiveColor: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300' },
+                  { key: 'SUBMITTED', label: `Submitted (${counts.submitted})`, activeColor: 'bg-green-600 text-white', inactiveColor: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' },
+                  { key: 'OVERRIDDEN', label: `Overridden (${counts.overridden})`, activeColor: 'bg-orange-600 text-white', inactiveColor: 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300' },
+                ] as const
+              ).map(pill => (
+                <button
+                  key={pill.key}
+                  onClick={() => setStatusFilter(pill.key)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                    statusFilter === pill.key
+                      ? (pill.key === 'ALL' ? 'bg-blue-600 text-white' : pill.activeColor)
+                      : (pill.key === 'ALL' ? 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700' : pill.inactiveColor + ' hover:opacity-80')
+                  }`}
+                >
+                  {pill.label}
+                </button>
+              ))}
             </div>
 
             {loading ? (
@@ -350,10 +394,20 @@ export default function ManagerEodPage() {
             ) : (
               <>
                 {/* Records table */}
+                {(() => {
+                  const filteredRecords = statusFilter === 'ALL' ? records : records.filter(r => r.status === statusFilter)
+                  return (
                 <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-neutral-700">
+                  {filteredRecords.length === 0 ? (
+                    <div className="text-center py-10 text-gray-500 dark:text-gray-400">
+                      <p className="text-2xl mb-2">🔍</p>
+                      <p className="text-sm font-medium">No records match the selected filter.</p>
+                    </div>
+                  ) : (
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 dark:bg-neutral-800/60 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                       <tr>
+                        {isMultiDay && <th className="px-4 py-3 text-left">Date</th>}
                         <th className="px-4 py-3 text-left">Salesperson</th>
                         <th className="px-4 py-3 text-left">Status</th>
                         <th className="px-4 py-3 text-right">Cash</th>
@@ -365,10 +419,17 @@ export default function ManagerEodPage() {
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-neutral-700">
                       {records.map(r => (
-                        <tr key={r.id} className="bg-white dark:bg-neutral-800 hover:bg-gray-50 dark:hover:bg-neutral-750">
+                        <tr
+                          key={r.id}
+                          className={`bg-white dark:bg-neutral-800 ${canViewOrders ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-neutral-750'}`}
+                          onClick={() => canViewOrders && router.push(ordersUrl(r.reportDate))}
+                        >
+                          {isMultiDay && (
+                            <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">{fmtDate(r.reportDate)}</td>
+                          )}
                           <td className="px-4 py-3 font-medium text-gray-900 dark:text-neutral-100">{r.salesperson.name}</td>
                           <td className="px-4 py-3">
-                            <StatusBadge status={r.status} deadlinePassed={deadlinePassed} />
+                            <StatusBadge status={r.status} deadlinePassed={isDeadlinePassed(r.reportDate)} />
                           </td>
                           <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{r.status !== 'PENDING' ? fmt(r.cashAmount) : '—'}</td>
                           <td className="px-4 py-3 text-right text-gray-700 dark:text-gray-300">{r.status !== 'PENDING' ? fmt(r.ecocashAmount) : '—'}</td>
@@ -380,7 +441,8 @@ export default function ManagerEodPage() {
                           </td>
                           <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs max-w-[180px] truncate">{r.notes ?? '—'}</td>
                           <td className="px-4 py-3 text-right">
-                            <button onClick={() => setOverrideModal(r)}
+                            <button
+                              onClick={e => { e.stopPropagation(); setOverrideModal(r) }}
                               className="text-xs font-medium px-2.5 py-1 rounded-md bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-900/60 transition-colors">
                               {r.status === 'PENDING' ? 'Submit on behalf' : 'Override'}
                             </button>
@@ -400,7 +462,10 @@ export default function ManagerEodPage() {
                       </tfoot>
                     )}
                   </table>
+                  )}
                 </div>
+                  )
+                })()}
 
                 {/* All pending warning */}
                 {counts.pending > 0 && (
@@ -452,16 +517,10 @@ export default function ManagerEodPage() {
         {/* ── WIFI SALES TAB ── */}
         {tab === 'wifi' && (
           <div className="space-y-5">
-            {/* Date picker */}
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600 dark:text-gray-400">Date:</label>
-              <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-                className="px-3 py-1.5 text-sm border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700 text-primary" />
-              <button onClick={fetchWifiSales}
-                className="px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                Refresh
-              </button>
-            </div>
+            <DateRangeSelector
+              value={dateRange}
+              onChange={setDateRange}
+            />
 
             {wifiLoading ? (
               <div className="text-sm text-gray-500 py-8 text-center">Loading…</div>
@@ -550,22 +609,13 @@ export default function ManagerEodPage() {
         {/* ── OVERRIDE LOG TAB ── */}
         {tab === 'overrides' && (
           <div className="space-y-5">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-gray-600 dark:text-gray-400">From:</label>
-                <input type="date" value={overrideFromDate} onChange={e => setOverrideFromDate(e.target.value)}
-                  className="px-3 py-1.5 text-sm border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700 text-primary" />
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-gray-600 dark:text-gray-400">To:</label>
-                <input type="date" value={overrideToDate} onChange={e => setOverrideToDate(e.target.value)}
-                  className="px-3 py-1.5 text-sm border border-gray-300 dark:border-neutral-600 rounded-lg bg-white dark:bg-neutral-700 text-primary" />
-              </div>
-              <button onClick={fetchOverrides}
-                className="px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                Search
-              </button>
-            </div>
+            <DateRangeSelector
+              value={overrideDateRange}
+              onChange={range => { setOverrideAllTime(false); setOverrideDateRange(range) }}
+              showAllTime
+              allTime={overrideAllTime}
+              onAllTimeChange={setOverrideAllTime}
+            />
 
             {overridesLoading ? (
               <div className="text-sm text-gray-500 py-8 text-center">Loading…</div>
@@ -587,7 +637,11 @@ export default function ManagerEodPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-neutral-700">
                     {overrides.map(r => (
-                      <tr key={r.id} className="bg-white dark:bg-neutral-800 hover:bg-gray-50 dark:hover:bg-neutral-750">
+                      <tr
+                        key={r.id}
+                        className={`bg-white dark:bg-neutral-800 ${canViewOrders ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-neutral-750'}`}
+                        onClick={() => canViewOrders && router.push(ordersUrl(r.reportDate))}
+                      >
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{fmtDate(r.reportDate)}</td>
                         <td className="px-4 py-3 font-medium text-gray-900 dark:text-neutral-100">{r.salesperson.name}</td>
                         <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{r.submittedBy?.name ?? '—'}</td>

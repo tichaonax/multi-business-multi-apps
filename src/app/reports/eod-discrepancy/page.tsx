@@ -3,12 +3,15 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
 import { formatCurrency } from '@/lib/date-format'
+import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 
 interface DiscrepancyRow {
   date: string
+  savedReportId: string
   managerName: string
   signedAt: string
   managerCash: number | null
@@ -51,35 +54,44 @@ function formatVariance(v: number | null): string {
   return `${v > 0 ? '+' : ''}${formatCurrency(v)}`
 }
 
-function toInputDate(d: Date): string {
-  return d.toISOString().slice(0, 10)
-}
 
 export default function EodDiscrepancyPage() {
-  const { currentBusinessId, currentBusiness, hasPermission, isSystemAdmin, currentUser } = useBusinessPermissionsContext()
-
-  const defaultTo = toInputDate(new Date())
-  const defaultFrom = toInputDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+  const router = useRouter()
+  const { currentBusinessId, currentBusiness, hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
 
   const [activeTab, setActiveTab] = useState<'daily' | 'summary'>('daily')
   const [summaryGroupBy, setSummaryGroupBy] = useState<'week' | 'month'>('week')
 
-  const [from, setFrom] = useState(defaultFrom)
-  const [to, setTo] = useState(defaultTo)
+  const [dateRange, setDateRange] = useState<DateRange>({
+    start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+    end: new Date(),
+  })
+  const [allTime, setAllTime] = useState(false)
 
   const [rows, setRows] = useState<DiscrepancyRow[]>([])
   const [summaryRows, setSummaryRows] = useState<SummaryRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const canView = isSystemAdmin(currentUser) || hasPermission('canCloseBooks') || hasPermission('canAccessFinancialData')
+  const canView = isSystemAdmin || hasPermission('canCloseBooks') || hasPermission('canAccessFinancialData')
+
+  const buildParams = useCallback((groupBy: string) => {
+    const params = new URLSearchParams({ businessId: currentBusinessId!, groupBy })
+    if (allTime) {
+      params.set('allTime', 'true')
+    } else {
+      params.set('from', dateRange.start.toISOString().slice(0, 10))
+      params.set('to', dateRange.end.toISOString().slice(0, 10))
+    }
+    return params.toString()
+  }, [currentBusinessId, dateRange, allTime])
 
   const loadDaily = useCallback(async () => {
     if (!currentBusinessId || !canView) return
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/reports/eod-discrepancy?businessId=${currentBusinessId}&from=${from}&to=${to}&groupBy=day`)
+      const res = await fetch(`/api/reports/eod-discrepancy?${buildParams('day')}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to load')
       setRows(json.data || [])
@@ -88,14 +100,14 @@ export default function EodDiscrepancyPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentBusinessId, from, to, canView])
+  }, [currentBusinessId, canView, buildParams])
 
   const loadSummary = useCallback(async (gb: 'week' | 'month') => {
     if (!currentBusinessId || !canView) return
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/reports/eod-discrepancy?businessId=${currentBusinessId}&from=${from}&to=${to}&groupBy=${gb}`)
+      const res = await fetch(`/api/reports/eod-discrepancy?${buildParams(gb)}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to load')
       setSummaryRows(json.data || [])
@@ -104,7 +116,7 @@ export default function EodDiscrepancyPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentBusinessId, from, to, canView])
+  }, [currentBusinessId, canView, buildParams])
 
   useEffect(() => {
     if (!currentBusinessId) return
@@ -112,22 +124,17 @@ export default function EodDiscrepancyPage() {
     else loadSummary(summaryGroupBy)
   }, [currentBusinessId, activeTab, summaryGroupBy, loadDaily, loadSummary])
 
-  const handleApply = () => {
-    if (activeTab === 'daily') loadDaily()
-    else loadSummary(summaryGroupBy)
-  }
-
   const exportCsv = () => {
     if (activeTab === 'daily') {
       if (!rows.length) return
       const headers = ['Date', 'Manager', 'Manager Cash', 'SP Cash Total', 'Cash Variance', 'Manager EcoCash', 'SP EcoCash Total', 'EcoCash Variance', 'SP Submitted', 'SP Pending']
       const lines = rows.map(r => [r.date, r.managerName, r.managerCash ?? '', r.spCash ?? '', r.cashVariance ?? '', r.managerEcocash ?? '', r.spEcocash ?? '', r.ecocashVariance ?? '', r.spSubmittedCount, r.spPendingCount].join(','))
-      downloadCsv([headers.join(','), ...lines].join('\n'), `eod-discrepancy-daily-${from}-to-${to}.csv`)
+      downloadCsv([headers.join(','), ...lines].join('\n'), `eod-discrepancy-daily-${dateRange.start.toISOString().slice(0,10)}-to-${dateRange.end.toISOString().slice(0,10)}.csv`)
     } else {
       if (!summaryRows.length) return
       const headers = ['Period', 'Days Reported', 'Total Cash Variance', 'Total EcoCash Variance', 'Worst Single-Day Cash Variance']
       const lines = summaryRows.map(r => [r.periodLabel, r.daysReported, r.totalCashVariance ?? '', r.totalEcocashVariance ?? '', r.worstCashVariance ?? ''].join(','))
-      downloadCsv([headers.join(','), ...lines].join('\n'), `eod-discrepancy-${summaryGroupBy}-${from}-to-${to}.csv`)
+      downloadCsv([headers.join(','), ...lines].join('\n'), `eod-discrepancy-${summaryGroupBy}-${dateRange.start.toISOString().slice(0,10)}-to-${dateRange.end.toISOString().slice(0,10)}.csv`)
     }
   }
 
@@ -202,56 +209,34 @@ export default function EodDiscrepancyPage() {
           ))}
         </div>
 
-        {/* Filters */}
-        <div className="mb-6 bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-end gap-4 flex-wrap">
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">From</label>
-              <input
-                type="date"
-                value={from}
-                onChange={e => setFrom(e.target.value)}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-lg text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">To</label>
-              <input
-                type="date"
-                value={to}
-                onChange={e => setTo(e.target.value)}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-lg text-sm"
-              />
-            </div>
-            {activeTab === 'summary' && (
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Group by</label>
-                <div className="flex gap-1">
-                  {(['week', 'month'] as const).map(g => (
-                    <button
-                      key={g}
-                      onClick={() => setSummaryGroupBy(g)}
-                      className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${
-                        summaryGroupBy === g
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                      }`}
-                    >
-                      {g === 'week' ? 'Weekly' : 'Monthly'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <button
-              onClick={handleApply}
-              disabled={loading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-semibold disabled:opacity-50"
-            >
-              {loading ? 'Loading…' : 'Apply'}
-            </button>
+        {/* Date range selector */}
+        <DateRangeSelector
+          value={dateRange}
+          onChange={range => { setAllTime(false); setDateRange(range) }}
+          showAllTime
+          allTime={allTime}
+          onAllTimeChange={setAllTime}
+        />
+
+        {/* Summary group-by toggle */}
+        {activeTab === 'summary' && (
+          <div className="mb-4 flex items-center gap-2">
+            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Group by:</span>
+            {(['week', 'month'] as const).map(g => (
+              <button
+                key={g}
+                onClick={() => setSummaryGroupBy(g)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition-colors ${
+                  summaryGroupBy === g
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+              >
+                {g === 'week' ? 'Weekly' : 'Monthly'}
+              </button>
+            ))}
           </div>
-        </div>
+        )}
 
         {/* Variance legend */}
         <div className="mb-4 flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400">
@@ -300,9 +285,14 @@ export default function EodDiscrepancyPage() {
                   </thead>
                   <tbody>
                     {rows.map(r => (
-                      <tr key={r.date} className="border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                      <tr
+                        key={r.date}
+                        className="border-b border-gray-200 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer"
+                        onClick={() => router.push(`/${currentBusiness?.businessType}/reports/saved/${r.savedReportId}`)}
+                      >
                         <td className="p-3 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">
                           {new Date(r.date + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          <span className="ml-1 text-blue-400 text-xs">↗</span>
                         </td>
                         <td className="p-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{r.managerName}</td>
                         <td className="p-3 text-right text-gray-900 dark:text-gray-100">{r.managerCash !== null ? formatCurrency(r.managerCash) : '—'}</td>

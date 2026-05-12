@@ -26,11 +26,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const reportDate = dateParam ? new Date(dateParam + 'T00:00:00') : new Date()
-    reportDate.setHours(0, 0, 0, 0)
+    const fromParam = searchParams.get('from')
+    const toParam = searchParams.get('to')
+
+    // Support both single date (legacy) and from/to range
+    const fromDate = fromParam ? new Date(fromParam + 'T00:00:00') : (dateParam ? new Date(dateParam + 'T00:00:00') : new Date())
+    fromDate.setHours(0, 0, 0, 0)
+    const toDate = toParam ? new Date(toParam + 'T00:00:00') : new Date(fromDate)
+    toDate.setHours(23, 59, 59, 999)
 
     const records = await prisma.salespersonEodReport.findMany({
-      where: { businessId, reportDate },
+      where: { businessId, reportDate: { gte: fromDate, lte: toDate } },
       include: {
         salesperson: { select: { id: true, name: true, email: true } },
         submittedBy: { select: { id: true, name: true } },

@@ -1166,6 +1166,14 @@ export function Sidebar() {
               </Link>
             )}
 
+            {/* Salesperson Shortfall Report */}
+            {(isSystemAdmin(currentUser) || hasPermission('canCloseBooks') || hasPermission('canAccessFinancialData')) && currentBusiness?.requireSalespersonEod && (
+              <Link href="/reports/salesperson-shortfall" className={getLinkClasses('/reports/salesperson-shortfall')}>
+                <span className="text-lg">📉</span>
+                <span>SP Shortfall</span>
+              </Link>
+            )}
+
             {/* Petty Cash — shown for users with petty_cash.approve OR petty_cash.request permission */}
             {(canApprovePettyCashSys || canRequestPettyCashSys) && (
               <Link

@@ -592,6 +592,10 @@ export function MobileSidebar() {
                     <Link href="/reports/eod-discrepancy" className={sectionLinkClass} onClick={close}>📊 EOD Discrepancy</Link>
                   )}
 
+                  {(isAdmin || hasBusinessPermission('canCloseBooks') || hasBusinessPermission('canAccessFinancialData')) && currentBusiness?.requireSalespersonEod && (
+                    <Link href="/reports/salesperson-shortfall" className={sectionLinkClass} onClick={close}>📉 SP Shortfall</Link>
+                  )}
+
                   {(isAdmin || hasUserPermission(user, 'canViewProjects') || hasUserPermission(user, 'canAccessPersonalFinance')) && (
                     <Link href="/projects" className={sectionLinkClass} onClick={close}>📋 Projects</Link>
                   )}

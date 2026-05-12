@@ -92,6 +92,17 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
   const businessType = report.business?.type || 'grocery'
   const posLink = `/${businessType}/pos`
 
+  // Derive expected cash from payment methods if not stored
+  const expectedCashValue: number | null =
+    report.expectedCash !== null && report.expectedCash !== undefined
+      ? Number(report.expectedCash)
+      : (reportData?.paymentMethods?.CASH?.total ?? reportData?.paymentMethods?.Cash?.total ?? null)
+
+  // Recompute variance using actual salesperson submissions (not stored total)
+  const ordersFrom = new Date(report.periodStart).toISOString().slice(0, 10)
+  const ordersTo = new Date(report.periodEnd).toISOString().slice(0, 10)
+  const ordersUrl = `/reports/orders?businessId=${report.businessId}&from=${ordersFrom}&to=${ordersTo}`
+
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 p-4">
       <style jsx global>{`
@@ -204,8 +215,12 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
               <p className="text-sm text-gray-600 dark:text-gray-400 print:text-gray-600">Total Revenue</p>
               <p className="text-2xl font-bold text-green-600 dark:text-green-400 print:text-gray-900">{formatCurrency(report.totalSales)}</p>
             </div>
-            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg print:bg-gray-50">
-              <p className="text-sm text-gray-600 dark:text-gray-400 print:text-gray-600">Total Orders</p>
+            <div
+              className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg print:bg-gray-50 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+              onClick={() => router.push(ordersUrl)}
+              title="Click to view orders"
+            >
+              <p className="text-sm text-gray-600 dark:text-gray-400 print:text-gray-600">Total Orders <span className="text-blue-400 text-xs">↗</span></p>
               <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 print:text-gray-900">{report.totalOrders}</p>
             </div>
             <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg print:bg-gray-50">
@@ -292,8 +307,11 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
             <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg print:bg-gray-50">
               <p className="text-sm text-gray-600 dark:text-gray-400 print:text-gray-600">Expected Cash</p>
               <p className="text-xl font-bold text-gray-900 dark:text-gray-100 print:text-gray-900">
-                {report.expectedCash !== null ? formatCurrency(report.expectedCash) : '—'}
+                {expectedCashValue !== null ? formatCurrency(expectedCashValue) : '—'}
               </p>
+              {report.expectedCash === null && expectedCashValue !== null && (
+                <p className="text-xs text-amber-500 mt-0.5">from payment data</p>
+              )}
             </div>
             <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg print:bg-gray-50">
               <p className="text-sm text-gray-600 dark:text-gray-400 print:text-gray-600">Cash Counted</p>
@@ -303,14 +321,21 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
             </div>
             <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg print:bg-gray-50">
               <p className="text-sm text-gray-600 dark:text-gray-400 print:text-gray-600">Variance</p>
-              <p className={`text-xl font-bold ${
-                report.variance === null ? 'text-gray-500' :
-                report.variance > 0 ? 'text-yellow-600 dark:text-yellow-400' :
-                report.variance < 0 ? 'text-red-600 dark:text-red-400' :
-                'text-green-600 dark:text-green-400'
-              } print:text-gray-900`}>
-                {report.variance !== null ? (report.variance > 0 ? '+' : '') + formatCurrency(report.variance) : '—'}
-              </p>
+              {(() => {
+                const variance = report.cashCounted !== null && expectedCashValue !== null
+                  ? Number(report.cashCounted) - expectedCashValue
+                  : report.variance !== null ? Number(report.variance) : null
+                return (
+                  <p className={`text-xl font-bold ${
+                    variance === null ? 'text-gray-500' :
+                    variance > 0 ? 'text-yellow-600 dark:text-yellow-400' :
+                    variance < 0 ? 'text-red-600 dark:text-red-400' :
+                    'text-green-600 dark:text-green-400'
+                  } print:text-gray-900`}>
+                    {variance !== null ? (variance > 0 ? '+' : '') + formatCurrency(variance) : '—'}
+                  </p>
+                )
+              })()}
             </div>
           </div>
         </div>
@@ -320,8 +345,9 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
           const records: any[] = report.salespersonEodRecords
           const pendingCount = records.filter((r: any) => r.status === 'PENDING').length
           const overrideCount = records.filter((r: any) => r.status === 'OVERRIDDEN').length
-          const spCashTotal = report.salespersonCashTotal ?? records.filter((r: any) => r.status !== 'PENDING').reduce((s: number, r: any) => s + Number(r.cashAmount), 0)
-          const spEcoTotal = report.salespersonEcocashTotal ?? records.filter((r: any) => r.status !== 'PENDING').reduce((s: number, r: any) => s + Number(r.ecocashAmount), 0)
+          // Use actual submitted records (not stored total) for accurate discrepancy detection
+          const spCashTotal = records.filter((r: any) => r.status !== 'PENDING').reduce((s: number, r: any) => s + Number(r.cashAmount), 0)
+          const spEcoTotal = records.filter((r: any) => r.status !== 'PENDING').reduce((s: number, r: any) => s + Number(r.ecocashAmount), 0)
           const cashVariance = report.cashCounted !== null ? (Number(report.cashCounted) - spCashTotal) : null
           const hasIssues = pendingCount > 0 || overrideCount > 0 || (cashVariance !== null && Math.abs(cashVariance) > 0.01)
           return (

@@ -138,21 +138,23 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 8. Calculate till reconciliation (if applicable)
-    let expectedCash = null
-    let variance = null
-
-    if (reportData.paymentMethods && reportData.paymentMethods.CASH) {
-      const cashSales = parseFloat(reportData.paymentMethods.CASH.total) || 0
-      // Add meal program cash collected from participants (same as live till reconciliation view)
-      const mealProgramCash = parseFloat(reportData.expenseAccountSales?.cashTotal) || 0
-      expectedCash = cashSales + mealProgramCash
-
-      if (cashCounted !== undefined && cashCounted !== null) {
-        const counted = parseFloat(cashCounted.toString())
-        variance = counted - expectedCash
-      }
-    }
+    // 8. Calculate expected cash from DB (authoritative, same pattern as totalSales re-query below)
+    const cashAgg = await prisma.businessOrders.aggregate({
+      where: {
+        businessId,
+        status: 'COMPLETED',
+        paymentMethod: 'CASH',
+        OR: [
+          { transactionDate: { gte: new Date(periodStart), lte: new Date(periodEnd) } },
+          { transactionDate: null, createdAt: { gte: new Date(periodStart), lte: new Date(periodEnd) } },
+        ],
+      },
+      _sum: { totalAmount: true },
+    })
+    const expectedCash = Number(cashAgg._sum.totalAmount ?? 0)
+    const variance = (cashCounted !== undefined && cashCounted !== null)
+      ? parseFloat(cashCounted.toString()) - expectedCash
+      : null
 
     // 9. Re-query actual order totals server-side so we don't trust the stale client snapshot
     const ordersAgg = await prisma.businessOrders.aggregate({
