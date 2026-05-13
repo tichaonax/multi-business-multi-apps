@@ -475,9 +475,17 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
           return (
             <div className="mb-8">
               <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-300 dark:border-gray-600">
-                <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 print:text-gray-900">
-                  👥 Salesperson EOD Submissions
-                </h3>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 print:text-gray-900">
+                    👥 Salesperson EOD Submissions
+                  </h3>
+                  <p className="text-sm mt-0.5 print:text-gray-500">
+                    <span className="text-gray-500 dark:text-gray-400">📅 Sales date: </span>
+                    <span className="font-semibold text-gray-700 dark:text-gray-200 print:text-gray-700">
+                      {new Date(String(report.reportDate).slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+                    </span>
+                  </p>
+                </div>
                 {hasIssues
                   ? <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 print:bg-red-100 print:text-red-700">⚠️ ISSUES FOUND</span>
                   : <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 print:bg-green-100 print:text-green-700">✅ ALL CLEAR</span>
@@ -516,7 +524,7 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
                       <th className="text-center p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Status</th>
                       <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Cash</th>
                       <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">EcoCash</th>
-                      <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Submitted</th>
+                      <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Submitted At</th>
                       <th className="text-left p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">By</th>
                     </tr>
                   </thead>
@@ -536,7 +544,12 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
                           {r.status === 'PENDING' ? <span className="text-gray-400">—</span> : formatCurrency(Number(r.ecocashAmount))}
                         </td>
                         <td className="p-3 text-right text-xs text-gray-500 dark:text-gray-400 print:text-gray-600">
-                          {r.submittedAt ? new Date(r.submittedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                          {r.submittedAt ? (
+                            <span>
+                              <span className="block text-gray-400 dark:text-gray-500">{new Date(r.submittedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>
+                              <span className="block font-medium text-gray-700 dark:text-gray-300">{new Date(r.submittedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                            </span>
+                          ) : '—'}
                         </td>
                         <td className="p-3 text-xs text-gray-600 dark:text-gray-400 print:text-gray-600">
                           {r.isManagerOverride && r.submittedBy ? `${r.submittedBy.name} (mgr)` : (r.submittedBy?.name || '—')}

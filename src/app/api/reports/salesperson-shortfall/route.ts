@@ -74,6 +74,7 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         reportDate: true,
+        expectedCash: true,
         cashCounted: true,
         confirmedEcocashAmount: true,
         managerName: true,
@@ -90,6 +91,7 @@ export async function GET(request: NextRequest) {
       const key = new Date(mr.reportDate).toISOString().slice(0, 10)
       managerByDate.set(key, {
         id: mr.id,
+        expectedCash: mr.expectedCash !== null ? Number(mr.expectedCash) : null,
         cashCounted: mr.cashCounted !== null ? Number(mr.cashCounted) : 0,
         ecocashCounted: mr.confirmedEcocashAmount !== null ? Number(mr.confirmedEcocashAmount) : 0,
         managerName: mr.managerName,
@@ -126,9 +128,11 @@ export async function GET(request: NextRequest) {
 
       const manager = managerByDate.get(dateKey)
       const submittedCount = submittedCountByDate.get(dateKey) ?? 0
+      // expectedShare = POS-recorded cash total ÷ number of salespersons who submitted
+      // Uses expectedCash (system cash sales) not cashCounted (manager's physical till count)
       const expectedShare =
-        manager && submittedCount > 0 && r.status !== 'PENDING'
-          ? manager.cashCounted / submittedCount
+        manager && manager.expectedCash !== null && submittedCount > 0 && r.status !== 'PENDING'
+          ? manager.expectedCash / submittedCount
           : null
       const variance = expectedShare !== null ? cash - expectedShare : null
 

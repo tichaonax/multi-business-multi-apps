@@ -70,9 +70,19 @@ export function SalespersonEodReportSection({ businessId, reportDate, onTotalsRe
   return (
     <div className="mb-8 no-print">
       <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-300 dark:border-gray-600">
-        <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-          👥 SALESPERSON EOD REPORTS
-        </h3>
+        <div>
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+            👥 SALESPERSON EOD REPORTS
+          </h3>
+          {queryDate && (
+            <p className="text-sm mt-0.5">
+              <span className="text-gray-500 dark:text-gray-400">📅 Sales date: </span>
+              <span className="font-semibold text-gray-700 dark:text-gray-200">
+                {new Date(queryDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+              </span>
+            </p>
+          )}
+        </div>
         <Link
           href="/eod/manager"
           className="text-sm text-blue-600 dark:text-blue-400 hover:underline font-medium"
@@ -108,7 +118,7 @@ export function SalespersonEodReportSection({ businessId, reportDate, onTotalsRe
               <th className="text-center p-3 font-semibold text-gray-900 dark:text-gray-100">Status</th>
               <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100">Cash</th>
               <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100">EcoCash</th>
-              <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100">Submitted</th>
+              <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100">Submitted At</th>
               <th className="text-center p-3 font-semibold text-gray-900 dark:text-gray-100"></th>
             </tr>
           </thead>
@@ -123,10 +133,13 @@ export function SalespersonEodReportSection({ businessId, reportDate, onTotalsRe
                 <td className="p-3 text-right text-gray-900 dark:text-gray-100">
                   {r.status === 'PENDING' ? <span className="text-gray-400">—</span> : `$${Number(r.ecocashAmount).toFixed(2)}`}
                 </td>
-                <td className="p-3 text-right text-gray-500 dark:text-gray-400 text-xs">
-                  {r.submittedAt
-                    ? new Date(r.submittedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-                    : '—'}
+                <td className="p-3 text-right text-xs text-gray-500 dark:text-gray-400">
+                  {r.submittedAt ? (
+                    <span>
+                      <span className="block text-gray-400 dark:text-gray-500">{new Date(r.submittedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>
+                      <span className="block font-medium text-gray-700 dark:text-gray-300">{new Date(r.submittedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                    </span>
+                  ) : '—'}
                 </td>
                 <td className="p-3 text-center">
                   {r.status === 'PENDING' && new Date(r.reportDate).toISOString().slice(0, 10) < queryDate && (

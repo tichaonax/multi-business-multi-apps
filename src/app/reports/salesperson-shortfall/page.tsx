@@ -411,8 +411,8 @@ export default function SalespersonShortfallPage() {
           ) : selectedSalesperson ? (
             /* ── VIEW B: day-by-day detail for one person ── */
             <>
-              <div className="mb-4 flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400">
-                <span className="font-semibold">Variance vs expected share:</span>
+              <div className="mb-4 flex flex-wrap items-center gap-4 text-xs text-gray-600 dark:text-gray-400">
+                <span className="font-semibold">Variance = Cash Submitted − Expected Cash (POS):</span>
                 <span className="text-green-600 dark:text-green-400 font-semibold">■ ≤ $1 (OK)</span>
                 <span className="text-amber-600 dark:text-amber-400 font-semibold">■ $1–$10 (Review)</span>
                 <span className="text-red-600 dark:text-red-400 font-semibold">■ &gt;$10 (Flag)</span>
@@ -430,10 +430,10 @@ export default function SalespersonShortfallPage() {
                       <thead className="bg-gray-100 dark:bg-gray-700">
                         <tr>
                           <th className="text-left p-3 font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">Date</th>
-                          <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">Cash</th>
-                          <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">EcoCash</th>
-                          <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">Total</th>
-                          <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">Expected Share</th>
+                          <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">Cash Submitted</th>
+                          <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">EcoCash Submitted</th>
+                          <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">Total Submitted</th>
+                          <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">Expected Cash (POS)</th>
                           <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">Variance</th>
                           <th className="text-center p-3 font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">Status</th>
                           <th className="text-left p-3 font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">Note / Reason</th>
