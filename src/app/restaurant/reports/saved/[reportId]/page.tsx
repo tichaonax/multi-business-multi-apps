@@ -302,7 +302,6 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
                 </p>
               </div>
             </div>
-          </div>
         </div>
 
         {/* Signature Section */}

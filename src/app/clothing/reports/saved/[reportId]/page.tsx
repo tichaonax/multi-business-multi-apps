@@ -302,10 +302,9 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
                 </p>
               </div>
             </div>
-          </div>
         </div>
 
-        {/* Signature Section */
+        {/* Signature Section */}
         <div className="mt-8 pt-6 border-t-2 border-gray-300 dark:border-gray-600 print:border-gray-300">
           <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4 print:text-gray-900">Manager Signature</h3>
           <div className="grid grid-cols-2 gap-6">
