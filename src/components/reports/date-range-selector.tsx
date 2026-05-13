@@ -27,6 +27,8 @@ const presets = [
 
 export function DateRangeSelector({ value, onChange, showAllTime, allTime, onAllTimeChange }: DateRangeSelectorProps) {
   const [showCustom, setShowCustom] = useState(false)
+  const [showSingleDate, setShowSingleDate] = useState(false)
+  const [singleDateValue, setSingleDateValue] = useState('')
   const [selectedPreset, setSelectedPreset] = useState<string | null>('30')
   const { format: dateFormat } = useDateFormat()
 
@@ -70,18 +72,21 @@ export function DateRangeSelector({ value, onChange, showAllTime, allTime, onAll
         setShowCustom(false)
       } else {
         setSelectedPreset(null)
-        setShowCustom(true)
+        // Only open custom panel if single-date picker isn't active
+        if (!showSingleDate) setShowCustom(true)
       }
     }
-  }, [value])
+  }, [value, showSingleDate])
 
   const handleAllTimeClick = () => {
     setShowCustom(false)
+    setShowSingleDate(false)
     setSelectedPreset(null)
     onAllTimeChange?.(true)
   }
 
   const handlePresetClick = (key: string, days?: number) => {
+    setShowSingleDate(false)
     onAllTimeChange?.(false)
     const now = new Date()
     let start: Date
@@ -185,6 +190,7 @@ export function DateRangeSelector({ value, onChange, showAllTime, allTime, onAll
           <button
             onClick={() => {
               setShowCustom(!showCustom)
+              setShowSingleDate(false)
               setSelectedPreset(null)
               onAllTimeChange?.(false)
             }}
@@ -196,8 +202,45 @@ export function DateRangeSelector({ value, onChange, showAllTime, allTime, onAll
           >
             Custom Range
           </button>
+
+          <button
+            onClick={() => {
+              setShowSingleDate(!showSingleDate)
+              setShowCustom(false)
+              setSelectedPreset(null)
+              onAllTimeChange?.(false)
+            }}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              showSingleDate
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }`}
+          >
+            Specific Date
+          </button>
         </div>
       </div>
+
+      {/* Single Date Picker */}
+      {showSingleDate && (
+        <div className="mt-4 flex flex-wrap items-center gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <label className="text-sm text-gray-600 dark:text-gray-400">Date:</label>
+          <input
+            type="date"
+            value={singleDateValue}
+            onChange={e => {
+              const v = e.target.value
+              setSingleDateValue(v)
+              if (v) {
+                const d = new Date(v + 'T12:00:00')
+                onAllTimeChange?.(false)
+                onChange({ start: d, end: d })
+              }
+            }}
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+          />
+        </div>
+      )}
 
       {/* Custom Date Inputs */}
       {showCustom && (

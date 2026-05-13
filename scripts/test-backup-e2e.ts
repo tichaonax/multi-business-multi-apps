@@ -7,6 +7,7 @@
 import { PrismaClient } from '@prisma/client'
 import { createCleanBackup } from '../src/lib/backup-clean'
 import { restoreCleanBackup } from '../src/lib/restore-clean'
+import { validateBackupRestore } from '../src/lib/backup-validation'
 
 const NEW_TABLE_KEYS = [
   // EOD / Cash Box
@@ -120,6 +121,22 @@ async function main() {
     process.exit(1)
   }
 
+  // ── Phase 2.5: Pre-restore validation ─────────────────────────────────────
+  console.log('\nPhase 2.5: validateBackupRestore() — pre-restore (backup vs current DB)...\n')
+  const preValidation = await validateBackupRestore(prisma, backup)
+  console.log(`  Tables:               ${preValidation.totalTables}`)
+  console.log(`  Exact matches:        ${preValidation.exactMatches}`)
+  console.log(`  Expected differences: ${preValidation.expectedDifferences}`)
+  console.log(`  Unexpected mismatches:${preValidation.unexpectedMismatches}`)
+  console.log(`  Overall status:       ${preValidation.overallStatus}`)
+
+  if (preValidation.overallStatus === 'error') {
+    console.log('\n  Unexpected mismatches (pre-restore):')
+    preValidation.results
+      .filter(r => r.status === 'unexpected-mismatch')
+      .forEach(r => console.log(`    ✗ ${r.tableName}: backup=${r.backupCount}, db=${r.databaseCount} — ${r.notes}`))
+  }
+
   // ── Phase 3: Restore (upsert — idempotent, safe on live DB) ───────────────
   console.log('\nPhase 3: restoreCleanBackup() — upsert mode (idempotent)...\n')
   const t1 = Date.now()
@@ -163,11 +180,28 @@ async function main() {
     // empty tables silently pass
   }
 
+  // ── Phase 4.5: Post-restore validation ────────────────────────────────────
+  console.log('\nPhase 4.5: validateBackupRestore() — post-restore (backup vs DB with restore result)...\n')
+  const postValidation = await validateBackupRestore(prisma, backup, result)
+  console.log(`  Tables:               ${postValidation.totalTables}`)
+  console.log(`  Exact matches:        ${postValidation.exactMatches}`)
+  console.log(`  Expected differences: ${postValidation.expectedDifferences}`)
+  console.log(`  Unexpected mismatches:${postValidation.unexpectedMismatches}`)
+  console.log(`  Overall status:       ${postValidation.overallStatus}`)
+
+  if (postValidation.overallStatus === 'error') {
+    console.log('\n  Unexpected mismatches (post-restore):')
+    postValidation.results
+      .filter(r => r.status === 'unexpected-mismatch')
+      .forEach(r => console.log(`    ✗ ${r.tableName}: backup=${r.backupCount}, db=${r.databaseCount} — ${r.notes}`))
+  }
+
   // ── Summary ────────────────────────────────────────────────────────────────
   console.log('\n══════════════════════════════════════════════════════')
   console.log('  FINAL RESULTS')
   console.log('══════════════════════════════════════════════════════')
   const issues = missing + restoreMissed + (result.errors > 0 ? result.errors : 0)
+    + (postValidation.overallStatus === 'error' ? postValidation.unexpectedMismatches : 0)
   if (issues === 0) {
     console.log('  ✅  BACKUP + RESTORE FULLY VERIFIED\n')
   } else {

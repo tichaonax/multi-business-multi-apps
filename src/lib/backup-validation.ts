@@ -321,6 +321,8 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'employeeLeaveRequests',       // employeeId FK, no direct businessId
   'employeeLeaveBalance',        // employeeId FK, no direct businessId
   'employeeAbsences',            // backed up globally, not scoped by business
+  // Chat (MBM-210)
+  'chatMessageRecipients',       // messageId + userId FK, no businessId column
 ])
 
 /**

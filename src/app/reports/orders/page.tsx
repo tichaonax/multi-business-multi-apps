@@ -177,9 +177,9 @@ function OrdersPageInner() {
       const params = new URLSearchParams({ businessId, limit: '200', includeItems: 'true' })
       if (!allTime) {
         const start = new Date(dateRange.start)
-        start.setHours(0, 0, 0, 0)
+        start.setUTCHours(0, 0, 0, 0)
         const end = new Date(dateRange.end)
-        end.setHours(23, 59, 59, 999)
+        end.setUTCHours(23, 59, 59, 999)
         params.set('startDate', start.toISOString())
         params.set('endDate', end.toISOString())
       }
