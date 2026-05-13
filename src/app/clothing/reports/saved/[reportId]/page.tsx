@@ -275,15 +275,14 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
         )}
 
         {/* Till Reconciliation */}
-        {report.expectedCash !== null && (
-          <div className="mb-8">
+        <div className="mb-8">
             <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
               💵 Till Reconciliation
             </h3>
             <div className="grid grid-cols-3 gap-4">
               <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg print:bg-gray-50">
                 <p className="text-sm text-gray-600 dark:text-gray-400 print:text-gray-600">Expected Cash</p>
-                <p className="text-xl font-bold text-gray-900 dark:text-gray-100 print:text-gray-900">{formatCurrency(report.expectedCash)}</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-gray-100 print:text-gray-900">{report.expectedCash !== null ? formatCurrency(report.expectedCash) : '—'}</p>
               </div>
               <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg print:bg-gray-50">
                 <p className="text-sm text-gray-600 dark:text-gray-400 print:text-gray-600">Cash Counted</p>
@@ -304,9 +303,9 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
               </div>
             </div>
           </div>
-        )}
+        </div>
 
-        {/* Signature Section */}
+        {/* Signature Section */
         <div className="mt-8 pt-6 border-t-2 border-gray-300 dark:border-gray-600 print:border-gray-300">
           <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4 print:text-gray-900">Manager Signature</h3>
           <div className="grid grid-cols-2 gap-6">

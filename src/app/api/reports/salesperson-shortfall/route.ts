@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
@@ -64,7 +65,7 @@ export async function GET(request: NextRequest) {
       orderBy: [{ reportDate: 'desc' }, { salespersonId: 'asc' }],
     })
 
-    // Fetch manager EOD reports for the same range (for expectedShare calc)
+    // Fetch manager EOD reports for the same range (savedReportId + amendment details only)
     const managerReports = await prisma.savedReports.findMany({
       where: {
         businessId,
@@ -74,10 +75,7 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         reportDate: true,
-        expectedCash: true,
         cashCounted: true,
-        confirmedEcocashAmount: true,
-        managerName: true,
         originalCashCounted: true,
         cashCountedModifiedAt: true,
         cashCountedModifiedByName: true,
@@ -85,31 +83,66 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    // Build manager report lookup: dateKey → manager data
-    const managerByDate = new Map<string, { id: string; cashCounted: number; ecocashCounted: number; managerName: string; cashCountedAmended: boolean }>()
+    // Build manager report lookup: dateKey → savedReportId + amendment details only
+    const managerByDate = new Map<string, {
+      id: string
+      cashCountedAmended: boolean
+      originalCashCounted: number | null
+      cashCounted: number
+      cashCountedModifiedAt: string | null
+      cashCountedModifiedByName: string | null
+      cashCountedModifiedReason: string | null
+    }>()
     for (const mr of managerReports) {
       const key = new Date(mr.reportDate).toISOString().slice(0, 10)
       managerByDate.set(key, {
         id: mr.id,
-        expectedCash: mr.expectedCash !== null ? Number(mr.expectedCash) : null,
-        cashCounted: mr.cashCounted !== null ? Number(mr.cashCounted) : 0,
-        ecocashCounted: mr.confirmedEcocashAmount !== null ? Number(mr.confirmedEcocashAmount) : 0,
-        managerName: mr.managerName,
         cashCountedAmended: mr.originalCashCounted !== null,
         originalCashCounted: mr.originalCashCounted !== null ? Number(mr.originalCashCounted) : null,
+        cashCounted: mr.cashCounted !== null ? Number(mr.cashCounted) : 0,
         cashCountedModifiedAt: mr.cashCountedModifiedAt ? mr.cashCountedModifiedAt.toISOString() : null,
         cashCountedModifiedByName: mr.cashCountedModifiedByName ?? null,
         cashCountedModifiedReason: mr.cashCountedModifiedReason ?? null,
       })
     }
 
-    // Count submitted salesperson reports per date (for expectedShare denominator)
-    const submittedCountByDate = new Map<string, number>()
-    for (const r of spReports) {
-      if (r.status !== 'PENDING') {
-        const key = new Date(r.reportDate).toISOString().slice(0, 10)
-        submittedCountByDate.set(key, (submittedCountByDate.get(key) ?? 0) + 1)
-      }
+    // Query POS cash totals per Harare date directly from business_orders.
+    // This is the authoritative expected cash — completely independent of whether
+    // a manager has saved/locked a report for that day.
+    // Africa/Harare = UTC+2, no DST. Expand gte by 2h to catch orders at 00:00–02:00 Harare.
+    const cashRows: Array<{ date_key: string; cash_total: string }> = dateFilter
+      ? await prisma.$queryRaw`
+          SELECT
+            TO_CHAR(
+              COALESCE("transactionDate", "createdAt") AT TIME ZONE 'Africa/Harare',
+              'YYYY-MM-DD'
+            ) AS date_key,
+            SUM("totalAmount")::text AS cash_total
+          FROM business_orders
+          WHERE "businessId" = ${businessId}
+            AND status = 'COMPLETED'
+            AND "paymentMethod" = 'CASH'
+            AND COALESCE("transactionDate", "createdAt") >= ${new Date(dateFilter.gte.getTime() - 2 * 60 * 60 * 1000)}
+            AND COALESCE("transactionDate", "createdAt") <= ${dateFilter.lte}
+          GROUP BY date_key
+        `
+      : await prisma.$queryRaw`
+          SELECT
+            TO_CHAR(
+              COALESCE("transactionDate", "createdAt") AT TIME ZONE 'Africa/Harare',
+              'YYYY-MM-DD'
+            ) AS date_key,
+            SUM("totalAmount")::text AS cash_total
+          FROM business_orders
+          WHERE "businessId" = ${businessId}
+            AND status = 'COMPLETED'
+            AND "paymentMethod" = 'CASH'
+          GROUP BY date_key
+        `
+
+    const cashByDateMap = new Map<string, number>()
+    for (const row of cashRows) {
+      cashByDateMap.set(row.date_key, parseFloat(row.cash_total))
     }
 
     // Classify each row and compute variance
@@ -127,14 +160,11 @@ export async function GET(request: NextRequest) {
       else if (total === 0) status = 'ZERO'
 
       const manager = managerByDate.get(dateKey)
-      const submittedCount = submittedCountByDate.get(dateKey) ?? 0
-      // expectedShare = POS-recorded cash total ÷ number of salespersons who submitted
-      // Uses expectedCash (system cash sales) not cashCounted (manager's physical till count)
-      const expectedShare =
-        manager && manager.expectedCash !== null && submittedCount > 0 && r.status !== 'PENDING'
-          ? manager.expectedCash / submittedCount
-          : null
-      const variance = expectedShare !== null ? cash - expectedShare : null
+      // expectedCash = direct POS cash sales total for this date (Africa/Harare).
+      // Always available from business_orders regardless of whether a manager report exists.
+      // EcoCash is excluded — salesperson does not handle that money.
+      const expectedCash = r.status !== 'PENDING' ? (cashByDateMap.get(dateKey) ?? null) : null
+      const variance = expectedCash !== null ? cash - expectedCash : null
 
       return {
         date: dateKey,
@@ -148,7 +178,7 @@ export async function GET(request: NextRequest) {
         overrideReason: r.overrideReason ?? null,
         notes: r.notes ?? null,
         submittedAt: r.submittedAt ? r.submittedAt.toISOString() : null,
-        expectedShare,
+        expectedShare: expectedCash,
         variance,
         savedReportId: manager?.id ?? null,
         cashCountedAmended: manager?.cashCountedAmended ?? false,
