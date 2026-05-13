@@ -19,11 +19,20 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Amendment form state
+  const [amendOpen, setAmendOpen] = useState(false)
+  const [amendValue, setAmendValue] = useState('')
+  const [amendReason, setAmendReason] = useState('')
+  const [amendSaving, setAmendSaving] = useState(false)
+  const [amendError, setAmendError] = useState<string | null>(null)
+
   const router = useRouter()
 
   const {
     currentBusiness,
     isAuthenticated,
+    hasPermission,
+    isSystemAdmin,
   } = useBusinessPermissionsContext()
 
   // Unwrap params
@@ -56,6 +65,37 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
 
     loadReport()
   }, [reportId])
+
+  const canAmend = report && report.isLocked && report.originalCashCounted === null &&
+    (isSystemAdmin || hasPermission('canCloseBooks'))
+
+  async function submitAmendment() {
+    const num = parseFloat(amendValue)
+    if (isNaN(num) || !isFinite(num)) { setAmendError('Enter a valid number'); return }
+    if (!amendReason.trim()) { setAmendError('Reason is required'); return }
+    setAmendSaving(true)
+    setAmendError(null)
+    try {
+      const res = await fetch(`/api/reports/saved/${reportId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'amend-cash-counted', cashCounted: num, reason: amendReason.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setAmendError(data.error || 'Failed to save amendment'); return }
+      // Refresh report
+      const fresh = await fetch(`/api/reports/saved/${reportId}`)
+      const freshData = await fresh.json()
+      setReport(freshData.report)
+      setAmendOpen(false)
+      setAmendValue('')
+      setAmendReason('')
+    } catch (e: any) {
+      setAmendError(e.message || 'Unexpected error')
+    } finally {
+      setAmendSaving(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -99,9 +139,10 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
       : (reportData?.paymentMethods?.CASH?.total ?? reportData?.paymentMethods?.Cash?.total ?? null)
 
   // Recompute variance using actual salesperson submissions (not stored total)
-  const ordersFrom = new Date(report.periodStart).toISOString().slice(0, 10)
-  const ordersTo = new Date(report.periodEnd).toISOString().slice(0, 10)
-  const ordersUrl = `/reports/orders?businessId=${report.businessId}&from=${ordersFrom}&to=${ordersTo}`
+  // Use reportDate (the actual business date) for the orders link — not periodStart/periodEnd
+  // which are UTC datetimes that would be off by one day in UTC+2 timezones
+  const reportDateStr = String(report.reportDate).slice(0, 10)
+  const ordersUrl = `/reports/orders?businessId=${report.businessId}&from=${reportDateStr}&to=${reportDateStr}`
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 p-4">
@@ -300,9 +341,66 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
 
         {/* Till Reconciliation */}
         <div className="mb-8">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
-            💵 Till Reconciliation
-          </h3>
+          <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:border-gray-300">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 print:text-gray-900">
+              💵 Till Reconciliation
+            </h3>
+            {canAmend && !amendOpen && (
+              <button
+                onClick={() => { setAmendValue(report.cashCounted !== null ? String(Number(report.cashCounted)) : ''); setAmendOpen(true) }}
+                className="no-print inline-flex items-center gap-1 px-3 py-1.5 text-sm bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg border border-amber-300 transition-colors"
+              >
+                ✏️ Edit Cash Counted
+              </button>
+            )}
+          </div>
+
+          {/* Amendment form */}
+          {amendOpen && (
+            <div className="no-print mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg">
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-3">✏️ Amend Cash Counted — this can only be done once</p>
+              <div className="flex flex-col gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">New Cash Counted (US$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={amendValue}
+                    onChange={(e) => setAmendValue(e.target.value)}
+                    className="w-48 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-amber-400"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Reason for amendment (required)</label>
+                  <input
+                    type="text"
+                    value={amendReason}
+                    onChange={(e) => setAmendReason(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-amber-400"
+                    placeholder="e.g. Counting error — recounted and confirmed correct amount"
+                  />
+                </div>
+                {amendError && <p className="text-xs text-red-600">{amendError}</p>}
+                <div className="flex gap-2">
+                  <button
+                    onClick={submitAmendment}
+                    disabled={amendSaving || !amendReason.trim()}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-sm rounded-lg transition-colors"
+                  >
+                    {amendSaving ? 'Saving…' : 'Save Amendment'}
+                  </button>
+                  <button
+                    onClick={() => { setAmendOpen(false); setAmendError(null) }}
+                    className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-3 gap-4">
             <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg print:bg-gray-50">
               <p className="text-sm text-gray-600 dark:text-gray-400 print:text-gray-600">Expected Cash</p>
@@ -314,10 +412,20 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
               )}
             </div>
             <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg print:bg-gray-50">
-              <p className="text-sm text-gray-600 dark:text-gray-400 print:text-gray-600">Cash Counted</p>
+              <div className="flex items-center gap-2 mb-1">
+                <p className="text-sm text-gray-600 dark:text-gray-400 print:text-gray-600">Cash Counted</p>
+                {report.originalCashCounted !== null && report.originalCashCounted !== undefined && (
+                  <span className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 px-1.5 py-0.5 rounded font-medium">✏️ Amended</span>
+                )}
+              </div>
               <p className="text-xl font-bold text-gray-900 dark:text-gray-100 print:text-gray-900">
                 {report.cashCounted !== null ? formatCurrency(report.cashCounted) : '—'}
               </p>
+              {report.originalCashCounted !== null && report.originalCashCounted !== undefined && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Original: {formatCurrency(Number(report.originalCashCounted))}
+                </p>
+              )}
             </div>
             <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg print:bg-gray-50">
               <p className="text-sm text-gray-600 dark:text-gray-400 print:text-gray-600">Variance</p>
@@ -338,6 +446,20 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
               })()}
             </div>
           </div>
+
+          {/* Amendment audit trail — shown only when report has been amended */}
+          {report.originalCashCounted !== null && report.originalCashCounted !== undefined && (
+            <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg text-sm">
+              <p className="font-semibold text-amber-900 dark:text-amber-100 mb-1">✏️ Cash Counted was amended</p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-amber-800 dark:text-amber-200">
+                <span>Modified by: <strong>{report.cashCountedModifiedByName}</strong></span>
+                <span>Date: <strong>{report.cashCountedModifiedAt ? formatDateTime(new Date(report.cashCountedModifiedAt)) : '—'}</strong></span>
+                <span>Original: <strong>{formatCurrency(Number(report.originalCashCounted))}</strong></span>
+                <span>New value: <strong>{formatCurrency(Number(report.cashCounted))}</strong></span>
+                <span className="col-span-2">Reason: <strong>{report.cashCountedModifiedReason}</strong></span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Salesperson EOD Submissions — shown when records exist */}

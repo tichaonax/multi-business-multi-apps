@@ -27,6 +27,14 @@ interface ShortfallRow {
   expectedShare: number | null
   variance: number | null
   savedReportId: string | null
+  cashCountedAmended: boolean
+  amendmentDetails: {
+    originalCashCounted: number | null
+    newCashCounted: number
+    modifiedAt: string | null
+    modifiedByName: string | null
+    reason: string | null
+  } | null
 }
 
 interface PersonSummary {
@@ -117,6 +125,14 @@ export default function SalespersonShortfallPage() {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [amendmentModal, setAmendmentModal] = useState<{
+    originalCashCounted: number | null
+    newCashCounted: number
+    modifiedAt: string | null
+    modifiedByName: string | null
+    reason: string | null
+    date: string
+  } | null>(null)
 
   const canView = isSystemAdmin || hasPermission('canCloseBooks') || hasPermission('canAccessFinancialData')
 
@@ -244,6 +260,7 @@ export default function SalespersonShortfallPage() {
   const activePills = selectedSalesperson ? singlePersonPills : allPersonPills
 
   return (
+    <>
     <ContentLayout
       title="Salesperson Shortfall Report"
       breadcrumb={[
@@ -436,7 +453,19 @@ export default function SalespersonShortfallPage() {
                             <td className="p-3 text-right text-gray-900 dark:text-gray-100">{r.status === 'MISSING' ? '—' : formatCurrency(r.cashAmount)}</td>
                             <td className="p-3 text-right text-gray-900 dark:text-gray-100">{r.status === 'MISSING' ? '—' : formatCurrency(r.ecocashAmount)}</td>
                             <td className="p-3 text-right font-semibold text-gray-900 dark:text-gray-100">{r.status === 'MISSING' ? '—' : formatCurrency(r.total)}</td>
-                            <td className="p-3 text-right text-gray-500 dark:text-gray-400">{r.expectedShare !== null ? formatCurrency(r.expectedShare) : '—'}</td>
+                            <td className="p-3 text-right text-gray-500 dark:text-gray-400">
+                              <div className="inline-flex items-center gap-1.5 justify-end">
+                                {r.expectedShare !== null ? formatCurrency(r.expectedShare) : '—'}
+                                {r.cashCountedAmended && r.amendmentDetails && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setAmendmentModal({ ...r.amendmentDetails!, date: r.date }) }}
+                                    className="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 dark:bg-amber-900/40 dark:hover:bg-amber-800/50 dark:text-amber-300 px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-600 transition-colors"
+                                  >
+                                    ✏️
+                                  </button>
+                                )}
+                              </div>
+                            </td>
                             <td className={`p-3 text-right font-semibold ${varianceColor(r.variance)}`}>{formatVariance(r.variance)}</td>
                             <td className="p-3 text-center">{statusBadge(r.status)}</td>
                             <td className="p-3 text-xs text-gray-500 dark:text-gray-400 max-w-[200px] truncate">{r.overrideReason || r.notes || ''}</td>
@@ -500,5 +529,56 @@ export default function SalespersonShortfallPage() {
           )}
       </div>
     </ContentLayout>
+
+    {/* Amendment detail modal */}
+    {amendmentModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setAmendmentModal(null)}>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">✏️ Cash Counted Amendment</h2>
+            <button onClick={() => setAmendmentModal(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl leading-none">✕</button>
+          </div>
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+              <span className="text-gray-500 dark:text-gray-400">Report date</span>
+              <span className="font-medium text-gray-900 dark:text-gray-100">{formatDate(amendmentModal.date)}</span>
+            </div>
+            <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+              <span className="text-gray-500 dark:text-gray-400">Date modified</span>
+              <span className="font-medium text-gray-900 dark:text-gray-100">
+                {amendmentModal.modifiedAt ? new Date(amendmentModal.modifiedAt).toLocaleString() : '—'}
+              </span>
+            </div>
+            <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+              <span className="text-gray-500 dark:text-gray-400">Original amount</span>
+              <span className="font-medium text-red-600 dark:text-red-400">
+                {amendmentModal.originalCashCounted !== null ? formatCurrency(amendmentModal.originalCashCounted) : '—'}
+              </span>
+            </div>
+            <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+              <span className="text-gray-500 dark:text-gray-400">New amount</span>
+              <span className="font-medium text-green-600 dark:text-green-400">{formatCurrency(amendmentModal.newCashCounted)}</span>
+            </div>
+            <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+              <span className="text-gray-500 dark:text-gray-400">Modified by</span>
+              <span className="font-medium text-gray-900 dark:text-gray-100">{amendmentModal.modifiedByName ?? '—'}</span>
+            </div>
+            <div className="py-2">
+              <p className="text-gray-500 dark:text-gray-400 mb-1">Reason</p>
+              <p className="font-medium text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">{amendmentModal.reason ?? '—'}</p>
+            </div>
+          </div>
+          <div className="mt-5 flex justify-end">
+            <button
+              onClick={() => setAmendmentModal(null)}
+              className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm rounded-lg transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

@@ -33,7 +33,7 @@ interface SalesExpenseSnapshotProps {
   initialPeriod?: Period
 }
 
-type Period = 'today' | 'yesterday' | '7d' | '30d' | 'custom'
+type Period = 'today' | 'yesterday' | '7d' | '30d' | 'custom' | 'single'
 
 function fmt(n: number) {
   return new Intl.NumberFormat('en-US', {
@@ -104,13 +104,13 @@ export function SalesExpenseSnapshot({ businessId, businessType, initialPeriod }
     if (period === 'yesterday') return { startDate: yesterday, endDate: yesterday }
     if (period === '7d')        return { startDate: minus7,    endDate: today }
     if (period === '30d')       return { startDate: minus30,   endDate: today }
-    return { startDate: customStart, endDate: customEnd }
+    return { startDate: customStart, endDate: customEnd } // covers 'custom' and 'single'
   }, [period, customStart, customEnd, today, yesterday, minus7, minus30])
 
   useEffect(() => {
     if (!businessId) return
     // Don't fetch for custom range until both dates are set and start ≤ end
-    if (period === 'custom' && (!customStart || !customEnd || customStart > customEnd)) return
+    if ((period === 'custom' || period === 'single') && (!customStart || !customEnd || customStart > customEnd)) return
 
     let cancelled = false
     setLoading(true)
@@ -159,6 +159,7 @@ export function SalesExpenseSnapshot({ businessId, businessType, initialPeriod }
     period === 'yesterday' ? 'Yesterday' :
     period === '7d'        ? 'Last 7 Days' :
     period === '30d'       ? 'Last 30 Days' :
+    period === 'single'    ? customStart :
     `${customStart} → ${customEnd}`
 
   return (
@@ -195,6 +196,7 @@ export function SalesExpenseSnapshot({ businessId, businessType, initialPeriod }
           { key: 'yesterday', label: 'Yesterday' },
           { key: '7d',        label: '7 Days' },
           { key: '30d',       label: '30 Days' },
+          { key: 'single',    label: 'Specific Date' },
           { key: 'custom',    label: 'Custom' },
         ] as { key: Period; label: string }[]).map(({ key, label }) => (
           <button
@@ -209,6 +211,18 @@ export function SalesExpenseSnapshot({ businessId, businessType, initialPeriod }
             {label}
           </button>
         ))}
+
+        {period === 'single' && (
+          <div className="flex items-center gap-2 ml-1">
+            <input
+              type="date"
+              value={customStart}
+              max={today}
+              onChange={(e) => { setCustomStart(e.target.value); setCustomEnd(e.target.value) }}
+              className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+            />
+          </div>
+        )}
 
         {period === 'custom' && (
           <div className="flex items-center gap-2 ml-1">

@@ -632,9 +632,17 @@ model SavedReports {
   groupedRunId String?
   groupedRun   GroupedEODRun? @relation(fields: [groupedRunId], references: [id])
 
+  // Cash counted amendment (one-time, manager-initiated correction)
+  originalCashCounted          Decimal?  @db.Decimal(10, 2)
+  cashCountedModifiedAt        DateTime?
+  cashCountedModifiedById      String?
+  cashCountedModifiedByName    String?
+  cashCountedModifiedReason    String?
+
   // Relations
-  business Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  user     Users?     @relation(fields: [managerUserId], references: [id])
+  business                  Businesses    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user                      Users?        @relation(fields: [managerUserId], references: [id])
+  cashCountedModifiedBy     Users?        @relation("CashCountedAmendment", fields: [cashCountedModifiedById], references: [id])
 
   @@unique([businessId, reportType, reportDate])
   @@index([businessId, reportType, reportDate])
@@ -3413,6 +3421,7 @@ model Users {
   r710_token_sales                                                R710TokenSales[]                 @relation("R710TokenSaleSeller")
   reprint_logs                                                    ReprintLog[]
   saved_reports                                                   SavedReports[]
+  cash_counted_amendments                                         SavedReports[]                   @relation("CashCountedAmendment")
   seed_data_templates                                             SeedDataTemplates[]
   sessions                                                        Sessions[]
   userPermissions                                                 UserPermissions[]

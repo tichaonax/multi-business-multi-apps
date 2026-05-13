@@ -77,11 +77,15 @@ export async function GET(request: NextRequest) {
         cashCounted: true,
         confirmedEcocashAmount: true,
         managerName: true,
+        originalCashCounted: true,
+        cashCountedModifiedAt: true,
+        cashCountedModifiedByName: true,
+        cashCountedModifiedReason: true,
       },
     })
 
     // Build manager report lookup: dateKey → manager data
-    const managerByDate = new Map<string, { id: string; cashCounted: number; ecocashCounted: number; managerName: string }>()
+    const managerByDate = new Map<string, { id: string; cashCounted: number; ecocashCounted: number; managerName: string; cashCountedAmended: boolean }>()
     for (const mr of managerReports) {
       const key = new Date(mr.reportDate).toISOString().slice(0, 10)
       managerByDate.set(key, {
@@ -89,6 +93,11 @@ export async function GET(request: NextRequest) {
         cashCounted: mr.cashCounted !== null ? Number(mr.cashCounted) : 0,
         ecocashCounted: mr.confirmedEcocashAmount !== null ? Number(mr.confirmedEcocashAmount) : 0,
         managerName: mr.managerName,
+        cashCountedAmended: mr.originalCashCounted !== null,
+        originalCashCounted: mr.originalCashCounted !== null ? Number(mr.originalCashCounted) : null,
+        cashCountedModifiedAt: mr.cashCountedModifiedAt ? mr.cashCountedModifiedAt.toISOString() : null,
+        cashCountedModifiedByName: mr.cashCountedModifiedByName ?? null,
+        cashCountedModifiedReason: mr.cashCountedModifiedReason ?? null,
       })
     }
 
@@ -138,6 +147,14 @@ export async function GET(request: NextRequest) {
         expectedShare,
         variance,
         savedReportId: manager?.id ?? null,
+        cashCountedAmended: manager?.cashCountedAmended ?? false,
+        amendmentDetails: manager?.cashCountedAmended ? {
+          originalCashCounted: manager.originalCashCounted,
+          newCashCounted: manager.cashCounted,
+          modifiedAt: manager.cashCountedModifiedAt,
+          modifiedByName: manager.cashCountedModifiedByName,
+          reason: manager.cashCountedModifiedReason,
+        } : null,
       }
     })
 

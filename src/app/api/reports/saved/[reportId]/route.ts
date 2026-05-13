@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { getEffectivePermissions } from '@/lib/permission-utils'
 
 /**
  * GET /api/reports/saved/[reportId]
@@ -238,70 +239,112 @@ export async function PATCH(
   try {
     const { reportId } = await params
 
-    // 1. Authenticate user (admin only)
     const user = await getServerUser()
     if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const isAdmin = user.role?.toLowerCase() === 'admin'
-    if (!isAdmin) {
-      return NextResponse.json(
-        { error: 'Forbidden: Only administrators can lock/unlock reports' },
-        { status: 403 }
-      )
-    }
 
-    // 2. Parse request body
     const body = await req.json()
     const { action } = body
 
-    if (!action || !['lock', 'unlock'].includes(action)) {
+    if (!action || !['lock', 'unlock', 'amend-cash-counted'].includes(action)) {
       return NextResponse.json(
-        { error: 'Invalid action. Must be "lock" or "unlock"' },
+        { error: 'Invalid action. Must be "lock", "unlock", or "amend-cash-counted"' },
         { status: 400 }
       )
     }
 
-    // 3. Update report
-    const updatedReport = await prisma.savedReports.update({
+    // lock/unlock: admin only
+    if (action === 'lock' || action === 'unlock') {
+      if (!isAdmin) {
+        return NextResponse.json(
+          { error: 'Forbidden: Only administrators can lock/unlock reports' },
+          { status: 403 }
+        )
+      }
+
+      const updatedReport = await prisma.savedReports.update({
+        where: { id: reportId },
+        data: { isLocked: action === 'lock' },
+        select: { id: true, isLocked: true, reportType: true, reportDate: true }
+      })
+
+      return NextResponse.json({
+        success: true,
+        message: `Report ${action}ed successfully`,
+        report: updatedReport
+      })
+    }
+
+    // amend-cash-counted: canCloseBooks or admin
+    const report = await prisma.savedReports.findUnique({ where: { id: reportId } })
+    if (!report) {
+      return NextResponse.json({ error: 'Report not found' }, { status: 404 })
+    }
+
+    if (!isAdmin) {
+      const perms = getEffectivePermissions(user, report.businessId)
+      if (!perms.canCloseBooks) {
+        return NextResponse.json({ error: 'Forbidden: canCloseBooks permission required' }, { status: 403 })
+      }
+    }
+
+    if (!report.isLocked) {
+      return NextResponse.json({ error: 'Report must be locked before amending' }, { status: 400 })
+    }
+
+    if (report.originalCashCounted !== null && report.originalCashCounted !== undefined) {
+      return NextResponse.json({ error: 'Report has already been amended. Only one amendment is allowed.' }, { status: 400 })
+    }
+
+    const { cashCounted: newCashCountedRaw, reason } = body
+    if (typeof newCashCountedRaw !== 'number' || !isFinite(newCashCountedRaw)) {
+      return NextResponse.json({ error: 'cashCounted must be a valid number' }, { status: 400 })
+    }
+    if (!reason || typeof reason !== 'string' || !reason.trim()) {
+      return NextResponse.json({ error: 'reason is required' }, { status: 400 })
+    }
+
+    const newCashCounted = parseFloat(newCashCountedRaw.toFixed(2))
+    const newVariance = report.expectedCash !== null
+      ? parseFloat((newCashCounted - Number(report.expectedCash)).toFixed(2))
+      : null
+
+    const amended = await prisma.savedReports.update({
       where: { id: reportId },
       data: {
-        isLocked: action === 'lock'
+        originalCashCounted: report.cashCounted,
+        cashCounted: newCashCounted,
+        variance: newVariance,
+        cashCountedModifiedAt: new Date(),
+        cashCountedModifiedById: user.id,
+        cashCountedModifiedByName: user.name ?? user.email,
+        cashCountedModifiedReason: reason.trim(),
       },
       select: {
         id: true,
-        isLocked: true,
-        reportType: true,
-        reportDate: true
+        cashCounted: true,
+        originalCashCounted: true,
+        variance: true,
+        cashCountedModifiedAt: true,
+        cashCountedModifiedByName: true,
+        cashCountedModifiedReason: true,
       }
     })
 
-    // 4. Return success
-    return NextResponse.json({
-      success: true,
-      message: `Report ${action}ed successfully`,
-      report: updatedReport
-    })
+    return NextResponse.json({ success: true, report: amended })
 
   } catch (error: any) {
-    console.error('Error updating report lock status:', error)
+    console.error('Error updating report:', error)
 
     if (error.code === 'P2025') {
-      return NextResponse.json(
-        { error: 'Report not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Report not found' }, { status: 404 })
     }
 
     return NextResponse.json(
-      {
-        error: 'Failed to update report',
-        details: error.message
-      },
+      { error: 'Failed to update report', details: error.message },
       { status: 500 }
     )
   }

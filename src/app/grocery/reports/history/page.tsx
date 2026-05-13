@@ -27,6 +27,7 @@ export default function ReportsHistory() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalReports, setTotalReports] = useState(0)
+  const [amendmentModalReport, setAmendmentModalReport] = useState<any>(null)
 
   const {
     currentBusiness,
@@ -98,6 +99,7 @@ export default function ReportsHistory() {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-white dark:bg-gray-900 p-4">
       {/* Navigation */}
       <div className="no-print mb-6 max-w-6xl mx-auto">
@@ -216,6 +218,9 @@ export default function ReportsHistory() {
                         Cash Counted
                       </th>
                       <th className="px-3 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                        Flag
+                      </th>
+                      <th className="px-3 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                         Status
                       </th>
                       <th className="px-3 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
@@ -262,6 +267,19 @@ export default function ReportsHistory() {
                             </div>
                           ) : (
                             <div className="text-sm text-gray-400 dark:text-gray-500">—</div>
+                          )}
+                        </td>
+                        <td className="px-3 py-4 text-center">
+                          {report.cashCountedModifiedAt ? (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setAmendmentModalReport(report) }}
+                              title="Cash counted was amended — click for details"
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 rounded border border-amber-300 dark:border-amber-600 transition-colors"
+                            >
+                              ✏️ Amended
+                            </button>
+                          ) : (
+                            <span className="text-gray-300 dark:text-gray-600">—</span>
                           )}
                         </td>
                         <td className="px-3 py-4 text-center">
@@ -321,5 +339,52 @@ export default function ReportsHistory() {
         </div>
       </div>
     </div>
+
+    {/* Amendment detail modal */}
+    {amendmentModalReport && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setAmendmentModalReport(null)}>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">✏️ Cash Counted Amendment</h2>
+            <button onClick={() => setAmendmentModalReport(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl">✕</button>
+          </div>
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+              <span className="text-gray-500 dark:text-gray-400">Report date</span>
+              <span className="font-medium text-gray-900 dark:text-gray-100">{formatDateFull(new Date(amendmentModalReport.reportDate))}</span>
+            </div>
+            <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+              <span className="text-gray-500 dark:text-gray-400">Date modified</span>
+              <span className="font-medium text-gray-900 dark:text-gray-100">{formatDateTime(new Date(amendmentModalReport.cashCountedModifiedAt))}</span>
+            </div>
+            <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+              <span className="text-gray-500 dark:text-gray-400">Original amount</span>
+              <span className="font-medium text-red-600 dark:text-red-400">{formatCurrency(Number(amendmentModalReport.originalCashCounted))}</span>
+            </div>
+            <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+              <span className="text-gray-500 dark:text-gray-400">New amount</span>
+              <span className="font-medium text-green-600 dark:text-green-400">{formatCurrency(Number(amendmentModalReport.cashCounted))}</span>
+            </div>
+            <div className="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+              <span className="text-gray-500 dark:text-gray-400">Modified by</span>
+              <span className="font-medium text-gray-900 dark:text-gray-100">{amendmentModalReport.cashCountedModifiedByName}</span>
+            </div>
+            <div className="py-2">
+              <p className="text-gray-500 dark:text-gray-400 mb-1">Reason</p>
+              <p className="font-medium text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">{amendmentModalReport.cashCountedModifiedReason}</p>
+            </div>
+          </div>
+          <div className="mt-5 flex justify-end">
+            <button
+              onClick={() => setAmendmentModalReport(null)}
+              className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm rounded-lg transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

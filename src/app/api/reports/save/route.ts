@@ -5,6 +5,21 @@ import { createEODPaymentBatches, createEODMealBatch } from '@/lib/eod-payment-b
 import { processRentTransfer } from '@/lib/eod-utils'
 
 /**
+ * Compute UTC start (inclusive) and end (exclusive) for a local business day
+ * in Africa/Harare (UTC+2, no DST). Using explicit offset avoids depending on
+ * the server's system timezone — dev runs in Houston CDT which would shift
+ * boundaries by 7-8 hours and cause wrong order counts.
+ */
+function getHarareDayBounds(reportDate: string): { start: Date; end: Date } {
+  const [year, month, day] = reportDate.split('-').map(Number)
+  const HARARE_OFFSET_MS = 2 * 60 * 60 * 1000 // Africa/Harare is always UTC+2, no DST
+  const midnightUTC = Date.UTC(year, month - 1, day, 0, 0, 0)
+  const start = new Date(midnightUTC - HARARE_OFFSET_MS) // local midnight → UTC
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000)
+  return { start, end }
+}
+
+/**
  * POST /api/reports/save
  *
  * Save and lock a report snapshot (end-of-day or end-of-week)
@@ -138,17 +153,22 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 8. Calculate expected cash from DB (authoritative, same pattern as totalSales re-query below)
+    // 8. Compute authoritative period boundaries from reportDate using Africa/Harare timezone.
+    // Do NOT trust client-provided periodStart/periodEnd — the client may run in a different
+    // timezone (e.g. dev server in Houston CDT) and shift the boundaries by hours.
+    const hararePeriod = getHarareDayBounds(reportDate as string)
+    const queryStart = hararePeriod.start
+    const queryEnd = hararePeriod.end
+
+    const dateFilter = {
+      OR: [
+        { transactionDate: { gte: queryStart, lt: queryEnd } },
+        { transactionDate: null, createdAt: { gte: queryStart, lt: queryEnd } },
+      ],
+    }
+
     const cashAgg = await prisma.businessOrders.aggregate({
-      where: {
-        businessId,
-        status: 'COMPLETED',
-        paymentMethod: 'CASH',
-        OR: [
-          { transactionDate: { gte: new Date(periodStart), lte: new Date(periodEnd) } },
-          { transactionDate: null, createdAt: { gte: new Date(periodStart), lte: new Date(periodEnd) } },
-        ],
-      },
+      where: { businessId, status: 'COMPLETED', paymentMethod: 'CASH', ...dateFilter },
       _sum: { totalAmount: true },
     })
     const expectedCash = Number(cashAgg._sum.totalAmount ?? 0)
@@ -156,16 +176,9 @@ export async function POST(req: NextRequest) {
       ? parseFloat(cashCounted.toString()) - expectedCash
       : null
 
-    // 9. Re-query actual order totals server-side so we don't trust the stale client snapshot
+    // 9. Re-query actual order totals server-side
     const ordersAgg = await prisma.businessOrders.aggregate({
-      where: {
-        businessId,
-        status: 'COMPLETED',
-        OR: [
-          { transactionDate: { gte: new Date(periodStart), lte: new Date(periodEnd) } },
-          { transactionDate: null, createdAt: { gte: new Date(periodStart), lte: new Date(periodEnd) } },
-        ],
-      },
+      where: { businessId, status: 'COMPLETED', ...dateFilter },
       _sum: { totalAmount: true },
       _count: { id: true },
     })

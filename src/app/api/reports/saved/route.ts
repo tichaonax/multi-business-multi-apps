@@ -125,6 +125,10 @@ export async function GET(req: NextRequest) {
         isLocked: true,
         createdAt: true,
         createdBy: true,
+        originalCashCounted: true,
+        cashCountedModifiedAt: true,
+        cashCountedModifiedByName: true,
+        cashCountedModifiedReason: true,
         reportData: includeData, // Only include if requested
         user: {
           select: {
