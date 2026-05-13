@@ -73,6 +73,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
             barcode: item.barcode?.trim() || null,
             name: item.name?.trim() || '',
             categoryId: item.categoryId || null,
+            subCategoryId: item.subCategoryId || null,
             domainId: item.domainId || null,
             supplierId: item.supplierId || null,
             description: item.description?.trim() || null,

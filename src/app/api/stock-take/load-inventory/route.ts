@@ -76,6 +76,7 @@ export async function GET(request: NextRequest) {
       itemType: string
       description?: string | null
       domainId?: string | null
+      subCategoryId?: string | null
     }> = []
 
     for (const product of products) {
@@ -128,6 +129,7 @@ export async function GET(request: NextRequest) {
         sellingPrice: true,
         costPrice: true,
         categoryId: true,
+        subcategoryId: true,
         supplierId: true,
         stockQuantity: true,
         customLabel: true,
@@ -151,6 +153,7 @@ export async function GET(request: NextRequest) {
         itemType: 'barcode',
         description: bi.customLabel || null,
         domainId: (bi as any).domainId || null,
+        subCategoryId: (bi as any).subcategoryId || null,
       })
     }
 

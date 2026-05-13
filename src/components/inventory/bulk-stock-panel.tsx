@@ -379,15 +379,31 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
       setStockTakeLoadProgress({ loaded: 0, total: data.total })
 
       // Map API items to BulkStockRow format
+      const allCatsAndSubsForLoad = [...allCats, ...allSubCategories]
       const loadedRows: BulkStockRow[] = []
       for (let i = 0; i < data.items.length; i++) {
         const item = data.items[i]
-        const resolved = item.categoryId && allCats.length > 0
-          ? resolveHierarchy(item.categoryId, allCats)
-          : { departmentId: '', categoryId: item.categoryId || '', subCategoryId: '' }
-        const hierarchyPatch = {
-          ...resolved,
-          departmentId: resolved.departmentId || item.domainId || '',
+        // API now returns domainId + categoryId + subCategoryId separately — use directly.
+        // Fall back to resolveHierarchy for items missing subCategoryId (product-type items).
+        let hierarchyPatch: { departmentId: string; categoryId: string; subCategoryId: string }
+        if (item.subCategoryId || (item.categoryId && item.domainId)) {
+          hierarchyPatch = {
+            departmentId: item.domainId || '',
+            categoryId: item.categoryId || '',
+            subCategoryId: item.subCategoryId || '',
+          }
+        } else if (item.categoryId && allCatsAndSubsForLoad.length > 0) {
+          const resolved = resolveHierarchy(item.categoryId, allCatsAndSubsForLoad)
+          hierarchyPatch = {
+            ...resolved,
+            departmentId: resolved.departmentId || item.domainId || '',
+          }
+        } else {
+          hierarchyPatch = {
+            departmentId: item.domainId || '',
+            categoryId: item.categoryId || '',
+            subCategoryId: '',
+          }
         }
 
         loadedRows.push(makeRow({
@@ -598,8 +614,9 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
       const items = rows.map((r, i) => ({
         barcode: r.barcode,
         name: r.name,
-        categoryId: r.subCategoryId || r.categoryId || undefined,
         domainId: r.departmentId || undefined,
+        categoryId: r.categoryId || undefined,
+        subCategoryId: r.subCategoryId || undefined,
         supplierId: r.supplierId || undefined,
         description: r.description || undefined,
         newQuantity: r.quantity ? Number(r.quantity) : 0,
@@ -686,15 +703,31 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         if (!a.needsReview && b.needsReview) return 1
         return (a.displayOrder ?? 0) - (b.displayOrder ?? 0)
       })
+      const allCatsAndSubs = [...allCats, ...allSubCategories]
       const restoredRows: BulkStockRow[] = sortedItems.map((item: any) => {
-        const resolved = item.categoryId && allCats.length > 0
-          ? resolveHierarchy(item.categoryId, allCats)
-          : { departmentId: '', categoryId: item.categoryId || '', subCategoryId: '' }
-        // If resolveHierarchy couldn't recover the department (null-domainId category),
-        // fall back to the domainId saved directly on the draft item.
-        const hierarchyPatch = {
-          ...resolved,
-          departmentId: resolved.departmentId || item.domainId || '',
+        // New drafts store all 3 levels separately — use directly.
+        // Legacy drafts (before subCategoryId column) fall back to resolveHierarchy.
+        let hierarchyPatch: { departmentId: string; categoryId: string; subCategoryId: string }
+        if (item.subCategoryId || (item.categoryId && item.domainId)) {
+          // New format: all 4 levels stored explicitly
+          hierarchyPatch = {
+            departmentId: item.domainId || '',
+            categoryId: item.categoryId || '',
+            subCategoryId: item.subCategoryId || '',
+          }
+        } else if (item.categoryId && allCatsAndSubs.length > 0) {
+          // Legacy format: categoryId may be either a category or subcategory id
+          const resolved = resolveHierarchy(item.categoryId, allCatsAndSubs)
+          hierarchyPatch = {
+            ...resolved,
+            departmentId: resolved.departmentId || item.domainId || '',
+          }
+        } else {
+          hierarchyPatch = {
+            departmentId: item.domainId || '',
+            categoryId: item.categoryId || '',
+            subCategoryId: '',
+          }
         }
         // Infer itemType from name suffix when not stored (legacy drafts)
         const inferredType = item.itemType

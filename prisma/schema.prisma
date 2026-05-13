@@ -633,16 +633,16 @@ model SavedReports {
   groupedRun   GroupedEODRun? @relation(fields: [groupedRunId], references: [id])
 
   // Cash counted amendment (one-time, manager-initiated correction)
-  originalCashCounted          Decimal?  @db.Decimal(10, 2)
-  cashCountedModifiedAt        DateTime?
-  cashCountedModifiedById      String?
-  cashCountedModifiedByName    String?
-  cashCountedModifiedReason    String?
+  originalCashCounted       Decimal?  @db.Decimal(10, 2)
+  cashCountedModifiedAt     DateTime?
+  cashCountedModifiedById   String?
+  cashCountedModifiedByName String?
+  cashCountedModifiedReason String?
 
   // Relations
-  business                  Businesses    @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  user                      Users?        @relation(fields: [managerUserId], references: [id])
-  cashCountedModifiedBy     Users?        @relation("CashCountedAmendment", fields: [cashCountedModifiedById], references: [id])
+  business              Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user                  Users?     @relation(fields: [managerUserId], references: [id])
+  cashCountedModifiedBy Users?     @relation("CashCountedAmendment", fields: [cashCountedModifiedById], references: [id])
 
   @@unique([businessId, reportType, reportDate])
   @@index([businessId, reportType, reportDate])
@@ -6253,6 +6253,7 @@ model StockTakeDraftItems {
   barcode        String?
   name           String
   categoryId     String?
+  subCategoryId  String?
   domainId       String?  @map("domain_id")
   supplierId     String?
   description    String?
