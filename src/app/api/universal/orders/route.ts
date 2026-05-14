@@ -391,6 +391,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Normalize empty string to null (salesperson-selector uses '' when user has no employee record)
+    if (orderData.employeeId === '') orderData.employeeId = null
+
     // Verify employee exists if specified (but don't fail if not found - might be admin/user ID)
     if (orderData.employeeId) {
       // First try direct employee ID lookup

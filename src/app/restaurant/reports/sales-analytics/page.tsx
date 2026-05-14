@@ -62,15 +62,17 @@ export default function RestaurantSalesAnalytics() {
   }
 
   const [dateRange, setDateRange] = useState<DateRange>(getInitialDateRange())
+  const [allTime, setAllTime] = useState(false)
   const [data, setData] = useState<SalesAnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [insightsTarget, setInsightsTarget] = useState<{ productId: string; productName: string } | null>(null)
+  const [eodSummary, setEodSummary] = useState<{ reportCount: number; totalExpectedCash: number; totalCashCounted: number; totalVariance: number; reportsWithVariance: number } | null>(null)
 
   useEffect(() => {
     if (currentBusinessId) {
       loadAnalytics()
     }
-  }, [currentBusinessId, dateRange])
+  }, [currentBusinessId, dateRange, allTime])
 
   const loadAnalytics = async () => {
     if (!currentBusinessId) return
@@ -78,13 +80,29 @@ export default function RestaurantSalesAnalytics() {
     try {
       setLoading(true)
 
-      const startDate = getLocalDateString(dateRange.start)
-      const endDate = getLocalDateString(dateRange.end)
+      const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
+      let analyticsUrl: string
+      let eodUrl: string
 
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
-      const response = await fetch(
-        `/api/business/${currentBusinessId}/sales-analytics?startDate=${startDate}&endDate=${endDate}&timezone=${encodeURIComponent(tz)}`
-      )
+      if (allTime) {
+        analyticsUrl = `/api/business/${currentBusinessId}/sales-analytics?allTime=true&timezone=${tz}`
+        eodUrl = `/api/reports/eod-summary?businessId=${currentBusinessId}&allTime=true`
+      } else {
+        const startDate = getLocalDateString(dateRange.start)
+        const endDate = getLocalDateString(dateRange.end)
+        analyticsUrl = `/api/business/${currentBusinessId}/sales-analytics?startDate=${startDate}&endDate=${endDate}&timezone=${tz}`
+        eodUrl = `/api/reports/eod-summary?businessId=${currentBusinessId}&startDate=${startDate}&endDate=${endDate}`
+      }
+
+      const [response, eodResponse] = await Promise.all([
+        fetch(analyticsUrl),
+        fetch(eodUrl),
+      ])
+
+      if (eodResponse.ok) {
+        const eodResult = await eodResponse.json()
+        if (eodResult.success) setEodSummary(eodResult)
+      }
 
       if (response.ok) {
         const result = await response.json()
@@ -159,18 +177,24 @@ export default function RestaurantSalesAnalytics() {
                     <div>
                       <span className="text-xs text-pink-700 dark:text-pink-500">Start Date</span>
                       <p className="text-sm font-medium text-pink-900 dark:text-pink-300">
-                        {formattedStartDate}
+                        {allTime ? 'All time' : formattedStartDate}
                       </p>
                     </div>
                     <div>
                       <span className="text-xs text-pink-700 dark:text-pink-500">End Date</span>
                       <p className="text-sm font-medium text-pink-900 dark:text-pink-300">
-                        {formattedEndDate}
+                        {allTime ? '—' : formattedEndDate}
                       </p>
                     </div>
                   </div>
                 </div>
-                <DateRangeSelector value={dateRange} onChange={setDateRange} />
+                <DateRangeSelector
+                  value={dateRange}
+                  onChange={(r) => { setAllTime(false); setDateRange(r) }}
+                  showAllTime
+                  allTime={allTime}
+                  onAllTimeChange={setAllTime}
+                />
               </div>
             </div>
 
@@ -194,6 +218,42 @@ export default function RestaurantSalesAnalytics() {
                   {data.paymentMethodBreakdown['ECOCASH'].count} orders ·{' '}
                   {data.summary.totalSales > 0 ? ((data.paymentMethodBreakdown['ECOCASH'].total / data.summary.totalSales) * 100).toFixed(1) : 0}% of revenue
                 </p>
+              </div>
+            )}
+
+            {/* EOD Manager Reconciliation Summary */}
+            {eodSummary && eodSummary.reportCount > 0 && (
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-4">
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase mb-3">🗂 EOD Reports ({eodSummary.reportCount})</p>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-amber-700 dark:text-amber-400">Expected Cash</span>
+                    <span className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                      ${eodSummary.totalExpectedCash.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-amber-700 dark:text-amber-400">Cash Counted</span>
+                    <span className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                      ${eodSummary.totalCashCounted.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="border-t border-amber-200 dark:border-amber-700 pt-2 flex justify-between items-center">
+                    <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">Variance</span>
+                    <span className={`text-sm font-bold ${
+                      eodSummary.totalVariance > 0 ? 'text-green-600 dark:text-green-400' :
+                      eodSummary.totalVariance < 0 ? 'text-red-600 dark:text-red-400' :
+                      'text-amber-900 dark:text-amber-200'
+                    }`}>
+                      {eodSummary.totalVariance >= 0 ? '+' : ''}${eodSummary.totalVariance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  {eodSummary.reportsWithVariance > 0 && (
+                    <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
+                      {eodSummary.reportsWithVariance} of {eodSummary.reportCount} reports have a variance
+                    </p>
+                  )}
+                </div>
               </div>
             )}
           </div>

@@ -37,39 +37,42 @@ export async function GET(
 
     const timezone = searchParams.get('timezone') || Intl.DateTimeFormat().resolvedOptions().timeZone;
     const paymentMethodFilter = searchParams.get('paymentMethod') || null;
+    const allTime = searchParams.get('allTime') === 'true';
 
-    if (!startDateStr || !endDateStr) {
+    if (!allTime && (!startDateStr || !endDateStr)) {
       return NextResponse.json(
         { error: 'startDate and endDate are required' },
         { status: 400 }
       );
     }
 
-    // Parse dates with timezone awareness (same approach as /api/universal/orders)
-    // startDateStr/endDateStr are in YYYY-MM-DD format (local dates)
-    const [sy, sm, sd] = startDateStr.split('-').map(Number);
-    const [ey, em, ed] = endDateStr.split('-').map(Number);
+    let startDate: Date | undefined;
+    let endDate: Date | undefined;
 
-    // Convert local midnight to UTC by calculating timezone offset
-    const startMidnightUTC = Date.UTC(sy, sm - 1, sd, 0, 0, 0);
-    const startTzOffset = new Date(new Date(startMidnightUTC).toLocaleString('en-US', { timeZone: timezone })).getTime()
-      - new Date(new Date(startMidnightUTC).toLocaleString('en-US', { timeZone: 'UTC' })).getTime();
-    const startDate = new Date(startMidnightUTC - startTzOffset);
+    if (!allTime && startDateStr && endDateStr) {
+      // Parse dates with timezone awareness (same approach as /api/universal/orders)
+      // startDateStr/endDateStr are in YYYY-MM-DD format (local dates)
+      const [sy, sm, sd] = startDateStr.split('-').map(Number);
+      const [ey, em, ed] = endDateStr.split('-').map(Number);
 
-    const endMidnightUTC = Date.UTC(ey, em - 1, ed, 0, 0, 0);
-    const endTzOffset = new Date(new Date(endMidnightUTC).toLocaleString('en-US', { timeZone: timezone })).getTime()
-      - new Date(new Date(endMidnightUTC).toLocaleString('en-US', { timeZone: 'UTC' })).getTime();
-    const endDate = new Date(endMidnightUTC - endTzOffset + 24 * 60 * 60 * 1000 - 1); // end of day in timezone
+      // Convert local midnight to UTC by calculating timezone offset
+      const startMidnightUTC = Date.UTC(sy, sm - 1, sd, 0, 0, 0);
+      const startTzOffset = new Date(new Date(startMidnightUTC).toLocaleString('en-US', { timeZone: timezone })).getTime()
+        - new Date(new Date(startMidnightUTC).toLocaleString('en-US', { timeZone: 'UTC' })).getTime();
+      startDate = new Date(startMidnightUTC - startTzOffset);
+
+      const endMidnightUTC = Date.UTC(ey, em - 1, ed, 0, 0, 0);
+      const endTzOffset = new Date(new Date(endMidnightUTC).toLocaleString('en-US', { timeZone: timezone })).getTime()
+        - new Date(new Date(endMidnightUTC).toLocaleString('en-US', { timeZone: 'UTC' })).getTime();
+      endDate = new Date(endMidnightUTC - endTzOffset + 24 * 60 * 60 * 1000 - 1); // end of day in timezone
+    }
 
     // Fetch completed orders for the period with relations
     const orders = await prisma.businessOrders.findMany({
       where: {
         businessId: businessId,
         status: 'COMPLETED',
-        createdAt: {
-          gte: startDate,
-          lte: endDate,
-        },
+        ...(startDate && endDate ? { createdAt: { gte: startDate, lte: endDate } } : {}),
       },
       include: {
         business_order_items: {
@@ -488,7 +491,7 @@ export async function GET(
         const expensePayments = await prisma.expenseAccountPayments.findMany({
           where: {
             expenseAccountId: { in: expenseAccountIds },
-            paymentDate: { gte: startDate, lte: endDate },
+            ...(startDate && endDate ? { paymentDate: { gte: startDate, lte: endDate } } : {}),
             status: 'PAID',
           },
           select: { paymentDate: true, amount: true },

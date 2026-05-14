@@ -178,7 +178,7 @@ export function usePaymentProcessor(
           paymentMethod: checkoutData.paymentMethod.toUpperCase(),
           paymentStatus: 'PAID',
           orderType: 'SALE',
-          employeeId: checkoutData.salespersonEmployeeId ?? session?.user?.id,
+          employeeId: checkoutData.salespersonEmployeeId || session?.user?.id,
           customerId: checkoutData.customerId || null,
           customerName: checkoutData.customerName,
           customerPhone: checkoutData.customerPhone,
@@ -242,7 +242,7 @@ export function usePaymentProcessor(
             customerName: checkoutData.customerName,
             customerPhone: checkoutData.customerPhone,
             employeeName: checkoutData.salespersonName ?? session?.user?.name ?? undefined,
-            employeeId: checkoutData.salespersonEmployeeId ?? session?.user?.id,
+            employeeId: checkoutData.salespersonEmployeeId || session?.user?.id,
             notes: checkoutData.notes,
             items: cart.map((item) => ({
               name: item.name,
