@@ -215,8 +215,14 @@ export async function GET(req: NextRequest) {
     }
 
     // 4. Get Pending Tasks Count (reuse logic from pending-tasks endpoint)
+    // Use 127.0.0.1 explicitly — req.url resolves to 0.0.0.0 (the bind address) which
+    // is not in the SSL cert's SAN list, causing ERR_TLS_CERT_ALTNAME_INVALID.
+    // 127.0.0.1 is always included in the mkcert-generated cert.
     try {
-      const response = await fetch(new URL('/api/pending-tasks', req.url).toString(), {
+      const port = process.env.PORT || '8080'
+      const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
+      const internalBaseUrl = `${protocol}://127.0.0.1:${port}`
+      const response = await fetch(new URL('/api/pending-tasks', internalBaseUrl).toString(), {
         headers: {
           'cookie': req.headers.get('cookie') || ''
         }
