@@ -145,7 +145,7 @@ export function UniversalInventoryGrid({
       if (searchTerm !== debouncedSearchTerm) {
         setCurrentPage(1)
       }
-    }, 400)
+    }, 700)
 
     return () => clearTimeout(timer)
   }, [searchTerm])

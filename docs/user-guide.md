@@ -4681,7 +4681,18 @@ A green banner confirms the copy was successful. The product now appears in the 
 | Barcode definitions | ✅ |
 | Product attributes (PLU code, brand, etc.) | ✅ |
 | Stock quantity | ❌ — starts at 0 |
-| Category, supplier, location | ❌ — business-specific, set these after copying |
+| Category | ✅ Auto-matched — see below |
+| Supplier, location | ❌ — business-specific, set these after copying |
+
+#### Category auto-matching
+
+The system tries to place the copied product into the correct category in the target business automatically, in this order:
+
+1. **Same category ID** — if the exact category exists in the target, it is used.
+2. **Same category name** — if a category with a similar name exists in the target (e.g. "Service" in clothing matches "Services" in grocery), that category is used.
+3. **Alphabetical fallback** — if no name match is found, the product is placed in the first available category alphabetically. You can reassign it afterwards.
+
+This means a service product copied from a clothing business to a grocery business will be placed in the grocery **Services** category automatically.
 
 #### If the SKU already exists in the target
 
@@ -4689,15 +4700,17 @@ The copy is blocked and an error is shown: *"A product with SKU '...' already ex
 
 #### After copying — making the product available at the POS
 
-Once copied, the product appears in the target business's inventory list immediately. To make it available for sale at the POS:
+Once copied, the product appears in the target business's inventory list immediately.
 
-1. Open the product in inventory (click the product row or the **✏️ Edit** button) and confirm the **selling price** is set correctly for the target business.
-2. The product will appear automatically in the POS product panel when the price is greater than zero.
-3. To add it to **Quick Add** (the pinned shortcuts panel at the POS), open the POS, find the product in the product list, and click the **pin icon** on the product card. Pinned products appear at the top of the Quick Add tab for fast one-tap selection.
+**For physical products:** The product appears in the POS once it has a price greater than zero. Add opening stock via **Inventory → Receive Stock** before selling.
 
-#### Receiving stock after copying
+**For service products (no stock):** The service appears automatically in the POS with no stock step required. In the **Grocery POS**, service products appear directly in the Desk Mode product grid under the **Services** category tab — tap the tile to add to cart. No stock quantity is shown because services do not deplete.
 
-After copying, the product has zero stock in the target business. To add opening stock:
+To add a product to **Quick Add** (category-pinned shortcuts in the POS), open the POS, switch to the category tab, and click the **pin icon** on the product card.
+
+#### Receiving stock after copying (physical products only)
+
+After copying a physical product, it has zero stock in the target business. To add opening stock:
 
 1. Go to **Inventory → Receive Stock** for the target business.
 2. Search for the copied product by name or SKU.
@@ -4841,14 +4854,16 @@ Services are created exactly like products but with **no stock quantity** — th
 1. Go to your business's **Products / Inventory → Add Product** (or **Restaurant → Menu → Add Item**).
 2. Fill in:
    - **Name** — e.g., "Phone Charging", "Trouser Hem", "Shoe Sole Repair"
-   - **Category** — create a "Services" category if one does not exist
+   - **Category** — select or create a "Services" category
    - **Price** — the fee charged
    - **Barcode** — assign a barcode (type one in or scan a sticker) so the cashier can add it by scanning
    - **Stock tracking** — set to **None** or leave quantity blank — services do not deplete stock
    - **Description** — optional, shown on the customer display
 3. Save.
 
-The service appears in the POS search and can be added to any order just like a physical product.
+The service appears in the POS and can be added to any order just like a physical product. In the **Grocery POS**, it appears as a tile in the Desk Mode grid under the **Services** category tab — no stock receiving required.
+
+> **Tip — offering the same service at multiple businesses:** Use the **Copy to Another Business** feature (Section 14) to copy a service from one business to another. The category is matched automatically so it lands in the correct Services tab at the target business.
 
 ---
 
@@ -5713,6 +5728,20 @@ The left-hand category sidebar (when Desk Mode is on) shows each category with a
 ### Bulk Stock from Desk Mode
 
 The **📦 Bulk Stock** button is always visible in the POS, regardless of mode. Click it to open the full Bulk Stocking Panel (see Section 14) without leaving the POS screen. This lets a stock manager receive deliveries on the same till used for sales.
+
+---
+
+### Service Items in Desk Mode
+
+Service products (such as Cellphone Charging, Airtime Top-Up, or any other in-store service) appear in the Desk Mode grid alongside physical inventory items. They behave differently in two ways:
+
+| Behaviour | Physical inventory item | Service item |
+|---|---|---|
+| Stock badge | Shows "X left", turns orange/red when low | No badge — services have no stock limit |
+| Disappears when sold out | Yes | No — always available for sale |
+| Stock receiving required | Yes | No — available immediately after creation or copy |
+
+Service items appear under the **Services** category tab in the category bar. Tap their card to add to the cart — no quantity entry needed unless selling more than one session at a time.
 
 ---
 

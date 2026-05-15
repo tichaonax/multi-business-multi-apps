@@ -120,7 +120,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
           if (sourceCategory?.name) {
             const nameMatch = await tx.businessCategories.findFirst({
               where: {
-                name: sourceCategory.name,
+                name: { contains: sourceCategory.name, mode: 'insensitive' },
                 businessType: targetType,
                 isActive: true,
                 OR: [{ businessId: targetBusinessId }, { businessId: null }]
@@ -251,7 +251,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         const nameMatch = sourceCategory?.name
           ? await tx.businessCategories.findFirst({
               where: {
-                name: sourceCategory.name,
+                name: { contains: sourceCategory.name, mode: 'insensitive' },
                 businessType: targetType,
                 isActive: true,
                 OR: [{ businessId: targetBusinessId }, { businessId: null }]

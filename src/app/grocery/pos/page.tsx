@@ -148,6 +148,7 @@ function GroceryPOSContent() {
   const [deskProductsLoading, setDeskProductsLoading] = useState(true)
   const [pinnedCategoryKeys, setPinnedCategoryKeys] = useState<Set<string>>(new Set())
   const [showMoreCategories, setShowMoreCategories] = useState(false)
+  const [moreCategorySearch, setMoreCategorySearch] = useState('')
   const VISIBLE_CATEGORY_LIMIT = 10
   const [manualCart, setManualCart] = useState<ManualCartItem[]>([])
   const [showScanner, setShowScanner] = useState(false)
@@ -3085,7 +3086,7 @@ function GroceryPOSContent() {
                 let salesScore = 0
                 for (const [productId, stats] of productStatsMap.entries()) {
                   const p = deskProducts.find(dp => dp.id === productId)
-                  if (p?.categoryId === cat.key) {
+                  if (p?.categoryId && cat.key.split(',').includes(p.categoryId)) {
                     salesScore += (stats.soldToday * 3) + (stats.soldYesterday * 1) + (stats.soldDayBefore * 0.5)
                   }
                 }
@@ -3150,10 +3151,18 @@ function GroceryPOSContent() {
 
                         {/* Hidden categories dropdown */}
                         {showMoreCategories && (
-                          <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3 min-w-[220px] max-h-72 overflow-y-auto">
+                          <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3 min-w-[240px] max-h-80 flex flex-col">
+                            <input
+                              type="text"
+                              value={moreCategorySearch}
+                              onChange={e => setMoreCategorySearch(e.target.value)}
+                              placeholder="Search categories..."
+                              autoFocus
+                              className="w-full px-2 py-1.5 mb-2 text-sm border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
                             <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 font-medium">Click to pin & filter</p>
-                            <div className="space-y-1">
-                              {hiddenCategories.map(cat => (
+                            <div className="space-y-1 overflow-y-auto">
+                              {hiddenCategories.filter(cat => !moreCategorySearch || cat.label.toLowerCase().includes(moreCategorySearch.toLowerCase())).sort((a, b) => a.label.localeCompare(b.label)).map(cat => (
                                 <button
                                   key={cat.key}
                                   onClick={() => {
@@ -3161,10 +3170,11 @@ function GroceryPOSContent() {
                                     setSelectedCategory(cat.key)
                                     setDeskSearchTerm('')
                                     setShowMoreCategories(false)
+                                    setMoreCategorySearch('')
                                   }}
                                   className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left transition-colors"
                                 >
-                                  <span className="font-medium">{cat.emoji} {cat.label}</span>
+                                  <span className="font-medium">{cat.emoji} {cat.label.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())}</span>
                                   <span className="text-xs text-gray-400 ml-2 flex-shrink-0">{cat.stockTotal} in stock</span>
                                 </button>
                               ))}
@@ -3233,8 +3243,9 @@ function GroceryPOSContent() {
                       // WiFi tab: show WiFi products from the regular products list
                       filteredProducts = products.filter(p => (p as any).wifiToken || (p as any).r710Token)
                     } else if (selectedCategory) {
-                      // Specific inventory category
-                      filteredProducts = filteredProducts.filter(p => p.categoryId === selectedCategory)
+                      // Specific inventory category — key may be composite (comma-separated) for merged duplicates
+                      const catKeys = selectedCategory.split(',')
+                      filteredProducts = filteredProducts.filter(p => p.categoryId && catKeys.includes(p.categoryId))
                     }
                     // Apply search — also include custom bulk products from products[] list
                     if (deskSearchTerm.trim()) {
