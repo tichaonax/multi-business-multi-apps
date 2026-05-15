@@ -30,6 +30,21 @@ export async function POST(req: NextRequest) {
     const dayEnd = new Date(baseDate)
     dayEnd.setHours(23, 59, 59, 999)
 
+    // Block terminated/inactive employees from clocking in or out
+    const employeeStatus = await prisma.employees.findUnique({
+      where: { id: employeeId },
+      select: { isActive: true, employmentStatus: true, fullName: true }
+    })
+    if (!employeeStatus) {
+      return NextResponse.json({ error: 'Employee not found' }, { status: 404 })
+    }
+    if (!employeeStatus.isActive || employeeStatus.employmentStatus === 'terminated') {
+      return NextResponse.json(
+        { error: `${employeeStatus.fullName} is no longer an active employee and cannot clock in or out.` },
+        { status: 403 }
+      )
+    }
+
     const existing = await prisma.employeeAttendance.findFirst({
       where: {
         employeeId,

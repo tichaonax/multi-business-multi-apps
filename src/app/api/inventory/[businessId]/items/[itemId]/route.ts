@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { isSystemAdmin} from '@/lib/permission-utils'
+import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 import { checkAndNotifyLowStockForBarcodeItem, checkAndNotifyLowStockForVariant } from '@/lib/inventory/low-stock-notifier'
 
@@ -205,6 +205,14 @@ export async function PUT(
             { error: `SKU "${updateData.sku}" is already used by another item in this business` },
             { status: 400 }
           )
+        }
+      }
+
+      // Handle stock adjustment for barcodeInventoryItems
+      if (body._stockAdjustment && body._stockAdjustment !== 0) {
+        const adjustQty = parseInt(body._stockAdjustment)
+        if (!isNaN(adjustQty)) {
+          updateData.stockQuantity = (existing.stockQuantity || 0) + adjustQty
         }
       }
 
@@ -414,54 +422,58 @@ export async function PUT(
 
     // Handle stock adjustment if provided
     if (body._stockAdjustment && body._stockAdjustment !== 0) {
-      // Get or create default variant for this product
-      let variant = await prisma.productVariants.findFirst({
-        where: { productId: itemId }
-      })
+      const adjustQty = parseInt(body._stockAdjustment)
+      if (!isNaN(adjustQty)) {
+        // Get or create default variant for this product
+        let variant = await prisma.productVariants.findFirst({
+          where: { productId: itemId }
+        })
 
-      if (!variant) {
-        // Create default variant if it doesn't exist
-        variant = await prisma.productVariants.create({
+        if (!variant) {
+          // Create default variant if it doesn't exist
+          variant = await prisma.productVariants.create({
+            data: {
+              productId: itemId,
+              sku: updatedProduct.sku || `${itemId}-default`,
+              name: 'Default',
+              price: updatedProduct.basePrice || 0,
+              stockQuantity: 0,
+              updatedAt: new Date()
+            }
+          })
+        }
+
+        // Update variant's stockQuantity FIRST — this is the critical step
+        const newStockQuantity = (variant.stockQuantity || 0) + adjustQty
+        await prisma.productVariants.update({
+          where: { id: variant.id },
           data: {
-            productId: itemId,
-            sku: updatedProduct.sku || `${itemId}-default`,
-            name: 'Default',
-            price: updatedProduct.basePrice || 0,
-            stockQuantity: 0
+            stockQuantity: newStockQuantity,
+            updatedAt: new Date()
           }
         })
-      }
 
-      // Create stock movement for the adjustment
-      // Note: employees relation is optional - we don't track who made manual adjustments
-      await prisma.businessStockMovements.create({
-        data: {
-          product_variants: {
-            connect: { id: variant.id }
-          },
-          businesses: {
-            connect: { id: businessId }
-          },
-          businessType: updatedProduct.businessType,
-          quantity: parseInt(body._stockAdjustment),
-          movementType: 'ADJUSTMENT',
-          reason: `Stock adjustment: ${body._stockAdjustment > 0 ? '+' : ''}${body._stockAdjustment} units`
+        // Record stock movement — wrapped so a failure here never blocks the stock update
+        try {
+          await prisma.businessStockMovements.create({
+            data: {
+              businessId,
+              productVariantId: variant.id,
+              businessProductId: itemId,
+              businessType: updatedProduct.businessType,
+              quantity: adjustQty,
+              movementType: 'ADJUSTMENT',
+              reason: `Stock adjustment: ${adjustQty > 0 ? '+' : ''}${adjustQty} units`
+            }
+          })
+        } catch (movementErr) {
+          console.error('[Stock Adjust] Failed to create movement record (stock was still updated):', movementErr)
         }
-      })
 
-      // Update variant's stockQuantity
-      const newStockQuantity = (variant.stockQuantity || 0) + parseInt(body._stockAdjustment)
-      await prisma.productVariants.update({
-        where: { id: variant.id },
-        data: {
-          stockQuantity: newStockQuantity,
-          updatedAt: new Date()
+        // Fire low-stock notification if adjustment reduced stock (non-blocking)
+        if (adjustQty < 0) {
+          checkAndNotifyLowStockForVariant(prisma, variant.id, businessId)
         }
-      })
-
-      // Fire low-stock notification if adjustment reduced stock to/below reorder level (non-blocking)
-      if (parseInt(body._stockAdjustment) < 0) {
-        checkAndNotifyLowStockForVariant(prisma, variant.id, businessId)
       }
     }
 
@@ -580,6 +592,36 @@ export async function DELETE(
 
     const { businessId, itemId } = await params
 
+    // Permission check — must be system admin or have canManageInventory for this business
+    const canDelete = isSystemAdmin(user) || hasPermission(user, 'canManageInventory', businessId)
+    if (!canDelete) {
+      return NextResponse.json({ error: 'Forbidden: canManageInventory permission required' }, { status: 403 })
+    }
+
+    // Handle barcodeInventoryItems (inv_ prefix)
+    if (itemId.startsWith('inv_')) {
+      const rawId = itemId.replace(/^inv_/, '')
+      const item = await prisma.barcodeInventoryItems.findFirst({
+        where: { id: rawId, businessId }
+      })
+      if (!item) {
+        return NextResponse.json({ error: 'Inventory item not found' }, { status: 404 })
+      }
+      await prisma.barcodeInventoryItems.delete({ where: { id: rawId } })
+      // Audit log
+      await prisma.auditLogs.create({
+        data: {
+          userId: user.id,
+          action: 'DELETE',
+          entityType: 'BarcodeInventoryItem',
+          entityId: rawId,
+          oldValues: { id: item.id, name: item.name, sku: item.sku, businessId: item.businessId, stockQuantity: item.stockQuantity },
+          metadata: { deletedBy: user.email, businessId },
+        }
+      }).catch(err => console.error('Audit log failed:', err))
+      return NextResponse.json({ message: 'Inventory item deleted successfully' })
+    }
+
     // Verify product exists
     const product = await prisma.businessProducts.findFirst({
       where: {
@@ -595,10 +637,23 @@ export async function DELETE(
       )
     }
 
-    // Delete the product (this will cascade to variants and movements)
-    await prisma.businessProducts.delete({
-      where: { id: itemId }
+    // Delete child records first — FK constraints are RESTRICT, not CASCADE
+    await prisma.$transaction(async (tx) => {
+      await tx.productBarcodes.deleteMany({ where: { productId: itemId } })
+      await tx.productVariants.deleteMany({ where: { productId: itemId } })
+      await tx.businessProducts.delete({ where: { id: itemId } })
     })
+    // Audit log
+    await prisma.auditLogs.create({
+      data: {
+        userId: user.id,
+        action: 'DELETE',
+        entityType: 'BusinessProduct',
+        entityId: itemId,
+        oldValues: { id: product.id, name: product.name, sku: product.sku, businessId: product.businessId },
+        metadata: { deletedBy: user.email, businessId },
+      }
+    }).catch(err => console.error('Audit log failed:', err))
 
     return NextResponse.json({
       message: 'Inventory item deleted successfully'

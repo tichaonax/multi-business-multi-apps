@@ -25,7 +25,7 @@ export async function PUT(
     }
 
     const { employeeId } = await params;
-    const { employmentStatus, isActive, reason, notes } = await req.json();
+    const { employmentStatus, isActive, reason, notes, statusChangeDate } = await req.json();
 
     if (!employmentStatus && isActive === undefined) {
       return NextResponse.json({
@@ -84,9 +84,17 @@ export async function PUT(
       let finalEmploymentStatus = employmentStatus;
       let finalIsActive = isActive;
 
+      // Resolve the effective date for this status change (allow backdating)
+      const effectiveDate = statusChangeDate ? new Date(statusChangeDate) : new Date();
+
       // If changing status to suspended, automatically set to pending_contract
       if (employmentStatus === 'suspended') {
         finalEmploymentStatus = 'pending_contract';
+        finalIsActive = false;
+      }
+
+      // If terminating, always set isActive to false
+      if (employmentStatus === 'terminated') {
         finalIsActive = false;
       }
 
@@ -96,6 +104,8 @@ export async function PUT(
         data: {
           ...(finalEmploymentStatus && { employmentStatus: finalEmploymentStatus }),
           ...(finalIsActive !== undefined && { isActive: finalIsActive }),
+          statusChangedAt: effectiveDate,
+          ...(employmentStatus === 'terminated' && { terminationDate: effectiveDate }),
           updatedAt: new Date()
         }
       });

@@ -133,6 +133,8 @@ function ClothingInventoryContent() {
   const [bogoHistoryLoading, setBogoHistoryLoading] = useState(false)
   const [bulkPrintModal, setBulkPrintModal] = useState<{ baleId?: string; qty?: number; templateId?: string; compact?: boolean; productData?: any } | null>(null)
   const [labelCount, setLabelCount] = useState('5')
+  const [showDepartments, setShowDepartments] = useState(false)
+  const [hideZeroStock, setHideZeroStock] = useState(true)
   const [showAddStockPanel, setShowAddStockPanel] = useState<'bale' | 'product' | false>(false)
   const [showBulkStockPanel, setShowBulkStockPanel] = useState(false)
   const [bulkStockInitialMode, setBulkStockInitialMode] = useState<'bulkStock' | 'stockTake' | undefined>(undefined)
@@ -699,24 +701,6 @@ function ClothingInventoryContent() {
   ]
 
   const handleItemEdit = (item: any) => {
-    // BarcodeInventoryItems (id starts with inv_) need a domain-aware edit form
-    if (item.id?.startsWith('inv_')) {
-      setInvEditItem(item)
-      setInvEditDomainId(item.domainId || '')
-      setInvEditCategoryId(item.categoryId || '')
-      // Load domains + categories if not already loaded
-      if (invEditDomains.length === 0) {
-        fetch('/api/inventory/domains?businessType=clothing')
-          .then(r => r.json())
-          .then(d => setInvEditDomains(d.domains ?? []))
-          .catch(() => {})
-      }
-      fetch(`/api/universal/categories?businessId=${businessId}&businessType=clothing`)
-        .then(r => r.json())
-        .then(d => setInvEditCategories(Array.isArray(d) ? d : (d.data ?? d.categories ?? [])))
-        .catch(() => {})
-      return
-    }
     setSelectedItem(item)
     setShowAddForm(true)
   }
@@ -1325,13 +1309,18 @@ function ClothingInventoryContent() {
                     {/* Department Quick Navigation */}
                     {stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && !selectedDepartment && (
                       <div className="card p-4 sm:p-6">
-                        <div className="flex items-center justify-between mb-4">
+                        <button
+                          type="button"
+                          onClick={() => setShowDepartments(v => !v)}
+                          className="flex items-center justify-between w-full text-left"
+                        >
                           <h3 className="text-lg font-semibold">Browse by Department</h3>
-                          <span className="text-sm text-secondary">
+                          <span className="flex items-center gap-2 text-sm text-secondary">
                             {Object.keys(stats.byDepartment).length} departments • Click to filter
+                            <span className="text-xs">{showDepartments ? '▲' : '▼'}</span>
                           </span>
-                        </div>
-                        <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+                        </button>
+                        {showDepartments && <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-5 mt-4">
                           {Object.entries(stats.byDepartment)
                             .sort(([, a]: [string, any], [, b]: [string, any]) => b.count - a.count)
                             .map(([id, dept]: [string, any]) => (
@@ -1347,7 +1336,7 @@ function ClothingInventoryContent() {
                               </span>
                             </button>
                           ))}
-                        </div>
+                        </div>}
                       </div>
                     )}
 
@@ -1379,6 +1368,15 @@ function ClothingInventoryContent() {
                       allowFiltering={true}
                       allowSorting={true}
                       showBusinessSpecificFields={true}
+                      hideZeroStock={hideZeroStock}
+                      headerActions={(
+                        <button
+                          onClick={() => setHideZeroStock(v => !v)}
+                          className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${hideZeroStock ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600' : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50'}`}
+                        >
+                          {hideZeroStock ? '👁 Show Zero Stock' : '🚫 Hide Zero Stock'}
+                        </button>
+                      )}
                     />
                   </div>
                 )}

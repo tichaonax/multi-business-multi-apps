@@ -92,6 +92,10 @@ export async function GET(
     const priceFilter = searchParams.get('priceFilter') // 'with' | 'without'
     const businessType = searchParams.get('businessType') // e.g. 'restaurant'
     const includeTemplates = searchParams.get('includeTemplates') === 'true' // default false
+    const stockStatus = searchParams.get('stockStatus') // 'out' | 'low' | 'healthy' | 'overstock'
+    const supplierFilter = searchParams.get('supplier')
+    const locationFilter = searchParams.get('location')
+    const hideZeroStock = searchParams.get('hideZeroStock') === 'true'
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '50')
 
@@ -181,6 +185,27 @@ export async function GET(
       }
     }
 
+    // Server-side stock status filter — avoids fetching thousands of items client-side
+    if (stockStatus === 'out') {
+      where.product_variants = { none: { stockQuantity: { gt: 0 } } }
+    } else if (stockStatus === 'low') {
+      where.product_variants = { some: { stockQuantity: { gt: 0, lte: 5 } } }
+    } else if (stockStatus === 'healthy') {
+      where.product_variants = { some: { stockQuantity: { gt: 5, lte: 100 } } }
+    } else if (stockStatus === 'overstock') {
+      where.product_variants = { some: { stockQuantity: { gt: 100 } } }
+    }
+
+    // Server-side supplier filter
+    if (supplierFilter) {
+      where.business_suppliers = { name: { contains: supplierFilter, mode: 'insensitive' } }
+    }
+
+    // Server-side location filter
+    if (locationFilter) {
+      where.business_locations = { name: { contains: locationFilter, mode: 'insensitive' } }
+    }
+
     // Note: We'll filter by category/ingredientType after fetching since ingredientType is in JSON
     // Only add category filter to where clause if we're sure it's a regular category
     const shouldFilterByCategory = category && category !== 'all'
@@ -267,14 +292,13 @@ export async function GET(
       filteredItems = filteredItems.filter(item => item.currentStock < 10)
     }
 
-    // Also fetch BarcodeInventoryItems that have a categoryId (individually stocked items)
+    // Also fetch BarcodeInventoryItems (individually stocked items)
     // These are merged into the results so they appear alongside BusinessProducts
-    // Include items with a category OR a direct domainId assignment
-    // (allows items whose category has null domainId to still surface via item.domainId)
     const barcodeItemsWhere: any = {
       businessId,
       isActive: true,
-      OR: [{ categoryId: { not: null } }, { domainId: { not: null } }],
+      // Only return items whose linked business matches the requested businessType
+      ...(businessType && { business: { type: businessType } }),
     }
     if (search) {
       barcodeItemsWhere.OR = [
@@ -349,11 +373,17 @@ export async function GET(
       ...(lowStock ? mergedBarcodeItems.filter(item => item.currentStock < 10) : mergedBarcodeItems),
     ]
 
+    // Hide zero-stock items when requested (default behaviour for most views)
+    // Services/non-tracked items are exempt — they never have physical stock
+    const visibleItems = hideZeroStock
+      ? allFilteredItems.filter(item => item.currentStock > 0 || !item.isInventoryTracked)
+      : allFilteredItems
+
     // Apply pagination after filtering
     const startIndex = (page - 1) * limit
     const endIndex = startIndex + limit
-    const paginatedItems = allFilteredItems.slice(startIndex, endIndex)
-    const totalFiltered = allFilteredItems.length
+    const paginatedItems = visibleItems.slice(startIndex, endIndex)
+    const totalFiltered = visibleItems.length
 
     return NextResponse.json({
       items: paginatedItems,

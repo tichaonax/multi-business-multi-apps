@@ -3,7 +3,7 @@
 
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
@@ -27,27 +27,40 @@ export default function ReceiveGroceryInventoryPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [items, setItems] = useState<InventoryItem[]>([])
-  const [selectedItems, setSelectedItems] = useState<{[itemId: string]: { quantity: number; batchNumber?: string; expirationDate?: string; costPerUnit?: number }}>({}) 
+  const [selectedItems, setSelectedItems] = useState<{[itemId: string]: { quantity: number; batchNumber?: string; expirationDate?: string; costPerUnit?: number }}>({})
+  const [search, setSearch] = useState('')
+  const [itemsLoading, setItemsLoading] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Fetch existing inventory items
+  // Initial load
   useEffect(() => {
-    if (currentBusinessId) fetchInventoryItems()
+    if (currentBusinessId) fetchInventoryItems('')
   }, [currentBusinessId])
 
-  const fetchInventoryItems = async () => {
+  // Debounced server-side search
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      if (currentBusinessId) fetchInventoryItems(search)
+    }, 300)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [search, currentBusinessId])
+
+  const fetchInventoryItems = async (query: string) => {
     if (!currentBusinessId) return
     try {
-      console.log('Fetching inventory items...')
-      const response = await fetch(`/api/inventory/${currentBusinessId}/items`)
+      setItemsLoading(true)
+      const params = new URLSearchParams({ limit: '100', isActive: 'true' })
+      if (query.trim()) params.set('search', query.trim())
+      const response = await fetch(`/api/inventory/${currentBusinessId}/items?${params}`)
       if (response.ok) {
         const data = await response.json()
-        console.log('Inventory items loaded:', data.items?.length || 0)
         setItems(data.items || [])
-      } else {
-        console.error('Failed to fetch items:', response.status)
       }
     } catch (error) {
       console.error('Error fetching inventory items:', error)
+    } finally {
+      setItemsLoading(false)
     }
   }
 
@@ -142,7 +155,7 @@ export default function ReceiveGroceryInventoryPage() {
       setSelectedItems({})
 
       // Refresh items to show updated stock
-      fetchInventoryItems()
+      fetchInventoryItems(search)
 
       // Redirect after a short delay - use replace to prevent back button from returning to form
       setTimeout(() => {
@@ -185,12 +198,23 @@ export default function ReceiveGroceryInventoryPage() {
                 )}
 
                 <div className="space-y-4">
-                  <h3 className="font-medium text-primary">Select Items to Receive</h3>
+                  <div className="flex items-center justify-between gap-4">
+                    <h3 className="font-medium text-primary">Select Items to Receive</h3>
+                    <input
+                      type="text"
+                      placeholder="Search by name, SKU or category..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="input-field w-64 text-sm"
+                    />
+                  </div>
 
-                  {items.length === 0 ? (
+                  {itemsLoading ? (
+                    <div className="text-center py-8 text-secondary">Searching...</div>
+                  ) : items.length === 0 ? (
                     <div className="text-center py-8 text-secondary">
                       <div className="text-4xl mb-4">📦</div>
-                      <p>No inventory items found. Add some items first.</p>
+                      <p>{search.trim() ? `No items found for "${search}"` : 'No inventory items found.'}</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -238,7 +262,7 @@ export default function ReceiveGroceryInventoryPage() {
                               type="number"
                               min="0"
                               step="0.01"
-                              placeholder={`$${item.basePrice.toFixed(2)}`}
+                              placeholder={`$${(item.basePrice ?? 0).toFixed(2)}`}
                               value={selectedItems[item.id]?.costPerUnit || ''}
                               onChange={(e) => handleBatchInfo(item.id, 'costPerUnit', e.target.value)}
                               className="input-field w-full text-sm"

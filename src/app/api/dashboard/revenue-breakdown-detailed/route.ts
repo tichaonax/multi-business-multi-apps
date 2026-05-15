@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 import { getBusinessBalance } from '@/lib/business-balance-utils'
@@ -37,6 +38,24 @@ export async function GET(req: NextRequest) {
     }
 
     const allBusinessIds = accessibleBusinesses.map(b => b.id)
+
+    // --- Batch inventory value: SUM(stockQuantity * COALESCE(costPrice, basePrice)) per business ---
+    const inventoryRows = allBusinessIds.length > 0
+      ? await prisma.$queryRaw<Array<{ businessId: string; inventoryValue: string }>>`
+          SELECT bp."businessId",
+            COALESCE(SUM(pv."stockQuantity" * COALESCE(bp."costPrice", bp."basePrice", 0)), 0)::text as "inventoryValue"
+          FROM product_variants pv
+          JOIN business_products bp ON pv."productId" = bp.id
+          WHERE bp."businessId" IN (${Prisma.join(allBusinessIds)})
+            AND bp."isActive" = true
+            AND pv."stockQuantity" > 0
+          GROUP BY bp."businessId"
+        `
+      : []
+    const inventoryValueMap = new Map<string, number>()
+    for (const row of inventoryRows as any[]) {
+      inventoryValueMap.set(row.businessId, Number(row.inventoryValue))
+    }
 
     // --- Batch fetch cash bucket balances split by paymentChannel ---
     const cashBucketRows = await prisma.cashBucketEntry.groupBy({
@@ -162,6 +181,7 @@ export async function GET(req: NextRequest) {
           monthlyRent: rent?.monthlyRent ?? 0,
           rentContributed: rent?.contributed ?? 0,
           hasRentConfig: rent !== null,
+          inventoryValue: inventoryValueMap.get(business.id) ?? 0,
         }
       })
     )
@@ -184,6 +204,7 @@ export async function GET(req: NextRequest) {
           totalEcocashRevenue: 0,
           totalMonthlyRent: 0,
           totalRentContributed: 0,
+          totalInventoryValue: 0,
           hasRentConfig: false,
           businesses: [],
         }
@@ -203,6 +224,7 @@ export async function GET(req: NextRequest) {
       t.totalEcocashRevenue += item.ecocashRevenue
       t.totalMonthlyRent += item.monthlyRent
       t.totalRentContributed += item.rentContributed
+      t.totalInventoryValue += item.inventoryValue
       if (item.hasRentConfig) t.hasRentConfig = true
       t.businesses.push({
         id: item.businessId,
@@ -224,6 +246,7 @@ export async function GET(req: NextRequest) {
         monthlyRent: item.monthlyRent,
         rentContributed: item.rentContributed,
         hasRentConfig: item.hasRentConfig,
+        inventoryValue: item.inventoryValue,
       })
       return acc
     }, {} as Record<string, any>)
@@ -258,6 +281,7 @@ export async function GET(req: NextRequest) {
         totalEcocashRevenue: typeValues.reduce((s, t) => s + t.totalEcocashRevenue, 0),
         totalMonthlyRent: typeValues.reduce((s, t) => s + t.totalMonthlyRent, 0),
         totalRentContributed: typeValues.reduce((s, t) => s + t.totalRentContributed, 0),
+        totalInventoryValue: typeValues.reduce((s, t) => s + t.totalInventoryValue, 0),
         hasRentConfig: typeValues.some((t) => t.hasRentConfig),
         businessTypes: Object.keys(byTypeForDisplay).length,
         businesses: accessibleBusinesses.length,

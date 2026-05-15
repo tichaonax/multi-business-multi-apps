@@ -1325,6 +1325,7 @@ model Employees {
   startDate                                                                 DateTime?
   supervisorId                                                              String?
   terminationDate                                                           DateTime?
+  statusChangedAt                                                           DateTime?
   updatedAt                                                                 DateTime                      @default(now())
   userId                                                                    String?                       @unique
   driverLicenseNumber                                                       String?

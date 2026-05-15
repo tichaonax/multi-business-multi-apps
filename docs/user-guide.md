@@ -35,6 +35,7 @@
     - [Barcode Templates](#barcode-templates--creating-and-using-label-designs)
     - [Adding Inventory Items Directly to Cart](#adding-inventory-items-directly-to-cart)
     - [Admin — Blocking Stock Take Drafts](#admin--blocking-stock-take-drafts)
+    - [Copying a Product to Another Business](#copying-a-product-to-another-business)
 15. [Restaurant Menu Management](#15-restaurant-menu-management)
 15a. [Services as Products](#15a-services-as-products--selling-services-via-barcode)
 16. [Quick Reference Cards](#16-quick-reference-cards)
@@ -140,6 +141,47 @@ When you sign in, you land on the **Dashboard**. It shows:
 - **Pending tasks** — things waiting for you to approve or complete.
 - **Recent activity** — a log of what has been happening across the business.
 - **Alerts** — warnings about low balances, overdue laybys, or stock levels.
+
+#### Business Summary Cards
+
+At the top of the dashboard, each business type (e.g. Clothing, Grocery, Restaurant) has its own summary card. These are only visible to users with financial data access.
+
+Each card shows:
+
+| Row | What it means |
+|-----|---------------|
+| **Account balance** (large number) | The running business account balance — total revenue minus expenses |
+| **Sales** | Total revenue from all completed and pending orders |
+| **💵 / 📱 split** | Cash vs EcoCash breakdown of sales (shown only when EcoCash sales exist) |
+| **🪣 Cash Box** | Physical cash and EcoCash currently held in the till |
+| **📦 Inventory** | Total value of stock on hand — calculated as quantity × cost price (or selling price if no cost price is set). Only shown when inventory value is greater than zero. |
+| **🏠 Rent** | How much of this month's rent target has been contributed, with a progress bar |
+
+The **All** card at the far left shows the combined totals across every business type.
+
+Click any card to open a detailed breakdown showing each individual business within that type.
+
+#### Today's Performance
+
+Below the summary cards, the **Today's Performance** section shows a card for each active POS business (restaurant, grocery, clothing, hardware). These update automatically every 60 seconds.
+
+Each card shows:
+
+| Row | What it means |
+|-----|---------------|
+| **Today orders** | Number of orders placed today. Also shows how many individual items were sold (with a ▲/▼ badge comparing to yesterday's item count). |
+| **Today sales** | Total dollar sales today, with a ▲/▼ badge showing the percentage change versus yesterday. |
+| **Yesterday** | Yesterday's item count (▲/▼ vs the day before) and dollar sales (▲/▼ vs the day before), shown together on one line. |
+| **2 days ago** | Raw item count and dollar sales from two days ago — no comparison badge since there is no third day to compare against. |
+| **Pending** | Orders that have been placed but not yet completed or paid (shown only when pending orders exist). |
+
+**Reading the delta badges:**
+- A **green ▲** badge means that figure is higher than the previous period.
+- A **red ▼** badge means it is lower.
+- The percentage shown is how much higher or lower, e.g. `▼17%` means 17% less than the comparison period.
+- On the **Yesterday** row, the first badge (items) compares yesterday's items to two days ago, and the second badge ($) compares yesterday's sales to two days ago.
+
+> **Example:** "Yesterday: ▼11% 74 items ▼17% $87" means yesterday had 74 items sold (11% fewer than the day before) and $87 in sales (17% less than the day before).
 
 ### Switching Between Businesses
 
@@ -4594,6 +4636,72 @@ The job is added to the print queue with status **Queued → Processing → Comp
 4. To stop the template appearing in print job dropdowns, toggle **Active** to off.
 
 > The template list shows **usage count** and **last used date** so you can see which templates are actively in use.
+
+---
+
+### Copying a Product to Another Business
+
+If you sell the same product or service across multiple businesses — for example a "Cellphone Charge" service offered at both a clothing shop and a grocery store — you can copy an existing product definition from one business to another without re-entering it manually. The copy includes the product name, prices, barcode definitions, and attributes. Stock starts at zero in the target business.
+
+#### Who can use this
+
+Any user who is a member of **both** the source and the target business. Admins can copy between any businesses.
+
+#### Business type compatibility
+
+The system only offers compatible businesses in the target dropdown:
+
+| Source business type | Can copy to |
+|---|---|
+| Restaurant | Other restaurant businesses only |
+| Grocery, Clothing, Hardware, Retail, Services, Other | Any non-restaurant business |
+
+Restaurant menu items contain food-specific fields (ingredients, allergens, preparation time) that are not meaningful outside a restaurant context, so cross-type copying is blocked for that type.
+
+#### How to copy a product
+
+1. Go to **Inventory** for the business that has the product you want to copy.
+2. Find the product in the inventory list — use the search box to locate it quickly.
+3. Click the **📋** button in the Actions column for that product row (on mobile, tap **📋 Copy** in the card action buttons).
+4. The **Copy to Another Business** modal opens. Type in the search box to filter your businesses by name or type.
+5. Click the target business to select it — a **✓ BusinessName selected** confirmation appears below the search box.
+6. Click **Copy to [Business Name]**.
+
+A green banner confirms the copy was successful. The product now appears in the target business's inventory with zero stock.
+
+#### What is copied
+
+| Field | Copied |
+|---|---|
+| Product name | ✅ |
+| Description | ✅ |
+| SKU | ✅ |
+| Selling price | ✅ |
+| Cost price | ✅ |
+| Barcode definitions | ✅ |
+| Product attributes (PLU code, brand, etc.) | ✅ |
+| Stock quantity | ❌ — starts at 0 |
+| Category, supplier, location | ❌ — business-specific, set these after copying |
+
+#### If the SKU already exists in the target
+
+The copy is blocked and an error is shown: *"A product with SKU '...' already exists in [Business Name]."* This prevents accidental duplicates. Either edit the existing product in the target business or delete it first if you want a clean copy.
+
+#### After copying — making the product available at the POS
+
+Once copied, the product appears in the target business's inventory list immediately. To make it available for sale at the POS:
+
+1. Open the product in inventory (click the product row or the **✏️ Edit** button) and confirm the **selling price** is set correctly for the target business.
+2. The product will appear automatically in the POS product panel when the price is greater than zero.
+3. To add it to **Quick Add** (the pinned shortcuts panel at the POS), open the POS, find the product in the product list, and click the **pin icon** on the product card. Pinned products appear at the top of the Quick Add tab for fast one-tap selection.
+
+#### Receiving stock after copying
+
+After copying, the product has zero stock in the target business. To add opening stock:
+
+1. Go to **Inventory → Receive Stock** for the target business.
+2. Search for the copied product by name or SKU.
+3. Enter the quantity and click **Receive Stock**.
 
 ---
 

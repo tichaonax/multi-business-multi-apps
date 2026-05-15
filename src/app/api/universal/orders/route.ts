@@ -243,49 +243,26 @@ export async function GET(request: NextRequest) {
     // Calculate summary statistics — only count completed/paid orders for totals
     // Exclude EXPENSE_ACCOUNT orders (meal program subsidies) from revenue totals
     const summaryWhere = { ...where, status: 'COMPLETED' as any, paymentMethod: { not: 'EXPENSE_ACCOUNT' } }
-    const summary = await prisma.businessOrders.aggregate({
-      where: summaryWhere,
-      _sum: {
-        totalAmount: true,
-        subtotal: true,
-        taxAmount: true,
-        discountAmount: true
-      },
-      _count: true
-    })
-
-    // Calculate completed and pending revenue for all orders matching filters
-    // Exclude EXPENSE_ACCOUNT orders (meal program subsidies) from revenue
-    const completedRevenueResult = await prisma.businessOrders.aggregate({
-      where: {
-        ...where,
-        status: 'COMPLETED',
-        paymentMethod: { not: 'EXPENSE_ACCOUNT' }
-      },
-      _sum: {
-        totalAmount: true
-      }
-    })
-
-    const pendingRevenueResult = await prisma.businessOrders.aggregate({
-      where: {
-        ...where,
-        status: {
-          not: 'COMPLETED'
-        }
-      },
-      _sum: {
-        totalAmount: true
-      }
-    })
-
-    // Count pending orders
-    const pendingOrdersCount = await prisma.businessOrders.count({
-      where: {
-        ...where,
-        status: 'PENDING'
-      }
-    })
+    const [summary, completedRevenueResult, pendingRevenueResult, pendingOrdersCount, itemsSoldAgg] = await Promise.all([
+      prisma.businessOrders.aggregate({
+        where: summaryWhere,
+        _sum: { totalAmount: true, subtotal: true, taxAmount: true, discountAmount: true },
+        _count: true
+      }),
+      prisma.businessOrders.aggregate({
+        where: { ...where, status: 'COMPLETED', paymentMethod: { not: 'EXPENSE_ACCOUNT' } },
+        _sum: { totalAmount: true }
+      }),
+      prisma.businessOrders.aggregate({
+        where: { ...where, status: { not: 'COMPLETED' } },
+        _sum: { totalAmount: true }
+      }),
+      prisma.businessOrders.count({ where: { ...where, status: 'PENDING' } }),
+      prisma.businessOrderItems.aggregate({
+        where: { business_orders: summaryWhere } as any,
+        _sum: { quantity: true }
+      })
+    ])
 
     // Transform orders to match expected frontend structure
     const transformedOrders = orders.map(order => ({
@@ -320,7 +297,8 @@ export async function GET(request: NextRequest) {
           totalDiscount: summary._sum.discountAmount || 0,
           completedRevenue: completedRevenueResult._sum.totalAmount || 0,
           pendingRevenue: pendingRevenueResult._sum.totalAmount || 0,
-          pendingOrders: pendingOrdersCount
+          pendingOrders: pendingOrdersCount,
+          totalItemsSold: Number(itemsSoldAgg._sum.quantity || 0)
         }
       }
     })

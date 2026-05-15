@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
 
     // Find the active employee by scanToken
     const employee = await prisma.employees.findFirst({
-      where: { scanToken, isActive: true },
+      where: { scanToken, isActive: true, employmentStatus: { not: 'terminated' } },
       select: {
         id: true,
         fullName: true,

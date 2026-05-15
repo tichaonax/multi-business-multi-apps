@@ -88,9 +88,12 @@ export default function EmployeeEditPage() {
     employmentStatus: 'active',
     contractStatus: 'pending_signature',
     supervisorId: '',
+    terminationDate: '',
     notes: '',
     profilePhotoUrl: ''
   })
+
+  const [statusChangeDate, setStatusChangeDate] = useState<string>('')
 
   const confirm = useConfirm()
   const canEditEmployees = hasPermission('canEditEmployees')
@@ -139,6 +142,7 @@ export default function EmployeeEditPage() {
           dateOfBirthCountryCode: 'ZW',
           hireDate: data.hireDate ? data.hireDate.split('T')[0] : '',
           hireDateCountryCode: 'ZW',
+          terminationDate: data.terminationDate ? data.terminationDate.split('T')[0] : '',
           employmentStatus: data.employmentStatus || 'active',
           contractStatus: 'pending_signature',
           supervisorId: data.supervisor?.id || '',
@@ -309,7 +313,8 @@ export default function EmployeeEditPage() {
         body: JSON.stringify({
           employmentStatus: newStatus,
           reason: `Employee status changed to ${newStatus} via employee edit form`,
-          notes: `Manual status change via employee edit form`
+          notes: `Manual status change via employee edit form`,
+          ...(statusChangeDate && { statusChangeDate })
         })
       })
 
@@ -689,6 +694,41 @@ export default function EmployeeEditPage() {
                     </select>
                     <p className="text-xs text-secondary mt-1">
                       Assign a supervisor/manager to this employee
+                    </p>
+                  </div>
+
+                  {formData.employmentStatus === 'terminated' && (
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-2">
+                        Termination Date
+                      </label>
+                      <input
+                        type="date"
+                        name="terminationDate"
+                        value={formData.terminationDate}
+                        onChange={handleChange}
+                        max={new Date().toISOString().split('T')[0]}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <p className="text-xs text-secondary mt-1">
+                        Effective date of termination. Saved with the form.
+                      </p>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      Status Change Date
+                    </label>
+                    <input
+                      type="date"
+                      value={statusChangeDate}
+                      onChange={e => setStatusChangeDate(e.target.value)}
+                      max={new Date().toISOString().split('T')[0]}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="text-xs text-secondary mt-1">
+                      Defaults to today. Set a past date if the change happened earlier.
                     </p>
                   </div>
 

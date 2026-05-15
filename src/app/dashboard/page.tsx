@@ -690,6 +690,14 @@ function DashboardContent() {
                     </div>
                   </div>
                 )}
+                {(revenueBreakdown.summary.totalInventoryValue ?? 0) > 0 && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-secondary flex items-center gap-1">📦 Inventory</span>
+                    <span className="font-semibold text-purple-600 dark:text-purple-400">
+                      ${(revenueBreakdown.summary.totalInventoryValue ?? 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </span>
+                  </div>
+                )}
                 {revenueBreakdown.summary.hasRentConfig && (() => {
                   const allRentPct = (revenueBreakdown.summary.totalMonthlyRent ?? 0) > 0
                     ? Math.min(100, Math.round(((revenueBreakdown.summary.totalRentContributed ?? 0) / (revenueBreakdown.summary.totalMonthlyRent ?? 1)) * 100))
@@ -790,6 +798,15 @@ function DashboardContent() {
                       </div>
                     )}
 
+                    {/* Inventory value */}
+                    {(typeData.totalInventoryValue ?? 0) > 0 && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-secondary flex items-center gap-1">📦 Inventory</span>
+                        <span className="font-semibold text-purple-600 dark:text-purple-400">
+                          ${(typeData.totalInventoryValue ?? 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        </span>
+                      </div>
+                    )}
                     {/* Rent — only shown when configured */}
                     {typeData.hasRentConfig && (
                       <div className="space-y-1">
@@ -942,8 +959,13 @@ function DashboardContent() {
                   const todaySales = Number(summary?.totalAmount || 0)
                   const ystSales = Number(ystSummary?.totalAmount || 0)
                   const dayBeforeSales = Number(dayBeforeSummary?.totalAmount || 0)
+                  const todayItems = Number(summary?.totalItemsSold || 0)
+                  const ystItems = Number(ystSummary?.totalItemsSold || 0)
+                  const dayBeforeItems = Number(dayBeforeSummary?.totalItemsSold || 0)
                   const todayVsYst = pctChange(todaySales, ystSales)
                   const ystVsDayBefore = pctChange(ystSales, dayBeforeSales)
+                  const todayItemsVsYst = pctChange(todayItems, ystItems)
+                  const ystItemsVsDayBefore = pctChange(ystItems, dayBeforeItems)
                   const DeltaBadge = ({ pct }: { pct: number | null }) => {
                     if (pct === null) return null
                     const up = pct >= 0
@@ -977,10 +999,18 @@ function DashboardContent() {
                           </div>
                         ) : (
                           <div className="mt-2 space-y-1">
-                            {/* Today */}
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-secondary">Today orders</span>
-                              <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{summary?.totalOrders ?? 0}</span>
+                            {/* Today orders + items sold */}
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-xs text-secondary shrink-0">Today orders</span>
+                              <div className="flex items-center gap-1.5">
+                                {todayItems > 0 && (
+                                  <div className="flex items-center gap-0.5">
+                                    <DeltaBadge pct={todayItemsVsYst} />
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">{todayItems} items</span>
+                                  </div>
+                                )}
+                                <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{summary?.totalOrders ?? 0}</span>
+                              </div>
                             </div>
                             {canFinancial && (
                               <>
@@ -995,15 +1025,24 @@ function DashboardContent() {
                                 <div className="flex items-center justify-between gap-1 border-t border-gray-100 dark:border-gray-700/50 pt-1">
                                   <span className="text-xs text-secondary shrink-0">Yesterday</span>
                                   <div className="flex items-center gap-1">
+                                    {ystItems > 0 && (
+                                      <div className="flex items-center gap-0.5">
+                                        <DeltaBadge pct={ystItemsVsDayBefore} />
+                                        <span className="text-[10px] text-gray-400 dark:text-gray-500">{ystItems} items</span>
+                                      </div>
+                                    )}
                                     <DeltaBadge pct={ystVsDayBefore} />
                                     <span className="text-xs text-gray-500 dark:text-gray-400">{fmt(ystSales)}</span>
                                   </div>
                                 </div>
                                 {/* Day before yesterday */}
-                                {dayBeforeSales > 0 && (
-                                  <div className="flex items-center justify-between">
+                                {(dayBeforeSales > 0 || dayBeforeItems > 0) && (
+                                  <div className="flex items-center justify-between gap-1">
                                     <span className="text-xs text-secondary shrink-0">2 days ago</span>
-                                    <span className="text-xs text-gray-400 dark:text-gray-500">{fmt(dayBeforeSales)}</span>
+                                    <div className="flex items-center gap-1">
+                                      {dayBeforeItems > 0 && <span className="text-[10px] text-gray-400 dark:text-gray-500">{dayBeforeItems} items</span>}
+                                      <span className="text-xs text-gray-400 dark:text-gray-500">{fmt(dayBeforeSales)}</span>
+                                    </div>
                                   </div>
                                 )}
                                 {summary?.pendingOrders > 0 && (

@@ -92,6 +92,7 @@ function GroceryTransferHistoryPanel({ businessId }: { businessId: string }) {
 function GroceryInventoryContent() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'bales' | 'movements' | 'alerts' | 'reports' | 'transfers'>('overview')
   const [showAddForm, setShowAddForm] = useState(false)
+  const [hideZeroStock, setHideZeroStock] = useState(true)
   const [showBulkStockPanel, setShowBulkStockPanel] = useState(false)
   const [bulkStockInitialMode, setBulkStockInitialMode] = useState<'bulkStock' | 'stockTake' | undefined>(undefined)
   const [selectedItem, setSelectedItem] = useState<any>(null)
@@ -602,6 +603,14 @@ function GroceryInventoryContent() {
                           )}
                           {canManageInventory && (
                             <button
+                              onClick={() => router.push('/grocery/inventory/receive')}
+                              className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
+                            >
+                              📥 Receive Stock
+                            </button>
+                          )}
+                          {canManageInventory && (
+                            <button
                               onClick={() => {
                                 setSelectedItem(null)
                                 setFormReady(false)
@@ -612,6 +621,12 @@ function GroceryInventoryContent() {
                               Add New Item
                             </button>
                           )}
+                          <button
+                            onClick={() => setHideZeroStock(v => !v)}
+                            className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${hideZeroStock ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600' : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50'}`}
+                          >
+                            {hideZeroStock ? '👁 Show Zero Stock' : '🚫 Hide Zero Stock'}
+                          </button>
                         </div>
                       )}
                       showActions={true}
@@ -620,6 +635,7 @@ function GroceryInventoryContent() {
                       allowFiltering={true}
                       allowSorting={true}
                       showBusinessSpecificFields={true}
+                      hideZeroStock={hideZeroStock}
                     />
                   </div>
                 )}

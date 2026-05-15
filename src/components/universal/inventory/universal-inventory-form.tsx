@@ -1042,26 +1042,23 @@ export function UniversalInventoryForm({
               {/* Domain — full width, required */}
               <div className="col-span-2 xl:col-span-3">
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Domain *</label>
-                <select
+                <SearchableSelect
+                  options={domains.map(d => ({ id: d.id, name: d.name, emoji: d.emoji }))}
                   value={selectedDomainId}
-                  onChange={(e) => {
-                    setSelectedDomainId(e.target.value)
+                  onChange={(id) => {
+                    setSelectedDomainId(id || '')
                     // Reset category if it doesn't belong to the new domain
                     const cat = categories.find(c => c.id === formData.categoryId)
-                    if (cat && cat.domainId && cat.domainId !== e.target.value) {
+                    if (cat && cat.domainId && cat.domainId !== id) {
                       handleCategoryChange('')
                     }
                     if (errors.domainId) setErrors(prev => ({ ...prev, domainId: '' }))
                   }}
-                  className={`input-field w-full ${errors.domainId ? 'border-red-500 border-2' : ''}`}
-                  disabled={!domainsLoaded}
-                >
-                  <option value="">Select domain...</option>
-                  {domains.map(d => (
-                    <option key={d.id} value={d.id}>{d.emoji} {d.name}</option>
-                  ))}
-                </select>
-                {errors.domainId && <p className="text-red-600 text-xs mt-1 font-medium">{errors.domainId}</p>}
+                  placeholder="Select domain..."
+                  searchPlaceholder="Search domains..."
+                  loading={!domainsLoaded}
+                  error={errors.domainId}
+                />
               </div>
 
               {/* Category + Subcategory — equal width, side by side */}

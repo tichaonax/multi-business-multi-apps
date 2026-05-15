@@ -149,6 +149,8 @@ export default function ClothingPOSPage() {
   const [manualCart, setManualCart] = useState<ManualCartItem[]>([])
   const [manualProducts, setManualProducts] = useState<any[]>([])
   const [dailySales, setDailySales] = useState<any>(null)
+  const [recentTransactions, setRecentTransactions] = useState<any[]>([])
+  const [loadingRecent, setLoadingRecent] = useState(false)
   const { data: session, status} = useSession()
   const router = useRouter()
   const customAlert = useAlert()
@@ -207,6 +209,31 @@ export default function ClothingPOSPage() {
     }
   }
 
+  // Load last 5 orders for today
+  const loadRecentTransactions = async () => {
+    if (!currentBusinessId) return
+    setLoadingRecent(true)
+    try {
+      const params = new URLSearchParams({
+        businessId: currentBusinessId,
+        includeItems: 'true',
+        limit: '5',
+        page: '1',
+        dateRange: 'today',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      })
+      const response = await fetch(`/api/universal/orders?${params}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) setRecentTransactions(data.data || [])
+      }
+    } catch (error) {
+      console.error('Failed to load recent transactions:', error)
+    } finally {
+      setLoadingRecent(false)
+    }
+  }
+
   // Redirect to signin if not authenticated
   useEffect(() => {
     if (status === 'loading') return
@@ -219,6 +246,7 @@ export default function ClothingPOSPage() {
   useEffect(() => {
     if (currentBusinessId && isClothingBusiness) {
       loadDailySales()
+      loadRecentTransactions()
     }
   }, [currentBusinessId, isClothingBusiness])
 
@@ -455,10 +483,9 @@ export default function ClothingPOSPage() {
   }
 
   const handleOrderComplete = (orderId: string) => {
-    // Could redirect to receipt or show success message
-    // Reload daily sales after order completion
     setTimeout(() => {
       loadDailySales()
+      loadRecentTransactions()
       setFinancialRefreshKey(k => k + 1)
     }, 500)
   }
@@ -505,8 +532,10 @@ export default function ClothingPOSPage() {
               <div className="px-3 sm:px-4 lg:px-6 py-2 border-b border-gray-200 dark:border-gray-700 space-y-2">
                 <DailySalesWidget
                   dailySales={dailySales}
+                  recentTransactions={recentTransactions}
+                  loadingRecent={loadingRecent}
                   businessType="clothing"
-                  onRefresh={loadDailySales}
+                  onRefresh={() => { loadDailySales(); loadRecentTransactions() }}
                   businessId={businessId}
                   canCloseBooks={hasPermission('canCloseBooks')}
                   managerName={sessionUser?.name || sessionUser?.email || 'Manager'}
@@ -596,8 +625,10 @@ export default function ClothingPOSPage() {
               <div className="space-y-3">
                 <DailySalesWidget
                   dailySales={dailySales}
+                  recentTransactions={recentTransactions}
+                  loadingRecent={loadingRecent}
                   businessType="clothing"
-                  onRefresh={loadDailySales}
+                  onRefresh={() => { loadDailySales(); loadRecentTransactions() }}
                   businessId={currentBusinessId}
                   canCloseBooks={hasPermission('canCloseBooks')}
                   managerName={sessionUser?.name || sessionUser?.email || 'Manager'}

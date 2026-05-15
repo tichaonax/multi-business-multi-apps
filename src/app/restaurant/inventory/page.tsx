@@ -38,6 +38,7 @@ function RestaurantInventoryContent() {
   const [selectedDepartment, setSelectedDepartment] = useState('')
   const [stats, setStats] = useState<any>(null)
   const [menuOnlyFilter, setMenuOnlyFilter] = useState(false)
+  const [hideZeroStock, setHideZeroStock] = useState(true)
   const [priceFilter, setPriceFilter] = useState<'all' | 'with' | 'without'>('with')
   const [posTrackedFilter, setPosTrackedFilter] = useState(false)
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({})
@@ -673,6 +674,15 @@ function RestaurantInventoryContent() {
                         setInsightsTarget({ type: 'inventory', id: '', productId: item.id })
                       }
                     }}
+                    hideZeroStock={hideZeroStock}
+                    headerActions={(
+                      <button
+                        onClick={() => setHideZeroStock(v => !v)}
+                        className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${hideZeroStock ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600' : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50'}`}
+                      >
+                        {hideZeroStock ? '👁 Show Zero Stock' : '🚫 Hide Zero Stock'}
+                      </button>
+                    )}
                     onItemAddToCart={async (item) => {
                       try {
                         const res = await fetch(`/api/universal/products?businessId=${businessId}&productId=${item.id}&includeVariants=true`)
@@ -695,6 +705,15 @@ function RestaurantInventoryContent() {
                         toast.push('Failed to add item to cart', { type: 'error' })
                       }
                     }}
+                    hideZeroStock={hideZeroStock}
+                    headerActions={(
+                      <button
+                        onClick={() => setHideZeroStock(v => !v)}
+                        className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${hideZeroStock ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600' : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50'}`}
+                      >
+                        {hideZeroStock ? '👁 Show Zero Stock' : '🚫 Hide Zero Stock'}
+                      </button>
+                    )}
                   />
                 </div>
               )}

@@ -245,10 +245,54 @@ export async function POST(
       }
     }
 
-    // Get the product variant to ensure it exists
-    const variant = await prisma.productVariants.findFirst({
+    // Handle barcodeInventoryItems (inv_ prefix) — these are NOT in ProductVariants
+    if (body.itemId?.startsWith('inv_')) {
+      const rawId = body.itemId.replace(/^inv_/, '')
+      const barcodeItem = await prisma.barcodeInventoryItems.findFirst({
+        where: { id: rawId, businessId }
+      })
+
+      if (!barcodeItem) {
+        return NextResponse.json({ error: 'Inventory item not found' }, { status: 404 })
+      }
+
+      const quantityChange = Math.round(parseFloat(body.quantity))
+      const newStockQuantity = (barcodeItem.stockQuantity || 0) + quantityChange
+
+      await prisma.barcodeInventoryItems.update({
+        where: { id: rawId },
+        data: { stockQuantity: newStockQuantity, updatedAt: new Date() }
+      })
+
+      return NextResponse.json({
+        message: 'Stock movement recorded successfully',
+        movement: {
+          id: `inv-movement-${Date.now()}`,
+          businessId,
+          itemId: body.itemId,
+          itemName: body.itemName,
+          itemSku: body.itemSku,
+          movementType: body.movementType,
+          quantity: quantityChange,
+          unit: body.unit,
+          previousStock: barcodeItem.stockQuantity || 0,
+          newStock: newStockQuantity,
+          reason: body.reason || '',
+          notes: body.notes || '',
+          batchNumber: body.batchNumber || '',
+          expirationDate: body.expirationDate || '',
+          createdAt: new Date().toISOString()
+        }
+      }, { status: 201 })
+    }
+
+    // Get the product variant — itemId may be a variant ID or a product ID
+    let variant = await prisma.productVariants.findFirst({
       where: {
-        id: body.itemId,
+        OR: [
+          { id: body.itemId },
+          { productId: body.itemId }
+        ],
         business_products: {
           businessId: businessId
         }
@@ -258,22 +302,61 @@ export async function POST(
       }
     })
 
+    // If no variant exists yet, the product may have been created without one.
+    // Auto-create a default variant so stock movements can proceed.
     if (!variant) {
-      return NextResponse.json(
-        { error: 'Product variant not found' },
-        { status: 404 }
-      )
+      const product = await prisma.businessProducts.findFirst({
+        where: {
+          OR: [{ id: body.itemId }, { sku: body.itemSku }],
+          businessId: businessId
+        }
+      })
+
+      if (!product) {
+        return NextResponse.json(
+          { error: 'Product not found' },
+          { status: 404 }
+        )
+      }
+
+      const { randomUUID } = await import('crypto')
+      variant = await prisma.productVariants.create({
+        data: {
+          id: randomUUID(),
+          productId: product.id,
+          name: 'Default',
+          sku: product.sku,
+          stockQuantity: 0,
+          reorderLevel: 10,
+          price: product.basePrice ?? 0,
+          updatedAt: new Date()
+        },
+        include: {
+          business_products: true
+        }
+      })
     }
 
     // Calculate the actual stock change — schema requires Int
     const quantityChange = Math.round(parseFloat(body.quantity))
+
+    // Map friendly movement type names to the StockMovementType enum
+    const movementTypeMap: Record<string, string> = {
+      receive: 'PURCHASE_RECEIVED',
+      use: 'SALE',
+      waste: 'DAMAGE',
+      adjustment: 'ADJUSTMENT',
+      transfer: 'TRANSFER_IN',
+      return: 'RETURN_IN',
+    }
+    const movementType = movementTypeMap[body.movementType?.toLowerCase()] ?? body.movementType?.toUpperCase()
 
     // Create stock movement record
     const stockMovement = await prisma.businessStockMovements.create({
       data: {
         businessId,
         productVariantId: variant.id,
-        movementType: body.movementType.toUpperCase(),
+        movementType,
         quantity: quantityChange,
         unitCost: body.unitCost ? parseFloat(body.unitCost) : null,
         reference: body.referenceNumber || body.reference || null,

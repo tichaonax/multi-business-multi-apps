@@ -30,6 +30,7 @@ import { MergeInventoryModal } from '@/components/inventory/merge-inventory-moda
 function HardwareInventoryContent() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'movements' | 'alerts' | 'reports'>('overview')
   const [showAddForm, setShowAddForm] = useState(false)
+  const [hideZeroStock, setHideZeroStock] = useState(true)
   const [showBulkStockPanel, setShowBulkStockPanel] = useState(false)
   const [bulkStockInitialMode, setBulkStockInitialMode] = useState<'bulkStock' | 'stockTake' | undefined>(undefined)
   const [selectedItem, setSelectedItem] = useState<any>(null)
@@ -556,6 +557,15 @@ function HardwareInventoryContent() {
                       allowFiltering={true}
                       allowSorting={true}
                       showBusinessSpecificFields={true}
+                      hideZeroStock={hideZeroStock}
+                      headerActions={(
+                        <button
+                          onClick={() => setHideZeroStock(v => !v)}
+                          className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${hideZeroStock ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600' : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50'}`}
+                        >
+                          {hideZeroStock ? '👁 Show Zero Stock' : '🚫 Hide Zero Stock'}
+                        </button>
+                      )}
                     />
                   </div>
                 )}

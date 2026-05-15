@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { LabelPreview } from '@/components/printing/label-preview'
 import { PrinterSelector } from '@/components/printing/printer-selector'
 import { usePrinterPermissions } from '@/hooks/use-printer-permissions'
@@ -73,6 +74,7 @@ interface UniversalInventoryGridProps {
   allowSorting?: boolean
   customColumns?: string[]
   showBusinessSpecificFields?: boolean
+  hideZeroStock?: boolean
 }
 
 export function UniversalInventoryGrid({
@@ -105,7 +107,8 @@ export function UniversalInventoryGrid({
   allowFiltering = true,
   allowSorting = true,
   customColumns,
-  showBusinessSpecificFields = true
+  showBusinessSpecificFields = true,
+  hideZeroStock = false
 }: UniversalInventoryGridProps) {
   const [items, setItems] = useState<UniversalInventoryItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -126,6 +129,9 @@ export function UniversalInventoryGrid({
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
   const [showBulkLabelPreview, setShowBulkLabelPreview] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
+  const [showCopyModal, setShowCopyModal] = useState(false)
+  const [selectedItemForCopy, setSelectedItemForCopy] = useState<UniversalInventoryItem | null>(null)
+  const [copySuccessMessage, setCopySuccessMessage] = useState<string | null>(null)
 
   // Printing hooks
   const { canPrintInventoryLabels } = usePrinterPermissions()
@@ -154,13 +160,9 @@ export function UniversalInventoryGrid({
       setError(null)
 
       try {
-        // When filtering by stock status, fetch all items (filtering is client-side)
-        const effectivePage = stockStatusFilter ? '1' : currentPage.toString()
-        const effectiveLimit = stockStatusFilter ? '2000' : pageSize.toString()
-
         const params = new URLSearchParams({
-          page: effectivePage,
-          limit: effectiveLimit,
+          page: currentPage.toString(),
+          limit: pageSize.toString(),
           ...(businessType && { businessType }),
           ...(debouncedSearchTerm && { search: debouncedSearchTerm }),
           ...(effectiveCategory !== 'all' && { category: effectiveCategory }),
@@ -170,6 +172,10 @@ export function UniversalInventoryGrid({
           ...(posTrackedFilter && { posTracked: 'true' }),
           ...(priceFilter && priceFilter !== 'all' && { priceFilter }),
           ...(showTemplates && { includeTemplates: 'true' }),
+          ...(stockStatusFilter && { stockStatus: stockStatusFilter }),
+          ...(selectedSupplier !== 'all' && { supplier: selectedSupplier }),
+          ...(selectedLocation !== 'all' && { location: selectedLocation }),
+          ...(hideZeroStock && { hideZeroStock: 'true' }),
         })
 
         const response = await fetch(`/api/inventory/${businessId}/items?${params}`)
@@ -208,21 +214,10 @@ export function UniversalInventoryGrid({
     if (businessId) {
       fetchItems()
     }
-  }, [businessId, currentPage, pageSize, debouncedSearchTerm, selectedCategory, categoryFilter, departmentFilter, conditionFilter, menuOnlyFilter, posTrackedFilter, priceFilter, showTemplates, refreshTrigger, stockStatusFilter])
+  }, [businessId, currentPage, pageSize, debouncedSearchTerm, selectedCategory, categoryFilter, departmentFilter, conditionFilter, menuOnlyFilter, posTrackedFilter, priceFilter, showTemplates, refreshTrigger, stockStatusFilter, selectedSupplier, selectedLocation, hideZeroStock])
 
-  // Filter items by supplier, location, and stock status
-  const filteredItems = items.filter(item => {
-    if (selectedSupplier !== 'all' && item.supplier !== selectedSupplier) return false
-    if (selectedLocation !== 'all' && item.location !== selectedLocation) return false
-    if (stockStatusFilter === 'out' && item.currentStock !== 0) return false
-    if (stockStatusFilter === 'low' && !(item.currentStock > 0 && item.currentStock <= 5)) return false
-    if (stockStatusFilter === 'healthy' && !(item.currentStock > 10 && item.currentStock <= 100)) return false
-    if (stockStatusFilter === 'overstock' && item.currentStock <= 100) return false
-    return true
-  })
-
-  // Sort items
-  const sortedItems = [...filteredItems].sort((a, b) => {
+  // Sort items (filtering is now server-side)
+  const sortedItems = [...items].sort((a, b) => {
   let aValue: any = (a as any)[sortField]
   let bValue: any = (b as any)[sortField]
 
@@ -438,7 +433,6 @@ export function UniversalInventoryGrid({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           printerId: printer.id,
-          businessId: businessId,
           ...labelData,
           copies
         })
@@ -477,7 +471,6 @@ export function UniversalInventoryGrid({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             printerId: printer.id,
-            businessId: businessId,
             ...labelData,
             copies
           })
@@ -557,6 +550,14 @@ export function UniversalInventoryGrid({
         </div>
       )}
 
+      {/* Copy-to-business success banner */}
+      {copySuccessMessage && (
+        <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-700 rounded-lg px-4 py-3 flex items-center justify-between text-sm text-teal-800 dark:text-teal-200">
+          <span>✅ {copySuccessMessage}</span>
+          <button onClick={() => setCopySuccessMessage(null)} className="text-teal-600 hover:text-teal-800 ml-4">✕</button>
+        </div>
+      )}
+
       {/* Search and Filters — sticky so it locks at top when scrolling the inventory list */}
       {(allowSearch || allowFiltering) && (
         <div className="sticky top-14 sm:top-16 z-10 bg-background pt-2 pb-3 border-b border-border space-y-3">
@@ -621,7 +622,7 @@ export function UniversalInventoryGrid({
               <div className="flex-1">
                 <select
                   value={selectedSupplier}
-                  onChange={(e) => setSelectedSupplier(e.target.value)}
+                  onChange={(e) => { setSelectedSupplier(e.target.value); setCurrentPage(1) }}
                   className="input-field w-full"
                 >
                   <option value="all">All Suppliers</option>
@@ -636,7 +637,7 @@ export function UniversalInventoryGrid({
               <div className="flex-1">
                 <select
                   value={selectedLocation}
-                  onChange={(e) => setSelectedLocation(e.target.value)}
+                  onChange={(e) => { setSelectedLocation(e.target.value); setCurrentPage(1) }}
                   className="input-field w-full"
                 >
                   <option value="all">All Locations</option>
@@ -944,6 +945,17 @@ export function UniversalInventoryGrid({
                               📈
                             </button>
                           )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedItemForCopy(item)
+                              setShowCopyModal(true)
+                            }}
+                            className="text-teal-600 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300 text-xs w-8 h-8 flex items-center justify-center rounded"
+                            title="Copy to another business"
+                          >
+                            📋
+                          </button>
                           {onItemDelete && (
                           <button
                             onClick={(e) => {
@@ -1147,6 +1159,16 @@ export function UniversalInventoryGrid({
                             📈 Activity
                           </button>
                         )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedItemForCopy(item)
+                            setShowCopyModal(true)
+                          }}
+                          className="px-3 py-1 text-xs bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 rounded-md hover:bg-teal-200 dark:hover:bg-teal-900/50 transition-colors"
+                        >
+                          📋 Copy
+                        </button>
                         {onItemDelete && (
                         <button
                           onClick={(e) => {
@@ -1234,6 +1256,22 @@ export function UniversalInventoryGrid({
           }}
           items={getSelectedItemsData()}
           onPrint={handleBulkPrint}
+        />
+      )}
+
+      {/* Copy to Business Modal */}
+      {selectedItemForCopy && (
+        <CopyToBusinessModal
+          isOpen={showCopyModal}
+          onClose={() => { setShowCopyModal(false); setSelectedItemForCopy(null) }}
+          item={selectedItemForCopy}
+          sourceBusinessId={businessId}
+          onSuccess={(targetName) => {
+            setShowCopyModal(false)
+            setSelectedItemForCopy(null)
+            setCopySuccessMessage(`"${selectedItemForCopy.name}" copied to ${targetName}`)
+            setTimeout(() => setCopySuccessMessage(null), 6000)
+          }}
         />
       )}
     </div>
@@ -1363,5 +1401,212 @@ function BulkLabelPreview({ isOpen, onClose, items, onPrint }: BulkLabelPreviewP
         />
       )}
     </>
+  )
+}
+
+// ─── Copy to Business Modal ───────────────────────────────────────────────────
+
+interface BusinessOption {
+  businessId: string
+  businessName: string
+  businessType: string
+  isUmbrellaBusiness?: boolean
+}
+
+interface CopyToBusinessModalProps {
+  isOpen: boolean
+  onClose: () => void
+  item: UniversalInventoryItem
+  sourceBusinessId: string
+  onSuccess: (targetBusinessName: string) => void
+}
+
+function isCompatibleTarget(sourceType: string, targetType: string): boolean {
+  if (sourceType === 'restaurant') return targetType === 'restaurant'
+  return targetType !== 'restaurant'
+}
+
+function CopyToBusinessModal({ isOpen, onClose, item, sourceBusinessId, onSuccess }: CopyToBusinessModalProps) {
+  const [businesses, setBusinesses] = useState<BusinessOption[]>([])
+  const [loadingBusinesses, setLoadingBusinesses] = useState(false)
+  const [selectedTargetId, setSelectedTargetId] = useState('')
+  const [selectedTargetName, setSelectedTargetName] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [copying, setCopying] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    setError(null)
+    setSelectedTargetId('')
+    setSelectedTargetName('')
+    setSearchQuery('')
+    setDropdownOpen(false)
+    setLoadingBusinesses(true)
+
+    fetch('/api/user/business-memberships')
+      .then(r => r.json())
+      .then((data: BusinessOption[]) => {
+        const compatible = (Array.isArray(data) ? data : []).filter(b =>
+          b.businessId !== sourceBusinessId &&
+          !b.isUmbrellaBusiness &&
+          isCompatibleTarget(item.businessType, b.businessType)
+        )
+        setBusinesses(compatible)
+      })
+      .catch(() => setError('Could not load businesses'))
+      .finally(() => setLoadingBusinesses(false))
+  }, [isOpen, sourceBusinessId, item.businessType])
+
+  const filteredBusinesses = businesses.filter(b =>
+    b.businessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    b.businessType.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  const handleSelect = (b: BusinessOption) => {
+    setSelectedTargetId(b.businessId)
+    setSelectedTargetName(b.businessName)
+    setSearchQuery(b.businessName)
+    setDropdownOpen(false)
+    setError(null)
+  }
+
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value)
+    setSelectedTargetId('')
+    setSelectedTargetName('')
+    setDropdownOpen(true)
+    setError(null)
+  }
+
+  const handleCopy = async () => {
+    if (!selectedTargetId) return
+    setCopying(true)
+    setError(null)
+
+    try {
+      const res = await fetch(`/api/inventory/${sourceBusinessId}/items/${item.id}/copy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetBusinessId: selectedTargetId })
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Failed to copy product')
+        return
+      }
+      onSuccess(data.targetBusinessName)
+    } catch {
+      setError('Failed to copy product')
+    } finally {
+      setCopying(false)
+    }
+  }
+
+  if (!isOpen || typeof document === 'undefined') return null
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full">
+        <div className="border-b border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            📋 Copy to Another Business
+          </h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">✕</button>
+        </div>
+
+        <div className="p-4 space-y-4">
+          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 text-sm">
+            <div className="font-medium text-gray-900 dark:text-gray-100">{item.name}</div>
+            <div className="text-gray-500 dark:text-gray-400">SKU: {item.sku}</div>
+          </div>
+
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Copies the product definition and barcodes. Stock starts at 0 in the target business.
+          </p>
+
+          {loadingBusinesses ? (
+            <div className="text-sm text-gray-500 py-2">Loading businesses...</div>
+          ) : businesses.length === 0 ? (
+            <div className="text-sm text-gray-500 py-2">
+              No compatible businesses available.{' '}
+              {item.businessType === 'restaurant'
+                ? 'Restaurant products can only be copied to other restaurant businesses.'
+                : 'No other businesses found.'}
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">
+                Target Business
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search businesses..."
+                  value={searchQuery}
+                  onChange={e => handleSearchChange(e.target.value)}
+                  onFocus={() => setDropdownOpen(true)}
+                  onBlur={() => setTimeout(() => setDropdownOpen(false), 150)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+                  autoComplete="off"
+                />
+                {dropdownOpen && filteredBusinesses.length > 0 && (
+                  <div className="absolute z-20 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                    {filteredBusinesses.map(b => (
+                      <button
+                        key={b.businessId}
+                        type="button"
+                        onMouseDown={() => handleSelect(b)}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center justify-between ${
+                          selectedTargetId === b.businessId
+                            ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-800 dark:text-teal-200'
+                            : 'text-gray-900 dark:text-gray-100'
+                        }`}
+                      >
+                        <span>{b.businessName}</span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500 ml-2">{b.businessType}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {dropdownOpen && searchQuery && filteredBusinesses.length === 0 && (
+                  <div className="absolute z-20 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                    No businesses match "{searchQuery}"
+                  </div>
+                )}
+              </div>
+              {selectedTargetName && (
+                <p className="mt-1 text-xs text-teal-600 dark:text-teal-400">✓ {selectedTargetName} selected</p>
+              )}
+            </div>
+          )}
+
+          {error && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg px-3 py-2 text-sm text-red-700 dark:text-red-300">
+              {error}
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-gray-200 dark:border-gray-700 p-4 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            disabled={copying}
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 text-sm"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleCopy}
+            disabled={!selectedTargetId || copying}
+            className="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 disabled:opacity-50 text-sm font-medium"
+          >
+            {copying ? 'Copying...' : selectedTargetName ? `Copy to ${selectedTargetName}` : 'Copy'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
   )
 }
