@@ -39,22 +39,37 @@ export async function GET(req: NextRequest) {
 
     const allBusinessIds = accessibleBusinesses.map(b => b.id)
 
-    // --- Batch inventory value: SUM(stockQuantity * COALESCE(costPrice, basePrice)) per business ---
-    const inventoryRows = allBusinessIds.length > 0
-      ? await prisma.$queryRaw<Array<{ businessId: string; inventoryValue: string }>>`
-          SELECT bp."businessId",
-            COALESCE(SUM(pv."stockQuantity" * COALESCE(bp."costPrice", bp."basePrice", 0)), 0)::text as "inventoryValue"
-          FROM product_variants pv
-          JOIN business_products bp ON pv."productId" = bp.id
-          WHERE bp."businessId" IN (${Prisma.join(allBusinessIds)})
-            AND bp."isActive" = true
-            AND pv."stockQuantity" > 0
-          GROUP BY bp."businessId"
-        `
-      : []
+    // --- Batch inventory value: BusinessProducts (variants) + BarcodeInventoryItems ---
+    const [inventoryRows, barcodeInventoryRows] = allBusinessIds.length > 0
+      ? await Promise.all([
+          prisma.$queryRaw<Array<{ businessId: string; inventoryValue: string }>>`
+            SELECT bp."businessId",
+              COALESCE(SUM(pv."stockQuantity" * COALESCE(bp."costPrice", bp."basePrice", 0)), 0)::text as "inventoryValue"
+            FROM product_variants pv
+            JOIN business_products bp ON pv."productId" = bp.id
+            WHERE bp."businessId" IN (${Prisma.join(allBusinessIds)})
+              AND bp."isActive" = true
+              AND pv."stockQuantity" > 0
+            GROUP BY bp."businessId"
+          `,
+          prisma.$queryRaw<Array<{ businessId: string; inventoryValue: string }>>`
+            SELECT "businessId",
+              COALESCE(SUM("stockQuantity" * COALESCE("costPrice", "sellingPrice", 0)), 0)::text as "inventoryValue"
+            FROM barcode_inventory_items
+            WHERE "businessId" IN (${Prisma.join(allBusinessIds)})
+              AND "isActive" = true
+              AND "stockQuantity" > 0
+            GROUP BY "businessId"
+          `
+        ])
+      : [[], []]
     const inventoryValueMap = new Map<string, number>()
     for (const row of inventoryRows as any[]) {
       inventoryValueMap.set(row.businessId, Number(row.inventoryValue))
+    }
+    for (const row of barcodeInventoryRows as any[]) {
+      const existing = inventoryValueMap.get(row.businessId) ?? 0
+      inventoryValueMap.set(row.businessId, existing + Number(row.inventoryValue))
     }
 
     // --- Batch fetch cash bucket balances split by paymentChannel ---

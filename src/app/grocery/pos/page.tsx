@@ -3102,7 +3102,7 @@ function GroceryPOSContent() {
 
               const visibleTabs: { key: string; label: string; pinned?: boolean }[] = [
                 { key: '__all__', label: 'All' },
-                ...visibleCategories.map(c => ({ key: c.key, label: `${c.emoji} ${c.label}`, pinned: pinnedCategoryKeys.has(c.key) })),
+                ...visibleCategories.map(c => ({ key: c.key, label: `${c.emoji} ${c.label.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())}`, pinned: pinnedCategoryKeys.has(c.key) })),
                 ...(esp32IntegrationEnabled || r710IntegrationEnabled ? [{ key: '__wifi__', label: '📶 WiFi' }] : []),
               ]
               const activeTab = selectedCategory ?? '__all__'
