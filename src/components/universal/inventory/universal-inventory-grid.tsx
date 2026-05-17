@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { LabelPreview } from '@/components/printing/label-preview'
 import { PrinterSelector } from '@/components/printing/printer-selector'
@@ -134,6 +134,8 @@ export function UniversalInventoryGrid({
   const [showCopyModal, setShowCopyModal] = useState(false)
   const [selectedItemForCopy, setSelectedItemForCopy] = useState<UniversalInventoryItem | null>(null)
   const [copySuccessMessage, setCopySuccessMessage] = useState<string | null>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const searchHadFocusRef = useRef(false)
 
   // Printing hooks
   const { canPrintInventoryLabels } = usePrinterPermissions()
@@ -209,7 +211,11 @@ export function UniversalInventoryGrid({
         setError('Failed to load inventory items')
         setItems([])
       } finally {
-        setLoading(false)
+        // Restore search input focus if it was focused before the fetch
+      if (searchHadFocusRef.current && searchInputRef.current) {
+        searchInputRef.current.focus()
+      }
+      setLoading(false)
       }
     }
 
@@ -498,21 +504,6 @@ export function UniversalInventoryGrid({
     }
   }
 
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        <div className="animate-pulse">
-          <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded mb-4"></div>
-          <div className="space-y-3">
-            {Array.from({ length: 5 }, (_, i) => (
-              <div key={i} className="h-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   if (error) {
     return (
       <div className="text-center py-12">
@@ -571,10 +562,13 @@ export function UniversalInventoryGrid({
                 </span>
                 <div className="relative w-full">
                   <input
+                    ref={searchInputRef}
                     type="text"
                     placeholder="🔍 Search items by name, SKU, or description..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
+                    onFocus={() => { searchHadFocusRef.current = true }}
+                    onBlur={() => { searchHadFocusRef.current = false }}
                     className="input-field w-full pr-8"
                   />
                   {searchTerm && (
@@ -705,6 +699,7 @@ export function UniversalInventoryGrid({
             </div>
           )}
           {/* Desktop Table View */}
+          {!loading && (
           <div className="hidden lg:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-800">
@@ -997,8 +992,10 @@ export function UniversalInventoryGrid({
               </tbody>
             </table>
           </div>
+          )}
 
           {/* Mobile Card View */}
+          {!loading && (
           <div className="lg:hidden space-y-4">
             {sortedItems.map((item) => (
               <div
@@ -1208,8 +1205,17 @@ export function UniversalInventoryGrid({
               </div>
             ))}
           </div>
+          )}
 
-          {sortedItems.length === 0 && (
+          {loading && (
+            <div className="p-4 space-y-3 animate-pulse">
+              {Array.from({ length: 5 }, (_, i) => (
+                <div key={i} className="h-12 bg-gray-200 dark:bg-gray-700 rounded"></div>
+              ))}
+            </div>
+          )}
+
+          {!loading && sortedItems.length === 0 && (
             <div className="text-center py-12">
               <div className="text-4xl mb-4">📦</div>
               <h3 className="text-lg font-medium text-primary mb-2">No items found</h3>
