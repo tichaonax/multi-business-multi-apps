@@ -75,6 +75,7 @@ interface UniversalInventoryGridProps {
   customColumns?: string[]
   showBusinessSpecificFields?: boolean
   hideZeroStock?: boolean
+  onHideZeroStockChange?: (value: boolean) => void
 }
 
 export function UniversalInventoryGrid({
@@ -108,7 +109,8 @@ export function UniversalInventoryGrid({
   allowSorting = true,
   customColumns,
   showBusinessSpecificFields = true,
-  hideZeroStock = false
+  hideZeroStock = false,
+  onHideZeroStockChange,
 }: UniversalInventoryGridProps) {
   const [items, setItems] = useState<UniversalInventoryItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -584,6 +586,16 @@ export function UniversalInventoryGrid({
                   )}
                 </div>
               </div>
+            )}
+
+            {/* Hide Zero Stock Toggle — rendered here when parent passes onHideZeroStockChange */}
+            {onHideZeroStockChange && (
+              <button
+                onClick={() => onHideZeroStockChange(!hideZeroStock)}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${hideZeroStock ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+              >
+                {hideZeroStock ? '👁 Show Zero Stock' : '🚫 Hide Zero Stock'}
+              </button>
             )}
 
             {/* Show Templates Toggle */}

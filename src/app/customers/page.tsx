@@ -18,6 +18,7 @@ export default function CustomersPage() {
   const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [selectedType, setSelectedType] = useState<string>('all')
   const [pagination, setPagination] = useState({
@@ -28,8 +29,13 @@ export default function CustomersPage() {
   })
 
   useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchTerm(searchTerm), 500)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  useEffect(() => {
     fetchCustomers()
-  }, [searchTerm, selectedType, pagination.page])
+  }, [debouncedSearchTerm, selectedType, pagination.page])
 
   const fetchCustomers = async () => {
     try {
@@ -39,7 +45,7 @@ export default function CustomersPage() {
         limit: pagination.limit.toString()
       })
 
-      if (searchTerm) params.append('search', searchTerm)
+      if (debouncedSearchTerm) params.append('search', debouncedSearchTerm)
       if (selectedType !== 'all') params.append('type', selectedType)
 
       const response = await fetch(`/api/customers?${params}`)

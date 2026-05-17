@@ -33,6 +33,7 @@ export default function LocationsPage() {
   const [locations, setLocations] = useState<Location[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   const [showActiveOnly, setShowActiveOnly] = useState(true)
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null)
   const [showEditor, setShowEditor] = useState(false)
@@ -45,6 +46,11 @@ export default function LocationsPage() {
   const canDelete = hasPermission('canDeleteLocations')
 
   useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchQuery(searchQuery), 500)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  useEffect(() => {
     if (businessLoading || !currentBusinessId) return
 
     if (!canView) {
@@ -52,8 +58,13 @@ export default function LocationsPage() {
       return
     }
 
+    if (!canView) {
+      router.push('/dashboard')
+      return
+    }
+
     fetchLocations()
-  }, [currentBusinessId, searchQuery, showActiveOnly, businessLoading])
+  }, [currentBusinessId, debouncedSearchQuery, showActiveOnly, businessLoading])
 
   const fetchLocations = async () => {
     if (!currentBusinessId) return
@@ -61,7 +72,7 @@ export default function LocationsPage() {
     try {
       setLoading(true)
       const params = new URLSearchParams()
-      if (searchQuery) params.append('search', searchQuery)
+      if (debouncedSearchQuery) params.append('search', debouncedSearchQuery)
       if (showActiveOnly) params.append('isActive', 'true')
 
       const response = await fetch(`/api/business/${currentBusinessId}/locations?${params}`)

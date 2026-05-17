@@ -1263,12 +1263,6 @@ function ClothingInventoryContent() {
                             🏁 End of Sale
                           </button>
                         )}
-                        <button
-                          onClick={() => setHideZeroStock(v => !v)}
-                          className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${hideZeroStock ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-                        >
-                          {hideZeroStock ? '� Show Zero Stock' : '🚫 Hide Zero Stock'}
-                        </button>
                       </div>
                     </div>
 
@@ -1376,6 +1370,7 @@ function ClothingInventoryContent() {
                       allowSorting={true}
                       showBusinessSpecificFields={true}
                       hideZeroStock={hideZeroStock}
+                      onHideZeroStockChange={setHideZeroStock}
                     />
                   </div>
                 )}

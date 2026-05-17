@@ -55,6 +55,7 @@ export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   const [showActiveOnly, setShowActiveOnly] = useState(true)
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null)
   const [showEditor, setShowEditor] = useState(false)
@@ -74,6 +75,11 @@ export default function SuppliersPage() {
   const canApprovePayments = hasPermission('canApproveSupplierPayments')
 
   useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchQuery(searchQuery), 500)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  useEffect(() => {
     if (businessLoading || !currentBusinessId) return
 
     if (!canView) {
@@ -81,8 +87,13 @@ export default function SuppliersPage() {
       return
     }
 
+    if (!canView) {
+      router.push('/dashboard')
+      return
+    }
+
     fetchSuppliers()
-  }, [currentBusinessId, searchQuery, showActiveOnly, businessLoading])
+  }, [currentBusinessId, debouncedSearchQuery, showActiveOnly, businessLoading])
 
   const fetchSuppliers = async () => {
     if (!currentBusinessId) return
@@ -90,7 +101,7 @@ export default function SuppliersPage() {
     try {
       setLoading(true)
       const params = new URLSearchParams()
-      if (searchQuery) params.append('search', searchQuery)
+      if (debouncedSearchQuery) params.append('search', debouncedSearchQuery)
       if (showActiveOnly) params.append('isActive', 'true')
 
       const response = await fetch(`/api/business/${currentBusinessId}/suppliers?${params}`)
