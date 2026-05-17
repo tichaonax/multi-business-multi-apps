@@ -400,7 +400,11 @@ export async function POST(request: NextRequest) {
     // Separate WiFi tokens (ESP32), R710 tokens, and regular products
     const wifiTokenItems = items.filter(item => item.attributes?.wifiToken === true)
     const r710TokenItems = items.filter(item => item.attributes?.r710Token === true)
-    const regularItems = items.filter(item => item.attributes?.wifiToken !== true && item.attributes?.r710Token !== true && item.attributes?.businessService !== true && item.attributes?.isService !== true && !item.attributes?.baleId && !item.attributes?.isInventoryItem && !item.attributes?.isCustomBulk && !item.attributes?.customBulkId)
+    // isInventoryItem only means "fake inventory item" when productVariantId starts with 'inv_'.
+    // Real product variants sold from Quick Add may have isInventoryItem in their DB attributes —
+    // they must still be treated as regular items so product_variants.stockQuantity is decremented.
+    const isInventoryItemWithFakeId = (item: any) => item.attributes?.isInventoryItem && (item.productVariantId as string)?.startsWith('inv_')
+    const regularItems = items.filter(item => item.attributes?.wifiToken !== true && item.attributes?.r710Token !== true && item.attributes?.businessService !== true && item.attributes?.isService !== true && !item.attributes?.baleId && !isInventoryItemWithFakeId(item) && !item.attributes?.isCustomBulk && !item.attributes?.customBulkId)
 
     // Verify all product variants exist and get their details (for regular items only)
     const variantIds = regularItems.map(item => item.productVariantId).filter(Boolean) as string[]
@@ -522,7 +526,10 @@ export async function POST(request: NextRequest) {
 
               // For regular products: use connect (Prisma sets productVariantId automatically)
               // For virtual items (WiFi tokens, services, bale items): don't set productVariantId at all
-              const isVirtualItem = item.attributes?.wifiToken || item.attributes?.r710Token || item.attributes?.businessService || item.attributes?.isService || item.attributes?.baleId || item.attributes?.isInventoryItem || item.attributes?.customBulkId
+              // isInventoryItem is only "virtual" when productVariantId is a fake 'inv_' prefixed key.
+              // Real product variants that have isInventoryItem in their DB attributes should still be connected.
+              const isInventoryItemWithFakeId = item.attributes?.isInventoryItem && (item.productVariantId as string)?.startsWith('inv_')
+              const isVirtualItem = item.attributes?.wifiToken || item.attributes?.r710Token || item.attributes?.businessService || item.attributes?.isService || item.attributes?.baleId || isInventoryItemWithFakeId || item.attributes?.customBulkId
               if (item.productVariantId && !isVirtualItem) {
                 orderItem.product_variants = {
                   connect: { id: item.productVariantId }
@@ -551,8 +558,8 @@ export async function POST(request: NextRequest) {
         if (!item.productVariantId) continue
         const variant = variants.find(v => v.id === item.productVariantId)
         if (!variant) continue
-        if ((variant as any).businessProducts?.productType === 'PHYSICAL') {
-          await tx.product_variants.update({
+        if ((variant as any).business_products?.productType === 'PHYSICAL') {
+          await tx.productVariants.update({
             where: { id: item.productVariantId },
             data: {
               stockQuantity: {
@@ -628,7 +635,9 @@ export async function POST(request: NextRequest) {
       }
 
       // Decrement stockQuantity for individual inventory items (BarcodeInventoryItems)
-      const inventoryItems = items.filter(item => item.attributes?.isInventoryItem && item.attributes?.inventoryItemId)
+      // Only for items with a fake 'inv_' productVariantId — real product variants with isInventoryItem
+      // in their attributes are handled by the product_variants decrement above.
+      const inventoryItems = items.filter(item => item.attributes?.isInventoryItem && item.attributes?.inventoryItemId && (item.productVariantId as string)?.startsWith('inv_'))
       if (inventoryItems.length > 0) {
         const itemQuantities: Record<string, number> = {}
         for (const item of inventoryItems) {
@@ -1064,7 +1073,7 @@ export async function PUT(request: NextRequest) {
       // Restore inventory for cancelled orders
       await prisma.$transaction(async (tx) => {
         for (const item of existingOrder.business_order_items) {
-          await tx.product_variants.update({
+          await tx.productVariants.update({
             where: { id: item.productVariantId },
             data: {
               stockQuantity: {
@@ -1191,7 +1200,7 @@ export async function PUT(request: NextRequest) {
           for (const item of itemsToRestore) {
             if (!item.productVariantId) continue // Skip virtual items (services)
             try {
-              await tx.product_variants.update({
+              await tx.productVariants.update({
                 where: { id: item.productVariantId },
                 data: { stockQuantity: { increment: item.quantity } }
               })

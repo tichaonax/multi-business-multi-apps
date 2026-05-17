@@ -168,6 +168,38 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   const [bulkPrintModal, setBulkPrintModal] = useState<{ baleId?: string; qty?: number; templateId?: string } | null>(null)
   const [baleSearch, setBaleSearch] = useState('')
 
+  // Merge API stats into current posStats, keeping the higher soldToday to prevent
+  // race conditions where the background refresh returns stale data before the DB commits.
+  const mergePosStats = (
+    prev: typeof posStats,
+    apiData: { bales?: Record<string, any>; wifi?: Record<string, any>; products?: Record<string, any> }
+  ) => {
+    const merge = (prevMap: Record<string, any>, newMap: Record<string, any>) => {
+      const result = { ...newMap }
+      for (const [key, prevVal] of Object.entries(prevMap)) {
+        if (result[key]) {
+          // Keep the higher soldToday (optimistic update wins over stale API data)
+          if ((prevVal.soldToday || 0) > (result[key].soldToday || 0)) {
+            result[key] = {
+              ...result[key],
+              soldToday: prevVal.soldToday,
+              firstSoldTodayAt: result[key].firstSoldTodayAt || prevVal.firstSoldTodayAt,
+            }
+          }
+        } else if ((prevVal.soldToday || 0) > 0) {
+          // Preserve optimistic entries the API hasn't indexed yet
+          result[key] = prevVal
+        }
+      }
+      return result
+    }
+    return {
+      bales: merge(prev.bales, apiData.bales || {}),
+      wifi: merge(prev.wifi, apiData.wifi || {}),
+      products: merge(prev.products, apiData.products || {}),
+    }
+  }
+
   // Pinned quick-add products (persisted in localStorage)
   const [pinnedProductIds, setPinnedProductIds] = useState<Set<string>>(new Set())
 
@@ -667,21 +699,15 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             })
             .filter((p: any) => p.variants.length > 0) // Remove products with no valid variants
 
-          console.log('[POS QuickAdd] variant IDs:', products.flatMap((p: any) => p.variants.map((v: any) => `${p.name}:${v.id}`)))
-
           // Load stats and R710 WiFi tokens in parallel
           const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
           const [statsRes, r710ResponseRaw] = await Promise.all([
             fetch(`/api/clothing/pos-stats?businessId=${currentBusiness.businessId}&timezone=${tz}`),
             fetch(`/api/business/${currentBusiness.businessId}/r710-tokens`)
           ])
-          console.log('[POS Stats] response status:', statsRes.status)
           if (statsRes.ok) {
             const statsData = await statsRes.json()
-            console.log('[POS Stats] products keys from API:', Object.keys(statsData.products || {}))
             setPosStats({ bales: statsData.bales || {}, wifi: statsData.wifi || {}, products: statsData.products || {} })
-          } else {
-            console.error('[POS Stats] fetch failed:', statsRes.status)
           }
 
           // Load R710 WiFi tokens — shown in dedicated WiFi tab
@@ -1645,13 +1671,18 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       setShowReceiptPreview(true)
 
       onOrderComplete?.(result.data.id)
-      // Background refresh to get accurate numbers (including soldYesterday)
-      fetch(`/api/clothing/pos-stats?businessId=${currentBusiness?.businessId}&timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`)
-        .then(r => r.ok ? r.json() : null)
-        .then(d => {
-          if (d) setPosStats({ bales: d.bales || {}, wifi: d.wifi || {}, products: d.products || {} })
-        })
-        .catch(() => {})
+      // Background refresh to get accurate numbers (including soldYesterday).
+      // Delayed 800ms so the DB transaction has time to commit before we re-query.
+      // Uses merge logic so the optimistic soldToday updates are never overwritten
+      // with stale API data (race condition guard).
+      setTimeout(() => {
+        fetch(`/api/clothing/pos-stats?businessId=${currentBusiness?.businessId}&timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`)
+          .then(r => r.ok ? r.json() : null)
+          .then(d => {
+            if (d) setPosStats(prev => mergePosStats(prev, d))
+          })
+          .catch(() => {})
+      }, 800)
     } catch (error) {
       console.error('Payment failed:', error)
       await customAlert({
