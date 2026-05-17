@@ -925,18 +925,26 @@ export function UniversalInventoryForm({
                 // Set loading state immediately
                 setIsNavigatingToPOS(true)
 
+                // BarcodeInventoryItems have ids prefixed with 'inv_' by the list API
+                const isInvItem = item.id?.startsWith('inv_')
+                const rawId = isInvItem ? item.id.slice(4) : item.id
+
                 // Check if unit is "each" or similar single-unit types
                 const isSingleUnit = ['each', 'ea', 'piece', 'pieces', 'pc', 'pcs', 'unit', 'units', 'item', 'items'].includes(
                   (formData.unit || item.unit || '').toLowerCase().trim()
                 )
 
-                if (isSingleUnit) {
-                  // Auto-add to cart with quantity 1 for single-unit items
-                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${item.id}&autoAdd=true`
+                if (isInvItem) {
+                  // Inventory items: use addInventoryItem param (dedicated handler in POS)
+                  const url = `/${businessType}/pos?businessId=${businessId}&addInventoryItem=${rawId}`
+                  window.location.href = url
+                } else if (isSingleUnit) {
+                  // Auto-add to cart with quantity 1 for single-unit product items
+                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${rawId}&autoAdd=true`
                   window.location.href = url
                 } else {
                   // Just navigate to POS for weight-based or other unit types
-                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${item.id}`
+                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${rawId}`
                   window.location.href = url
                 }
               }}
@@ -1329,18 +1337,26 @@ export function UniversalInventoryForm({
                 // Set loading state immediately
                 setIsNavigatingToPOS(true)
 
+                // BarcodeInventoryItems have ids prefixed with 'inv_' by the list API
+                const isInvItem = item.id?.startsWith('inv_')
+                const rawId = isInvItem ? item.id.slice(4) : item.id
+
                 // Check if unit is "each" or similar single-unit types
                 const isSingleUnit = ['each', 'ea', 'piece', 'pieces', 'pc', 'pcs', 'unit', 'units', 'item', 'items'].includes(
                   (formData.unit || item.unit || '').toLowerCase().trim()
                 )
 
-                if (isSingleUnit) {
-                  // Auto-add to cart with quantity 1 for single-unit items
-                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${item.id}&autoAdd=true`
+                if (isInvItem) {
+                  // Inventory items: use addInventoryItem param (dedicated handler in POS)
+                  const url = `/${businessType}/pos?businessId=${businessId}&addInventoryItem=${rawId}`
+                  window.location.href = url
+                } else if (isSingleUnit) {
+                  // Auto-add to cart with quantity 1 for single-unit product items
+                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${rawId}&autoAdd=true`
                   window.location.href = url
                 } else {
                   // Just navigate to POS for weight-based or other unit types
-                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${item.id}`
+                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${rawId}`
                   window.location.href = url
                 }
               }}

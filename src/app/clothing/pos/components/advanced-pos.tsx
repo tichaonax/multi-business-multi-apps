@@ -1914,7 +1914,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                                       <span className="ml-1 text-gray-400">({variant.stock} left)</span>
                                     </span>
                                     <div className="flex items-center gap-1.5">
-                                      <span className="text-xs font-medium">{formatCurrency(variant.price)}</span>
+                                      <span className="text-sm font-bold text-green-400">{formatCurrency(variant.price)}</span>
                                       <button
                                         type="button"
                                         onClick={() => { addToCart(product.id, variant.id); setProductSearchTerm('') }}
