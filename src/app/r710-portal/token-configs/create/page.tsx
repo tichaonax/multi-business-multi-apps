@@ -4,7 +4,6 @@
 export const dynamic = 'force-dynamic';
 
 import { ProtectedRoute } from '@/components/auth/protected-route'
-import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -17,11 +16,9 @@ import Link from 'next/link'
 export default function CreateTokenConfigPage() {
   return (
     <ProtectedRoute>
-      <MainLayout>
         <ContentLayout>
           <CreateTokenConfigContent />
         </ContentLayout>
-      </MainLayout>
     </ProtectedRoute>
   )
 }

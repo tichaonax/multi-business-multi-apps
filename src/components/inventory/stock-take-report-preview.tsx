@@ -64,7 +64,9 @@ export function StockTakeReportPreview({
 
   // Compute per-row values
   const existingCalc = existingRows.map(r => {
-    const sysQty = r.currentStock ?? 0
+    const sysQty = (r.systemQuantityOverride !== null && r.systemQuantityOverride !== undefined)
+      ? r.systemQuantityOverride
+      : (r.currentStock ?? 0)
     const physCount = r.physicalCount !== '' ? Number(r.physicalCount) : null
     const variance = physCount !== null ? physCount - sysQty : null
     const shortfall = variance !== null && variance < 0 ? Math.abs(variance) : 0
@@ -194,8 +196,15 @@ export function StockTakeReportPreview({
                     <tr key={r.barcode || r.name}
                       className={`border-t border-gray-100 dark:border-gray-700 ${r.shortfallValue > 0 ? 'bg-red-50 dark:bg-red-900/10' : ''}`}>
                       <td className="px-3 py-1.5 font-mono text-gray-700 dark:text-gray-300">{r.barcode || '—'}</td>
-                      <td className="px-3 py-1.5 text-gray-900 dark:text-white max-w-[180px] truncate" title={r.name}>{r.name}</td>
-                      <td className="px-3 py-1.5 text-center text-gray-500">{r.sysQty}</td>
+                      <td className="px-3 py-1.5 text-center text-gray-700 dark:text-gray-300 max-w-[180px] truncate" title={r.name}>{r.name}</td>
+                      <td className="px-3 py-1.5 text-center">
+                        <span className={r.systemQuantityOverride !== null && r.systemQuantityOverride !== undefined ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-gray-500'}>
+                          {r.sysQty}
+                        </span>
+                        {r.systemQuantityOverride !== null && r.systemQuantityOverride !== undefined && (
+                          <span title={`Overridden: ${r.systemOverrideReason}`} className="ml-1 text-[9px] text-amber-500 font-bold cursor-help">⚑</span>
+                        )}
+                      </td>
                       <td className="px-3 py-1.5 text-center text-gray-700 dark:text-gray-300">
                         {r.physCount !== null ? r.physCount : <span className="text-gray-400">—</span>}
                       </td>
@@ -296,7 +305,14 @@ export function StockTakeReportPreview({
                     <tr key={r.barcode || r.name} className="border-t border-orange-100 dark:border-orange-900/30">
                       <td className="px-3 py-1.5 font-mono text-gray-700 dark:text-gray-300">{r.barcode || '—'}</td>
                       <td className="px-3 py-1.5 text-gray-900 dark:text-white max-w-[200px] truncate" title={r.name}>{r.name}</td>
-                      <td className="px-3 py-1.5 text-center text-gray-500">{r.sysQty}</td>
+                      <td className="px-3 py-1.5 text-center">
+                        <span className={r.systemQuantityOverride !== null && r.systemQuantityOverride !== undefined ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-gray-500'}>
+                          {r.sysQty}
+                        </span>
+                        {r.systemQuantityOverride !== null && r.systemQuantityOverride !== undefined && (
+                          <span title={`Overridden: ${r.systemOverrideReason}`} className="ml-1 text-[9px] text-amber-500 font-bold cursor-help">⚑</span>
+                        )}
+                      </td>
                       <td className="px-3 py-1.5 text-center font-medium text-orange-600 dark:text-orange-400">
                         {r.physCount !== null ? r.physCount : '—'}
                       </td>

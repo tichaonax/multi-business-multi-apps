@@ -4,7 +4,6 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import { ProtectedRoute } from '@/components/auth/protected-route'
-import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect, use } from 'react'
 import { useConfirm } from '@/components/ui/confirm-modal'
@@ -29,11 +28,9 @@ interface MacFilterData {
 export default function ESP32MacFilteringPage({ params }: { params: Promise<{ id: string }> }) {
   return (
     <ProtectedRoute requiredPermission="canManageWifiPortal">
-      <MainLayout>
         <ContentLayout>
           <ESP32MacFilteringContent params={params} />
         </ContentLayout>
-      </MainLayout>
     </ProtectedRoute>
   )
 }

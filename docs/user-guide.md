@@ -101,6 +101,13 @@
     - [Summary Cards](#summary-cards)
     - [The Movements Table](#the-movements-table)
     - [Dashboard Activity Feed — Stock Additions](#dashboard-activity-feed--stock-additions)
+45. [Clothing POS — Live Sales Activity](#45-clothing-pos--live-sales-activity)
+    - [Sold-Today Badge](#sold-today-badge)
+    - [Today vs Yesterday Progress Bar](#today-vs-yesterday-progress-bar)
+    - [Bales Tab](#bales-tab)
+    - [R710 WiFi Tab](#r710-wifi-tab)
+    - [Quick Add Tab](#quick-add-tab)
+    - [Showing Hidden Sold-Out Items](#showing-hidden-sold-out-items)
 
 ---
 
@@ -1202,6 +1209,37 @@ When several approved payments have built up:
 > **Rejecting a rent payment:** If the rent payment is not ready to go out (e.g., landlord gave an extension), reject it in the batch review — it will move to REJECTED and the requester can resubmit it in the next cycle.
 
 > **Partial processing:** You do not need to decide every item before submitting. Click **Process X of Y** to process only the items you've actioned — the rest are quietly deferred to the next EOD batch without any notification.
+
+---
+
+#### Standalone Account Approvals — Per-Payment Voucher Panel
+
+When you approve payments from a **standalone expense account** (personal or family accounts not linked to a business), a post-approval voucher panel opens automatically at the bottom of the screen.
+
+**Why individual vouchers?** Each voucher captures the payee's signature as proof of receipt. Because signatories differ per payment, you cannot combine multiple payments into a single voucher — each one is created separately.
+
+**How the panel works:**
+
+After clicking **Submit Decisions**, a panel appears showing every payment you just approved:
+
+```
+✅ 3 Payments Approved — Create Vouchers
+Each voucher captures the payee's signature as proof of receipt.
+
+John Doe    $45.00  Fuel        CASH      [📄 Voucher]  [Skip]
+Jane Smith  $20.00  Stationery  ECOCASH   ✅ Voucher created
+Bob Moyo    $80.00  Repairs     CASH      [Skipped]
+```
+
+| Button | What it does |
+|--------|-------------|
+| **📄 Voucher** | Opens the Payment Voucher form for that specific payment |
+| **Skip** | Marks the row as skipped — no voucher is created |
+| **✕ (close)** | Dismisses the panel; any un-actioned payments can still have vouchers created from the payment detail page |
+
+After you complete and save the voucher form, the row updates to show "✅ Voucher created". After clicking Skip, the row dims to show "Skipped".
+
+> **Missed a payment?** If you dismiss the panel before creating all the vouchers you need, open the individual payment detail page (Expense Account → Payments → [Payment]) and click the **📄 Create Voucher** button that appears for APPROVED payments with no existing voucher.
 
 ---
 
@@ -3443,15 +3481,66 @@ Customers who reach a spend threshold can earn a free WiFi token as their reward
 - The receipt includes the credentials exactly as a normal purchase would.
 - The reward is marked as Redeemed.
 
-#### Direct Token Sale (Without POS)
+#### Direct Token Sale — R710 Portal Sales Page
 
-For situations where you need to issue a token without going through the full POS flow:
+The **R710 Portal → Sales** page is a dedicated selling interface for R710 tokens, separate from the main POS. It supports selling **multiple packages in one transaction** using a cart.
 
-1. Go to **R710 Portal → Sales → New Direct Sale**.
-2. Select the package.
-3. Enter customer details (optional).
-4. Process — the token is issued immediately.
-5. Print or display the credentials.
+**How to make a direct sale:**
+
+1. Go to **R710 Portal → Sales**.
+2. Browse the package cards (sorted shortest to longest duration).
+3. Click **+ Add to Cart** on each package you want to sell. You can add the same package type multiple times using the **−** / **+** quantity controls that appear once it is in the cart.
+4. In the **Cart panel** on the right, review line items:
+   - Adjust the quantity of any line using the **−** and **+** buttons.
+   - Edit the **price per unit** directly in the price field if a different rate applies.
+   - The line total and grand total update in real time.
+5. Select a **Payment Method** (Cash / Card / Mobile Money / EcoCash). For $0 total (free tokens), no payment method is required.
+6. Click **Proceed to Payment**.
+7. In the confirmation modal:
+   - Review the line-item breakdown and total.
+   - For **Cash** payments, enter the **amount received** — the change is calculated automatically.
+   - For **EcoCash** payments, the fee and customer-pays total are shown. Enter the **EcoCash transaction code** (optional but recommended for records).
+   - Click **Complete Sale**.
+8. The system generates one token per unit sequentially, showing progress ("Generating token 2 of 5…").
+9. When complete, all issued credentials appear in a result panel:
+
+```
+✅ 3 tokens sold!
+──────────────────────────────────────────────
+  Package       Username            Password
+  2 Week Pass   DS-260516-F9B       GXHUM-AAAFW
+  8 Hour Pass   DS-260516-619       TEILB-OQSTE
+  2 Hour Pass   DS-260516-3CC       WADIO-DSNBK
+──────────────────────────────────────────────
+```
+
+10. Click **🖨️ Print** to print all credentials on a single receipt, or **👁️ Preview** to review before printing.
+
+> **Tip:** The cart is cleared after a successful sale. To sell another batch, simply add packages to the cart again — no page refresh needed.
+
+#### Sales History & Reprinting
+
+If a receipt is missed or the window is closed before printing, credentials are **never lost** — every token sale is saved to the database and retrievable from the **Sales History** panel at the bottom of the Sales page.
+
+**How to find and reprint a sale:**
+
+1. Scroll to the bottom of **R710 Portal → Sales** and click **▼ show** on the **🕐 Sales History** panel.
+2. Use the **date range pills** to narrow the window:
+
+| Pill | What it shows |
+|---|---|
+| All time | Every direct sale ever made |
+| Today | Current calendar day (default) |
+| Yesterday | Previous calendar day |
+| Last 7 / 30 / 90 Days | Rolling window |
+| Custom Range | Enter From / To dates manually |
+| Specific Date | Pick a single date |
+
+3. Type in the **search box** to filter by package name, username, password, network name, or payment method.
+4. Each row shows: package, date/time, payment method, amount, username, password, network, and who made the sale.
+5. Click **🖨️ Reprint** on the row — the receipt preview opens so you can select a printer and confirm.
+
+> The panel auto-expands and refreshes immediately after each new checkout, so the most recently issued tokens always appear at the top of the list.
 
 #### Viewing Sales History
 
@@ -3502,6 +3591,68 @@ The POS flow is identical to R710:
 5. Save.
 
 > The ESP32 integration must be set up before any tokens can be sold through this system. If no integration exists, the system returns an empty token list and the WiFi products will not appear in the POS.
+
+---
+
+### Printing a WiFi Advertising Flier
+
+A printable A4 flier can be generated for any business that has a WiFi integration active (R710 or ESP32). The flier tells customers the network name, how to connect, what packages are available and their prices, and the terms of use.
+
+#### Where to Find the Print Button
+
+| Location | How to reach it |
+|---|---|
+| **R710 settings page** | Open any business WiFi settings page (e.g., Restaurant → Settings → R710 WiFi). Click the **📶 Print WiFi Flier** button in the top-right corner of the configuration panel. |
+| **ESP32 settings page** | Open the ESP32 WiFi token menu settings. Click the **📶 Print WiFi Flier** button in the top-right corner of the info panel. |
+| **Restaurant POS — WiFi tab** | Switch the category tab to **📡 ESP32 WiFi** or **📶 R710 WiFi**. A **📶 Print Flier** button appears above the product grid. |
+
+#### Before the PDF is Generated
+
+A small modal opens asking for:
+
+| Field | Notes |
+|---|---|
+| **Network Name (SSID)** | For R710 this is pre-filled from the system. For ESP32 it must be entered manually (SSID is not stored). |
+| **Tagline** *(optional)* | A short marketing line printed under "WiFi Available" — e.g., *"Fast and reliable internet for all"*. Leave blank for no tagline. |
+
+Click **Print PDF** — the A4 flier downloads immediately.
+
+#### What the Flier Contains
+
+```
+┌──────────────────────────────────────────────────┐
+│  [Business Name]                    )))           │
+│         WiFi Available                            │
+│         [Optional tagline]                        │
+├──────────────────────────────────────────────────┤
+│  NETWORK NAME                                     │
+│  BusinessGuest                                    │
+├──────────────────────────────────────────────────┤
+│  HOW TO CONNECT                                   │
+│  1. Connect your device to the network above      │
+│  2. Purchase a token from the cashier             │
+│  3. Open your browser — a login page appears      │
+│  4. Enter the USERNAME & PASSWORD on your slip    │  ← R710
+│     (or: Enter the TOKEN CODE on your slip)       │  ← ESP32
+│  5. Click Connect and enjoy your session!         │
+├──────────────────────────────────────────────────┤
+│  PACKAGES                                         │
+│  1 Hour     $0.20  │  8 Hours    $0.50            │
+│  1 Day      $1.10  │  1 Week     $2.00            │
+├──────────────────────────────────────────────────┤
+│  TERMS & CONDITIONS                               │
+│  • Tokens are single-use and non-transferable     │
+│  • One active session per token                   │
+│  • No refunds on purchased tokens                 │
+│  • For help, speak to staff at the counter        │
+└──────────────────────────────────────────────────┘
+```
+
+- Packages are listed **shortest-to-longest duration** and shown in a two-column grid.
+- The connection instructions automatically adapt to the hardware type — ESP32 fliers say "Enter the TOKEN CODE"; R710 fliers say "Enter the USERNAME & PASSWORD".
+- The flier is entirely black and white — optimised for toner-saving on standard A4 printers.
+
+> Print one flier and laminate it, or print multiples to place at tables and counters. The PDF is re-generated each time, so it always reflects your current packages and prices.
 
 ---
 
@@ -4137,7 +4288,7 @@ Go to **📦 Custom Bulk Products** in the left sidebar. The page shows all prod
 | **Added** | Date registered |
 | **Actions** | + Top Up · Edit · 🖨 Print · Deactivate |
 
-Use the **Show inactive / sold-out** toggle to include deactivated products in the table. Use the search box to filter by name, batch number, or barcode.
+Use the **Show inactive / sold-out** toggle to include deactivated products in the table. Use the search box to filter by name, batch number, or barcode. Click the **×** button that appears inside the search box to clear the filter instantly.
 
 #### Restock Candidates Panel
 
@@ -4254,6 +4405,17 @@ The panel supports scanning many items in a single session, saving work in progr
 
 ---
 
+#### Barcode Input & Filter Bar — Clear Buttons
+
+Both text inputs in the panel header have an inline **×** clear button:
+
+| Input | Clear button behaviour |
+|-------|----------------------|
+| **Barcode field** | Appears when text is present and the scanner is idle. Click **×** to clear the field and return focus to it — ready for the next scan. |
+| **Filter bar** (below the table) | Appears when text is present. Click **×** to clear the filter and show all rows. A match count (e.g. *12 / 165*) shows how many rows are currently visible. |
+
+---
+
 #### Opening the Panel — Draft Selection
 
 When you open the Bulk Stocking panel, the system first checks for existing saved drafts:
@@ -4320,10 +4482,10 @@ From here:
 | **Category** | Yes | Sub-group within a domain (e.g. "Vegetables"). Required. Filtered by the selected domain. |
 | **Supplier** | Yes | Searchable dropdown. Optional. |
 | **Description** | Yes | Free text note. Optional. |
-| **Current Stock** | Read-only | Only shown for existing products |
+| **Current Stock** | Read-only / overridable | System quantity at last sync. In Stock Take mode you can override it — see [Overriding the System Quantity](#overriding-the-system-quantity-stock-take-mode) below. |
 | **Qty to Add** | Yes | How many new units you are receiving |
 | **Physical Count** | Yes | What you counted on the shelf (for Stock Take mode — see below) |
-| **Variance** | Read-only | Physical Count − System Quantity. Red = shortfall, green = surplus. Only calculated when Physical Count is entered. |
+| **Variance** | Read-only | Physical Count − Effective System Quantity. Red = shortfall, green = surplus. Only calculated when Physical Count is entered. |
 | **Sell Price** | Yes | Selling price per unit. Tick **Free** for $0 items. |
 | **Cost Price** | Yes | Optional purchase cost |
 | **SKU** | Yes | Leave blank to auto-generate |
@@ -4381,6 +4543,35 @@ When all items are entered, click **Review & Submit**. This opens the **Stock Ta
 Click **Go Back** to return and make corrections. Click **Confirm & Submit** to apply all stock changes and create the report.
 
 > **What happens on submit:** Stock quantities are updated immediately. The report enters **Pending Sign-off** status. Responsible employees must sign off digitally. A manager gives the final sign-off. Once all sign-offs are complete, the report is marked **Signed Off** and any shortfall deductions are available for payroll sync.
+
+---
+
+#### Overriding the System Quantity (Stock Take Mode)
+
+Sometimes the system quantity recorded is known to be incorrect before you even begin counting — for example, a previous entry error or a unit that was lost and never logged. In Stock Take mode you can **override the system quantity for any row** without altering the live database. The override only affects the variance and shortfall calculations for this stock take report.
+
+**How to override:**
+1. In the **System Qty** column, click the small ✏️ pencil button to the right of the value. The button only appears for existing-item rows in Stock Take mode.
+2. A modal opens showing:
+   - The item name
+   - A **New system qty** number input (pre-filled with the current value)
+   - A **Reason** text area — this is **mandatory**
+3. Enter the corrected quantity and type a clear reason (e.g. *"Previous count had a data entry error — confirmed via delivery note"*).
+4. Click **Apply Override**.
+
+**What you see after overriding:**
+- The System Qty cell turns **amber** and shows the overridden value.
+- A small **⚑ flag** appears next to the value — hover over it to see your reason.
+- Variance and Shortfall Value are recalculated using the overridden quantity.
+- The row stays flagged (amber System Qty + ⚑) until the draft is submitted.
+
+**Removing an override:**
+- Open the ✏️ modal again — a **Clear** button appears. Click it to restore the original system quantity.
+
+**Audit trail:**
+- The override value, reason, your username, and the timestamp are saved with the draft and included in the submitted report — managers reviewing the report can see exactly what was changed and why.
+
+> **Important:** Overriding the system quantity does **not** change the actual stock in the database. It only adjusts the reference point used to calculate variance for this stock take. The final stock quantity applied on submit is always **Physical Count + Qty to Add**.
 
 ---
 
@@ -5549,6 +5740,8 @@ You can target a message to one or more specific people. Only those recipients (
 4. Add more people if needed. Click **✕** on a chip to remove them.
 5. Type your message and send.
 
+> **Note:** Only **active staff members** appear in the recipient list. Terminated or deactivated employees are automatically excluded.
+
 Private messages are marked with a **🔒 Private** badge so the recipients clearly know it is not a broadcast.
 
 To return to a normal broadcast, click **Clear** next to the recipient chips.
@@ -6129,6 +6322,8 @@ The system performs a live balance check. If the account has sufficient funds, t
 
 > ✅ Payment Request Approved — $X.XX was approved by [your name]
 
+After approving, the **Payment Voucher** form opens automatically so you can capture the payee's signature immediately (see [Section 24 — Payment Vouchers](#24-payment-vouchers--creating-viewing--locking)).
+
 If the account does not have enough funds, you will see a **422 Insufficient Balance** error — ask the requester to top up the account first.
 
 **To reject a request:**
@@ -6373,6 +6568,17 @@ A **Payment Voucher** is an official payment record generated for an expense acc
 
 ---
 
+### When Vouchers Are Created
+
+| Flow | How the voucher form opens |
+|------|---------------------------|
+| **Personal payment request** (cashier-assisted) | Automatically after the cashier clicks Approve |
+| **Standalone account group approval** | Post-approval panel — cashier picks which payments to voucher individually |
+| **Any APPROVED or PAID payment (fallback)** | Open the payment detail page → click **📄 Create Voucher** |
+| **Transaction history row** | Click the faint 📄 icon on any row without a voucher |
+
+---
+
 ### Generating a Voucher (First Time)
 
 1. In the **Transaction History**, find the payment row.
@@ -6403,6 +6609,16 @@ Once a voucher has been generated, the row in the transaction list changes:
 - Hover over the badge to see: *"Voucher issued: VCH-2026-0003 — click to view PDF"* (the actual voucher number is shown).
 - Click the **✅ VCH** badge to open the **voucher preview directly** — the form is not shown again.
 - From the preview you can **Print** or **Save PDF** the voucher.
+
+---
+
+### Vouchers on the Payment Detail Page
+
+For any payment that has been **APPROVED** or **PAID** and has no voucher yet, the payment detail page shows a **📄 Create Voucher** button. Click it to open the voucher form for that individual payment.
+
+Once a voucher exists, the button is replaced by a **📄 Voucher VCH-XXXX** badge — click the badge to view and print the voucher.
+
+This is the fallback path for payments that were skipped during the post-approval panel, or for vouchers created outside the normal approval flow.
 
 ---
 
@@ -8945,3 +9161,128 @@ Clicking **View Report** navigates directly to the Stock Additions report filter
 | View Stock Additions report | Users with financial data access or manager role |
 | Export CSV | Users with financial data access or manager role |
 | See stock additions in dashboard feed | Managers and business owners |
+
+---
+
+## 45. Clothing POS — Live Sales Activity
+
+> **Who reads this:** Clothing store cashiers, floor supervisors, and managers who want to monitor what is selling during the day without leaving the POS.
+
+---
+
+The Clothing POS displays real-time sales activity indicators directly on each product and bale card. These indicators update automatically after every sale and give staff an instant read on what is moving, what is slowing down, and what has sold out.
+
+The POS browse panel has three tabs — **Bales**, **R710 WiFi**, and **Quick Add** — and all three show the same types of indicators.
+
+---
+
+### Sold-Today Badge
+
+A small green badge appears on a product or bale when at least one unit of that item has been sold today.
+
+```
+Ladies Tops M    (2 left)   [ 3 sold ]   $5.00   [ Add ]
+```
+
+| Who can see it | Permission required |
+|----------------|---------------------|
+| Admins | Always visible |
+| Managers / financials | Users with **financial data access** permission |
+| Sales staff | Users with the **View POS Sold Count** permission |
+| All other staff | Badge is hidden — they see stock counts only |
+
+The number inside the badge is the total units sold **today** (since midnight in the store's local timezone). It updates immediately after each checkout without requiring a page refresh.
+
+---
+
+### Today vs Yesterday Progress Bar
+
+Below each variant or bale row, a thin progress bar appears whenever any units have been sold today. The bar compares today's sales to yesterday's sales for that same item.
+
+| Bar colour | Label | Meaning |
+|------------|-------|---------|
+| 🟢 Green | **Good** | Today's sales ≥ yesterday's sales |
+| 🟡 Amber | **Fair** | Today's sales are 50–99% of yesterday's |
+| 🔴 Red | **Low** | Today's sales are less than 50% of yesterday's |
+| 🟢 Green | **New** | Sold today, but no sales yesterday to compare against |
+
+The bar fills proportionally — if yesterday you sold 10 and today you have sold 10, the bar is 100% full and green. If today you have sold 5 out of yesterday's 10, the bar is 50% full and amber.
+
+Yesterday's count is shown to the right of the bar (e.g. `yest: 8`) so staff can see the reference figure at a glance.
+
+The progress bar is visible to **all users** regardless of permissions — it shows pace, not exact revenue figures.
+
+---
+
+### Bales Tab
+
+Each bale card shows:
+
+- **Items remaining** count
+- **Sold-today badge** (permissioned) — how many individual pieces from this bale have been sold today
+- **Progress bar** — today's piece count vs yesterday's piece count for this bale
+
+Bales with the highest today's sales bubble to the top of the list, sorted by the time of their first sale today (earliest first). Bales with no sales today appear below.
+
+After a sale, the bale's remaining count and badge update immediately in the UI without a page refresh.
+
+---
+
+### R710 WiFi Tab
+
+Each WiFi package card (e.g. "1 Hour", "24 Hours", "Weekly") shows:
+
+- **Available tokens** — how many pre-generated tokens are ready to sell
+- **Sold-today badge** (permissioned) — tokens sold today from this package
+- **Progress bar** — today's token count vs yesterday's
+
+Packages with today's sales sort to the top. If a package is running low on available tokens (fewer than 5 remaining), a **Request More** button appears on the card — clicking it notifies the admin to generate more tokens.
+
+---
+
+### Quick Add Tab
+
+Products pinned or available in Quick Add show the same badges and progress bars as Bales and WiFi. Each variant row within a product card displays:
+
+- **Stock remaining** count (or **Out** in red when stock reaches zero)
+- **Sold-today badge** (permissioned) — units of this specific variant sold today
+- **Progress bar** — today vs yesterday comparison
+
+**Sorting:** Pinned products (starred ★) always appear first. Among unpinned products, those with any variant sold today sort ahead of those with no sales, and within that group they are ordered by time of first sale today (earliest first).
+
+**Sold-out variants stay visible** — if a variant's stock reaches zero but units were sold today, the row remains in the card so the sold-today badge and progress bar remain visible. The Add button is disabled and the count shows **Out** in red.
+
+After a sale, the Quick Add tab updates the badge, progress bar, and stock count **immediately** — the sold count increments and the stock count decrements without waiting for a page refresh.
+
+---
+
+### Showing Hidden Sold-Out Items
+
+By default the Quick Add tab hides products where **all variants have zero stock AND zero sales today**. These are items that are fully sold out and have not moved at all today — showing them would just be clutter.
+
+When any products are hidden, a button appears in the Quick Add tab header:
+
+```
+[ Show 3 hidden ]
+```
+
+Clicking it reveals all hidden sold-out products, greyed out, with their Add buttons disabled. The button label changes to:
+
+```
+[ Hide 3 sold out ]
+```
+
+Click again to collapse them back.
+
+**Why this is useful:** If a badge you expected to see is missing, click "Show hidden" to check whether the product is there but sold out. If the product does not appear even in the hidden list, it may need to be restocked or re-activated in Inventory.
+
+---
+
+### Permissions Summary
+
+| Feature | Who sees it |
+|---------|-------------|
+| Sold-today badge (exact count) | Admin, financial data access, or View POS Sold Count permission |
+| Progress bar (today vs yesterday pace) | All users |
+| Stock count / "Out" label | All users |
+| "Show hidden" toggle | All users |

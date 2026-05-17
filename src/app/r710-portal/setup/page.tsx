@@ -9,7 +9,6 @@ import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
-import { MainLayout } from '@/components/layout/main-layout'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 
 interface R710Device {
@@ -51,11 +50,9 @@ interface R710Integration {
 export default function R710SetupPage() {
   return (
     <ProtectedRoute>
-      <MainLayout>
         <ContentLayout>
           <R710SetupContent />
         </ContentLayout>
-      </MainLayout>
     </ProtectedRoute>
   )
 }

@@ -13,8 +13,8 @@ export interface PaymentSummary {
   payeeType: string
   purpose: string
   category?: string
-  businessId: string
-  businessName: string
+  businessId: string | null
+  businessName: string | null
 }
 
 interface ExistingVoucher {
@@ -64,7 +64,8 @@ export function ExpensePaymentVoucherModal({
   const [hasSig, setHasSig] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [savedVoucherData, setSavedVoucherData] = useState<VoucherData | null>(null)
-  const pendingSaved = useRef<ExistingVoucher | null>(null)
+  // State (not ref) so the × close handler always reads the latest saved voucher
+  const [pendingSaved, setPendingSaved] = useState<ExistingVoucher | null>(null)
 
   // If a voucher already exists, jump straight to preview — skip the form
   useEffect(() => {
@@ -85,7 +86,7 @@ export function ExpensePaymentVoucherModal({
         collectorDlNumber: existingVoucher.collectorDlNumber,
         collectorSignature: existingVoucher.collectorSignature,
         creatorName: existingCreatorName,
-        businessName: payment.businessName,
+        businessName: payment.businessName ?? 'Personal Account',
         category: payment.category,
         notes: existingVoucher.notes,
       }
@@ -185,7 +186,7 @@ export function ExpensePaymentVoucherModal({
       if (!res.ok) { setError(json.error || 'Failed to save'); return }
 
       const saved: ExistingVoucher = json.data
-      pendingSaved.current = saved
+      setPendingSaved(saved)
 
       // Show preview instead of downloading immediately
       const voucherData: VoucherData = {
@@ -201,7 +202,7 @@ export function ExpensePaymentVoucherModal({
         collectorDlNumber: saved.collectorDlNumber,
         collectorSignature: saved.collectorSignature,
         creatorName,
-        businessName: payment.businessName,
+        businessName: payment.businessName ?? 'Personal Account',
         category: payment.category,
         notes: saved.notes,
       }
@@ -273,7 +274,7 @@ export function ExpensePaymentVoucherModal({
               >
                 ⬇️ Save PDF
               </button>
-              <button onClick={() => { if (pendingSaved.current) { onSaved(pendingSaved.current) } onClose() }} className="text-gray-400 hover:text-gray-600 text-xl leading-none ml-1">×</button>
+              <button onClick={() => { if (pendingSaved) { onSaved(pendingSaved) } onClose() }} className="text-gray-400 hover:text-gray-600 text-xl leading-none ml-1">×</button>
             </div>
           </div>
           {/* Scrollable preview content */}

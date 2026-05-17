@@ -12,6 +12,44 @@ import Link from 'next/link'
 import { formatDateTimeZim } from '@/lib/date-utils'
 import { ExpensePaymentVoucherModal, PaymentSummary } from '@/components/expense-account/expense-payment-voucher-modal'
 
+// Approved standalone payment returned by direct-approve API — used to drive per-payment voucher panel
+interface ApprovedStandalonePayment {
+  id: string
+  amount: number
+  notes: string | null
+  paymentChannel: string
+  paymentDate: string | null
+  payeeName: string | null
+  categoryName: string | null
+  subcategoryName: string | null
+  businessId: string | null
+  businessName: string | null
+}
+
+// Canonical adapter — maps any source payment type to PaymentSummary for ExpensePaymentVoucherModal
+function toPaymentSummary(
+  payment: PersonalPaymentRequest | ApprovedStandalonePayment,
+  accountName?: string
+): PaymentSummary {
+  // PersonalPaymentRequest has expenseAccountId; ApprovedStandalonePayment has businessId
+  const isPersonal = 'expenseAccountId' in payment
+  return {
+    id: payment.id,
+    amount: payment.amount,
+    paymentDate: payment.paymentDate ?? new Date().toISOString(),
+    payeeName: payment.payeeName ?? '—',
+    payeeType: 'PERSON',
+    purpose: payment.notes ?? (isPersonal ? (payment as PersonalPaymentRequest).categoryName : (payment as ApprovedStandalonePayment).categoryName) ?? '—',
+    category: isPersonal
+      ? (payment as PersonalPaymentRequest).categoryName ?? undefined
+      : (payment as ApprovedStandalonePayment).categoryName ?? undefined,
+    businessId: isPersonal ? null : ((payment as ApprovedStandalonePayment).businessId ?? null),
+    businessName: isPersonal
+      ? (accountName ?? (payment as PersonalPaymentRequest).accountName)
+      : ((payment as ApprovedStandalonePayment).businessName ?? accountName ?? null),
+  }
+}
+
 interface LockRequest {
   id: string
   loanNumber: string
@@ -157,6 +195,11 @@ export default function PendingActionsPage() {
   const [withdrawalApproveAmount, setWithdrawalApproveAmount] = useState('')
   const [personalActionState, setPersonalActionState] = useState<Record<string, 'approving' | 'rejecting' | null>>({})
   const [voucherItem, setVoucherItem] = useState<PersonalPaymentRequest | null>(null)
+  // Standalone approval voucher panel state
+  const [justApprovedStandalone, setJustApprovedStandalone] = useState<ApprovedStandalonePayment[]>([])
+  const [standaloneVoucherStatuses, setStandaloneVoucherStatuses] = useState<Record<string, 'pending' | 'created' | 'skipped'>>({})
+  const [standaloneVoucherItem, setStandaloneVoucherItem] = useState<ApprovedStandalonePayment | null>(null)
+  const [standaloneAccountName, setStandaloneAccountName] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const currentUser = session?.user as any
   const isAdminUser = currentUser?.role === 'admin'
@@ -302,8 +345,15 @@ export default function PendingActionsPage() {
       if (json.rejectedCount > 0) parts.push(`${json.rejectedCount} returned to queue`)
       toast.push(parts.join(', '), { type: 'success' })
       const removedAccountId = standaloneReview.accountId
+      const accountNameForVoucher = standaloneReview.accountName
       setStandaloneReview(null)
       setPendingPaymentRequests(prev => prev.filter(r => r.id !== removedAccountId))
+      // Populate voucher panel for each approved payment
+      if (json.approvedPayments?.length > 0) {
+        setJustApprovedStandalone(json.approvedPayments)
+        setStandaloneVoucherStatuses(Object.fromEntries(json.approvedPayments.map((p: ApprovedStandalonePayment) => [p.id, 'pending' as const])))
+        setStandaloneAccountName(accountNameForVoucher)
+      }
     } catch (e: any) {
       toast.error(e.message)
       setStandaloneReview(prev => prev ? { ...prev, submitting: false } : null)
@@ -1313,23 +1363,86 @@ export default function PendingActionsPage() {
     {/* Payment Voucher modal — opens after cashier approves a personal payment request */}
     {voucherItem && (
       <ExpensePaymentVoucherModal
-        payment={{
-          id: voucherItem.id,
-          amount: voucherItem.amount,
-          paymentDate: voucherItem.paymentDate ?? new Date().toISOString(),
-          payeeName: voucherItem.payeeName ?? '—',
-          payeeType: 'PERSON',
-          purpose: voucherItem.notes ?? voucherItem.categoryName ?? '—',
-          category: voucherItem.categoryName ?? undefined,
-          businessId: '',
-          businessName: voucherItem.accountName,
-        } as PaymentSummary}
+        payment={toPaymentSummary(voucherItem)}
         existingVoucher={null}
         userId={session?.user?.id ?? ''}
         creatorName={session?.user?.name ?? ''}
         onClose={() => setVoucherItem(null)}
         onSaved={() => setVoucherItem(null)}
       />
+    )}
+
+    {standaloneVoucherItem && (
+      <ExpensePaymentVoucherModal
+        payment={toPaymentSummary(standaloneVoucherItem, standaloneAccountName)}
+        existingVoucher={null}
+        userId={session?.user?.id ?? ''}
+        creatorName={session?.user?.name ?? ''}
+        onClose={() => setStandaloneVoucherItem(null)}
+        onSaved={() => {
+          setStandaloneVoucherStatuses(prev => ({ ...prev, [standaloneVoucherItem.id]: 'created' }))
+          setStandaloneVoucherItem(null)
+        }}
+      />
+    )}
+
+    {justApprovedStandalone.length > 0 && (
+      <div className="fixed bottom-4 right-4 z-40 w-full max-w-md bg-white dark:bg-gray-800 border border-green-300 dark:border-green-700 rounded-xl shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 bg-green-50 dark:bg-green-900/30 border-b border-green-200 dark:border-green-700">
+          <div>
+            <p className="font-semibold text-green-800 dark:text-green-200 text-sm">
+              ✅ {justApprovedStandalone.length} Payment{justApprovedStandalone.length !== 1 ? 's' : ''} Approved — Create Vouchers
+            </p>
+            <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">Each voucher captures the payee&apos;s signature as proof of receipt.</p>
+          </div>
+          <button
+            onClick={() => { setJustApprovedStandalone([]); setStandaloneVoucherStatuses({}) }}
+            className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200 text-lg leading-none ml-3"
+            title="Dismiss"
+          >✕</button>
+        </div>
+        <div className="divide-y divide-gray-100 dark:divide-gray-700 max-h-72 overflow-y-auto">
+          {justApprovedStandalone.map(pmt => {
+            const status = standaloneVoucherStatuses[pmt.id] ?? 'pending'
+            return (
+              <div key={pmt.id} className="flex items-center gap-3 px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                    {pmt.payeeName ?? '—'}
+                    <span className="ml-2 font-semibold text-gray-700 dark:text-gray-300">${pmt.amount.toFixed(2)}</span>
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {pmt.categoryName ?? pmt.notes ?? '—'}
+                    <span className="ml-2">{pmt.paymentChannel === 'ECOCASH' ? '📱 EcoCash' : '💵 Cash'}</span>
+                  </p>
+                </div>
+                {status === 'created' && (
+                  <span className="text-xs text-green-600 dark:text-green-400 font-medium shrink-0">✅ Created</span>
+                )}
+                {status === 'skipped' && (
+                  <span className="text-xs text-gray-400 dark:text-gray-500 font-medium shrink-0">Skipped</span>
+                )}
+                {status === 'pending' && (
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => setStandaloneVoucherItem(pmt)}
+                      className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
+                    >
+                      📄 Voucher
+                    </button>
+                    <button
+                      onClick={() => setStandaloneVoucherStatuses(prev => ({ ...prev, [pmt.id]: 'skipped' }))}
+                      className="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 text-xs font-medium rounded transition-colors"
+                    >
+                      Skip
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
     )}
   </>
   )

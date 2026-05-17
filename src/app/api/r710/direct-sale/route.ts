@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { businessId, tokenConfigId, saleAmount, paymentMethod } = body
+    const { businessId, tokenConfigId, saleAmount, paymentMethod, ecocashFeeAmount, ecocashTransactionCode } = body
 
     if (!businessId || !tokenConfigId) {
       return NextResponse.json(
@@ -50,7 +50,9 @@ export async function POST(request: NextRequest) {
       saleAmount: saleAmount || 0,
       paymentMethod: paymentMethod || 'CASH',
       soldBy: user.id,
-      saleChannel: 'DIRECT'
+      saleChannel: 'DIRECT',
+      ...(ecocashFeeAmount != null ? { ecocashFeeAmount } : {}),
+      ...(ecocashTransactionCode ? { ecocashTransactionCode } : {})
     })
 
     return NextResponse.json(result, { status: 200 })

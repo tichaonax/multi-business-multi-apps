@@ -1,5 +1,8 @@
 import { jsPDF } from 'jspdf'
 
+// jsPDF's built-in fonts don't support emoji — strip them before rendering
+const stripEmoji = (s: string) => s.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '').trim()
+
 export interface VoucherData {
   voucherNumber: string
   paymentDate: string        // ISO string
@@ -92,10 +95,18 @@ export function generatePaymentVoucherPdf(data: VoucherData): void {
       doc.setFontSize(7.5)
       doc.text(label, margin + 3, rowY + 4)
 
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(...DARK)
-      doc.setFontSize(8)
-      doc.text(value || '—', margin + 46, rowY + 4)
+      const isEmpty = !value || value === '—'
+      if (isEmpty) {
+        // Draw a write-on line so the payee knows where to fill in
+        doc.setDrawColor(...LIGHT)
+        doc.setLineWidth(0.3)
+        doc.line(margin + 46, rowY + 4.5, margin + contentW - 3, rowY + 4.5)
+      } else {
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(...DARK)
+        doc.setFontSize(8)
+        doc.text(value, margin + 46, rowY + 4)
+      }
 
       rowY += rowH
     })
@@ -107,7 +118,7 @@ export function generatePaymentVoucherPdf(data: VoucherData): void {
   section('Paid To (Payee)', [
     { label: 'Name', value: data.payeeName },
     { label: 'Type', value: data.payeeType },
-    ...(data.category ? [{ label: 'Category', value: data.category }] : []),
+    ...(data.category ? [{ label: 'Category', value: stripEmoji(data.category) }] : []),
     { label: 'Purpose', value: data.purpose || '—' },
   ])
 
@@ -145,6 +156,15 @@ export function generatePaymentVoucherPdf(data: VoucherData): void {
       // Signature image failed — leave blank
     }
   }
+
+  // Date line (left side) — left blank for payee to fill in when they sign
+  doc.setDrawColor(...MID)
+  doc.setLineWidth(0.3)
+  doc.line(margin + 3, y + 30, margin + 55, y + 30)
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(...LIGHT)
+  doc.text('Date', margin + 3, y + 34)
 
   // Authorised signature line (right side)
   doc.setDrawColor(...MID)

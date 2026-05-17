@@ -567,13 +567,22 @@ export function UniversalInventoryGrid({
                 <span className="text-sm font-semibold text-secondary whitespace-nowrap tabular-nums">
                   {sortedItems.length}{searchTerm && sortedItems.length !== items.length ? ` / ${items.length}` : ''}
                 </span>
-                <input
-                  type="text"
-                  placeholder="🔍 Search items by name, SKU, or description..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="input-field w-full"
-                />
+                <div className="relative w-full">
+                  <input
+                    type="text"
+                    placeholder="🔍 Search items by name, SKU, or description..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="input-field w-full pr-8"
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-sm leading-none"
+                      title="Clear search"
+                    >✕</button>
+                  )}
+                </div>
               </div>
             )}
 

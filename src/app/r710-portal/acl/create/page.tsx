@@ -4,7 +4,6 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import { ProtectedRoute } from '@/components/auth/protected-route'
-import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useState } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
@@ -19,11 +18,9 @@ interface MacEntry {
 export default function CreateAclPage() {
   return (
     <ProtectedRoute requiredPermission="isSystemAdmin">
-      <MainLayout>
         <ContentLayout>
           <CreateAclContent />
         </ContentLayout>
-      </MainLayout>
     </ProtectedRoute>
   )
 }

@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { formatCurrency } from '@/lib/format-currency'
+import { ExpensePaymentVoucherModal, PaymentSummary } from '@/components/expense-account/expense-payment-voucher-modal'
 
 export default function ExpensePaymentDetailPage() {
   const params = useParams() as { accountId: string; paymentId: string }
@@ -28,6 +29,7 @@ export default function ExpensePaymentDetailPage() {
   const [saving, setSaving] = useState(false)
   const [actionState, setActionState] = useState<'idle' | 'approving' | 'rejecting'>('idle')
   const [cancelling, setCancelling] = useState(false)
+  const [showVoucherModal, setShowVoucherModal] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [cancelReasonError, setCancelReasonError] = useState('')
@@ -604,6 +606,20 @@ export default function ExpensePaymentDetailPage() {
                   🔒 {payment.status === 'APPROVED' ? 'Approved' : payment.status === 'PAID' ? 'Paid' : 'Reversed'} — not editable
                 </div>
               )}
+              {['APPROVED', 'PAID'].includes(payment.status) && payment.paymentType !== 'TRANSFER_OUT' && (
+                payment.payment_voucher ? (
+                  <div className="px-4 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 text-green-700 dark:text-green-300 rounded text-sm">
+                    📄 Voucher {payment.payment_voucher.voucherNumber}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowVoucherModal(true)}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
+                  >
+                    📄 Create Voucher
+                  </button>
+                )
+              )}
               <button
                 onClick={() => router.push(`/expense-accounts/${accountId}/payments`)}
                 className="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors"
@@ -810,6 +826,31 @@ export default function ExpensePaymentDetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {showVoucherModal && payment && (
+        <ExpensePaymentVoucherModal
+          payment={{
+            id: payment.id,
+            amount: Number(payment.amount),
+            paymentDate: payment.paymentDate ?? new Date().toISOString(),
+            payeeName: payment.payeeUser?.name ?? payment.payeeEmployee?.fullName ?? payment.payeePerson?.fullName ?? payment.payeeSupplier?.name ?? '—',
+            payeeType: payment.payeeType ?? 'PERSON',
+            purpose: payment.notes ?? payment.category?.name ?? '—',
+            category: payment.category?.name ?? undefined,
+            businessId: payment.expenseAccount?.businessId ?? null,
+            businessName: payment.expenseAccount?.accountName ?? null,
+          } as PaymentSummary}
+          existingVoucher={null}
+          userId={(session?.user as any)?.id ?? ''}
+          creatorName={(session?.user as any)?.name ?? ''}
+          onClose={() => setShowVoucherModal(false)}
+          onSaved={() => {
+            setShowVoucherModal(false)
+            // Reload payment to show the new voucher number
+            setPayment((prev: any) => prev ? { ...prev, payment_voucher: { voucherNumber: '…' } } : prev)
+          }}
+        />
       )}
     </ContentLayout>
   )

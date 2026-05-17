@@ -346,6 +346,22 @@ export function MobileSidebar() {
                 <Link href="/payroll/account" className={sectionLinkClass} onClick={close}>💰 Payroll Account</Link>
               )}
 
+              {(isAdmin || hasBusinessPermission('canMakePayrollDeposits')) && (
+                <Link href="/payroll/account/deposits" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>💸 Payroll Deposits</Link>
+              )}
+
+              {(isAdmin || hasBusinessPermission('canMakePayrollPayments')) && (
+                <Link href="/payroll/account/payments" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>💳 Batch Payments</Link>
+              )}
+
+              {(isAdmin || hasBusinessPermission('canMakePayrollPayments')) && (
+                <Link href="/payroll/account/payments/advance" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>⚡ Salary Advance</Link>
+              )}
+
+              {(isAdmin || hasBusinessPermission('canViewPayrollHistory')) && (
+                <Link href="/payroll/account/payments/history" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>📜 Payment History</Link>
+              )}
+
               {(isAdmin || hasBusinessPermission('canAccessPayroll')) && (
                 <Link href="/payroll/tax-tables" className={sectionLinkClass} onClick={close}>📊 Tax Tables</Link>
               )}
@@ -406,6 +422,10 @@ export function MobileSidebar() {
                 <Link href="/expense-accounts/reports/transfers" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>🔄 Transfer Report</Link>
               )}
 
+              {(isAdmin || hasBusinessPermission('canAccessExpenseAccount')) && (
+                <Link href="/expense-accounts/transfer" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>🔄 Transfer Funds</Link>
+              )}
+
               {(isAdmin || hasBusinessPermission('canAccessFinancialData')) && (
                 <Link href="/business-accounts" className={sectionLinkClass} onClick={close}>🏦 Business Accounts</Link>
               )}
@@ -450,6 +470,25 @@ export function MobileSidebar() {
 
               {(isAdmin || hasBusinessPermission('canSetupPortalIntegration')) && (
                 <Link href="/r710-portal" className={sectionLinkClass} onClick={close}>📶 R710 WiFi Portal</Link>
+              )}
+
+              {(isAdmin || hasBusinessPermission('canManageBusinessSettings') || hasBusinessPermission('canManageAllBusinesses') || hasBusinessPermission('canAccessFinancialData') || hasBusinessPermission('canManageEmployees')) && (
+                <Link href="/admin/invoices" className={sectionLinkClass} onClick={close}>📄 Invoices & Quotes</Link>
+              )}
+
+              {(isAdmin || hasUserPermission(user, 'canRequestPettyCash') || hasUserPermission(user, 'canApprovePettyCash')) && (
+                <Link href="/petty-cash" className={sectionLinkClass} onClick={close}>💵 Petty Cash</Link>
+              )}
+
+              {hasUserPermission(user, 'canManageChickenRun') && (
+                <>
+                  <Link href="/chicken-run" className={sectionLinkClass} onClick={close}>🐔 Chicken Run</Link>
+                  <Link href="/chicken-run/batches/new" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>➕ New Batch</Link>
+                  <Link href="/chicken-run/inventory" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>🧊 Inventory</Link>
+                  <Link href="/chicken-run/reports" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>📈 Reports</Link>
+                  <Link href="/chicken-run/costs" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>💰 Costs</Link>
+                  <Link href="/chicken-run/settings" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>⚙️ Settings</Link>
+                </>
               )}
 
               {/* Fleet Management */}
@@ -570,8 +609,16 @@ export function MobileSidebar() {
                     <Link href="/expiry" className={sectionLinkClass} onClick={close}>🗓️ Expiry Management</Link>
                   )}
 
+                  {(isAdmin || hasBusinessPermission('canManageInventory')) && (
+                    <Link href="/inventory/custom-bulk" className={sectionLinkClass} onClick={close}>📦 Custom Bulk Products</Link>
+                  )}
+
                   {(isAdmin || hasBusinessPermission('canManageAssets')) && (
                     <Link href="/assets" className={sectionLinkClass} onClick={close}>🏷️ Assets</Link>
+                  )}
+
+                  {(isAdmin || hasBusinessPermission('canManagePolicies')) && (
+                    <Link href="/policies" className={sectionLinkClass} onClick={close}>📋 Policies</Link>
                   )}
 
                   {currentBusiness?.requireSalespersonEod && (

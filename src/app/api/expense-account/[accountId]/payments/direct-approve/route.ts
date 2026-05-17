@@ -90,12 +90,46 @@ export async function POST(
       await updateExpenseAccountBalanceTx(tx, accountId)
     })
 
-    // Notify each requester of approved payments so they can mark as paid
+    // Notify each requester of approved payments and collect full details for voucher generation
+    let approvedPaymentDetails: Array<{
+      id: string
+      amount: number
+      notes: string | null
+      paymentChannel: string
+      paymentDate: string | null
+      payeeName: string | null
+      categoryName: string | null
+      subcategoryName: string | null
+      businessId: string | null
+      businessName: string | null
+    }> = []
+
     if (approvedPaymentIds.length > 0) {
       const approvedPayments = await prisma.expenseAccountPayments.findMany({
         where: { id: { in: approvedPaymentIds } },
-        select: { id: true, createdBy: true, amount: true },
+        select: {
+          id: true,
+          createdBy: true,
+          amount: true,
+          notes: true,
+          paymentChannel: true,
+          paymentDate: true,
+          payeeType: true,
+          payeeUser: { select: { name: true } },
+          payeeEmployee: { select: { fullName: true } },
+          payeePerson: { select: { fullName: true } },
+          payeeSupplier: { select: { name: true } },
+          category: { select: { name: true } },
+          subcategory: { select: { name: true } },
+          expenseAccount: {
+            select: {
+              businessId: true,
+              business: { select: { name: true } },
+            },
+          },
+        },
       })
+
       for (const pmt of approvedPayments) {
         if (pmt.createdBy) {
           await emitNotification({
@@ -107,6 +141,22 @@ export async function POST(
             metadata: { paymentId: pmt.id, accountId },
           })
         }
+        approvedPaymentDetails.push({
+          id: pmt.id,
+          amount: Number(pmt.amount),
+          notes: pmt.notes,
+          paymentChannel: pmt.paymentChannel,
+          paymentDate: pmt.paymentDate ? pmt.paymentDate.toISOString() : null,
+          payeeName: pmt.payeeUser?.name
+            ?? pmt.payeeEmployee?.fullName
+            ?? pmt.payeePerson?.fullName
+            ?? pmt.payeeSupplier?.name
+            ?? null,
+          categoryName: pmt.category?.name ?? null,
+          subcategoryName: pmt.subcategory?.name ?? null,
+          businessId: pmt.expenseAccount?.businessId ?? null,
+          businessName: pmt.expenseAccount?.business?.name ?? null,
+        })
       }
     }
 
@@ -114,6 +164,7 @@ export async function POST(
       success: true,
       approvedCount: approvedPaymentIds.length,
       rejectedCount: rejectedPaymentIds.length,
+      approvedPayments: approvedPaymentDetails,
     })
   } catch (error) {
     console.error('Error processing payment decisions:', error)

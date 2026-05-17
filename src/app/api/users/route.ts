@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
     const users = await prisma.users.findMany({
       where: {
         id: { not: currentUser.id },
+        isActive: true,
         ...(search
           ? { name: { contains: search, mode: 'insensitive' } }
           : {}),

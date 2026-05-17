@@ -52,9 +52,9 @@ export async function POST(request: NextRequest) {
       notes,
     } = body
 
-    if (!paymentId || !businessId || !userId || !collectorName) {
+    if (!paymentId || !userId || !collectorName) {
       return NextResponse.json(
-        { error: 'paymentId, businessId, userId and collectorName are required' },
+        { error: 'paymentId, userId and collectorName are required' },
         { status: 400 }
       )
     }
@@ -112,29 +112,29 @@ export async function POST(request: NextRequest) {
         },
       })
     } else {
-      // Create — generate voucher number
+      // Create — generate voucher number (global sequence for uniqueness)
       isNew = true
-      const count = await prisma.expensePaymentVouchers.count({
-        where: { businessId },
-      })
-      const seq = String(count + 1).padStart(4, '0')
+      const countRows = await prisma.$queryRaw<[{ c: bigint }]>`SELECT COUNT(*)::bigint AS c FROM expense_payment_vouchers`
+      const seq = String(Number(countRows[0].c) + 1).padStart(4, '0')
       const year = new Date().getFullYear()
       const voucherNumber = `VCH-${year}-${seq}`
+      const newId = crypto.randomUUID()
 
-      voucher = await prisma.expensePaymentVouchers.create({
-        data: {
-          paymentId,
-          businessId,
-          voucherNumber,
-          collectorName,
-          collectorPhone: collectorPhone || null,
-          collectorIdNumber: collectorIdNumber || null,
-          collectorDlNumber: collectorDlNumber || null,
-          collectorSignature: collectorSignature || null,
-          notes: notes || null,
-          createdById,
-        },
-      })
+      // Use raw INSERT to avoid Prisma client type mismatch when businessId is null
+      const bizId: string | null = businessId || null
+      await prisma.$executeRaw`
+        INSERT INTO expense_payment_vouchers
+          (id, payment_id, business_id, voucher_number, collector_name, collector_phone,
+           collector_id_number, collector_dl_number, collector_signature, notes, created_by_id, created_at, updated_at)
+        VALUES
+          (${newId}::uuid, ${paymentId}::uuid, ${bizId},
+           ${voucherNumber}, ${collectorName},
+           ${collectorPhone || null}, ${collectorIdNumber || null},
+           ${collectorDlNumber || null}, ${collectorSignature || null},
+           ${notes || null}, ${createdById}::uuid,
+           NOW(), NOW())
+      `
+      voucher = { id: newId, paymentId, businessId: bizId, voucherNumber, collectorName }
     }
 
     // Notify all admins + managers on first creation only

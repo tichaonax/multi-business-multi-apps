@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { formatCurrency } from '@/lib/format-currency'
 import { formatDataAmount, formatDuration } from '@/lib/printing/format-utils'
 import { useConfirm } from '@/components/ui/confirm-modal'
+import { generateWifiFlierPdf, WifiFlierData } from '@/lib/wifi-flier-pdf'
 
 interface TokenConfig {
   id: string
@@ -54,6 +55,10 @@ export function WifiTokenMenuManager({ businessId, businessType }: WifiTokenMenu
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [syncingESP32, setSyncingESP32] = useState(false)
+  const [showFlierModal, setShowFlierModal] = useState(false)
+  const [flierSsid, setFlierSsid] = useState('')
+  const [flierTagline, setFlierTagline] = useState('')
+  const [flierPrinting, setFlierPrinting] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -71,7 +76,9 @@ export function WifiTokenMenuManager({ businessId, businessType }: WifiTokenMenu
 
       if (configsRes.ok) {
         const configsData = await configsRes.json()
-        const activeConfigs = configsData.tokenConfigs.filter((c: TokenConfig) => c.isActive)
+        const activeConfigs = configsData.tokenConfigs
+          .filter((c: TokenConfig) => c.isActive)
+          .sort((a: TokenConfig, b: TokenConfig) => a.durationMinutes - b.durationMinutes)
         setTokenConfigs(activeConfigs)
 
         // Fetch available quantities from ESP32 for each config
@@ -273,6 +280,21 @@ export function WifiTokenMenuManager({ businessId, businessType }: WifiTokenMenu
     } catch (error: any) {
       console.error('❌ ESP32 sync error:', error)
       // Don't update counts on error - keep database estimates
+    }
+  }
+
+  const handlePrintFlier = async () => {
+    setFlierPrinting(true)
+    try {
+      const res = await fetch(`/api/business/${businessId}/wifi-flier-data`)
+      if (!res.ok) throw new Error('Failed to load flier data')
+      const { data } = await res.json() as { data: WifiFlierData }
+      generateWifiFlierPdf({ ...data, ssid: flierSsid || null, tagline: flierTagline || undefined })
+      setShowFlierModal(false)
+    } catch {
+      setErrorMessage('Failed to generate WiFi flier PDF')
+    } finally {
+      setFlierPrinting(false)
     }
   }
 
@@ -642,12 +664,76 @@ export function WifiTokenMenuManager({ businessId, businessType }: WifiTokenMenu
 
       {/* Info Box */}
       <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-        <h3 className="font-medium text-blue-900 dark:text-blue-200 mb-2">ℹ️ About WiFi Token Menu</h3>
-        <p className="text-sm text-blue-800 dark:text-blue-300">
-          Add WiFi access tokens to your {businessType} menu with custom pricing.
-          Tokens added here will appear in your POS system and can be sold to customers.
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="font-medium text-blue-900 dark:text-blue-200 mb-2">ℹ️ About WiFi Token Menu</h3>
+            <p className="text-sm text-blue-800 dark:text-blue-300">
+              Add WiFi access tokens to your {businessType} menu with custom pricing.
+              Tokens added here will appear in your POS system and can be sold to customers.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowFlierModal(true)}
+            className="shrink-0 flex items-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+          >
+            <span>📶</span>
+            <span>Print WiFi Flier</span>
+          </button>
+        </div>
       </div>
+
+      {/* WiFi Flier Pre-print Modal */}
+      {showFlierModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">📶 Print WiFi Advertising Flier</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Network Name (SSID)
+                </label>
+                <input
+                  type="text"
+                  value={flierSsid}
+                  onChange={e => setFlierSsid(e.target.value)}
+                  placeholder="Enter WiFi network name"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Enter the network name customers should connect to
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Tagline <span className="font-normal text-gray-500">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={flierTagline}
+                  onChange={e => setFlierTagline(e.target.value)}
+                  placeholder="e.g. Fast and reliable internet for all"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowFlierModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePrintFlier}
+                disabled={flierPrinting}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {flierPrinting ? 'Generating...' : 'Print PDF'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Token Configurations List */}
       <div className="space-y-4">

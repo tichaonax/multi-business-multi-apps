@@ -92,6 +92,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       newStockAdded: number
       sellingPrice: number
       shortfallValue: number
+      systemQtyOverridden?: boolean
+      systemOverrideReason?: string
+      systemOverriddenBy?: string
     }
 
     const reportItems: ReportItem[] = []
@@ -115,7 +118,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
         if (existing) {
           const hasPhysicalCount = item.physicalCount !== null && item.physicalCount !== undefined
           const physCount = hasPhysicalCount ? Number(item.physicalCount) : null
-          const sysQty = Number(item.systemQuantity ?? existing.stockQuantity)
+          // Use override if present, otherwise fall back to stored systemQuantity, then live stock
+          const hasOverride = item.systemQuantityOverride !== null && item.systemQuantityOverride !== undefined
+          const sysQty = hasOverride ? Number(item.systemQuantityOverride) : Number(item.systemQuantity ?? existing.stockQuantity)
           const variance = hasPhysicalCount ? (physCount! - sysQty) : null
           const shortfall = variance !== null && variance < 0 ? Math.abs(variance) : 0
           const shortfallValue = shortfall * sellingPrice
@@ -198,6 +203,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
             newStockAdded: newQty,
             sellingPrice,
             shortfallValue,
+            ...(hasOverride ? {
+              systemQtyOverridden: true,
+              systemOverrideReason: item.systemOverrideReason ?? undefined,
+              systemOverriddenBy: item.systemOverriddenBy ?? undefined,
+            } : {}),
           })
         } else {
           // 2. Try CustomBulkProducts
@@ -210,7 +220,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
           if (bulkProd) {
             const hasPhysicalCount = item.physicalCount !== null && item.physicalCount !== undefined
             const physCount = hasPhysicalCount ? Number(item.physicalCount) : null
-            const sysQty = Number(item.systemQuantity ?? bulkProd.remainingCount)
+            const hasOverride = item.systemQuantityOverride !== null && item.systemQuantityOverride !== undefined
+            const sysQty = hasOverride ? Number(item.systemQuantityOverride) : Number(item.systemQuantity ?? bulkProd.remainingCount)
             const variance = hasPhysicalCount ? (physCount! - sysQty) : null
             const shortfall = variance !== null && variance < 0 ? Math.abs(variance) : 0
             const shortfallValue = shortfall * sellingPrice
@@ -236,6 +247,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
               newStockAdded: newQty,
               sellingPrice,
               shortfallValue,
+              ...(hasOverride ? {
+                systemQtyOverridden: true,
+                systemOverrideReason: item.systemOverrideReason ?? undefined,
+                systemOverriddenBy: item.systemOverriddenBy ?? undefined,
+              } : {}),
             })
           } else {
             // 3. Try ClothingBales (still owned by this business)
@@ -255,7 +271,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
             if (baleRecord) {
               const hasPhysicalCount = item.physicalCount !== null && item.physicalCount !== undefined
               const physCount = hasPhysicalCount ? Number(item.physicalCount) : null
-              const sysQty = Number(item.systemQuantity ?? baleRecord.remainingCount)
+              const hasOverride = item.systemQuantityOverride !== null && item.systemQuantityOverride !== undefined
+              const sysQty = hasOverride ? Number(item.systemQuantityOverride) : Number(item.systemQuantity ?? baleRecord.remainingCount)
               const variance = hasPhysicalCount ? (physCount! - sysQty) : null
               const shortfall = variance !== null && variance < 0 ? Math.abs(variance) : 0
               const shortfallValue = shortfall * sellingPrice
@@ -284,6 +301,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
                 newStockAdded: newQty,
                 sellingPrice,
                 shortfallValue,
+                ...(hasOverride ? {
+                  systemQtyOverridden: true,
+                  systemOverrideReason: item.systemOverrideReason ?? undefined,
+                  systemOverriddenBy: item.systemOverriddenBy ?? undefined,
+                } : {}),
               })
             }
             // If none found (e.g. bale transferred away), skip the item silently

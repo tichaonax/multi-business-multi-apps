@@ -4,7 +4,6 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import { ProtectedRoute } from '@/components/auth/protected-route'
-import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -47,24 +46,20 @@ export default function WLANDetailPage({ params }: { params: Promise<{ id: strin
   if (!resolvedParams) {
     return (
       <ProtectedRoute>
-        <MainLayout>
           <ContentLayout>
             <div className="flex items-center justify-center min-h-screen">
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
             </div>
           </ContentLayout>
-        </MainLayout>
       </ProtectedRoute>
     )
   }
 
   return (
     <ProtectedRoute>
-      <MainLayout>
         <ContentLayout>
           <WLANDetailContent id={resolvedParams.id} />
         </ContentLayout>
-      </MainLayout>
     </ProtectedRoute>
   )
 }

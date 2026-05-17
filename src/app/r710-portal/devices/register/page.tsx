@@ -4,7 +4,6 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import { ProtectedRoute } from '@/components/auth/protected-route'
-import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
@@ -25,11 +24,9 @@ interface TestResult {
 export default function RegisterR710DevicePage() {
   return (
     <ProtectedRoute>
-      <MainLayout>
         <ContentLayout>
           <RegisterR710DeviceContent />
         </ContentLayout>
-      </MainLayout>
     </ProtectedRoute>
   )
 }

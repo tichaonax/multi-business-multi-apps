@@ -4,7 +4,6 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import { ProtectedRoute } from '@/components/auth/protected-route'
-import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
@@ -36,11 +35,9 @@ interface TokenConfig {
 export default function TokenConfigsPage() {
   return (
     <ProtectedRoute>
-      <MainLayout>
         <ContentLayout>
           <TokenConfigsContent />
         </ContentLayout>
-      </MainLayout>
     </ProtectedRoute>
   )
 }
@@ -72,7 +69,13 @@ function TokenConfigsContent() {
 
       if (response.ok) {
         const data = await response.json()
-        setConfigs(data.configs || [])
+        const unitToMinutes: Record<string, number> = { hour_Hours: 60, day_Days: 1440, week_Weeks: 10080 }
+        const sorted = (data.configs || []).slice().sort((a: TokenConfig, b: TokenConfig) => {
+          const aMin = (unitToMinutes[a.durationUnit] ?? 60) * a.durationValue
+          const bMin = (unitToMinutes[b.durationUnit] ?? 60) * b.durationValue
+          return aMin - bMin
+        })
+        setConfigs(sorted)
       }
     } catch (error) {
       console.error('Failed to load token configs:', error)

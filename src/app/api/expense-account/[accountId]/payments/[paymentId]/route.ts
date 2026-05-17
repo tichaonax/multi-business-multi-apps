@@ -91,6 +91,9 @@ export async function GET(
         submitter: {
           select: { id: true, name: true, email: true },
         },
+        payment_voucher: {
+          select: { id: true, voucherNumber: true, collectorName: true, createdAt: true },
+        },
         destinationDeposit: {
           select: {
             id: true,

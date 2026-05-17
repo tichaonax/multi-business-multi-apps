@@ -4,7 +4,6 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import { ProtectedRoute } from '@/components/auth/protected-route'
-import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
@@ -51,11 +50,9 @@ interface TokenStats {
 function R710TokensPageContent() {
   return (
     <ProtectedRoute>
-      <MainLayout>
         <ContentLayout>
           <R710TokensContent />
         </ContentLayout>
-      </MainLayout>
     </ProtectedRoute>
   )
 }

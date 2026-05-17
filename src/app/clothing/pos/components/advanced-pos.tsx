@@ -78,8 +78,9 @@ interface ClothingAdvancedPOSProps {
 
 export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrderComplete }: ClothingAdvancedPOSProps) {
   const { formatCurrency } = useBusinessContext()
-  const { currentBusiness } = useBusinessPermissionsContext()
+  const { currentBusiness, hasPermission } = useBusinessPermissionsContext()
   const { data: session } = useSession()
+  const isAdmin = session?.user?.role === 'admin'
   const { cart: globalCart, clearCart: clearGlobalCart, addToCart: addToGlobalCart, replaceCart: replaceGlobalCart } = useGlobalCart()
   const customAlert = useAlert()
   const toast = useToastContext()
@@ -158,12 +159,20 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   const [wifiTokenProducts, setWifiTokenProducts] = useState<any[]>([])
   const [bales, setBales] = useState<any[]>([])
   const [balesLoading, setBalesLoading] = useState(false)
+  const [posStats, setPosStats] = useState<{
+    bales: Record<string, { soldToday: number; soldYesterday: number; firstSoldTodayAt: string | null }>
+    wifi: Record<string, { soldToday: number; soldYesterday: number; firstSoldTodayAt: string | null }>
+    products: Record<string, { soldToday: number; soldYesterday: number; firstSoldTodayAt: string | null }>
+  }>({ bales: {}, wifi: {}, products: {} })
   const [showAddStockPanel, setShowAddStockPanel] = useState(false)
   const [bulkPrintModal, setBulkPrintModal] = useState<{ baleId?: string; qty?: number; templateId?: string } | null>(null)
   const [baleSearch, setBaleSearch] = useState('')
 
   // Pinned quick-add products (persisted in localStorage)
   const [pinnedProductIds, setPinnedProductIds] = useState<Set<string>>(new Set())
+
+  // Show sold-out / not-sold-today products in Quick Add tab
+  const [showZeroStockProducts, setShowZeroStockProducts] = useState(false)
 
   // Business tax configuration
   const [businessConfig, setBusinessConfig] = useState<{
@@ -658,10 +667,27 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             })
             .filter((p: any) => p.variants.length > 0) // Remove products with no valid variants
 
+          console.log('[POS QuickAdd] variant IDs:', products.flatMap((p: any) => p.variants.map((v: any) => `${p.name}:${v.id}`)))
+
+          // Load stats and R710 WiFi tokens in parallel
+          const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
+          const [statsRes, r710ResponseRaw] = await Promise.all([
+            fetch(`/api/clothing/pos-stats?businessId=${currentBusiness.businessId}&timezone=${tz}`),
+            fetch(`/api/business/${currentBusiness.businessId}/r710-tokens`)
+          ])
+          console.log('[POS Stats] response status:', statsRes.status)
+          if (statsRes.ok) {
+            const statsData = await statsRes.json()
+            console.log('[POS Stats] products keys from API:', Object.keys(statsData.products || {}))
+            setPosStats({ bales: statsData.bales || {}, wifi: statsData.wifi || {}, products: statsData.products || {} })
+          } else {
+            console.error('[POS Stats] fetch failed:', statsRes.status)
+          }
+
           // Load R710 WiFi tokens — shown in dedicated WiFi tab
           let loadedWifiTokens: any[] = []
           try {
-            const r710Response = await fetch(`/api/business/${currentBusiness.businessId}/r710-tokens`)
+            const r710Response = r710ResponseRaw
             if (r710Response.ok) {
               const r710Data = await r710Response.json()
               if (r710Data.menuItems && r710Data.menuItems.length > 0) {
@@ -898,9 +924,11 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   }, [productSearchTerm, currentBusiness?.businessId, quickAddProducts])
 
   const addToCart = (productId: string, variantId: string, quantity?: number) => {
-    // Search in both quick add products and search results
-    const product = quickAddProducts.find(p => p.id === productId) || searchResults.find(p => p.id === productId)
-    const variant = product?.variants.find(v => v.id === variantId)
+    // Search in quick add products, search results, and WiFi token products
+    const product = quickAddProducts.find(p => p.id === productId)
+      || searchResults.find(p => p.id === productId)
+      || wifiTokenProducts.find((p: any) => p.id === productId)
+    const variant = product?.variants.find((v: any) => v.id === variantId)
 
     if (!product || !variant) return
 
@@ -1553,6 +1581,41 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         r710Tokens: result.data.r710Tokens || []
       }
 
+      // Optimistically update posStats and stock counts immediately (before clearing cart)
+      const soldCart = cart.filter(item => !item.isReturn)
+      setPosStats(prev => {
+        const now = new Date().toISOString()
+        const updated = {
+          bales: { ...prev.bales },
+          wifi: { ...prev.wifi },
+          products: { ...prev.products },
+        }
+        for (const item of soldCart) {
+          if (item.attributes?.baleId) {
+            const key = item.attributes.baleId as string
+            const ex = updated.bales[key] || { soldToday: 0, soldYesterday: 0, firstSoldTodayAt: null }
+            updated.bales[key] = { ...ex, soldToday: ex.soldToday + item.quantity, firstSoldTodayAt: ex.firstSoldTodayAt || now }
+          } else if (item.attributes?.r710Token && item.attributes?.tokenConfigId) {
+            const key = item.attributes.tokenConfigId as string
+            const ex = updated.wifi[key] || { soldToday: 0, soldYesterday: 0, firstSoldTodayAt: null }
+            updated.wifi[key] = { ...ex, soldToday: ex.soldToday + item.quantity, firstSoldTodayAt: ex.firstSoldTodayAt || now }
+          } else if (item.variantId) {
+            const key = item.variantId
+            const ex = updated.products[key] || { soldToday: 0, soldYesterday: 0, firstSoldTodayAt: null }
+            updated.products[key] = { ...ex, soldToday: ex.soldToday + item.quantity, firstSoldTodayAt: ex.firstSoldTodayAt || now }
+          }
+        }
+        return updated
+      })
+      // Optimistically decrement stock on quickAddProducts
+      setQuickAddProducts(prev => prev.map(p => ({
+        ...p,
+        variants: p.variants.map((v: any) => {
+          const soldItem = soldCart.find(c => c.variantId === v.id)
+          return soldItem ? { ...v, stock: Math.max(0, v.stock - soldItem.quantity) } : v
+        })
+      })))
+
       // Clear cart and reset state
       setCart([])
       clearGlobalCart() // Also clear the global/mini cart after successful payment
@@ -1577,12 +1640,18 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       }
 
       // Always show unified receipt preview modal (like restaurant)
-      // This gives user control over printing business copy, customer copy, and number of copies
       setCompletedOrderReceipt(receiptData)
       setCompletedOrderId(result.data.id)
       setShowReceiptPreview(true)
 
       onOrderComplete?.(result.data.id)
+      // Background refresh to get accurate numbers (including soldYesterday)
+      fetch(`/api/clothing/pos-stats?businessId=${currentBusiness?.businessId}&timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          if (d) setPosStats({ bales: d.bales || {}, wifi: d.wifi || {}, products: d.products || {} })
+        })
+        .catch(() => {})
     } catch (error) {
       console.error('Payment failed:', error)
       await customAlert({
@@ -1889,15 +1958,24 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 + Add Stock
               </button>
             )}
-            {browseTab === 'quickadd' && !productsLoading && quickAddProducts.length > 0 && (
-              <span className="text-sm text-secondary">
-                ({(() => {
-                  const pinned = quickAddProducts.filter(p => pinnedProductIds.has(p.id))
-                  const unpinned = quickAddProducts.filter(p => !pinnedProductIds.has(p.id))
-                  return [...pinned, ...unpinned].slice(0, Math.max(20, pinned.length)).length
-                })()} available)
-              </span>
-            )}
+            {browseTab === 'quickadd' && !productsLoading && quickAddProducts.length > 0 && (() => {
+              const hiddenCount = quickAddProducts.filter(p =>
+                p.variants.every((v: any) => v.stock <= 0 && (posStats.products[v.id]?.soldToday || 0) === 0)
+              ).length
+              return hiddenCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowZeroStockProducts(s => !s)}
+                  className={`ml-auto px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                    showZeroStockProducts
+                      ? 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  {showZeroStockProducts ? `Hide ${hiddenCount} sold out` : `Show ${hiddenCount} hidden`}
+                </button>
+              ) : null
+            })()}
           </div>
 
           {/* ── Quick Add Products ── */}
@@ -1916,12 +1994,27 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {(() => {
-                // Pinned products first, then fill remaining slots up to 20
-                // Exclude products where all variants have zero stock
-                const inStockProducts = quickAddProducts.filter(p => p.variants.some((v: any) => v.stock > 0))
-                const pinned = inStockProducts.filter(p => pinnedProductIds.has(p.id))
-                const unpinned = inStockProducts.filter(p => !pinnedProductIds.has(p.id))
-                const displayProducts = [...pinned, ...unpinned].slice(0, Math.max(20, pinned.length))
+                const canSeeFinancials = isAdmin || hasPermission('canAccessFinancialData')
+                const canSeeSoldCount = canSeeFinancials || hasPermission('canViewPOSSoldCount')
+                // Active: stock > 0 OR sold today — always visible
+                // Hidden: zero stock AND zero sold today — only visible when toggle is on
+                const isActive = (p: any) => p.variants.some((v: any) => v.stock > 0 || (posStats.products[v.id]?.soldToday || 0) > 0)
+                const visibleProducts = quickAddProducts.filter(p => isActive(p) || showZeroStockProducts)
+                const pinned = visibleProducts.filter(p => pinnedProductIds.has(p.id))
+                const unpinned = visibleProducts.filter(p => !pinnedProductIds.has(p.id))
+                // Sort unpinned: products with any variant sold today first, then by firstSoldTodayAt
+                const sortedUnpinned = [...unpinned].sort((a, b) => {
+                  const aMaxSold = Math.max(0, ...a.variants.map((v: any) => posStats.products[v.id]?.soldToday || 0))
+                  const bMaxSold = Math.max(0, ...b.variants.map((v: any) => posStats.products[v.id]?.soldToday || 0))
+                  if ((aMaxSold > 0) !== (bMaxSold > 0)) return aMaxSold > 0 ? -1 : 1
+                  if (aMaxSold > 0 && bMaxSold > 0) {
+                    const aFirst = a.variants.map((v: any) => posStats.products[v.id]?.firstSoldTodayAt).filter(Boolean).sort()[0]
+                    const bFirst = b.variants.map((v: any) => posStats.products[v.id]?.firstSoldTodayAt).filter(Boolean).sort()[0]
+                    return new Date(aFirst).getTime() - new Date(bFirst).getTime()
+                  }
+                  return 0
+                })
+                const displayProducts = [...pinned, ...sortedUnpinned].slice(0, Math.max(20, pinned.length))
                 return displayProducts.map((product) => (
                 <div key={product.id} className={`border rounded-lg p-3 hover:shadow-md transition-shadow ${pinnedProductIds.has(product.id) ? 'border-yellow-400 dark:border-yellow-500' : ''}`}>
                   <div className="flex gap-3 mb-3">
@@ -1961,35 +2054,85 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                     </div>
                   </div>
                   <div className="space-y-2">
-                    {product.variants.filter((v: any) => v.stock > 0).map((variant: any) => {
-                      // Build variant display name
-                      const variantName = [
-                        variant.attributes?.size,
-                        variant.attributes?.color
-                      ].filter(Boolean).join(' ') || 'Standard'
-
-                      return (
-                        <div key={variant.id} className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">
-                              {variantName}
-                            </span>
-                            <span className="text-sm text-secondary">({variant.stock} left)</span>
+                    {product.variants
+                      .filter((v: any) => v.stock > 0 || (posStats.products[v.id]?.soldToday || 0) > 0 || showZeroStockProducts)
+                      .sort((a: any, b: any) => {
+                        // Sold variants first, then by firstSoldTodayAt
+                        const aSold = posStats.products[a.id]?.soldToday || 0
+                        const bSold = posStats.products[b.id]?.soldToday || 0
+                        if ((aSold > 0) !== (bSold > 0)) return aSold > 0 ? -1 : 1
+                        if (aSold > 0 && bSold > 0) {
+                          const aFirst = posStats.products[a.id]?.firstSoldTodayAt
+                          const bFirst = posStats.products[b.id]?.firstSoldTodayAt
+                          if (aFirst && bFirst) return new Date(aFirst).getTime() - new Date(bFirst).getTime()
+                        }
+                        return 0
+                      })
+                      .map((variant: any) => {
+                        const variantName = [
+                          variant.attributes?.size,
+                          variant.attributes?.color
+                        ].filter(Boolean).join(' ') || 'Standard'
+                        const stat = posStats.products[variant.id]
+                        const soldToday = stat?.soldToday || 0
+                        const soldYesterday = stat?.soldYesterday || 0
+                        let barFill = 0
+                        let barColorClass = 'bg-red-500'
+                        let barTextColorClass = 'text-red-500 dark:text-red-400'
+                        let barLabel = 'Low'
+                        const showBar = soldToday > 0
+                        if (showBar) {
+                          if (soldYesterday > 0) {
+                            const ratio = soldToday / soldYesterday
+                            barFill = Math.min(100, ratio * 100)
+                            if (ratio >= 1.0) { barColorClass = 'bg-green-500'; barTextColorClass = 'text-green-500 dark:text-green-400'; barLabel = 'Good' }
+                            else if (ratio >= 0.5) { barColorClass = 'bg-amber-400'; barTextColorClass = 'text-amber-500 dark:text-amber-400'; barLabel = 'Fair' }
+                          } else {
+                            barFill = 60; barColorClass = 'bg-green-500'; barTextColorClass = 'text-green-500 dark:text-green-400'; barLabel = 'New'
+                          }
+                        }
+                        const outOfStock = variant.stock <= 0
+                        return (
+                          <div key={variant.id} className={`rounded-lg px-2 py-1.5 ${outOfStock ? 'opacity-60' : soldToday > 0 ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-sm font-medium truncate">{variantName}</span>
+                                <span className={`text-xs flex-shrink-0 ${outOfStock ? 'text-red-500 font-medium' : 'text-secondary'}`}>
+                                  {outOfStock ? 'Out' : `(${variant.stock} left)`}
+                                </span>
+                                {canSeeSoldCount && soldToday > 0 && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 whitespace-nowrap flex-shrink-0">
+                                    <span className="text-yellow-500 font-bold">{soldToday}</span> sold
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <span className="text-sm font-medium">{formatCurrency(variant.price)}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => addToCart(product.id, variant.id)}
+                                  disabled={outOfStock || variant.price < 0}
+                                  className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  Add
+                                </button>
+                              </div>
+                            </div>
+                            {showBar && (
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${barColorClass}`} />
+                                <div className="flex-1 h-1 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                                  <div className={`h-full transition-all duration-500 ${barColorClass} opacity-70`} style={{ width: `${barFill}%` }} />
+                                </div>
+                                <span className={`text-[9px] font-semibold flex-shrink-0 ${barTextColorClass}`}>{barLabel}</span>
+                                {soldYesterday > 0 && (
+                                  <span className="text-[9px] text-gray-400 dark:text-gray-500 flex-shrink-0">yest: {soldYesterday}</span>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">{formatCurrency(variant.price)}</span>
-                            <button
-                              type="button"
-                              onClick={() => addToCart(product.id, variant.id)}
-                              disabled={variant.stock === 0 || variant.price < 0}
-                              className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Add
-                            </button>
-                          </div>
-                        </div>
-                      )
-                    })}
+                        )
+                      })}
                   </div>
                 </div>
                 ))
@@ -2014,12 +2157,26 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" />
                 </div>
               ) : (() => {
-                const filtered = bales.filter(b =>
-                  !baleSearch ||
-                  b.category?.name?.toLowerCase().includes(baleSearch.toLowerCase()) ||
-                  b.batchNumber?.toLowerCase().includes(baleSearch.toLowerCase()) ||
-                  b.sku?.toLowerCase().includes(baleSearch.toLowerCase())
-                )
+                const canSeeFinancials = isAdmin || hasPermission('canAccessFinancialData')
+                const canSeeSoldCount = canSeeFinancials || hasPermission('canViewPOSSoldCount')
+                const filtered = bales
+                  .filter(b =>
+                    !baleSearch ||
+                    b.category?.name?.toLowerCase().includes(baleSearch.toLowerCase()) ||
+                    b.batchNumber?.toLowerCase().includes(baleSearch.toLowerCase()) ||
+                    b.sku?.toLowerCase().includes(baleSearch.toLowerCase())
+                  )
+                  .sort((a, b) => {
+                    const aStat = posStats.bales[a.id]
+                    const bStat = posStats.bales[b.id]
+                    const aSold = (aStat?.soldToday || 0) > 0
+                    const bSold = (bStat?.soldToday || 0) > 0
+                    if (aSold !== bSold) return aSold ? -1 : 1
+                    if (aSold && bSold) {
+                      return new Date(aStat.firstSoldTodayAt!).getTime() - new Date(bStat.firstSoldTodayAt!).getTime()
+                    }
+                    return (b.remainingCount || 0) - (a.remainingCount || 0)
+                  })
                 if (filtered.length === 0) return (
                   <div className="text-center py-10 text-gray-500 dark:text-gray-400">
                     {baleSearch ? 'No bale items match your search' : 'No bale items available'}
@@ -2030,13 +2187,34 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                     {filtered.map(bale => {
                       const outOfStock = bale.remainingCount <= 0
                       const price = parseFloat(bale.unitPrice)
+                      const stat = posStats.bales[bale.id]
+                      const soldToday = stat?.soldToday || 0
+                      const soldYesterday = stat?.soldYesterday || 0
+                      // Progress bar metrics
+                      let barFill = 0
+                      let barColorClass = 'bg-red-500'
+                      let barTextColorClass = 'text-red-500 dark:text-red-400'
+                      let barLabel = 'Low'
+                      const showBar = soldToday > 0
+                      if (showBar) {
+                        if (soldYesterday > 0) {
+                          const ratio = soldToday / soldYesterday
+                          barFill = Math.min(100, ratio * 100)
+                          if (ratio >= 1.0) { barColorClass = 'bg-green-500'; barTextColorClass = 'text-green-500 dark:text-green-400'; barLabel = 'Good' }
+                          else if (ratio >= 0.5) { barColorClass = 'bg-amber-400'; barTextColorClass = 'text-amber-500 dark:text-amber-400'; barLabel = 'Fair' }
+                        } else {
+                          barFill = 60; barColorClass = 'bg-green-500'; barTextColorClass = 'text-green-500 dark:text-green-400'; barLabel = 'New'
+                        }
+                      }
                       return (
                         <div
                           key={bale.id}
                           className={`rounded-xl border p-3 flex flex-col gap-2 ${
                             outOfStock
                               ? 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 opacity-60'
-                              : 'bg-white dark:bg-gray-800 border-emerald-200 dark:border-emerald-800 hover:shadow-md'
+                              : soldToday > 0
+                                ? 'bg-white dark:bg-gray-800 border-emerald-400 dark:border-emerald-600 hover:shadow-md'
+                                : 'bg-white dark:bg-gray-800 border-emerald-200 dark:border-emerald-800 hover:shadow-md'
                           }`}
                         >
                           <div className="flex items-start justify-between gap-1">
@@ -2047,14 +2225,37 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                               <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">{bale.batchNumber}</p>
                               {bale.sku && <p className="text-xs text-gray-400">SKU: {bale.sku}</p>}
                             </div>
-                            <span className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${
-                              outOfStock
-                                ? 'bg-gray-100 text-gray-500'
-                                : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
-                            }`}>
-                              {outOfStock ? 'Out' : `${bale.remainingCount} left`}
-                            </span>
+                            <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                              {canSeeSoldCount && soldToday > 0 && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 whitespace-nowrap">
+                                  <span className="text-yellow-500 font-bold">{soldToday}</span> sold
+                                </span>
+                              )}
+                              <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                                outOfStock
+                                  ? 'bg-gray-100 text-gray-500'
+                                  : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+                              }`}>
+                                {outOfStock ? 'Out' : `${bale.remainingCount} left`}
+                              </span>
+                            </div>
                           </div>
+                          {/* Progress bar — shown for all users when soldToday > 0 */}
+                          {showBar && (
+                            <div className="flex items-center gap-1.5">
+                              <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${barColorClass}`} />
+                              <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                                <div className={`h-full transition-all duration-500 ${barColorClass} opacity-70`} style={{ width: `${barFill}%` }} />
+                              </div>
+                              <span className={`text-[10px] font-semibold flex-shrink-0 ${barTextColorClass}`}>{barLabel}</span>
+                            </div>
+                          )}
+                          {showBar && soldYesterday > 0 && (
+                            <div className="-mt-1 flex items-center gap-1">
+                              <span className="text-[9px] text-gray-400 dark:text-gray-500">yesterday:</span>
+                              <span className="text-[9px] font-semibold text-gray-400 dark:text-gray-500">{soldYesterday}</span>
+                            </div>
+                          )}
                           <div className="flex items-center justify-between mt-auto">
                             <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
                               {formatCurrency(price)}
@@ -2078,38 +2279,98 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           )}
 
           {/* ── WiFi Tokens Tab ── */}
-          {browseTab === 'wifi' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {wifiTokenProducts.map((product: any) => {
-                const variant = product.variants[0]
-                return (
-                  <div key={product.id} className="border rounded-lg p-3 hover:shadow-md transition-shadow border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-800 rounded-lg flex items-center justify-center text-2xl flex-shrink-0">
-                        📶
+          {browseTab === 'wifi' && (() => {
+            const canSeeFinancials = isAdmin || hasPermission('canAccessFinancialData')
+            const canSeeSoldCount = canSeeFinancials || hasPermission('canViewPOSSoldCount')
+            const sorted = [...wifiTokenProducts].sort((a: any, b: any) => {
+              const configIdA = a.variants[0]?.attributes?.tokenConfigId
+              const configIdB = b.variants[0]?.attributes?.tokenConfigId
+              const aStat = posStats.wifi[configIdA]
+              const bStat = posStats.wifi[configIdB]
+              const aSold = (aStat?.soldToday || 0) > 0
+              const bSold = (bStat?.soldToday || 0) > 0
+              if (aSold !== bSold) return aSold ? -1 : 1
+              if (aSold && bSold) {
+                return new Date(aStat.firstSoldTodayAt!).getTime() - new Date(bStat.firstSoldTodayAt!).getTime()
+              }
+              return (a.variants[0]?.price || 0) - (b.variants[0]?.price || 0)
+            })
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {sorted.map((product: any) => {
+                  const variant = product.variants[0]
+                  const configId = variant?.attributes?.tokenConfigId
+                  const stat = posStats.wifi[configId]
+                  const soldToday = stat?.soldToday || 0
+                  const soldYesterday = stat?.soldYesterday || 0
+                  // Progress bar metrics
+                  let barFill = 0
+                  let barColorClass = 'bg-red-500'
+                  let barTextColorClass = 'text-red-500 dark:text-red-400'
+                  let barLabel = 'Low'
+                  const showBar = soldToday > 0
+                  if (showBar) {
+                    if (soldYesterday > 0) {
+                      const ratio = soldToday / soldYesterday
+                      barFill = Math.min(100, ratio * 100)
+                      if (ratio >= 1.0) { barColorClass = 'bg-green-500'; barTextColorClass = 'text-green-500 dark:text-green-400'; barLabel = 'Good' }
+                      else if (ratio >= 0.5) { barColorClass = 'bg-amber-400'; barTextColorClass = 'text-amber-500 dark:text-amber-400'; barLabel = 'Fair' }
+                    } else {
+                      barFill = 60; barColorClass = 'bg-green-500'; barTextColorClass = 'text-green-500 dark:text-green-400'; barLabel = 'New'
+                    }
+                  }
+                  return (
+                    <div key={product.id} className={`border rounded-lg p-3 hover:shadow-md transition-shadow bg-indigo-50 dark:bg-indigo-900/20 ${soldToday > 0 ? 'border-indigo-400 dark:border-indigo-500' : 'border-indigo-200 dark:border-indigo-700'}`}>
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-800 rounded-lg flex items-center justify-center text-2xl flex-shrink-0">
+                          📶
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-1">
+                            <p className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">{product.name}</p>
+                            {canSeeSoldCount && soldToday > 0 && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 whitespace-nowrap flex-shrink-0">
+                                <span className="text-yellow-500 font-bold">{soldToday}</span> sold
+                              </span>
+                            )}
+                          </div>
+                          {variant?.attributes?.description && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{variant.attributes.description}</p>
+                          )}
+                          <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
+                            {variant?.price > 0 ? `$${Number(variant.price).toFixed(2)}` : 'Free'}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">{product.name}</p>
-                        {variant?.attributes?.description && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{variant.attributes.description}</p>
-                        )}
-                        <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
-                          {variant?.price > 0 ? `$${Number(variant.price).toFixed(2)}` : 'Free'}
-                        </p>
-                      </div>
+                      {/* Progress bar — shown for all users when soldToday > 0 */}
+                      {showBar && (
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${barColorClass}`} />
+                          <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                            <div className={`h-full transition-all duration-500 ${barColorClass} opacity-70`} style={{ width: `${barFill}%` }} />
+                          </div>
+                          <span className={`text-[10px] font-semibold flex-shrink-0 ${barTextColorClass}`}>{barLabel}</span>
+                        </div>
+                      )}
+                      {showBar && soldYesterday > 0 && (
+                        <div className="-mt-0.5 mb-1 flex items-center gap-1">
+                          <span className="text-[9px] text-gray-400 dark:text-gray-500">yesterday:</span>
+                          <span className="text-[9px] font-semibold text-gray-400 dark:text-gray-500">{soldYesterday}</span>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => addToCart(product.id, variant.id)}
+                        className="w-full px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
+                      >
+                        Add to Cart
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => addToCart(product.id, variant.id)}
-                      className="w-full px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
-                    >
-                      Add to Cart
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+                  )
+                })}
+              </div>
+            )
+          })()}
         </div>
 
         {/* Barcode Scanner */}

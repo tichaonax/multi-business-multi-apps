@@ -4220,14 +4220,16 @@ model R710TokenSales {
   expenseAccountId String
   saleAmount       Decimal         @db.Decimal(12, 2)
   paymentMethod    String          @db.VarChar(50)
-  saleChannel      R710SaleChannel @default(DIRECT)
-  soldAt           DateTime        @default(now())
-  soldBy           String
-  receiptPrinted   Boolean         @default(false)
-  businesses       Businesses      @relation("R710TokenSaleToBusiness", fields: [businessId], references: [id], onDelete: Cascade)
-  expense_accounts ExpenseAccounts @relation("R710TokenSaleToExpenseAccount", fields: [expenseAccountId], references: [id])
-  users            Users           @relation("R710TokenSaleSeller", fields: [soldBy], references: [id])
-  r710_tokens      R710Tokens      @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  saleChannel            R710SaleChannel @default(DIRECT)
+  soldAt                 DateTime        @default(now())
+  soldBy                 String
+  receiptPrinted         Boolean         @default(false)
+  ecocashFeeAmount       Decimal?        @map("ecocash_fee_amount") @db.Decimal(12, 2)
+  ecocashTransactionCode String?         @map("ecocash_transaction_code") @db.VarChar(100)
+  businesses             Businesses      @relation("R710TokenSaleToBusiness", fields: [businessId], references: [id], onDelete: Cascade)
+  expense_accounts       ExpenseAccounts @relation("R710TokenSaleToExpenseAccount", fields: [expenseAccountId], references: [id])
+  users                  Users           @relation("R710TokenSaleSeller", fields: [soldBy], references: [id])
+  r710_tokens            R710Tokens      @relation(fields: [tokenId], references: [id], onDelete: Cascade)
 
   @@index([businessId])
   @@index([tokenId])
@@ -6249,26 +6251,30 @@ model StockTakeDrafts {
 }
 
 model StockTakeDraftItems {
-  id             String   @id @default(cuid())
-  draftId        String
-  barcode        String?
-  name           String
-  categoryId     String?
-  subCategoryId  String?
-  domainId       String?  @map("domain_id")
-  supplierId     String?
-  description    String?
-  newQuantity    Int
-  sellingPrice   Decimal  @db.Decimal(12, 2)
-  costPrice      Decimal? @db.Decimal(12, 2)
-  sku            String?
-  isExistingItem Boolean  @default(false)
-  systemQuantity Int?
-  physicalCount  Int?
-  needsReview    Boolean  @default(false)
-  displayOrder   Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                     String    @id @default(cuid())
+  draftId                String
+  barcode                String?
+  name                   String
+  categoryId             String?
+  subCategoryId          String?
+  domainId               String?   @map("domain_id")
+  supplierId             String?
+  description            String?
+  newQuantity            Int
+  sellingPrice           Decimal   @db.Decimal(12, 2)
+  costPrice              Decimal?  @db.Decimal(12, 2)
+  sku                    String?
+  isExistingItem         Boolean   @default(false)
+  systemQuantity         Int?
+  physicalCount          Int?
+  needsReview            Boolean   @default(false)
+  displayOrder           Int       @default(0)
+  systemQuantityOverride Int?
+  systemOverrideReason   String?
+  systemOverriddenBy     String?
+  systemOverriddenAt     DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   draft StockTakeDrafts @relation(fields: [draftId], references: [id], onDelete: Cascade)
 
@@ -6337,10 +6343,10 @@ enum StockTakeReportStatus {
 
 // MBM-165 — Expense Payment Vouchers
 model ExpensePaymentVouchers {
-  id            String @id @default(uuid())
-  paymentId     String @unique @map("payment_id")
-  businessId    String @map("business_id")
-  voucherNumber String @map("voucher_number") // e.g. VCH-2026-0001, unique per business
+  id            String  @id @default(uuid())
+  paymentId     String  @unique @map("payment_id")
+  businessId    String? @map("business_id") // null for standalone/personal accounts with no linked business
+  voucherNumber String  @map("voucher_number") // e.g. VCH-2026-0001
 
   // Collector — who physically collected the money
   collectorName      String  @map("collector_name")
@@ -6355,10 +6361,9 @@ model ExpensePaymentVouchers {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   payment  ExpenseAccountPayments @relation(fields: [paymentId], references: [id])
-  business Businesses             @relation(fields: [businessId], references: [id])
+  business Businesses?            @relation(fields: [businessId], references: [id])
   creator  Employees?             @relation(fields: [createdById], references: [id])
 
-  @@unique([businessId, voucherNumber])
   @@index([businessId])
   @@map("expense_payment_vouchers")
 }

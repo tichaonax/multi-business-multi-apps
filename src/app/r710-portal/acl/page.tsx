@@ -4,7 +4,6 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import { ProtectedRoute } from '@/components/auth/protected-route'
-import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
@@ -31,11 +30,9 @@ interface AclList {
 export default function R710AclPage() {
   return (
     <ProtectedRoute>
-      <MainLayout>
         <ContentLayout>
           <R710AclContent />
         </ContentLayout>
-      </MainLayout>
     </ProtectedRoute>
   )
 }

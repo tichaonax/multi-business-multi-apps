@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useToastContext } from '@/components/ui/toast'
 import { generatePaymentBatchVoucher } from '@/lib/pdf-utils'
+import { ExpensePaymentVoucherModal, PaymentSummary } from '@/components/expense-account/expense-payment-voucher-modal'
 
 interface CashBucketAllocation { accountName: string; amount: number }
 interface CashBucketBreakdown {
@@ -157,6 +158,11 @@ export default function BatchReviewPage() {
   const [showBucketModal, setShowBucketModal] = useState(false)
   const { cashBalance: cashBoxBalance, ecocashBalance, salesBalance, bucketBreakdown, bucketLoading } = useBusinessBalances(batch?.business?.id ?? '')
 
+  // Per-payment voucher panel — shown after batch is submitted
+  const [batchVoucherPayments, setBatchVoucherPayments] = useState<BatchPayment[]>([])
+  const [batchVoucherStatuses, setBatchVoucherStatuses] = useState<Record<string, 'pending' | 'created' | 'skipped'>>({})
+  const [batchVoucherItem, setBatchVoucherItem] = useState<BatchPayment | null>(null)
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -253,6 +259,12 @@ export default function BatchReviewPage() {
         `${approvedPayments.length} approved, ${rejectedPayments.length} rejected${deferredCount > 0 ? `, ${deferredCount} deferred to next EOD` : ''}`,
         { type: 'success' }
       )
+
+      // Capture approved payments for per-payment voucher panel before load() resets state
+      if (approvedPayments.length > 0) {
+        setBatchVoucherPayments(approvedPayments)
+        setBatchVoucherStatuses(Object.fromEntries(approvedPayments.map(p => [p.id, 'pending' as const])))
+      }
 
       load()
       // Refresh bell notification count across the app
@@ -805,6 +817,91 @@ export default function BatchReviewPage() {
               </div>
             )}
           </div>
+        </div>
+      </div>
+    )}
+    {/* Per-payment voucher panel — appears after batch is submitted */}
+    {batchVoucherItem && (
+      <ExpensePaymentVoucherModal
+        payment={{
+          id: batchVoucherItem.id,
+          amount: batchVoucherItem.amount,
+          paymentDate: batchVoucherItem.createdAt,
+          payeeName: payeeName(batchVoucherItem),
+          payeeType: batchVoucherItem.payeeType,
+          purpose: batchVoucherItem.notes ?? batchVoucherItem.category?.name ?? '—',
+          category: batchVoucherItem.category
+            ? `${batchVoucherItem.category.emoji} ${batchVoucherItem.category.name}`
+            : undefined,
+          businessId: batch?.businessId ?? null,
+          businessName: batch?.business?.name ?? null,
+        } as PaymentSummary}
+        existingVoucher={null}
+        userId={(session?.user as any)?.id ?? ''}
+        creatorName={(session?.user as any)?.name ?? ''}
+        onClose={() => setBatchVoucherItem(null)}
+        onSaved={() => {
+          setBatchVoucherStatuses(prev => ({ ...prev, [batchVoucherItem.id]: 'created' }))
+          setBatchVoucherItem(null)
+        }}
+      />
+    )}
+
+    {batchVoucherPayments.length > 0 && (
+      <div className="fixed bottom-4 right-4 z-40 w-full max-w-md bg-white dark:bg-gray-800 border border-green-300 dark:border-green-700 rounded-xl shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 bg-green-50 dark:bg-green-900/30 border-b border-green-200 dark:border-green-700">
+          <div>
+            <p className="font-semibold text-green-800 dark:text-green-200 text-sm">
+              ✅ {batchVoucherPayments.length} Payment{batchVoucherPayments.length !== 1 ? 's' : ''} Approved — Create Vouchers
+            </p>
+            <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">Each voucher captures the payee&apos;s signature as proof of receipt.</p>
+          </div>
+          <button
+            onClick={() => { setBatchVoucherPayments([]); setBatchVoucherStatuses({}) }}
+            className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200 text-lg leading-none ml-3"
+            title="Dismiss"
+          >✕</button>
+        </div>
+        <div className="divide-y divide-gray-100 dark:divide-gray-700 max-h-72 overflow-y-auto">
+          {batchVoucherPayments.map(pmt => {
+            const vStatus = batchVoucherStatuses[pmt.id] ?? 'pending'
+            return (
+              <div key={pmt.id} className="flex items-center gap-3 px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                    {payeeName(pmt)}
+                    <span className="ml-2 font-semibold text-gray-700 dark:text-gray-300">{fmt(pmt.amount)}</span>
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {pmt.category?.name ?? pmt.notes ?? '—'}
+                    <span className="ml-2">{pmt.paymentChannel === 'ECOCASH' ? '📱 EcoCash' : '💵 Cash'}</span>
+                  </p>
+                </div>
+                {vStatus === 'created' && (
+                  <span className="text-xs text-green-600 dark:text-green-400 font-medium shrink-0">✅ Created</span>
+                )}
+                {vStatus === 'skipped' && (
+                  <span className="text-xs text-gray-400 dark:text-gray-500 font-medium shrink-0">Skipped</span>
+                )}
+                {vStatus === 'pending' && (
+                  <div className="flex gap-2 shrink-0">
+                    <button
+                      onClick={() => setBatchVoucherItem(pmt)}
+                      className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
+                    >
+                      📄 Voucher
+                    </button>
+                    <button
+                      onClick={() => setBatchVoucherStatuses(prev => ({ ...prev, [pmt.id]: 'skipped' }))}
+                      className="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 text-xs font-medium rounded transition-colors"
+                    >
+                      Skip
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       </div>
     )}

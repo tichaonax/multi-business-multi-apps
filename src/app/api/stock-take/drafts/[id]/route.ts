@@ -84,6 +84,10 @@ export async function PUT(request: NextRequest, context: RouteContext) {
             isExistingItem: Boolean(item.isExistingItem),
             systemQuantity: item.systemQuantity !== undefined ? Number(item.systemQuantity) : null,
             physicalCount: item.physicalCount !== undefined && item.physicalCount !== '' ? Number(item.physicalCount) : null,
+            systemQuantityOverride: item.systemQuantityOverride !== undefined && item.systemQuantityOverride !== null ? Number(item.systemQuantityOverride) : null,
+            systemOverrideReason: item.systemOverrideReason?.trim() || null,
+            systemOverriddenBy: item.systemOverriddenBy?.trim() || null,
+            systemOverriddenAt: item.systemOverriddenAt ? new Date(item.systemOverriddenAt) : null,
             displayOrder: item.displayOrder ?? (i + relIdx),
           })),
         })

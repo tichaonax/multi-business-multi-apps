@@ -52,6 +52,7 @@ import { generateDeliveryKitchenReceipt, generateDeliveryCustomerReceipt } from 
 import type { DeliveryReceiptData } from '@/lib/printing/receipt-templates'
 import { generateBarcodeEscPos } from '@/lib/printing/card-print-utils'
 import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
+import { generateWifiFlierPdf, WifiFlierData } from '@/lib/wifi-flier-pdf'
 
 interface MenuItem {
   id: string
@@ -140,6 +141,10 @@ export default function RestaurantPOS() {
   const [showQuickRegister, setShowQuickRegister] = useState(false)
   const [showRewardHistory, setShowRewardHistory] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState('all')
+  const [showWifiFlierModal, setShowWifiFlierModal] = useState(false)
+  const [wifiFlierSsid, setWifiFlierSsid] = useState('')
+  const [wifiFlierTagline, setWifiFlierTagline] = useState('')
+  const [wifiFlierPrinting, setWifiFlierPrinting] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [posMode, setPosMode] = useState<'live' | 'manual' | 'meal_program'>('live')
   const [manualCart, setManualCart] = useState<ManualCartItem[]>([])
@@ -905,6 +910,32 @@ export default function RestaurantPOS() {
     }
     return labels[category] || category.charAt(0).toUpperCase() + category.slice(1)
   }
+
+  const handlePrintWifiFlier = async () => {
+    if (!currentBusiness?.id) return
+    setWifiFlierPrinting(true)
+    try {
+      const res = await fetch(`/api/business/${currentBusiness.id}/wifi-flier-data`)
+      if (!res.ok) throw new Error('Failed to load flier data')
+      const { data } = await res.json() as { data: WifiFlierData }
+      generateWifiFlierPdf({ ...data, ssid: wifiFlierSsid || null, tagline: wifiFlierTagline || undefined })
+      setShowWifiFlierModal(false)
+    } catch {
+      toast.error('Failed to generate WiFi flier PDF')
+    } finally {
+      setWifiFlierPrinting(false)
+    }
+  }
+
+  // Pre-populate SSID when switching to a WiFi category (R710 has it stored; ESP32 does not)
+  useEffect(() => {
+    if ((selectedCategory === 'esp32-wifi' || selectedCategory === 'r710-wifi') && currentBusiness?.id) {
+      fetch(`/api/business/${currentBusiness.id}/wifi-flier-data`)
+        .then(r => r.ok ? r.json() : null)
+        .then(json => { if (json?.data?.ssid) setWifiFlierSsid(json.data.ssid) })
+        .catch(() => {})
+    }
+  }, [selectedCategory, currentBusiness?.id])
 
   // Background ESP32 sync function (non-blocking, progressive updates)
   const syncESP32TokenQuantities = async (businessId: string, tokenConfigIds: string[]) => {
@@ -3547,6 +3578,69 @@ export default function RestaurantPOS() {
               ))}
             </div>
             </div>{/* end sticky search+categories */}
+
+            {/* WiFi Flier shortcut — visible when a WiFi category tab is active */}
+            {(selectedCategory === 'esp32-wifi' || selectedCategory === 'r710-wifi') && (
+              <div className="flex items-center justify-end mb-2">
+                <button
+                  onClick={() => setShowWifiFlierModal(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+                >
+                  <span>📶</span>
+                  <span>Print Flier</span>
+                </button>
+              </div>
+            )}
+
+            {/* WiFi Flier Modal */}
+            {showWifiFlierModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6">
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">📶 Print WiFi Advertising Flier</h2>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Network Name (SSID)
+                      </label>
+                      <input
+                        type="text"
+                        value={wifiFlierSsid}
+                        onChange={e => setWifiFlierSsid(e.target.value)}
+                        placeholder="WiFi network name"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Tagline <span className="font-normal text-gray-500">(optional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={wifiFlierTagline}
+                        onChange={e => setWifiFlierTagline(e.target.value)}
+                        placeholder="e.g. Fast and reliable internet for all"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-3 mt-6">
+                    <button
+                      onClick={() => setShowWifiFlierModal(false)}
+                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handlePrintWifiFlier}
+                      disabled={wifiFlierPrinting}
+                      className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {wifiFlierPrinting ? 'Generating...' : 'Print PDF'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2 sm:gap-4">
               {filteredItems.map(item => {
