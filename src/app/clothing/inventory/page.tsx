@@ -143,6 +143,7 @@ function ClothingInventoryContent() {
   const [printHistoryBale, setPrintHistoryBale] = useState<any | null>(null)
   const [printHistory, setPrintHistory] = useState<any[]>([])
   const [printHistoryLoading, setPrintHistoryLoading] = useState(false)
+  const [baleSearchTerm, setBaleSearchTerm] = useState('')
   const [insightsTarget, setInsightsTarget] = useState<{ type: 'bale' | 'inventory'; id: string } | null>(null)
   const searchParams = useSearchParams()
   const customAlert = useAlert()
@@ -1262,6 +1263,12 @@ function ClothingInventoryContent() {
                             🏁 End of Sale
                           </button>
                         )}
+                        <button
+                          onClick={() => setHideZeroStock(v => !v)}
+                          className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${hideZeroStock ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                        >
+                          {hideZeroStock ? '� Show Zero Stock' : '🚫 Hide Zero Stock'}
+                        </button>
                       </div>
                     </div>
 
@@ -1369,14 +1376,6 @@ function ClothingInventoryContent() {
                       allowSorting={true}
                       showBusinessSpecificFields={true}
                       hideZeroStock={hideZeroStock}
-                      headerActions={(
-                        <button
-                          onClick={() => setHideZeroStock(v => !v)}
-                          className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${hideZeroStock ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600' : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50'}`}
-                        >
-                          {hideZeroStock ? '👁 Show Zero Stock' : '🚫 Hide Zero Stock'}
-                        </button>
-                      )}
                     />
                   </div>
                 )}
@@ -1617,6 +1616,20 @@ function ClothingInventoryContent() {
                       </div>
                     )}
 
+                    {/* Bale Search */}
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={baleSearchTerm}
+                        onChange={(e) => setBaleSearchTerm(e.target.value)}
+                        placeholder="Search batch, category, SKU or barcode…"
+                        className="input-field max-w-sm"
+                      />
+                      {baleSearchTerm && (
+                        <button onClick={() => setBaleSearchTerm('')} className="text-sm text-secondary hover:text-primary">Clear</button>
+                      )}
+                    </div>
+
                     {/* Bales List */}
                     {balesLoading ? (
                       <div className="text-center py-8">
@@ -1656,7 +1669,16 @@ function ClothingInventoryContent() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                            {bales.map((bale: any) => (
+                            {bales.filter((bale: any) => {
+                              if (!baleSearchTerm) return true
+                              const q = baleSearchTerm.toLowerCase()
+                              return (
+                                bale.batchNumber?.toLowerCase().includes(q) ||
+                                bale.category?.name?.toLowerCase().includes(q) ||
+                                bale.sku?.toLowerCase().includes(q) ||
+                                bale.barcode?.toLowerCase().includes(q)
+                              )
+                            }).map((bale: any) => (
                               <tr key={bale.id} className={`${bale.remainingCount === 0 ? 'opacity-50' : ''}`}>
                                 {session?.user?.role === 'admin' && (
                                   <td className="px-2 py-2 sm:py-3 w-8">
