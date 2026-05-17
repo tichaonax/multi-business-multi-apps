@@ -38,6 +38,7 @@ interface Category {
   inventory_subcategories: {
     id: string
     name: string
+    emoji: string | null
   }[]
 }
 
@@ -292,7 +293,7 @@ export function ProductEditModal({ isOpen, onClose, product, onSuccess }: Produc
             <option value="">None</option>
             {subcategories.map((subcategory) => (
               <option key={subcategory.id} value={subcategory.id}>
-                {subcategory.name}
+                {subcategory.emoji} {subcategory.name}
               </option>
             ))}
           </select>

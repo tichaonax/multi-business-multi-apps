@@ -178,15 +178,17 @@ export function UniversalInventoryForm({
     }
   }, [item, businessId, businessType])
 
-  // Set selected category and subcategories when categories are loaded and item has a category
+  // Set selected category, subcategories, and domain when categories are loaded and item has a category
   useEffect(() => {
     const categoryId = formData.categoryId
     if (categoryId && categories.length > 0) {
       setSelectedCategory(categoryId)
-      // Find and set subcategories for the selected category
       const category = categories.find(c => c.id === categoryId)
       if (category?.subcategories) {
         setAvailableSubcategories(category.subcategories)
+      }
+      if (category?.domainId) {
+        setSelectedDomainId(category.domainId)
       }
     }
   }, [categories, formData.categoryId])

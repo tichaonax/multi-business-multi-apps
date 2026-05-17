@@ -29,7 +29,8 @@ export async function GET(request: NextRequest) {
         inventory_subcategories: {
           select: {
             id: true,
-            name: true
+            name: true,
+            emoji: true
           },
           orderBy: {
             name: 'asc'
