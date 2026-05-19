@@ -121,6 +121,8 @@ export function FloatingChat() {
     socket.on('connect', () => {
       setConnected(true)
       socket.emit('join-chat-room')
+      // Join personal room so direct messages and notifications reach this user
+      if (currentUserId) socket.emit('join-notification-room', { userId: currentUserId })
       // Load users and request online snapshot so presence is available before picker opens
       fetch('/api/users', { credentials: 'include' })
         .then(r => r.ok ? r.json() : [])
@@ -195,11 +197,16 @@ export function FloatingChat() {
     return () => { socket.disconnect(); socketRef.current = null }
   }, [status, scrollToBottom])
 
-  // Clear unread, mark DB notifications as read, and scroll when opened
+  // Clear unread, re-fetch history, mark notifications read, and scroll when opened
   useEffect(() => {
     if (isOpen) {
       setUnread(0)
       setUnreadDirect(0)
+      // Re-fetch so any direct messages missed by socket show up immediately
+      fetch('/api/chat/messages', { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then((data: Message[] | null) => { if (data) { setMessages(data); setTimeout(scrollToBottom, 50) } })
+        .catch(() => {})
       fetch('/api/notifications/read-all?type=CHAT_MESSAGE', { method: 'PUT', credentials: 'include' }).catch(() => {})
       setTimeout(() => { scrollToBottom(); inputRef.current?.focus() }, 100)
     }
@@ -414,7 +421,7 @@ export function FloatingChat() {
             {!msg.deletedAt && !isReply && isHovered && (
               <button
                 type="button"
-                onClick={() => { setReplyingTo({ id: msg.id, userName: msg.userName }); setReplyScope('ALL'); inputRef.current?.focus() }}
+                onClick={() => { setReplyingTo({ id: msg.id, userName: msg.userName }); setReplyScope(isPrivate ? 'OWNER' : 'ALL'); inputRef.current?.focus() }}
                 className="flex items-center gap-1 text-[11px] text-indigo-500 hover:text-indigo-700 transition-colors font-medium"
                 title="Reply in thread"
               >
