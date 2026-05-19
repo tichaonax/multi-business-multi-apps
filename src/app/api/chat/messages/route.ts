@@ -21,10 +21,16 @@ async function getGeneralRoom() {
 
 /** Shape a raw DB message into the API payload */
 function shapeMessage(m: any, replyCount = 0) {
+  const emp = m.users?.employees
+  const firstName: string = emp?.firstName ?? ''
+  const lastName: string = emp?.lastName ?? ''
+  const initials = (firstName.charAt(0) + lastName.charAt(0)).toUpperCase() || (m.users?.name ?? '?').charAt(0).toUpperCase()
   return {
     id: m.id,
     userId: m.userId,
     userName: m.users?.name ?? 'Unknown',
+    userPhotoUrl: emp?.profilePhotoUrl ?? null,
+    userInitials: initials,
     message: m.message,
     createdAt: m.createdAt.toISOString(),
     deletedAt: m.deletedAt?.toISOString() ?? null,
@@ -70,7 +76,7 @@ export async function GET() {
       orderBy: { createdAt: 'asc' },
       take: 100,
       include: {
-        users: { select: { name: true } },
+        users: { select: { name: true, employees: { select: { firstName: true, lastName: true, profilePhotoUrl: true } } } },
         chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
         replies: { where: { deletedAt: null }, select: { id: true } },
       },
@@ -130,7 +136,7 @@ export async function POST(request: NextRequest) {
         parentId,
         replyScope,
       },
-      include: { users: { select: { name: true } } },
+      include: { users: { select: { name: true, employees: { select: { firstName: true, lastName: true, profilePhotoUrl: true } } } } },
     })
 
     // Persist recipient rows if targeted
@@ -145,7 +151,7 @@ export async function POST(request: NextRequest) {
     const full = await prisma.chatMessages.findUnique({
       where: { id: created.id },
       include: {
-        users: { select: { name: true } },
+        users: { select: { name: true, employees: { select: { firstName: true, lastName: true, profilePhotoUrl: true } } } },
         chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
       },
     })

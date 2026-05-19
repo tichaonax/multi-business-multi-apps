@@ -10,6 +10,8 @@ interface Message {
   id: string
   userId: string
   userName: string
+  userPhotoUrl?: string | null
+  userInitials?: string
   message: string
   createdAt: string
   deletedAt: string | null
@@ -23,6 +25,7 @@ interface UserOption { id: string; name: string; online?: boolean }
 
 const PANEL_W = 360
 const PANEL_H = 500
+const LAST_OPENED_KEY = 'chat_last_opened_at'
 
 // Colour palette for other users — deterministic from userId so every client sees the same colours
 const PALETTE = [
@@ -90,6 +93,18 @@ export function FloatingChat() {
     }
   }
 
+  // Manual open: clear unread, record last-opened time, cancel any pending auto-close
+  const openManually = useCallback(() => {
+    if (autoCloseTimerRef.current) {
+      clearTimeout(autoCloseTimerRef.current)
+      autoCloseTimerRef.current = null
+    }
+    setUnread(0)
+    setUnreadDirect(0)
+    localStorage.setItem(LAST_OPENED_KEY, new Date().toISOString())
+    setIsOpen(true)
+  }, [])
+
   // Cancel auto-close on unmount
   useEffect(() => () => cancelAutoClose(), [])
 
@@ -98,12 +113,19 @@ export function FloatingChat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
-  // Fetch message history
+  // Fetch message history and seed unread counts from messages received since last open
   useEffect(() => {
     if (status !== 'authenticated') return
     fetch('/api/chat/messages', { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
-      .then((data: Message[]) => { setMessages(data); setTimeout(scrollToBottom, 50) })
+      .then((data: Message[]) => {
+        setMessages(data)
+        setTimeout(scrollToBottom, 50)
+        const since = new Date(localStorage.getItem(LAST_OPENED_KEY) ?? 0)
+        const fresh = data.filter(m => m.userId !== currentUserId && !m.deletedAt && new Date(m.createdAt) > since)
+        setUnreadDirect(fresh.filter(m => m.recipients.some(r => r.id === currentUserId)).length)
+        setUnread(fresh.filter(m => m.recipients.length === 0).length)
+      })
       .catch(() => {})
   }, [status, scrollToBottom])
 
@@ -140,18 +162,37 @@ export function FloatingChat() {
 
     socket.on('chat:message', (msg: Message) => {
       if (msg.parentId) {
-        // It's a reply — update the thread if it's expanded or increment replyCount
+        const isDirectedAtMe = msg.userId !== currentUserId &&
+          msg.recipients.length > 0 &&
+          msg.recipients.some(r => r.id === currentUserId)
+
         setExpandedThreads(prev => {
           if (prev[msg.parentId!]) {
+            // Thread already open — append the reply
             const already = prev[msg.parentId!].some(m => m.id === msg.id)
             if (already) return prev
             return { ...prev, [msg.parentId!]: [...prev[msg.parentId!], msg] }
           }
+          // Auto-expand thread when a targeted reply arrives for me
+          if (isDirectedAtMe) return { ...prev, [msg.parentId!]: [msg] }
           return prev
         })
         setMessages(prev => prev.map(m =>
           m.id === msg.parentId ? { ...m, replyCount: m.replyCount + 1 } : m
         ))
+        // Treat a targeted thread reply the same as a direct top-level message
+        if (isDirectedAtMe) {
+          setTimeout(scrollToBottom, 100)
+          if (!isOpenRef.current) {
+            setUnreadDirect(u => u + 1)
+            cancelAutoClose()
+            setIsOpen(true)
+            autoCloseTimerRef.current = setTimeout(() => {
+              autoCloseTimerRef.current = null
+              setIsOpen(false)
+            }, 5000)
+          }
+        }
         return
       }
       setMessages(prev => {
@@ -197,12 +238,9 @@ export function FloatingChat() {
     return () => { socket.disconnect(); socketRef.current = null }
   }, [status, scrollToBottom])
 
-  // Clear unread, re-fetch history, mark notifications read, and scroll when opened
+  // Re-fetch history and scroll whenever panel opens (auto or manual)
   useEffect(() => {
     if (isOpen) {
-      setUnread(0)
-      setUnreadDirect(0)
-      // Re-fetch so any direct messages missed by socket show up immediately
       fetch('/api/chat/messages', { credentials: 'include' })
         .then(r => r.ok ? r.json() : null)
         .then((data: Message[] | null) => { if (data) { setMessages(data); setTimeout(scrollToBottom, 50) } })
@@ -214,10 +252,9 @@ export function FloatingChat() {
 
   // Listen for sidebar "chat:open" event
   useEffect(() => {
-    const handler = () => setIsOpen(true)
-    window.addEventListener('chat:open', handler)
-    return () => window.removeEventListener('chat:open', handler)
-  }, [])
+    window.addEventListener('chat:open', openManually)
+    return () => window.removeEventListener('chat:open', openManually)
+  }, []) // openManually is stable (useCallback with no deps)
 
   // ── Drag ──────────────────────────────────────────────────────────────────
   const onHeaderMouseDown = useCallback((e: React.MouseEvent) => {
@@ -320,20 +357,23 @@ export function FloatingChat() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
+      if (!res.ok) {
+        setNewMessage(text)
+        return
+      }
       if (res.ok) {
         const saved: Message = await res.json()
         if (saved.parentId) {
-          // Add reply to thread if expanded, bump replyCount
+          // Add reply to thread and auto-expand it so the user sees their reply immediately
           setExpandedThreads(prev => {
-            if (prev[saved.parentId!]) {
-              const already = prev[saved.parentId!].some(m => m.id === saved.id)
-              return already ? prev : { ...prev, [saved.parentId!]: [...prev[saved.parentId!], saved] }
-            }
-            return prev
+            const existing = prev[saved.parentId!] ?? []
+            if (existing.some(m => m.id === saved.id)) return prev
+            return { ...prev, [saved.parentId!]: [...existing, saved] }
           })
           setMessages(prev => prev.map(m =>
             m.id === saved.parentId ? { ...m, replyCount: m.replyCount + 1 } : m
           ))
+          setTimeout(scrollToBottom, 100)
         } else {
           setMessages(prev => prev.some(m => m.id === saved.id) ? prev : [...prev, saved])
           setTimeout(scrollToBottom, 50)
@@ -390,10 +430,18 @@ export function FloatingChat() {
         onMouseEnter={() => setHoveredMsgId(msg.id)}
         onMouseLeave={() => setHoveredMsgId(null)}
       >
-        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 text-white ${
+        <div className={`w-7 h-7 rounded-full shrink-0 relative flex items-center justify-center text-[10px] font-bold text-white ${
           isOwn ? 'bg-indigo-500' : color!.avatar
         }`}>
-          {msg.userName.charAt(0).toUpperCase()}
+          {msg.userInitials || msg.userName.charAt(0).toUpperCase()}
+          {msg.userPhotoUrl && (
+            <img
+              src={msg.userPhotoUrl}
+              alt={msg.userName}
+              className="absolute inset-0 w-full h-full object-cover rounded-full"
+              onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+            />
+          )}
         </div>
         <div className={`max-w-[75%] flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
           <div className={`flex items-center gap-1.5 mb-0.5 ${isOwn ? 'flex-row-reverse' : ''}`}>
@@ -490,7 +538,7 @@ export function FloatingChat() {
         )}
         <button
           type="button"
-          onClick={() => { cancelAutoClose(); setIsOpen(true) }}
+          onClick={openManually}
           onMouseEnter={() => setShowOnlineTooltip(true)}
           onMouseLeave={() => setShowOnlineTooltip(false)}
           className={`relative w-14 h-14 rounded-full text-white shadow-xl flex items-center justify-center transition-colors ${
