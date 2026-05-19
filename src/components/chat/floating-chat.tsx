@@ -55,6 +55,7 @@ export function FloatingChat() {
   const [sending, setSending] = useState(false)
   const [connected, setConnected] = useState(false)
   const [unread, setUnread] = useState(0)
+  const [unreadDirect, setUnreadDirect] = useState(0)
 
   // Targeted messaging state
   const [replyingTo, setReplyingTo] = useState<{ id: string; userName: string } | null>(null)
@@ -157,7 +158,14 @@ export function FloatingChat() {
       })
       setTimeout(scrollToBottom, 50)
       if (!isOpenRef.current) {
-        setUnread(u => u + 1)
+        const isDirect = msg.userId !== currentUserId &&
+          msg.recipients.length > 0 &&
+          msg.recipients.some(r => r.id === currentUserId)
+        if (isDirect) {
+          setUnreadDirect(u => u + 1)
+        } else {
+          setUnread(u => u + 1)
+        }
         cancelAutoClose()
         setIsOpen(true)
         autoCloseTimerRef.current = setTimeout(() => {
@@ -191,6 +199,7 @@ export function FloatingChat() {
   useEffect(() => {
     if (isOpen) {
       setUnread(0)
+      setUnreadDirect(0)
       fetch('/api/notifications/read-all?type=CHAT_MESSAGE', { method: 'PUT', credentials: 'include' }).catch(() => {})
       setTimeout(() => { scrollToBottom(); inputRef.current?.focus() }, 100)
     }
@@ -477,18 +486,32 @@ export function FloatingChat() {
           onClick={() => { cancelAutoClose(); setIsOpen(true) }}
           onMouseEnter={() => setShowOnlineTooltip(true)}
           onMouseLeave={() => setShowOnlineTooltip(false)}
-          className="relative w-14 h-14 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl flex items-center justify-center transition-colors"
-          title="Team Chat"
+          className={`relative w-14 h-14 rounded-full text-white shadow-xl flex items-center justify-center transition-colors ${
+            unreadDirect > 0
+              ? 'bg-rose-600 hover:bg-rose-700 animate-pulse'
+              : unread > 0
+                ? 'bg-amber-500 hover:bg-amber-600'
+                : 'bg-indigo-600 hover:bg-indigo-700'
+          }`}
+          title={unreadDirect > 0 ? 'Direct message!' : unread > 0 ? 'New messages' : 'Team Chat'}
         >
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>
+          {/* Direct message badge — top-left, rose */}
+          {unreadDirect > 0 && (
+            <span className="absolute -top-1 -left-1 min-w-[20px] h-5 bg-white text-rose-600 text-[10px] font-bold rounded-full flex items-center justify-center leading-none px-1 border-2 border-rose-600 shadow">
+              @{unreadDirect > 9 ? '9+' : unreadDirect}
+            </span>
+          )}
+          {/* General unread badge — top-right, red */}
           {unread > 0 && (
             <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
               {unread > 9 ? '9+' : unread}
             </span>
           )}
+          {/* Online count — bottom-right */}
           {onlineCount > 0 && (
             <span className="absolute -bottom-1 -right-1 min-w-[18px] h-[18px] bg-green-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none px-1 border-2 border-white dark:border-gray-900">
               {onlineCount}
