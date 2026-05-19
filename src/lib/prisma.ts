@@ -1,15 +1,33 @@
 import { PrismaClient } from '@prisma/client'
-
-// NOTE: Database replication/sync is temporarily disabled (buggy — to be reworked).
-// Using plain PrismaClient until a working solution is implemented.
+import { toTitleCase } from '@/utils/titleCase'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error']
-})
+function createPrismaClient() {
+  const client = new PrismaClient({
+    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error']
+  })
+
+  // Ensure product/category/inventory names are always stored in Title Case.
+  client.$use(async (params, next) => {
+    const titleCaseModels = ['BusinessProducts', 'BusinessCategories', 'BarcodeInventoryItems']
+    if (titleCaseModels.includes(params.model ?? '') && ['create', 'update', 'upsert'].includes(params.action)) {
+      const data = params.args?.data
+      if (typeof data?.name === 'string') data.name = toTitleCase(data.name)
+      if (params.action === 'upsert') {
+        if (typeof params.args?.create?.name === 'string') params.args.create.name = toTitleCase(params.args.create.name)
+        if (typeof params.args?.update?.name === 'string') params.args.update.name = toTitleCase(params.args.update.name)
+      }
+    }
+    return next(params)
+  })
+
+  return client
+}
+
+export const prisma = globalForPrisma.prisma ?? createPrismaClient()
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma

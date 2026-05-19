@@ -134,8 +134,8 @@ export function NationalIdInput({
 
   // Common Zimbabwe ID patterns used as fallback when pattern from DB doesn't match
   const ZIMBABWE_ID_PATTERNS = [
-    /^\d{2}-\d{6,7}[A-Za-z]\d{2}$/,  // National ID: 63-123456A78 or 27-2015556G27
-    /^\d{2}-\d{6,7}[A-Za-z]\d{2,3}$/, // slight variations
+    /^\d{2}-?\d{6,7}[A-Za-z]\d{2}$/,  // National ID with or without hyphen: 63-123456A78, 27-2080915Z27, 272080915Z27
+    /^\d{2}-\d{6,7}[A-Za-z]\d{2,3}$/, // slight variations with hyphen
     /^\d{2}-\d{9,10}$/,               // all-numeric format
     /^\d{3,8}[A-Za-z]{1,3}$/,         // Driver Licence: 82382DK
   ]
