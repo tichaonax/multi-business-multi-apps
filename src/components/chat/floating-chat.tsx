@@ -68,6 +68,7 @@ export function FloatingChat() {
   const [expandedThreads, setExpandedThreads] = useState<Record<string, Message[]>>({})
   const [loadingThreads, setLoadingThreads] = useState<Record<string, boolean>>({})
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null)
+  const [showOnlineTooltip, setShowOnlineTooltip] = useState(false)
 
   // Drag offset from the CSS bottom-right anchor (right: 24, bottom: 72)
   const [drag, setDrag] = useState({ dx: 0, dy: 0 })
@@ -119,6 +120,18 @@ export function FloatingChat() {
     socket.on('connect', () => {
       setConnected(true)
       socket.emit('join-chat-room')
+      // Load users and request online snapshot so presence is available before picker opens
+      fetch('/api/users', { credentials: 'include' })
+        .then(r => r.ok ? r.json() : [])
+        .then((data: any[]) => {
+          setAllUsers(prev => {
+            // Only set if still empty (don't overwrite if picker already populated it)
+            if (prev.length > 0) return prev
+            return data.filter((u: any) => u.id !== (session?.user as any)?.id)
+          })
+          socket.emit('chat:get-online-users')
+        })
+        .catch(() => {})
     })
     socket.on('disconnect', () => setConnected(false))
 
@@ -440,23 +453,49 @@ export function FloatingChat() {
 
   // ── Minimized bubble ───────────────────────────────────────────────────────
   if (!isOpen) {
+    const onlineNow = allUsers.filter(u => u.online)
+    const onlineCount = onlineNow.length
     return (
-      <button
-        type="button"
-        onClick={() => { cancelAutoClose(); setIsOpen(true) }}
-        className="fixed bottom-20 right-6 z-[9998] w-14 h-14 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl flex items-center justify-center transition-colors"
-        title="Team Chat"
-      >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
-        {unread > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
-            {unread > 9 ? '9+' : unread}
-          </span>
+      <div className="fixed bottom-20 right-6 z-[9998]">
+        {/* Hover tooltip: who's online */}
+        {showOnlineTooltip && onlineCount > 0 && (
+          <div className="absolute bottom-full right-0 mb-2 bg-white dark:bg-gray-800 border border-border rounded-xl shadow-lg p-3 w-48 pointer-events-none">
+            <p className="text-[10px] font-semibold text-secondary uppercase tracking-wide mb-2">Online now</p>
+            {onlineNow.slice(0, 8).map(u => (
+              <div key={u.id} className="flex items-center gap-2 py-0.5">
+                <span className="w-2 h-2 rounded-full bg-green-400 shrink-0" />
+                <span className="text-xs text-gray-800 dark:text-gray-200 truncate">{u.name}</span>
+              </div>
+            ))}
+            {onlineCount > 8 && (
+              <p className="text-[10px] text-secondary mt-1">+{onlineCount - 8} more</p>
+            )}
+          </div>
         )}
-      </button>
+        <button
+          type="button"
+          onClick={() => { cancelAutoClose(); setIsOpen(true) }}
+          onMouseEnter={() => setShowOnlineTooltip(true)}
+          onMouseLeave={() => setShowOnlineTooltip(false)}
+          className="relative w-14 h-14 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl flex items-center justify-center transition-colors"
+          title="Team Chat"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          {unread > 0 && (
+            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+              {unread > 9 ? '9+' : unread}
+            </span>
+          )}
+          {onlineCount > 0 && (
+            <span className="absolute -bottom-1 -right-1 min-w-[18px] h-[18px] bg-green-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none px-1 border-2 border-white dark:border-gray-900">
+              {onlineCount}
+            </span>
+          )}
+        </button>
+      </div>
     )
   }
 
@@ -478,6 +517,12 @@ export function FloatingChat() {
           </svg>
           <span className="font-semibold text-sm">Team Chat</span>
           <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-400' : 'bg-gray-400'}`} title={connected ? 'Live' : 'Connecting…'} />
+          <span
+            className="text-[10px] text-white/70 font-medium cursor-default"
+            title={allUsers.filter(u => u.online).length === 0 ? 'No one else is online' : `${allUsers.filter(u => u.online).length} user(s) online`}
+          >
+            {allUsers.filter(u => u.online).length} online
+          </span>
         </div>
         <button
           type="button"
@@ -557,34 +602,54 @@ export function FloatingChat() {
                 @ Add
               </button>
               {showUserSearch && (
-                <div className="absolute bottom-full left-0 mb-1 z-10 bg-white dark:bg-gray-800 border border-border rounded-lg shadow-lg w-56">
-                  <input
-                    type="text"
-                    autoFocus
-                    value={userSearch}
-                    onChange={e => setUserSearch(e.target.value)}
-                    placeholder="Filter people…"
-                    className="w-full px-3 py-2 text-xs bg-transparent focus:outline-none border-b border-border"
+                <>
+                  {/* Overlay for click-away */}
+                  <div
+                    className="fixed inset-0 z-10"
+                    style={{ background: 'transparent' }}
+                    onClick={() => setShowUserSearch(false)}
                   />
-                  <div className="max-h-48 overflow-y-auto">
-                    {userOptions.length === 0 ? (
-                      <p className="text-[11px] text-secondary px-3 py-2">
-                        {allUsers.length === 0 ? 'Loading…' : 'No users found'}
-                      </p>
-                    ) : userOptions.map(u => (
+                  <div className="absolute bottom-full left-0 mb-1 z-20 bg-white dark:bg-gray-800 border border-border rounded-lg shadow-lg w-56">
+                    <div className="flex items-center justify-between px-3 pt-2 pb-1">
+                      <input
+                        type="text"
+                        autoFocus
+                        value={userSearch}
+                        onChange={e => setUserSearch(e.target.value)}
+                        placeholder="Filter people…"
+                        className="w-full text-xs bg-transparent focus:outline-none border-b border-border"
+                        style={{ marginRight: 8 }}
+                      />
                       <button
-                        key={u.id}
                         type="button"
-                        onClick={() => addRecipient(u)}
-                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                        onClick={() => setShowUserSearch(false)}
+                        className="ml-1 text-secondary hover:text-red-500 text-lg font-bold"
+                        tabIndex={-1}
+                        title="Close"
                       >
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${u.online ? 'bg-green-400' : 'bg-gray-400'}`} />
-                        <span className="truncate">{u.name}</span>
-                        {u.online && <span className="ml-auto text-[10px] text-green-500 shrink-0">online</span>}
+                        ×
                       </button>
-                    ))}
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                      {userOptions.length === 0 ? (
+                        <p className="text-[11px] text-secondary px-3 py-2">
+                          {allUsers.length === 0 ? 'Loading…' : 'No users found'}
+                        </p>
+                      ) : userOptions.map(u => (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => addRecipient(u)}
+                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                        >
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${u.online ? 'bg-green-400' : 'bg-gray-400'}`} />
+                          <span className="truncate">{u.name}</span>
+                          {u.online && <span className="ml-auto text-[10px] text-green-500 shrink-0">online</span>}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                </>
               )}
             </div>
             {recipientIds.length > 0 && (

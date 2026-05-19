@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { CardScanOverlay } from '@/components/clock-in/card-scan-overlay'
@@ -14,6 +14,9 @@ export default function HomePage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const { currentBusinessId } = useBusinessPermissionsContext()
+
+  // Keep a reference to the opened customer display window so we don't re-open it
+  const customerDisplayRef = useRef<Window | null>(null)
 
   // Terminal ID for customer display
   const [terminalId] = useState(() => {
@@ -31,6 +34,8 @@ export default function HomePage() {
   // Auto-open customer display when logged in and business is selected
   useEffect(() => {
     if (status === 'loading' || !session || !currentBusinessId) return
+    // Don't re-open if the window is already open (guards against Strict Mode double-invoke)
+    if (customerDisplayRef.current && !customerDisplayRef.current.closed) return
 
     async function openCustomerDisplay() {
       try {
@@ -50,7 +55,7 @@ export default function HomePage() {
               const left = secondaryScreen.availLeft + (secondaryScreen.availWidth - width) / 2
               const top = secondaryScreen.availTop + (secondaryScreen.availHeight - height) / 2
               const features = `left=${left},top=${top},width=${width},height=${height},toolbar=no,menubar=no,location=no,status=no`
-              window.open(displayUrl, 'CustomerDisplay', features)
+              customerDisplayRef.current = window.open(displayUrl, 'CustomerDisplay', features)
               console.log('[HomePage] Customer display opened on secondary monitor')
               return
             }
@@ -61,7 +66,7 @@ export default function HomePage() {
 
         // Fallback: standard window.open
         const features = 'width=1920,height=1080,toolbar=no,menubar=no,location=no,status=no'
-        window.open(displayUrl, 'CustomerDisplay', features)
+        customerDisplayRef.current = window.open(displayUrl, 'CustomerDisplay', features)
         console.log('[HomePage] Customer display opened')
       } catch (error) {
         console.error('[HomePage] Failed to open customer display:', error)
