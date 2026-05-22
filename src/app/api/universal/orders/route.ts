@@ -634,10 +634,18 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Decrement stockQuantity for individual inventory items (BarcodeInventoryItems)
-      // Only for items with a fake 'inv_' productVariantId — real product variants with isInventoryItem
-      // in their attributes are handled by the product_variants decrement above.
-      const inventoryItems = items.filter(item => item.attributes?.isInventoryItem && item.attributes?.inventoryItemId && (item.productVariantId as string)?.startsWith('inv_'))
+      // Decrement stockQuantity for individual inventory items (BarcodeInventoryItems).
+      // Two valid shapes arrive here:
+      //   A) Clothing Quick Add  — productVariantId = 'inv_<id>'  (startsWith check)
+      //   B) Grocery / Universal — productVariantId = null         (!productVariantId check)
+      // Real product variants that happen to have isInventoryItem in their DB attributes
+      // always carry a real UUID productVariantId and are handled by the product_variants
+      // decrement above, so they are correctly excluded by the (!productVariantId || startsWith) condition.
+      const inventoryItems = items.filter(item =>
+        item.attributes?.isInventoryItem &&
+        item.attributes?.inventoryItemId &&
+        (!item.productVariantId || (item.productVariantId as string).startsWith('inv_'))
+      )
       if (inventoryItems.length > 0) {
         const itemQuantities: Record<string, number> = {}
         for (const item of inventoryItems) {
