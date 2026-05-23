@@ -90,7 +90,9 @@ export function EmployeeContractViewer() {
 
     setDownloadingContract(contract.id)
     try {
-      downloadComprehensiveContractPDF(contract.pdfGenerationData, `${contract.contractNumber}_Employment_Contract`)
+      const _safeName = (contract.pdfGenerationData?.employeeName ?? '').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '')
+      const _startDate = (contract.startDate ?? '').slice(0, 10)
+      downloadComprehensiveContractPDF(contract.pdfGenerationData, `${_safeName}_${contract.contractNumber}_${_startDate}_Employment_Contract`)
     } catch (err) {
       setError('Failed to generate contract PDF')
     } finally {

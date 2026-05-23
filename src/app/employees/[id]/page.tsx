@@ -219,9 +219,11 @@ export default function EmployeeDetailPage() {
         console.log('📄 Copy data being sent to PDF generator:', JSON.stringify(copyData, null, 2))
 
         const pdf = generateComprehensiveContract(copyData)
+        const _safeName = (copyData.employeeName ?? '').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '')
+        const _startDate = (copyData.contractStartDate ?? '').slice(0, 10)
         const filename = isRenewed
-          ? `${fullContract.contractNumber}_Employment_Contract_RENEWED_${renewalCount}_COPY.pdf`
-          : `${fullContract.contractNumber}_Employment_Contract_COPY.pdf`
+          ? `${_safeName}_${fullContract.contractNumber}_${_startDate}_Employment_Contract_RENEWED_${renewalCount}_COPY.pdf`
+          : `${_safeName}_${fullContract.contractNumber}_${_startDate}_Employment_Contract_COPY.pdf`
         pdf.save(filename)
         return
       }
