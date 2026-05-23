@@ -211,7 +211,13 @@ export default function NewContractPage() {
 
     // Check if supervisor is required based on job title and available employees
     const selectedJobTitle = jobTitles.find(jt => jt.id === formData.jobTitleId)
-    const availableSupervisors = employees.filter(emp => emp.id !== employeeId)
+    const MANAGER_KEYWORDS = ['manager', 'director', 'ceo', 'chief', 'head', 'owner', 'supervisor']
+    const availableSupervisors = employees.filter(emp => {
+      if (emp.id === employeeId) return false
+      const title = emp.jobTitle?.title?.toLowerCase() ?? ''
+      const dept = emp.jobTitle?.department?.toLowerCase() ?? ''
+      return MANAGER_KEYWORDS.some(kw => title.includes(kw)) || dept === 'executive'
+    })
     const isManagementRole = selectedJobTitle?.title.toLowerCase().includes('manager') ||
                               selectedJobTitle?.title.toLowerCase().includes('director') ||
                               selectedJobTitle?.title.toLowerCase().includes('ceo') ||
@@ -369,7 +375,7 @@ export default function NewContractPage() {
         fetch('/api/compensation-types'),
         fetch('/api/benefit-types'),
         fetch('/api/businesses'),
-        fetch('/api/employees')
+        fetch('/api/employees?limit=200&status=active')
       ])
 
       // Parse all responses into variables so we can prefill form based on latest contract
@@ -1217,7 +1223,13 @@ export default function NewContractPage() {
                 <div>
                   {(() => {
                     const selectedJobTitle = jobTitles.find(jt => jt.id === formData.jobTitleId)
-                    const availableSupervisors = employees.filter(emp => emp.id !== employeeId)
+                    const MANAGER_KEYWORDS = ['manager', 'director', 'ceo', 'chief', 'head', 'owner', 'supervisor']
+                    const availableSupervisors = employees.filter(emp => {
+                      if (emp.id === employeeId) return false
+                      const title = emp.jobTitle?.title?.toLowerCase() ?? ''
+                      const dept = emp.jobTitle?.department?.toLowerCase() ?? ''
+                      return MANAGER_KEYWORDS.some(kw => title.includes(kw)) || dept === 'executive'
+                    })
                     const isManagementRole = selectedJobTitle?.title.toLowerCase().includes('manager') ||
                                               selectedJobTitle?.title.toLowerCase().includes('director') ||
                                               selectedJobTitle?.title.toLowerCase().includes('ceo') ||
@@ -1236,28 +1248,28 @@ export default function NewContractPage() {
                             <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">(No other employees)</span>
                           )}
                         </label>
-                        <select
+                        <SearchableSelect
+                          options={[...availableSupervisors]
+                            .sort((a, b) => a.fullName.localeCompare(b.fullName))
+                            .map(emp => ({
+                              value: emp.id,
+                              label: `${emp.fullName} — ${emp.jobTitle?.title || 'No Title'}`,
+                            }))}
                           value={formData.supervisorId}
-                          onChange={(e) => {
-                            setFormData(prev => ({ ...prev, supervisorId: e.target.value }))
+                          onChange={(val) => {
+                            setFormData(prev => ({ ...prev, supervisorId: val }))
                             clearFieldError('supervisorId')
                           }}
-                          className={getInputClassName('supervisorId')}
-                          required={!isManagementRole && availableSupervisors.length > 0}
-                        >
-                          <option value="">
-                            {availableSupervisors.length === 0
-                              ? "No supervisors available"
+                          placeholder={
+                            availableSupervisors.length === 0
+                              ? 'No managers available'
                               : isManagementRole
-                                ? "No supervisor (reports to board/owner)"
-                                : "Select Supervisor"}
-                          </option>
-                          {[...availableSupervisors].sort((a, b) => a.fullName.localeCompare(b.fullName)).map(emp => (
-                            <option key={emp.id} value={emp.id}>
-                              {emp.fullName} - {emp.jobTitle?.title || 'No Title'}
-                            </option>
-                          ))}
-                        </select>
+                                ? 'No supervisor (reports to board/owner)'
+                                : 'Select Supervisor'
+                          }
+                          searchPlaceholder="Search managers…"
+                          disabled={availableSupervisors.length === 0}
+                        />
                         {validationErrors.supervisorId && (
                           <p className="mt-1 text-sm text-red-600 dark:text-red-400">{validationErrors.supervisorId}</p>
                         )}
