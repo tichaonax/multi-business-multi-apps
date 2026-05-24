@@ -10,6 +10,8 @@
 2. [POS Cashier — Making Sales](#2-pos-cashier--making-sales)
     - [Re-ordering from Recent Orders](#re-ordering-from-recent-orders)
 3. [Cash Office — Cash Handling & End of Day](#3-cash-office--cash-handling--end-of-day)
+    - [Payroll Account Auto-Contribution (EOD)](#step-3b--payroll-account-auto-contribution-automatic)
+    - [Setting Up EOD Payroll Auto-Contribution for a Business](#setting-up-eod-payroll-auto-contribution-for-a-business)
 4. [Manager — Approvals, Payroll & Reports](#4-manager--approvals-payroll--reports)
 5. [HR & Employee Management](#5-hr--employee-management)
     - [Leave Management — HR Direct Actions](#leave-management--hr-direct-actions)
@@ -535,6 +537,48 @@ Click **Process Auto-Deposits** to execute. The system processes each eligible d
 
 ---
 
+#### Step 3b — Payroll Account Auto-Contribution (Automatic)
+
+Below the expense account auto-deposit rows, the EOD preview table shows a **Payroll Account** row. This is separate from the expense account auto-deposits — it runs automatically whenever the conditions below are met and requires no manual setup or toggle.
+
+**What it does:** Calculates a daily cash contribution from this business's sales into the shared Payroll Account, so that the account is gradually funded throughout the month ready for salary payments.
+
+**How the amount is calculated:**
+1. Adds up the base salary + living allowance of every employee with an active contract across all businesses (total monthly payroll).
+2. Works out how much is still needed to reach that target (remaining = target − current payroll balance).
+3. Calculates this business's share based on how many of its employees have active contracts (e.g. 3 of 8 total = 37.5% share).
+4. Divides the share by the remaining days in the month to get today's daily target.
+5. Caps the contribution at 80% of net daily sales (sales minus prorated daily rent, if a rent config is active).
+6. Floors the result to a whole dollar — contributions below $1.00 are skipped.
+
+**What you see on the EOD screen:**
+
+| Condition | What the row shows |
+|---|---|
+| Contribution calculated | 💼 Payroll Account — `3/8 staff · 38% share` — **$42** |
+| Already done today | 💼 Payroll Account — `Already contributed today` — **$42** |
+| Payroll fully funded | ⚠ Skipped — `Payroll account already fully funded` |
+| No contracts for business | ⚠ Skipped — `No contracts for this business` |
+| Contribution rounds to $0 | ⚠ Skipped — `Contribution rounds to $0 (target $3, net sales $2.40)` |
+| Insufficient business funds | ⚠ Skipped — `Insufficient business account funds (target $42)` |
+| No global payroll account | ⚠ Skipped — `No global payroll account` |
+
+**The row is informational only** — you cannot override or skip it. It either runs automatically when EOD is processed or is silently skipped.
+
+**Why a business might show "Skipped":**
+
+| Skipped reason | What to do |
+|---|---|
+| `No contracts for this business` | The most common cause. The business has no active employee contracts assigned to it. Go to **Employees → [Employee] → New Contract** and ensure the contract's **Primary Business** is set to this business and the contract status is **active**. |
+| `No global payroll account` | A one-time admin task. Ask your administrator to create the global payroll account under **Payroll → Payroll Account**. |
+| `Payroll account already fully funded` | Good — the target is already met for the month. No action needed. |
+| `Contribution rounds to $0` | Today's net sales were too low relative to the contribution target. Will retry tomorrow. No action needed. |
+| `Insufficient business account funds` | The business account balance is $0 or below the contribution amount. Deposit funds into the business account first. |
+
+> **No toggle or setting is needed to enable this.** As long as the business has active contracts and a sufficient business account balance, the payroll contribution will happen automatically on every EOD.
+
+---
+
 #### Step 4 — Enter Manager Name and Cash Count
 
 Two fields appear at the bottom of the EOD page:
@@ -755,6 +799,96 @@ Click any item to review and approve or decline it.
 **Searching the full Pending Actions page:** A search bar at the top of the page filters all sections at once — useful when you have many items across different categories.
 
 **Going straight to a request:** Clicking a Personal Payment Request in the bell preview opens the Pending Actions page and scrolls directly to that card, which is highlighted with a blue ring for 2–3 seconds.
+
+---
+
+### Setting Up EOD Payroll Auto-Contribution for a Business
+
+> **Use this section if a business (e.g. Mvimvi) is running EOD but the Payroll Account row is showing "Skipped — No contracts for this business" or is not contributing anything.**
+
+The payroll auto-contribution is completely automatic — there is no on/off switch. It runs during every EOD as long as four conditions are met. Work through the checklist below in order.
+
+---
+
+#### Checklist: Why Is [Business Name] Not Contributing to Payroll?
+
+**Step 1 — Confirm the global payroll account exists (one-time, admin only)**
+
+Go to **Payroll → Payroll Account** in the top navigation. If you see a payroll account with a balance and transaction history, this is already done — skip to Step 2.
+
+If there is no payroll account, ask your administrator to create one:
+- Navigate to **Admin → Payroll Account → Create**
+- Leave the "Business" field blank (it must be a global account, not linked to one business)
+- Set status to **Active**
+
+This only needs to be done once for the entire system.
+
+---
+
+**Step 2 — Ensure the business has employees with active contracts (most common fix)**
+
+This is the most frequent reason a business is skipped. The system counts how many employees have an **active contract** with **this business set as their Primary Business**.
+
+1. Go to **Employees** and filter by the business (e.g. Mvimvi).
+2. For each employee who works at this business, click their name → **Contracts**.
+3. Check that at least one contract shows status **Active**.
+4. Check that the contract's **Primary Business** field is set to this business (e.g. Mvimvi) — not to another business or left blank.
+
+**If an employee has no active contract:**
+- Go to **Employees → [Employee Name] → New Contract**
+- Fill in Job Title, Compensation Type, Base Salary, Start Date
+- Set **Primary Business** = Mvimvi (or the correct business)
+- Submit — the contract starts as a draft and must be activated
+
+**If an employee's contract shows the wrong Primary Business:**
+- Create a new contract renewal with the correct Primary Business set
+- The old contract will be superseded
+
+> The system calculates this business's payroll share as: `(number of this business's active contracts) ÷ (all active contracts across all businesses)`. Even one active contract is enough for the contribution to start.
+
+---
+
+**Step 3 — Ensure the business account has a balance**
+
+Go to **[Business] → Business Account** (or **Finance → Business Account**). The current balance must be greater than $0 and greater than the daily contribution amount.
+
+If the balance is $0:
+- Record today's sales income into the business account, or
+- Make a manual deposit into the business account before running EOD
+
+The system will not debit a business account that cannot cover the contribution.
+
+---
+
+**Step 4 — Check the rent configuration (optional, affects the calculation)**
+
+If a rent config is active for this business, the daily rent equivalent is subtracted from sales before calculating the contribution (net sales = sales − daily rent). This reduces the contribution amount but does not block it unless net sales are $0.
+
+To check: go to **Admin → Business Settings → Rent Config** for the business. If no config exists, the full daily sales figure is used — this is fine.
+
+---
+
+**Step 5 — Run EOD and confirm the Payroll row**
+
+After completing the steps above, run the EOD for today:
+1. Go to **[Business] → Reports → End of Day**
+2. Look at the auto-deposit preview table
+3. The **Payroll Account** row should now show a dollar amount and the share percentage (e.g. `2/10 staff · 20% share — $28`)
+4. Process the EOD — the contribution will execute automatically
+
+If the row still shows "Skipped", hover over the reason text or check the exact skip reason against the table in **Step 3b** above.
+
+---
+
+**Quick reference — what each skip reason means for setup:**
+
+| Skip reason | Fix |
+|---|---|
+| `No contracts for this business` | Create or reassign active contracts with this business as Primary Business (Step 2) |
+| `No global payroll account` | Admin creates the global payroll account (Step 1) |
+| `Insufficient business account funds` | Deposit funds into the business account (Step 3) |
+| `Contribution rounds to $0` | Sales were very low today — no fix needed, retries tomorrow |
+| `Payroll account already fully funded` | No fix needed — payroll is ready for the month |
 
 ---
 
