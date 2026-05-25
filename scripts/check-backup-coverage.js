@@ -64,6 +64,7 @@ const dbTables = [
   'vehicle_drivers','vehicle_expenses','vehicle_licenses','vehicle_maintenance_records',
   'vehicle_maintenance_service_expenses','vehicle_maintenance_services','vehicle_reimbursements',
   'vehicle_trips','vehicles','wifi_token_devices','wifi_token_sales','wifi_tokens','wifi_usage_analytics',
+  'warehouse_batches','warehouse_items',
 ];
 
 // Tables intentionally excluded (system/transient data)

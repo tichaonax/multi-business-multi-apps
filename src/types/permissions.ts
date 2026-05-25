@@ -109,6 +109,10 @@ export interface UserLevelPermissions {
   // Inventory Management (User-level - cross-business capability)
   canManageInventory: boolean;        // Add/edit/delete inventory items and bulk stock operations
   canZeroOutInventory: boolean;       // Special: zero out or directly edit price/qty on any inventory item (audited)
+
+  // Warehouse Staging (User-level - cross-business capability, MBM-222)
+  canAccessWarehouse: boolean;        // View warehouse batch list and batch detail; import Excel files
+  canMoveWarehouseToInventory: boolean; // Move warehouse items to business inventory (sets selling price)
 }
 
 // Customer Management Permissions (Cross-business capability)
@@ -1359,7 +1363,15 @@ export const USER_LEVEL_PERMISSIONS = {
     permissions: [
       { key: 'canManageChickenRun', label: 'Manage Chicken Run' },
     ]
-  }
+  },
+  warehouseManagement: {
+    title: 'Warehouse Management',
+    description: 'Import supplier Excel batches, review items, and move stock into business inventory or personal expenses',
+    permissions: [
+      { key: 'canAccessWarehouse', label: 'Access Warehouse (import & review batches)' },
+      { key: 'canMoveWarehouseToInventory', label: 'Move Items to Business Inventory' },
+    ]
+  },
 };
 
 // Core permission templates (backward compatibility)
@@ -2999,6 +3011,10 @@ export const DEFAULT_USER_PERMISSIONS: UserLevelPermissions = {
   canZeroOutInventory: false,
   canManageAssets: false,
   canManageExpiryActions: false,
+
+  // Warehouse Staging - No access by default
+  canAccessWarehouse: false,
+  canMoveWarehouseToInventory: false,
 };
 
 export const MANAGER_USER_PERMISSIONS: UserLevelPermissions = {
@@ -3115,6 +3131,10 @@ export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
   canZeroOutInventory: true,
   canManageAssets: true,
   canManageExpiryActions: true,
+
+  // Warehouse Staging - Full access for admins
+  canAccessWarehouse: true,
+  canMoveWarehouseToInventory: true,
 };
 
 // Driver Permission Preset - Minimal permissions for drivers to log trips and maintenance only

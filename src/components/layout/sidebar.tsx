@@ -1364,6 +1364,17 @@ export function Sidebar() {
         {/* Employees - Only for users with management permissions, not just viewing */}
         {/* Employees link moved to Employee Management submenu */}
 
+        {/* Warehouse - Only for users with warehouse permission */}
+        {(isSystemAdmin(currentUser) || hasPermission('canAccessWarehouse')) && (
+          <Link
+            href="/warehouse"
+            className={getLinkClasses('/warehouse')}
+          >
+            <span className="text-lg">🏭</span>
+            <span>Warehouse</span>
+          </Link>
+        )}
+
         {/* Payroll - Only for users with payroll permissions */}
         {(isSystemAdmin(currentUser) || hasPermission('canAccessPayroll')) && (
           <Link

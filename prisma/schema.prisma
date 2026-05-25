@@ -2098,12 +2098,14 @@ model EmojiLookup {
 }
 
 model Images {
-  id        String    @id @default(uuid())
-  data      Bytes
-  mimeType  String    @default("image/jpeg")
-  size      Int
-  expiresAt DateTime?
-  createdAt DateTime  @default(now())
+  id               String           @id @default(uuid())
+  data             Bytes
+  mimeType         String           @default("image/jpeg")
+  size             Int
+  expiresAt        DateTime?
+  createdAt        DateTime         @default(now())
+  product_images   ProductImages[]
+  warehouse_items  WarehouseItems[]
 
   @@map("images")
 }
@@ -2950,6 +2952,7 @@ model ProductImages {
   id                String           @id @default(uuid())
   productId         String
   imageUrl          String
+  imageId           String?
   altText           String?
   isPrimary         Boolean          @default(false)
   sortOrder         Int              @default(0)
@@ -2959,6 +2962,7 @@ model ProductImages {
   createdAt         DateTime         @default(now())
   updatedAt         DateTime
   business_products BusinessProducts @relation(fields: [productId], references: [id])
+  images            Images?          @relation(fields: [imageId], references: [id])
 
   @@map("product_images")
 }
@@ -3601,6 +3605,8 @@ model Users {
   combo_item_payee                                                ComboPaymentRequestItems[]       @relation("ComboItemPayeeUser")
   expense_account_accesses                                        ExpenseAccountUserAccess[]       @relation("UserExpenseAccountAccesses")
   expense_account_accesses_granted                                ExpenseAccountUserAccess[]       @relation("ExpenseAccountAccessGrantor")
+  warehouse_batches_imported                                      WarehouseBatches[]
+  warehouse_items_moved                                           WarehouseItems[]                 @relation("WarehouseItemMover")
 
   @@map("users")
 }
@@ -7215,4 +7221,68 @@ model IssuingAuthorities {
   updatedAt DateTime @default(now()) @updatedAt
 
   @@map("issuing_authorities")
+}
+
+model WarehouseBatches {
+  id                   String           @id @default(uuid())
+  batchName            String
+  batchNumber          String?
+  importedBy           String
+  importedAt           DateTime         @default(now())
+  status               String           @default("ACTIVE")
+  rowCount             Int
+  totalYuanCost        Decimal?         @db.Decimal(14, 2)
+  totalUsdCost         Decimal?         @db.Decimal(14, 2)
+  collectionFee        String?
+  pickedUpFromHarare   Boolean          @default(false)
+  transportCostHarare  Decimal?         @db.Decimal(10, 2)
+  fileHash             String           @unique
+  originalFileName     String
+  notes                String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @default(now()) @updatedAt
+  users                Users            @relation(fields: [importedBy], references: [id])
+  warehouse_items      WarehouseItems[]
+
+  @@map("warehouse_batches")
+}
+
+model WarehouseItems {
+  id                        String            @id @default(uuid())
+  batchId                   String
+  rowNumber                 Int?
+  orderNumber               String
+  trackingNumber            String?
+  additionalTrackingNumbers Json?
+  productName               String
+  shortName                 String?
+  quantity                  Int?
+  priceYuan                 Decimal?          @db.Decimal(12, 2)
+  costUsd                   Decimal?          @db.Decimal(10, 2)
+  exchangeRate              Decimal?          @db.Decimal(8, 4)
+  orderDate                 DateTime?         @db.Date
+  stage                     String?
+  shipment                  String?
+  location                  String?
+  courierName               String?
+  courierStatus             String?
+  courierTime               DateTime?         @db.Date
+  imageId                   String?
+  isPersonal                Boolean           @default(false)
+  status                    String            @default("IN_WAREHOUSE")
+  businessProductId         String?
+  personalExpenseId         String?
+  movedAt                   DateTime?
+  movedBy                   String?
+  notes                     String?
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @default(now()) @updatedAt
+  warehouse_batches         WarehouseBatches  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  images                    Images?           @relation(fields: [imageId], references: [id])
+  moved_by_user             Users?            @relation("WarehouseItemMover", fields: [movedBy], references: [id])
+
+  @@index([batchId])
+  @@index([orderNumber])
+  @@index([status])
+  @@map("warehouse_items")
 }

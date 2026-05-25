@@ -1454,6 +1454,37 @@ export async function createCleanBackup(
     ? await prisma.comboPaymentRequestItems.findMany({ where: { requestId: { in: comboRequestIds } } })
     : []
 
+  // Warehouse batches and items (global — no businessId scoping)
+  businessData.warehouseBatches = await (prisma as any).warehouseBatches.findMany()
+  const warehouseBatchIds = businessData.warehouseBatches.map((b: any) => b.id)
+  businessData.warehouseItems = warehouseBatchIds.length > 0
+    ? await (prisma as any).warehouseItems.findMany({ where: { batchId: { in: warehouseBatchIds } } })
+    : []
+
+  // Extend image backup: include warehouse item images + product_images imageId refs
+  const warehouseImageIds = businessData.warehouseItems
+    .map((i: any) => i.imageId)
+    .filter((id: any) => typeof id === 'string' && id.length > 0)
+  const productImageRefs = businessData.productImages
+    ? (businessData.productImages as any[])
+        .map((pi: any) => pi.imageId)
+        .filter((id: any) => typeof id === 'string' && id.length > 0)
+    : []
+  const extendedImageIds = [...new Set([
+    ...(businessData.images || []).map((i: any) => i.id),
+    ...warehouseImageIds,
+    ...productImageRefs,
+  ])]
+  if (extendedImageIds.length > (businessData.images || []).length) {
+    const alreadyFetched = new Set((businessData.images || []).map((i: any) => i.id))
+    const missing = extendedImageIds.filter((id: string) => !alreadyFetched.has(id))
+    if (missing.length > 0) {
+      const extra = (await (prisma as any).images.findMany({ where: { id: { in: missing } } }))
+        .map((img: any) => ({ ...img, data: Buffer.from(img.data) }))
+      businessData.images = [...(businessData.images || []), ...extra]
+    }
+  }
+
   // Collect device-specific data (Category B) - only if full-device backup
   let deviceData: any = undefined
 

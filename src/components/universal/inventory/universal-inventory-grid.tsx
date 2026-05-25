@@ -31,6 +31,7 @@ interface UniversalInventoryItem {
   updatedAt: string
   attributes?: Record<string, any>
   isExpiryDiscount?: boolean
+  imageId?: string | null
   barcodes?: Array<{
     id: string
     code: string
@@ -784,6 +785,15 @@ export function UniversalInventoryGrid({
                       </td>
                     )}
                     <td className="p-3">
+                      <div className="flex items-start gap-2">
+                        {item.imageId && (
+                          <img
+                            src={`/api/images/${item.imageId}`}
+                            alt={item.name}
+                            className="w-8 h-8 object-cover rounded border border-gray-200 dark:border-gray-600 flex-shrink-0 mt-0.5"
+                            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                          />
+                        )}
                       <div>
                         <div className="font-medium text-primary flex items-center gap-2 flex-wrap">
                           {item.name}
@@ -827,6 +837,7 @@ export function UniversalInventoryGrid({
                         {item.description && (
                           <div className="text-xs text-gray-500 mt-1">{item.description}</div>
                         )}
+                      </div>
                       </div>
                     </td>
                     <td className="p-3">

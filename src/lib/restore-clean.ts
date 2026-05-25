@@ -412,7 +412,11 @@ const RESTORE_ORDER = [
   'orderCancellations',           // Depends on managerOverrideLogs + businessOrders + users + businessCustomers
 
   // Audit logs (optional — only present when backup was created with includeAuditLogs=true)
-  'auditLogs'           // Depends on users
+  'auditLogs',          // Depends on users
+
+  // Warehouse staging (MBM-222)
+  'warehouseBatches',   // Depends on users (importedBy)
+  'warehouseItems',     // Depends on warehouseBatches, images (imageId), users (movedBy)
 ]
 
 /**

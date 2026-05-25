@@ -225,7 +225,8 @@ export async function GET(
             business_stock_movements: true
           }
         },
-        product_barcodes: true
+        product_barcodes: true,
+        product_images: { where: { isPrimary: true }, take: 1 }
       },
       orderBy: { name: 'asc' },
       // Fetch more items before pagination to account for filtering by ingredientType
@@ -269,7 +270,8 @@ export async function GET(
         updatedAt: product.updatedAt.toISOString(),
         barcodes: (product as any).product_barcodes || [],
         attributes: product.attributes || {},
-        isInventoryTracked: (product as any).isInventoryTracked ?? false
+        isInventoryTracked: (product as any).isInventoryTracked ?? false,
+        imageId: (product as any).product_images?.[0]?.imageId || null
       }
     })
 

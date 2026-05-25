@@ -10,6 +10,8 @@ export interface PricingCalculatorProps {
   transportDistanceKm: number | null
   transportCostPerKm: number | null
   batchQuantity?: number
+  /** Direct per-unit transport override — skips km×rate calculation (used by warehouse move wizard) */
+  transportPerUnitOverride?: number | null
 }
 
 const MARKUP_TIERS = [10, 15, 20, 25, 30, 40, 50]
@@ -22,16 +24,21 @@ export function PricingCalculator({
   transportDistanceKm,
   transportCostPerKm,
   batchQuantity = 1,
+  transportPerUnitOverride,
 }: PricingCalculatorProps) {
   const calc = useMemo(() => {
     if (!costPrice || costPrice <= 0) return null
 
-    const km = transportEnabled && transportDistanceKm && transportDistanceKm > 0 ? transportDistanceKm : 0
-    const rate = transportEnabled && transportCostPerKm && transportCostPerKm > 0 ? transportCostPerKm : 0
-    const qty = batchQuantity > 0 ? batchQuantity : 1
-
-    const tripCost = km * 2 * rate
-    const transportPerUnit = tripCost / qty
+    let transportPerUnit: number
+    if (transportPerUnitOverride != null && transportPerUnitOverride > 0) {
+      transportPerUnit = transportPerUnitOverride
+    } else {
+      const km = transportEnabled && transportDistanceKm && transportDistanceKm > 0 ? transportDistanceKm : 0
+      const rate = transportEnabled && transportCostPerKm && transportCostPerKm > 0 ? transportCostPerKm : 0
+      const qty = batchQuantity > 0 ? batchQuantity : 1
+      const tripCost = km * 2 * rate
+      transportPerUnit = tripCost / qty
+    }
     const landedCost = costPrice + transportPerUnit
 
     const currentPrice = parseFloat(sellingPrice) || 0
