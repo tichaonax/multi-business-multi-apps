@@ -13,10 +13,11 @@ import {
   LineChart, Line,
 } from 'recharts'
 import Link from 'next/link'
+import { ServiceCategoryPicker } from '@/components/common/service-category-picker'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Group = 'INDIVIDUAL' | 'CONTRACTOR' | 'SUPPLIER'
+type Group = 'CONTRACTOR' | 'SUPPLIER'
 
 interface GroupTotal {
   group: Group
@@ -28,6 +29,9 @@ interface GroupTotal {
 interface PayeeRow {
   payeeId: string
   payeeName: string
+  payeeEmoji: string | null
+  serviceType: string | null
+  businessId: string | null
   totalPaid: number
   paymentCount: number
   lastPayment: string
@@ -60,19 +64,15 @@ interface InsightsData {
 
 const TABS: { label: string; value: Group; activeCard: string; activeTab: string; textColor: string }[] = [
   {
-    label: 'Individuals', value: 'INDIVIDUAL',
-    activeCard: 'border-blue-400 bg-blue-50 dark:bg-blue-900/20',
-    activeTab:  'border-blue-500 text-blue-700 dark:text-blue-300',
-    textColor:  'text-blue-700 dark:text-blue-300',
-  },
-  {
-    label: 'Contractors', value: 'CONTRACTOR',
+    label: 'Contractors',
+    value: 'CONTRACTOR',
     activeCard: 'border-amber-400 bg-amber-50 dark:bg-amber-900/20',
     activeTab:  'border-amber-500 text-amber-700 dark:text-amber-300',
     textColor:  'text-amber-700 dark:text-amber-300',
   },
   {
-    label: 'Suppliers', value: 'SUPPLIER',
+    label: 'Suppliers',
+    value: 'SUPPLIER',
     activeCard: 'border-green-400 bg-green-50 dark:bg-green-900/20',
     activeTab:  'border-green-500 text-green-700 dark:text-green-300',
     textColor:  'text-green-700 dark:text-green-300',
@@ -80,7 +80,6 @@ const TABS: { label: string; value: Group; activeCard: string; activeTab: string
 ]
 
 const GROUP_COLORS: Record<Group, string> = {
-  INDIVIDUAL: '#3b82f6',
   CONTRACTOR: '#f59e0b',
   SUPPLIER:   '#22c55e',
 }
@@ -93,7 +92,7 @@ const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', c
 const fmtFull = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 
 function payeeHistoryUrl(payeeId: string, group: Group) {
-  const type = group === 'SUPPLIER' ? 'SUPPLIER' : group === 'CONTRACTOR' ? 'CONTRACTOR' : 'PERSON'
+  const type = group === 'SUPPLIER' ? 'SUPPLIER' : 'PERSON'
   return `/expense-accounts/reports/payee-history?payeeType=${type}&payeeId=${payeeId}`
 }
 
@@ -110,7 +109,7 @@ export default function PayeeInsightsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
 
-  const [activeGroup, setActiveGroup] = useState<Group>('INDIVIDUAL')
+  const [activeGroup, setActiveGroup] = useState<Group>('CONTRACTOR')
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange())
   const [allTime, setAllTime] = useState(false)
   const [data, setData] = useState<InsightsData | null>(null)
@@ -118,7 +117,11 @@ export default function PayeeInsightsPage() {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
-  // Auth + permission guard
+  const [editingPayee, setEditingPayee] = useState<{ payeeId: string; payeeName: string; currentEmoji: string | null; currentServiceType: string | null; businessId: string | null } | null>(null)
+  const [editEmoji, setEditEmoji] = useState('')
+  const [editServiceType, setEditServiceType] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/auth/signin')
   }, [status, router])
@@ -153,6 +156,42 @@ export default function PayeeInsightsPage() {
     }
   }
 
+  function openEdit(p: PayeeRow) {
+    setEditingPayee({ payeeId: p.payeeId, payeeName: p.payeeName, currentEmoji: p.payeeEmoji, currentServiceType: p.serviceType, businessId: p.businessId })
+    setEditEmoji(p.payeeEmoji || '')
+    setEditServiceType(p.serviceType || null)
+  }
+
+  async function savePayeeEmoji() {
+    if (!editingPayee) return
+    setSaving(true)
+    try {
+      if (activeGroup === 'CONTRACTOR') {
+        await fetch(`/api/persons/${editingPayee.payeeId}`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ serviceType: editServiceType, emoji: editEmoji }),
+        })
+      } else if (editingPayee.businessId) {
+        await fetch(`/api/business/${editingPayee.businessId}/suppliers/${editingPayee.payeeId}`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emoji: editEmoji }),
+        })
+      }
+      const updateRows = (rows: PayeeRow[]) =>
+        rows.map((p) => p.payeeId === editingPayee.payeeId ? { ...p, payeeEmoji: editEmoji || null, serviceType: editServiceType } : p)
+      setData((prev) => prev ? { ...prev, allPayees: updateRows(prev.allPayees), topPayees: updateRows(prev.topPayees) } : prev)
+      setEditingPayee(null)
+    } catch {
+      // silent
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const filteredPayees = useMemo(() => {
     if (!data) return []
     if (!search.trim()) return data.allPayees
@@ -162,7 +201,6 @@ export default function PayeeInsightsPage() {
 
   const activeTab = TABS.find((t) => t.value === activeGroup)!
 
-  // Group comparison data for bar chart
   const comparisonData = useMemo(() => {
     if (!data) return []
     return data.groupTotals.map((g) => ({
@@ -182,7 +220,7 @@ export default function PayeeInsightsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-primary">Payee Expense Insights</h1>
-            <p className="text-sm text-secondary mt-0.5">Spending breakdown across individuals, contractors, and suppliers</p>
+            <p className="text-sm text-secondary mt-0.5">Spending breakdown across contractors and suppliers</p>
           </div>
           <Link href="/expense-accounts/reports" className="text-sm text-secondary hover:text-primary underline">
             ← Reports Hub
@@ -206,7 +244,7 @@ export default function PayeeInsightsPage() {
         )}
 
         {/* Group summary cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {TABS.map((tab) => {
             const gt = data?.groupTotals.find((g) => g.group === tab.value)
             const isActive = activeGroup === tab.value
@@ -246,9 +284,9 @@ export default function PayeeInsightsPage() {
             <div className="h-40 animate-pulse bg-gray-100 dark:bg-gray-800 rounded" />
           ) : (
             <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={comparisonData} barSize={48}>
+              <BarChart data={comparisonData} barSize={64}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <XAxis dataKey="name" tick={{ fontSize: 13 }} />
                 <YAxis tickFormatter={(v) => fmt(v)} tick={{ fontSize: 11 }} width={80} />
                 <Tooltip formatter={(v: number) => [fmtFull(v), 'Total Paid']} />
                 <Bar dataKey="Total" radius={[4, 4, 0, 0]}>
@@ -292,7 +330,7 @@ export default function PayeeInsightsPage() {
             ) : (
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart
-                  data={data.topPayees.map((p) => ({ name: p.payeeName.split(' ').slice(0, 2).join(' '), amount: p.totalPaid, payeeId: p.payeeId }))}
+                  data={data.topPayees.map((p) => ({ name: p.payeeName.split(' ').slice(0, 2).join(' '), amount: p.totalPaid }))}
                   layout="vertical"
                   barSize={16}
                   margin={{ left: 0, right: 16 }}
@@ -341,7 +379,6 @@ export default function PayeeInsightsPage() {
                 data={data.categoryBreakdown.map((c, i) => ({
                   name: `${c.emoji} ${c.categoryName}`,
                   amount: c.totalPaid,
-                  fill: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
                 }))}
                 barSize={32}
               >
@@ -407,7 +444,22 @@ export default function PayeeInsightsPage() {
               <tbody className="divide-y divide-border">
                 {filteredPayees.map((p) => (
                   <tr key={p.payeeId} className="hover:bg-muted/50 transition-colors">
-                    <td className="px-4 py-3 font-medium text-primary">{p.payeeName}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base leading-none shrink-0">{p.payeeEmoji || (activeGroup === 'CONTRACTOR' ? '🤝' : '🚚')}</span>
+                        <span className="font-medium text-primary">{p.payeeName}</span>
+                        <button
+                          onClick={() => openEdit(p)}
+                          className="text-gray-300 hover:text-gray-500 dark:hover:text-gray-400 text-xs shrink-0"
+                          title="Edit classification"
+                        >
+                          ✏️
+                        </button>
+                      </div>
+                      {p.serviceType && (
+                        <div className="text-xs text-secondary mt-0.5 pl-7">{p.serviceType}</div>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right font-semibold text-primary">{fmtFull(p.totalPaid)}</td>
                     <td className="px-4 py-3 text-right text-secondary">{p.paymentCount}</td>
                     <td className="px-4 py-3 text-right text-secondary hidden sm:table-cell">
@@ -429,6 +481,61 @@ export default function PayeeInsightsPage() {
         </div>
 
       </div>
+
+      {/* Edit payee classification modal */}
+      {editingPayee && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setEditingPayee(null)}
+        >
+          <div
+            className="bg-white dark:bg-gray-900 rounded-xl shadow-xl w-full max-w-md p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-semibold text-primary">Edit Payee Classification</h3>
+              <button onClick={() => setEditingPayee(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl leading-none w-7 h-7 flex items-center justify-center">×</button>
+            </div>
+            <p className="text-sm text-secondary mb-4">{editingPayee.payeeName}</p>
+
+            {activeGroup === 'CONTRACTOR' ? (
+              <ServiceCategoryPicker
+                apiEndpoint="/api/contractor-categories"
+                value={editServiceType}
+                onChange={(name, emoji) => { setEditServiceType(name || null); setEditEmoji(emoji) }}
+              />
+            ) : (
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Emoji</label>
+                <input
+                  type="text"
+                  value={editEmoji}
+                  onChange={(e) => setEditEmoji(e.target.value)}
+                  placeholder="e.g. 🚚"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-primary focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            )}
+
+            <div className="flex gap-2 justify-end mt-4">
+              <button
+                onClick={() => setEditingPayee(null)}
+                className="px-4 py-2 text-sm bg-gray-100 dark:bg-gray-800 text-primary rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={savePayeeEmoji}
+                disabled={saving}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </ContentLayout>
   )
 }

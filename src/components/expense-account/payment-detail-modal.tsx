@@ -1,18 +1,20 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
+import { ServiceCategoryPicker } from '@/components/common/service-category-picker'
 
 interface PaymentDetail {
   id: string
   amount: number
   paymentDate: string
   payeeType: string
-  payeeUser: { name: string; email?: string } | null
-  payeeEmployee: { fullName: string; phone?: string | null; nationalId?: string | null } | null
-  payeePerson: { fullName: string; phone?: string | null; email?: string | null; nationalId?: string | null } | null
-  payeeBusiness: { name: string } | null
-  payeeSupplier: { name: string; phone?: string | null; contactPerson?: string | null } | null
+  payeeUser: { id: string; name: string; email?: string } | null
+  payeeEmployee: { id: string; fullName: string; phone?: string | null; nationalId?: string | null } | null
+  payeePerson: { id: string; fullName: string; phone?: string | null; email?: string | null; nationalId?: string | null; emoji?: string | null; serviceType?: string | null } | null
+  payeeBusiness: { id: string; name: string } | null
+  payeeSupplier: { id: string; name: string; phone?: string | null; contactPerson?: string | null; emoji?: string | null } | null
   category: { name: string; emoji: string } | null
   subcategory: { name: string; emoji: string } | null
   notes: string | null
@@ -25,6 +27,35 @@ interface PaymentDetail {
   destinationDepositId: string | null
   destinationAccountId: string | null
   destinationAccountName: string | null
+  expenseAccountBusinessId: string | null
+}
+
+const PAYEE_TYPE_BADGE: Record<string, { label: string; emoji: string; style: string }> = {
+  USER:     { label: 'User',       emoji: '👤', style: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
+  EMPLOYEE: { label: 'Employee',   emoji: '👷', style: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
+  PERSON:   { label: 'Contractor', emoji: '🤝', style: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
+  BUSINESS: { label: 'Business',   emoji: '🏢', style: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' },
+  SUPPLIER: { label: 'Supplier',   emoji: '🚚', style: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' },
+}
+
+function resolvePayeeHistoryUrl(payment: PaymentDetail): string | null {
+  switch (payment.payeeType) {
+    case 'PERSON':   return payment.payeePerson ? `/expense-accounts/reports/payee-history?payeeType=PERSON&payeeId=${payment.payeePerson.id}` : null
+    case 'SUPPLIER': return payment.payeeSupplier ? `/expense-accounts/reports/payee-history?payeeType=SUPPLIER&payeeId=${payment.payeeSupplier.id}` : null
+    case 'EMPLOYEE': return payment.payeeEmployee ? `/expense-accounts/reports/payee-history?payeeType=EMPLOYEE&payeeId=${payment.payeeEmployee.id}` : null
+    case 'USER':     return payment.payeeUser ? `/expense-accounts/reports/payee-history?payeeType=USER&payeeId=${payment.payeeUser.id}` : null
+    case 'BUSINESS': return payment.payeeBusiness ? `/expense-accounts/reports/payee-history?payeeType=BUSINESS&payeeId=${payment.payeeBusiness.id}` : null
+    default: return null
+  }
+}
+
+function resolveManageUrl(payment: PaymentDetail): string | null {
+  switch (payment.payeeType) {
+    case 'PERSON':   return '/contractors'
+    case 'EMPLOYEE': return '/employees'
+    case 'SUPPLIER': return '/supplier-payments'
+    default:         return null
+  }
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -76,9 +107,13 @@ export function PaymentDetailModal({
 }) {
   const [payment, setPayment] = useState<PaymentDetail | null>(null)
   const [loading, setLoading] = useState(false)
+  const [editingClassification, setEditingClassification] = useState(false)
+  const [editEmoji, setEditEmoji] = useState('')
+  const [editServiceType, setEditServiceType] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (!isOpen || !accountId || !paymentId) { setPayment(null); return }
+    if (!isOpen || !accountId || !paymentId) { setPayment(null); setEditingClassification(false); return }
     setLoading(true)
     fetch(`/api/expense-account/${accountId}/payments/${paymentId}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
@@ -86,6 +121,48 @@ export function PaymentDetailModal({
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [isOpen, accountId, paymentId])
+
+  function openClassificationEdit() {
+    if (!payment) return
+    setEditEmoji(payment.payeePerson?.emoji || payment.payeeSupplier?.emoji || '')
+    setEditServiceType(payment.payeePerson?.serviceType || null)
+    setEditingClassification(true)
+  }
+
+  async function saveClassification() {
+    if (!payment) return
+    setSaving(true)
+    try {
+      if (payment.payeeType === 'PERSON' && payment.payeePerson) {
+        await fetch(`/api/persons/${payment.payeePerson.id}`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ serviceType: editServiceType, emoji: editEmoji }),
+        })
+        setPayment((prev) => prev ? {
+          ...prev,
+          payeePerson: prev.payeePerson ? { ...prev.payeePerson, emoji: editEmoji || undefined, serviceType: editServiceType } : null,
+        } : null)
+      } else if (payment.payeeType === 'SUPPLIER' && payment.payeeSupplier && payment.expenseAccountBusinessId) {
+        await fetch(`/api/business/${payment.expenseAccountBusinessId}/suppliers/${payment.payeeSupplier.id}`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emoji: editEmoji }),
+        })
+        setPayment((prev) => prev ? {
+          ...prev,
+          payeeSupplier: prev.payeeSupplier ? { ...prev.payeeSupplier, emoji: editEmoji || undefined } : null,
+        } : null)
+      }
+      setEditingClassification(false)
+    } catch {
+      // silent
+    } finally {
+      setSaving(false)
+    }
+  }
 
   if (!isOpen) return null
 
@@ -136,9 +213,106 @@ export function PaymentDetailModal({
                   <span className="text-sky-600 dark:text-sky-400 text-xs">🔒 Auto-transfer — not editable</span>
                 </div>
               )}
-              {payment.paymentType !== 'TRANSFER_OUT' && (
-                <Row label="Payee" value={payeeName} />
-              )}
+              {payment.paymentType !== 'TRANSFER_OUT' && (() => {
+                const badge = PAYEE_TYPE_BADGE[payment.payeeType]
+                const historyUrl = resolvePayeeHistoryUrl(payment)
+                const manageUrl = resolveManageUrl(payment)
+                const payeeEmoji = payment.payeePerson?.emoji || payment.payeeSupplier?.emoji || null
+                const defaultEmoji = badge?.emoji || '👤'
+                const canEditClassification = payment.payeeType === 'PERSON' || (payment.payeeType === 'SUPPLIER' && !!payment.expenseAccountBusinessId)
+                return (
+                  <div className="flex gap-3">
+                    <span className="text-xs text-gray-400 w-28 shrink-0 pt-0.5">Payee</span>
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-base leading-none">{payeeEmoji || defaultEmoji}</span>
+                        {historyUrl ? (
+                          <Link
+                            href={historyUrl}
+                            onClick={onClose}
+                            className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            {payeeName}
+                          </Link>
+                        ) : (
+                          <span className="text-sm text-primary">{payeeName}</span>
+                        )}
+                        {badge && (
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${badge.style}`}>
+                            {badge.label}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {historyUrl && (
+                          <Link
+                            href={historyUrl}
+                            onClick={onClose}
+                            className="text-xs text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
+                          >
+                            📋 Payment history
+                          </Link>
+                        )}
+                        {manageUrl && (
+                          <Link
+                            href={manageUrl}
+                            onClick={onClose}
+                            className="text-xs text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
+                          >
+                            ✏️ View / Edit details
+                          </Link>
+                        )}
+                        {canEditClassification && !editingClassification && (
+                          <button
+                            onClick={openClassificationEdit}
+                            className="text-xs text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
+                          >
+                            🏷️ Set classification
+                          </button>
+                        )}
+                      </div>
+                      {/* Inline classification edit */}
+                      {editingClassification && (
+                        <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 space-y-3">
+                          {payment.payeeType === 'PERSON' ? (
+                            <ServiceCategoryPicker
+                              apiEndpoint="/api/contractor-categories"
+                              value={editServiceType}
+                              onChange={(name, emoji) => { setEditServiceType(name || null); setEditEmoji(emoji) }}
+                            />
+                          ) : (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Emoji</label>
+                              <input
+                                type="text"
+                                value={editEmoji}
+                                onChange={(e) => setEditEmoji(e.target.value)}
+                                placeholder="e.g. 🚚"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-primary focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                            </div>
+                          )}
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              onClick={() => setEditingClassification(false)}
+                              className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-primary rounded-md"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={saveClassification}
+                              disabled={saving}
+                              className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                            >
+                              {saving ? 'Saving…' : 'Save'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
               {nationalId && <Row label="ID" value={nationalId} />}
               {phone && <Row label="Phone" value={phone} />}
               <Row label="Amount" value={`$${payment.amount.toFixed(2)}`} />

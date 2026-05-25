@@ -13,8 +13,9 @@ import Link from 'next/link'
 
 const PAYEE_TYPE_TABS = [
   { label: 'All', value: 'ALL' },
+  { label: 'Contractors', value: 'PERSON' },
+  { label: 'Suppliers', value: 'SUPPLIER' },
   { label: 'Employees', value: 'EMPLOYEE' },
-  { label: 'Persons', value: 'PERSON' },
   { label: 'Businesses', value: 'BUSINESS' },
   { label: 'Users', value: 'USER' },
 ]

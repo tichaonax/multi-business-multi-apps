@@ -68,13 +68,15 @@ export async function GET(
             nationalId: true,
             phone: true,
             email: true,
+            serviceType: true,
+            emoji: true,
           },
         },
         payeeBusiness: {
           select: { id: true, name: true, type: true, description: true },
         },
         payeeSupplier: {
-          select: { id: true, name: true, phone: true, contactPerson: true, email: true },
+          select: { id: true, name: true, phone: true, contactPerson: true, email: true, emoji: true },
         },
         category: {
           select: {
@@ -185,6 +187,7 @@ export async function GET(
           reversalNote: reversalData.reversal_note ?? null,
           reversalPettyCashId: reversalData.reversal_petty_cash_id ?? null,
           lineItems: reversalData.line_items ?? null,
+          expenseAccountBusinessId: payment.expenseAccount.businessId ?? null,
           // Transfer destination link (MBM-198)
           destinationDepositId: (payment as any).destinationDepositId ?? null,
           destinationAccountId: (payment as any).destinationDeposit?.expenseAccountId ?? null,

@@ -6,9 +6,13 @@ import { getEffectivePermissions } from '@/lib/permission-utils'
 /**
  * GET /api/expense-account/reports/payee-insights
  *
+ * Two payee groups:
+ *   CONTRACTOR = all PERSON type payments (individuals + contractors, same DB table)
+ *   SUPPLIER   = all SUPPLIER type payments (businessSuppliers)
+ *
  * Query params:
  * - startDate, endDate (optional ISO date strings)
- * - group: INDIVIDUAL | CONTRACTOR | SUPPLIER | ALL (default: ALL)
+ * - group: CONTRACTOR | SUPPLIER (default: CONTRACTOR)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -23,7 +27,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
-    const group = (searchParams.get('group') || 'INDIVIDUAL') as 'INDIVIDUAL' | 'CONTRACTOR' | 'SUPPLIER' | 'ALL'
+    const group = (searchParams.get('group') || 'CONTRACTOR') as 'CONTRACTOR' | 'SUPPLIER'
 
     // Build date filter
     const dateFilter: any = {}
@@ -36,14 +40,7 @@ export async function GET(request: NextRequest) {
     const baseWhere: any = { status: { not: 'REJECTED' } }
     if (Object.keys(dateFilter).length > 0) baseWhere.paymentDate = dateFilter
 
-    // Fetch personIds with contractor assignments (to split INDIVIDUAL vs CONTRACTOR)
-    const contractorPersons = await prisma.persons.findMany({
-      where: { project_contractors: { some: {} } },
-      select: { id: true },
-    })
-    const contractorPersonIds = new Set(contractorPersons.map((p) => p.id))
-
-    // Fetch all PERSON payments
+    // Fetch PERSON payments (all persons — individuals and contractors use same table)
     const personPayments = await prisma.expenseAccountPayments.findMany({
       where: { ...baseWhere, payeeType: 'PERSON' },
       select: {
@@ -51,12 +48,12 @@ export async function GET(request: NextRequest) {
         amount: true,
         paymentDate: true,
         payeePersonId: true,
-        payeePerson: { select: { id: true, fullName: true } },
+        payeePerson: { select: { id: true, fullName: true, emoji: true, serviceType: true } },
         category: { select: { id: true, name: true, emoji: true } },
       },
     })
 
-    // Fetch all SUPPLIER payments
+    // Fetch SUPPLIER payments
     const supplierPayments = await prisma.expenseAccountPayments.findMany({
       where: { ...baseWhere, payeeType: 'SUPPLIER' },
       select: {
@@ -64,7 +61,7 @@ export async function GET(request: NextRequest) {
         amount: true,
         paymentDate: true,
         payeeSupplierId: true,
-        payeeSupplier: { select: { id: true, name: true } },
+        payeeSupplier: { select: { id: true, name: true, emoji: true, businessId: true } },
         category: { select: { id: true, name: true, emoji: true } },
       },
     })
@@ -76,11 +73,14 @@ export async function GET(request: NextRequest) {
       category: { id: string; name: string; emoji: string } | null
       payeeId: string | null
       payeeName: string | null
+      payeeEmoji: string | null
+      payeeServiceType: string | null
+      payeeBusinessId: string | null
     }
 
     function aggregate(payments: NormPayment[]) {
       let totalPaid = 0
-      const payeeMap = new Map<string, { payeeId: string; payeeName: string; totalPaid: number; paymentCount: number; lastPayment: string }>()
+      const payeeMap = new Map<string, { payeeId: string; payeeName: string; payeeEmoji: string | null; serviceType: string | null; businessId: string | null; totalPaid: number; paymentCount: number; lastPayment: string }>()
       const monthMap = new Map<string, { month: string; label: string; totalPaid: number; paymentCount: number }>()
       const catMap = new Map<string, { categoryId: string; categoryName: string; emoji: string; totalPaid: number; paymentCount: number }>()
 
@@ -88,16 +88,14 @@ export async function GET(request: NextRequest) {
         const amount = Number(p.amount)
         totalPaid += amount
 
-        // Payee
         const pid = p.payeeId || 'unknown'
-        if (!payeeMap.has(pid)) payeeMap.set(pid, { payeeId: pid, payeeName: p.payeeName || 'Unknown', totalPaid: 0, paymentCount: 0, lastPayment: '' })
+        if (!payeeMap.has(pid)) payeeMap.set(pid, { payeeId: pid, payeeName: p.payeeName || 'Unknown', payeeEmoji: p.payeeEmoji || null, serviceType: p.payeeServiceType || null, businessId: p.payeeBusinessId || null, totalPaid: 0, paymentCount: 0, lastPayment: '' })
         const pe = payeeMap.get(pid)!
         pe.totalPaid += amount
         pe.paymentCount++
         const ds = p.paymentDate.toISOString()
         if (!pe.lastPayment || ds > pe.lastPayment) pe.lastPayment = ds
 
-        // Month
         const d = p.paymentDate
         const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
         if (!monthMap.has(monthKey)) monthMap.set(monthKey, { month: monthKey, label: d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }), totalPaid: 0, paymentCount: 0 })
@@ -105,7 +103,6 @@ export async function GET(request: NextRequest) {
         me.totalPaid += amount
         me.paymentCount++
 
-        // Category
         const catId = p.category?.id || 'uncategorized'
         if (!catMap.has(catId)) catMap.set(catId, { categoryId: catId, categoryName: p.category?.name || 'Uncategorized', emoji: p.category?.emoji || '📁', totalPaid: 0, paymentCount: 0 })
         const ce = catMap.get(catId)!
@@ -125,36 +122,31 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Normalise payments per group
-    const indPayments: NormPayment[] = personPayments
-      .filter((p) => !contractorPersonIds.has(p.payeePersonId || ''))
-      .map((p) => ({ id: p.id, amount: p.amount, paymentDate: p.paymentDate, category: p.category, payeeId: p.payeePerson?.id || null, payeeName: p.payeePerson?.fullName || null }))
-
-    const conPayments: NormPayment[] = personPayments
-      .filter((p) => contractorPersonIds.has(p.payeePersonId || ''))
-      .map((p) => ({ id: p.id, amount: p.amount, paymentDate: p.paymentDate, category: p.category, payeeId: p.payeePerson?.id || null, payeeName: p.payeePerson?.fullName || null }))
-
-    const supPayments: NormPayment[] = supplierPayments.map((p) => ({
+    const contractorNorm: NormPayment[] = personPayments.map((p) => ({
       id: p.id, amount: p.amount, paymentDate: p.paymentDate, category: p.category,
-      payeeId: p.payeeSupplier?.id || null, payeeName: p.payeeSupplier?.name || null,
+      payeeId: p.payeePerson?.id || null, payeeName: p.payeePerson?.fullName || null,
+      payeeEmoji: (p.payeePerson as any)?.emoji || null,
+      payeeServiceType: (p.payeePerson as any)?.serviceType || null,
+      payeeBusinessId: null,
     }))
 
-    // Always compute group totals for the summary cards
-    const indAgg = aggregate(indPayments)
-    const conAgg = aggregate(conPayments)
-    const supAgg = aggregate(supPayments)
+    const supplierNorm: NormPayment[] = supplierPayments.map((p) => ({
+      id: p.id, amount: p.amount, paymentDate: p.paymentDate, category: p.category,
+      payeeId: p.payeeSupplier?.id || null, payeeName: p.payeeSupplier?.name || null,
+      payeeEmoji: (p.payeeSupplier as any)?.emoji || null,
+      payeeServiceType: null,
+      payeeBusinessId: (p.payeeSupplier as any)?.businessId || null,
+    }))
+
+    const conAgg = aggregate(contractorNorm)
+    const supAgg = aggregate(supplierNorm)
 
     const groupTotals = [
-      { group: 'INDIVIDUAL', totalPaid: indAgg.totalPaid, paymentCount: indAgg.paymentCount, uniquePayees: indAgg.uniquePayees },
       { group: 'CONTRACTOR', totalPaid: conAgg.totalPaid, paymentCount: conAgg.paymentCount, uniquePayees: conAgg.uniquePayees },
       { group: 'SUPPLIER',   totalPaid: supAgg.totalPaid, paymentCount: supAgg.paymentCount, uniquePayees: supAgg.uniquePayees },
     ]
 
-    // Active group aggregation for charts + table
-    let activeAgg = indAgg
-    if (group === 'CONTRACTOR') activeAgg = conAgg
-    else if (group === 'SUPPLIER') activeAgg = supAgg
-    else if (group === 'ALL') activeAgg = aggregate([...indPayments, ...conPayments, ...supPayments])
+    const activeAgg = group === 'SUPPLIER' ? supAgg : conAgg
 
     return NextResponse.json({
       success: true,

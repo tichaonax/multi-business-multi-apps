@@ -1571,6 +1571,20 @@ export function Sidebar() {
                       <span>🔄</span>
                       <span>Transfer Report</span>
                     </Link>
+                    <Link
+                      href="/expense-accounts/reports/payee-history"
+                      className="text-xs text-gray-400 hover:text-white hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
+                    >
+                      <span>🧾</span>
+                      <span>Payee History</span>
+                    </Link>
+                    <Link
+                      href="/expense-accounts/reports/payee-insights"
+                      className="text-xs text-gray-400 hover:text-white hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
+                    >
+                      <span>📊</span>
+                      <span>Payee Insights</span>
+                    </Link>
                   </>
                 )}
 

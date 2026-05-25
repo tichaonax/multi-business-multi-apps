@@ -422,6 +422,14 @@ export function MobileSidebar() {
                 <Link href="/expense-accounts/reports/transfers" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>🔄 Transfer Report</Link>
               )}
 
+              {hasBusinessPermission('canViewExpenseReports') && (
+                <Link href="/expense-accounts/reports/payee-history" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>🧾 Payee History</Link>
+              )}
+
+              {hasBusinessPermission('canViewExpenseReports') && (
+                <Link href="/expense-accounts/reports/payee-insights" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>📊 Payee Insights</Link>
+              )}
+
               {(isAdmin || hasBusinessPermission('canAccessExpenseAccount')) && (
                 <Link href="/expense-accounts/transfer" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>🔄 Transfer Funds</Link>
               )}
