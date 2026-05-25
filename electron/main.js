@@ -9,6 +9,10 @@ const { app, BrowserWindow, screen } = require('electron')
 const path = require('path')
 const fs = require('fs')
 
+// Suppress GPU hardware acceleration errors (common on headless/remote desktop environments)
+app.commandLine.appendSwitch('disable-gpu')
+app.commandLine.appendSwitch('disable-software-rasterizer')
+
 let mainWindow = null
 let customerWindow = null
 

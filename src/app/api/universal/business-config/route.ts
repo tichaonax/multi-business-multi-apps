@@ -197,6 +197,9 @@ export async function GET(request: NextRequest) {
         couponsEnabled: true,
         promosEnabled: true,
         taxEnabled: true,
+        transportCostEnabled: true,
+        transportDistanceKm: true,
+        transportCostPerKm: true,
         settings: true,
         isActive: true
       }
@@ -386,6 +389,9 @@ export async function GET(request: NextRequest) {
       defaultPage: business.defaultPage,
       slogan: business.slogan || 'Where Customer Is King',
       showSlogan: business.showSlogan ?? true,
+      transportCostEnabled: (business as any).transportCostEnabled ?? false,
+      transportDistanceKm: (business as any).transportDistanceKm != null ? Number((business as any).transportDistanceKm) : null,
+      transportCostPerKm: (business as any).transportCostPerKm != null ? Number((business as any).transportCostPerKm) : 0.30,
       ...defaultConfig,
       ...currentSettings
     }

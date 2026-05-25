@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin, hasUserPermission, hasPermissionInAnyBusiness } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const user = await getServerUser()
     if (!user) {
@@ -214,24 +214,24 @@ export async function GET(req: NextRequest) {
       console.warn('Failed to count team members:', error)
     }
 
-    // 4. Get Pending Tasks Count (reuse logic from pending-tasks endpoint)
-    // Use 127.0.0.1 explicitly — req.url resolves to 0.0.0.0 (the bind address) which
-    // is not in the SSL cert's SAN list, causing ERR_TLS_CERT_ALTNAME_INVALID.
-    // 127.0.0.1 is always included in the mkcert-generated cert.
+    // 4. Get Pending Tasks Count — query DB directly to avoid internal HTTPS fetch
+    // (internal fetch to 0.0.0.0 fails SSL cert validation in production service mode)
     try {
-      const port = process.env.PORT || '8080'
-      const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
-      const internalBaseUrl = `${protocol}://127.0.0.1:${port}`
-      const response = await fetch(new URL('/api/pending-tasks', internalBaseUrl).toString(), {
-        headers: {
-          'cookie': req.headers.get('cookie') || ''
-        }
-      })
-
-      if (response.ok) {
-        const pendingData = await response.json()
-        stats.pendingTasks = pendingData.count || 0
-      }
+      const counts = await Promise.allSettled([
+        // Pending orders
+        (hasPermissionInAnyBusiness(user, 'canAccessFinancialData') || isSystemAdmin(user))
+          ? prisma.orders.count({ where: { status: 'pending' } })
+          : Promise.resolve(0),
+        // Pending leave requests
+        (hasPermissionInAnyBusiness(user, 'canViewEmployees') || hasPermissionInAnyBusiness(user, 'canManageEmployees') || isSystemAdmin(user))
+          ? prisma.employeeLeaveRequests.count({ where: { status: 'pending' } })
+          : Promise.resolve(0),
+        // Pending contract renewals
+        (hasPermissionInAnyBusiness(user, 'canViewEmployees') || hasPermissionInAnyBusiness(user, 'canManageEmployees') || isSystemAdmin(user))
+          ? prisma.contractRenewals.count({ where: { status: 'pending' } })
+          : Promise.resolve(0),
+      ])
+      stats.pendingTasks = counts.reduce((sum, r) => sum + (r.status === 'fulfilled' ? r.value : 0), 0)
     } catch (error) {
       console.warn('Failed to fetch pending tasks count:', error)
     }

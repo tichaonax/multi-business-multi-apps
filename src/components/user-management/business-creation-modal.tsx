@@ -36,6 +36,9 @@ interface BusinessCreationModalProps {
     defaultPage?: string
     slogan?: string
     showSlogan?: boolean
+    transportCostEnabled?: boolean
+    transportDistanceKm?: string
+    transportCostPerKm?: string
   }
   // Optional: HTTP method override for the form (default POST). Use 'PUT' for edit.
   method?: 'POST' | 'PUT'
@@ -85,7 +88,10 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
     taxLabel: initial?.taxLabel || '',
     defaultPage: initial?.defaultPage || '',
     slogan: initial?.slogan || 'Where Customer Is King',
-    showSlogan: initial?.showSlogan !== undefined ? initial.showSlogan : true
+    showSlogan: initial?.showSlogan !== undefined ? initial.showSlogan : true,
+    transportCostEnabled: initial?.transportCostEnabled !== undefined ? initial.transportCostEnabled : false,
+    transportDistanceKm: initial?.transportDistanceKm || '',
+    transportCostPerKm: initial?.transportCostPerKm || '0.30',
   })
   const [loading, setLoading] = useState(false)
   const [hasRentAccount, setHasRentAccount] = useState(false)
@@ -107,6 +113,9 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
             ecocashFeeType: cfg.ecocashFeeType || prev.ecocashFeeType,
             ecocashFeeValue: cfg.ecocashFeeValue !== undefined ? String(cfg.ecocashFeeValue) : prev.ecocashFeeValue,
             ecocashMinimumFee: cfg.ecocashMinimumFee !== undefined ? String(cfg.ecocashMinimumFee) : prev.ecocashMinimumFee,
+            transportCostEnabled: cfg.transportCostEnabled !== undefined ? cfg.transportCostEnabled : prev.transportCostEnabled,
+            transportDistanceKm: cfg.transportDistanceKm !== undefined && cfg.transportDistanceKm !== null ? String(cfg.transportDistanceKm) : prev.transportDistanceKm,
+            transportCostPerKm: cfg.transportCostPerKm !== undefined ? String(cfg.transportCostPerKm) : prev.transportCostPerKm,
           }))
         })
         .catch(() => {/* silently ignore, initial values remain */})
@@ -289,171 +298,8 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
                   </div>
                 )}
 
-              </div>{/* end LEFT */}
-
-              {/* ── RIGHT: Features + Branding + Receipt & Tax ── */}
-              <div className="space-y-5">
-
-                {/* Features */}
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-neutral-100 mb-3">Features</h3>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
-                      <div className="flex-1">
-                        <label htmlFor="ecocashEnabled" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
-                          Accepts Eco-Cash
-                        </label>
-                        <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                          Show Eco-Cash logo on customer display
-                        </span>
-                      </div>
-                      <input
-                        type="checkbox"
-                        id="ecocashEnabled"
-                        checked={formData.ecocashEnabled}
-                        onChange={(e) => {
-                          const enabled = e.target.checked
-                          const defaultFee = ECOCASH_DEFAULT_FEES[formData.type] || '0.00'
-                          setFormData({
-                            ...formData,
-                            ecocashEnabled: enabled,
-                            ecocashFeeValue: enabled && !formData.ecocashFeeValue ? defaultFee : formData.ecocashFeeValue
-                          })
-                        }}
-                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 ml-3"
-                      />
-                    </div>
-
-                    {/* EcoCash fee configuration — shown only when ecocashEnabled */}
-                    {formData.ecocashEnabled && (
-                      <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-md border border-green-200 dark:border-green-800 ml-4">
-                        <p className="text-xs font-medium text-green-800 dark:text-green-300 mb-2">EcoCash Fee Configuration</p>
-                        <div className="flex gap-3 items-end">
-                          <div>
-                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Fee Type</label>
-                            <select
-                              value={formData.ecocashFeeType}
-                              onChange={(e) => setFormData({ ...formData, ecocashFeeType: e.target.value })}
-                              className="px-2 py-1.5 text-sm border rounded bg-white dark:bg-neutral-700 border-gray-300 dark:border-neutral-600 text-primary"
-                            >
-                              <option value="FIXED">Fixed Amount ($)</option>
-                              <option value="PERCENTAGE">Percentage (%)</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                              Fee Value {formData.ecocashFeeType === 'FIXED' ? '($)' : '(%)'}
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={formData.ecocashFeeValue}
-                              onChange={(e) => setFormData({ ...formData, ecocashFeeValue: e.target.value })}
-                              placeholder="0.00"
-                              className="w-24 px-2 py-1.5 text-sm border rounded bg-white dark:bg-neutral-700 border-gray-300 dark:border-neutral-600 text-primary"
-                            />
-                          </div>
-                          {formData.ecocashFeeType === 'PERCENTAGE' && (
-                            <div>
-                              <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                                Min Fee ($)
-                              </label>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={formData.ecocashMinimumFee}
-                                onChange={(e) => setFormData({ ...formData, ecocashMinimumFee: e.target.value })}
-                                placeholder="0.00"
-                                className="w-24 px-2 py-1.5 text-sm border rounded bg-white dark:bg-neutral-700 border-gray-300 dark:border-neutral-600 text-primary"
-                              />
-                            </div>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
-                          {formData.ecocashFeeType === 'FIXED'
-                            ? `A fixed $${formData.ecocashFeeValue || '0.00'} fee is added to every EcoCash transaction.`
-                            : `${formData.ecocashFeeValue || '0'}% of the sale total is added as an EcoCash fee${formData.ecocashMinimumFee ? `, minimum $${formData.ecocashMinimumFee}` : ''}.`}
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
-                      <div className="flex-1">
-                        <label htmlFor="requireSalespersonEod" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
-                          Require Salesperson EOD Report
-                        </label>
-                        <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                          Salespersons must submit a cash &amp; EcoCash total before leaving each day
-                        </span>
-                      </div>
-                      <input
-                        type="checkbox"
-                        id="requireSalespersonEod"
-                        checked={formData.requireSalespersonEod}
-                        onChange={(e) => setFormData({ ...formData, requireSalespersonEod: e.target.checked })}
-                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 ml-3"
-                      />
-                    </div>
-
-                    {/* EOD deadline time — shown only when requireSalespersonEod */}
-                    {formData.requireSalespersonEod && (
-                      <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-md border border-amber-200 dark:border-amber-800 ml-4">
-                        <label className="block text-xs font-medium text-amber-800 dark:text-amber-300 mb-1.5">
-                          EOD Submission Deadline
-                        </label>
-                        <input
-                          type="time"
-                          value={formData.eodDeadlineTime}
-                          onChange={(e) => setFormData({ ...formData, eodDeadlineTime: e.target.value })}
-                          className="px-2 py-1.5 text-sm border rounded bg-white dark:bg-neutral-700 border-amber-300 dark:border-amber-700 text-primary"
-                        />
-                        <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
-                          After this time, salespersons see an overdue warning at the POS.
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
-                      <div className="flex-1">
-                        <label htmlFor="couponsEnabled" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
-                          Enable Coupons
-                        </label>
-                        <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                          Allow coupon codes at POS
-                        </span>
-                      </div>
-                      <input
-                        type="checkbox"
-                        id="couponsEnabled"
-                        checked={formData.couponsEnabled}
-                        onChange={(e) => setFormData({ ...formData, couponsEnabled: e.target.checked })}
-                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 ml-3"
-                      />
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
-                      <div className="flex-1">
-                        <label htmlFor="promosEnabled" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
-                          Enable Customer Promos
-                        </label>
-                        <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                          Allow spend-based campaign rewards
-                        </span>
-                      </div>
-                      <input
-                        type="checkbox"
-                        id="promosEnabled"
-                        checked={formData.promosEnabled}
-                        onChange={(e) => setFormData({ ...formData, promosEnabled: e.target.checked })}
-                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 ml-3"
-                      />
-                    </div>
-                  </div>
-                </div>
-
                 {/* Branding */}
-                <div>
+                <div className="pt-4 border-t border-gray-200 dark:border-neutral-700">
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-neutral-100 mb-3">Branding</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -591,6 +437,225 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
                       </div>
                     </div>
                     )}
+                  </div>
+                </div>
+
+              </div>{/* end LEFT */}
+
+              {/* ── RIGHT: Features + Branding + Receipt & Tax ── */}
+              <div className="space-y-5">
+
+                {/* Features */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-neutral-100 mb-3">Features</h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
+                      <div className="flex-1">
+                        <label htmlFor="ecocashEnabled" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
+                          Accepts Eco-Cash
+                        </label>
+                        <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                          Show Eco-Cash logo on customer display
+                        </span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        id="ecocashEnabled"
+                        checked={formData.ecocashEnabled}
+                        onChange={(e) => {
+                          const enabled = e.target.checked
+                          const defaultFee = ECOCASH_DEFAULT_FEES[formData.type] || '0.00'
+                          setFormData({
+                            ...formData,
+                            ecocashEnabled: enabled,
+                            ecocashFeeValue: enabled && !formData.ecocashFeeValue ? defaultFee : formData.ecocashFeeValue
+                          })
+                        }}
+                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 ml-3"
+                      />
+                    </div>
+
+                    {/* EcoCash fee configuration — shown only when ecocashEnabled */}
+                    {formData.ecocashEnabled && (
+                      <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-md border border-green-200 dark:border-green-800 ml-4">
+                        <p className="text-xs font-medium text-green-800 dark:text-green-300 mb-2">EcoCash Fee Configuration</p>
+                        <div className="flex gap-3 items-end">
+                          <div>
+                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Fee Type</label>
+                            <select
+                              value={formData.ecocashFeeType}
+                              onChange={(e) => setFormData({ ...formData, ecocashFeeType: e.target.value })}
+                              className="px-2 py-1.5 text-sm border rounded bg-white dark:bg-neutral-700 border-gray-300 dark:border-neutral-600 text-primary"
+                            >
+                              <option value="FIXED">Fixed Amount ($)</option>
+                              <option value="PERCENTAGE">Percentage (%)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                              Fee Value {formData.ecocashFeeType === 'FIXED' ? '($)' : '(%)'}
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={formData.ecocashFeeValue}
+                              onChange={(e) => setFormData({ ...formData, ecocashFeeValue: e.target.value })}
+                              placeholder="0.00"
+                              className="w-24 px-2 py-1.5 text-sm border rounded bg-white dark:bg-neutral-700 border-gray-300 dark:border-neutral-600 text-primary"
+                            />
+                          </div>
+                          {formData.ecocashFeeType === 'PERCENTAGE' && (
+                            <div>
+                              <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                Min Fee ($)
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={formData.ecocashMinimumFee}
+                                onChange={(e) => setFormData({ ...formData, ecocashMinimumFee: e.target.value })}
+                                placeholder="0.00"
+                                className="w-24 px-2 py-1.5 text-sm border rounded bg-white dark:bg-neutral-700 border-gray-300 dark:border-neutral-600 text-primary"
+                              />
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                          {formData.ecocashFeeType === 'FIXED'
+                            ? `A fixed $${formData.ecocashFeeValue || '0.00'} fee is added to every EcoCash transaction.`
+                            : `${formData.ecocashFeeValue || '0'}% of the sale total is added as an EcoCash fee${formData.ecocashMinimumFee ? `, minimum $${formData.ecocashMinimumFee}` : ''}.`}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Transport Cost */}
+                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
+                      <div className="flex-1">
+                        <label htmlFor="transportCostEnabled" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
+                          🚚 Include Transport Cost in Pricing
+                        </label>
+                        <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                          Factor in delivery distance when calculating selling prices
+                        </span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        id="transportCostEnabled"
+                        checked={formData.transportCostEnabled}
+                        onChange={(e) => setFormData({ ...formData, transportCostEnabled: e.target.checked })}
+                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 ml-3"
+                      />
+                    </div>
+
+                    {formData.transportCostEnabled && (
+                      <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-md border border-orange-200 dark:border-orange-800 ml-4 space-y-3">
+                        <p className="text-xs font-medium text-orange-800 dark:text-orange-300">Transport Cost Configuration</p>
+                        <div className="flex gap-3">
+                          <div className="flex-1">
+                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">One-way distance to supplier (km)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.5"
+                              value={formData.transportDistanceKm}
+                              onChange={(e) => setFormData({ ...formData, transportDistanceKm: e.target.value })}
+                              placeholder="e.g. 85"
+                              className="w-full px-2 py-1.5 text-sm border rounded bg-white dark:bg-neutral-700 border-orange-300 dark:border-orange-700 text-primary"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Cost per km ($/km)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={formData.transportCostPerKm}
+                              onChange={(e) => setFormData({ ...formData, transportCostPerKm: e.target.value })}
+                              placeholder="0.30"
+                              className="w-full px-2 py-1.5 text-sm border rounded bg-white dark:bg-neutral-700 border-orange-300 dark:border-orange-700 text-primary"
+                            />
+                          </div>
+                        </div>
+                        {formData.transportDistanceKm && formData.transportCostPerKm && (
+                          <p className="text-xs text-orange-700 dark:text-orange-400">
+                            Est. round-trip cost: ${(parseFloat(formData.transportDistanceKm || '0') * 2 * parseFloat(formData.transportCostPerKm || '0')).toFixed(2)}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
+                      <div className="flex-1">
+                        <label htmlFor="requireSalespersonEod" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
+                          Require Salesperson EOD Report
+                        </label>
+                        <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                          Salespersons must submit a cash &amp; EcoCash total before leaving each day
+                        </span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        id="requireSalespersonEod"
+                        checked={formData.requireSalespersonEod}
+                        onChange={(e) => setFormData({ ...formData, requireSalespersonEod: e.target.checked })}
+                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 ml-3"
+                      />
+                    </div>
+
+                    {/* EOD deadline time — shown only when requireSalespersonEod */}
+                    {formData.requireSalespersonEod && (
+                      <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-md border border-amber-200 dark:border-amber-800 ml-4">
+                        <label className="block text-xs font-medium text-amber-800 dark:text-amber-300 mb-1.5">
+                          EOD Submission Deadline
+                        </label>
+                        <input
+                          type="time"
+                          value={formData.eodDeadlineTime}
+                          onChange={(e) => setFormData({ ...formData, eodDeadlineTime: e.target.value })}
+                          className="px-2 py-1.5 text-sm border rounded bg-white dark:bg-neutral-700 border-amber-300 dark:border-amber-700 text-primary"
+                        />
+                        <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                          After this time, salespersons see an overdue warning at the POS.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
+                      <div className="flex-1">
+                        <label htmlFor="couponsEnabled" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
+                          Enable Coupons
+                        </label>
+                        <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                          Allow coupon codes at POS
+                        </span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        id="couponsEnabled"
+                        checked={formData.couponsEnabled}
+                        onChange={(e) => setFormData({ ...formData, couponsEnabled: e.target.checked })}
+                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 ml-3"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
+                      <div className="flex-1">
+                        <label htmlFor="promosEnabled" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
+                          Enable Customer Promos
+                        </label>
+                        <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                          Allow spend-based campaign rewards
+                        </span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        id="promosEnabled"
+                        checked={formData.promosEnabled}
+                        onChange={(e) => setFormData({ ...formData, promosEnabled: e.target.checked })}
+                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 ml-3"
+                      />
+                    </div>
                   </div>
                 </div>
 

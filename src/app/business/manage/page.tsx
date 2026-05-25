@@ -62,6 +62,9 @@ function BusinessManagePageContent() {
     defaultPage?: string
     slogan?: string
     showSlogan?: boolean
+    transportCostEnabled?: boolean
+    transportDistanceKm?: string
+    transportCostPerKm?: string
   } | null>(null)
   const [editBusinessId, setEditBusinessId] = useState<string | null>(null)
   const { format: globalDateFormat } = useDateFormat();
@@ -413,7 +416,10 @@ function BusinessManagePageContent() {
                               taxLabel: biz?.taxLabel || '',
                               defaultPage: biz?.defaultPage || '',
                               slogan: biz?.slogan || 'Where Customer Is King',
-                              showSlogan: biz?.showSlogan !== undefined ? biz.showSlogan : true
+                              showSlogan: biz?.showSlogan !== undefined ? biz.showSlogan : true,
+                              transportCostEnabled: biz?.transportCostEnabled !== undefined ? biz.transportCostEnabled : false,
+                              transportDistanceKm: biz?.transportDistanceKm !== undefined && biz.transportDistanceKm !== null ? String(biz.transportDistanceKm) : '',
+                              transportCostPerKm: biz?.transportCostPerKm !== undefined ? String(biz.transportCostPerKm) : '0.30',
                             })
                             setEditBusinessId(id)
                             setShowEditBusiness(true)

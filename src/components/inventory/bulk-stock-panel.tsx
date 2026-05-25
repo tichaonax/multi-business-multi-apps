@@ -11,6 +11,7 @@ import { InventoryCategoryEditor } from './inventory-category-editor'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { useToastContext } from '@/components/ui/toast'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { PricingCalculator } from '@/components/inventory/pricing-calculator'
 
 interface BulkStockRow {
   rowId: string
@@ -230,6 +231,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   const [printModalTitle, setPrintModalTitle] = useState('')
   const [printingDraftId, setPrintingDraftId] = useState<string | null>(null)
   const [showModeSelector, setShowModeSelector] = useState(false)
+  const [transportConfig, setTransportConfig] = useState<{ enabled: boolean; distanceKm: number | null; ratePerKm: number }>({ enabled: false, distanceKm: null, ratePerKm: 0.30 })
 
   const scanInputRef = useRef<HTMLInputElement>(null)
   const tableEndRef = useRef<HTMLDivElement>(null)
@@ -242,6 +244,23 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
     ;(window as any).__bulkStockingActive = true
     return () => { ;(window as any).__bulkStockingActive = false }
   }, [])
+
+  // Fetch transport cost config for pricing calculator
+  useEffect(() => {
+    if (!businessId) return
+    fetch(`/api/universal/business-config?businessId=${businessId}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.data) {
+          setTransportConfig({
+            enabled: d.data.transportCostEnabled ?? false,
+            distanceKm: d.data.transportDistanceKm ?? null,
+            ratePerKm: d.data.transportCostPerKm ?? 0.30,
+          })
+        }
+      })
+      .catch(() => {})
+  }, [businessId])
 
   // On mount: check for existing active drafts
   useEffect(() => {
@@ -1088,6 +1107,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
       if (r.isExistingItem && r.currentStock !== null && r.currentStock > 0 && (r.physicalCount === '' || Number(r.physicalCount) === 0)) bad.add('physicalCount')
       if (!r.isFreeItem && !r.isExistingItem && Number(r.sellingPrice) <= 0) bad.add('sellingPrice')
       if (!r.isFreeItem && r.isExistingItem && (!r.sellingPrice || Number(r.sellingPrice) < 0)) bad.add('sellingPrice')
+      if (!r.isFreeItem && (!r.costPrice || Number(r.costPrice) <= 0)) bad.add('costPrice')
       if (bad.size > 0) fieldErrorMap[r.rowId] = bad
     })
     if (Object.keys(fieldErrorMap).length > 0) {
@@ -1537,7 +1557,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
                 <th className="px-2 py-2 text-center w-24">Qty *</th>
                 <th className="px-2 py-2 text-center w-28">Sell Price *</th>
                 <th className="px-2 py-2 text-center w-14">Free?</th>
-                <th className="px-2 py-2 text-center w-28">Cost</th>
+                <th className="px-2 py-2 text-center w-28">Cost *</th>
                 <th className="px-2 py-2 text-left w-32">SKU</th>
                 <th className="px-2 py-2 text-center w-36">Expiry Date</th>
                 <th className="px-2 py-2 w-8"></th>
@@ -1573,6 +1593,8 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
                   isStockTakeMode={isStockTakeMode}
                   isHighlighted={highlightedRowId === row.rowId}
                   needsReview={row.needsReview}
+                  transportConfig={transportConfig}
+                  totalBatchQuantity={rows.reduce((sum, r) => sum + (Number(r.quantity) || 0), 0) || 1}
                 />
               ))}
             </tbody>
@@ -1898,9 +1920,11 @@ interface BulkRowEditorProps {
   isStockTakeMode: boolean
   isHighlighted: boolean
   needsReview?: boolean
+  transportConfig: { enabled: boolean; distanceKm: number | null; ratePerKm: number }
+  totalBatchQuantity: number
 }
 
-function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, allSubCategories, suppliers, hasDeptCol, hasSubCatCol, hasPhysicalCountCol, invalidFields, onChange, onRemove, onToggleEdit, onOverrideSystemQty, onNewCategory, onNewSubCategory, onNewSupplier, rowRef, isStockTakeMode, isHighlighted, needsReview }: BulkRowEditorProps) {
+function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, allSubCategories, suppliers, hasDeptCol, hasSubCatCol, hasPhysicalCountCol, invalidFields, onChange, onRemove, onToggleEdit, onOverrideSystemQty, onNewCategory, onNewSubCategory, onNewSupplier, rowRef, isStockTakeMode, isHighlighted, needsReview, transportConfig, totalBatchQuantity }: BulkRowEditorProps) {
   // Existing BarcodeInventoryItems can be temporarily unlocked for category/domain editing
   const canEdit = row.isExistingItem && row.itemType !== 'bale' && row.itemType !== 'bulk' && row.itemType !== 'product'
   const inv = (field: string) => invalidFields.has(field)
@@ -2264,10 +2288,23 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
       </td>
 
       {/* Sell Price */}
-      <td className="px-2 py-1.5">
+      <td className="px-2 py-1.5 relative">
         <input type="number" min="0" step="0.01" value={row.sellingPrice} disabled={row.isFreeItem}
           onChange={e => onChange({ sellingPrice: e.target.value })}
           className={`${row.isFreeItem ? roClass : inputClass} w-full text-center ${inv('sellingPrice') && !row.isFreeItem ? 'border-red-400 dark:border-red-500' : ''}`} placeholder="price" />
+        {!row.isFreeItem && row.costPrice && Number(row.costPrice) > 0 && (
+          <div className="absolute left-0 top-full z-30 w-72">
+            <PricingCalculator
+              costPrice={Number(row.costPrice)}
+              sellingPrice={row.sellingPrice}
+              onSelectPrice={(price) => onChange({ sellingPrice: String(price) })}
+              transportEnabled={transportConfig.enabled}
+              transportDistanceKm={transportConfig.distanceKm}
+              transportCostPerKm={transportConfig.ratePerKm}
+              batchQuantity={totalBatchQuantity}
+            />
+          </div>
+        )}
       </td>
 
       {/* Free */}
@@ -2281,7 +2318,7 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
       <td className="px-2 py-1.5">
         <input type="number" min="0" step="0.01" value={row.costPrice} readOnly={row.isExistingItem}
           onChange={e => onChange({ costPrice: e.target.value })}
-          className={`${row.isExistingItem ? roClass : inputClass} w-full text-center`} placeholder="cost" />
+          className={`${row.isExistingItem ? roClass : inputClass} w-full text-center ${!row.isFreeItem && inv('costPrice') ? 'border-red-400 dark:border-red-500' : ''}`} placeholder="cost" />
       </td>
 
       {/* SKU */}

@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch real initial load sessions from database
-    const sessions = await prisma.initialLoadSessions.findMany({
+    const sessions = await prisma.fullSyncSessions.findMany({
       orderBy: { startedAt: 'desc' },
       take: 20
     })
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Check if there's already a running initial load
-        const runningSession = await prisma.initialLoadSessions.findFirst({
+        const runningSession = await prisma.fullSyncSessions.findFirst({
           where: {
             status: {
               in: ['PREPARING', 'TRANSFERRING']
@@ -166,7 +166,7 @@ async function performInitialLoad(targetPeer: any, options: any = {}): Promise<s
   const selectedTables = options.selectedTables || ['businesses']
   const tableName = Array.isArray(selectedTables) ? selectedTables.join(',') : 'businesses'
 
-  await prisma.initialLoadSessions.create({
+  await prisma.fullSyncSessions.create({
     data: {
       sessionId,
       sourceNodeId: thisNodeId,
@@ -213,7 +213,7 @@ async function transferDataInBackground(
 ) {
   try {
     // Update status to TRANSFERRING
-    await prisma.initialLoadSessions.update({
+    await prisma.fullSyncSessions.update({
       where: { sessionId },
       data: {
         status: 'TRANSFERRING',
@@ -243,7 +243,7 @@ async function transferDataInBackground(
 
     const totalRecords = businesses.length + productImages.length
 
-    await prisma.initialLoadSessions.update({
+    await prisma.fullSyncSessions.update({
       where: { sessionId },
       data: { totalRecords }
     })
@@ -292,7 +292,7 @@ async function transferDataInBackground(
 
         const progress = Math.round((transferredRecords / totalRecords) * 100)
 
-        await prisma.initialLoadSessions.update({
+        await prisma.fullSyncSessions.update({
           where: { sessionId },
           data: {
             transferredRecords,
@@ -363,7 +363,7 @@ async function transferDataInBackground(
 
         const progress = Math.round((transferredRecords / totalRecords) * 100)
 
-        await prisma.initialLoadSessions.update({
+        await prisma.fullSyncSessions.update({
           where: { sessionId },
           data: {
             transferredRecords,
@@ -379,7 +379,7 @@ async function transferDataInBackground(
     }
 
     // Complete
-    await prisma.initialLoadSessions.update({
+    await prisma.fullSyncSessions.update({
       where: { sessionId },
       data: {
         status: 'COMPLETED',
@@ -390,7 +390,7 @@ async function transferDataInBackground(
     })
 
   } catch (error) {
-    await prisma.initialLoadSessions.update({
+    await prisma.fullSyncSessions.update({
       where: { sessionId },
       data: {
         status: 'FAILED',

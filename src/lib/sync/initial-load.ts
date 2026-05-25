@@ -680,29 +680,13 @@ export class InitialLoadManager extends EventEmitter {
         return
       }
 
-      // Check if initialLoadSessions exists
-      console.log('InitialLoadManager: Checking initialLoadSessions property...')
-      console.log('InitialLoadManager: initialLoadSessions exists:', !!this.prisma.initialLoadSessions)
-      console.log('InitialLoadManager: initialLoadSessions type:', typeof this.prisma.initialLoadSessions)
-
-      if (!this.prisma.initialLoadSessions) {
-        console.warn('InitialLoadManager: initialLoadSessions property is missing! This may indicate the database schema is outdated.')
-        console.warn('InitialLoadManager: Available properties:', Object.keys(this.prisma))
-        console.warn('InitialLoadManager: Continuing with empty sessions list. Please update the database schema.')
-        return
-      }
-
-      // Check if findMany method exists
-      console.log('InitialLoadManager: Checking findMany method...')
-      console.log('InitialLoadManager: findMany exists:', typeof this.prisma.initialLoadSessions.findMany)
-
-      if (typeof this.prisma.initialLoadSessions.findMany !== 'function') {
-        console.warn('InitialLoadManager: findMany is not a function! Schema may be outdated.')
+      if (!this.prisma.fullSyncSessions) {
+        console.warn('InitialLoadManager: fullSyncSessions not available in Prisma client.')
         return
       }
 
       console.log('InitialLoadManager: Attempting to call findMany...')
-      const sessions = await this.prisma.initialLoadSessions.findMany({
+      const sessions = await this.prisma.fullSyncSessions.findMany({
         where: {
           OR: [
             { sourceNodeId: this.nodeId },
@@ -757,9 +741,8 @@ export class InitialLoadManager extends EventEmitter {
 
       console.error('InitialLoadManager: Prisma client state:', {
         exists: !!this.prisma,
-        type: typeof this.prisma,
-        hasInitialLoadSessions: this.prisma ? !!this.prisma.initialLoadSessions : false,
-        hasFindMany: this.prisma?.initialLoadSessions ? typeof this.prisma.initialLoadSessions.findMany : 'N/A'
+        hasFullSyncSessions: this.prisma ? !!this.prisma.fullSyncSessions : false,
+        hasFindMany: this.prisma?.fullSyncSessions ? typeof this.prisma.fullSyncSessions.findMany : 'N/A'
       })
     }
   }
@@ -769,7 +752,7 @@ export class InitialLoadManager extends EventEmitter {
    */
   private async createInitialLoadSession(session: InitialLoadSession): Promise<void> {
     try {
-      await this.prisma.initialLoadSessions.create({
+      await this.prisma.fullSyncSessions.create({
         data: {
           id: session.sessionId,
           sourceNodeId: session.sourceNodeId,
@@ -796,7 +779,7 @@ export class InitialLoadManager extends EventEmitter {
    */
   private async updateInitialLoadSession(session: InitialLoadSession): Promise<void> {
     try {
-      await this.prisma.initialLoadSessions.update({
+      await this.prisma.fullSyncSessions.update({
         where: { id: session.sessionId },
         data: {
           status: session.status,

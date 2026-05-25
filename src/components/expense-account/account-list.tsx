@@ -314,7 +314,7 @@ export function AccountList({
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
+      <div className="sticky top-14 sm:top-16 z-40 bg-background py-2 -mx-4 px-4 sm:-mx-6 sm:px-6 shadow-sm border-b border-border flex flex-col sm:flex-row gap-2 sm:gap-4">
         <div className="flex-1">
           <input
             type="text"

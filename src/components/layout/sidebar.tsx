@@ -1125,6 +1125,14 @@ export function Sidebar() {
               </Link>
             )}
 
+            {/* Missing Cost Price Report */}
+            {(isSystemAdmin(currentUser) || hasPermission('canManageInventory') || hasPermission('canAccessExpenseAccount')) && (
+              <Link href="/inventory/reports/missing-cost-price" className={getLinkClasses('/inventory/reports/missing-cost-price')}>
+                <span className="text-lg">⚠️</span>
+                <span>Missing Cost Price</span>
+              </Link>
+            )}
+
             {/* Expiry Management — shown for users who can view stock alerts or manage expiry actions */}
             {(isSystemAdmin(currentUser) || hasPermission('canViewStockAlerts') || hasPermission('canManageExpiryActions')) && (
               <Link href="/expiry" className={getLinkClasses('/expiry')}>

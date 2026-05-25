@@ -61,6 +61,15 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (payload.hasOwnProperty('ecocashMinimumFee')) {
       updateData.ecocashMinimumFee = payload.ecocashMinimumFee !== undefined && payload.ecocashMinimumFee !== '' ? parseFloat(payload.ecocashMinimumFee) : 0
     }
+    if (payload.hasOwnProperty('transportCostEnabled')) {
+      updateData.transportCostEnabled = !!payload.transportCostEnabled
+    }
+    if (payload.hasOwnProperty('transportDistanceKm')) {
+      updateData.transportDistanceKm = payload.transportDistanceKm !== undefined && payload.transportDistanceKm !== '' ? parseFloat(payload.transportDistanceKm) : null
+    }
+    if (payload.hasOwnProperty('transportCostPerKm')) {
+      updateData.transportCostPerKm = payload.transportCostPerKm !== undefined && payload.transportCostPerKm !== '' ? parseFloat(payload.transportCostPerKm) : 0.30
+    }
     if (payload.hasOwnProperty('requireSalespersonEod')) {
       updateData.requireSalespersonEod = !!payload.requireSalespersonEod
     }

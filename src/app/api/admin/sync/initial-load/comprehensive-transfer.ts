@@ -697,7 +697,7 @@ async function transferRecord(
  * Update session status
  */
 async function updateSession(sessionId: string, data: any) {
-  await prisma.initialLoadSessions.update({
+  await prisma.fullSyncSessions.update({
     where: { sessionId },
     data
   })

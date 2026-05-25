@@ -281,13 +281,40 @@ class HybridServiceWrapper extends EventEmitter {
         
         const isUpToDate = statusOutput.includes('Database is up to date') ||
                           statusOutput.includes('No pending migrations');
-        
-        // Check for pending migrations FIRST (more specific check)
-        const hasPendingMigrations = statusOutput.includes('following migration') ||
+
+        // Detect failed migrations specifically (must resolve before deploy)
+        const hasFailedMigrations = statusOutput.includes('have failed') ||
+                                    statusOutput.includes('Have failed');
+
+        // Extract names of failed migrations from status output
+        const extractFailedMigrationNames = (output) => {
+          const names = [];
+          const lines = output.split('\n');
+          let inFailedSection = false;
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.toLowerCase().includes('following migration') && trimmed.toLowerCase().includes('failed')) {
+              inFailedSection = true;
+              continue;
+            }
+            if (inFailedSection) {
+              if (/^\d{14}_\w+/.test(trimmed)) {
+                names.push(trimmed);
+              } else if (trimmed && !trimmed.startsWith('•') && !trimmed.startsWith('-') && trimmed !== '') {
+                inFailedSection = false;
+              }
+            }
+          }
+          return names;
+        };
+
+        // Check for pending migrations (includes failed, which also need resolving + deploy)
+        const hasPendingMigrations = hasFailedMigrations ||
+                                     statusOutput.includes('following migration') ||
                                      statusOutput.includes('Following migration') ||
                                      statusOutput.includes('have not yet been applied') ||
                                      statusOutput.includes('pending migration');
-        
+
         // Only consider initial schema if connection fails or DB doesn't exist
         const needsInitialSchema = !hasPendingMigrations && (
                                    statusOutput.includes('Environment variable not found: DATABASE_URL') ||
@@ -407,6 +434,46 @@ class HybridServiceWrapper extends EventEmitter {
             console.error('❌ Migration lock wait failed:', err && err.message ? err.message : err)
             reject(err)
             return
+          }
+
+          // Auto-resolve any failed migrations before deploying
+          if (hasFailedMigrations) {
+            const failedNames = extractFailedMigrationNames(statusOutput);
+            if (failedNames.length > 0) {
+              console.log(`⚠️  Found ${failedNames.length} failed migration(s) — auto-resolving as rolled-back before deploy...`);
+              for (const migName of failedNames) {
+                await new Promise((res) => {
+                  console.log(`🔄 Resolving failed migration: ${migName}`);
+                  const resolveProcess = spawn(this.npxCmd, ['prisma', 'migrate', 'resolve', '--rolled-back', migName], {
+                    cwd: this.appRoot,
+                    stdio: ['ignore', 'pipe', 'pipe'],
+                    shell: true,
+                    env: this.spawnEnv,
+                  });
+                  resolveProcess.stdout.on('data', (data) => {
+                    data.toString().split('\n').forEach(line => { if (line.trim()) console.log(`[MIGRATE RESOLVE] ${line.trim()}`); });
+                  });
+                  resolveProcess.stderr.on('data', (data) => {
+                    data.toString().split('\n').forEach(line => { if (line.trim()) console.log(`[MIGRATE RESOLVE] ${line.trim()}`); });
+                  });
+                  resolveProcess.on('close', (resolveCode) => {
+                    if (resolveCode === 0) {
+                      console.log(`✅ Resolved failed migration as rolled-back: ${migName}`);
+                    } else {
+                      console.warn(`⚠️  Could not resolve migration ${migName} (code ${resolveCode}) — deploy may still fail`);
+                    }
+                    res(); // Always continue — don't block startup
+                  });
+                  resolveProcess.on('error', (err) => {
+                    console.warn(`⚠️  Error resolving migration ${migName}: ${err.message} — continuing`);
+                    res();
+                  });
+                });
+              }
+              console.log('✅ Failed migration resolution complete — proceeding with deploy');
+            } else {
+              console.log('⚠️  Failed migrations detected but could not extract names — attempting deploy anyway');
+            }
           }
 
           // Continue with migration process
@@ -635,13 +702,8 @@ class HybridServiceWrapper extends EventEmitter {
 
       const { spawn, spawnSync } = require('child_process');
 
-      // Kill any stale node processes holding the Prisma DLL before building
+      // Clean up any leftover Prisma temp files (safe — no process killing)
       try {
-        const currentPid = process.pid;
-        spawnSync('taskkill.exe', ['/F', '/IM', 'node.exe', '/FI', `PID ne ${currentPid}`], {
-          encoding: 'utf-8', windowsHide: true
-        });
-        // Clean up any leftover Prisma temp files
         const prismaClientDir = path.join(this.appRoot, 'node_modules', '.prisma', 'client');
         if (fs.existsSync(prismaClientDir)) {
           fs.readdirSync(prismaClientDir).filter(f => f.includes('.tmp')).forEach(f => {
@@ -650,7 +712,7 @@ class HybridServiceWrapper extends EventEmitter {
         }
       } catch (e) { /* ignore */ }
 
-      // Wait 3s for Windows to release file handles after killing processes, then build
+      // Small delay to ensure any stale file handles are released before build
       setTimeout(() => {
 
       console.log('Building application (this may take a few minutes)...');

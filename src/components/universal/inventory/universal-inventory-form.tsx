@@ -14,6 +14,7 @@ import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
 import { usePrompt, useAlert } from '@/components/ui/confirm-modal'
 import SKUGenerator from '@/components/products/sku-generator'
 import type { LabelData, NetworkPrinter, BarcodeFormat, LabelFormat } from '@/types/printing'
+import { PricingCalculator } from '@/components/inventory/pricing-calculator'
 
 interface InventorySubcategory {
   id: string
@@ -121,6 +122,7 @@ export function UniversalInventoryForm({
   const [savedItemForLabel, setSavedItemForLabel] = useState<UniversalInventoryItem | null>(null)
   const [barcodes, setBarcodes] = useState<ProductBarcode[]>([])
   const [isManualSku, setIsManualSku] = useState(false)
+  const [transportConfig, setTransportConfig] = useState<{ enabled: boolean; distanceKm: number | null; ratePerKm: number }>({ enabled: false, distanceKm: null, ratePerKm: 0.30 })
 
   // ── Suggest Classification ──────────────────────────────────────────────────
   type SuggestItem = {
@@ -142,6 +144,23 @@ export function UniversalInventoryForm({
   // Printing hooks
   const { canPrintInventoryLabels } = usePrinterPermissions()
   const { monitorJob, notifyJobQueued } = usePrintJobMonitor()
+
+  // Fetch transport cost config for pricing calculator
+  useEffect(() => {
+    if (!businessId) return
+    fetch(`/api/universal/business-config?businessId=${businessId}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.data) {
+          setTransportConfig({
+            enabled: d.data.transportCostEnabled ?? false,
+            distanceKm: d.data.transportDistanceKm ?? null,
+            ratePerKm: d.data.transportCostPerKm ?? 0.30,
+          })
+        }
+      })
+      .catch(() => {})
+  }, [businessId])
 
   // Initialize form data when item prop changes
   useEffect(() => {
@@ -390,7 +409,7 @@ export function UniversalInventoryForm({
     if (!formData.categoryId?.trim()) newErrors.categoryId = 'Category is required'
     if (!formData.unit.trim()) newErrors.unit = 'Unit is required'
     if (formData.currentStock < 0) newErrors.currentStock = 'Stock cannot be negative'
-    if (formData.costPrice < 0) newErrors.costPrice = 'Cost price cannot be negative'
+    if (formData.costPrice <= 0) newErrors.costPrice = 'Cost price is required'
     if (formData.sellPrice < 0) newErrors.sellPrice = 'Sell price cannot be negative'
 
     setErrors(newErrors)
@@ -1238,7 +1257,7 @@ export function UniversalInventoryForm({
               </div>
 
               {/* Sell Price */}
-              <div>
+              <div className="col-span-2 sm:col-span-1">
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Sell Price</label>
                 <input
                   type="number"
@@ -1249,6 +1268,15 @@ export function UniversalInventoryForm({
                   placeholder="0.00"
                 />
                 {errors.sellPrice && <p className="text-red-600 text-xs mt-1 font-medium">{errors.sellPrice}</p>}
+                <PricingCalculator
+                  costPrice={formData.costPrice > 0 ? formData.costPrice : null}
+                  sellingPrice={formData.sellPrice > 0 ? String(formData.sellPrice) : ''}
+                  onSelectPrice={(price) => handleInputChange('sellPrice', price)}
+                  transportEnabled={transportConfig.enabled}
+                  transportDistanceKm={transportConfig.distanceKm}
+                  transportCostPerKm={transportConfig.ratePerKm}
+                  batchQuantity={formData.currentStock > 0 ? formData.currentStock : 1}
+                />
               </div>
 
               {/* Supplier + Location — side by side */}

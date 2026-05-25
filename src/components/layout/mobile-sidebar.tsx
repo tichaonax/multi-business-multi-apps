@@ -621,6 +621,10 @@ export function MobileSidebar() {
                     <Link href="/inventory/custom-bulk" className={sectionLinkClass} onClick={close}>📦 Custom Bulk Products</Link>
                   )}
 
+                  {(isAdmin || hasBusinessPermission('canManageInventory') || hasBusinessPermission('canAccessExpenseAccount')) && (
+                    <Link href="/inventory/reports/missing-cost-price" className={sectionLinkClass} onClick={close}>⚠️ Missing Cost Price</Link>
+                  )}
+
                   {(isAdmin || hasBusinessPermission('canManageAssets')) && (
                     <Link href="/assets" className={sectionLinkClass} onClick={close}>🏷️ Assets</Link>
                   )}
