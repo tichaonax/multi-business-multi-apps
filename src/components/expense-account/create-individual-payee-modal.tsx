@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { OnSuccessArg } from '@/types/ui'
 import fetchWithValidation from '@/lib/fetchWithValidation'
 import { useToastContext } from '@/components/ui/toast'
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 import { NationalIdInput } from '@/components/ui/national-id-input'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
+import { ServiceCategoryPicker } from '@/components/common/service-category-picker'
 
 interface CreateIndividualPayeeModalProps {
   isOpen: boolean
@@ -27,18 +28,23 @@ export function CreateIndividualPayeeModal({
   const toast = useToastContext()
   const customAlert = useAlert()
   const customConfirm = useConfirm()
+  const notesRef = useRef<HTMLTextAreaElement>(null)
 
   const [formData, setFormData] = useState({
     fullName: '',
     nationalId: '',
-    idFormatTemplateId: '', // Track selected ID format template
-    phone: ''
+    idFormatTemplateId: '',
+    phone: '',
+    notes: '',
+    serviceType: '',
+    emoji: '',
   })
 
   const [errors, setErrors] = useState({
     fullName: '',
     nationalId: '',
-    phone: ''
+    phone: '',
+    notes: '',
   })
 
   // Pre-fill name from search query when modal opens
@@ -52,7 +58,8 @@ export function CreateIndividualPayeeModal({
     const newErrors = {
       fullName: '',
       nationalId: '',
-      phone: ''
+      phone: '',
+      notes: '',
     }
 
     // Validate full name
@@ -84,8 +91,16 @@ export function CreateIndividualPayeeModal({
       }
     }
 
+    if (!formData.notes.trim()) {
+      newErrors.notes = 'Notes are required — describe who this person is'
+    }
+
     setErrors(newErrors)
-    return !newErrors.fullName && !newErrors.nationalId && !newErrors.phone
+    if (newErrors.notes) {
+      toast.error(newErrors.notes)
+      setTimeout(() => { notesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); notesRef.current?.focus() }, 100)
+    }
+    return !newErrors.fullName && !newErrors.nationalId && !newErrors.phone && !newErrors.notes
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -105,7 +120,10 @@ export function CreateIndividualPayeeModal({
           fullName: formData.fullName.trim(),
           nationalId: formData.nationalId.trim() || null,
           idFormatTemplateId: formData.idFormatTemplateId || null,
-          phone: formData.phone.trim() || null
+          phone: formData.phone.trim() || null,
+          notes: formData.notes.trim() || null,
+          serviceType: formData.serviceType || null,
+          emoji: formData.emoji || null,
         })
       })
 
@@ -124,13 +142,8 @@ export function CreateIndividualPayeeModal({
       onClose()
 
       // Reset form
-      setFormData({
-        fullName: '',
-        nationalId: '',
-        idFormatTemplateId: '',
-        phone: ''
-      })
-      setErrors({ fullName: '', nationalId: '', phone: '' })
+      setFormData({ fullName: '', nationalId: '', idFormatTemplateId: '', phone: '', notes: '', serviceType: '', emoji: '' })
+      setErrors({ fullName: '', nationalId: '', phone: '', notes: '' })
     } catch (error) {
       console.error('Create individual payee error:', error)
       const message = error instanceof Error ? error.message : 'Failed to create individual payee'
@@ -158,25 +171,19 @@ export function CreateIndividualPayeeModal({
     }
 
     onClose()
-
-    // Reset form
-    setFormData({
-      fullName: '',
-      nationalId: '',
-      idFormatTemplateId: '',
-      phone: ''
-    })
-    setErrors({ fullName: '', nationalId: '', phone: '' })
+    setFormData({ fullName: '', nationalId: '', idFormatTemplateId: '', phone: '', notes: '', serviceType: '', emoji: '' })
+    setErrors({ fullName: '', nationalId: '', phone: '', notes: '' })
   }
 
   if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: 10000 }}>
-      <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-md shadow-2xl border border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-2xl shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-bold text-primary mb-4">Create Individual Payee</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Row 1: Full Name (full width) */}
           <div>
             <label className="block text-sm font-medium text-secondary mb-1">
               Full Name <span className="text-red-500">*</span>
@@ -200,67 +207,88 @@ export function CreateIndividualPayeeModal({
             )}
           </div>
 
+          {/* Row 2: National ID + Phone side by side */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-secondary mb-1">
+                National ID <span className="text-xs font-normal text-secondary">(Optional)</span>
+              </label>
+              <NationalIdInput
+                value={formData.nationalId}
+                templateId={formData.idFormatTemplateId}
+                onChange={(nationalId, templateId) => {
+                  setFormData({
+                    ...formData,
+                    nationalId: nationalId,
+                    idFormatTemplateId: templateId || ''
+                  })
+                  setErrors({ ...errors, nationalId: '' })
+                }}
+                error={errors.nationalId}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-secondary mb-1">
+                Phone Number <span className="text-xs font-normal text-secondary">(Optional)</span>
+              </label>
+              <PhoneNumberInput
+                value={formData.phone}
+                onChange={(value) => {
+                  setFormData({ ...formData, phone: value })
+                  setErrors({ ...errors, phone: '' })
+                }}
+                error={errors.phone}
+              />
+            </div>
+          </div>
+
+          {/* Row 3: Service Category (full width) */}
+          <div>
+            <label className="block text-sm font-medium text-secondary mb-1">Service Category</label>
+            <ServiceCategoryPicker
+              apiEndpoint="/api/payee-categories"
+              value={formData.serviceType || null}
+              onChange={(name, emoji) => setFormData({ ...formData, serviceType: name, emoji })}
+            />
+          </div>
+
+          {/* Row 4: Notes (full width, required) */}
           <div>
             <label className="block text-sm font-medium text-secondary mb-1">
-              National ID (Optional)
+              Notes <span className="text-red-500">*</span>
             </label>
-            <NationalIdInput
-              value={formData.nationalId}
-              templateId={formData.idFormatTemplateId}
-              onChange={(nationalId, templateId) => {
-                setFormData({
-                  ...formData,
-                  nationalId: nationalId,
-                  idFormatTemplateId: templateId || ''
-                })
-                setErrors({ ...errors, nationalId: '' })
-              }}
-              error={errors.nationalId}
+            <textarea
+              ref={notesRef}
+              value={formData.notes}
+              onChange={(e) => { setFormData({ ...formData, notes: e.target.value }); setErrors({ ...errors, notes: '' }) }}
+              rows={2}
+              placeholder="Who is this person and what do they do? (required)"
+              className={`w-full px-3 py-2 border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.notes ? 'border-red-500' : 'border-border'}`}
             />
-            <p className="text-xs text-secondary mt-1">
-              National ID number for identification purposes
-            </p>
+            {errors.notes && <p className="mt-1 text-sm text-red-500">{errors.notes}</p>}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-secondary mb-1">
-              Phone Number (Optional)
-            </label>
-            <PhoneNumberInput
-              value={formData.phone}
-              onChange={(value) => {
-                setFormData({ ...formData, phone: value })
-                setErrors({ ...errors, phone: '' })
-              }}
-              error={errors.phone}
-            />
-            <p className="text-xs text-secondary mt-1">
-              Contact phone number
+          <div className="flex items-center justify-between gap-4 pt-2">
+            <p className="text-xs text-blue-700 dark:text-blue-400 flex-1">
+              A unique ID will be generated automatically.
             </p>
-          </div>
-
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-3">
-            <p className="text-sm text-blue-800 dark:text-blue-300">
-              <span className="font-semibold">Note:</span> This creates a new individual (contractor, vendor, or person) that can be used as a payee for expense account payments. A unique ID will be generated automatically.
-            </p>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="px-4 py-2 text-sm font-medium text-secondary bg-background border border-border rounded-md hover:bg-muted"
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
-              disabled={loading}
-            >
-              {loading ? 'Creating...' : 'Create Individual'}
-            </button>
+            <div className="flex gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="px-4 py-2 text-sm font-medium text-secondary bg-background border border-border rounded-md hover:bg-muted"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                disabled={loading}
+              >
+                {loading ? 'Creating...' : 'Create Individual'}
+              </button>
+            </div>
           </div>
         </form>
       </div>

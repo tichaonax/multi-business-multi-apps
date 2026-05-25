@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { OnSuccessArg } from '@/types/ui'
 import fetchWithValidation from '@/lib/fetchWithValidation'
 import { useToastContext } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { NationalIdInput } from '@/components/ui/national-id-input'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
+import { ServiceCategoryPicker } from '@/components/common/service-category-picker'
 
 interface CreateContractorPayeeModalProps {
   isOpen: boolean
@@ -26,20 +27,25 @@ export function CreateContractorPayeeModal({
   const [loading, setLoading] = useState(false)
   const toast = useToastContext()
   const customConfirm = useConfirm()
+  const notesRef = useRef<HTMLTextAreaElement>(null)
 
   const [formData, setFormData] = useState({
     fullName: '',
     nationalId: '',
     idFormatTemplateId: '',
     phone: '',
-    taxId: ''
+    taxId: '',
+    notes: '',
+    serviceType: '',
+    emoji: '',
   })
 
   const [errors, setErrors] = useState({
     fullName: '',
     nationalId: '',
     phone: '',
-    taxId: ''
+    taxId: '',
+    notes: '',
   })
 
   // Pre-fill name from search query when modal opens
@@ -50,9 +56,8 @@ export function CreateContractorPayeeModal({
   }, [isOpen, initialName])
 
   const validateForm = () => {
-    const newErrors = { fullName: '', nationalId: '', phone: '', taxId: '' }
+    const newErrors = { fullName: '', nationalId: '', phone: '', taxId: '', notes: '' }
 
-    // Full name — required
     if (!formData.fullName.trim()) {
       newErrors.fullName = 'Full name is required'
     } else if (formData.fullName.trim().length < 2) {
@@ -61,14 +66,12 @@ export function CreateContractorPayeeModal({
       newErrors.fullName = 'Full name must not exceed 100 characters'
     }
 
-    // National ID — required for contractors
     if (!formData.nationalId.trim()) {
       newErrors.nationalId = 'National ID is required'
     } else if (formData.nationalId.trim().length > 50) {
       newErrors.nationalId = 'National ID must not exceed 50 characters'
     }
 
-    // Phone — required for contractors
     if (!formData.phone.trim()) {
       newErrors.phone = 'Phone number is required'
     } else if (formData.phone.trim().length < 7) {
@@ -77,13 +80,20 @@ export function CreateContractorPayeeModal({
       newErrors.phone = 'Phone number must not exceed 20 characters'
     }
 
-    // TAX ID — optional but max length check
     if (formData.taxId.trim().length > 50) {
       newErrors.taxId = 'TAX ID must not exceed 50 characters'
     }
 
+    if (!formData.notes.trim()) {
+      newErrors.notes = 'Notes are required — describe what this contractor does'
+    }
+
     setErrors(newErrors)
-    return !newErrors.fullName && !newErrors.nationalId && !newErrors.phone && !newErrors.taxId
+    if (newErrors.notes) {
+      toast.error(newErrors.notes)
+      setTimeout(() => { notesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); notesRef.current?.focus() }, 100)
+    }
+    return !newErrors.fullName && !newErrors.nationalId && !newErrors.phone && !newErrors.taxId && !newErrors.notes
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -101,7 +111,10 @@ export function CreateContractorPayeeModal({
           nationalId: formData.nationalId.trim() || null,
           idFormatTemplateId: formData.idFormatTemplateId || null,
           phone: formData.phone.trim() || null,
-          taxId: formData.taxId.trim() || null
+          taxId: formData.taxId.trim() || null,
+          notes: formData.notes.trim() || null,
+          serviceType: formData.serviceType || null,
+          emoji: formData.emoji || null,
         })
       })
 
@@ -117,8 +130,8 @@ export function CreateContractorPayeeModal({
       } catch (e) {}
 
       onClose()
-      setFormData({ fullName: '', nationalId: '', idFormatTemplateId: '', phone: '', taxId: '' })
-      setErrors({ fullName: '', nationalId: '', phone: '', taxId: '' })
+      setFormData({ fullName: '', nationalId: '', idFormatTemplateId: '', phone: '', taxId: '', notes: '', serviceType: '', emoji: '' })
+      setErrors({ fullName: '', nationalId: '', phone: '', taxId: '', notes: '' })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to create contractor payee'
       toast.error(message)
@@ -140,19 +153,19 @@ export function CreateContractorPayeeModal({
     }
 
     onClose()
-    setFormData({ fullName: '', nationalId: '', idFormatTemplateId: '', phone: '', taxId: '' })
-    setErrors({ fullName: '', nationalId: '', phone: '', taxId: '' })
+    setFormData({ fullName: '', nationalId: '', idFormatTemplateId: '', phone: '', taxId: '', notes: '', serviceType: '', emoji: '' })
+    setErrors({ fullName: '', nationalId: '', phone: '', taxId: '', notes: '' })
   }
 
   if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: 10000 }}>
-      <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-md shadow-2xl border border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-2xl shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-bold text-primary mb-4">Create Contractor Payee</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Full Name — required */}
+          {/* Row 1: Full Name (full width) */}
           <div>
             <label className="block text-sm font-medium text-secondary mb-1">
               Full Name <span className="text-red-500">*</span>
@@ -176,82 +189,109 @@ export function CreateContractorPayeeModal({
             )}
           </div>
 
-          {/* National ID — required */}
+          {/* Row 2: National ID * + Phone * side by side */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-secondary mb-1">
+                National ID <span className="text-red-500">*</span>
+              </label>
+              <NationalIdInput
+                value={formData.nationalId}
+                templateId={formData.idFormatTemplateId}
+                onChange={(nationalId, templateId) => {
+                  setFormData({ ...formData, nationalId, idFormatTemplateId: templateId || '' })
+                  setErrors({ ...errors, nationalId: '' })
+                }}
+                error={errors.nationalId}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-secondary mb-1">
+                Phone Number <span className="text-red-500">*</span>
+              </label>
+              <PhoneNumberInput
+                value={formData.phone}
+                onChange={(value) => {
+                  setFormData({ ...formData, phone: value })
+                  setErrors({ ...errors, phone: '' })
+                }}
+                error={errors.phone}
+              />
+            </div>
+          </div>
+
+          {/* Row 3: TAX ID (half-width left) */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-secondary mb-1">
+                TAX ID / EIN <span className="text-xs font-normal text-secondary">(Optional)</span>
+              </label>
+              <input
+                type="text"
+                value={formData.taxId}
+                onChange={(e) => {
+                  setFormData({ ...formData, taxId: e.target.value })
+                  setErrors({ ...errors, taxId: '' })
+                }}
+                placeholder="e.g., 12-3456789"
+                className={`w-full px-3 py-2 border rounded-md bg-background text-primary focus:ring-2 focus:ring-amber-500 focus:border-transparent ${
+                  errors.taxId ? 'border-red-500' : 'border-border'
+                }`}
+                maxLength={50}
+              />
+              {errors.taxId && (
+                <p className="mt-1 text-sm text-red-500">{errors.taxId}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Row 4: Contractor Category (full width) */}
           <div>
-            <label className="block text-sm font-medium text-secondary mb-1">
-              National ID <span className="text-red-500">*</span>
-            </label>
-            <NationalIdInput
-              value={formData.nationalId}
-              templateId={formData.idFormatTemplateId}
-              onChange={(nationalId, templateId) => {
-                setFormData({ ...formData, nationalId, idFormatTemplateId: templateId || '' })
-                setErrors({ ...errors, nationalId: '' })
-              }}
-              error={errors.nationalId}
+            <label className="block text-sm font-medium text-secondary mb-1">Contractor Category</label>
+            <ServiceCategoryPicker
+              apiEndpoint="/api/contractor-categories"
+              value={formData.serviceType || null}
+              onChange={(name, emoji) => setFormData({ ...formData, serviceType: name, emoji })}
             />
           </div>
 
-          {/* Phone — required */}
+          {/* Row 5: Notes (full width, required) */}
           <div>
             <label className="block text-sm font-medium text-secondary mb-1">
-              Phone Number <span className="text-red-500">*</span>
+              Notes <span className="text-red-500">*</span>
             </label>
-            <PhoneNumberInput
-              value={formData.phone}
-              onChange={(value) => {
-                setFormData({ ...formData, phone: value })
-                setErrors({ ...errors, phone: '' })
-              }}
-              error={errors.phone}
+            <textarea
+              ref={notesRef}
+              value={formData.notes}
+              onChange={(e) => { setFormData({ ...formData, notes: e.target.value }); setErrors({ ...errors, notes: '' }) }}
+              rows={2}
+              placeholder="What work does this contractor do? (required)"
+              className={`w-full px-3 py-2 border rounded-md bg-background text-primary focus:ring-2 focus:ring-amber-500 focus:border-transparent ${errors.notes ? 'border-red-500' : 'border-border'}`}
             />
+            {errors.notes && <p className="mt-1 text-sm text-red-500">{errors.notes}</p>}
           </div>
 
-          {/* TAX ID — optional */}
-          <div>
-            <label className="block text-sm font-medium text-secondary mb-1">
-              TAX ID / EIN
-            </label>
-            <input
-              type="text"
-              value={formData.taxId}
-              onChange={(e) => {
-                setFormData({ ...formData, taxId: e.target.value })
-                setErrors({ ...errors, taxId: '' })
-              }}
-              placeholder="e.g., 12-3456789"
-              className={`w-full px-3 py-2 border rounded-md bg-background text-primary focus:ring-2 focus:ring-amber-500 focus:border-transparent ${
-                errors.taxId ? 'border-red-500' : 'border-border'
-              }`}
-              maxLength={50}
-            />
-            {errors.taxId && (
-              <p className="mt-1 text-sm text-red-500">{errors.taxId}</p>
-            )}
-          </div>
-
-          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3">
-            <p className="text-sm text-amber-800 dark:text-amber-300">
-              <span className="font-semibold">Note:</span> This creates a new contractor payee for expense account payments. A unique ID will be generated automatically.
+          <div className="flex items-center justify-between gap-4 pt-2">
+            <p className="text-xs text-amber-700 dark:text-amber-400 flex-1">
+              A unique ID will be generated automatically.
             </p>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="px-4 py-2 text-sm font-medium text-secondary bg-background border border-border rounded-md hover:bg-muted"
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-md hover:bg-amber-700 disabled:opacity-50"
-              disabled={loading}
-            >
-              {loading ? 'Creating...' : 'Create Contractor'}
-            </button>
+            <div className="flex gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="px-4 py-2 text-sm font-medium text-secondary bg-background border border-border rounded-md hover:bg-muted"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-md hover:bg-amber-700 disabled:opacity-50"
+                disabled={loading}
+              >
+                {loading ? 'Creating...' : 'Create Contractor'}
+              </button>
+            </div>
           </div>
         </form>
       </div>

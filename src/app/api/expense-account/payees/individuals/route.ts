@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json()
-    const { fullName, nationalId, idFormatTemplateId, phone, email, address, taxId } = body
+    const { fullName, nationalId, idFormatTemplateId, phone, email, address, taxId, notes, serviceType, emoji } = body
 
     // Validate required fields
     if (!fullName || fullName.trim() === '') {
@@ -111,6 +111,9 @@ export async function POST(request: NextRequest) {
         email: email?.trim() || undefined,
         address: address?.trim() || undefined,
         taxId: taxId?.trim() || undefined,
+        notes: notes?.trim() || undefined,
+        serviceType: serviceType?.trim() || undefined,
+        emoji: emoji?.trim() || undefined,
       },
       user.id
     )

@@ -70,6 +70,7 @@ export default function PayeesPage() {
   const [receiptsModal, setReceiptsModal] = useState<{ type: 'PERSON' | 'BUSINESS' | 'SUPPLIER'; id: string; name: string } | null>(null)
 
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [expenseSummaries, setExpenseSummaries] = useState<Record<string, { totalPaid: number; paymentCount: number }>>({})
 
   const isAdmin = session?.user?.role === 'admin'
   const canView = isAdmin || (fetchedPermissions?.canViewPayees ?? false)
@@ -130,6 +131,20 @@ export default function PayeesPage() {
       } else {
         console.error('Failed to fetch payees:', response.status)
       }
+
+      // Load expense payment summaries (fire-and-forget)
+      fetch('/api/expense-account/reports/payees', { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          if (d?.data?.byPayee) {
+            const map: Record<string, { totalPaid: number; paymentCount: number }> = {}
+            for (const p of d.data.byPayee) {
+              map[`${p.payeeType}-${p.payeeId}`] = { totalPaid: p.totalAmount, paymentCount: p.paymentCount }
+            }
+            setExpenseSummaries(map)
+          }
+        })
+        .catch(() => {})
     } catch (error) {
       console.error('Error fetching payees:', error)
     } finally {
@@ -341,9 +356,25 @@ export default function PayeesPage() {
                         )}
                       </div>
 
+                      {/* Expense Payment Badge */}
+                      {expenseSummaries[`${payee.type}-${payee.id}`] && (
+                        <Link
+                          href={`/expense-accounts/reports/payee-history?payeeType=${payee.type}&payeeId=${payee.id}&payeeName=${encodeURIComponent(payee.name)}&allTime=true`}
+                          className="mt-3 flex items-center justify-between border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 rounded-lg px-3 py-2 group hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">💳</span>
+                            <span className="text-sm font-bold text-blue-700 dark:text-blue-300">{expenseSummaries[`${payee.type}-${payee.id}`].paymentCount} payment{expenseSummaries[`${payee.type}-${payee.id}`].paymentCount !== 1 ? 's' : ''}</span>
+                            <span className="text-gray-400 dark:text-gray-600">·</span>
+                            <span className="text-sm font-bold text-green-700 dark:text-green-400">${expenseSummaries[`${payee.type}-${payee.id}`].totalPaid.toFixed(2)}</span>
+                          </div>
+                          <span className="text-xs font-medium text-blue-500 dark:text-blue-400 group-hover:underline">View →</span>
+                        </Link>
+                      )}
+
                       {/* Actions */}
                       <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                           {canEdit && payee.type === 'PERSON' && (
                             <button
                               className="flex-1 btn-secondary text-sm py-2"

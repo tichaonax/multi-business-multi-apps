@@ -16,7 +16,7 @@ import { getServerUser } from '@/lib/get-server-user'
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { payeeType: string; payeeId: string } }
+  { params }: { params: Promise<{ payeeType: string; payeeId: string }> }
 ) {
   try {
     const user = await getServerUser()
@@ -33,13 +33,13 @@ export async function GET(
       )
     }
 
-    const { payeeType, payeeId } = params
+    const { payeeType, payeeId } = await params
 
-    // Validate payeeType
-    const validPayeeTypes = ['USER', 'EMPLOYEE', 'PERSON', 'BUSINESS']
+    // Validate payeeType (CONTRACTOR is an alias for PERSON — stored as PERSON in DB)
+    const validPayeeTypes = ['USER', 'EMPLOYEE', 'PERSON', 'CONTRACTOR', 'BUSINESS', 'SUPPLIER']
     if (!validPayeeTypes.includes(payeeType)) {
       return NextResponse.json(
-        { error: 'Invalid payee type. Must be USER, EMPLOYEE, PERSON, or BUSINESS' },
+        { error: 'Invalid payee type. Must be USER, EMPLOYEE, PERSON, CONTRACTOR, BUSINESS, or SUPPLIER' },
         { status: 400 }
       )
     }
@@ -58,7 +58,7 @@ export async function GET(
     if (endDate) dateFilter.lte = new Date(endDate)
 
     // Build payee filter based on type
-    const payeeFilter: any = { status: 'SUBMITTED' }
+    const payeeFilter: any = { status: { not: 'REJECTED' } }
     switch (payeeType) {
       case 'USER':
         payeeFilter.payeeType = 'USER'
@@ -69,12 +69,17 @@ export async function GET(
         payeeFilter.payeeEmployeeId = payeeId
         break
       case 'PERSON':
+      case 'CONTRACTOR':
         payeeFilter.payeeType = 'PERSON'
         payeeFilter.payeePersonId = payeeId
         break
       case 'BUSINESS':
         payeeFilter.payeeType = 'BUSINESS'
         payeeFilter.payeeBusinessId = payeeId
+        break
+      case 'SUPPLIER':
+        payeeFilter.payeeType = 'SUPPLIER'
+        payeeFilter.payeeSupplierId = payeeId
         break
     }
 
@@ -92,7 +97,7 @@ export async function GET(
     let payeeInfo: any = null
     switch (payeeType) {
       case 'USER':
-        payeeInfo = await prisma.user.findUnique({
+        payeeInfo = await prisma.users.findUnique({
           where: { id: payeeId },
           select: { id: true, name: true, email: true },
         })
@@ -104,15 +109,22 @@ export async function GET(
         })
         break
       case 'PERSON':
+      case 'CONTRACTOR':
         payeeInfo = await prisma.persons.findUnique({
           where: { id: payeeId },
           select: { id: true, fullName: true, nationalId: true },
         })
         break
       case 'BUSINESS':
-        payeeInfo = await prisma.business.findUnique({
+        payeeInfo = await prisma.businesses.findUnique({
           where: { id: payeeId },
           select: { id: true, name: true, type: true },
+        })
+        break
+      case 'SUPPLIER':
+        payeeInfo = await prisma.businessSuppliers.findUnique({
+          where: { id: payeeId },
+          select: { id: true, name: true, notes: true, phone: true, email: true },
         })
         break
     }
@@ -158,6 +170,9 @@ export async function GET(
         },
         payeeBusiness: {
           select: { id: true, name: true, type: true },
+        },
+        payeeSupplier: {
+          select: { id: true, name: true },
         },
         creator: {
           select: { id: true, name: true, email: true },

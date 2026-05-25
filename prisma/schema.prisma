@@ -2889,6 +2889,8 @@ model Persons {
   driverLicenseNumber               String?
   driverLicenseTemplateId           String?
   taxId                             String?
+  serviceType                       String?
+  emoji                             String?
   expense_account_payments_as_payee ExpenseAccountPayments[]      @relation("ExpensePaymentPayeePerson")
   expense_payment_receipts          ExpensePaymentReceipts[]      @relation("ReceiptPayeePerson")
   loans_as_borrower                 InterBusinessLoans[]          @relation("loans_as_borrower")
@@ -3169,6 +3171,84 @@ model StageContractorAssignments {
 
   @@unique([stageId, projectContractorId])
   @@map("stage_contractor_assignments")
+}
+
+model PayeeCategoryGroups {
+  id           String             @id @default(uuid())
+  name         String             @unique
+  emoji        String
+  displayOrder Int                @default(0)
+  isActive     Boolean            @default(true)
+  createdAt    DateTime           @default(now())
+  categories   PayeeCategories[]
+
+  @@map("payee_category_groups")
+}
+
+model PayeeCategories {
+  id           String            @id @default(uuid())
+  groupId      String
+  name         String
+  emoji        String
+  displayOrder Int               @default(0)
+  isActive     Boolean           @default(true)
+  createdAt    DateTime          @default(now())
+  group        PayeeCategoryGroups @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, name])
+  @@map("payee_categories")
+}
+
+model ContractorCategoryGroups {
+  id           String                 @id @default(uuid())
+  name         String                 @unique
+  emoji        String
+  displayOrder Int                    @default(0)
+  isActive     Boolean                @default(true)
+  createdAt    DateTime               @default(now())
+  categories   ContractorCategories[]
+
+  @@map("contractor_category_groups")
+}
+
+model ContractorCategories {
+  id           String                  @id @default(uuid())
+  groupId      String
+  name         String
+  emoji        String
+  displayOrder Int                     @default(0)
+  isActive     Boolean                 @default(true)
+  createdAt    DateTime                @default(now())
+  group        ContractorCategoryGroups @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, name])
+  @@map("contractor_categories")
+}
+
+model SupplierCategoryGroups {
+  id           String               @id @default(uuid())
+  name         String               @unique
+  emoji        String
+  displayOrder Int                  @default(0)
+  isActive     Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  categories   SupplierCategories[]
+
+  @@map("supplier_category_groups")
+}
+
+model SupplierCategories {
+  id           String                 @id @default(uuid())
+  groupId      String
+  name         String
+  emoji        String
+  displayOrder Int                    @default(0)
+  isActive     Boolean                @default(true)
+  createdAt    DateTime               @default(now())
+  group        SupplierCategoryGroups @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, name])
+  @@map("supplier_categories")
 }
 
 model SupplierProducts {

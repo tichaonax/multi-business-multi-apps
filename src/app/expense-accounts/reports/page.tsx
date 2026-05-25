@@ -59,6 +59,13 @@ const REPORT_CARDS = [
     description: 'All outgoing loans from expense accounts — person, business, and employee loans with outstanding balances.',
     color: 'indigo',
   },
+  {
+    href: '/expense-accounts/reports/payee-history',
+    emoji: '🧾',
+    title: 'Payee Payment History',
+    description: 'Full payment history for any recipient — employees, persons, suppliers, businesses. Filter by date range.',
+    color: 'teal',
+  },
 ]
 
 const COLOR_MAP: Record<string, string> = {

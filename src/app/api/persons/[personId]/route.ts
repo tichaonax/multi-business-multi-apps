@@ -54,15 +54,17 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     const { personId } = await params
     const data = await req.json()
-    const { 
-      fullName, 
-      email, 
-      phone, 
-      nationalId, 
+    const {
+      fullName,
+      email,
+      phone,
+      nationalId,
       idFormatTemplateId,
       address,
       notes,
-      isActive
+      isActive,
+      serviceType,
+      emoji,
     } = data
 
     // Validation
@@ -145,6 +147,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         idFormatTemplateId: idFormatTemplateId || null,
         address: address || null,
         notes: notes || null,
+        serviceType: serviceType || null,
+        emoji: emoji || null,
         isActive: isActive !== undefined ? isActive : existingPerson.isActive
       },
       include: {

@@ -5,7 +5,7 @@
 export const dynamic = 'force-dynamic';
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
@@ -14,6 +14,8 @@ import { NationalIdInput } from '@/components/ui/national-id-input'
 import { DateInput } from '@/components/ui/date-input'
 import { hasUserPermission } from '@/lib/permission-utils'
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
+import { useToastContext } from '@/components/ui/toast'
+import { ServiceCategoryPicker } from '@/components/common/service-category-picker'
 
 
 interface Person {
@@ -23,6 +25,9 @@ interface Person {
   phone: string
   nationalId: string
   address: string | null
+  notes: string | null
+  serviceType: string | null
+  emoji: string | null
   isActive: boolean
   createdAt: string
   projectContractors: {
@@ -45,6 +50,7 @@ export default function ContractorsPage() {
   const { data: session } = useSession()
   const [contractors, setContractors] = useState<Person[]>([])
   const [loading, setLoading] = useState(true)
+  const [expenseSummaries, setExpenseSummaries] = useState<Record<string, { totalPaid: number; paymentCount: number }>>({})
   // hooks moved to top to satisfy Rules of Hooks
   const [searchTerm, setSearchTerm] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
@@ -89,8 +95,12 @@ export default function ContractorsPage() {
     email: '',
     address: '',
     notes: '',
-    idFormatTemplateId: ''
+    idFormatTemplateId: '',
+    serviceType: '',
+    emoji: '',
   })
+  const editNotesRef = useRef<HTMLTextAreaElement>(null)
+  const toast = useToastContext()
 
   // Fetch user-level permissions from DB (not stored in JWT/session)
   const [fetchedPermissions, setFetchedPermissions] = useState<Record<string, any> | null>(null)
@@ -177,6 +187,20 @@ export default function ContractorsPage() {
       } else {
         console.error('Failed to fetch contractors:', response.status)
       }
+
+      // Load expense payment summaries for all persons (fire-and-forget)
+      fetch('/api/expense-account/reports/payees?payeeType=PERSON', { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          if (d?.data?.byPayee) {
+            const map: Record<string, { totalPaid: number; paymentCount: number }> = {}
+            for (const p of d.data.byPayee) {
+              map[p.payeeId] = { totalPaid: p.totalAmount, paymentCount: p.paymentCount }
+            }
+            setExpenseSummaries(map)
+          }
+        })
+        .catch(() => {})
     } catch (error) {
       console.error('Error fetching contractors:', error)
     } finally {
@@ -232,6 +256,13 @@ export default function ContractorsPage() {
     e.preventDefault()
     if (!editForm.fullName || !editForm.phone || !editForm.nationalId || !selectedContractor) return
 
+    if (!editForm.notes.trim()) {
+      const msg = 'Notes are required — describe what this contractor does'
+      toast.error(msg)
+      setTimeout(() => { editNotesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); editNotesRef.current?.focus() }, 100)
+      return
+    }
+
     setSubmitting(true)
     try {
       const response = await fetch(`/api/persons/${selectedContractor.id}`, {
@@ -244,7 +275,9 @@ export default function ContractorsPage() {
           email: editForm.email || null,
           address: editForm.address || null,
           notes: editForm.notes || null,
-          idFormatTemplateId: editForm.idFormatTemplateId || null
+          idFormatTemplateId: editForm.idFormatTemplateId || null,
+          serviceType: editForm.serviceType || null,
+          emoji: editForm.emoji || null,
         })
       })
 
@@ -256,7 +289,9 @@ export default function ContractorsPage() {
           email: '',
           address: '',
           notes: '',
-          idFormatTemplateId: ''
+          idFormatTemplateId: '',
+          serviceType: '',
+          emoji: '',
         })
         setShowEditModal(false)
         setSelectedContractor(null)
@@ -311,8 +346,10 @@ export default function ContractorsPage() {
       nationalId: contractor.nationalId,
       email: contractor.email || '',
       address: contractor.address || '',
-      notes: '', // Notes are not currently returned from API
-      idFormatTemplateId: '' // Template ID not currently returned
+      notes: contractor.notes || '',
+      idFormatTemplateId: '',
+      serviceType: contractor.serviceType || '',
+      emoji: contractor.emoji || '',
     })
     setShowEditModal(true)
   }
@@ -650,15 +687,21 @@ export default function ContractorsPage() {
                     )}
                   </div>
 
-                  {/* Payment History */}
-                  <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-secondary">Total Transactions:</span>
-                      <span className="text-primary font-semibold">
-                        {contractor._count.projectTransactions}
-                      </span>
-                    </div>
-                  </div>
+                  {/* Expense Payment Badge */}
+                  {expenseSummaries[contractor.id] && (
+                    <Link
+                      href={`/expense-accounts/reports/payee-history?payeeType=PERSON&payeeId=${contractor.id}&payeeName=${encodeURIComponent(contractor.fullName)}&allTime=true`}
+                      className="mt-3 flex items-center justify-between border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 rounded-lg px-3 py-2 group hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">💳</span>
+                        <span className="text-sm font-bold text-blue-700 dark:text-blue-300">{expenseSummaries[contractor.id].paymentCount} payment{expenseSummaries[contractor.id].paymentCount !== 1 ? 's' : ''}</span>
+                        <span className="text-gray-400 dark:text-gray-600">·</span>
+                        <span className="text-sm font-bold text-green-700 dark:text-green-400">${expenseSummaries[contractor.id].totalPaid.toFixed(2)}</span>
+                      </div>
+                      <span className="text-xs font-medium text-blue-500 dark:text-blue-400 group-hover:underline">View →</span>
+                    </Link>
+                  )}
 
                   {/* Actions */}
                   <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
@@ -771,15 +814,25 @@ export default function ContractorsPage() {
                     </div>
 
                     <div>
+                      <label className="block text-sm font-medium text-secondary mb-1">Contractor Category</label>
+                      <ServiceCategoryPicker
+                        apiEndpoint="/api/contractor-categories"
+                        value={editForm.serviceType || null}
+                        onChange={(name, emoji) => setEditForm({ ...editForm, serviceType: name, emoji })}
+                      />
+                    </div>
+
+                    <div>
                       <label className="block text-sm font-medium text-secondary mb-1">
-                        Notes
+                        Notes <span className="text-red-500">*</span>
                       </label>
                       <textarea
+                        ref={editNotesRef}
                         value={editForm.notes}
                         onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                         rows={2}
-                        placeholder="Additional notes about this contractor"
+                        placeholder="What work does this contractor do? (required)"
                       />
                     </div>
                   </div>
@@ -1140,23 +1193,20 @@ export default function ContractorsPage() {
                   <h4 className="text-md font-semibold text-primary mb-4">
                     Payment History ({selectedContractor._count.projectTransactions} transactions)
                   </h4>
-
-                  {selectedContractor._count.projectTransactions === 0 ? (
-                    <div className="text-center py-8">
-                      <div className="text-4xl mb-2">💰</div>
-                      <p className="text-secondary">No payment transactions yet</p>
-                    </div>
-                  ) : (
-                    <div className="card p-4">
-                      <p className="text-secondary text-sm mb-2">
-                        This contractor has received {selectedContractor._count.projectTransactions} payments.
-                        View detailed payment history in the <Link href="/admin/contractors" className="text-blue-600 hover:underline">Global Contractor Management</Link> section.
-                      </p>
-                      <div className="text-primary font-medium">
-                        💡 Payment details available to system administrators
-                      </div>
-                    </div>
-                  )}
+                  <div className="card p-4 flex items-center justify-between gap-4">
+                    <p className="text-secondary text-sm">
+                      {selectedContractor._count.projectTransactions === 0
+                        ? 'No payments made to this contractor yet.'
+                        : `${selectedContractor._count.projectTransactions} payment${selectedContractor._count.projectTransactions !== 1 ? 's' : ''} recorded for this contractor.`}
+                    </p>
+                    <Link
+                      href={`/expense-accounts/reports/payee-history?payeeType=PERSON&payeeId=${selectedContractor.id}&payeeName=${encodeURIComponent(selectedContractor.fullName)}&allTime=true`}
+                      className="btn-secondary text-sm whitespace-nowrap"
+                      onClick={() => setShowDetailsModal(false)}
+                    >
+                      View Payment History
+                    </Link>
+                  </div>
                 </div>
 
                 {/* Project Assignments */}

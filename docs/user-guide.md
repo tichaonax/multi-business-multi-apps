@@ -44,6 +44,7 @@
 17. [Suppliers & Payees](#17-suppliers--payees)
     - [Attaching Receipts to Expense Payments](#attaching-receipts-to-expense-payments)
     - [Payee Receipt Report](#payee-receipt-report)
+    - [Payee Payment History Report](#payee-payment-history-report)
 18. [Batch EOD Catch-Up — Manager and Cashier Roles](#18-batch-eod-catch-up--manager-and-cashier-roles)
 19. [Employee Termination Checklist](#employee-termination--full-checklist)
 20. [Team Chat](#20-team-chat)
@@ -5722,6 +5723,95 @@ The report shows:
 - Results are sorted newest first
 
 This gives managers a quick view of total spending with a specific supplier or contractor across all expense accounts and all time.
+
+---
+
+### Payee Payment History Report
+
+The Payee Payment History report shows every individual payment transaction made to any recipient in the system — employees, persons, suppliers, businesses, or users — for any date range you choose.
+
+**Who can use it:** Anyone with expense account report access.
+
+#### Opening the Report
+
+**Option A — From the Expense Accounts Reports Hub**
+
+1. Go to **Expense Accounts → Reports**.
+2. Click the **Payee Payment History** card.
+
+**Option B — From a Contractor's Profile (shortcut)**
+
+1. Go to **Contractors** in the menu.
+2. Find the contractor and click **View Details**.
+3. In the **Payment History** section, click **View Payment History**.
+   The report opens pre-filtered to that contractor — no searching needed.
+
+---
+
+#### Selecting a Payee
+
+The **Select Payee** dropdown at the top of the report searches across all payee types:
+
+| Type | Who | Badge colour |
+|------|-----|-------------|
+| Employee | Staff on payroll | Blue |
+| Person | Named individuals (e.g. contractors, relatives) | Green |
+| Supplier | Business suppliers registered in the system | Orange |
+| Business | Other registered businesses | Purple |
+| User | System user accounts | Amber |
+
+1. Click the **Select Payee** field.
+2. Start typing a name — the list filters instantly.
+3. Scroll to the right group (Employees, Persons, Suppliers…) and click the name.
+4. To change the payee, click the **×** on the selected name and search again.
+
+---
+
+#### Filtering by Date
+
+Use the **date pills** to filter the payment history:
+
+| Pill | Covers |
+|------|--------|
+| Today | Current calendar day |
+| Yesterday | Previous calendar day |
+| Last 7 Days | Rolling 7 days back from today |
+| Last 30 Days | Rolling 30 days (default) |
+| Last 90 Days | Rolling 90 days |
+| Custom Range | Type start and end dates manually |
+| Specific Date | Pick a single day |
+| All Time | No date filter — returns every payment ever recorded |
+
+Click a pill to apply it immediately. The payment table and summary cards refresh automatically.
+
+---
+
+#### Reading the Results
+
+Once a payee is selected, two summary cards appear at the top:
+
+- **Total Paid** — sum of all payments in the selected period
+- **Payments** — count of individual payment transactions
+
+Below the cards, the **payments table** lists each transaction:
+
+| Column | What it shows |
+|--------|--------------|
+| Date | Date the payment was recorded |
+| Amount | Payment amount |
+| Category | Expense category (if set) |
+| Receipt # | Receipt or reference number (if attached) |
+| Account | Which expense account the payment came from |
+| Status | SUBMITTED, APPROVED, or REJECTED |
+| Notes | Free-text notes entered at payment time |
+
+Payments are returned newest first. If no payments exist for the selected period, the table shows "No payments found for the selected period."
+
+---
+
+#### Exporting to CSV
+
+Click **Export CSV** (top-right of the table) to download all visible rows as a spreadsheet. The file is named `[Payee Name]_payment_history.csv`.
 
 ---
 

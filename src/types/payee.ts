@@ -72,6 +72,9 @@ export interface CreateIndividualPayeeInput {
   email?: string
   address?: string
   taxId?: string
+  notes?: string
+  serviceType?: string
+  emoji?: string
 }
 
 // Grouped Payees (for dropdown/selector UI)

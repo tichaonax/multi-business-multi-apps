@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { NationalIdInput } from '@/components/ui/national-id-input'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
+import { ServiceCategoryPicker } from '@/components/common/service-category-picker'
+import { useToastContext } from '@/components/ui/toast'
 
 interface EditIndividualPayeeModalProps {
   payeeId: string
@@ -20,10 +22,14 @@ export function EditIndividualPayeeModal({ payeeId, onClose, onSuccess }: EditIn
     address: '',
     notes: '',
     isActive: true,
+    serviceType: '',
+    emoji: '',
   })
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const notesRef = useRef<HTMLTextAreaElement>(null)
+  const toast = useToastContext()
 
   useEffect(() => {
     fetch(`/api/payees/PERSON/${payeeId}`, { credentials: 'include' })
@@ -40,6 +46,8 @@ export function EditIndividualPayeeModal({ payeeId, onClose, onSuccess }: EditIn
             address: p.address || '',
             notes: p.notes || '',
             isActive: p.isActive,
+            serviceType: p.serviceType || '',
+            emoji: p.emoji || '',
           })
         } else {
           setError('Failed to load payee details')
@@ -52,12 +60,25 @@ export function EditIndividualPayeeModal({ payeeId, onClose, onSuccess }: EditIn
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+
+    if (!formData.notes.trim()) {
+      const msg = 'Notes are required — describe who this person is'
+      setError(msg)
+      toast.error(msg)
+      setTimeout(() => { notesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); notesRef.current?.focus() }, 100)
+      return
+    }
+
     setSubmitting(true)
     try {
       const response = await fetch(`/api/payees/individuals/${payeeId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          serviceType: formData.serviceType || null,
+          emoji: formData.emoji || null,
+        }),
         credentials: 'include',
       })
       if (response.ok) {
@@ -164,6 +185,16 @@ export function EditIndividualPayeeModal({ payeeId, onClose, onSuccess }: EditIn
                 </div>
               </div>
 
+              {/* Service Category */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Service Category</label>
+                <ServiceCategoryPicker
+                  apiEndpoint="/api/payee-categories"
+                  value={formData.serviceType || null}
+                  onChange={(name, emoji) => setFormData(prev => ({ ...prev, serviceType: name, emoji }))}
+                />
+              </div>
+
               {/* Row 4: Address + Notes */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -177,13 +208,17 @@ export function EditIndividualPayeeModal({ payeeId, onClose, onSuccess }: EditIn
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Notes</label>
+                  <label className="block text-sm font-medium mb-1">
+                    Notes <span className="text-red-500">*</span>
+                  </label>
                   <textarea
+                    ref={notesRef}
                     value={formData.notes}
                     onChange={set('notes')}
                     className="input w-full px-4 py-2"
                     rows={2}
                     disabled={submitting}
+                    placeholder="Who is this person and what do they do? (required)"
                   />
                 </div>
               </div>

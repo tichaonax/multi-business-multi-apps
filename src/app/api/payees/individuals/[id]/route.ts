@@ -38,7 +38,9 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       idFormatTemplateId,
       address,
       notes,
-      isActive
+      isActive,
+      serviceType,
+      emoji,
     } = data
 
     // Validation
@@ -129,6 +131,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (idFormatTemplateId !== undefined) updateData.idFormatTemplateId = idFormatTemplateId || null
     if (address !== undefined) updateData.address = address || null
     if (notes !== undefined) updateData.notes = notes || null
+    if (serviceType !== undefined) updateData.serviceType = serviceType || null
+    if (emoji !== undefined) updateData.emoji = emoji || null
     if (isActive !== undefined) updateData.isActive = isActive
 
     const updatedPerson = await prisma.persons.update({

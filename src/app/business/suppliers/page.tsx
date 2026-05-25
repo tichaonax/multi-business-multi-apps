@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { SupplierEditor } from '@/components/suppliers/supplier-editor'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
@@ -63,6 +64,7 @@ export default function SuppliersPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [paymentSummaries, setPaymentSummaries] = useState<Record<string, { totalPaid: number; outstanding: number; pendingCount: number; requestCount: number; averageRating: number | null }>>({})
+  const [expenseSummaries, setExpenseSummaries] = useState<Record<string, { totalPaid: number; paymentCount: number }>>({})
   const [ratingFilter, setRatingFilter] = useState(0)           // 0 = all, 1-5 = min stars
   const [supplierTypeFilter, setSupplierTypeFilter] = useState('')  // '' = all
 
@@ -116,6 +118,21 @@ export default function SuppliersPage() {
         .then(r => r.ok ? r.json() : null)
         .then(d => { if (d?.success) setPaymentSummaries(d.summaries || {}) })
         .catch(() => {})
+
+      // Fetch expense account payment totals per supplier for the payment badge
+      fetch('/api/expense-account/reports/payees?payeeType=SUPPLIER', { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          if (d?.data?.byPayee) {
+            const map: Record<string, { totalPaid: number; paymentCount: number }> = {}
+            for (const p of d.data.byPayee) {
+              map[p.payeeId] = { totalPaid: p.totalAmount, paymentCount: p.paymentCount }
+            }
+            setExpenseSummaries(map)
+          }
+        })
+        .catch(() => {})
+
 
       // Auto-open viewer if supplierId was passed as a query param (e.g. from payment queue)
       const targetId = searchParams.get('supplierId')
@@ -422,8 +439,24 @@ export default function SuppliersPage() {
                 )}
               </div>
 
+              {/* Payment Badge */}
+              {expenseSummaries[supplier.id] && (
+                <Link
+                  href={`/expense-accounts/reports/payee-history?payeeType=SUPPLIER&payeeId=${supplier.id}&payeeName=${encodeURIComponent(supplier.name)}&allTime=true`}
+                  className="mb-3 flex items-center justify-between border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 rounded-lg px-3 py-2 group hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">💳</span>
+                    <span className="text-sm font-bold text-blue-700 dark:text-blue-300">{expenseSummaries[supplier.id].paymentCount} payment{expenseSummaries[supplier.id].paymentCount !== 1 ? 's' : ''}</span>
+                    <span className="text-gray-400 dark:text-gray-600">·</span>
+                    <span className="text-sm font-bold text-green-700 dark:text-green-400">${expenseSummaries[supplier.id].totalPaid.toFixed(2)}</span>
+                  </div>
+                  <span className="text-xs font-medium text-blue-500 dark:text-blue-400 group-hover:underline">View →</span>
+                </Link>
+              )}
+
               {/* Actions */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {canEdit && (
                   <button
                     onClick={() => handleEdit(supplier)}

@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate')
     const payeeType = searchParams.get('payeeType') || 'ALL'
 
-    const where: any = { status: 'SUBMITTED' }
+    const where: any = { status: { not: 'REJECTED' } }
     if (payeeType !== 'ALL') where.payeeType = payeeType
     if (startDate || endDate) {
       where.paymentDate = {}
@@ -49,10 +49,12 @@ export async function GET(request: NextRequest) {
         payeeEmployeeId: true,
         payeePersonId: true,
         payeeBusinessId: true,
+        payeeSupplierId: true,
         payeeUser: { select: { id: true, name: true } },
         payeeEmployee: { select: { id: true, fullName: true } },
         payeePerson: { select: { id: true, fullName: true } },
         payeeBusiness: { select: { id: true, name: true } },
+        payeeSupplier: { select: { id: true, name: true } },
       },
     })
 
@@ -78,6 +80,9 @@ export async function GET(request: NextRequest) {
       } else if (p.payeeType === 'BUSINESS' && p.payeeBusiness) {
         payeeId = p.payeeBusiness.id
         payeeName = p.payeeBusiness.name
+      } else if (p.payeeType === 'SUPPLIER' && p.payeeSupplier) {
+        payeeId = p.payeeSupplier.id
+        payeeName = p.payeeSupplier.name
       } else {
         return
       }
