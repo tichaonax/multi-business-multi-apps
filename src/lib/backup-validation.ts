@@ -226,6 +226,13 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'expenseCategories',
   'expenseSubcategories',
   'expenseSubSubcategories',
+  // Supplier / contractor / payee category reference tables — no businessId column
+  'supplierCategoryGroups',
+  'supplierCategories',
+  'contractorCategoryGroups',
+  'contractorCategories',
+  'payeeCategoryGroups',
+  'payeeCategories',
   // User/permission tables — no businessId column
   'users',
   'accounts',

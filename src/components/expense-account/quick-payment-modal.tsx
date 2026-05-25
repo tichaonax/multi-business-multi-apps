@@ -15,6 +15,7 @@ import { getTodayLocalDateString } from '@/lib/date-utils'
 import type { BusinessMembership } from '@/types/permissions'
 import { LineItemsInput, type LineItem } from './line-items-input'
 import { PaymentDetailModal } from './payment-detail-modal'
+import { EmojiPickerEnhanced } from '@/components/business/emoji-picker-enhanced'
 
 // Searchable select dropdown (same pattern as payment-form)
 function SearchableSelect({
@@ -143,37 +144,63 @@ function QuickCreateModal({
 }) {
   const [name, setName] = useState('')
   const [emoji, setEmoji] = useState('📂')
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
 
   if (!isOpen) return null
 
+  const handleCreate = () => {
+    if (name.trim()) {
+      onSubmit(name.trim(), emoji)
+      setName('')
+      setEmoji('📂')
+      setShowEmojiPicker(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[10001] p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-lg p-5 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-700">
+      <div className={`bg-white dark:bg-gray-900 rounded-lg p-5 w-full shadow-2xl border border-gray-200 dark:border-gray-700 ${showEmojiPicker ? 'max-w-lg' : 'max-w-sm'}`}>
         <h3 className="text-lg font-bold text-primary mb-3">{title}</h3>
         <div className="space-y-3">
+          {/* Name + emoji button row */}
           <div className="flex gap-2">
-            <input
-              type="text"
-              value={emoji}
-              onChange={(e) => setEmoji(e.target.value)}
-              className="w-14 px-2 py-2 text-xl text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
-              maxLength={2}
-            />
+            <button
+              type="button"
+              onClick={() => setShowEmojiPicker(p => !p)}
+              title="Choose emoji"
+              className="w-14 h-10 text-2xl flex items-center justify-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              {emoji}
+            </button>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
               className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-primary focus:ring-2 focus:ring-blue-500"
               placeholder={placeholder}
               autoFocus
             />
           </div>
+
+          {/* Collapsible emoji picker */}
+          {showEmojiPicker && (
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-800">
+              <p className="text-xs text-secondary mb-2">Search for an emoji to represent this category:</p>
+              <EmojiPickerEnhanced
+                selectedEmoji={emoji}
+                onSelect={(e) => { setEmoji(e); setShowEmojiPicker(false) }}
+                searchPlaceholder="Search emojis (e.g. brick, building, tools)..."
+              />
+            </div>
+          )}
+
           <div className="flex justify-end gap-2">
             <button type="button" onClick={onClose}
               className="px-3 py-1.5 text-sm text-secondary border border-border rounded-md hover:bg-muted">
               Cancel
             </button>
-            <button type="button" onClick={() => { if (name.trim()) { onSubmit(name.trim(), emoji); setName(''); setEmoji('📂') } }}
+            <button type="button" onClick={handleCreate}
               disabled={loading || !name.trim()}
               className="px-3 py-1.5 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50">
               {loading ? 'Creating...' : 'Create'}
@@ -267,6 +294,7 @@ interface QuickPaymentModalProps {
   onSuccess: (payload: OnSuccessArg) => void
   onError: (error: string) => void
   canCreatePayees?: boolean
+  canCreateProjects?: boolean
   canChangeCategory?: boolean
   accountType?: string
   defaultCategoryBusinessType?: string
@@ -290,6 +318,7 @@ export function QuickPaymentModal({
   onSuccess,
   onError,
   canCreatePayees = false,
+  canCreateProjects = false,
   canChangeCategory = true,
   accountType = 'GENERAL',
   defaultCategoryBusinessType,
@@ -395,6 +424,11 @@ export function QuickPaymentModal({
   const [lineItems, setLineItems] = useState<LineItem[]>([])
 
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([])
+  const [projectTypes, setProjectTypes] = useState<{ id: string; name: string; businessType: string }[]>([])
+  const [showQuickCreateProject, setShowQuickCreateProject] = useState(false)
+  const [quickCreateProjectName, setQuickCreateProjectName] = useState('')
+  const [quickCreateProjectTypeId, setQuickCreateProjectTypeId] = useState('')
+  const [creatingProject, setCreatingProject] = useState(false)
 
   // Recent payments to selected payee
   const [recentPayeePayments, setRecentPayeePayments] = useState<Array<{
@@ -448,6 +482,40 @@ export function QuickPaymentModal({
       .catch(() => {})
   }
 
+  const handleCreateProject = async () => {
+    if (!quickCreateProjectName.trim() || !quickCreateProjectTypeId || !activeBusinessType) return
+    setCreatingProject(true)
+    try {
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: quickCreateProjectName.trim(),
+          projectTypeId: quickCreateProjectTypeId,
+          businessType: activeBusinessType,
+          businessId: selectedBusinessId || businessId || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to create project')
+        return
+      }
+      const newProject = { id: data.id, name: data.name }
+      setProjects(prev => [...prev, newProject])
+      setFormData(prev => ({ ...prev, projectId: newProject.id }))
+      setShowQuickCreateProject(false)
+      setQuickCreateProjectName('')
+      setQuickCreateProjectTypeId('')
+      toast.success(`Project "${newProject.name}" created`)
+    } catch {
+      toast.error('Failed to create project')
+    } finally {
+      setCreatingProject(false)
+    }
+  }
+
   useEffect(() => {
     if (isOpen && businessId) {
       fetch(`/api/projects?businessId=${businessId}&status=active`, { credentials: 'include' })
@@ -456,8 +524,16 @@ export function QuickPaymentModal({
           if (Array.isArray(data)) setProjects(data.map((p: any) => ({ id: p.id, name: p.name })))
         })
         .catch(() => {})
+      if (canCreateProjects && activeBusinessType) {
+        fetch(`/api/project-types?businessType=${activeBusinessType}`, { credentials: 'include' })
+          .then(r => r.json())
+          .then(data => {
+            if (Array.isArray(data)) setProjectTypes(data.map((pt: any) => ({ id: pt.id, name: pt.name, businessType: pt.businessType })))
+          })
+          .catch(() => {})
+      }
     }
-  }, [isOpen, businessId])
+  }, [isOpen, businessId, canCreateProjects, activeBusinessType])
 
   useEffect(() => {
     if (isOpen) {
@@ -2177,16 +2253,75 @@ export function QuickPaymentModal({
             </div>
           </div>
 
-          {/* Link to Project (optional, shown only when business has projects) */}
-          {projects.length > 0 && (
+          {/* Link to Project (optional) — shown when business has projects or user can create one */}
+          {businessId && (projects.length > 0 || canCreateProjects) && (
             <div className="px-4 pb-3">
-              <label className="block text-sm font-medium text-secondary mb-1">Link to Project (optional)</label>
-              <SearchableSelect
-                value={formData.projectId}
-                options={projects.map(p => ({ id: p.id, label: p.name }))}
-                onChange={(value) => setFormData({ ...formData, projectId: value })}
-                placeholder="No project linked"
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-secondary">Link to Project (optional)</label>
+                {canCreateProjects && !showQuickCreateProject && (
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickCreateProject(true)}
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    + New Project
+                  </button>
+                )}
+              </div>
+              {projects.length > 0 && (
+                <SearchableSelect
+                  value={formData.projectId}
+                  options={projects.map(p => ({ id: p.id, label: p.name }))}
+                  onChange={(value) => setFormData({ ...formData, projectId: value })}
+                  placeholder="No project linked"
+                />
+              )}
+              {projects.length === 0 && !showQuickCreateProject && (
+                <p className="text-xs text-gray-400 dark:text-gray-500 py-1">No active projects found. {canCreateProjects ? 'Click "+ New Project" to create one.' : ''}</p>
+              )}
+              {/* Inline project creation form */}
+              {showQuickCreateProject && (
+                <div className="mt-2 border border-blue-200 dark:border-blue-800 rounded-lg p-3 bg-blue-50 dark:bg-blue-900/20 space-y-2">
+                  <p className="text-xs font-medium text-blue-700 dark:text-blue-300">Create a new project</p>
+                  <input
+                    type="text"
+                    value={quickCreateProjectName}
+                    onChange={e => setQuickCreateProjectName(e.target.value)}
+                    placeholder="Project name"
+                    className="w-full px-3 py-1.5 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
+                    autoFocus
+                  />
+                  {projectTypes.length > 0 && (
+                    <select
+                      value={quickCreateProjectTypeId}
+                      onChange={e => setQuickCreateProjectTypeId(e.target.value)}
+                      className="w-full px-3 py-1.5 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select project type</option>
+                      {projectTypes.map(pt => (
+                        <option key={pt.id} value={pt.id}>{pt.name}</option>
+                      ))}
+                    </select>
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setShowQuickCreateProject(false); setQuickCreateProjectName(''); setQuickCreateProjectTypeId('') }}
+                      className="text-xs px-3 py-1.5 border border-border rounded-md text-secondary hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCreateProject}
+                      disabled={creatingProject || !quickCreateProjectName.trim() || !quickCreateProjectTypeId}
+                      className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {creatingProject ? 'Creating…' : 'Create & Link'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

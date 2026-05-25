@@ -101,6 +101,14 @@ const RESTORE_ORDER = [
   'expenseSubcategories',
   'expenseSubSubcategories',      // Depends on expenseSubcategories
 
+  // Supplier / contractor / payee category reference data
+  'supplierCategoryGroups',
+  'supplierCategories',           // Depends on supplierCategoryGroups
+  'contractorCategoryGroups',
+  'contractorCategories',         // Depends on contractorCategoryGroups
+  'payeeCategoryGroups',
+  'payeeCategories',              // Depends on payeeCategoryGroups
+
   // Users and authentication
   'users',
   'accounts',

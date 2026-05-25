@@ -111,6 +111,10 @@
     - [R710 WiFi Tab](#r710-wifi-tab)
     - [Quick Add Tab](#quick-add-tab)
     - [Showing Hidden Sold-Out Items](#showing-hidden-sold-out-items)
+46. [Missing Cost Price Report](#46-missing-cost-price-report)
+47. [Payee Expense Insights](#47-payee-expense-insights)
+48. [Supplier, Contractor & Payee Categories](#48-supplier-contractor--payee-categories)
+49. [Edit Business Settings](#49-edit-business-settings)
 
 ---
 
@@ -9510,3 +9514,185 @@ Click again to collapse them back.
 | Progress bar (today vs yesterday pace) | All users |
 | Stock count / "Out" label | All users |
 | "Show hidden" toggle | All users |
+
+---
+
+## 46. Missing Cost Price Report
+
+**Who can access:** Admins, users with Manage Inventory permission, or Expense Account access.
+
+**Where:** Sidebar → Inventory → ⚠️ Missing Cost Price
+
+This report lists every **active inventory item that has no cost price set**. Without a cost price, profit margin calculations and inventory valuation are incomplete.
+
+### Summary Cards
+
+| Card | Meaning |
+|------|---------|
+| 🔴 Missing Cost Price | Total active items with no cost price — the number you need to fix |
+| 🟡 Businesses Affected | How many different businesses have at least one item missing a cost price |
+| 🔵 Showing (filtered) | How many items are currently visible after applying filters |
+
+### Filters
+
+- **Business** — drop-down to limit the list to one specific business
+- **Search** — type any part of an item name or SKU to narrow the list
+
+### Table Columns
+
+| Column | Description |
+|--------|-------------|
+| Business | Which business the item belongs to |
+| Item Name | Product name and SKU (if set) |
+| Category | Category emoji and name |
+| Selling Price | Current selling price |
+| Stock | Units currently in stock |
+| Updated | Date the item record was last modified |
+
+### Exporting
+
+Click **Export CSV** (top-right) to download the filtered list as a spreadsheet. The button is disabled when the filtered list is empty.
+
+### Fixing Items
+
+Click any row to go directly to that item's edit page where you can add the cost price.
+
+---
+
+## 47. Payee Expense Insights
+
+**Who can access:** Admins and users with financial data access.
+
+**Where:** Expense Accounts → Reports → Payee Expense Insights
+
+This report shows spending patterns broken down by payee group — how much has been paid to **Contractors** and **Suppliers** over any date range, with charts and a per-payee breakdown.
+
+### Tabs
+
+| Tab | Covers |
+|-----|--------|
+| Contractors | All persons/contractors who received expense payments |
+| Suppliers | All business suppliers who received payments |
+
+Click a tab to switch the entire report view to that group.
+
+### Date Filter
+
+- Use the date range pill at the top to pick a preset period (this month, last month, last 3 months, last year) or enter a custom date range.
+- Check **All time** to remove the date restriction and see totals across all records.
+
+### Summary Card (per tab)
+
+Shows the total paid to that group in the selected period, the number of unique payees, and the payment count.
+
+### Charts
+
+| Chart | What it shows |
+|-------|---------------|
+| Spending by Group | Bar chart comparing total paid to Contractors vs Suppliers side-by-side |
+| Top Payees | Horizontal bar chart of the top individual payees in the active tab, sorted by amount paid |
+| Monthly Spending Trend | Line chart of total payments per calendar month for the active tab |
+
+### Payee List
+
+Below the charts, a searchable table lists every payee in the active group with their total paid and payment count. Click any row to jump to that payee's full payment history.
+
+---
+
+## 48. Supplier, Contractor & Payee Categories
+
+The system supports a two-level category system — **groups** and **categories** — for classifying suppliers, contractors, and payees. These categories help with filtering, reporting, and organising who you work with.
+
+### Structure
+
+Each of the three areas (Suppliers, Contractors, Payees) has its own independent category hierarchy:
+
+```
+Group (e.g. "Building Materials")
+  └─ Category (e.g. "Cement Suppliers")
+  └─ Category (e.g. "Steel Merchants")
+
+Group (e.g. "Transport & Logistics")
+  └─ Category (e.g. "Fuel Suppliers")
+```
+
+### Where Categories Appear
+
+- When adding or editing a **Supplier** — you can assign a supplier category from the drop-down.
+- When adding or editing a **Contractor** (person/payee) — you can assign a contractor category.
+- When adding or editing a **Payee** — you can assign a payee category.
+
+### Managing Categories
+
+Admins can manage the category groups and categories from the relevant settings pages. Categories are shared across all businesses — they are global reference data, not per-business.
+
+### Why Use Categories?
+
+- Filter the payee insights report by category to see spending patterns by supplier type
+- Group contractors by trade (plumbing, electrical, construction) for organised reporting
+- Classify payees so that expense reports are more meaningful
+
+---
+
+## 49. Edit Business Settings
+
+**Who can access:** System admins and business owners with the appropriate permission.
+
+**Where:** Admin → Businesses → Edit (pencil icon), or Business Settings page.
+
+The Edit Business modal is arranged in two columns to make all settings accessible without excessive scrolling.
+
+### Left Column
+
+| Section | Fields |
+|---------|--------|
+| Basic Information | Business Name, Business Type (read-only when editing), Description |
+| Contact & Location | Business Address, Business Phone |
+| Rent Account | Manage or create the rent expense account for this business |
+| Branding | Business Slogan, Show on Customer Display toggle, Default Landing Page |
+| Receipt & Tax | Return Policy Message (printed on receipts), Enable Tax Calculation, Tax Included in Price, Tax Rate (%), Tax Label |
+
+### Right Column
+
+| Section | Fields |
+|---------|--------|
+| Features | Accepts Eco-Cash (+ fee config), Include Transport Cost in Pricing (+ distance/rate config), Require Salesperson EOD Report (+ deadline time), Enable Coupons, Enable Customer Promos |
+
+### Branding
+
+- **Business Slogan** — up to 200 characters. Displayed on receipts and, if toggled on, on the customer-facing display screen.
+- **Show on customer display** — tick to show the slogan on the second screen (customer display). Untick to hide it.
+- **Default Landing Page** — the page users land on after selecting this business. Options vary by business type (e.g. POS System, Dashboard, Inventory).
+
+### Receipt & Tax
+
+- **Return Policy Message** — printed at the bottom of every receipt. Leave blank for no policy message.
+- **Enable Tax Calculation** — when ticked, tax is applied to sales. When unticked, prices are shown as-is.
+- **Tax Included in Price** — when ticked, the tax is embedded in product prices (no separate line on receipt). When unticked, tax is calculated on top at checkout.
+- **Tax Rate (%)** — e.g. enter `14.5` for 14.5% tax.
+- **Tax Label** — the label shown on receipts, e.g. `VAT`, `GST`, `Sales Tax`.
+
+### EcoCash Fee Configuration
+
+Shown when **Accepts Eco-Cash** is enabled.
+
+| Field | Description |
+|-------|-------------|
+| Fee Type | Fixed amount ($) or Percentage (%) of the sale total |
+| Fee Value | The dollar amount or percentage to charge |
+| Min Fee ($) | Minimum fee charged when using Percentage mode |
+
+### Transport Cost Configuration
+
+Shown when **Include Transport Cost in Pricing** is enabled. Used by the pricing calculator to factor in delivery cost.
+
+| Field | Description |
+|-------|-------------|
+| One-way distance to supplier (km) | Distance from the store to the supplier in kilometres |
+| Cost per km ($/km) | Fuel/transport cost per kilometre |
+
+The estimated round-trip cost is shown automatically as a guide.
+
+### EOD Submission Deadline
+
+Shown when **Require Salesperson EOD Report** is enabled. Set the time by which salespersons must submit their end-of-day cash and EcoCash totals. After this time, overdue warnings appear at the POS.

@@ -560,6 +560,14 @@ export async function createCleanBackup(
 
   businessData.expenseSubSubcategories = await prisma.expenseSubSubcategories.findMany()
 
+  // 8b. Supplier / contractor / payee category reference data
+  businessData.supplierCategoryGroups = await prisma.supplierCategoryGroups.findMany()
+  businessData.supplierCategories = await prisma.supplierCategories.findMany()
+  businessData.contractorCategoryGroups = await prisma.contractorCategoryGroups.findMany()
+  businessData.contractorCategories = await prisma.contractorCategories.findMany()
+  businessData.payeeCategoryGroups = await prisma.payeeCategoryGroups.findMany()
+  businessData.payeeCategories = await prisma.payeeCategories.findMany()
+
   // Get user IDs for expense account filtering (need this before querying expense accounts)
   // For full backups: all users. For business-specific: only member users
   userIds = businessData.users.map((u: any) => u.id)
