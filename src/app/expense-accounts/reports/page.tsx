@@ -66,6 +66,13 @@ const REPORT_CARDS = [
     description: 'Full payment history for any recipient — employees, persons, suppliers, businesses. Filter by date range.',
     color: 'teal',
   },
+  {
+    href: '/expense-accounts/reports/payee-insights',
+    emoji: '📊',
+    title: 'Payee Expense Insights',
+    description: 'Charts and trends for individuals, contractors, and suppliers — group totals, top payees, monthly spend, and category breakdown.',
+    color: 'orange',
+  },
 ]
 
 const COLOR_MAP: Record<string, string> = {
@@ -76,6 +83,7 @@ const COLOR_MAP: Record<string, string> = {
   teal: 'bg-teal-50 dark:bg-teal-900/10 border-teal-200 dark:border-teal-800 text-teal-600 dark:text-teal-400',
   red: 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400',
   indigo: 'bg-indigo-50 dark:bg-indigo-900/10 border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400',
+  orange: 'bg-orange-50 dark:bg-orange-900/10 border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400',
 }
 
 export default function ExpenseReportsHubPage() {
