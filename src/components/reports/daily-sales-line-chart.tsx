@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
@@ -16,8 +17,30 @@ interface DailySalesLineChartProps {
   onDotClick?: (date: string) => void
 }
 
-// Custom tooltip that shows sales, expenses and margin for the hovered day
-function CustomTooltip({ active, payload, label }: any) {
+// Format 'YYYY-MM' → "Jan '26"
+function formatMonthLabel(ym: string): string {
+  const [y, m] = ym.split('-').map(Number)
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  return `${months[m - 1]} '${String(y).slice(2)}`
+}
+
+// Aggregate daily rows into monthly buckets
+function toMonthly(data: DailySalesData[]): (DailySalesData & { dateFormatted: string })[] {
+  const map: Record<string, { date: string; sales: number; orderCount: number; expenses: number }> = {}
+  for (const d of data) {
+    const ym = d.date.slice(0, 7) // 'YYYY-MM'
+    if (!map[ym]) map[ym] = { date: ym, sales: 0, orderCount: 0, expenses: 0 }
+    map[ym].sales += d.sales
+    map[ym].orderCount += d.orderCount
+    map[ym].expenses += d.expenses ?? 0
+  }
+  return Object.values(map)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map(m => ({ ...m, dateFormatted: formatMonthLabel(m.date) }))
+}
+
+// Custom tooltip
+function CustomTooltip({ active, payload, label, isMonthly }: any) {
   if (!active || !payload?.length) return null
 
   const salesEntry = payload.find((p: any) => p.dataKey === 'sales')
@@ -38,21 +61,43 @@ function CustomTooltip({ active, payload, label }: any) {
           Margin: {margin}%
         </p>
       )}
+      {isMonthly && (
+        <p className="text-gray-400 dark:text-gray-500 mt-1 text-xs">
+          Orders: {payload[0]?.payload?.orderCount ?? 0}
+        </p>
+      )}
     </div>
   )
 }
 
+const GROUPBY_KEY = 'sales-chart-groupby'
+
 export function DailySalesLineChart({ data, onDotClick }: DailySalesLineChartProps) {
   const dateFormat = useDateFormat()
+  const [groupBy, setGroupBy] = useState<'daily' | 'monthly'>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = sessionStorage.getItem(GROUPBY_KEY)
+      if (stored === 'monthly') return 'monthly'
+    }
+    return 'daily'
+  })
+  const isMonthly = groupBy === 'monthly'
+
+  const handleGroupByChange = (val: 'daily' | 'monthly') => {
+    setGroupBy(val)
+    if (typeof window !== 'undefined') sessionStorage.setItem(GROUPBY_KEY, val)
+  }
 
   // Determine whether any expense data was supplied
   const hasExpenses = data.some(d => (d.expenses ?? 0) > 0)
 
-  // Format data for chart with proper date formatting
-  const formattedData = data.map(item => ({
-    ...item,
-    dateFormatted: formatDateByFormat(item.date, dateFormat.format)
-  }))
+  // Build chart data based on grouping mode
+  const chartData = isMonthly
+    ? toMonthly(data)
+    : data.map(item => ({
+        ...item,
+        dateFormatted: formatDateByFormat(item.date, dateFormat.format)
+      }))
 
   // Period totals for the summary bar
   const totalSales = data.reduce((s, d) => s + d.sales, 0)
@@ -71,9 +116,28 @@ export function DailySalesLineChart({ data, onDotClick }: DailySalesLineChartPro
     <div className="w-full">
       {/* Header row */}
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-          Daily Sales for Period
-        </h3>
+        <div className="flex items-center gap-3">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+            {isMonthly ? 'Monthly' : 'Daily'} Sales for Period
+          </h3>
+          {/* Daily / Monthly toggle */}
+          <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => handleGroupByChange('daily')}
+              className={`px-3 py-1.5 transition-colors ${!isMonthly ? 'bg-purple-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+            >
+              Daily
+            </button>
+            <button
+              type="button"
+              onClick={() => handleGroupByChange('monthly')}
+              className={`px-3 py-1.5 transition-colors ${isMonthly ? 'bg-purple-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+            >
+              Monthly
+            </button>
+          </div>
+        </div>
         {hasExpenses && periodMargin !== null && (
           <div className="flex gap-4 text-sm">
             <span className="text-purple-600 dark:text-purple-400 font-medium">
@@ -89,14 +153,14 @@ export function DailySalesLineChart({ data, onDotClick }: DailySalesLineChartPro
         )}
       </div>
 
-      {onDotClick && (
+      {!isMonthly && onDotClick && (
         <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">
           Click any dot to see that day&apos;s detail
         </p>
       )}
       <ResponsiveContainer width="100%" height={300}>
         <LineChart
-          data={formattedData}
+          data={chartData}
           margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
         >
           <CartesianGrid strokeDasharray="3 3" className="stroke-gray-300 dark:stroke-gray-700" />
@@ -108,14 +172,14 @@ export function DailySalesLineChart({ data, onDotClick }: DailySalesLineChartPro
             className="text-xs fill-gray-600 dark:fill-gray-400"
           />
           <YAxis className="text-xs fill-gray-600 dark:fill-gray-400" />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<CustomTooltip isMonthly={isMonthly} />} />
           <Legend />
           <Line
             type="monotone"
             dataKey="sales"
             stroke="#8b5cf6"
             strokeWidth={2}
-            dot={onDotClick
+            dot={!isMonthly && onDotClick
               ? (props: any) => {
                   const { cx, cy, payload } = props
                   return (
@@ -130,9 +194,9 @@ export function DailySalesLineChart({ data, onDotClick }: DailySalesLineChartPro
                     />
                   )
                 }
-              : { fill: '#8b5cf6', r: 4 }
+              : { fill: '#8b5cf6', r: isMonthly ? 6 : 4 }
             }
-            activeDot={onDotClick
+            activeDot={!isMonthly && onDotClick
               ? (props: any) => {
                   const { cx, cy, payload } = props
                   return (
@@ -147,9 +211,9 @@ export function DailySalesLineChart({ data, onDotClick }: DailySalesLineChartPro
                     />
                   )
                 }
-              : { r: 6 }
+              : { r: isMonthly ? 8 : 6 }
             }
-            name="Daily Sales ($)"
+            name={`${isMonthly ? 'Monthly' : 'Daily'} Sales ($)`}
           />
           {hasExpenses && (
             <Line
@@ -157,7 +221,7 @@ export function DailySalesLineChart({ data, onDotClick }: DailySalesLineChartPro
               dataKey="expenses"
               stroke="#ef4444"
               strokeWidth={2}
-              dot={onDotClick
+              dot={!isMonthly && onDotClick
                 ? (props: any) => {
                     const { cx, cy, payload } = props
                     return (
@@ -172,9 +236,9 @@ export function DailySalesLineChart({ data, onDotClick }: DailySalesLineChartPro
                       />
                     )
                   }
-                : { fill: '#ef4444', r: 3 }
+                : { fill: '#ef4444', r: isMonthly ? 5 : 3 }
               }
-              activeDot={onDotClick
+              activeDot={!isMonthly && onDotClick
                 ? (props: any) => {
                     const { cx, cy, payload } = props
                     return (
@@ -189,10 +253,10 @@ export function DailySalesLineChart({ data, onDotClick }: DailySalesLineChartPro
                       />
                     )
                   }
-                : { r: 5 }
+                : { r: isMonthly ? 7 : 5 }
               }
               strokeDasharray="4 2"
-              name="Daily Expenses ($)"
+              name={`${isMonthly ? 'Monthly' : 'Daily'} Expenses ($)`}
             />
           )}
         </LineChart>

@@ -1,8 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useDateFormat } from '@/contexts/settings-context'
-import { formatDateByFormat, parseDateFromFormat } from '@/lib/country-codes'
 
 export interface DateRange {
   start: Date
@@ -18,37 +16,44 @@ interface DateRangeSelectorProps {
 }
 
 const presets = [
-  { key: 'today', label: 'Today' },
+  { key: 'today',     label: 'Today' },
   { key: 'yesterday', label: 'Yesterday' },
-  { key: '7', label: 'Last 7 Days', days: 7 },
+  { key: '7',  label: 'Last 7 Days',  days: 7 },
   { key: '30', label: 'Last 30 Days', days: 30 },
   { key: '90', label: 'Last 90 Days', days: 90 },
+  { key: '6m', label: '6 Months',  months: 6 },
+  { key: '1y', label: '1 Year',    months: 12 },
+  { key: '2y', label: '2 Years',   months: 24 },
+  { key: '5y', label: '5 Years',   months: 60 },
 ]
+
+// Convert a Date to YYYY-MM-DD for native date input value (local time)
+function toPickerValue(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
 
 export function DateRangeSelector({ value, onChange, showAllTime, allTime, onAllTimeChange }: DateRangeSelectorProps) {
   const [showCustom, setShowCustom] = useState(false)
   const [showSingleDate, setShowSingleDate] = useState(false)
   const [singleDateValue, setSingleDateValue] = useState('')
   const [selectedPreset, setSelectedPreset] = useState<string | null>('30')
-  const { format: dateFormat } = useDateFormat()
-
-  // Local text state so the user can type freely
-  const [startText, setStartText] = useState('')
-  const [endText, setEndText] = useState('')
-  const [startError, setStartError] = useState(false)
-  const [endError, setEndError] = useState(false)
 
   // Pending dates for custom range — committed only when Search is clicked
   const [pendingStart, setPendingStart] = useState<Date>(value.start)
   const [pendingEnd, setPendingEnd] = useState<Date>(value.end)
+  const [startPickerValue, setStartPickerValue] = useState(toPickerValue(value.start))
+  const [endPickerValue, setEndPickerValue] = useState(toPickerValue(value.end))
 
-  // Keep text inputs and pending state in sync when the value prop changes (preset clicks, etc.)
+  // Keep picker inputs and pending state in sync when the value prop changes (preset clicks, etc.)
   useEffect(() => {
-    setStartText(formatDateByFormat(value.start, dateFormat))
-    setEndText(formatDateByFormat(value.end, dateFormat))
     setPendingStart(value.start)
     setPendingEnd(value.end)
-  }, [value.start, value.end, dateFormat])
+    setStartPickerValue(toPickerValue(value.start))
+    setEndPickerValue(toPickerValue(value.end))
+  }, [value.start, value.end])
 
   // Synchronize selectedPreset with the value prop
   useEffect(() => {
@@ -62,20 +67,37 @@ export function DateRangeSelector({ value, onChange, showAllTime, allTime, onAll
     if (valueStartDay.getTime() === startOfToday.getTime()) {
       setSelectedPreset('today')
       setShowCustom(false)
-    } else if (valueStartDay.getTime() === startOfYesterday.getTime() && daysDiff <= 1) {
+      return
+    }
+    if (valueStartDay.getTime() === startOfYesterday.getTime() && daysDiff <= 1) {
       setSelectedPreset('yesterday')
       setShowCustom(false)
-    } else {
-      const matchingPreset = presets.find(p => p.days === daysDiff)
-      if (matchingPreset) {
-        setSelectedPreset(matchingPreset.key)
-        setShowCustom(false)
-      } else {
-        setSelectedPreset(null)
-        // Only open custom panel if single-date picker isn't active
-        if (!showSingleDate) setShowCustom(true)
-      }
+      return
     }
+    // Day-based presets (exact match)
+    const dayPreset = presets.find(p => p.days !== undefined && p.days === daysDiff)
+    if (dayPreset) {
+      setSelectedPreset(dayPreset.key)
+      setShowCustom(false)
+      return
+    }
+    // Month-based presets — match if start is within ±2 days of N months ago
+    const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000
+    const monthPreset = presets.find(p => {
+      if (!p.months) return false
+      const expectedStart = new Date(now)
+      expectedStart.setMonth(expectedStart.getMonth() - p.months)
+      const expectedStartDay = new Date(expectedStart.getFullYear(), expectedStart.getMonth(), expectedStart.getDate())
+      return Math.abs(valueStartDay.getTime() - expectedStartDay.getTime()) <= TWO_DAYS_MS
+    })
+    if (monthPreset) {
+      setSelectedPreset(monthPreset.key)
+      setShowCustom(false)
+      return
+    }
+    // No preset matched — show custom panel
+    setSelectedPreset(null)
+    if (!showSingleDate) setShowCustom(true)
   }, [value, showSingleDate])
 
   const handleAllTimeClick = () => {
@@ -85,7 +107,7 @@ export function DateRangeSelector({ value, onChange, showAllTime, allTime, onAll
     onAllTimeChange?.(true)
   }
 
-  const handlePresetClick = (key: string, days?: number) => {
+  const handlePresetClick = (key: string, days?: number, months?: number) => {
     setShowSingleDate(false)
     onAllTimeChange?.(false)
     const now = new Date()
@@ -99,6 +121,9 @@ export function DateRangeSelector({ value, onChange, showAllTime, allTime, onAll
       yesterday.setDate(now.getDate() - 1)
       start = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate())
       end = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate())
+    } else if (months) {
+      start = new Date(now)
+      start.setMonth(start.getMonth() - months)
     } else {
       start = new Date(now)
       start.setDate(now.getDate() - (days || 7))
@@ -107,43 +132,6 @@ export function DateRangeSelector({ value, onChange, showAllTime, allTime, onAll
     setSelectedPreset(key)
     setShowCustom(false)
     onChange({ start, end })
-  }
-
-  const handleDateTextChange = (type: 'start' | 'end', text: string) => {
-    if (type === 'start') {
-      setStartText(text)
-      setStartError(false)
-    } else {
-      setEndText(text)
-      setEndError(false)
-    }
-  }
-
-  // Validate on blur and update pending state — does NOT call onChange
-  const handleDateTextBlur = (type: 'start' | 'end') => {
-    const text = type === 'start' ? startText : endText
-    const isoString = parseDateFromFormat(text, dateFormat)
-
-    if (!isoString) {
-      if (type === 'start') {
-        setStartText(formatDateByFormat(pendingStart, dateFormat))
-        setStartError(true)
-        setTimeout(() => setStartError(false), 2000)
-      } else {
-        setEndText(formatDateByFormat(pendingEnd, dateFormat))
-        setEndError(true)
-        setTimeout(() => setEndError(false), 2000)
-      }
-      return
-    }
-
-    const newDate = new Date(isoString + 'T12:00:00')
-    if (type === 'start') {
-      setPendingStart(newDate)
-    } else {
-      setPendingEnd(newDate)
-    }
-    setSelectedPreset(null)
   }
 
   // Commit the custom range — called by the Search button
@@ -176,7 +164,7 @@ export function DateRangeSelector({ value, onChange, showAllTime, allTime, onAll
           {presets.map((preset) => (
             <button
               key={preset.key}
-              onClick={() => handlePresetClick(preset.key, preset.days)}
+              onClick={() => handlePresetClick(preset.key, preset.days, preset.months)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 selectedPreset === preset.key
                   ? 'bg-blue-600 text-white'
@@ -248,38 +236,34 @@ export function DateRangeSelector({ value, onChange, showAllTime, allTime, onAll
           <div className="flex items-center gap-2">
             <label className="text-sm text-gray-600 dark:text-gray-400">From:</label>
             <input
-              type="text"
-              value={startText}
-              placeholder={dateFormat}
-              onChange={(e) => handleDateTextChange('start', e.target.value)}
-              onBlur={() => handleDateTextBlur('start')}
-              className={`px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 w-32 ${
-                startError
-                  ? 'border-red-500 dark:border-red-400'
-                  : 'border-gray-300 dark:border-gray-600'
-              }`}
+              type="date"
+              value={startPickerValue}
+              max={endPickerValue}
+              onChange={e => {
+                const v = e.target.value
+                setStartPickerValue(v)
+                if (v) setPendingStart(new Date(v + 'T12:00:00'))
+                setSelectedPreset(null)
+              }}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
             />
           </div>
 
           <div className="flex items-center gap-2">
             <label className="text-sm text-gray-600 dark:text-gray-400">To:</label>
             <input
-              type="text"
-              value={endText}
-              placeholder={dateFormat}
-              onChange={(e) => handleDateTextChange('end', e.target.value)}
-              onBlur={() => handleDateTextBlur('end')}
-              className={`px-3 py-2 border rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 w-32 ${
-                endError
-                  ? 'border-red-500 dark:border-red-400'
-                  : 'border-gray-300 dark:border-gray-600'
-              }`}
+              type="date"
+              value={endPickerValue}
+              min={startPickerValue}
+              onChange={e => {
+                const v = e.target.value
+                setEndPickerValue(v)
+                if (v) setPendingEnd(new Date(v + 'T12:00:00'))
+                setSelectedPreset(null)
+              }}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
             />
           </div>
-
-          <span className="text-xs text-gray-400 dark:text-gray-500">
-            Format: {dateFormat.toUpperCase()}
-          </span>
 
           <button
             onClick={handleCustomSearch}

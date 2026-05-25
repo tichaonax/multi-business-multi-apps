@@ -1394,7 +1394,7 @@ Go to **Reports** in the top menu to access all available reports.
 | **Top Products** | Best-selling items by quantity and value |
 | **Sales by Employee** | Which staff member processed what sales |
 | **Order History** | Full list of all transactions with details |
-| **Sales Analytics Dashboard** | Daily sales and expense trend chart with drill-down |
+| **Sales Analytics Dashboard** | Sales and expense trend chart with daily or monthly grouping |
 
 #### Sales Analytics Dashboard
 
@@ -1403,11 +1403,17 @@ Go to **Reports → Sales Analytics** to see your business performance over any 
 The dashboard shows:
 - **Summary cards** — total sales, expenses, average order value
 - **Top performers** — best products by units and revenue, top categories, top sales reps
-- **Daily Sales chart** — a line graph of daily sales and expenses over the selected period, with a margin indicator in the tooltip
+- **Sales trend chart** — a line graph of sales and expenses over the selected period, with a margin indicator in the tooltip
+
+**Daily vs Monthly grouping:**
+
+The chart has a **Daily / Monthly** toggle in the top-left of the chart panel. Switching to **Monthly** collapses the daily data points into one point per calendar month, making it easy to compare month-over-month performance across a long date range (e.g. "All Time" or a full year). The period totals (total sales, expenses, and margin) stay the same in both views — only the chart granularity changes. Switch back to **Daily** at any time to see day-by-day detail again.
+
+> **Tip:** Use the Monthly view when your date range spans several months. Use the Daily view for shorter ranges (last 30 days) where individual day spikes are useful.
 
 **Drilling down into a day:**
 
-Click any dot on the Daily Sales chart to open the **Daily Detail** report for that specific day. This shows every sale and expense that occurred on that date.
+Click any dot on the **Daily** chart to open the **Daily Detail** report for that specific day. Drill-down is not available in Monthly view because each point represents an entire month.
 
 The Daily Detail report includes:
 - **Summary bar** — sales total, expenses total, net profit, and margin for the day
