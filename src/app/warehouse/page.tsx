@@ -159,7 +159,7 @@ export default function WarehousePage() {
                     {batches.map(batch => {
                       const progress = batch.itemCount > 0 ? Math.round((batch.movedCount / batch.itemCount) * 100) : 0
                       return (
-                        <tr key={batch.id} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                        <tr key={batch.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                           <td className="px-4 py-3">
                             <div className="font-medium text-gray-900 dark:text-white">{batch.batchName}</div>
                             <div className="text-xs text-gray-400 truncate max-w-[200px]" title={batch.originalFileName}>

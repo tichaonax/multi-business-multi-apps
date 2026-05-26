@@ -7236,6 +7236,7 @@ model WarehouseBatches {
   collectionFee        String?
   pickedUpFromHarare   Boolean          @default(false)
   transportCostHarare  Decimal?         @db.Decimal(10, 2)
+  transactionFeePct    Decimal?         @db.Decimal(5, 2)
   fileHash             String           @unique
   originalFileName     String
   notes                String?

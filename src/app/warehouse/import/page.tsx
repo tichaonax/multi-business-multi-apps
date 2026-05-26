@@ -18,12 +18,14 @@ export default function WarehouseImportPage() {
   const router = useRouter()
   const toast = useToastContext()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const submittingRef = useRef(false)
 
   const [file, setFile] = useState<File | null>(null)
   const [batchName, setBatchName] = useState('')
   const [notes, setNotes] = useState('')
   const [pickedUpFromHarare, setPickedUpFromHarare] = useState(false)
   const [transportCostHarare, setTransportCostHarare] = useState('')
+  const [transactionFeePct, setTransactionFeePct] = useState('')
   const [importing, setImporting] = useState(false)
 
   // Overlap state
@@ -44,12 +46,14 @@ export default function WarehouseImportPage() {
   }
 
   async function doImport(confirmOverlap = false) {
+    if (submittingRef.current) return
     if (!file) { toast.error('Please select a file'); return }
     if (pickedUpFromHarare && !transportCostHarare) {
       toast.error('Please enter the transport cost for Harare pickup')
       return
     }
 
+    submittingRef.current = true
     setImporting(true)
     try {
       const fd = new FormData()
@@ -58,6 +62,7 @@ export default function WarehouseImportPage() {
       if (notes) fd.append('notes', notes)
       fd.append('pickedUpFromHarare', String(pickedUpFromHarare))
       if (pickedUpFromHarare && transportCostHarare) fd.append('transportCostHarare', transportCostHarare)
+      if (transactionFeePct) fd.append('transactionFeePct', transactionFeePct)
       if (confirmOverlap) fd.append('confirmOverlap', 'true')
 
       const res = await fetch('/api/warehouse/import', {
@@ -89,6 +94,7 @@ export default function WarehouseImportPage() {
     } catch {
       toast.error('Import failed')
     } finally {
+      submittingRef.current = false
       setImporting(false)
     }
   }
@@ -232,6 +238,29 @@ export default function WarehouseImportPage() {
                   <p className="text-xs text-gray-500 mt-1">Will be divided equally across all items in this batch.</p>
                 </div>
               )}
+            </div>
+
+            {/* Transaction fee */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Foreign Transaction Fee % <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  min="0"
+                  max="10"
+                  step="0.1"
+                  value={transactionFeePct}
+                  onChange={e => setTransactionFeePct(e.target.value)}
+                  placeholder="e.g. 3.5"
+                  className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <span className="text-sm text-gray-500 dark:text-gray-400">%</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Charged on each item&apos;s cost to offset foreign payment fees (typically 3–4%). Added to landed cost during pricing.
+              </p>
             </div>
 
             {/* Submit */}

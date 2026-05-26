@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
     const notes = formData.get('notes') as string | null
     const pickedUpFromHarare = formData.get('pickedUpFromHarare') === 'true'
     const transportCostHarare = parseDecimal(formData.get('transportCostHarare'))
+    const transactionFeePct = parseDecimal(formData.get('transactionFeePct'))
 
     // Read file bytes
     const arrayBuffer = await file.arrayBuffer()
@@ -307,6 +308,7 @@ export async function POST(req: NextRequest) {
         collectionFee,
         pickedUpFromHarare,
         transportCostHarare,
+        transactionFeePct,
         fileHash,
         originalFileName: file.name,
         notes,

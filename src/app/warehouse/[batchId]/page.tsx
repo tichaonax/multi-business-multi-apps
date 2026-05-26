@@ -21,6 +21,7 @@ interface BatchDetail {
   collectionFee: string | null
   pickedUpFromHarare: boolean
   transportCostHarare: number | null
+  transactionFeePct: number | null
   perItemTransport: number
   notes: string | null
   originalFileName: string
@@ -152,15 +153,17 @@ interface ShortNameCellProps {
   shortName: string | null
   productName: string
   itemId: string
+  locked: boolean
   onSave: (itemId: string, field: string, value: string) => Promise<void>
 }
 
-function ShortNameCell({ shortName, productName, itemId, onSave }: ShortNameCellProps) {
+function ShortNameCell({ shortName, productName, itemId, locked, onSave }: ShortNameCellProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
 
   function startEdit() {
+    if (locked) return
     setDraft(shortName || '')
     setEditing(true)
   }
@@ -193,10 +196,10 @@ function ShortNameCell({ shortName, productName, itemId, onSave }: ShortNameCell
     <div className="min-w-[200px] max-w-[300px]">
       <div
         onClick={startEdit}
-        className="font-semibold text-gray-900 dark:text-white text-xs cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 truncate mb-0.5"
-        title={shortName || 'Click to set short name'}
+        className={`font-semibold text-xs truncate mb-0.5 ${locked ? 'text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400'}`}
+        title={shortName || (locked ? undefined : 'Click to set short name')}
       >
-        {shortName || <span className="text-gray-400 italic text-xs">click to set short name</span>}
+        {shortName || (!locked && <span className="text-gray-400 italic text-xs">click to set short name</span>)}
       </div>
       <div className="text-xs text-gray-500 dark:text-gray-400 leading-snug line-clamp-3" title={productName}>{productName}</div>
     </div>
@@ -636,7 +639,7 @@ export default function BatchDetailPage() {
                         <span className="ml-2 font-bold text-gray-900 dark:text-white">¥{Number(batch.totalYuanCost).toFixed(2)}</span>
                       </div>
                     )}
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${batch.status === 'ACTIVE' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-600'}`}>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${batch.status === 'ACTIVE' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>
                       {batch.status}
                     </span>
                   </div>
@@ -654,16 +657,26 @@ export default function BatchDetailPage() {
                 </div>
               </div>
 
-              {/* Transport cost banner */}
-              {batch.pickedUpFromHarare && batch.transportCostHarare != null && (
-                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-3 text-sm">
-                  <span className="font-medium text-amber-800 dark:text-amber-300">Transport cost: </span>
-                  <span className="text-amber-700 dark:text-amber-400">
-                    ${Number(batch.transportCostHarare).toFixed(2)} ÷ {statusCounts['IN_WAREHOUSE'] || 0} in-warehouse items
-                    {perItemTransport > 0 && <> = <strong>${perItemTransport.toFixed(2)}/item</strong></>}
-                  </span>
+              {/* Cost adjustments banner */}
+              {(batch.pickedUpFromHarare && batch.transportCostHarare != null) || batch.transactionFeePct != null ? (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-3 text-sm flex flex-wrap gap-4">
+                  {batch.pickedUpFromHarare && batch.transportCostHarare != null && (
+                    <span>
+                      <span className="font-medium text-amber-800 dark:text-amber-300">Transport: </span>
+                      <span className="text-amber-700 dark:text-amber-400">
+                        ${Number(batch.transportCostHarare).toFixed(2)} ÷ {statusCounts['IN_WAREHOUSE'] || 0} items
+                        {perItemTransport > 0 && <> = <strong>${perItemTransport.toFixed(2)}/item</strong></>}
+                      </span>
+                    </span>
+                  )}
+                  {batch.transactionFeePct != null && (
+                    <span>
+                      <span className="font-medium text-amber-800 dark:text-amber-300">Transaction fee: </span>
+                      <span className="text-amber-700 dark:text-amber-400"><strong>{Number(batch.transactionFeePct).toFixed(1)}%</strong> of each item&apos;s cost</span>
+                    </span>
+                  )}
                 </div>
-              )}
+              ) : null}
             </>
           )}
 
@@ -708,14 +721,27 @@ export default function BatchDetailPage() {
                 </button>
               )}
             </div>
-            {batch && (
-              <Link
-                href={`/warehouse/${batchId}/move`}
-                className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-              >
-                Move to Business
-              </Link>
-            )}
+            {batch && (() => {
+              const eligibleSelected = items.filter(i => selected.has(i.id) && !i.isPersonal && i.status === 'IN_WAREHOUSE')
+              const missingCost = eligibleSelected.some(i => i.costUsd == null)
+              const disabled = eligibleSelected.length === 0 || missingCost
+              const title = eligibleSelected.length === 0
+                ? 'Select at least one non-personal item'
+                : missingCost ? 'All selected items must have a cost price set' : undefined
+              return (
+                <button
+                  onClick={() => {
+                    const ids = eligibleSelected.map(i => i.id).join(',')
+                    router.push(`/warehouse/${batchId}/move?ids=${encodeURIComponent(ids)}`)
+                  }}
+                  disabled={disabled}
+                  title={title}
+                  className="px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Move to Business{eligibleSelected.length > 0 ? ` (${eligibleSelected.length})` : ''}
+                </button>
+              )
+            })()}
           </div>
 
           {/* Bulk fill toolbar — shown when items are selected */}
@@ -900,11 +926,13 @@ export default function BatchDetailPage() {
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                       {items.map(item => {
                         const costUsd = item.costUsd != null ? Number(item.costUsd) : null
-                        const costPrice = costUsd != null ? costUsd + perItemTransport : null
+                        const txFee = costUsd != null && batch.transactionFeePct != null ? costUsd * (Number(batch.transactionFeePct) / 100) : 0
+                        const costPrice = costUsd != null ? costUsd + txFee + perItemTransport : null
                         const calcSell = costPrice != null ? costPrice * 1.3 : null
+                        const isLocked = item.status === 'MOVED_TO_BUSINESS' || item.status === 'MOVED_TO_PERSONAL'
 
                         return (
-                          <tr key={item.id} className={`hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors ${item.isPersonal ? 'bg-purple-50/30 dark:bg-purple-900/10' : ''} ${selected.has(item.id) ? 'bg-blue-100 dark:bg-blue-900' : ''}`}>
+                          <tr key={item.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${isLocked ? 'opacity-70' : ''} ${item.isPersonal && !isLocked ? 'bg-purple-50 dark:bg-purple-900/20' : ''} ${selected.has(item.id) ? 'bg-blue-100 dark:bg-blue-900' : ''}`}>
                             <td className="px-3 py-2">
                               <input
                                 type="checkbox"
@@ -921,6 +949,7 @@ export default function BatchDetailPage() {
                                 shortName={item.shortName}
                                 productName={item.productName}
                                 itemId={item.id}
+                                locked={isLocked}
                                 onSave={patchItem}
                               />
                             </td>
@@ -971,15 +1000,22 @@ export default function BatchDetailPage() {
                               )}
                             </td>
                             <td className="px-3 py-2">
-                              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                                item.status === 'IN_WAREHOUSE' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                : item.status === 'MOVED_TO_BUSINESS' ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                : 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-                              }`}>
-                                {item.status === 'IN_WAREHOUSE' ? 'Warehouse'
-                                  : item.status === 'MOVED_TO_BUSINESS' ? 'Business'
-                                  : 'Personal'}
-                              </span>
+                              <div className="flex items-center gap-1">
+                                {isLocked && (
+                                  <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                                  </svg>
+                                )}
+                                <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                                  item.status === 'IN_WAREHOUSE' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                  : item.status === 'MOVED_TO_BUSINESS' ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                  : 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                                }`}>
+                                  {item.status === 'IN_WAREHOUSE' ? 'Warehouse'
+                                    : item.status === 'MOVED_TO_BUSINESS' ? 'Business'
+                                    : 'Personal'}
+                                </span>
+                              </div>
                             </td>
                           </tr>
                         )

@@ -88,7 +88,7 @@ export function PricingCalculator({
         </div>
         {transportEnabled && calc.transportPerUnit > 0 && (
           <div className="flex justify-between text-xs text-orange-700 dark:text-orange-400">
-            <span>Transport / unit</span>
+            <span>Adjustments / unit</span>
             <span>+${calc.transportPerUnit.toFixed(2)}</span>
           </div>
         )}
@@ -165,7 +165,7 @@ export function PricingCalculator({
 
       {transportEnabled && calc.transportPerUnit > 0 && batchQuantity > 1 && (
         <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
-          Transport spread across {batchQuantity} units
+          Adjustments spread across {batchQuantity} units
         </p>
       )}
     </div>

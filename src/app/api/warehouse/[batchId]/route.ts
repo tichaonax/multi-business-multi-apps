@@ -78,6 +78,7 @@ export async function GET(req: NextRequest, { params }: { params: { batchId: str
         collectionFee: batch.collectionFee,
         pickedUpFromHarare: batch.pickedUpFromHarare,
         transportCostHarare: batch.transportCostHarare,
+        transactionFeePct: batch.transactionFeePct != null ? Number(batch.transactionFeePct) : null,
         perItemTransport,
         notes: batch.notes,
         originalFileName: batch.originalFileName,

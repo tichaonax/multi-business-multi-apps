@@ -15,6 +15,7 @@ interface BatchInfo {
   batchName: string
   pickedUpFromHarare: boolean
   transportCostHarare: number | null
+  transactionFeePct: number | null
   perItemTransport: number
 }
 
@@ -80,6 +81,8 @@ export default function MoveWizardPage() {
   // URL params from scan panel (single-item pre-select + barcode)
   const scanItemId = searchParams.get('itemId')
   const scanBarcode = searchParams.get('barcode')
+  // IDs pre-selected on the batch detail page — only these items are shown
+  const preselectedIdsRaw = searchParams.get('ids') || ''
 
   const [batch, setBatch] = useState<BatchInfo | null>(null)
   const [allItems, setAllItems] = useState<WarehouseItem[]>([])
@@ -108,14 +111,18 @@ export default function MoveWizardPage() {
       const data = await res.json()
       if (!res.ok) { toast.error(data.error || 'Failed to load batch'); return }
       setBatch(data.batch)
-      const eligible: WarehouseItem[] = (data.items || []).filter((i: WarehouseItem) => !i.isPersonal)
+      let eligible: WarehouseItem[] = (data.items || []).filter((i: WarehouseItem) => !i.isPersonal)
+      if (preselectedIdsRaw) {
+        const idSet = new Set(decodeURIComponent(preselectedIdsRaw).split(',').filter(Boolean))
+        eligible = eligible.filter((i: WarehouseItem) => idSet.has(i.id))
+      }
       setAllItems(eligible)
     } catch {
       toast.error('Failed to load batch')
     } finally {
       setLoading(false)
     }
-  }, [batchId])
+  }, [batchId, preselectedIdsRaw])
 
   // Load user businesses
   useEffect(() => {
@@ -157,8 +164,11 @@ export default function MoveWizardPage() {
   // Build rows when items or markup changes
   useEffect(() => {
     const markup = parseFloat(markupPct) / 100 || 0.3
+    const feePct = batch?.transactionFeePct ?? 0
     setRows(allItems.map(item => {
-      const cost = item.costUsd != null ? Number(item.costUsd) + (batch?.perItemTransport || 0) : 0
+      const costUsd = item.costUsd != null ? Number(item.costUsd) : 0
+      const txFee = item.costUsd != null ? costUsd * (feePct / 100) : 0
+      const cost = item.costUsd != null ? costUsd + txFee + (batch?.perItemTransport || 0) : 0
       const sell = cost > 0 ? (cost * (1 + markup)).toFixed(2) : ''
       const selected = scanItemId ? item.id === scanItemId : true
       const barcode = (scanItemId && item.id === scanItemId && scanBarcode) ? scanBarcode : ''
@@ -179,9 +189,13 @@ export default function MoveWizardPage() {
 
   function recalcAll() {
     const markup = parseFloat(markupPct) / 100 || 0.3
+    const feePct = batch?.transactionFeePct ?? 0
     sessionStorage.setItem(SESSION_MARKUP_KEY, markupPct)
     setRows(prev => prev.map(r => {
-      const cost = r.item.costUsd != null ? Number(r.item.costUsd) + (batch?.perItemTransport || 0) : 0
+      const costUsd = r.item.costUsd != null ? Number(r.item.costUsd) : 0
+      const txFee = r.item.costUsd != null ? costUsd * (feePct / 100) : 0
+      const itemTransport = r.transportOverride !== '' ? parseFloat(r.transportOverride) || 0 : (batch?.perItemTransport || 0)
+      const cost = r.item.costUsd != null ? costUsd + txFee + itemTransport : 0
       const sell = cost > 0 ? (cost * (1 + markup)).toFixed(2) : r.sellingPrice
       return { ...r, sellingPrice: sell }
     }))
@@ -227,6 +241,7 @@ export default function MoveWizardPage() {
   }
 
   const perItemTransport = batch?.perItemTransport || 0
+  const transactionFeePct = batch?.transactionFeePct ?? null
 
   return (
     <ProtectedRoute>
@@ -320,6 +335,12 @@ export default function MoveWizardPage() {
                   <p className="text-sm font-bold text-amber-600 dark:text-amber-400 pt-2">${perItemTransport.toFixed(2)}</p>
                 </div>
               )}
+              {transactionFeePct != null && transactionFeePct > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Transaction fee</label>
+                  <p className="text-sm font-bold text-blue-600 dark:text-blue-400 pt-2">{transactionFeePct.toFixed(1)}% of cost</p>
+                </div>
+              )}
             </div>
 
           </div>
@@ -366,10 +387,12 @@ export default function MoveWizardPage() {
                     {rows.map((row, idx) => {
                       const costUsd = row.item.costUsd != null ? Number(row.item.costUsd) : 0
                       const itemTransport = row.transportOverride !== '' ? parseFloat(row.transportOverride) || 0 : perItemTransport
-                      const costPrice = costUsd + itemTransport
+                      const txFee = row.item.costUsd != null && transactionFeePct != null ? costUsd * (transactionFeePct / 100) : 0
+                      const costPrice = costUsd + txFee + itemTransport
+                      const totalAdjustment = itemTransport + txFee
                       return (
                         <React.Fragment key={row.item.id}>
-                        <tr className={`${!row.selected ? 'opacity-40' : ''} hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors`}>
+                        <tr className={`${!row.selected ? 'opacity-40' : ''} hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors`}>
                           <td className="px-3 py-2">
                             <input type="checkbox" checked={row.selected} onChange={e => updateRow(idx, { selected: e.target.checked })} className="rounded" />
                           </td>
@@ -387,6 +410,7 @@ export default function MoveWizardPage() {
                             <td className="px-3 py-2 text-amber-600 dark:text-amber-400">
                               +${itemTransport.toFixed(2)}
                               {row.transportOverride !== '' && <span className="ml-1 text-xs text-gray-400">(custom)</span>}
+                              {txFee > 0 && <div className="text-xs text-blue-600 dark:text-blue-400">+${txFee.toFixed(2)} fee</div>}
                             </td>
                           )}
                           <td className="px-3 py-2 font-medium text-gray-900 dark:text-white">
@@ -418,7 +442,7 @@ export default function MoveWizardPage() {
                           </td>
                         </tr>
                         {openCalcIdx === idx && (
-                          <tr className="bg-blue-50/60 dark:bg-blue-900/10">
+                          <tr className="bg-blue-50 dark:bg-gray-800 border-b border-blue-200 dark:border-gray-700">
                             <td colSpan={perItemTransport > 0 ? 9 : 8} className="px-6 py-3">
                               {/* Per-item transport override */}
                               <div className="flex items-center gap-2 mb-2">
@@ -445,10 +469,10 @@ export default function MoveWizardPage() {
                                   costPrice={Number(row.item.costUsd)}
                                   sellingPrice={row.sellingPrice}
                                   onSelectPrice={price => updateRow(idx, { sellingPrice: String(price) })}
-                                  transportEnabled={itemTransport > 0}
+                                  transportEnabled={totalAdjustment > 0}
                                   transportDistanceKm={null}
                                   transportCostPerKm={null}
-                                  transportPerUnitOverride={itemTransport > 0 ? itemTransport : null}
+                                  transportPerUnitOverride={totalAdjustment > 0 ? totalAdjustment : null}
                                 />
                               ) : (
                                 <p className="text-xs text-amber-600 dark:text-amber-400">Set a cost price (Cost $) for this item to use the calculator.</p>
