@@ -9702,3 +9702,178 @@ The estimated round-trip cost is shown automatically as a guide.
 ### EOD Submission Deadline
 
 Shown when **Require Salesperson EOD Report** is enabled. Set the time by which salespersons must submit their end-of-day cash and EcoCash totals. After this time, overdue warnings appear at the POS.
+
+---
+
+## 50. Warehouse Import
+
+The Warehouse module is a staging layer that sits between supplier orders and your business inventory. You import an Excel spreadsheet from your supplier (or buying agent), review the items, then move them into business inventory or record them as personal expenses.
+
+### Who Can Use It
+
+Warehouse access is controlled by two permissions:
+
+| Permission | What it allows |
+|------------|---------------|
+| `canAccessWarehouse` | View the warehouse, import batches, edit items |
+| `canMoveWarehouseToInventory` | Move items into a business's product inventory |
+
+Admins automatically have both permissions. Grant them to staff in the user permissions panel.
+
+---
+
+### Workflow Overview
+
+```
+Excel File → Import → Warehouse Batch → Review & Edit → Move to Business / Personal
+```
+
+1. **Import** — Upload an `.xlsx` spreadsheet to create a batch.
+2. **Review** — Check items: edit costs, exchange rates, short names, flag personal items.
+3. **Move** — Send items to a business's inventory (with selling prices) or log personal items as expenses.
+
+---
+
+### Step 1 — Import a Batch
+
+Navigate to **Warehouse → Import Batch**.
+
+| Field | Description |
+|-------|-------------|
+| Excel File (.xlsx) | Drag-and-drop or browse. Only `.xlsx` files accepted. |
+| Batch Name | Auto-filled from the filename (e.g. `batch_29 — 2026-05-25`). Edit if needed. |
+| Notes | Optional notes about this batch. |
+| Picked up from Harare | Toggle if you collected the goods in Harare. Enter the transport cost (US$) — it will be divided equally across all items. |
+
+**Duplicate file detection:** The system checks a SHA-256 hash of the file. If you upload the same file twice, you'll see an error with the name of the existing batch.
+
+**Overlapping order numbers:** If any order numbers in the new file already exist in a previous batch, you'll see a warning with the list. You can cancel or import anyway (duplicate rows are allowed for re-orders).
+
+**Expected spreadsheet columns:**
+
+| Column | Contents |
+|--------|----------|
+| A | Product image (embedded) |
+| B | Order number |
+| C | Tracking number |
+| D | Product name (full, may be in Chinese) |
+| E | Quantity |
+| F | Cost (USD) |
+| G | Order date |
+| H | Price (Yuan ¥) |
+| I | Row number |
+| J | Exchange rate |
+| K | Stage |
+| L | Shipment |
+| M | Location |
+| N | Courier name |
+| O | Courier status |
+| P | Courier time |
+| Q | Parent order |
+| R | Parcel number |
+
+Sub-parcels (`_p2`, `_p3`, …) are automatically merged into the primary row (`_p1`), with their tracking numbers stored alongside.
+
+---
+
+### Step 2 — Review the Batch
+
+Open a batch from the **Warehouse** list to see the item grid.
+
+#### Status tabs
+
+| Tab | Meaning |
+|-----|---------|
+| ALL | Every item in the batch |
+| IN WAREHOUSE | Items not yet moved — available for editing |
+| PERSONAL | Items flagged as personal purchases |
+| MOVED TO BUSINESS | Items already added to a business's inventory |
+| MOVED TO PERSONAL | Items recorded as personal expenses |
+
+#### Editing items
+
+Click any **Cost USD** or **Rate** cell to edit it inline. Press Enter or click away to save.
+
+Click the **Short Name** (the bold product name line) to edit it inline. The full Chinese product name is shown as a subtitle for reference.
+
+#### Bulk Fill toolbar
+
+When **no items are selected**, a fill bar appears at the top of the grid. Enter a Rate or Cost value and click **Apply to empty** to fill all items that are currently blank — useful for applying a single exchange rate to an entire batch.
+
+When **one or more items are checked**, the toolbar shows additional actions:
+- **Rate / Apply to empty** — fill the exchange rate for selected items that are blank.
+- **Cost / Apply to empty** — fill the USD cost for selected items that are blank.
+- **Flag Personal** — mark selected items as personal (removes them from business inventory candidates).
+- **Flag Business** — un-flag selected items (returns them to IN_WAREHOUSE).
+- **Move to Personal** — immediately record selected items as personal expenses.
+
+#### Personal items panel
+
+A collapsible panel at the bottom of the page lists all items flagged as personal. Use the **Move all X to Personal** button to record them as personal expenses in one click. Each expense is logged under the category *Warehouse* with the order number and batch name in the notes.
+
+#### Scan mode
+
+Click **Scan Mode** (top-right) to open a persistent scan panel. Scan or type an order number, tracking number, or short name. The matching item is shown with its image, cost, and status. From the result you can go directly to **Move to Business** or **Move to Personal**.
+
+---
+
+### Step 3 — Move to Business Inventory
+
+Click **Move to Business** on the batch detail page (or from the scan panel) to open the move wizard.
+
+1. **Select target business** — choose which business will receive the stock.
+2. **Select category** — pick the product category. The system suggests the top 3 most relevant categories based on keyword matching against the item names.
+3. **Set markup %** — enter a markup percentage and click **Apply** to auto-calculate selling prices for all items. Default is 30%.
+4. **Review per-row prices** — adjust individual selling prices. A barcode field is optional.
+5. Click **Move X Items to Business**.
+
+For each item moved, the system creates:
+- A **Business Product** record with the short name as product name.
+- A **Product Variant** with the calculated selling price and optional barcode.
+- A **Stock Movement** of type `PURCHASE_RECEIVED`.
+- A **Product Image** linked from the warehouse item (if one was in the spreadsheet).
+
+The warehouse item status changes to **MOVED_TO_BUSINESS**.
+
+**Cost price shown:** If a transport cost was entered at import time, it is divided equally across all IN_WAREHOUSE items and shown as `+ Transport` in the move wizard. The cost price column reflects `costUsd + perItemTransport`.
+
+---
+
+### Step 4 — Move to Personal Expenses
+
+Items that are personal purchases (not business stock) can be recorded as personal expenses.
+
+- **From the batch page:** Flag items as Personal, then use the Personal Items panel → **Move all to Personal**.
+- **From the bulk toolbar:** Select items → **Move to Personal**.
+- **From the scan panel:** Scan an item → **Move to Personal**.
+
+Each item creates a **Personal Expense** entry:
+- Category: `Warehouse`
+- Description: the item's short name
+- Amount: `costUsd` (USD)
+- Notes: `Warehouse import — {batchName} / {orderNumber}`
+
+The warehouse item status changes to **MOVED_TO_PERSONAL**.
+
+---
+
+### Deleting a Batch
+
+A batch can be deleted only if **no items have been moved** (to business or personal). To delete, click the trash icon on the Warehouse list page. All items and their images are permanently removed.
+
+If items have already been moved, the delete button is hidden — the batch record is kept for audit purposes.
+
+---
+
+### Warehouse Stats
+
+The Warehouse home page shows four summary cards:
+
+| Card | Meaning |
+|------|---------|
+| Total Batches | Number of imported batches |
+| In Warehouse | Items still sitting in staging |
+| Moved to Business | Items added to business inventory |
+| Moved to Personal | Items recorded as personal expenses |
+
+Each batch row shows a progress bar indicating what fraction of items have been moved out of the warehouse.

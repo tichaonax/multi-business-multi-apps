@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 export interface PricingCalculatorProps {
   costPrice: number | null
@@ -14,7 +14,7 @@ export interface PricingCalculatorProps {
   transportPerUnitOverride?: number | null
 }
 
-const MARKUP_TIERS = [10, 15, 20, 25, 30, 40, 50]
+const MARKUP_TIERS = [10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100]
 
 export function PricingCalculator({
   costPrice,
@@ -26,6 +26,9 @@ export function PricingCalculator({
   batchQuantity = 1,
   transportPerUnitOverride,
 }: PricingCalculatorProps) {
+  const [customPct, setCustomPct] = useState('')
+  const [showCustom, setShowCustom] = useState(false)
+
   const calc = useMemo(() => {
     if (!costPrice || costPrice <= 0) return null
 
@@ -57,9 +60,18 @@ export function PricingCalculator({
         price: Math.ceil(landedCost * (1 + pct / 100) * 100) / 100,
       })),
     }
-  }, [costPrice, sellingPrice, transportEnabled, transportDistanceKm, transportCostPerKm, batchQuantity])
+  }, [costPrice, sellingPrice, transportEnabled, transportDistanceKm, transportCostPerKm, batchQuantity, transportPerUnitOverride])
 
   if (!calc) return null
+
+  function applyCustom() {
+    const pct = parseFloat(customPct)
+    if (!pct || pct <= 0 || !calc) return
+    const price = Math.ceil(calc.landedCost * (1 + pct / 100) * 100) / 100
+    onSelectPrice(price)
+    setShowCustom(false)
+    setCustomPct('')
+  }
 
   return (
     <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
@@ -110,7 +122,47 @@ export function PricingCalculator({
             {pct}% · ${price.toFixed(2)}
           </button>
         ))}
+
+        {/* Custom pill */}
+        {!showCustom ? (
+          <button
+            type="button"
+            onClick={() => setShowCustom(true)}
+            className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 transition-colors"
+          >
+            Custom %
+          </button>
+        ) : (
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              min="1"
+              max="1000"
+              placeholder="%"
+              value={customPct}
+              onChange={e => setCustomPct(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') applyCustom(); if (e.key === 'Escape') { setShowCustom(false); setCustomPct('') } }}
+              autoFocus
+              className="w-16 px-1.5 py-1 text-xs border border-blue-400 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <button
+              type="button"
+              onClick={applyCustom}
+              className="px-2 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            >
+              Apply
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowCustom(false); setCustomPct('') }}
+              className="px-1.5 py-1 text-xs rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+        )}
       </div>
+
       {transportEnabled && calc.transportPerUnit > 0 && batchQuantity > 1 && (
         <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
           Transport spread across {batchQuantity} units

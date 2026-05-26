@@ -904,7 +904,7 @@ export default function BatchDetailPage() {
                         const calcSell = costPrice != null ? costPrice * 1.3 : null
 
                         return (
-                          <tr key={item.id} className={`hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors ${item.isPersonal ? 'bg-purple-50/30 dark:bg-purple-900/10' : ''} ${selected.has(item.id) ? 'bg-blue-100/60 dark:bg-blue-500/20' : ''}`}>
+                          <tr key={item.id} className={`hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors ${item.isPersonal ? 'bg-purple-50/30 dark:bg-purple-900/10' : ''} ${selected.has(item.id) ? 'bg-blue-100 dark:bg-blue-900' : ''}`}>
                             <td className="px-3 py-2">
                               <input
                                 type="checkbox"

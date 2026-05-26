@@ -46,6 +46,7 @@ interface MoveRow {
   selected: boolean
   sellingPrice: string
   barcode: string
+  transportOverride: string
 }
 
 function computeCategorySuggestions(items: WarehouseItem[], cats: Category[]): Category[] {
@@ -161,7 +162,7 @@ export default function MoveWizardPage() {
       const sell = cost > 0 ? (cost * (1 + markup)).toFixed(2) : ''
       const selected = scanItemId ? item.id === scanItemId : true
       const barcode = (scanItemId && item.id === scanItemId && scanBarcode) ? scanBarcode : ''
-      return { item, selected, sellingPrice: sell, barcode }
+      return { item, selected, sellingPrice: sell, barcode, transportOverride: '' }
     }))
   }, [allItems, markupPct, batch, scanItemId, scanBarcode])
 
@@ -364,7 +365,8 @@ export default function MoveWizardPage() {
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                     {rows.map((row, idx) => {
                       const costUsd = row.item.costUsd != null ? Number(row.item.costUsd) : 0
-                      const costPrice = costUsd + perItemTransport
+                      const itemTransport = row.transportOverride !== '' ? parseFloat(row.transportOverride) || 0 : perItemTransport
+                      const costPrice = costUsd + itemTransport
                       return (
                         <React.Fragment key={row.item.id}>
                         <tr className={`${!row.selected ? 'opacity-40' : ''} hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors`}>
@@ -382,7 +384,10 @@ export default function MoveWizardPage() {
                             {row.item.costUsd != null ? `$${costUsd.toFixed(2)}` : <span className="text-red-500">missing</span>}
                           </td>
                           {perItemTransport > 0 && (
-                            <td className="px-3 py-2 text-amber-600 dark:text-amber-400">+${perItemTransport.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-amber-600 dark:text-amber-400">
+                              +${itemTransport.toFixed(2)}
+                              {row.transportOverride !== '' && <span className="ml-1 text-xs text-gray-400">(custom)</span>}
+                            </td>
                           )}
                           <td className="px-3 py-2 font-medium text-gray-900 dark:text-white">
                             ${costPrice.toFixed(2)}
@@ -415,15 +420,35 @@ export default function MoveWizardPage() {
                         {openCalcIdx === idx && (
                           <tr className="bg-blue-50/60 dark:bg-blue-900/10">
                             <td colSpan={perItemTransport > 0 ? 9 : 8} className="px-6 py-3">
+                              {/* Per-item transport override */}
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-xs text-gray-600 dark:text-gray-400">Transport for this item (US$):</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder={perItemTransport > 0 ? `default $${perItemTransport.toFixed(2)}` : '0.00'}
+                                  value={row.transportOverride}
+                                  onChange={e => updateRow(idx, { transportOverride: e.target.value })}
+                                  className="w-28 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500"
+                                />
+                                {row.transportOverride !== '' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => updateRow(idx, { transportOverride: '' })}
+                                    className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                  >Reset</button>
+                                )}
+                              </div>
                               {row.item.costUsd != null ? (
                                 <PricingCalculator
                                   costPrice={Number(row.item.costUsd)}
                                   sellingPrice={row.sellingPrice}
                                   onSelectPrice={price => updateRow(idx, { sellingPrice: String(price) })}
-                                  transportEnabled={perItemTransport > 0}
+                                  transportEnabled={itemTransport > 0}
                                   transportDistanceKm={null}
                                   transportCostPerKm={null}
-                                  transportPerUnitOverride={perItemTransport > 0 ? perItemTransport : null}
+                                  transportPerUnitOverride={itemTransport > 0 ? itemTransport : null}
                                 />
                               ) : (
                                 <p className="text-xs text-amber-600 dark:text-amber-400">Set a cost price (Cost $) for this item to use the calculator.</p>
@@ -448,7 +473,7 @@ export default function MoveWizardPage() {
             <button
               onClick={handleMove}
               disabled={moving || selectedRows.length === 0 || !selectedBusinessId || !selectedCategoryId}
-              className="px-6 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {moving ? 'Moving…' : `Move ${selectedRows.length} Item${selectedRows.length !== 1 ? 's' : ''} to Business`}
             </button>
