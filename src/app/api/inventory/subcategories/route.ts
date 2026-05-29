@@ -16,12 +16,14 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const categoryIds = request.nextUrl.searchParams.get('categoryIds')?.split(',').filter(Boolean) ?? [];
-    if (categoryIds.length === 0) {
+    const fetchAll = request.nextUrl.searchParams.get('all') === 'true'
+
+    if (categoryIds.length === 0 && !fetchAll) {
       return NextResponse.json({ subcategories: [] });
     }
 
     const subcategories = await prisma.inventorySubcategories.findMany({
-      where: { categoryId: { in: categoryIds } },
+      where: categoryIds.length > 0 ? { categoryId: { in: categoryIds } } : {},
       orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
     });
 

@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
 import { useToastContext } from '@/components/ui/toast'
@@ -69,6 +70,7 @@ interface MoveRow {
   sellingPrice: string
   barcode: string
   transportOverride: string
+  itemBusinessId: string   // per-item override; empty = use global
   status: 'pending' | 'moving' | 'moved' | 'error'
   errorMessage?: string
 }
@@ -82,12 +84,18 @@ function suggestClassification(
   subCategories: Category[],
   domainList: Domain[],
 ): SuggestItem[] {
-  const tokens = productName.toLowerCase().split(/[\s,./\\-]+/).filter(t => t.length >= 2)
+  const STOP_WORDS = new Set(['for', 'and', 'the', 'with', 'of', 'in', 'to', 'a', 'an', 'by', 'at', 'on', 'or', 'its', 'as'])
+  const tokens = productName.toLowerCase().split(/[\s,./\\-]+/).filter(t => t.length >= 2 && !STOP_WORDS.has(t))
   if (tokens.length === 0 || subCategories.length === 0) return []
 
   function countMatches(text: string): number {
     const lower = text.toLowerCase()
-    return tokens.filter(t => lower.includes(t)).length
+    return tokens.filter(t => {
+      if (lower.includes(t)) return true
+      // Also match singular form: "screws"→"screw", "nails"→"nail", "walls"→"wall"
+      if (t.length > 3 && t.endsWith('s') && lower.includes(t.slice(0, -1))) return true
+      return false
+    }).length
   }
 
   const scored: SuggestItem[] = []
@@ -124,7 +132,120 @@ function suggestClassification(
     if (seen.has(s.subCategoryId)) return false
     seen.add(s.subCategoryId)
     return true
-  }).slice(0, 20)
+  })
+}
+
+// ── BusinessCombobox ──────────────────────────────────────────────────────────
+
+function BusinessCombobox({
+  value,
+  onChange,
+  businesses,
+  globalBusinessName,
+  disabled,
+}: {
+  value: string
+  onChange: (v: string) => void
+  businesses: Business[]
+  globalBusinessName: string
+  disabled: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const [dropStyle, setDropStyle] = useState<React.CSSProperties>({})
+
+  const selected = businesses.find(b => b.businessId === value)
+  const filtered = businesses.filter(b =>
+    b.businessName.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const reposition = () => {
+    if (!inputRef.current) return
+    const rect = inputRef.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom
+    const spaceAbove = rect.top
+    if (spaceBelow < 120 && spaceAbove > spaceBelow) {
+      setDropStyle({ position: 'fixed', bottom: window.innerHeight - rect.top, left: rect.left, width: Math.max(rect.width, 180), maxHeight: Math.min(160, spaceAbove - 8), zIndex: 9999 })
+    } else {
+      setDropStyle({ position: 'fixed', top: rect.bottom + 2, left: rect.left, width: Math.max(rect.width, 180), maxHeight: Math.min(160, spaceBelow - 8), zIndex: 9999 })
+    }
+  }
+
+  useEffect(() => {
+    if (!open) return
+    reposition()
+    inputRef.current?.select()
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (!containerRef.current?.contains(t) && !dropdownRef.current?.contains(t)) {
+        setOpen(false); setSearch('')
+      }
+    }
+    const onScroll = () => reposition()
+    document.addEventListener('mousedown', onDown)
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', onScroll)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', onScroll)
+    }
+  }, [open])
+
+  const select = (bizId: string) => { onChange(bizId); setOpen(false); setSearch('') }
+
+  const inputCls = 'w-full text-[10px] px-1 py-0.5 border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400 focus:ring-1 focus:ring-blue-400 focus:outline-none disabled:opacity-50 cursor-pointer'
+
+  return (
+    <div ref={containerRef} className="relative mt-0.5">
+      <input
+        ref={inputRef}
+        type="text"
+        value={open ? search : (selected?.businessName ?? '')}
+        placeholder={globalBusinessName ? `↑ ${globalBusinessName}` : '— select business —'}
+        disabled={disabled}
+        readOnly={!open}
+        onFocus={() => { if (!disabled) { setOpen(true); setSearch('') } }}
+        onChange={e => setSearch(e.target.value)}
+        className={inputCls}
+      />
+      {open && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={dropdownRef}
+          style={dropStyle}
+          className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl flex flex-col overflow-hidden"
+        >
+          <div className="overflow-y-auto flex-1">
+            <button
+              type="button"
+              onClick={() => select('')}
+              className={`w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 ${!value ? 'text-blue-600 dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-900/20' : 'text-gray-500 dark:text-gray-400'}`}
+            >
+              {globalBusinessName ? `↑ ${globalBusinessName}` : '— none —'}
+            </button>
+            {filtered.length === 0 ? (
+              <p className="px-2 py-1 text-xs text-gray-400 italic">No match</p>
+            ) : (
+              filtered.map(b => (
+                <button
+                  key={b.businessId}
+                  type="button"
+                  onClick={() => select(b.businessId)}
+                  className={`w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 ${value === b.businessId ? 'text-blue-600 dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-900/20' : 'text-gray-700 dark:text-gray-300'}`}
+                >
+                  {b.businessName}
+                </button>
+              ))
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  )
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -159,11 +280,17 @@ export default function MoveWizardPage() {
   const [departments, setDepartments] = useState<Category[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [subCategories, setSubCategories] = useState<Category[]>([])
+  const [allCats, setAllCats] = useState<Category[]>([])
 
   // ── Markup ───────────────────────────────────────────────────────────────────
   const [markupPct, setMarkupPct] = useState(() =>
     typeof window !== 'undefined' ? (sessionStorage.getItem(SESSION_MARKUP_KEY) || '30') : '30'
   )
+
+  // ── Suggest-specific data (all domains/categories regardless of destination business) ──
+  const [suggestDomains, setSuggestDomains] = useState<Domain[]>([])
+  const [suggestAllCats, setSuggestAllCats] = useState<Category[]>([])
+  const [suggestAllSubs, setSuggestAllSubs] = useState<Category[]>([])
 
   // ── Suggest popover ───────────────────────────────────────────────────────────
   const [suggestRowIdx, setSuggestRowIdx] = useState<number | null>(null)
@@ -241,12 +368,43 @@ export default function MoveWizardPage() {
 
   useEffect(() => { load() }, [load])
 
+  // ── Load ALL domains + categories + subcategories once on mount for suggestions ─
+  useEffect(() => {
+    // Domains with their categories (all business types)
+    fetch('/api/inventory/domains?includeCategories=true', { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        const allDomains: Domain[] = (data.domains ?? []).filter((d: any) => d.isActive)
+        setSuggestDomains(allDomains)
+        const cats: Category[] = allDomains.flatMap((dom: any) =>
+          (dom.business_categories ?? []).map((c: any) => ({
+            id: c.id, name: c.name, emoji: c.emoji ?? '', parentId: null, domainId: dom.id,
+          }))
+        )
+        setSuggestAllCats(cats)
+      })
+      .catch(() => {})
+
+    // All inventory subcategories (no category filter)
+    fetch('/api/inventory/subcategories?all=true', { credentials: 'include' })
+      .then(r => r.json())
+      .then((d: any) => {
+        const subs: Category[] = (d.subcategories ?? []).map((s: any) => ({
+          id: s.id, name: s.name, emoji: s.emoji ?? '', parentId: s.categoryId, domainId: null,
+        }))
+        setSuggestAllSubs(subs)
+      })
+      .catch(() => {})
+  }, [])
+
   // ── Load categories + domains when business changes ───────────────────────────
   useEffect(() => {
     if (!selectedBusinessId || !selectedBusinessType) {
-      setDomainList([]); setDepartments([]); setCategories([]); setSubCategories([])
+      setDomainList([]); setDepartments([]); setCategories([]); setSubCategories([]); setAllCats([])
       return
     }
+    // Clear stale data from previous business immediately, before fetch completes
+    setAllCats([]); setSubCategories([])
     Promise.all([
       fetch(`/api/universal/categories?businessId=${selectedBusinessId}&businessType=${selectedBusinessType}`, { credentials: 'include' }).then(r => r.json()),
       fetch(`/api/inventory/domains?businessType=${selectedBusinessType}`, { credentials: 'include' }).then(r => r.json()).catch(() => ({ domains: [] })),
@@ -254,6 +412,7 @@ export default function MoveWizardPage() {
       const cats: Category[] = Array.isArray(catData) ? catData : (catData.data ?? catData.categories ?? [])
       const doms: Domain[] = domainData.domains ?? []
       setDomainList(doms)
+      setAllCats(cats)
 
       if (doms.length > 0) {
         const depts: Category[] = doms.map(d => ({ id: d.id, name: d.name, emoji: d.emoji, parentId: null, domainId: null }))
@@ -318,6 +477,7 @@ export default function MoveWizardPage() {
         sellingPrice: existing?.sellingPrice ?? saved.sellingPrice ?? sell,
         barcode: existing?.barcode ?? saved.barcode ?? (scanItemId && item.id === scanItemId && scanBarcode ? scanBarcode : ''),
         transportOverride: existing?.transportOverride || saved.transportOverride || '',
+        itemBusinessId: existing?.itemBusinessId || saved.itemBusinessId || '',
         status: existing?.status || 'pending',
         errorMessage: existing?.errorMessage,
       }
@@ -336,6 +496,7 @@ export default function MoveWizardPage() {
         sellingPrice: r.sellingPrice,
         barcode: r.barcode,
         transportOverride: r.transportOverride,
+        itemBusinessId: r.itemBusinessId,
         selected: r.selected,
       }
     })
@@ -380,8 +541,15 @@ export default function MoveWizardPage() {
     openSuggestBtnRef.current = e.currentTarget
     const rect = e.currentTarget.getBoundingClientRect()
     const row = rows[idx]
-    const name = row.item.shortName || row.item.productName
-    setSuggestions(suggestClassification(name, departments, categories, subCategories, domainList))
+    const name = row.item.productName || row.item.shortName
+    const suggestions = suggestClassification(
+      name,
+      suggestDomains.map(d => ({ id: d.id, name: d.name, emoji: d.emoji, parentId: null, domainId: null })),
+      suggestAllCats,
+      suggestAllSubs,
+      suggestDomains,
+    )
+    setSuggestions(suggestions)
     setShowAllSuggestions(false)
     setSuggestSearch('')
     const OVERHEAD = 180 // header + product name section height estimate
@@ -409,9 +577,9 @@ export default function MoveWizardPage() {
 
   async function handleMoveRow(idx: number) {
     const row = rows[idx]
-    if (!selectedBusinessId) { toast.error('Select a target business'); return }
-    // Domain businesses (clothing etc.): subCategoryId is inventory_subcategories — not valid for business_products FK
-    // Non-domain businesses: subCategoryId is business_categories — fine to use as leaf
+    const effBizId = row.itemBusinessId || selectedBusinessId
+    const effBiz = businesses.find(b => b.businessId === effBizId)
+    if (!effBizId || !effBiz) { toast.error('Select a target business for this item'); return }
     const leafCategoryId = departments.length > 0 ? row.categoryId : (row.subCategoryId || row.categoryId)
     if (!leafCategoryId) { toast.error('Select a category for this item'); return }
     const sellPrice = parseFloat(row.sellingPrice)
@@ -424,8 +592,8 @@ export default function MoveWizardPage() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          businessId: selectedBusinessId,
-          businessType: selectedBusinessType,
+          businessId: effBizId,
+          businessType: effBiz.businessType,
           items: [{ itemId: row.item.id, sellingPrice: sellPrice, barcode: row.barcode || undefined, categoryId: leafCategoryId }],
         }),
       })
@@ -439,9 +607,12 @@ export default function MoveWizardPage() {
   }
 
   async function handleMoveSelected() {
-    if (!selectedBusinessId) { toast.error('Select a target business'); return }
     const pendingSelected = rows.filter(r => r.selected && r.status === 'pending')
     if (pendingSelected.length === 0) { toast.error('Select at least one item'); return }
+
+    // Each row resolves its own target business (row override or global fallback)
+    const missingBiz = pendingSelected.find(r => !r.itemBusinessId && !selectedBusinessId)
+    if (missingBiz) { toast.error('Every item needs a target business (set one above or per-row)'); return }
     const missingCat = pendingSelected.find(r => !r.subCategoryId && !r.categoryId)
     if (missingCat) { toast.error('All selected items need a category'); return }
     const missingPrice = pendingSelected.find(r => !r.sellingPrice || parseFloat(r.sellingPrice) <= 0)
@@ -450,31 +621,49 @@ export default function MoveWizardPage() {
     setBatchMoving(true)
     setRows(prev => prev.map(r => r.selected && r.status === 'pending' ? { ...r, status: 'moving' } : r))
     try {
-      const useDomainCat = departments.length > 0
-      const items = pendingSelected.map(r => ({
-        itemId: r.item.id,
-        sellingPrice: parseFloat(r.sellingPrice),
-        barcode: r.barcode || undefined,
-        categoryId: useDomainCat ? r.categoryId : (r.subCategoryId || r.categoryId),
-      }))
-      const res = await fetch(`/api/warehouse/${batchId}/move`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ businessId: selectedBusinessId, businessType: selectedBusinessType, items }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setRows(prev => prev.map(r => r.status === 'moving' ? { ...r, status: 'error', errorMessage: data.error || 'Move failed' } : r))
-        toast.error(data.error || 'Move failed')
-        return
+      // Group rows by effective businessId so we make one API call per business
+      const groups = new Map<string, { businessId: string; businessType: string; rows: MoveRow[] }>()
+      for (const r of pendingSelected) {
+        const effBizId = r.itemBusinessId || selectedBusinessId
+        const effBiz = businesses.find(b => b.businessId === effBizId)
+        if (!effBizId || !effBiz) continue
+        if (!groups.has(effBizId)) groups.set(effBizId, { businessId: effBizId, businessType: effBiz.businessType, rows: [] })
+        groups.get(effBizId)!.rows.push(r)
       }
-      const movedIds = new Set((data.items || []).map((i: any) => i.itemId))
+
+      const useDomainCat = departments.length > 0
+      const allMovedIds = new Set<string>()
+      let anyError = false
+
+      for (const [, group] of groups) {
+        const items = group.rows.map(r => ({
+          itemId: r.item.id,
+          sellingPrice: parseFloat(r.sellingPrice),
+          barcode: r.barcode || undefined,
+          categoryId: useDomainCat ? r.categoryId : (r.subCategoryId || r.categoryId),
+        }))
+        const res = await fetch(`/api/warehouse/${batchId}/move`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ businessId: group.businessId, businessType: group.businessType, items }),
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          anyError = true
+          const failedIds = new Set(group.rows.map(r => r.item.id))
+          setRows(prev => prev.map(r => failedIds.has(r.item.id) && r.status === 'moving' ? { ...r, status: 'error', errorMessage: data.error || 'Move failed' } : r))
+          toast.error(`Failed for ${group.businessType}: ${data.error || 'Move failed'}`)
+        } else {
+          ;(data.items || []).forEach((i: any) => allMovedIds.add(i.itemId))
+        }
+      }
+
       setRows(prev => prev.map(r => {
         if (r.status !== 'moving') return r
-        return movedIds.has(r.item.id) ? { ...r, status: 'moved' } : { ...r, status: 'error', errorMessage: 'Not moved' }
+        return allMovedIds.has(r.item.id) ? { ...r, status: 'moved' } : { ...r, status: anyError ? r.status : 'error', errorMessage: 'Not moved' }
       }))
-      toast.push(`${data.movedCount} item(s) moved to business inventory`)
+      if (allMovedIds.size > 0) toast.push(`${allMovedIds.size} item(s) moved to inventory`)
     } catch {
       setRows(prev => prev.map(r => r.status === 'moving' ? { ...r, status: 'error', errorMessage: 'Move failed' } : r))
       toast.error('Move failed')
@@ -629,6 +818,15 @@ export default function MoveWizardPage() {
                         ? subCategories.filter(c => c.parentId === row.categoryId)
                         : subCategories
 
+                      // If a suggestion was applied from a different domain set, ensure the
+                      // selected domain/category/subcategory appear as options in the dropdowns
+                      const extraDomain = row.domainId && !departments.find(d => d.id === row.domainId)
+                        ? suggestDomains.find(d => d.id === row.domainId) : null
+                      const extraCat = row.categoryId && !filteredCats.find(c => c.id === row.categoryId)
+                        ? suggestAllCats.find(c => c.id === row.categoryId) : null
+                      const extraSub = row.subCategoryId && !filteredSubs.find(s => s.id === row.subCategoryId)
+                        ? suggestAllSubs.find(s => s.id === row.subCategoryId) : null
+
                       const rowBg = isMoved
                         ? 'bg-emerald-50 dark:bg-emerald-900/10'
                         : isError ? 'bg-red-50 dark:bg-red-900/10'
@@ -650,11 +848,25 @@ export default function MoveWizardPage() {
                               />
                             </td>
 
-                            {/* Product */}
-                            <td className="px-3 py-2 max-w-[140px]">
+                            {/* Product + per-item business override */}
+                            <td className="px-3 py-2 max-w-[160px]">
                               <div className="font-medium text-gray-900 dark:text-white truncate" title={row.item.shortName || row.item.productName}>
                                 {(row.item.shortName || row.item.productName).slice(0, 40)}
                               </div>
+                              {!isMoved && (
+                                <BusinessCombobox
+                                  value={row.itemBusinessId}
+                                  onChange={v => updateRow(idx, { itemBusinessId: v })}
+                                  businesses={businesses}
+                                  globalBusinessName={businesses.find(b => b.businessId === selectedBusinessId)?.businessName || ''}
+                                  disabled={isMoving}
+                                />
+                              )}
+                              {isMoved && row.itemBusinessId && (
+                                <div className="text-[10px] text-gray-400 truncate">
+                                  → {businesses.find(b => b.businessId === row.itemBusinessId)?.businessName}
+                                </div>
+                              )}
                             </td>
 
                             {/* Order # */}
@@ -688,7 +900,7 @@ export default function MoveWizardPage() {
                               <td className="px-3 py-2 min-w-[110px]">
                                 {isMoved ? (
                                   <span className="text-gray-500 dark:text-gray-400">
-                                    {departments.find(d => d.id === row.domainId)?.name || '—'}
+                                    {(departments.find(d => d.id === row.domainId) ?? extraDomain)?.name || '—'}
                                   </span>
                                 ) : (
                                   <select
@@ -698,6 +910,7 @@ export default function MoveWizardPage() {
                                     className="w-full px-1 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
                                   >
                                     <option value="">Domain…</option>
+                                    {extraDomain && <option value={extraDomain.id}>{extraDomain.emoji ? `${extraDomain.emoji} ` : ''}{extraDomain.name}</option>}
                                     {departments.map(d => (
                                       <option key={d.id} value={d.id}>{d.emoji ? `${d.emoji} ` : ''}{d.name}</option>
                                     ))}
@@ -710,16 +923,17 @@ export default function MoveWizardPage() {
                             <td className="px-3 py-2 min-w-[110px]">
                               {isMoved ? (
                                 <span className="text-gray-500 dark:text-gray-400">
-                                  {categories.find(c => c.id === row.categoryId)?.name || '—'}
+                                  {(categories.find(c => c.id === row.categoryId) ?? extraCat)?.name || '—'}
                                 </span>
                               ) : (
                                 <select
                                   value={row.categoryId}
-                                  disabled={(hasDomains && !row.domainId) || categories.length === 0 || isMoving}
+                                  disabled={(hasDomains && !row.domainId) || (categories.length === 0 && !extraCat) || isMoving}
                                   onChange={e => updateRow(idx, { categoryId: e.target.value, subCategoryId: '' })}
                                   className="w-full px-1 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
                                 >
                                   <option value="">Category…</option>
+                                  {extraCat && <option value={extraCat.id}>{extraCat.emoji ? `${extraCat.emoji} ` : ''}{extraCat.name}</option>}
                                   {filteredCats.map(c => (
                                     <option key={c.id} value={c.id}>{c.emoji ? `${c.emoji} ` : ''}{c.name}</option>
                                   ))}
@@ -731,16 +945,17 @@ export default function MoveWizardPage() {
                             <td className="px-3 py-2 min-w-[110px]">
                               {isMoved ? (
                                 <span className="text-gray-500 dark:text-gray-400">
-                                  {subCategories.find(c => c.id === row.subCategoryId)?.name || '—'}
+                                  {(subCategories.find(c => c.id === row.subCategoryId) ?? extraSub)?.name || '—'}
                                 </span>
                               ) : (
                                 <select
                                   value={row.subCategoryId}
-                                  disabled={!row.categoryId || filteredSubs.length === 0 || isMoving}
+                                  disabled={!row.categoryId || (filteredSubs.length === 0 && !extraSub) || isMoving}
                                   onChange={e => updateRow(idx, { subCategoryId: e.target.value })}
                                   className="w-full px-1 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
                                 >
-                                  <option value="">{!row.categoryId || filteredSubs.length === 0 ? 'N/A' : 'Sub-cat…'}</option>
+                                  <option value="">{!row.categoryId || (filteredSubs.length === 0 && !extraSub) ? 'N/A' : 'Sub-cat…'}</option>
+                                  {extraSub && <option value={extraSub.id}>{extraSub.emoji ? `${extraSub.emoji} ` : ''}{extraSub.name}</option>}
                                   {filteredSubs.map(c => (
                                     <option key={c.id} value={c.id}>{c.emoji ? `${c.emoji} ` : ''}{c.name}</option>
                                   ))}
@@ -773,7 +988,7 @@ export default function MoveWizardPage() {
                                           : 'bg-gray-100 border-gray-300 text-gray-500 hover:bg-blue-50 hover:text-blue-600 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-400'
                                       }`}
                                     >💡 Calc</button>
-                                    {selectedBusinessId && subCategories.length > 0 && (
+                                    {suggestAllSubs.length > 0 && (
                                       <button
                                         type="button"
                                         onClick={e => handleSuggest(idx, e)}
