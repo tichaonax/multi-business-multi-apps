@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/get-server-user'
 import { prisma } from '@/lib/prisma'
 
-export async function GET(req: NextRequest, { params }: { params: { batchId: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ batchId: string }> }) {
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -11,7 +11,7 @@ export async function GET(req: NextRequest, { params }: { params: { batchId: str
     const hasPermission = isAdmin || (user.permissions as any)?.canAccessWarehouse === true
     if (!hasPermission) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
 
-    const { batchId } = params
+    const { batchId } = await params
     const { searchParams } = new URL(req.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest, { params }: { params: { batchId: str
       ]
     }
 
-    const [items, totalItems] = await Promise.all([
+    const [prismaItems, totalItems] = await Promise.all([
       (prisma as any).warehouseItems.findMany({
         where,
         orderBy: [{ rowNumber: 'asc' }, { createdAt: 'asc' }],
@@ -49,21 +49,121 @@ export async function GET(req: NextRequest, { params }: { params: { batchId: str
       (prisma as any).warehouseItems.count({ where }),
     ])
 
+    // Enrich with new columns not in generated Prisma client + orderedQty from warehouse_order_refs
+    const itemIds: string[] = prismaItems.map((i: any) => i.id)
+    let itemExtras: Record<string, {
+      originalQty: number | null
+      originalPriceYuan: number | null
+      qtyChangeReason: string | null
+      manifestQty: number | null
+      orderedQty: number | null
+    }> = {}
+    if (itemIds.length > 0) {
+      const extras: any[] = await prisma.$queryRaw`
+        SELECT
+          wi.id,
+          wi."originalQty",
+          wi."originalPriceYuan",
+          wi."qtyChangeReason",
+          wi."manifestQty",
+          wor."orderedQty"
+        FROM warehouse_items wi
+        LEFT JOIN warehouse_order_refs wor
+          ON wor."orderNumber" = wi."orderNumber"
+         AND wor."trackingNumber" = COALESCE(wi."trackingNumber", '')
+        WHERE wi.id = ANY(${itemIds}::text[])
+      `
+      for (const e of extras) {
+        itemExtras[e.id] = {
+          originalQty: e.originalQty != null ? Number(e.originalQty) : null,
+          originalPriceYuan: e.originalPriceYuan != null ? Number(e.originalPriceYuan) : null,
+          qtyChangeReason: e.qtyChangeReason ?? null,
+          manifestQty: e.manifestQty != null ? Number(e.manifestQty) : null,
+          orderedQty: e.orderedQty != null ? Number(e.orderedQty) : null,
+        }
+      }
+    }
+    const items = prismaItems.map((i: any) => ({
+      ...i,
+      ...(itemExtras[i.id] ?? { originalQty: null, originalPriceYuan: null, qtyChangeReason: null, manifestQty: null, orderedQty: null }),
+    }))
+
     // Status counts for filter tabs (always count from the full batch)
-    const statusCounts = await (prisma as any).warehouseItems.groupBy({
-      by: ['status'],
-      where: { batchId },
-      _count: { id: true },
-    })
-    const personalCount = await (prisma as any).warehouseItems.count({ where: { batchId, isPersonal: true } })
+    const [statusCounts, personalCount, movedCostAgg] = await Promise.all([
+      (prisma as any).warehouseItems.groupBy({
+        by: ['status'],
+        where: { batchId },
+        _count: { id: true },
+      }),
+      (prisma as any).warehouseItems.count({ where: { batchId, isPersonal: true } }),
+      (prisma as any).warehouseItems.aggregate({
+        where: { batchId, status: 'MOVED_TO_BUSINESS' },
+        _sum: { costUsd: true },
+      }),
+    ])
     const countsMap: Record<string, number> = { PERSONAL: personalCount }
     for (const s of statusCounts) countsMap[s.status] = s._count.id
+    const movedToBusinessUsdCost = movedCostAgg._sum.costUsd != null ? Number(movedCostAgg._sum.costUsd) : null
 
     // Transport cost per item (eligible = IN_WAREHOUSE only)
     const inWarehouseCount = countsMap['IN_WAREHOUSE'] || 0
     const perItemTransport = (batch.pickedUpFromHarare && batch.transportCostHarare && inWarehouseCount > 0)
       ? Number(batch.transportCostHarare) / inWarehouseCount
       : 0
+
+    // Duplicate detection: find order numbers / tracking numbers in THIS batch
+    // that also appear in OTHER batches (informational only)
+    const batchItems = await (prisma as any).warehouseItems.findMany({
+      where: { batchId },
+      select: { orderNumber: true, trackingNumber: true },
+    })
+    const batchOrderNums = batchItems.map((i: any) => i.orderNumber).filter(Boolean)
+    const batchTrackNums = batchItems.map((i: any) => i.trackingNumber).filter(Boolean)
+
+    const [dupOrders, dupTracking] = await Promise.all([
+      batchOrderNums.length > 0
+        ? (prisma as any).warehouseItems.findMany({
+            where: { batchId: { not: batchId }, orderNumber: { in: batchOrderNums } },
+            select: { orderNumber: true },
+            distinct: ['orderNumber'],
+          })
+        : [],
+      batchTrackNums.length > 0
+        ? (prisma as any).warehouseItems.findMany({
+            where: { batchId: { not: batchId }, trackingNumber: { in: batchTrackNums } },
+            select: { trackingNumber: true },
+            distinct: ['trackingNumber'],
+          })
+        : [],
+    ])
+    const duplicateOrderNumbers: string[] = dupOrders.map((i: any) => i.orderNumber)
+    const duplicateTrackingNumbers: string[] = dupTracking.map((i: any) => i.trackingNumber)
+
+    // Lock status for each order/tracking number in this batch
+    const [orderLockRows, trackingLockRows] = await Promise.all([
+      batchOrderNums.length > 0
+        ? (prisma.$queryRaw`
+            SELECT "referenceValue", "isLocked", "autoLocked", "importedQty", "originalQty"
+            FROM warehouse_reference_locks
+            WHERE "referenceType" = 'ORDER' AND "referenceValue" = ANY(${batchOrderNums}::text[])
+          ` as Promise<any[]>)
+        : Promise.resolve([]),
+      batchTrackNums.length > 0
+        ? (prisma.$queryRaw`
+            SELECT "referenceValue", "isLocked", "autoLocked", "importedQty", "originalQty"
+            FROM warehouse_reference_locks
+            WHERE "referenceType" = 'TRACKING' AND "referenceValue" = ANY(${batchTrackNums}::text[])
+          ` as Promise<any[]>)
+        : Promise.resolve([]),
+    ])
+    const orderLockMap: Record<string, { isLocked: boolean; autoLocked: boolean; importedQty: number; originalQty: number | null }> = {}
+    for (const r of orderLockRows) {
+      orderLockMap[r.referenceValue] = { isLocked: r.isLocked, autoLocked: r.autoLocked, importedQty: Number(r.importedQty), originalQty: r.originalQty != null ? Number(r.originalQty) : null }
+    }
+    const trackingLockMap: Record<string, { isLocked: boolean; autoLocked: boolean; importedQty: number; originalQty: number | null }> = {}
+    for (const r of trackingLockRows) {
+      trackingLockMap[r.referenceValue] = { isLocked: r.isLocked, autoLocked: r.autoLocked, importedQty: Number(r.importedQty), originalQty: r.originalQty != null ? Number(r.originalQty) : null }
+    }
 
     return NextResponse.json({
       batch: {
@@ -85,6 +185,11 @@ export async function GET(req: NextRequest, { params }: { params: { batchId: str
       },
       items,
       statusCounts: countsMap,
+      movedToBusinessUsdCost,
+      duplicateOrderNumbers,
+      duplicateTrackingNumbers,
+      orderLockMap,
+      trackingLockMap,
       pagination: { page, limit, total: totalItems, pages: Math.ceil(totalItems / limit) },
     })
   } catch (error: any) {
@@ -93,7 +198,7 @@ export async function GET(req: NextRequest, { params }: { params: { batchId: str
   }
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { batchId: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ batchId: string }> }) {
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -102,7 +207,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { batchId: s
     const hasPermission = isAdmin || (user.permissions as any)?.canAccessWarehouse === true
     if (!hasPermission) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
 
-    const { batchId } = params
+    const { batchId } = await params
     const body = await req.json()
 
     const batch = await (prisma as any).warehouseBatches.findUnique({ where: { id: batchId } })
@@ -129,7 +234,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { batchId: s
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { batchId: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ batchId: string }> }) {
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -138,7 +243,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { batchId: 
     const hasPermission = isAdmin || (user.permissions as any)?.canAccessWarehouse === true
     if (!hasPermission) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
 
-    const { batchId } = params
+    const { batchId } = await params
 
     const batch = await (prisma as any).warehouseBatches.findUnique({ where: { id: batchId } })
     if (!batch) return NextResponse.json({ error: 'Batch not found' }, { status: 404 })

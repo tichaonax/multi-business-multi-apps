@@ -3607,6 +3607,7 @@ model Users {
   expense_account_accesses_granted                                ExpenseAccountUserAccess[]       @relation("ExpenseAccountAccessGrantor")
   warehouse_batches_imported                                      WarehouseBatches[]
   warehouse_items_moved                                           WarehouseItems[]                 @relation("WarehouseItemMover")
+  warehouse_reference_locks_locked                                WarehouseReferenceLocks[]        @relation("ReferenceLockUser")
 
   @@map("users")
 }
@@ -7275,6 +7276,9 @@ model WarehouseItems {
   manifestQty               Int?
   variantSpec               String?
   imageId                   String?
+  originalQty               Int?
+  originalPriceYuan         Decimal?          @db.Decimal(12, 2)
+  qtyChangeReason           String?
   isPersonal                Boolean           @default(false)
   status                    String            @default("IN_WAREHOUSE")
   businessProductId         String?
@@ -7292,4 +7296,39 @@ model WarehouseItems {
   @@index([orderNumber])
   @@index([status])
   @@map("warehouse_items")
+}
+
+model WarehouseReferenceLocks {
+  id             String    @id @default(uuid())
+  referenceType  String
+  referenceValue String
+  originalQty    Int?
+  importedQty    Int       @default(0)
+  isLocked       Boolean   @default(false)
+  autoLocked     Boolean   @default(false)
+  lockedAt       DateTime?
+  lockedById     String?
+  lockReason     String?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now()) @updatedAt
+  locked_by_user Users?    @relation("ReferenceLockUser", fields: [lockedById], references: [id])
+
+  @@unique([referenceType, referenceValue])
+  @@index([referenceValue])
+  @@index([referenceType, isLocked])
+  @@map("warehouse_reference_locks")
+}
+
+model WarehouseOrderRefs {
+  id             String   @id @default(uuid())
+  orderNumber    String
+  trackingNumber String   @default("")
+  orderedQty     Int      @default(0)
+  firstSeenAt    DateTime @default(now())
+
+  @@unique([orderNumber, trackingNumber])
+  @@index([orderNumber])
+  @@index([trackingNumber])
+  @@map("warehouse_order_refs")
 }

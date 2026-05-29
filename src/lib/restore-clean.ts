@@ -414,9 +414,11 @@ const RESTORE_ORDER = [
   // Audit logs (optional — only present when backup was created with includeAuditLogs=true)
   'auditLogs',          // Depends on users
 
-  // Warehouse staging (MBM-222)
-  'warehouseBatches',   // Depends on users (importedBy)
-  'warehouseItems',     // Depends on warehouseBatches, images (imageId), users (movedBy)
+  // Warehouse staging (MBM-222, MBM-225)
+  'warehouseBatches',       // Depends on users (importedBy)
+  'warehouseItems',         // Depends on warehouseBatches, images (imageId), users (movedBy)
+  'warehouseReferenceLocks', // Depends on users (lockedById)
+  'warehouseOrderRefs',      // No foreign key dependencies — standalone order/tracking max table
 ]
 
 /**
@@ -507,6 +509,12 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
 
   // Chat Message Recipients: composite unique on (messageId, userId)
   'chatMessageRecipients': { fields: ['messageId', 'userId'] },
+
+  // Warehouse Reference Locks: composite unique on (referenceType, referenceValue)
+  'warehouseReferenceLocks': { fields: ['referenceType', 'referenceValue'] },
+
+  // Warehouse Order Refs: composite unique on (orderNumber, trackingNumber)
+  'warehouseOrderRefs': { fields: ['orderNumber', 'trackingNumber'] },
 
   // Policy Management: composite unique constraints
   'policyVersions': { fields: ['policyId', 'version'] },             // @@unique([policyId, version])

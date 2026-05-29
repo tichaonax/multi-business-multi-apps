@@ -1460,6 +1460,8 @@ export async function createCleanBackup(
   businessData.warehouseItems = warehouseBatchIds.length > 0
     ? await (prisma as any).warehouseItems.findMany({ where: { batchId: { in: warehouseBatchIds } } })
     : []
+  businessData.warehouseReferenceLocks = await (prisma.$queryRaw`SELECT * FROM warehouse_reference_locks` as Promise<any[]>)
+  businessData.warehouseOrderRefs = await (prisma.$queryRaw`SELECT * FROM warehouse_order_refs` as Promise<any[]>)
 
   // Extend image backup: include warehouse item images + product_images imageId refs
   const warehouseImageIds = businessData.warehouseItems
@@ -1543,7 +1545,7 @@ export async function createCleanBackup(
       deviceRecords,
       uncompressedSize
     },
-    schemaVersion: '6.28.0',
+    schemaVersion: '6.30.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

@@ -50,6 +50,19 @@ interface WarehouseItem {
   personalExpenseId: string | null
   movedAt: string | null
   notes: string | null
+  originalQty: number | null        // original manifestQty before first edit
+  originalPriceYuan: number | null
+  qtyChangeReason: string | null
+  manifestQty: number | null        // received qty — editable
+  orderedQty: number | null         // ordered qty from warehouse_order_refs — read-only cap
+  updatedAt: string | null
+}
+
+interface LockInfo {
+  isLocked: boolean
+  autoLocked: boolean
+  importedQty: number
+  originalQty: number | null
 }
 
 type FilterTab = 'ALL' | 'IN_WAREHOUSE' | 'PERSONAL' | 'MOVED_TO_BUSINESS' | 'MOVED_TO_PERSONAL'
@@ -96,16 +109,19 @@ interface EditableCellProps {
   itemId: string
   field: 'costUsd' | 'exchangeRate'
   onSave: (itemId: string, field: string, value: number | null) => Promise<void>
+  suggestedValue?: number | null
 }
 
-function EditableCell({ value, itemId, field, onSave }: EditableCellProps) {
+function EditableCell({ value, itemId, field, onSave, suggestedValue }: EditableCellProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   function startEdit() {
-    setDraft(value != null ? String(value) : '')
+    // Pre-fill with suggestion when no value is set yet
+    const initial = value != null ? value : (suggestedValue ?? null)
+    setDraft(initial != null ? String(Number(initial).toFixed(field === 'costUsd' ? 2 : 4)) : '')
     setEditing(true)
     setTimeout(() => inputRef.current?.select(), 10)
   }
@@ -118,6 +134,11 @@ function EditableCell({ value, itemId, field, onSave }: EditableCellProps) {
     await onSave(itemId, field, next)
     setSaving(false)
     setEditing(false)
+  }
+
+  function formatDisplay(v: number): string {
+    if (field === 'costUsd') return `$${Number(v).toFixed(2)}`
+    return Number(v).toFixed(4)
   }
 
   if (editing) {
@@ -142,8 +163,14 @@ function EditableCell({ value, itemId, field, onSave }: EditableCellProps) {
       onClick={startEdit}
       className="cursor-pointer text-xs px-1.5 py-0.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400 transition-colors group"
     >
-      {value != null ? (field === 'costUsd' ? `$${Number(value).toFixed(2)}` : Number(value).toFixed(4)) : (
-        <span className="text-gray-300 dark:text-gray-600 group-hover:text-blue-400">click to set</span>
+      {value != null ? formatDisplay(value) : (
+        suggestedValue != null ? (
+          <span className="text-blue-400 dark:text-blue-500 italic group-hover:text-blue-600 dark:group-hover:text-blue-300">
+            ≈ {formatDisplay(suggestedValue)}
+          </span>
+        ) : (
+          <span className="text-gray-300 dark:text-gray-600 group-hover:text-blue-400">click to set</span>
+        )
       )}
     </span>
   )
@@ -203,6 +230,194 @@ function ShortNameCell({ shortName, productName, itemId, locked, onSave }: Short
       </div>
       <div className="text-xs text-gray-500 dark:text-gray-400 leading-snug line-clamp-3" title={productName}>{productName}</div>
     </div>
+  )
+}
+
+// Modal showing manifest qty change history
+function ManifestQtyChangeModal({ item, onClose }: { item: WarehouseItem; onClose: () => void }) {
+  const origManifest = item.originalQty   // stores pre-edit manifestQty
+  const origYuan = item.originalPriceYuan != null ? Number(item.originalPriceYuan) : null
+  const curManifest = item.manifestQty
+  const curYuan = item.priceYuan != null ? Number(item.priceYuan) : null
+  const reason = item.qtyChangeReason
+  const changedAt = item.updatedAt ? new Date(item.updatedAt).toLocaleString() : null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-5 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Manifest Qty Change Record</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="space-y-3 text-sm">
+          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 space-y-2">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Before edit</p>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-600 dark:text-gray-400">Manifest Qty</span>
+              <span className="font-mono font-medium text-gray-900 dark:text-white">{origManifest ?? '—'}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-600 dark:text-gray-400">¥ Price</span>
+              <span className="font-mono font-medium text-gray-900 dark:text-white">{origYuan != null ? `¥${origYuan.toFixed(2)}` : '—'}</span>
+            </div>
+          </div>
+          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 space-y-2">
+            <p className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wider">Current</p>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-600 dark:text-gray-400">Manifest Qty</span>
+              <span className="font-mono font-medium text-gray-900 dark:text-white">{curManifest ?? '—'}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-gray-600 dark:text-gray-400">¥ Price</span>
+              <span className="font-mono font-medium text-gray-900 dark:text-white">{curYuan != null ? `¥${curYuan.toFixed(2)}` : '—'}</span>
+            </div>
+          </div>
+          {reason && (
+            <div className="border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-400 mb-1">Reason</p>
+              <p className="text-gray-800 dark:text-gray-200 text-xs">{reason}</p>
+            </div>
+          )}
+          {changedAt && <p className="text-xs text-gray-400 text-right">Last edited {changedAt}</p>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Manifest Qty cell — editable received qty, capped at orderedQty, with change tracking
+interface ManifestQtyCellProps {
+  item: WarehouseItem
+  onSave: (itemId: string, field: string, value: any) => Promise<void>
+  locked: boolean
+}
+
+function ManifestQtyCell({ item, onSave, locked }: ManifestQtyCellProps) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [reason, setReason] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [showModal, setShowModal] = useState(false)
+  const [validationError, setValidationError] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const hasEdit = item.originalQty != null   // originalQty stores pre-edit manifestQty
+  const maxQty = item.orderedQty ?? undefined
+  const currentManifest = item.manifestQty
+
+  const isUnknown = currentManifest == null
+
+  function startEdit() {
+    if (locked) return
+    setDraft(currentManifest != null ? String(currentManifest) : '0')
+    setReason(item.qtyChangeReason || '')
+    setValidationError('')
+    setEditing(true)
+    setTimeout(() => inputRef.current?.select(), 10)
+  }
+
+  async function commit() {
+    const v = draft === '' ? null : parseInt(draft, 10)
+    const newVal = v === null || isNaN(v) || v < 0 ? null : v
+    if (newVal === currentManifest) { setEditing(false); return }
+    if (newVal === null) { setValidationError('Enter a valid number (0 or more)'); return }
+    if (maxQty !== undefined && newVal > maxQty) {
+      setValidationError(`Max is ${maxQty} (ordered qty for this tracking)`)
+      return
+    }
+    setValidationError('')
+    setSaving(true)
+    await onSave(item.id, 'manifestQty', { manifestQty: newVal, qtyChangeReason: reason.trim() || null })
+    setSaving(false)
+    setEditing(false)
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit() }
+    if (e.key === 'Escape') setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div className="flex flex-col gap-1 min-w-[110px]">
+        <div className="flex items-center gap-1">
+          <input
+            ref={inputRef}
+            type="number"
+            min={0}
+            max={maxQty}
+            step="1"
+            value={draft}
+            onChange={e => { setDraft(e.target.value); setValidationError('') }}
+            onKeyDown={handleKeyDown}
+            className={`w-16 px-1 py-0.5 border rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none ${validationError ? 'border-red-400' : 'border-green-400'}`}
+            disabled={saving}
+            autoFocus
+          />
+          {maxQty !== undefined && (
+            <span className="text-[10px] text-gray-400">/ {maxQty}</span>
+          )}
+        </div>
+        {validationError && <span className="text-[10px] text-red-500 leading-none">{validationError}</span>}
+        <input
+          type="text"
+          placeholder="Reason…"
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className="w-full px-1.5 py-0.5 border border-amber-300 dark:border-amber-700 rounded text-[10px] bg-amber-50 dark:bg-amber-900/20 text-gray-800 dark:text-gray-200 placeholder-gray-400 focus:outline-none focus:border-amber-500"
+          disabled={saving}
+        />
+        <div className="flex gap-1">
+          <button onClick={commit} disabled={saving} className="px-2 py-0.5 bg-green-600 text-white rounded text-[10px] font-medium hover:bg-green-700 disabled:opacity-50">
+            {saving ? '…' : 'Save'}
+          </button>
+          <button onClick={() => setEditing(false)} className="px-2 py-0.5 text-gray-500 hover:text-gray-700 text-[10px]">Cancel</button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <div className="flex flex-col gap-0.5">
+        {/* Original manifest qty — shown after first edit */}
+        {hasEdit && (
+          <button
+            onClick={() => setShowModal(true)}
+            title="Click to see change details"
+            className="text-[10px] text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400 font-mono leading-none text-left"
+          >
+            orig: {item.originalQty}
+          </button>
+        )}
+        {/* Current manifest qty — click to edit */}
+        {isUnknown ? (
+          <span
+            onClick={locked ? undefined : startEdit}
+            className={`inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium ${locked ? 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-900/60'}`}
+            title={locked ? 'Unknown manifest qty' : 'Click to enter received qty'}
+          >
+            ⚠ unknown
+          </span>
+        ) : (
+          <span
+            onClick={locked ? undefined : startEdit}
+            className={`font-mono text-xs leading-none ${locked ? 'text-gray-500 dark:text-gray-400' : 'cursor-pointer text-gray-900 dark:text-white hover:text-green-600 dark:hover:text-green-400'}`}
+          >
+            {currentManifest}
+            {maxQty !== undefined && currentManifest === 0 && !locked && (
+              <span className="ml-1 text-[10px] text-amber-500">not received</span>
+            )}
+          </span>
+        )}
+      </div>
+      {showModal && <ManifestQtyChangeModal item={item} onClose={() => setShowModal(false)} />}
+    </>
   )
 }
 
@@ -368,12 +583,19 @@ export default function BatchDetailPage() {
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<FilterTab>('ALL')
+  const [manifestFilter, setManifestFilter] = useState<'ALL' | 'ZERO' | 'RECEIVED'>('ALL')
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [showMoved, setShowMoved] = useState(false)
+  const [movedToBusinessUsdCost, setMovedToBusinessUsdCost] = useState<number | null>(null)
+  const [dupOrderNumbers, setDupOrderNumbers] = useState<Set<string>>(new Set())
+  const [dupTrackingNumbers, setDupTrackingNumbers] = useState<Set<string>>(new Set())
+  const [orderLockMap, setOrderLockMap] = useState<Record<string, LockInfo>>({})
+  const [trackingLockMap, setTrackingLockMap] = useState<Record<string, LockInfo>>({})
   const [showScanPanel, setShowScanPanel] = useState(false)
   const [personalPanelOpen, setPersonalPanelOpen] = useState(false)
   const [personalItems, setPersonalItems] = useState<WarehouseItem[]>([])
@@ -390,6 +612,7 @@ export default function BatchDetailPage() {
   }, [searchInput])
 
   useEffect(() => { setPage(1) }, [tab, search])
+  useEffect(() => { setManifestFilter('ALL') }, [tab])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -404,6 +627,11 @@ export default function BatchDetailPage() {
         setBatch(data.batch)
         setItems(data.items || [])
         setStatusCounts(data.statusCounts || {})
+        setMovedToBusinessUsdCost(data.movedToBusinessUsdCost ?? null)
+        setDupOrderNumbers(new Set(data.duplicateOrderNumbers ?? []))
+        setDupTrackingNumbers(new Set(data.duplicateTrackingNumbers ?? []))
+        setOrderLockMap(data.orderLockMap ?? {})
+        setTrackingLockMap(data.trackingLockMap ?? {})
         setTotalPages(data.pagination?.pages || 1)
         setTotalItems(data.pagination?.total || 0)
       } else {
@@ -434,15 +662,20 @@ export default function BatchDetailPage() {
 
   async function patchItem(itemId: string, field: string, value: any) {
     try {
+      // ManifestQtyCell passes an object with {manifestQty, qtyChangeReason}; other fields pass the value directly
+      const body = field === 'manifestQty' && typeof value === 'object' && value !== null
+        ? value
+        : { [field]: value }
       const res = await fetch(`/api/warehouse/items/${itemId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ [field]: value }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
       if (!res.ok) { toast.error(data.error || 'Save failed'); return }
-      setItems(prev => prev.map(i => i.id === itemId ? { ...i, [field]: data.item[field] } : i))
+      // Merge all returned fields back into item state
+      setItems(prev => prev.map(i => i.id === itemId ? { ...i, ...data.item } : i))
     } catch {
       toast.error('Save failed')
     }
@@ -590,8 +823,30 @@ export default function BatchDetailPage() {
   const totalMoved = (statusCounts['MOVED_TO_BUSINESS'] || 0) + (statusCounts['MOVED_TO_PERSONAL'] || 0)
   const progress = batch ? Math.round((totalMoved / Math.max(batch.rowCount, 1)) * 100) : 0
   const perItemTransport = batch?.perItemTransport ?? 0
-  const selectableItems = items.filter(i => i.status === 'IN_WAREHOUSE')
+  // Hide moved-to-business rows by default; when shown they sort to the top
+  // baseItems = tab-filtered only (used for pill counts)
+  const baseItems = (() => {
+    if (tab === 'ALL' && !showMoved) return items.filter(i => i.status !== 'MOVED_TO_BUSINESS')
+    if (tab === 'ALL' && showMoved) {
+      const moved = items.filter(i => i.status === 'MOVED_TO_BUSINESS')
+      const rest = items.filter(i => i.status !== 'MOVED_TO_BUSINESS')
+      return [...moved, ...rest]
+    }
+    return items
+  })()
+  const manifestCounts = {
+    ALL: baseItems.length,
+    ZERO: baseItems.filter(i => i.manifestQty == null || i.manifestQty === 0).length,
+    RECEIVED: baseItems.filter(i => i.manifestQty != null && i.manifestQty > 0).length,
+  }
+  const displayItems = (() => {
+    if (manifestFilter === 'ZERO') return baseItems.filter(i => i.manifestQty == null || i.manifestQty === 0)
+    if (manifestFilter === 'RECEIVED') return baseItems.filter(i => i.manifestQty != null && i.manifestQty > 0)
+    return baseItems
+  })()
+  const selectableItems = displayItems.filter(i => i.status === 'IN_WAREHOUSE')
   const allSelectableSelected = selectableItems.length > 0 && selectableItems.every(i => selected.has(i.id))
+  const movedCount = statusCounts['MOVED_TO_BUSINESS'] || 0
 
   if (!batch && loading) {
     return (
@@ -627,6 +882,16 @@ export default function BatchDetailPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-4 flex-wrap text-sm">
+                    <Link
+                      href="/warehouse/reference-locks"
+                      className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                      title="Manage locked order/tracking references"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                      </svg>
+                      Manage Locks
+                    </Link>
                     {batch.totalUsdCost != null && (
                       <div>
                         <span className="text-gray-500">Total USD</span>
@@ -724,9 +989,11 @@ export default function BatchDetailPage() {
             {batch && (() => {
               const eligibleSelected = items.filter(i => selected.has(i.id) && !i.isPersonal && i.status === 'IN_WAREHOUSE')
               const missingCost = eligibleSelected.some(i => i.costUsd == null)
-              const disabled = eligibleSelected.length === 0 || missingCost
+              const missingManifest = eligibleSelected.some(i => i.manifestQty == null || i.manifestQty === 0)
+              const disabled = eligibleSelected.length === 0 || missingCost || missingManifest
               const title = eligibleSelected.length === 0
                 ? 'Select at least one non-personal item'
+                : missingManifest ? 'All selected items must have Manifest Qty set'
                 : missingCost ? 'All selected items must have a cost price set' : undefined
               return (
                 <button
@@ -866,7 +1133,7 @@ export default function BatchDetailPage() {
             </div>
           )}
 
-          {/* Filter tabs */}
+          {/* Filter tabs + moved-to-business summary */}
           <div className="flex items-center gap-1 border-b border-gray-200 dark:border-gray-700">
             {TABS.map(t => {
               const count = t.key === 'ALL'
@@ -886,13 +1153,86 @@ export default function BatchDetailPage() {
                 </button>
               )
             })}
+
+            {/* Moved-to-business summary pill — only shown on ALL tab */}
+            {tab === 'ALL' && movedCount > 0 && (
+              <label className="ml-auto flex items-center gap-2 cursor-pointer pb-1 select-none">
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  {movedCount} in business
+                  {movedToBusinessUsdCost != null && (
+                    <span className="ml-0.5 font-semibold">${movedToBusinessUsdCost.toFixed(2)}</span>
+                  )}
+                </span>
+                <span className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={showMoved}
+                    onChange={e => setShowMoved(e.target.checked)}
+                    className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                  />
+                  Show
+                </span>
+              </label>
+            )}
           </div>
+
+          {/* Manifest Qty filter pills */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-500 dark:text-gray-400">Manifest Qty:</span>
+            {([
+              { key: 'ALL', label: 'All' },
+              { key: 'ZERO', label: '= 0 / unknown' },
+              { key: 'RECEIVED', label: '> 0 received' },
+            ] as const).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setManifestFilter(key)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                  manifestFilter === key
+                    ? key === 'ZERO'
+                      ? 'bg-amber-500 text-white'
+                      : key === 'RECEIVED'
+                        ? 'bg-green-600 text-white'
+                        : 'bg-gray-700 text-white dark:bg-gray-300 dark:text-gray-900'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                {label}
+                <span className={`text-[10px] px-1 py-0.5 rounded-full font-mono leading-none ${
+                  manifestFilter === key
+                    ? 'bg-black/20 text-white'
+                    : 'bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-400'
+                }`}>
+                  {manifestCounts[key]}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Duplicate order/tracking warning banner */}
+          {(dupOrderNumbers.size > 0 || dupTrackingNumbers.size > 0) && (
+            <div className="flex items-start gap-2 px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg text-sm text-amber-800 dark:text-amber-300">
+              <span className="text-base leading-none mt-0.5">⚠️</span>
+              <div>
+                <span className="font-medium">Duplicate reference numbers found in other batches — informational only.</span>
+                <span className="ml-1 text-amber-700 dark:text-amber-400">
+                  {dupOrderNumbers.size > 0 && `${dupOrderNumbers.size} order number${dupOrderNumbers.size > 1 ? 's' : ''}`}
+                  {dupOrderNumbers.size > 0 && dupTrackingNumbers.size > 0 && ' and '}
+                  {dupTrackingNumbers.size > 0 && `${dupTrackingNumbers.size} tracking number${dupTrackingNumbers.size > 1 ? 's' : ''}`}
+                  {' '}also exist in other batches. Different products can be delivered at different times. Rows are marked below.
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Items table */}
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
             {loading ? (
               <div className="p-8 text-center text-gray-500">Loading items…</div>
-            ) : items.length === 0 ? (
+            ) : displayItems.length === 0 ? (
               <div className="p-8 text-center text-gray-500">No items match the current filter.</div>
             ) : (
               <>
@@ -912,6 +1252,7 @@ export default function BatchDetailPage() {
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider min-w-[240px]">Short Name / Product</th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Order #</th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Qty</th>
+                        <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Manifest Qty</th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">¥ Price</th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Cost $</th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Rate</th>
@@ -924,23 +1265,35 @@ export default function BatchDetailPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                      {items.map(item => {
+                      {displayItems.map(item => {
                         const costUsd = item.costUsd != null ? Number(item.costUsd) : null
+                        // Row rate takes priority over bulk rate from toolbar
+                        const effectiveRate = item.exchangeRate != null ? Number(item.exchangeRate) : (bulkRate ? parseFloat(bulkRate) : null)
+                        // Suggested cost = total priceYuan / rate (only when cost not yet set)
+                        const suggestedCost = (costUsd == null && item.priceYuan != null && effectiveRate != null && effectiveRate > 0)
+                          ? Number(item.priceYuan) / effectiveRate
+                          : null
                         const itemQty = item.quantity || 1
                         const costUsdPerUnit = costUsd != null ? costUsd / itemQty : null
                         const txFee = costUsdPerUnit != null && batch.transactionFeePct != null ? costUsdPerUnit * (Number(batch.transactionFeePct) / 100) : 0
                         const costPrice = costUsdPerUnit != null ? costUsdPerUnit + txFee + perItemTransport / itemQty : null
                         const calcSell = costPrice != null ? costPrice * 1.3 : null
                         const isLocked = item.status === 'MOVED_TO_BUSINESS' || item.status === 'MOVED_TO_PERSONAL'
+                        const isDupOrder = dupOrderNumbers.has(item.orderNumber)
+                        const isDupTracking = item.trackingNumber ? dupTrackingNumbers.has(item.trackingNumber) : false
+                        const hasDup = isDupOrder || isDupTracking
+                        const orderLock = orderLockMap[item.orderNumber]
+                        const refIsLocked = orderLock?.isLocked ?? false
 
                         return (
-                          <tr key={item.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${isLocked ? 'opacity-70' : ''} ${item.isPersonal && !isLocked ? 'bg-purple-50 dark:bg-purple-900/20' : ''} ${selected.has(item.id) ? 'bg-blue-100 dark:bg-blue-900' : ''}`}>
+                          <tr key={item.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${item.status === 'MOVED_TO_BUSINESS' ? 'bg-emerald-50/60 dark:bg-emerald-900/10 opacity-80' : ''} ${item.isPersonal && !isLocked ? 'bg-purple-50 dark:bg-purple-900/20' : ''} ${selected.has(item.id) ? 'bg-blue-100 dark:bg-blue-900' : ''}`}>
                             <td className="px-3 py-2">
                               <input
                                 type="checkbox"
                                 checked={selected.has(item.id)}
-                                disabled={isLocked}
+                                disabled={isLocked || (!isLocked && item.status === 'IN_WAREHOUSE' && (item.manifestQty == null || item.manifestQty === 0))}
                                 onChange={() => toggleSelect(item.id)}
+                                title={(!isLocked && item.status === 'IN_WAREHOUSE' && (item.manifestQty == null || item.manifestQty === 0)) ? 'Set Manifest Qty before selecting' : undefined}
                                 className="rounded disabled:opacity-30 disabled:cursor-not-allowed"
                               />
                             </td>
@@ -956,18 +1309,59 @@ export default function BatchDetailPage() {
                                 onSave={patchItem}
                               />
                             </td>
-                            <td className="px-3 py-2 font-mono text-gray-600 dark:text-gray-400 max-w-[140px] truncate" title={item.orderNumber}>
-                              {item.orderNumber}
+                            <td className="px-3 py-2 font-mono text-gray-600 dark:text-gray-400 max-w-[140px]" title={item.orderNumber}>
+                              <span className="truncate block">{item.orderNumber}</span>
+                              <div className="flex flex-wrap gap-0.5 mt-0.5">
+                                {hasDup && (
+                                  <span
+                                    title={`Also appears in another batch${isDupOrder ? ` (order #${item.orderNumber})` : ''}${isDupTracking ? ` (tracking ${item.trackingNumber})` : ''} — informational only`}
+                                    className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 cursor-help"
+                                  >
+                                    ⚠ also in another batch
+                                  </span>
+                                )}
+                                {refIsLocked && (
+                                  <span
+                                    title={orderLock?.autoLocked ? 'Auto-locked: all ordered qty received' : 'Manually locked — cannot be imported again'}
+                                    className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400 cursor-help"
+                                  >
+                                    🔒 locked
+                                  </span>
+                                )}
+                                {!refIsLocked && orderLock && orderLock.originalQty != null && (
+                                  <span
+                                    title={`${orderLock.importedQty} of ${orderLock.originalQty} units received`}
+                                    className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 cursor-help"
+                                  >
+                                    {orderLock.importedQty}/{orderLock.originalQty} rcvd
+                                  </span>
+                                )}
+                              </div>
                             </td>
-                            <td className="px-3 py-2 text-gray-900 dark:text-white text-center">
+                            <td className="px-3 py-2 font-mono text-gray-600 dark:text-gray-400 text-xs">
                               {item.quantity ?? '—'}
                             </td>
+                            <td className="px-3 py-2">
+                              <ManifestQtyCell item={item} onSave={patchItem} locked={isLocked} />
+                            </td>
                             <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
-                              {item.priceYuan != null ? `¥${Number(item.priceYuan).toFixed(2)}` : '—'}
+                              {/* Stacked: show original above if qty was changed */}
+                              {item.originalPriceYuan != null ? (
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="text-[10px] text-gray-400 dark:text-gray-500 font-mono leading-none">
+                                    orig: ¥{Number(item.originalPriceYuan).toFixed(2)}
+                                  </span>
+                                  <span className="text-xs font-mono text-gray-800 dark:text-gray-200 leading-none">
+                                    {item.priceYuan != null ? `¥${Number(item.priceYuan).toFixed(2)}` : '—'}
+                                  </span>
+                                </div>
+                              ) : (
+                                item.priceYuan != null ? `¥${Number(item.priceYuan).toFixed(2)}` : '—'
+                              )}
                             </td>
                             <td className="px-3 py-2">
                               {item.status === 'IN_WAREHOUSE' ? (
-                                <EditableCell value={costUsd} itemId={item.id} field="costUsd" onSave={patchItem} />
+                                <EditableCell value={costUsd} itemId={item.id} field="costUsd" onSave={patchItem} suggestedValue={suggestedCost} />
                               ) : (
                                 <span className="text-gray-600 dark:text-gray-400">{costUsd != null ? `$${costUsd.toFixed(2)}` : '—'}</span>
                               )}
@@ -1030,7 +1424,7 @@ export default function BatchDetailPage() {
                 {/* Pagination */}
                 {totalPages > 1 && (
                   <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between text-xs text-gray-500">
-                    <span>Showing {items.length} of {totalItems}</span>
+                    <span>Showing {displayItems.length} of {totalItems}{tab === 'ALL' && !showMoved && movedCount > 0 ? ` (${movedCount} moved hidden)` : ''}</span>
                     <div className="flex items-center gap-2">
                       <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-2 py-1 rounded border border-gray-200 dark:border-gray-700 disabled:opacity-40">Prev</button>
                       <span>{page} / {totalPages}</span>

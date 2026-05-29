@@ -233,9 +233,11 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'contractorCategories',
   'payeeCategoryGroups',
   'payeeCategories',
-  // Warehouse staging tables — no businessId column (MBM-222)
+  // Warehouse staging tables — no businessId column (MBM-222/224/225)
   'warehouseBatches',
   'warehouseItems',
+  'warehouseReferenceLocks',
+  'warehouseOrderRefs',
   // User/permission tables — no businessId column
   'users',
   'accounts',

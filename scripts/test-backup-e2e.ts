@@ -78,6 +78,10 @@ const NEW_TABLE_KEYS = [
   'payeeCategoryGroups', 'payeeCategories',
   // Warehouse Import (MBM-222)
   'warehouseBatches', 'warehouseItems',
+  // Warehouse Reference Locking (MBM-224)
+  'warehouseReferenceLocks',
+  // Warehouse Order Refs / Manifest Qty (MBM-225)
+  'warehouseOrderRefs',
 ]
 
 async function main() {

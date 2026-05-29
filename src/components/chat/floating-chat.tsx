@@ -520,7 +520,7 @@ export function FloatingChat() {
     const onlineNow = allUsers.filter(u => u.online)
     const onlineCount = onlineNow.length
     return (
-      <div className="fixed bottom-20 right-6 z-[9998]">
+      <div className="fixed bottom-28 right-6 z-[9998]">
         {/* Hover tooltip: who's online */}
         {showOnlineTooltip && onlineCount > 0 && (
           <div className="absolute bottom-full right-0 mb-2 bg-white dark:bg-gray-800 border border-border rounded-xl shadow-lg p-3 w-48 pointer-events-none">

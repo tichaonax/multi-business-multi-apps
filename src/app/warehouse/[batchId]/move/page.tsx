@@ -27,7 +27,8 @@ interface WarehouseItem {
   orderNumber: string
   productName: string
   shortName: string | null
-  quantity: number | null
+  quantity: number | null       // ordered qty — read-only
+  manifestQty: number | null    // received qty — used for stock
   costUsd: number | null
   imageId: string | null
   isPersonal: boolean
@@ -462,7 +463,7 @@ export default function MoveWizardPage() {
       const saved = savedState[item.id] || {}
       if (existing?.status === 'moved') return existing
       const costUsd = item.costUsd != null ? Number(item.costUsd) : 0
-      const qty = item.quantity || 1
+      const qty = item.manifestQty ?? item.quantity ?? 1
       const costUsdPerUnit = costUsd / qty
       const txFee = item.costUsd != null ? costUsdPerUnit * (feePct / 100) : 0
       const transportPerUnit = (batch?.perItemTransport || 0) / qty
@@ -526,7 +527,7 @@ export default function MoveWizardPage() {
     setRows(prev => prev.map(r => {
       if (r.status === 'moved') return r
       const costUsd = r.item.costUsd != null ? Number(r.item.costUsd) : 0
-      const qty = r.item.quantity || 1
+      const qty = r.item.manifestQty ?? r.item.quantity ?? 1
       const costUsdPerUnit = costUsd / qty
       const txFee = r.item.costUsd != null ? costUsdPerUnit * (feePct / 100) : 0
       const itemTransportPerUnit = (r.transportOverride !== '' ? parseFloat(r.transportOverride) || 0 : (batch?.perItemTransport || 0)) / qty
@@ -799,7 +800,7 @@ export default function MoveWizardPage() {
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                     {rows.map((row, idx) => {
                       const costUsd = row.item.costUsd != null ? Number(row.item.costUsd) : 0
-                      const qty = row.item.quantity || 1
+                      const qty = row.item.manifestQty ?? row.item.quantity ?? 1
                       const costUsdPerUnit = costUsd / qty
                       const itemTransportPerUnit = (row.transportOverride !== '' ? parseFloat(row.transportOverride) || 0 : perItemTransport) / qty
                       const txFeePerUnit = row.item.costUsd != null && transactionFeePct != null ? costUsdPerUnit * (transactionFeePct / 100) : 0
@@ -872,8 +873,13 @@ export default function MoveWizardPage() {
                             {/* Order # */}
                             <td className="px-3 py-2 font-mono text-gray-500 max-w-[100px] truncate">{row.item.orderNumber}</td>
 
-                            {/* Qty */}
-                            <td className="px-3 py-2 text-center text-gray-900 dark:text-white">{row.item.quantity ?? 1}</td>
+                            {/* Qty — shows manifest (received) qty */}
+                            <td className="px-3 py-2 text-center text-gray-900 dark:text-white">
+                              {row.item.manifestQty ?? <span className="text-amber-500">?</span>}
+                              {row.item.quantity != null && row.item.quantity !== row.item.manifestQty && (
+                                <span className="block text-[10px] text-gray-400">ord: {row.item.quantity}</span>
+                              )}
+                            </td>
 
                             {/* Cost USD */}
                             <td className="px-3 py-2 text-gray-600 dark:text-gray-400">

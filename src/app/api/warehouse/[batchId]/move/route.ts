@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/get-server-user'
 import { prisma } from '@/lib/prisma'
+import { recalcAndAutoLock } from '@/lib/warehouse-auto-lock'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ batchId: string }> }) {
   try {
@@ -43,6 +44,55 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
       return NextResponse.json({ error: 'No eligible IN_WAREHOUSE items found' }, { status: 400 })
     }
 
+    // Fetch manifestQty via raw SQL (column not in generated Prisma client)
+    const manifestRows: any[] = await prisma.$queryRaw`
+      SELECT id, "manifestQty" FROM warehouse_items WHERE id = ANY(${itemIds}::text[])
+    `
+    const manifestMap: Record<string, number | null> = {}
+    for (const r of manifestRows) {
+      manifestMap[r.id] = r.manifestQty != null ? Number(r.manifestQty) : null
+    }
+
+    // Block if any item has null or 0 manifestQty
+    const missingManifest = warehouseItems.find((i: any) => {
+      const mq = manifestMap[i.id]
+      return mq == null || mq === 0
+    })
+    if (missingManifest) {
+      const mq = manifestMap[missingManifest.id]
+      return NextResponse.json({
+        error: `Item "${missingManifest.shortName || missingManifest.orderNumber}" has ${mq == null ? 'unknown' : 'zero'} Manifest Qty — set the received quantity before moving`
+      }, { status: 400 })
+    }
+
+    // ORDER MAX check: for each unique orderNumber, verify total doesn't exceed the order max
+    const uniqueOrderNumbers = [...new Set<string>(warehouseItems.map((i: any) => i.orderNumber).filter(Boolean))]
+    for (const orderNumber of uniqueOrderNumbers) {
+      const orderMaxRows: any[] = await prisma.$queryRaw`
+        SELECT COALESCE(SUM("orderedQty"), 0) AS "orderMax"
+        FROM warehouse_order_refs WHERE "orderNumber" = ${orderNumber}
+      `
+      const orderMax = orderMaxRows.length > 0 ? Number(orderMaxRows[0].orderMax) : 0
+      if (orderMax === 0) continue   // no ref data — skip check
+
+      const alreadyMovedRows: any[] = await prisma.$queryRaw`
+        SELECT COALESCE(SUM("manifestQty"), 0) AS "moved"
+        FROM warehouse_items
+        WHERE "orderNumber" = ${orderNumber} AND status = 'MOVED_TO_BUSINESS'
+      `
+      const alreadyMoved = alreadyMovedRows.length > 0 ? Number(alreadyMovedRows[0].moved) : 0
+      const aboutToMove = warehouseItems
+        .filter((i: any) => i.orderNumber === orderNumber)
+        .reduce((sum: number, i: any) => sum + (manifestMap[i.id] ?? 0), 0)
+
+      if (alreadyMoved + aboutToMove > orderMax) {
+        const remaining = Math.max(0, orderMax - alreadyMoved)
+        return NextResponse.json({
+          error: `Order #${orderNumber}: ${alreadyMoved} unit(s) already processed. Moving these items would add ${aboutToMove} more, exceeding the order max of ${orderMax}. Max remaining: ${remaining}`
+        }, { status: 400 })
+      }
+    }
+
     const movedAt = new Date()
     const results: Array<{ itemId: string; productId: string; sku: string }> = []
 
@@ -51,7 +101,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
       if (!move) continue
 
       const itemCategoryId = move.categoryId || globalCategoryId
-      const qty = warehouseItem.quantity || 1
+      // Use manifestQty (received qty) for stock — this is what physically arrived
+      const qty = manifestMap[warehouseItem.id] ?? warehouseItem.quantity ?? 1
       const costUsdPerUnit = Number(warehouseItem.costUsd || 0) / qty
       const transportPerUnit = perItemTransport / qty
       const txFeePerUnit = batch.transactionFeePct ? costUsdPerUnit * (Number(batch.transactionFeePct) / 100) : 0
@@ -91,7 +142,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
             sku: `${sku}-V1`,
             barcode: move.barcode || null,
             price: sellingPrice,
-            stockQuantity: warehouseItem.quantity || 1,
+            stockQuantity: qty,
             reorderLevel: 0,
             isActive: true,
             isAvailable: true,
@@ -107,7 +158,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
             businessProductId: product.id,
             productVariantId: variant.id,
             movementType: 'PURCHASE_RECEIVED',
-            quantity: warehouseItem.quantity || 1,
+            quantity: qty,
             unitCost: costPrice > 0 ? costPrice : null,
             reference: warehouseItem.id,
             reason: `Warehouse import — ${batch.batchName}`,
@@ -159,6 +210,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
         results.push({ itemId: warehouseItem.id, productId: product.id, sku })
       })
     }
+
+    // Trigger auto-lock evaluation for all moved references
+    const movedOrderNums = warehouseItems.map((i: any) => i.orderNumber).filter(Boolean)
+    const movedTrackNums = warehouseItems.map((i: any) => i.trackingNumber).filter(Boolean)
+    await recalcAndAutoLock(prisma as any, movedOrderNums, movedTrackNums)
 
     return NextResponse.json({
       success: true,

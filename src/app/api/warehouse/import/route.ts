@@ -272,6 +272,35 @@ export async function POST(req: NextRequest) {
 
     const mergedRows = orderedPrimaries.map(k => primaryMap.get(k)!).filter(Boolean)
 
+    // Hard-block locked references before doing anything else
+    const allOrderNums = mergedRows.map(r => r.orderNumber).filter(Boolean)
+    const allTrackNums = mergedRows.map(r => r.trackingNumber).filter(Boolean) as string[]
+
+    if (allOrderNums.length > 0) {
+      const lockedOrders: any[] = await prisma.$queryRaw`
+        SELECT "referenceValue", "lockReason" FROM warehouse_reference_locks
+        WHERE "referenceType" = 'ORDER' AND "referenceValue" = ANY(${allOrderNums}::text[]) AND "isLocked" = true
+      `
+      if (lockedOrders.length > 0) {
+        return NextResponse.json({
+          error: 'Import blocked — some order numbers are locked and cannot be re-imported',
+          lockedOrders: lockedOrders.map((l: any) => l.referenceValue),
+        }, { status: 409 })
+      }
+    }
+    if (allTrackNums.length > 0) {
+      const lockedTracking: any[] = await prisma.$queryRaw`
+        SELECT "referenceValue", "lockReason" FROM warehouse_reference_locks
+        WHERE "referenceType" = 'TRACKING' AND "referenceValue" = ANY(${allTrackNums}::text[]) AND "isLocked" = true
+      `
+      if (lockedTracking.length > 0) {
+        return NextResponse.json({
+          error: 'Import blocked — some tracking numbers are locked and cannot be re-imported',
+          lockedTracking: lockedTracking.map((l: any) => l.referenceValue),
+        }, { status: 409 })
+      }
+    }
+
     // Order number dedup check
     const orderNumbers = mergedRows.map(r => r.orderNumber)
     const existingItems = await (prisma as any).warehouseItems.findMany({
@@ -365,6 +394,35 @@ export async function POST(req: NextRequest) {
         WHERE id = ${created.id}
       `
       createdCount++
+    }
+
+    // Upsert lock records for every new order# and tracking# (importedQty stays 0 until moved)
+    for (const row of mergedRows) {
+      await prisma.$executeRaw`
+        INSERT INTO warehouse_reference_locks ("referenceType", "referenceValue")
+        VALUES ('ORDER', ${row.orderNumber})
+        ON CONFLICT ("referenceType", "referenceValue") DO NOTHING
+      `
+      if (row.trackingNumber) {
+        await prisma.$executeRaw`
+          INSERT INTO warehouse_reference_locks ("referenceType", "referenceValue")
+          VALUES ('TRACKING', ${row.trackingNumber})
+          ON CONFLICT ("referenceType", "referenceValue") DO NOTHING
+        `
+      }
+    }
+
+    // Upsert warehouse_order_refs — one row per unique (orderNumber, trackingNumber) combo.
+    // ON CONFLICT DO NOTHING: existing rows are never updated so ORDER MAX only ever increases.
+    // trackingNumber defaults to '' for rows without a tracking number.
+    for (const row of mergedRows) {
+      const tracking = row.trackingNumber ?? ''
+      const orderedQty = parseInt2(row.qty) ?? 0
+      await prisma.$executeRaw`
+        INSERT INTO warehouse_order_refs ("orderNumber", "trackingNumber", "orderedQty")
+        VALUES (${row.orderNumber}, ${tracking}, ${orderedQty})
+        ON CONFLICT ("orderNumber", "trackingNumber") DO NOTHING
+      `
     }
 
     return NextResponse.json({
