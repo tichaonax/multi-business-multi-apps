@@ -72,6 +72,12 @@ const NEW_TABLE_KEYS = [
   'expensePaymentReceipts',
   // Chat Targeted Replies (MBM-210)
   'chatMessageRecipients',
+  // Supplier / Contractor / Payee Category System (MBM-220)
+  'supplierCategoryGroups', 'supplierCategories',
+  'contractorCategoryGroups', 'contractorCategories',
+  'payeeCategoryGroups', 'payeeCategories',
+  // Warehouse Import (MBM-222)
+  'warehouseBatches', 'warehouseItems',
 ]
 
 async function main() {
