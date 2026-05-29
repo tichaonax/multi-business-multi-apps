@@ -14,11 +14,16 @@ export async function POST(req: NextRequest, { params }: { params: { batchId: st
     const { batchId } = params
     const body = await req.json()
 
-    // Required: target business, category, list of items with selling prices
-    const { businessId, businessType, categoryId, items: itemMoves } = body
-    // itemMoves: Array<{ itemId: string, sellingPrice: number, barcode?: string }>
-    if (!businessId || !businessType || !categoryId || !Array.isArray(itemMoves) || itemMoves.length === 0) {
-      return NextResponse.json({ error: 'businessId, businessType, categoryId, and items[] are required' }, { status: 400 })
+    // Required: target business + list of items; categoryId can be per-item or global fallback
+    const { businessId, businessType, categoryId: globalCategoryId, items: itemMoves } = body
+    // itemMoves: Array<{ itemId: string, sellingPrice: number, barcode?: string, categoryId?: string }>
+    if (!businessId || !businessType || !Array.isArray(itemMoves) || itemMoves.length === 0) {
+      return NextResponse.json({ error: 'businessId, businessType, and items[] are required' }, { status: 400 })
+    }
+    // Every item must resolve to a category (per-item or global fallback)
+    const missingCategory = itemMoves.find((m: any) => !m.categoryId && !globalCategoryId)
+    if (missingCategory) {
+      return NextResponse.json({ error: 'Each item must have a categoryId, or a global categoryId must be provided' }, { status: 400 })
     }
 
     const batch = await (prisma as any).warehouseBatches.findUnique({ where: { id: batchId } })
@@ -45,6 +50,7 @@ export async function POST(req: NextRequest, { params }: { params: { batchId: st
       const move = itemMoves.find((m: any) => m.itemId === warehouseItem.id)
       if (!move) continue
 
+      const itemCategoryId = move.categoryId || globalCategoryId
       const costUsd = warehouseItem.costUsd ? Number(warehouseItem.costUsd) : 0
       const costPrice = costUsd + perItemTransport
       const sellingPrice = Number(move.sellingPrice) || costPrice
@@ -59,7 +65,7 @@ export async function POST(req: NextRequest, { params }: { params: { batchId: st
           data: {
             businessId,
             businessType,
-            categoryId,
+            categoryId: itemCategoryId,
             name: productName,
             sku,
             barcode: move.barcode || null,

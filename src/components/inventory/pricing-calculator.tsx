@@ -16,6 +16,11 @@ export interface PricingCalculatorProps {
 
 const MARKUP_TIERS = [10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100]
 
+// Always round up to the nearest $0.50 (covers both $0.50 and $1.00 increments)
+function roundUpToNearest50c(price: number): number {
+  return Math.ceil(price / 0.5) * 0.5
+}
+
 export function PricingCalculator({
   costPrice,
   sellingPrice,
@@ -57,7 +62,7 @@ export function PricingCalculator({
       belowCost,
       suggestions: MARKUP_TIERS.map((pct) => ({
         pct,
-        price: Math.ceil(landedCost * (1 + pct / 100) * 100) / 100,
+        price: roundUpToNearest50c(landedCost * (1 + pct / 100)),
       })),
     }
   }, [costPrice, sellingPrice, transportEnabled, transportDistanceKm, transportCostPerKm, batchQuantity, transportPerUnitOverride])
@@ -67,7 +72,7 @@ export function PricingCalculator({
   function applyCustom() {
     const pct = parseFloat(customPct)
     if (!pct || pct <= 0 || !calc) return
-    const price = Math.ceil(calc.landedCost * (1 + pct / 100) * 100) / 100
+    const price = roundUpToNearest50c(calc.landedCost * (1 + pct / 100))
     onSelectPrice(price)
     setShowCustom(false)
     setCustomPct('')

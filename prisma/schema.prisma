@@ -7268,6 +7268,12 @@ model WarehouseItems {
   courierName               String?
   courierStatus             String?
   courierTime               DateTime?         @db.Date
+  cbm                       Decimal?          @db.Decimal(10, 4)
+  weightKg                  Decimal?          @db.Decimal(10, 2)
+  invoiceName               String?
+  containerDate             DateTime?         @db.Date
+  manifestQty               Int?
+  variantSpec               String?
   imageId                   String?
   isPersonal                Boolean           @default(false)
   status                    String            @default("IN_WAREHOUSE")

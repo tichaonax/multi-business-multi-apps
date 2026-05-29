@@ -898,7 +898,7 @@ export default function BatchDetailPage() {
               <>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
-                    <thead>
+                    <thead className="sticky top-0 z-10">
                       <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
                         <th className="px-3 py-3 w-8">
                           <input

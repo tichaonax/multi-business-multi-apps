@@ -8,14 +8,13 @@ import JSZip from 'jszip'
 // Auto-generate a short name from a long Chinese product description
 function generateShortName(fullName: string): string {
   if (!fullName) return ''
-  // Take text before first comma, dash, em-dash, or parenthesis
   const trimmed = fullName.replace(/^[\s—\-,]+/, '').trim()
   const match = trimmed.match(/^([^,\-—(（[—–]+)/)
   const short = match ? match[1].trim() : trimmed
   return short.slice(0, 60)
 }
 
-// Parse a date string like "2026-05-22" safely
+// Parse a date value safely (string, Date object, or Excel serial number)
 function parseDate(val: any): Date | null {
   if (!val) return null
   if (val instanceof Date) return val
@@ -32,11 +31,24 @@ function parseDecimal(val: any): number | null {
   return isNaN(n) ? null : n
 }
 
-// Parse integer, return null for blank or "—"
+// Parse integer, return null for blank or "—" or 0
 function parseInt2(val: any): number | null {
   if (val === null || val === undefined || val === '' || val === '—') return null
   const n = parseInt(String(val), 10)
   return isNaN(n) ? null : n
+}
+
+// Build a column-name → index map from the header row, trimming whitespace.
+// Returns a lookup function: get(row, 'Column Name') → cell value or null.
+function buildColumnLookup(headerRow: any[]) {
+  const colIdx: Record<string, number> = {}
+  headerRow.forEach((h: any, i: number) => {
+    if (h != null && h !== '') colIdx[String(h).trim()] = i
+  })
+  return function get(row: any[], name: string): any {
+    const idx = colIdx[name]
+    return idx !== undefined ? row[idx] ?? null : null
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -44,7 +56,6 @@ export async function POST(req: NextRequest) {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    // Permission check
     const isAdmin = user.role === 'admin'
     const hasPermission = isAdmin || (user.permissions as any)?.canAccessWarehouse === true
     if (!hasPermission) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
@@ -73,29 +84,29 @@ export async function POST(req: NextRequest) {
       }, { status: 409 })
     }
 
-    // Parse batch number from filename (e.g. "Import-To-MBMA-batch_29_2026-05-25.xlsx" → "batch_29")
+    // Parse batch number from filename (e.g. "batch_29_2026-05-25.xlsx" → "batch_29")
     const batchNumberMatch = file.name.match(/batch[_-](\d+)/i)
     const batchNumber = batchNumberMatch ? `batch_${batchNumberMatch[1]}` : null
     const batchName = batchNameOverride || (batchNumber ? `${batchNumber} — ${new Date().toISOString().slice(0, 10)}` : file.name)
 
-    // Parse data with SheetJS — robust, handles Excel files with charts/drawings that ExcelJS can't load
+    // Parse data with SheetJS
     const xlsxWb = XLSX.read(buffer, { type: 'buffer', cellDates: true })
     const sheetName = xlsxWb.SheetNames[0]
     if (!sheetName) return NextResponse.json({ error: 'No worksheet found in file' }, { status: 400 })
     const sheet = xlsxWb.Sheets[sheetName]
     const allSheetRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null })
 
-    // Debug: log header + first 3 data rows so we can verify column mapping
-    console.log('=== WAREHOUSE IMPORT COLUMN DEBUG ===')
-    console.log('Header row (row 0):', JSON.stringify(allSheetRows[0]))
-    console.log('Data row 1 (row 1):', JSON.stringify(allSheetRows[1]))
-    console.log('Data row 2 (row 2):', JSON.stringify(allSheetRows[2]))
-    console.log('Data row 3 (row 3):', JSON.stringify(allSheetRows[3]))
-    console.log('Total rows from SheetJS:', allSheetRows.length)
-    console.log('=====================================')
+    // Log headers so column mapping is always visible in server logs
+    console.log('=== WAREHOUSE IMPORT COLUMNS ===')
+    console.log('Header row:', JSON.stringify(allSheetRows[0]))
+    console.log('Sample row 1:', JSON.stringify(allSheetRows[1]))
+    console.log('================================')
 
-    // Extract embedded images directly from the xlsx ZIP (avoids ExcelJS drawing parser,
-    // which crashes on files containing chart anchors alongside image anchors)
+    // Build header-based column lookup — order-independent
+    const headerRow: any[] = allSheetRows[0] || []
+    const get = buildColumnLookup(headerRow)
+
+    // Extract embedded images from the xlsx ZIP
     const imagesByRow = new Map<number, { data: Buffer; mimeType: string }>()
     try {
       function xlsxResolve(base: string, rel: string): string {
@@ -111,23 +122,18 @@ export async function POST(req: NextRequest) {
 
       const zip = await JSZip.loadAsync(buffer)
 
-      // 1. Find first worksheet path
       const wbRels = await zip.file('xl/_rels/workbook.xml.rels')?.async('text') ?? ''
       const sheetRel = wbRels.match(/Type="[^"]*\/worksheet"[^>]*Target="([^"]+)"/)
       const sheetPath = sheetRel ? xlsxResolve('xl/workbook.xml', sheetRel[1]) : 'xl/worksheets/sheet1.xml'
 
-      // 2. Find drawing path from sheet rels
       const sheetFileName = sheetPath.split('/').pop()!
       const sheetRels = await zip.file(`xl/worksheets/_rels/${sheetFileName}.rels`)?.async('text') ?? ''
       const drawingRel = sheetRels.match(/Type="[^"]*\/drawing"[^>]*Target="([^"]+)"/)
       if (!drawingRel) throw new Error('no drawing in sheet')
       const drawingPath = xlsxResolve(sheetPath, drawingRel[1])
-      console.log('Drawing path:', drawingPath)
 
-      // 3. Build rId → media path from drawing rels
       const drawingRelsPath = xlsxResolve(drawingPath, `_rels/${drawingPath.split('/').pop()}.rels`)
       const drawingRels = await zip.file(drawingRelsPath)?.async('text') ?? ''
-      console.log('Drawing rels path:', drawingRelsPath, '— found:', !!zip.file(drawingRelsPath))
       const rIdToMedia: Record<string, string> = {}
       for (const rel of drawingRels.matchAll(/<Relationship\s[^>]*/g)) {
         const block = rel[0]
@@ -136,35 +142,25 @@ export async function POST(req: NextRequest) {
         const target = block.match(/Target="([^"]+)"/)
         if (id && target) rIdToMedia[id[1]] = xlsxResolve(drawingPath, target[1])
       }
-      console.log('rId→media map:', JSON.stringify(rIdToMedia))
 
-      // 4. Parse drawing XML: row → image. xdr: prefix is optional (files may use default namespace).
       const drawingXml = await zip.file(drawingPath)?.async('text') ?? ''
-      console.log('Drawing XML length:', drawingXml.length, '— first 300 chars:', drawingXml.slice(0, 300))
       const anchorRe = /<(?:xdr:)?(?:twoCellAnchor|oneCellAnchor)\b[^>]*>([\s\S]*?)<\/(?:xdr:)?(?:twoCellAnchor|oneCellAnchor)>/g
-      let anchorCount = 0
       for (const [, block] of drawingXml.matchAll(anchorRe)) {
-        anchorCount++
         const fromBlock = block.match(/<(?:xdr:)?from>([\s\S]*?)<\/(?:xdr:)?from>/)
         const blipRid   = block.match(/r:embed="(rId\d+)"/)
-        if (!fromBlock || !blipRid) continue // chart anchor — no blip, skip cleanly
-
+        if (!fromBlock || !blipRid) continue
         const rowMatch = fromBlock[1].match(/<(?:xdr:)?row>(\d+)<\/(?:xdr:)?row>/)
         if (!rowMatch) continue
-
-        const rowNum = parseInt(rowMatch[1], 10) + 1 // xlsx rows are 0-indexed
+        const rowNum = parseInt(rowMatch[1], 10) + 1
         const mediaPath = rIdToMedia[blipRid[1]]
         if (!mediaPath) continue
-
         const imgBuffer = await zip.file(mediaPath)?.async('nodebuffer')
         if (!imgBuffer) continue
-
         imagesByRow.set(rowNum, {
           data: imgBuffer,
           mimeType: mediaPath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg',
         })
       }
-
       console.log(`Warehouse import: extracted ${imagesByRow.size} images`)
     } catch (imgErr: any) {
       console.warn('Image extraction skipped:', imgErr.message)
@@ -175,26 +171,31 @@ export async function POST(req: NextRequest) {
     let totalUsdCost: number | null = null
     let collectionFee: string | null = null
 
-    // Collect raw rows, skipping header (row index 0 = row 1) and footers
     interface RawRow {
       rowNum: number
+      rowNumber: number | null
       orderNumber: string
       trackingNumber: string | null
       productName: string
       qty: string | null
-      costUsd: number | null
-      orderDate: Date | null
       priceYuan: number | null
-      rowNumber: number | null
+      costUsd: number | null
       rate: number | null
       stage: string | null
       shipment: string | null
       location: string | null
       courierName: string | null
       courierStatus: string | null
+      orderDate: Date | null
       courierTime: Date | null
       parentOrder: string | null
       parcelNumber: number | null
+      cbm: number | null
+      weightKg: number | null
+      invoiceName: string | null
+      containerDate: Date | null
+      manifestQty: number | null
+      variantSpec: string | null
     }
     const rawRows: RawRow[] = []
 
@@ -202,12 +203,8 @@ export async function POST(req: NextRequest) {
       const rowIndex = i + 1 // 1-indexed to match image map keys
       if (rowIndex === 1) return // skip header
 
-      // SheetJS: row[0]=col A, row[1]=col B, row[3]=col D, etc.
-      const col0 = String(row[0] ?? '').trim() // Col A — image / footer label
-      const col1 = String(row[1] ?? '').trim() // Col B — Order #
-      const col3 = String(row[3] ?? '').trim() // Col D — Product name
-
-      // Detect summary footer rows
+      // Footer rows are identified by a known label in the first cell (always col A)
+      const col0 = String(row[0] ?? '').trim()
       if (col0 === 'Total Cost (Yuan ¥)') {
         totalYuanCost = parseDecimal(String(row[1] ?? '').replace(/[¥,]/g, ''))
         return
@@ -221,52 +218,52 @@ export async function POST(req: NextRequest) {
         return
       }
 
-      // Skip blank rows and rows without an order number
-      if (!col1 || !col3) return
+      // Use header-based lookup for all data fields
+      const orderNumber = String(get(row, 'Order #') ?? '').trim()
+      const productName = String(get(row, 'Product') ?? '').trim()
+      if (!orderNumber || !productName) return // skip blank/footer rows
 
       rawRows.push({
         rowNum: rowIndex,
-        orderNumber: col1,
-        trackingNumber: String(row[2] ?? '').trim() || null,  // Col C
-        productName: col3,
-        qty: String(row[4] ?? '').trim() || null,             // Col E
-        costUsd: parseDecimal(row[5]),                         // Col F
-        orderDate: parseDate(row[6]),                          // Col G
-        priceYuan: parseDecimal(row[7]),                       // Col H
-        rowNumber: parseInt2(row[8]),                          // Col I
-        rate: parseDecimal(row[9]),                            // Col J
-        stage: String(row[10] ?? '').trim() || null,          // Col K
-        shipment: String(row[11] ?? '').trim() || null,       // Col L
-        location: String(row[12] ?? '').trim() || null,       // Col M
-        courierName: String(row[13] ?? '').trim() || null,    // Col N
-        courierStatus: String(row[14] ?? '').trim() || null,  // Col O
-        courierTime: parseDate(row[15]),                       // Col P
-        parentOrder: String(row[16] ?? '').trim() || null,    // Col Q
-        parcelNumber: parseInt2(row[17]),                      // Col R
+        rowNumber: parseInt2(get(row, 'Row #')),
+        orderNumber,
+        trackingNumber: String(get(row, 'Tracking #') ?? '').trim() || null,
+        productName,
+        qty: String(get(row, 'Qty') ?? '').trim() || null,
+        priceYuan: parseDecimal(get(row, 'Price (¥)')),
+        costUsd: parseDecimal(get(row, 'Cost (US$)')),
+        rate: parseDecimal(get(row, 'Rate')),
+        stage: String(get(row, 'Stage') ?? '').trim() || null,
+        shipment: String(get(row, 'Shipment') ?? '').trim() || null,
+        location: String(get(row, 'Location') ?? '').trim() || null,
+        courierName: String(get(row, 'Courier') ?? '').trim() || null,
+        courierStatus: String(get(row, 'Courier Status') ?? '').trim() || null,
+        orderDate: parseDate(get(row, 'Order Date')),
+        courierTime: parseDate(get(row, 'Courier Time')),
+        parentOrder: String(get(row, 'Parent Order') ?? '').trim() || null,
+        parcelNumber: parseInt2(get(row, 'Parcel #')),
+        cbm: parseDecimal(get(row, 'CBM')),
+        weightKg: parseDecimal(get(row, 'Weight (kg)')),
+        invoiceName: String(get(row, 'Invoice Name') ?? '').trim() || null,
+        containerDate: parseDate(get(row, 'Container Date')),
+        manifestQty: parseInt2(get(row, 'Manifest Qty')),
+        variantSpec: String(get(row, 'Variant/Spec') ?? '').trim() || null,
       })
     })
 
-    // Merge sub-parcels into primary rows
-    // Group by parent order: _p1 is primary, _p2+ are sub-parcels
+    // Merge sub-parcels into primary rows (_p2, _p3, etc. → merge tracking into _p1)
     const primaryMap = new Map<string, RawRow & { additionalTracking: string[] }>()
     const orderedPrimaries: string[] = []
 
     for (const row of rawRows) {
       const orderNo = row.orderNumber
-
-      // Check if it's a sub-parcel by looking for _p2, _p3 etc. OR parent order column set
       const subParcelMatch = orderNo.match(/^(.+)_p(\d+)$/)
       if (subParcelMatch && parseInt(subParcelMatch[2]) > 1) {
-        // This is _p2 or higher — merge tracking number into primary
         const primaryKey = subParcelMatch[1] + '_p1'
         const existing = primaryMap.get(primaryKey) || primaryMap.get(subParcelMatch[1])
-        if (existing && row.trackingNumber) {
-          existing.additionalTracking.push(row.trackingNumber)
-        }
+        if (existing && row.trackingNumber) existing.additionalTracking.push(row.trackingNumber)
         continue
       }
-
-      // Strip _p1 suffix from primary order number
       const cleanOrderNo = orderNo.replace(/_p1$/, '')
       const entry = { ...row, orderNumber: cleanOrderNo, additionalTracking: [] as string[] }
       primaryMap.set(orderNo, entry)
@@ -275,7 +272,7 @@ export async function POST(req: NextRequest) {
 
     const mergedRows = orderedPrimaries.map(k => primaryMap.get(k)!).filter(Boolean)
 
-    // Order number dedup check (against existing warehouse items)
+    // Order number dedup check
     const orderNumbers = mergedRows.map(r => r.orderNumber)
     const existingItems = await (prisma as any).warehouseItems.findMany({
       where: { orderNumber: { in: orderNumbers } },
@@ -319,16 +316,10 @@ export async function POST(req: NextRequest) {
     let createdCount = 0
     for (const row of mergedRows) {
       let imageId: string | null = null
-
-      // Store embedded image if present
       const imgData = imagesByRow.get(row.rowNum)
       if (imgData) {
         const imgRecord = await (prisma as any).images.create({
-          data: {
-            data: imgData.data,
-            mimeType: imgData.mimeType,
-            size: imgData.data.length,
-          }
+          data: { data: imgData.data, mimeType: imgData.mimeType, size: imgData.data.length }
         })
         imageId = imgRecord.id
       }
@@ -336,7 +327,7 @@ export async function POST(req: NextRequest) {
       const isSubParcelQty = row.qty === '—' || row.qty === null
       const quantity = isSubParcelQty ? null : parseInt2(row.qty)
 
-      await (prisma as any).warehouseItems.create({
+      const created = await (prisma as any).warehouseItems.create({
         data: {
           batchId: batch.id,
           rowNumber: row.rowNumber,
@@ -361,6 +352,18 @@ export async function POST(req: NextRequest) {
           status: 'IN_WAREHOUSE',
         }
       })
+
+      // Set new columns via raw SQL — bypasses Prisma client validation until next prisma generate
+      await prisma.$executeRaw`
+        UPDATE warehouse_items SET
+          cbm            = ${row.cbm},
+          "weightKg"     = ${row.weightKg},
+          "invoiceName"  = ${row.invoiceName},
+          "containerDate"= ${row.containerDate}::date,
+          "manifestQty"  = ${row.manifestQty},
+          "variantSpec"  = ${row.variantSpec}
+        WHERE id = ${created.id}
+      `
       createdCount++
     }
 

@@ -1228,8 +1228,10 @@ export function QuickPaymentModal({
           ? domainOptions.find(d => d.name === getDefaultDomainName(activeBusinessType))?.id ?? null
           : null)
 
-      const applyFilter = (list: any[]) =>
-        activeDomainOverride ? list : list.filter((s: any) => !s.subSubcategoryId)
+      const applyFilter = (list: any[]) => {
+        const noIncome = list.filter((s: any) => !INCOME_DOMAIN_NAMES.has(s.domainName))
+        return activeDomainOverride ? noIncome : noIncome.filter((s: any) => !s.subSubcategoryId)
+      }
 
       if (derivedDomainId) {
         // Fire targeted + global in parallel; de-dupe global against targeted
