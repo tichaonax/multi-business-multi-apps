@@ -115,6 +115,19 @@
 47. [Payee Expense Insights](#47-payee-expense-insights)
 48. [Supplier, Contractor & Payee Categories](#48-supplier-contractor--payee-categories)
 49. [Edit Business Settings](#49-edit-business-settings)
+50. [Warehouse Import & Move Wizard](#50-warehouse-import)
+    - [Classification Suggestion (💡 Cat button)](#classification-suggestion--cat-button)
+    - [Per-Item Target Business Override](#per-item-target-business-override)
+    - [Transport Cost & Transaction Fee](#transport-cost--transaction-fee)
+    - [Reversing a Warehouse Move (Admin)](#reversing-a-warehouse-move-admin)
+51. [Salesperson Shortfall Report](#51-salesperson-shortfall-report)
+52. [Backup & Restore — Full Guide](#52-backup--restore--full-guide)
+    - [Creating a Backup](#creating-a-backup)
+    - [Pre-Restore Validation](#pre-restore-validation)
+    - [Restoring a Backup](#restoring-a-backup)
+    - [Backup Types](#backup-types)
+    - [Verifying a Restore](#verifying-a-restore)
+    - [Restore Progress & Warnings](#restore-progress--warnings)
 
 ---
 
@@ -9821,21 +9834,94 @@ Click **Scan Mode** (top-right) to open a persistent scan panel. Scan or type an
 
 Click **Move to Business** on the batch detail page (or from the scan panel) to open the move wizard.
 
-1. **Select target business** — choose which business will receive the stock.
-2. **Select category** — pick the product category. The system suggests the top 3 most relevant categories based on keyword matching against the item names.
-3. **Set markup %** — enter a markup percentage and click **Apply** to auto-calculate selling prices for all items. Default is 30%.
-4. **Review per-row prices** — adjust individual selling prices. A barcode field is optional.
-5. Click **Move X Items to Business**.
+1. **Select target business** — choose which business will receive the stock (global selector at the top).
+2. **Classify each item** — pick Domain → Category → Sub-category. Use the **💡 Cat** button to auto-suggest classifications based on the product name (see [Classification Suggestion](#classification-suggestion--cat-button) below).
+3. **Set per-item target business (optional)** — override the global business for individual rows using the small searchable dropdown under each product name (see [Per-Item Target Business Override](#per-item-target-business-override)).
+4. **Set markup %** — enter a markup percentage and click **Apply** to auto-calculate selling prices for all items. Default is 30%.
+5. **Review per-row prices** — adjust individual selling prices. A barcode field is optional.
+6. Click **Move X Items to Business**.
 
 For each item moved, the system creates:
 - A **Business Product** record with the short name as product name.
 - A **Product Variant** with the calculated selling price and optional barcode.
 - A **Stock Movement** of type `PURCHASE_RECEIVED`.
 - A **Product Image** linked from the warehouse item (if one was in the spreadsheet).
+- A **Product Barcode** entry if a barcode was supplied (scanner-ready immediately).
 
 The warehouse item status changes to **MOVED_TO_BUSINESS**.
 
-**Cost price shown:** If a transport cost was entered at import time, it is divided equally across all IN_WAREHOUSE items and shown as `+ Transport` in the move wizard. The cost price column reflects `costUsd + perItemTransport`.
+**Cost price shown:** The cost price column reflects `costUsd per unit + transaction fee + transport per unit`. All three components are shown separately in the cost column so you know exactly what margin you are working with.
+
+---
+
+### Classification Suggestion (💡 Cat button)
+
+Each item row in the move wizard has a **💡 Cat** button. Clicking it analyses the product name and suggests the best-matching inventory categories from **all business types** — not just the destination business.
+
+**How it works:**
+1. The product name is split into tokens (words / numbers), common English words ("for", "with", "and"…) are removed.
+2. Each token is matched against all domain names, category names, and sub-category names in the system, including both singular and plural forms (e.g. "screws" matches "M6 screw").
+3. Results are ranked by score and shown in a searchable list. The search box inside the popup lets you type to filter — there is no cap on results.
+
+**Applying a suggestion:**
+- Click any row in the popup — the Domain, Category, and Sub-category dropdowns for that item are filled automatically.
+- If the matched domain belongs to a different business type than the destination (e.g. hardware sub-category while the destination is a clothing business), the classification is still applied — the dropdowns will show the cross-domain values correctly.
+
+**When no suggestions appear:**
+- The product name has too few recognisable keywords — edit the **Short Name** on the batch page to use plain English terms before clicking 💡.
+- The sub-category may not exist yet — add it under **Inventory → Categories** first.
+
+---
+
+### Per-Item Target Business Override
+
+By default, all items in the move wizard go to the **global target business** selected at the top of the page. If you are moving items destined for different businesses in the same session, you do not need to change the global selector for each item.
+
+**Each item row has a compact searchable dropdown** underneath the product name:
+
+- **Empty (default):** The row uses the global business (shown as `↑ BusinessName` in the placeholder).
+- **Select a business:** Type to search, then click a business name. That item will go to the selected business when you click **Move**.
+- The dropdown is portal-rendered and scrolls with fixed positioning — it is never clipped by the table.
+
+When you click **Move X Items to Business**, items are grouped by their effective business (row override or global fallback) and a single API call is made per business group.
+
+---
+
+### Transport Cost & Transaction Fee
+
+When importing a batch you can supply:
+
+| Field | What it does |
+|-------|-------------|
+| **Transport cost (USD)** | Total freight cost for the batch — divided equally across all IN_WAREHOUSE items |
+| **Transaction fee %** | Percentage added to each item's USD cost (e.g. 3% PayPal or agent fee) |
+
+Both figures are visible in the move wizard cost column and are factored into the default selling price calculation (`cost × (1 + markup%)`).
+
+Individual rows can override the transport per-item amount using the **Transport Override** field in the row (visible when the batch has a non-zero transport cost).
+
+---
+
+### Reversing a Warehouse Move (Admin)
+
+If an item was moved to business inventory by mistake, an administrator can reverse it using the CLI script. This is an admin-only operation run from the server.
+
+```
+node scripts/reverse-warehouse-move.js <batchId>
+```
+
+Or to reverse a single item by barcode:
+
+```
+node scripts/reverse-warehouse-move.js <batchId> --barcode 183212005
+```
+
+**What happens:**
+- The Business Product (and all its variants, stock movements, barcodes, and images) is deleted.
+- The warehouse item status is reset to `IN_WAREHOUSE` — the item becomes available for re-classification and re-move.
+- The batch delete lock is also lifted for that item (a batch can only be deleted when no items have been moved).
+
+> **Note:** The script requires database credentials in `.env.local` and must be run by someone with server access. It is not available through the web UI.
 
 ---
 
@@ -9877,3 +9963,263 @@ The Warehouse home page shows four summary cards:
 | Moved to Personal | Items recorded as personal expenses |
 
 Each batch row shows a progress bar indicating what fraction of items have been moved out of the warehouse.
+
+---
+
+## 51. Salesperson Shortfall Report
+
+> **Who reads this:** Managers and finance staff who need to cross-check salesperson EOD declarations against actual system figures.
+
+The **Salesperson Shortfall Report** is a dedicated reconciliation view that compares what each salesperson declared in their daily EOD report against the expected cash/EcoCash collected according to system orders. It is separate from Section 30 (Salesperson EOD Reporting) — that section covers the salesperson's own submission workflow; this report is for managers reviewing the numbers.
+
+---
+
+### Opening the Report
+
+Navigate to **Reports → Salesperson Shortfall**.
+
+Permission required: `canCloseBooks`, `canAccessFinancialData`, or system admin.
+
+---
+
+### Filters
+
+| Filter | What it does |
+|--------|-------------|
+| **Date range** | Preset pills (Today, Last 7 days, This month, Last month) or custom start/end date picker |
+| **All time** | Toggle to remove the date filter entirely and show the complete history |
+| **Salesperson** | Dropdown to drill into one person's daily history |
+| **Status** | Filter to show only a specific status (see Status Reference below) |
+| **Search** | Free-text filter on salesperson name |
+
+---
+
+### Summary Cards
+
+When no specific salesperson is selected, four summary cards show totals across the filtered period:
+
+| Card | Meaning |
+|------|---------|
+| Days with data | Number of days at least one salesperson submitted |
+| Missing submissions | Days × salespersons with no report at all |
+| Overrides | Rows where a manager submitted on the salesperson's behalf |
+| Total collected | Sum of all reported cash + EcoCash |
+
+---
+
+### By-Person Summary Table
+
+With no salesperson filter active, the table shows one row per salesperson:
+
+| Column | Meaning |
+|--------|---------|
+| Name | Salesperson name |
+| Days present | Days with a submitted or overridden report |
+| Missing | Days with no submission |
+| Overrides | Days a manager submitted on their behalf |
+| Cash / EcoCash / Total | Sum across the period |
+
+Click **Export CSV** to download this summary.
+
+---
+
+### Daily Detail Table
+
+When you select a specific salesperson from the filter, the table switches to a per-day view:
+
+| Column | Meaning |
+|--------|---------|
+| Date | The business day |
+| Cash | Declared cash amount |
+| EcoCash | Declared EcoCash amount |
+| Total | Cash + EcoCash |
+| Expected share | System-calculated expected total for that salesperson on that day |
+| Variance | Total − Expected share (green ≤ $1, amber ≤ $10, red > $10) |
+| Status | Submission status badge (see below) |
+| Override reason | Shown when a manager submitted instead of the salesperson |
+
+Click **Export CSV** to download the daily detail.
+
+---
+
+### Status Reference
+
+| Badge | Meaning |
+|-------|---------|
+| **Submitted** (green) | Salesperson submitted their own report |
+| **Override** (amber) | A manager submitted on the salesperson's behalf |
+| **Zero reported** (yellow) | Report submitted with $0 declared |
+| **Not submitted** (red) | No report exists for that day |
+
+---
+
+### Cash Counted Amendments
+
+If a manager amended the "Cash Counted" figure on a saved EOD report after locking, a **✏️ Amended** badge appears on the relevant row. Click the badge to open a detail popup showing:
+
+- Original cash counted
+- New cash counted
+- Who made the amendment and when
+- The reason provided
+
+---
+
+### Permissions
+
+| Action | Permission required |
+|--------|-------------------|
+| View report | `canCloseBooks` or `canAccessFinancialData` or system admin |
+| Export CSV | Same as view |
+
+---
+
+## 52. Backup & Restore — Full Guide
+
+> **Who reads this:** System administrators responsible for data safety and migration. Regular users do not need this section.
+
+The system has a built-in backup and restore engine that covers every table in the database. Backups are downloaded as compressed JSON files (`.json.gz`) that can be stored offline and restored to any compatible installation.
+
+Navigate to **Admin → Data Management** to access all backup and restore functions.
+
+---
+
+### Creating a Backup
+
+1. Go to **Admin → Data Management**.
+2. Select a **Backup Type** (see [Backup Types](#backup-types) below).
+3. Set any options (include business data, include audit logs, include/exclude demo businesses).
+4. Click **Create Backup**.
+5. The file downloads automatically as `MultiBusinessSyncService-backup_<type>_<timestamp>.json.gz`.
+
+Store the file in a safe location — cloud storage, an external drive, or a second server.
+
+---
+
+### Backup Types
+
+| Type | What it includes |
+|------|-----------------|
+| **Full Backup (Production)** | All tables — users, employees, businesses, products, orders, inventory, payroll, chat, reports, assets, and more — excluding demo businesses by default |
+| **Demo Businesses Only** | All data for businesses marked as demo — useful for resetting a demo environment |
+| **Users & Permissions** | User accounts, business memberships, and permission settings only |
+| **Business Data** | Business records, settings, and business-specific data |
+| **Employee Data** | Employee records, contracts, and employment history |
+| **Reference Data** | Job titles, compensation types, benefit types, policy templates |
+
+**Options available for Full Backup:**
+
+| Option | Default | Effect |
+|--------|---------|--------|
+| Include business data | ✅ On | Includes products, inventory, orders, categories, suppliers, customers |
+| Include audit logs | ❌ Off | Adds last 10,000 audit log entries (makes file larger) |
+| Include demo data | ❌ Off | Excludes demo businesses — leave off for production backups |
+
+---
+
+### Pre-Restore Validation
+
+**Always validate a backup before restoring.** This checks the backup file against the live database without making any changes.
+
+1. Go to the **Restore** section of Data Management.
+2. Drag and drop your `.json.gz` (or `.json`) backup file into the upload area, or click to browse.
+3. Click **Validate Backup**.
+4. The system compares table-by-table record counts between the backup and the live database.
+
+**Validation result statuses:**
+
+| Status | Meaning |
+|--------|---------|
+| ✅ Success | All tables match exactly |
+| ⚠️ Warning | Some tables differ by expected amounts (e.g. images table is always partial; demo business tables may be excluded) — safe to proceed |
+| ❌ Error | A table count is unexpectedly different — investigate before restoring |
+
+**Expected differences (will always show as warning, not error):**
+- `images` — only backed up partially by design (large binary data)
+- `clothingLabelPrintHistory` — partial backup by design
+- `projects` / `vehicleLicenses` — belong to demo businesses excluded from a production backup
+
+If validation shows ⚠️ Warning with only these expected differences, the backup is safe to restore.
+
+---
+
+### Restoring a Backup
+
+> **This overwrites existing data. Run validation first and ensure you have a second backup as a safety net.**
+
+1. Select your backup file (drag-and-drop or browse).
+2. Click **Validate Backup** first and confirm the result.
+3. Click **Restore Backup**.
+4. Confirm the warning dialog.
+5. A **live progress log** appears showing each table being restored and its record count.
+6. When complete, an alert shows the total records restored and any warnings.
+7. Click **OK** — the page reloads automatically.
+
+**The restore uses upsert (insert or update)** — existing records with matching IDs are updated, new records are inserted. This makes it safe to run on a live database without wiping it first.
+
+---
+
+### Restore Progress & Warnings
+
+While restoring, the progress panel shows:
+
+```
+✅ Restored users            12 records
+✅ Restored businesses       8 records
+✅ Restored businessProducts 3,241 records
+⚠️  Skipped 4 records — foreign key constraint (referenced data not in backup)
+✅ Restored orders           18,504 records
+...
+```
+
+**Skipped records** are logged with the reason:
+- **Foreign key errors** — the record references another record that was not in the backup or has not been restored yet.
+- **Validation errors** — duplicate unique constraint or invalid data.
+- **Other errors** — check server logs for details.
+
+A small number of skipped records is normal. If a large table has many skips, run validation again post-restore to identify the gap.
+
+---
+
+### Verifying a Restore
+
+After a restore, run validation again using the **same backup file** to confirm the live database now matches:
+
+1. Select the same backup file.
+2. Click **Validate Backup**.
+3. All tables should now show ✅ Success (or the same expected ⚠️ warnings as before).
+
+If any table shows ❌ Error (an unexpected mismatch), that table may need a targeted re-restore. Contact your system administrator.
+
+**SQL verification (optional — requires database access):**
+
+```sql
+-- Check a specific table count
+SELECT COUNT(*) FROM business_products;
+SELECT COUNT(*) FROM orders;
+SELECT COUNT(*) FROM employees;
+```
+
+Compare these numbers to what was shown in the validation report.
+
+---
+
+### Schema Version
+
+Each backup file records the schema version at the time it was created (e.g. `6.27.0`). When restoring to a different installation, the schema versions should match. If they differ, run `prisma migrate deploy` on the target installation first to bring the schema up to date, then restore.
+
+---
+
+### Backup Best Practices
+
+| Practice | Reason |
+|----------|--------|
+| Run a full backup before every migration or major update | Migrations alter schema — always have a pre-migration snapshot |
+| Store backups off-site (cloud or external drive) | A server failure would destroy on-disk backups |
+| Validate before restoring | Saves time — catch mismatches before the restore runs |
+| Keep at least two backups: yesterday and last week | Provides a recovery window if an issue is discovered late |
+| Exclude demo data from production backups | Keeps files smaller and avoids polluting production with test data |
+| Test a restore on a staging environment periodically | Ensures the restore process actually works before you need it in an emergency |
+
+---
+
+*For technical support, contact your system administrator.*

@@ -170,6 +170,7 @@ export default function ClothingPOSPage() {
   const employeeId = sessionUser?.id
   const isAdmin = sessionUser?.role === 'admin'
   const [financialRefreshKey, setFinancialRefreshKey] = useState(0)
+  const [productGridRefreshKey, setProductGridRefreshKey] = useState(0)
   // Check if current business is a clothing business
   const isClothingBusiness = currentBusiness?.businessType === 'clothing'
 
@@ -487,6 +488,7 @@ export default function ClothingPOSPage() {
       loadDailySales()
       loadRecentTransactions()
       setFinancialRefreshKey(k => k + 1)
+      setProductGridRefreshKey(k => k + 1)
     }, 500)
   }
 
@@ -757,6 +759,7 @@ export default function ClothingPOSPage() {
                             showFilters={true}
                             stickyFilters={true}
                             categoryId={posSelectedCategory}
+                            refreshKey={productGridRefreshKey}
                           />
                         )}
                         {productBrowseTab === 'bales' && (

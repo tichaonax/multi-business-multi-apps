@@ -17,6 +17,7 @@ interface ProductGridProps {
   showFilters?: boolean
   stickyFilters?: boolean
   categoryId?: string | null
+  refreshKey?: number
 }
 
 interface ProductFilters {
@@ -42,7 +43,8 @@ export function UniversalProductGrid({
   showSearch = true,
   showFilters = true,
   stickyFilters = false,
-  categoryId: externalCategoryId
+  categoryId: externalCategoryId,
+  refreshKey,
 }: ProductGridProps) {
   const { formatCurrency } = useBusinessContext()
   const businessFeatures = useBusinessFeatures()
@@ -68,7 +70,7 @@ export function UniversalProductGrid({
     if (showFilters) {
       fetchBrands()
     }
-  }, [businessId, filters, currentPage])
+  }, [businessId, filters, currentPage, refreshKey])
 
   const fetchProducts = async () => {
     if (!businessId) return
