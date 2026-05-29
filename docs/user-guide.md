@@ -116,9 +116,12 @@
 48. [Supplier, Contractor & Payee Categories](#48-supplier-contractor--payee-categories)
 49. [Edit Business Settings](#49-edit-business-settings)
 50. [Warehouse Import & Move Wizard](#50-warehouse-import)
+    - [Manifest Qty & ORDER MAX](#understanding-the-two-quantity-columns)
+    - [Manifest Qty filter pills](#manifest-qty-filter-pills)
     - [Classification Suggestion (💡 Cat button)](#classification-suggestion--cat-button)
     - [Per-Item Target Business Override](#per-item-target-business-override)
     - [Transport Cost & Transaction Fee](#transport-cost--transaction-fee)
+    - [Reference Locks](#reference-locks)
     - [Reversing a Warehouse Move (Admin)](#reversing-a-warehouse-move-admin)
 51. [Salesperson Shortfall Report](#51-salesperson-shortfall-report)
 52. [Backup & Restore — Full Guide](#52-backup--restore--full-guide)
@@ -9803,11 +9806,45 @@ Open a batch from the **Warehouse** list to see the item grid.
 | MOVED TO BUSINESS | Items already added to a business's inventory |
 | MOVED TO PERSONAL | Items recorded as personal expenses |
 
+#### Manifest Qty filter pills
+
+Below the status tabs, three pills let you sub-filter by received quantity:
+
+| Pill | Shows |
+|------|-------|
+| **All** (default) | Every item in the current tab |
+| **= 0 / unknown** | Items whose Manifest Qty is null or zero — goods not yet recorded as received |
+| **> 0 received** | Items with a positive Manifest Qty — goods confirmed received |
+
+The count on each pill updates live as you search or switch tabs. Switching tabs resets the pill to **All**; typing in the search box does not reset it.
+
+#### Understanding the two quantity columns
+
+| Column | What it is | Editable? |
+|--------|-----------|-----------|
+| **Qty** | Ordered quantity — what the supplier recorded for this tracking line | Read-only |
+| **Manifest Qty** | Received quantity — what physically arrived, updated when you count the delivery | Yes — click to edit |
+
+**ORDER MAX** is the total ordered quantity across all unique tracking lines for the same order number. It is computed automatically from every batch that has ever contained that order number and never decreases — even if you import fewer items later, the max only increases when new unique trackings appear.
+
+Rules enforced:
+- `Manifest Qty` per item ≤ ordered qty for that tracking line
+- Total manifest qty moved for an order ≤ ORDER MAX for that order number
+- Items with null or zero Manifest Qty **cannot be selected or moved to business**
+
 #### Editing items
 
-Click any **Cost USD** or **Rate** cell to edit it inline. Press Enter or click away to save.
+| Field | How to edit |
+|-------|------------|
+| **Manifest Qty** | Click the value (or the ⚠ unknown badge) — enter received qty. A **/ N** indicator shows the per-tracking cap. Optionally enter a reason. Click **Save**. |
+| **Cost USD** | Click the cell. If a Rate is already set (row-level or bulk toolbar), a suggested cost (≈ ¥ price ÷ rate) is pre-filled in italic blue — accept or override. |
+| **Rate** | Click the cell and type the exchange rate. |
+| **Short Name** | Click the bold product name line. |
+| **Notes** | Inline edit on the item row. |
 
-Click the **Short Name** (the bold product name line) to edit it inline. The full Chinese product name is shown as a subtitle for reference.
+When a Manifest Qty has been edited, the original value is shown above the current value as `orig: N`. Click it to see the full change record (before/after qty, before/after ¥ price, reason, timestamp).
+
+When the ¥ Price changes because Manifest Qty was edited, the original price is shown above the current price as `orig: ¥NN.NN`.
 
 #### Bulk Fill toolbar
 
@@ -9832,6 +9869,8 @@ Click **Scan Mode** (top-right) to open a persistent scan panel. Scan or type an
 
 ### Step 3 — Move to Business Inventory
 
+**Before you can move an item**, its **Manifest Qty must be set to a value greater than zero**. Items with unknown or zero manifest qty are greyed out and cannot be selected. Set the received quantity on the batch review page first.
+
 Click **Move to Business** on the batch detail page (or from the scan panel) to open the move wizard.
 
 1. **Select target business** — choose which business will receive the stock (global selector at the top).
@@ -9841,10 +9880,14 @@ Click **Move to Business** on the batch detail page (or from the scan panel) to 
 5. **Review per-row prices** — adjust individual selling prices. A barcode field is optional.
 6. Click **Move X Items to Business**.
 
+The **Qty** column in the move wizard shows the **Manifest Qty** (received qty), not the ordered qty. Cost-per-unit calculations use manifest qty so the numbers reflect what was actually received.
+
+**ORDER MAX guard:** The system checks that the total quantity being moved for each order number (including any previously moved items from other batches) does not exceed the ORDER MAX for that order. If it would, the move is blocked with a message showing how many units have already been processed and how many remain.
+
 For each item moved, the system creates:
 - A **Business Product** record with the short name as product name.
-- A **Product Variant** with the calculated selling price and optional barcode.
-- A **Stock Movement** of type `PURCHASE_RECEIVED`.
+- A **Product Variant** with the calculated selling price, stock quantity set to **Manifest Qty**, and optional barcode.
+- A **Stock Movement** of type `PURCHASE_RECEIVED` for the manifest qty received.
 - A **Product Image** linked from the warehouse item (if one was in the spreadsheet).
 - A **Product Barcode** entry if a barcode was supplied (scanner-ready immediately).
 
@@ -9948,6 +9991,19 @@ The warehouse item status changes to **MOVED_TO_PERSONAL**.
 A batch can be deleted only if **no items have been moved** (to business or personal). To delete, click the trash icon on the Warehouse list page. All items and their images are permanently removed.
 
 If items have already been moved, the delete button is hidden — the batch record is kept for audit purposes.
+
+---
+
+### Reference Locks
+
+The **Manage Locks** link (top-right of the batch detail page) opens the reference lock panel. Locks prevent an order number or tracking number from being imported again.
+
+| Lock type | Trigger |
+|-----------|---------|
+| **Auto-lock** | Applied automatically when the total manifest qty moved for that reference equals the ORDER MAX. The lock label shows the qty ratio (e.g. `9/9 rcvd`). |
+| **Manual lock** | Applied by a user — prevents any further imports for that reference even if the ORDER MAX has not been reached. |
+
+A locked reference shows a 🔒 badge on every item row that contains it. Locked items can still be edited and their manifest qty adjusted, but the lock itself must be removed from the reference lock panel before a new import of the same reference is allowed.
 
 ---
 
