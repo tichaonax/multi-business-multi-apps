@@ -574,11 +574,9 @@ export default function BatchDetailPage() {
   }
 
   function toggleSelectAll() {
-    if (selected.size === items.length) {
-      setSelected(new Set())
-    } else {
-      setSelected(new Set(items.map(i => i.id)))
-    }
+    const ids = items.filter(i => i.status === 'IN_WAREHOUSE').map(i => i.id)
+    const allSelected = ids.length > 0 && ids.every(id => selected.has(id))
+    setSelected(allSelected ? new Set() : new Set(ids))
   }
 
   function toggleSelect(id: string) {
@@ -592,6 +590,8 @@ export default function BatchDetailPage() {
   const totalMoved = (statusCounts['MOVED_TO_BUSINESS'] || 0) + (statusCounts['MOVED_TO_PERSONAL'] || 0)
   const progress = batch ? Math.round((totalMoved / Math.max(batch.rowCount, 1)) * 100) : 0
   const perItemTransport = batch?.perItemTransport ?? 0
+  const selectableItems = items.filter(i => i.status === 'IN_WAREHOUSE')
+  const allSelectableSelected = selectableItems.length > 0 && selectableItems.every(i => selected.has(i.id))
 
   if (!batch && loading) {
     return (
@@ -896,14 +896,14 @@ export default function BatchDetailPage() {
               <div className="p-8 text-center text-gray-500">No items match the current filter.</div>
             ) : (
               <>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto overflow-y-auto" style={{ maxHeight: 'calc(100vh - 28rem)', minHeight: '16rem' }}>
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 z-10">
                       <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
                         <th className="px-3 py-3 w-8">
                           <input
                             type="checkbox"
-                            checked={selected.size === items.length && items.length > 0}
+                            checked={allSelectableSelected}
                             onChange={toggleSelectAll}
                             className="rounded"
                           />
@@ -926,8 +926,10 @@ export default function BatchDetailPage() {
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                       {items.map(item => {
                         const costUsd = item.costUsd != null ? Number(item.costUsd) : null
-                        const txFee = costUsd != null && batch.transactionFeePct != null ? costUsd * (Number(batch.transactionFeePct) / 100) : 0
-                        const costPrice = costUsd != null ? costUsd + txFee + perItemTransport : null
+                        const itemQty = item.quantity || 1
+                        const costUsdPerUnit = costUsd != null ? costUsd / itemQty : null
+                        const txFee = costUsdPerUnit != null && batch.transactionFeePct != null ? costUsdPerUnit * (Number(batch.transactionFeePct) / 100) : 0
+                        const costPrice = costUsdPerUnit != null ? costUsdPerUnit + txFee + perItemTransport / itemQty : null
                         const calcSell = costPrice != null ? costPrice * 1.3 : null
                         const isLocked = item.status === 'MOVED_TO_BUSINESS' || item.status === 'MOVED_TO_PERSONAL'
 
@@ -937,8 +939,9 @@ export default function BatchDetailPage() {
                               <input
                                 type="checkbox"
                                 checked={selected.has(item.id)}
+                                disabled={isLocked}
                                 onChange={() => toggleSelect(item.id)}
-                                className="rounded"
+                                className="rounded disabled:opacity-30 disabled:cursor-not-allowed"
                               />
                             </td>
                             <td className="px-2 py-2 align-top w-24 min-w-[5rem]">

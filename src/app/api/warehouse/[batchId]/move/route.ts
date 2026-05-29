@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/get-server-user'
 import { prisma } from '@/lib/prisma'
 
-export async function POST(req: NextRequest, { params }: { params: { batchId: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ batchId: string }> }) {
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -11,7 +11,7 @@ export async function POST(req: NextRequest, { params }: { params: { batchId: st
     const canMove = isAdmin || (user.permissions as any)?.canMoveWarehouseToInventory === true
     if (!canMove) return NextResponse.json({ error: 'Insufficient permissions — requires canMoveWarehouseToInventory' }, { status: 403 })
 
-    const { batchId } = params
+    const { batchId } = await params
     const body = await req.json()
 
     // Required: target business + list of items; categoryId can be per-item or global fallback
@@ -51,8 +51,11 @@ export async function POST(req: NextRequest, { params }: { params: { batchId: st
       if (!move) continue
 
       const itemCategoryId = move.categoryId || globalCategoryId
-      const costUsd = warehouseItem.costUsd ? Number(warehouseItem.costUsd) : 0
-      const costPrice = costUsd + perItemTransport
+      const qty = warehouseItem.quantity || 1
+      const costUsdPerUnit = Number(warehouseItem.costUsd || 0) / qty
+      const transportPerUnit = perItemTransport / qty
+      const txFeePerUnit = batch.transactionFeePct ? costUsdPerUnit * (Number(batch.transactionFeePct) / 100) : 0
+      const costPrice = costUsdPerUnit + transportPerUnit + txFeePerUnit
       const sellingPrice = Number(move.sellingPrice) || costPrice
 
       // SKU: unique short code derived from item id
@@ -110,6 +113,21 @@ export async function POST(req: NextRequest, { params }: { params: { batchId: st
             reason: `Warehouse import — ${batch.batchName}`,
           }
         })
+
+        // Register barcode so scanner can find the product
+        if (move.barcode) {
+          await tx.productBarcodes.create({
+            data: {
+              productId: product.id,
+              variantId: variant.id,
+              businessId,
+              code: move.barcode,
+              type: 'CODE128',
+              isPrimary: true,
+              isActive: true,
+            }
+          })
+        }
 
         // Product image if imageId exists
         if (warehouseItem.imageId) {

@@ -169,6 +169,7 @@ export default function MoveWizardPage() {
   const [suggestRowIdx, setSuggestRowIdx] = useState<number | null>(null)
   const [suggestions, setSuggestions] = useState<SuggestItem[]>([])
   const [showAllSuggestions, setShowAllSuggestions] = useState(false)
+  const [suggestSearch, setSuggestSearch] = useState('')
   const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0, listMaxHeight: 300 })
   const popoverRef = useRef<HTMLDivElement>(null)
   const openSuggestBtnRef = useRef<Element | null>(null)
@@ -302,8 +303,11 @@ export default function MoveWizardPage() {
       const saved = savedState[item.id] || {}
       if (existing?.status === 'moved') return existing
       const costUsd = item.costUsd != null ? Number(item.costUsd) : 0
-      const txFee = item.costUsd != null ? costUsd * (feePct / 100) : 0
-      const cost = item.costUsd != null ? costUsd + txFee + (batch?.perItemTransport || 0) : 0
+      const qty = item.quantity || 1
+      const costUsdPerUnit = costUsd / qty
+      const txFee = item.costUsd != null ? costUsdPerUnit * (feePct / 100) : 0
+      const transportPerUnit = (batch?.perItemTransport || 0) / qty
+      const cost = item.costUsd != null ? costUsdPerUnit + txFee + transportPerUnit : 0
       const sell = cost > 0 ? (cost * (1 + markup)).toFixed(2) : ''
       return {
         item,
@@ -361,9 +365,11 @@ export default function MoveWizardPage() {
     setRows(prev => prev.map(r => {
       if (r.status === 'moved') return r
       const costUsd = r.item.costUsd != null ? Number(r.item.costUsd) : 0
-      const txFee = r.item.costUsd != null ? costUsd * (feePct / 100) : 0
-      const itemTransport = r.transportOverride !== '' ? parseFloat(r.transportOverride) || 0 : (batch?.perItemTransport || 0)
-      const cost = r.item.costUsd != null ? costUsd + txFee + itemTransport : 0
+      const qty = r.item.quantity || 1
+      const costUsdPerUnit = costUsd / qty
+      const txFee = r.item.costUsd != null ? costUsdPerUnit * (feePct / 100) : 0
+      const itemTransportPerUnit = (r.transportOverride !== '' ? parseFloat(r.transportOverride) || 0 : (batch?.perItemTransport || 0)) / qty
+      const cost = r.item.costUsd != null ? costUsdPerUnit + txFee + itemTransportPerUnit : 0
       const sell = cost > 0 ? (cost * (1 + markup)).toFixed(2) : r.sellingPrice
       return { ...r, sellingPrice: sell }
     }))
@@ -377,6 +383,7 @@ export default function MoveWizardPage() {
     const name = row.item.shortName || row.item.productName
     setSuggestions(suggestClassification(name, departments, categories, subCategories, domainList))
     setShowAllSuggestions(false)
+    setSuggestSearch('')
     const OVERHEAD = 180 // header + product name section height estimate
     const spaceBelow = window.innerHeight - rect.bottom - 8
     const spaceAbove = rect.top - 8
@@ -403,7 +410,9 @@ export default function MoveWizardPage() {
   async function handleMoveRow(idx: number) {
     const row = rows[idx]
     if (!selectedBusinessId) { toast.error('Select a target business'); return }
-    const leafCategoryId = row.subCategoryId || row.categoryId
+    // Domain businesses (clothing etc.): subCategoryId is inventory_subcategories — not valid for business_products FK
+    // Non-domain businesses: subCategoryId is business_categories — fine to use as leaf
+    const leafCategoryId = departments.length > 0 ? row.categoryId : (row.subCategoryId || row.categoryId)
     if (!leafCategoryId) { toast.error('Select a category for this item'); return }
     const sellPrice = parseFloat(row.sellingPrice)
     if (!sellPrice || sellPrice <= 0) { toast.error('Set a selling price > 0'); return }
@@ -441,11 +450,12 @@ export default function MoveWizardPage() {
     setBatchMoving(true)
     setRows(prev => prev.map(r => r.selected && r.status === 'pending' ? { ...r, status: 'moving' } : r))
     try {
+      const useDomainCat = departments.length > 0
       const items = pendingSelected.map(r => ({
         itemId: r.item.id,
         sellingPrice: parseFloat(r.sellingPrice),
         barcode: r.barcode || undefined,
-        categoryId: r.subCategoryId || r.categoryId,
+        categoryId: useDomainCat ? r.categoryId : (r.subCategoryId || r.categoryId),
       }))
       const res = await fetch(`/api/warehouse/${batchId}/move`, {
         method: 'POST',
@@ -588,7 +598,7 @@ export default function MoveWizardPage() {
                       <th className="px-3 py-2 text-left text-gray-500 uppercase tracking-wider">Qty</th>
                       <th className="px-3 py-2 text-left text-gray-500 uppercase tracking-wider">Cost USD</th>
                       {perItemTransport > 0 && <th className="px-3 py-2 text-left text-gray-500 uppercase tracking-wider">+ Transport</th>}
-                      <th className="px-3 py-2 text-left text-gray-500 uppercase tracking-wider">Cost Price</th>
+                      <th className="px-3 py-2 text-left text-gray-500 uppercase tracking-wider">Unit Cost</th>
                       {hasDomains && <th className="px-3 py-2 text-left text-gray-500 uppercase tracking-wider">Domain</th>}
                       <th className="px-3 py-2 text-left text-gray-500 uppercase tracking-wider">Category</th>
                       <th className="px-3 py-2 text-left text-gray-500 uppercase tracking-wider">Sub-category</th>
@@ -600,10 +610,12 @@ export default function MoveWizardPage() {
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                     {rows.map((row, idx) => {
                       const costUsd = row.item.costUsd != null ? Number(row.item.costUsd) : 0
-                      const itemTransport = row.transportOverride !== '' ? parseFloat(row.transportOverride) || 0 : perItemTransport
-                      const txFee = row.item.costUsd != null && transactionFeePct != null ? costUsd * (transactionFeePct / 100) : 0
-                      const costPrice = costUsd + txFee + itemTransport
-                      const totalAdjustment = itemTransport + txFee
+                      const qty = row.item.quantity || 1
+                      const costUsdPerUnit = costUsd / qty
+                      const itemTransportPerUnit = (row.transportOverride !== '' ? parseFloat(row.transportOverride) || 0 : perItemTransport) / qty
+                      const txFeePerUnit = row.item.costUsd != null && transactionFeePct != null ? costUsdPerUnit * (transactionFeePct / 100) : 0
+                      const costPrice = costUsdPerUnit + txFeePerUnit + itemTransportPerUnit
+                      const totalAdjustment = itemTransportPerUnit + txFeePerUnit
                       const isMoved = row.status === 'moved'
                       const isMoving = row.status === 'moving'
                       const isError = row.status === 'error'
@@ -659,9 +671,10 @@ export default function MoveWizardPage() {
                             {/* Transport (conditional) */}
                             {perItemTransport > 0 && (
                               <td className="px-3 py-2 text-amber-600 dark:text-amber-400">
-                                +${itemTransport.toFixed(2)}
+                                +${itemTransportPerUnit.toFixed(2)}
                                 {row.transportOverride !== '' && <span className="ml-1 text-gray-400">(custom)</span>}
-                                {txFee > 0 && <div className="text-blue-600 dark:text-blue-400">+${txFee.toFixed(2)} fee</div>}
+                                {txFeePerUnit > 0 && <div className="text-blue-600 dark:text-blue-400">+${txFeePerUnit.toFixed(2)} fee</div>}
+                                {qty > 1 && <div className="text-gray-400 text-[10px]">÷{qty} units</div>}
                               </td>
                             )}
 
@@ -854,7 +867,7 @@ export default function MoveWizardPage() {
                                 </div>
                                 {row.item.costUsd != null ? (
                                   <PricingCalculator
-                                    costPrice={Number(row.item.costUsd)}
+                                    costPrice={costUsdPerUnit}
                                     sellingPrice={row.sellingPrice}
                                     onSelectPrice={price => updateRow(idx, { sellingPrice: String(price) })}
                                     transportEnabled={totalAdjustment > 0}
@@ -911,14 +924,32 @@ export default function MoveWizardPage() {
                   &ldquo;{rows[suggestRowIdx]?.item.productName || ''}&rdquo;
                 </span>
               </p>
+              {suggestions.length > 5 && (
+                <input
+                  type="text"
+                  placeholder="Search classifications…"
+                  value={suggestSearch}
+                  onChange={e => setSuggestSearch(e.target.value)}
+                  className="w-full px-2 py-1 mb-2 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                />
+              )}
             </div>
             <div className="overflow-y-auto px-2 pb-2" style={{ maxHeight: popoverPos.listMaxHeight }}>
-              {suggestions.length === 0 ? (
+              {(() => {
+                const searchLower = suggestSearch.toLowerCase()
+                const filtered = suggestSearch
+                  ? suggestions.filter(s =>
+                      s.domainName.toLowerCase().includes(searchLower) ||
+                      s.categoryName.toLowerCase().includes(searchLower) ||
+                      s.subCategoryName.toLowerCase().includes(searchLower)
+                    )
+                  : showAllSuggestions ? suggestions : suggestions.slice(0, 5)
+                return suggestions.length === 0 ? (
                 <p className="text-xs text-gray-500 py-2 text-center">No matches found — select manually.</p>
               ) : (
                 <>
                   <ul className="space-y-1">
-                    {(showAllSuggestions ? suggestions : suggestions.slice(0, 5)).map((s, i) => (
+                    {filtered.map((s, i) => (
                       <li key={`${s.subCategoryId}-${i}`}>
                         <button
                           type="button"
@@ -939,7 +970,7 @@ export default function MoveWizardPage() {
                       </li>
                     ))}
                   </ul>
-                  {!showAllSuggestions && suggestions.length > 5 && (
+                  {!suggestSearch && !showAllSuggestions && suggestions.length > 5 && (
                     <button
                       type="button"
                       onClick={() => setShowAllSuggestions(true)}
@@ -948,8 +979,12 @@ export default function MoveWizardPage() {
                       Show {suggestions.length - 5} more suggestion{suggestions.length - 5 !== 1 ? 's' : ''}…
                     </button>
                   )}
+                  {suggestSearch && filtered.length === 0 && (
+                    <p className="text-xs text-gray-400 py-2 text-center">No matches for &ldquo;{suggestSearch}&rdquo;</p>
+                  )}
                 </>
-              )}
+              )
+              })()}
             </div>
           </div>
         )}
