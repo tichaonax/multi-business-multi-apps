@@ -15,6 +15,8 @@ interface DailySalesData {
 interface DailySalesLineChartProps {
   data: DailySalesData[]
   onDotClick?: (date: string) => void
+  groupBy?: 'daily' | 'monthly'
+  onGroupByChange?: (g: 'daily' | 'monthly') => void
 }
 
 // Format 'YYYY-MM' → "Jan '26"
@@ -72,20 +74,28 @@ function CustomTooltip({ active, payload, label, isMonthly }: any) {
 
 const GROUPBY_KEY = 'sales-chart-groupby'
 
-export function DailySalesLineChart({ data, onDotClick }: DailySalesLineChartProps) {
+export function DailySalesLineChart({ data, onDotClick, groupBy: controlledGroupBy, onGroupByChange }: DailySalesLineChartProps) {
   const dateFormat = useDateFormat()
-  const [groupBy, setGroupBy] = useState<'daily' | 'monthly'>(() => {
+  const isControlled = onGroupByChange !== undefined
+
+  const [localGroupBy, setLocalGroupBy] = useState<'daily' | 'monthly'>(() => {
     if (typeof window !== 'undefined') {
       const stored = sessionStorage.getItem(GROUPBY_KEY)
       if (stored === 'monthly') return 'monthly'
     }
     return 'daily'
   })
+
+  const groupBy = isControlled ? (controlledGroupBy ?? 'daily') : localGroupBy
   const isMonthly = groupBy === 'monthly'
 
   const handleGroupByChange = (val: 'daily' | 'monthly') => {
-    setGroupBy(val)
-    if (typeof window !== 'undefined') sessionStorage.setItem(GROUPBY_KEY, val)
+    if (isControlled) {
+      onGroupByChange!(val)
+    } else {
+      setLocalGroupBy(val)
+      if (typeof window !== 'undefined') sessionStorage.setItem(GROUPBY_KEY, val)
+    }
   }
 
   // Determine whether any expense data was supplied

@@ -68,6 +68,22 @@ export default function RestaurantSalesAnalytics() {
   const [insightsTarget, setInsightsTarget] = useState<{ productId: string; productName: string } | null>(null)
   const [eodSummary, setEodSummary] = useState<{ reportCount: number; totalExpectedCash: number; totalCashCounted: number; totalVariance: number; reportsWithVariance: number } | null>(null)
 
+  // Lifted state — survives child remounts
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null)
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [chartGroupBy, setChartGroupBy] = useState<'daily' | 'monthly'>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = sessionStorage.getItem('sales-chart-groupby')
+      return stored === 'monthly' ? 'monthly' : 'daily'
+    }
+    return 'daily'
+  })
+
+  function handleGroupByChange(g: 'daily' | 'monthly') {
+    setChartGroupBy(g)
+    if (typeof window !== 'undefined') sessionStorage.setItem('sales-chart-groupby', g)
+  }
+
   useEffect(() => {
     if (currentBusinessId) {
       loadAnalytics()
@@ -115,17 +131,6 @@ export default function RestaurantSalesAnalytics() {
     } finally {
       setLoading(false)
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading sales analytics...</p>
-        </div>
-      </div>
-    )
   }
 
   const formattedStartDate = formatDateByFormat(getLocalDateString(dateRange.start), dateFormat)
@@ -194,6 +199,9 @@ export default function RestaurantSalesAnalytics() {
                   showAllTime
                   allTime={allTime}
                   onAllTimeChange={setAllTime}
+                  selectedMonth={selectedMonth}
+                  selectedYear={selectedYear}
+                  onMonthYearChange={(m, y) => { setSelectedMonth(m); setSelectedYear(y) }}
                 />
               </div>
             </div>
@@ -260,36 +268,49 @@ export default function RestaurantSalesAnalytics() {
 
           {/* Main Content */}
           <div className="lg:col-span-3 space-y-6">
-            {/* Top Performers */}
-            {data && (
-              <TopPerformersCards
-                topProductsByUnits={data.topProducts.byUnits}
-                topProductsByRevenue={data.topProducts.byRevenue}
-                topCategories={data.topCategories}
-                topSalesReps={data.topSalesReps}
-              />
-            )}
+            {loading ? (
+              <div className="flex items-center justify-center py-32">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
+                  <p className="mt-4 text-gray-600 dark:text-gray-400">Loading sales analytics...</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Top Performers */}
+                {data && (
+                  <TopPerformersCards
+                    topProductsByUnits={data.topProducts.byUnits}
+                    topProductsByRevenue={data.topProducts.byRevenue}
+                    topCategories={data.topCategories}
+                    topSalesReps={data.topSalesReps}
+                  />
+                )}
 
-            {/* Daily Sales Trend */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-              {data && (
-                <DailySalesLineChart
-                  data={data.dailySales}
-                  onDotClick={(date) => router.push(
-                    `/reports/daily-detail?businessId=${currentBusinessId}&businessType=${businessType}&date=${date}`
+                {/* Daily Sales Trend */}
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+                  {data && (
+                    <DailySalesLineChart
+                      data={data.dailySales}
+                      onDotClick={(date) => router.push(
+                        `/reports/daily-detail?businessId=${currentBusinessId}&businessType=${businessType}&date=${date}`
+                      )}
+                      groupBy={chartGroupBy}
+                      onGroupByChange={handleGroupByChange}
+                    />
                   )}
-                />
-              )}
-            </div>
+                </div>
 
-            {/* Breakdown Charts */}
-            {data && (
-              <SalesBreakdownCharts
-                productBreakdown={data.productBreakdown}
-                categoryBreakdown={data.categoryBreakdown}
-                salesRepBreakdown={data.salesRepBreakdown}
-                onProductClick={(productId, productName) => setInsightsTarget({ productId, productName })}
-              />
+                {/* Breakdown Charts */}
+                {data && (
+                  <SalesBreakdownCharts
+                    productBreakdown={data.productBreakdown}
+                    categoryBreakdown={data.categoryBreakdown}
+                    salesRepBreakdown={data.salesRepBreakdown}
+                    onProductClick={(productId, productName) => setInsightsTarget({ productId, productName })}
+                  />
+                )}
+              </>
             )}
           </div>
         </div>
