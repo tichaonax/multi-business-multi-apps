@@ -793,6 +793,12 @@ export function Sidebar() {
                     </Link>
                   </>
                 )}
+                {(isSystemAdmin(currentUser) || hasPermission('canManageInventory') || hasPermission('canAccessFinancialData')) && (
+                  <Link href="/restaurant/livestock-purchase" className={getLinkClasses('/restaurant/livestock-purchase')}>
+                    <span className="text-lg">⚖️</span>
+                    <span>Livestock Purchase</span>
+                  </Link>
+                )}
                 {(isSystemAdmin(currentUser) || hasPermission('canViewBusiness')) && (
                   <Link href="/restaurant/settings/pos" className={getLinkClasses('/restaurant/settings/pos')}>
                     <span className="text-lg">⚙️</span>
@@ -863,6 +869,12 @@ export function Sidebar() {
                   <Link href="/r710-portal/sales" className={getLinkClasses('/r710-portal/sales')}>
                     <span className="text-lg">💵</span>
                     <span>R710 WiFi Sales</span>
+                  </Link>
+                )}
+                {(isSystemAdmin(currentUser) || hasPermission('canManageInventory') || hasPermission('canAccessFinancialData')) && (
+                  <Link href="/grocery/livestock-purchase" className={getLinkClasses('/grocery/livestock-purchase')}>
+                    <span className="text-lg">⚖️</span>
+                    <span>Livestock Purchase</span>
                   </Link>
                 )}
                 {(isSystemAdmin(currentUser) || hasPermission('canViewBusiness')) && (

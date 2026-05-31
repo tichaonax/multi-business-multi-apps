@@ -82,6 +82,10 @@ const NEW_TABLE_KEYS = [
   'warehouseReferenceLocks',
   // Warehouse Order Refs / Manifest Qty (MBM-225)
   'warehouseOrderRefs',
+  // Scale Integration (MBM-226)
+  'weightPricingRules', 'livestockPurchaseSessions', 'livestockPurchaseLines',
+  // Vendor Profiles (MBM-227)
+  'livestockVendorProfiles',
 ]
 
 async function main() {

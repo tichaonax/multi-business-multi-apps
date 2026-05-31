@@ -5,9 +5,10 @@
  * in fullscreen kiosk mode.
  */
 
-const { app, BrowserWindow, screen } = require('electron')
+const { app, BrowserWindow, screen, ipcMain } = require('electron')
 const path = require('path')
 const fs = require('fs')
+const scaleService = require('./scale-service')
 
 // Suppress GPU hardware acceleration errors (common on headless/remote desktop environments)
 app.commandLine.appendSwitch('disable-gpu')
@@ -233,7 +234,32 @@ function createWindows() {
   if (process.env.NODE_ENV === 'development') {
     mainWindow.webContents.openDevTools()
   }
+
+  // Initialise scale service — auto-connects to saved COM port
+  scaleService.init(mainWindow)
 }
+
+// ─── IPC Handlers ─────────────────────────────────────────────────────────────
+
+ipcMain.handle('get-displays', () => screen.getAllDisplays())
+
+ipcMain.handle('scale:list-ports', () => scaleService.listPorts())
+
+ipcMain.handle('scale:get-saved-port', () => scaleService.getSavedPort())
+
+ipcMain.handle('scale:connect', (_event, comPort) => {
+  scaleService.connect(comPort)
+  return { ok: true }
+})
+
+ipcMain.handle('scale:disconnect', () => {
+  scaleService.disconnect()
+  return { ok: true }
+})
+
+ipcMain.handle('scale:tare', () => ({ ok: scaleService.tare() }))
+
+// ─── App ready ────────────────────────────────────────────────────────────────
 
 // App ready event
 app.whenReady().then(() => {

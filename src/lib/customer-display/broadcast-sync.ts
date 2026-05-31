@@ -18,9 +18,12 @@ export type CartMessageType =
   | 'SET_PAGE_CONTEXT'
   | 'PAYMENT_STARTED'      // Payment in progress
   | 'PAYMENT_AMOUNT'       // Amount tendered updated
+  | 'PROCESSING_PAYMENT'   // Cashier clicked Complete Payment — API call in flight
   | 'PAYMENT_COMPLETE'     // Payment successful, sale complete
   | 'PAYMENT_CANCELLED'    // Payment cancelled, return to cart
   | 'ORDER_CANCELLED'      // Order voided; show refund breakdown to customer
+  | 'SCALE_WEIGHT'         // Live scale reading while weighing a product
+  | 'VENDOR_SESSION'       // Livestock purchase session opened/updated
 
 export interface CartItem {
   id: string
@@ -70,6 +73,17 @@ export interface CartMessage {
     feeDeducted?: number
     refundAmount?: number
     isEcocash?: boolean
+    // Scale weight fields (SCALE_WEIGHT)
+    scaleWeightKg?: number
+    scaleStable?: boolean
+    scaleItemName?: string
+    scalePricePerKg?: number
+    scaleTotal?: number
+    // Vendor session fields (VENDOR_SESSION)
+    vendorName?: string
+    vendorSessionStatus?: 'OPEN' | 'SUBMITTED' | 'CANCELLED'
+    vendorTotalAmount?: number
+    vendorTotalWeightKg?: number
   }
   timestamp: number
   businessId: string

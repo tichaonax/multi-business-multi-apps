@@ -53,6 +53,7 @@ import type { DeliveryReceiptData } from '@/lib/printing/receipt-templates'
 import { generateBarcodeEscPos } from '@/lib/printing/card-print-utils'
 import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
 import { generateWifiFlierPdf, WifiFlierData } from '@/lib/wifi-flier-pdf'
+import { WeighItemModal } from '@/components/pos/WeighItemModal'
 
 interface MenuItem {
   id: string
@@ -76,6 +77,8 @@ interface MenuItem {
   isInventoryTracked?: boolean
   stockQuantity?: number
   reorderLevel?: number
+  isSoldByWeight?: boolean
+  pricePerKg?: number | null
 }
 
 interface CartItem extends MenuItem {
@@ -104,6 +107,7 @@ export default function RestaurantPOS() {
   // Stable ref to sendToDisplay so barcode-scan handler (empty-deps effect) always calls the latest version
   const sendToDisplayRef = useRef<((type: string, payload: Record<string, unknown>) => void) | null>(null)
   const [cart, setCart] = useState<CartItem[]>([])
+  const [weighingItem, setWeighingItem] = useState<MenuItem | null>(null)
   const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerNumber: string; name: string; email?: string; phone?: string; address?: string; city?: string; customerType: string; creditBalance?: number; isBlacklisted?: boolean; blacklistReason?: string | null } | null>(null)
   const [selectedSalesperson, setSelectedSalesperson] = useState<SelectedSalesperson | null>(null)
   const selectedSalespersonRef = useRef<SelectedSalesperson | null>(null)
@@ -1143,7 +1147,9 @@ export default function RestaurantPOS() {
                 firstSoldTodayAt: firstSoldTodayAtMap[product.id] || null,
                 isInventoryTracked: product.isInventoryTracked ?? false,
                 stockQuantity: product.variants?.[0]?.stockQuantity ?? 0,
-                reorderLevel: product.variants?.[0]?.reorderLevel ?? 0
+                reorderLevel: product.variants?.[0]?.reorderLevel ?? 0,
+                isSoldByWeight: product.isSoldByWeight ?? false,
+                pricePerKg: product.pricePerKg != null ? Number(product.pricePerKg) : null,
               }
             })
 
@@ -1931,6 +1937,12 @@ export default function RestaurantPOS() {
   const addToCart = async (item: MenuItem) => {
     console.log('➕ Adding to cart:', item.name, 'Price:', item.price)
 
+    // Intercept weight-sold items — open the weigh modal instead
+    if (item.isSoldByWeight && item.pricePerKg) {
+      setWeighingItem(item)
+      return
+    }
+
     const isESP32Token = (item as any).esp32Token === true
     const isR710Token = (item as any).r710Token === true
     const isAnyWiFiToken = isESP32Token || isR710Token
@@ -2321,6 +2333,7 @@ export default function RestaurantPOS() {
     }
     submitInFlightRef.current = true
     setOrderSubmitting(true)
+    sendToDisplay('PROCESSING_PAYMENT', { subtotal: cart.reduce((s, i) => s + Number(i.price) * i.quantity, 0), tax: 0, total: 0 })
 
     try {
       console.log('📤 Sending order request...')
@@ -2658,6 +2671,33 @@ export default function RestaurantPOS() {
   }
   return (
     <BusinessTypeRoute requiredBusinessType="restaurant">
+      {/* ── Weigh Item Modal ──────────────────────────────────────────────── */}
+      {weighingItem && weighingItem.pricePerKg && (
+        <WeighItemModal
+          itemName={weighingItem.name}
+          pricePerKg={weighingItem.pricePerKg}
+          onCancel={() => setWeighingItem(null)}
+          onConfirm={(weightKg, totalPrice) => {
+            const weightedItem: MenuItem = {
+              ...weighingItem,
+              price: totalPrice,
+              name: `${weighingItem.name} (${weightKg.toFixed(3)} kg)`,
+            }
+            setCart((prev) => {
+              const existing = prev.find((c) => c.id === weighingItem.id && c.name === weightedItem.name)
+              if (existing) {
+                return prev.map((c) => c.id === weighingItem.id && c.name === weightedItem.name
+                  ? { ...c, quantity: c.quantity + 1 }
+                  : c
+                )
+              }
+              return [...prev, { ...weightedItem, quantity: 1 }]
+            })
+            setWeighingItem(null)
+          }}
+        />
+      )}
+
       {/* ── Stock Take in-progress warning dialog ─────────────────────────── */}
       {showStockTakeWarning && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999]">

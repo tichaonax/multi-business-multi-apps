@@ -112,6 +112,7 @@ function CustomerDisplayContent() {
   const [customerRewardMessage, setCustomerRewardMessage] = useState<string | null>(null)
   const [customerRewardApplied, setCustomerRewardApplied] = useState(false)
   const [thankYouName, setThankYouName] = useState<string | null>(null)
+  const [processingPayment, setProcessingPayment] = useState(false)
   const [businessName, setBusinessName] = useState<string | null>(null)
   const [businessPhone, setBusinessPhone] = useState<string | null>(null)
   const [slogan, setSlogan] = useState<string | null>(null)
@@ -387,9 +388,14 @@ function CustomerDisplayContent() {
         })
         break
 
+      case 'PROCESSING_PAYMENT':
+        setProcessingPayment(true)
+        break
+
       case 'PAYMENT_COMPLETE':
         // Payment complete - show thank you message, then clear cart after 4 seconds
         console.log('[CustomerDisplay] Payment complete - sale finished')
+        setProcessingPayment(false)
         setPaymentState(prev => ({
           ...prev,
           inProgress: false
@@ -423,6 +429,7 @@ function CustomerDisplayContent() {
       case 'PAYMENT_CANCELLED':
         // Payment cancelled - return to cart view
         console.log('[CustomerDisplay] Payment cancelled - returning to cart view')
+        setProcessingPayment(false)
         setPaymentState({
           inProgress: false,
           amountTendered: 0,
@@ -647,6 +654,19 @@ function CustomerDisplayContent() {
           </p>
           <p className="text-3xl font-medium opacity-90">Your order is being prepared.</p>
           <p className="text-xl mt-4 opacity-70">Please wait for your number to be called.</p>
+        </div>
+      )}
+
+      {/* Processing Payment Spinner — shown while API call is in flight */}
+      {processingPayment && (
+        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/70">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl px-16 py-12 flex flex-col items-center gap-6">
+            <svg className="animate-spin w-20 h-20 text-blue-600" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+            <p className="text-2xl font-semibold text-gray-800 dark:text-gray-100">Processing Payment…</p>
+          </div>
         </div>
       )}
 

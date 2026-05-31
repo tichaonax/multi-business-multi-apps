@@ -147,6 +147,7 @@ export function MobileSidebar() {
                 {navLink('/restaurant/meal-program/eligible-items', '✅', 'Eligible Items')}
               </>
             )}
+            {(isAdmin || hasBusinessPermission('canManageInventory') || hasBusinessPermission('canAccessFinancialData')) && navLink('/restaurant/livestock-purchase', '⚖️', 'Livestock Purchase')}
             {(isAdmin || hasBusinessPermission('canViewBusiness')) && navLink('/restaurant/settings/pos', '⚙️', 'POS Settings')}
             {canViewOrders && navLink('/restaurant/orders', '📦', 'Orders')}
             {navLink('/services/list', '🔧', 'Services')}
@@ -162,6 +163,7 @@ export function MobileSidebar() {
             {navLink('/grocery/inventory', '📦', 'Inventory')}
             {navLink('/grocery/products', '📦', 'Products')}
             {navLink('/grocery/inventory?tab=bales', '📦', 'Bales Inventory')}
+            {(isAdmin || hasBusinessPermission('canManageInventory') || hasBusinessPermission('canAccessFinancialData')) && navLink('/grocery/livestock-purchase', '⚖️', 'Livestock Purchase')}
             {(isAdmin || hasBusinessPermission('canViewBusiness')) && navLink('/grocery/settings/pos', '⚙️', 'POS Settings')}
             {canViewOrders && navLink('/grocery/orders', '📦', 'Orders')}
             {navLink('/services/list', '🔧', 'Services')}

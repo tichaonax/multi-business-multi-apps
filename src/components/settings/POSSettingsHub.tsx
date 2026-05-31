@@ -17,6 +17,8 @@ import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { PrinterPreferencesSettings } from './PrinterPreferencesSettings'
 import { SalesPerformanceSettings } from './SalesPerformanceSettings'
+import { ScaleSettings } from './ScaleSettings'
+import { WeightPricingSettings } from './WeightPricingSettings'
 import { SessionUser } from '@/lib/permission-utils'
 
 interface POSSettingsHubProps {
@@ -40,7 +42,11 @@ export function POSSettingsHub({ businessId, businessType, posLink }: POSSetting
     isSystemAdmin ||
     hasPermission('canManageBusinessSettings')
 
-  const hasAnything = canSeePrinterPrefs || canSeeThresholds
+  const canSeeScaleSettings =
+    isSystemAdmin ||
+    hasPermission('canManageBusinessSettings')
+
+  const hasAnything = canSeePrinterPrefs || canSeeThresholds || canSeeScaleSettings
 
   if (!hasAnything) {
     return (
@@ -74,7 +80,6 @@ export function POSSettingsHub({ businessId, businessType, posLink }: POSSetting
       {/* ── Section 2: Sales Performance Thresholds ──────────────── */}
       {canSeeThresholds && (
         <section>
-          {/* Section header — mirrors the printer section style */}
           <div className="flex items-center gap-3 mb-6">
             <span className="text-2xl">📊</span>
             <div>
@@ -90,6 +95,44 @@ export function POSSettingsHub({ businessId, businessType, posLink }: POSSetting
             posLink={posLink}
           />
         </section>
+      )}
+
+      {/* ── Section 3: Scale Settings (Electron only) ────────────── */}
+      {canSeeScaleSettings && (
+        <>
+          <hr className="border-gray-200 dark:border-gray-700" />
+          <section>
+            <div className="flex items-center gap-3 mb-6">
+              <span className="text-2xl">⚖️</span>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Scale — MG-S8200</h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  RS-232 scale connection settings. Per-machine — stored locally.
+                </p>
+              </div>
+            </div>
+            <ScaleSettings />
+          </section>
+        </>
+      )}
+
+      {/* ── Section 4: Weight Pricing Rules (restaurant/grocery only) */}
+      {canSeeScaleSettings && (businessType === 'restaurant' || businessType === 'grocery') && (
+        <>
+          <hr className="border-gray-200 dark:border-gray-700" />
+          <section>
+            <div className="flex items-center gap-3 mb-6">
+              <span className="text-2xl">🏷️</span>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Weight Pricing Rules</h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Per-category purchase and sale prices per kilogram.
+                </p>
+              </div>
+            </div>
+            <WeightPricingSettings businessId={businessId} />
+          </section>
+        </>
       )}
 
     </div>

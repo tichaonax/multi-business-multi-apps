@@ -419,6 +419,11 @@ const RESTORE_ORDER = [
   'warehouseItems',         // Depends on warehouseBatches, images (imageId), users (movedBy)
   'warehouseReferenceLocks', // Depends on users (lockedById)
   'warehouseOrderRefs',      // No foreign key dependencies — standalone order/tracking max table
+  // Scale integration (MBM-226)
+  'weightPricingRules',       // Depends on businesses
+  'livestockPurchaseSessions', // Depends on businesses, business_suppliers
+  'livestockPurchaseLines',    // Depends on livestockPurchaseSessions
+  'livestockVendorProfiles',   // Depends on businesses, business_suppliers (MBM-227)
 ]
 
 /**
@@ -515,6 +520,9 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
 
   // Warehouse Order Refs: composite unique on (orderNumber, trackingNumber)
   'warehouseOrderRefs': { fields: ['orderNumber', 'trackingNumber'] },
+
+  // Weight Pricing Rules: composite unique on (businessId, categoryName, ruleType)
+  'weightPricingRules': { fields: ['businessId', 'categoryName', 'ruleType'] },
 
   // Policy Management: composite unique constraints
   'policyVersions': { fields: ['policyId', 'version'] },             // @@unique([policyId, version])

@@ -131,6 +131,12 @@
     - [Backup Types](#backup-types)
     - [Verifying a Restore](#verifying-a-restore)
     - [Restore Progress & Warnings](#restore-progress--warnings)
+53. [Scale Integration — Star Micronics MG-S8200](#53-scale-integration--star-micronics-mg-s8200)
+    - [Connecting the Scale](#connecting-the-scale)
+    - [Weight Pricing Rules](#weight-pricing-rules)
+    - [Marking a Product as Sold by Weight](#marking-a-product-as-sold-by-weight)
+    - [Selling by Weight at the POS](#selling-by-weight-at-the-pos)
+    - [Livestock Purchase Workflow](#livestock-purchase-workflow)
 
 ---
 
@@ -10261,7 +10267,9 @@ Compare these numbers to what was shown in the validation report.
 
 ### Schema Version
 
-Each backup file records the schema version at the time it was created (e.g. `6.27.0`). When restoring to a different installation, the schema versions should match. If they differ, run `prisma migrate deploy` on the target installation first to bring the schema up to date, then restore.
+Each backup file records the schema version at the time it was created (e.g. `6.31.0`). When restoring to a different installation, the schema versions should match. If they differ, run `prisma migrate deploy` on the target installation first to bring the schema up to date, then restore.
+
+The current schema version is **6.31.0** (adds `weight_pricing_rules`, `livestock_purchase_sessions`, `livestock_purchase_lines`, and two columns on `business_products` for scale integration — MBM-226).
 
 ---
 
@@ -10275,6 +10283,190 @@ Each backup file records the schema version at the time it was created (e.g. `6.
 | Keep at least two backups: yesterday and last week | Provides a recovery window if an issue is discovered late |
 | Exclude demo data from production backups | Keeps files smaller and avoids polluting production with test data |
 | Test a restore on a staging environment periodically | Ensures the restore process actually works before you need it in an emergency |
+
+---
+
+## 53. Scale Integration — Star Micronics MG-S8200
+
+The system supports a **Star Micronics MG-S8200 RS-232 weighing scale** for two workflows:
+
+1. **Selling by weight** — products priced per kg (e.g. deli meat, loose spices). The scale reading is captured at the POS and the item price is calculated automatically.
+2. **Livestock purchase** — buying live animals from a vendor. Each animal category is weighed in turn, the total is calculated, and an expense payment voucher is printed at the end.
+
+> **Desktop app only.** Scale integration is only available when running the Electron desktop application. It will not appear in a standard browser session.
+
+---
+
+### Connecting the Scale
+
+The scale connects via a standard RS-232 serial cable. On a modern PC use a USB-to-RS-232 adapter. The MG-S8200 default settings are **9600 baud, 8N1**.
+
+**Steps to configure:**
+
+1. Plug the scale into the PC and note the COM port assigned (e.g. `COM3`). Windows Device Manager → Ports will show it.
+2. Open the POS for your business (Restaurant or Grocery).
+3. Click **⚙️ POS Settings** (top-right of the POS page).
+4. Scroll to the **⚖️ Scale — MG-S8200** section.
+5. Click **↺** to refresh the port list, then select the correct COM port from the dropdown.
+6. Click **Connect**. The status indicator turns green and a live weight reading appears below.
+7. Place an empty container on the scale and click **Tare** to zero it before weighing.
+
+The selected COM port is saved locally on this PC only — it is not synced to the server. Repeat this step on every computer that has a scale attached.
+
+**Status indicator:**
+
+| Colour | Meaning |
+|--------|---------|
+| Green dot | Scale connected and streaming |
+| Grey dot | Disconnected |
+| Red dot | Error — check cable and COM port |
+
+The scale service auto-reconnects every 5 seconds if the cable is briefly disconnected.
+
+---
+
+### Weight Pricing Rules
+
+Weight pricing rules define the price per kilogram for each animal or product category. They are stored per business and are used by both the livestock purchase workflow and the POS weigh-item flow.
+
+**Where to set them up:**
+
+POS Settings → **🏷️ Weight Pricing Rules** section (Restaurant and Grocery only; requires **Manage Business Settings** permission).
+
+**Adding a rule:**
+
+1. Click **+ Add pricing rule**.
+2. Enter the **Category name** (e.g. *Whole Chicken*, *Chicken Feet*, *Offals*, *Goat*).
+3. Select the **Type**:
+   - `PURCHASE` — price paid to a vendor when buying livestock
+   - `SALE` — price charged to a customer when selling by weight at the POS
+4. Enter the **Price / kg**.
+5. Click **Add**.
+
+**Editing:** Click the active toggle to enable or disable a rule without deleting it. Click **Remove** to delete permanently.
+
+Rules are matched by category name. If no matching rule exists, the cashier can enter a custom price during the workflow.
+
+---
+
+### Marking a Product as Sold by Weight
+
+Any restaurant or grocery inventory item can be flagged as "sold by weight". When a customer buys that item at the POS the cashier is prompted to place it on the scale instead of entering a quantity manually.
+
+**Steps:**
+
+1. Go to **Restaurant → Inventory** (or **Grocery → Inventory**).
+2. Find the product and click **Edit**.
+3. In the amber bar above the form, tick **Sell by Weight (kg)**.
+4. Enter the **Price per kg** in the field that appears.
+5. Save the form.
+
+Once flagged, tapping the product card at the POS opens the **Weigh Item** modal instead of adding directly to the cart.
+
+---
+
+### Selling by Weight at the POS
+
+When a cashier taps a product marked as *sold by weight*, the Weigh Item modal opens automatically.
+
+**Workflow:**
+
+1. Place the item on the scale (tare the container first if needed).
+2. The modal displays the live reading in large digits:
+   - **UNSTABLE** (amber) — the scale is still settling; wait.
+   - **STABLE** (green) — the reading has settled. The calculated total appears.
+3. The weight **auto-locks** when stable. The status changes to **LOCKED** (blue).
+4. If the weight looks wrong, click **Re-weigh** to unlock and capture a fresh reading.
+5. Click **Tare** to zero the scale (e.g. to remove packaging weight).
+6. Click **Add to Cart** once you are satisfied with the weight and price.
+
+The cart item is added as `Product Name (X.XXX kg)` with the total price pre-calculated (not unit price × quantity).
+
+| Control | Action |
+|---------|--------|
+| **Tare** | Zeros the scale — remove all items first, tare, then place items back |
+| **Re-weigh** | Unlocks a locked reading to capture a new value |
+| **Add to Cart** | Disabled until a stable, positive weight is locked |
+| **Cancel** | Closes the modal without adding anything to the cart |
+
+> **No scale connected?** The modal shows "Scale not connected" and Add to Cart is disabled. Go to POS Settings → Scale to connect.
+
+---
+
+### Livestock Purchase Workflow
+
+Use this when a vendor brings live animals to the premises and you need to weigh and pay for each category (whole chickens, offals, feet, etc.). The system records each weigh-in, submits an expense payment request for the total, and prints a vendor payment voucher.
+
+**Prerequisites:**
+- Scale connected (see [Connecting the Scale](#connecting-the-scale))
+- Vendor registered as a **Supplier** for this business (Suppliers page → Add Supplier)
+- PURCHASE pricing rules configured (optional but recommended)
+
+**Opening the page:**
+- Restaurant: **Restaurant → Livestock Purchase**
+- Grocery: **Grocery → Livestock Purchase**
+
+---
+
+#### Step 1 — Select Vendor & Start Session
+
+1. Click **Start New Purchase**.
+2. Select the vendor from the dropdown.
+3. Click **Start Session**. The weighing screen opens.
+
+---
+
+#### Step 2 — Weigh Each Category
+
+For each category of animals (e.g. whole chickens first, then offals):
+
+1. Place the animals on the scale and wait for **STABLE** — the weight auto-locks.
+2. Select the **Category** from the dropdown. The matching purchase price per kg fills in automatically.
+   - Choose *Other (custom)* to type a category name and enter the price manually.
+3. Adjust the price if needed.
+4. Add optional notes.
+5. Click **+ Add Line**. The line appears in the table and the running total updates.
+6. Click **Re-weigh** to unlock for the next group of animals.
+
+Repeat for every category. To remove a mistaken line, click the **×** on that row.
+
+---
+
+#### Step 3 — Submit & Print Voucher
+
+1. When all categories are entered, click **Submit & Print Voucher**.
+2. The system:
+   - Creates an **Expense Account Payment** (SUBMITTED) for the full total, payee = selected vendor, charged to the default business expense account.
+   - Marks the session SUBMITTED.
+   - Opens the **Receipt Preview** modal.
+3. Select a printer and click **Print**.
+
+The printed voucher shows: business name, date, vendor name, each line (category / kg / $/kg / total), and the grand total. Hand it to the vendor — the cashier completes the cash payment through the normal expense approval process.
+
+**Cancelling a session:** Click **Cancel** (bottom-left of the wizard). No expense payment is created and the session is marked CANCELLED.
+
+---
+
+#### Livestock Purchase — Column Reference
+
+| Column | Description |
+|--------|-------------|
+| Category | Animal type (e.g. Whole Chicken, Offals) |
+| kg | Weight captured from scale |
+| $/kg | Price per kilogram at time of weighing |
+| Total | kg × $/kg, calculated automatically |
+
+---
+
+#### Permissions
+
+| Action | Required permission |
+|--------|-------------------|
+| Connect scale / change COM port | Manage Business Settings |
+| Manage weight pricing rules | Manage Business Settings |
+| Mark product as sold by weight | Manage Inventory |
+| Sell by weight at POS | Standard cashier access |
+| Start / submit / cancel livestock purchase | Standard cashier access |
 
 ---
 

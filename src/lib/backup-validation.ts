@@ -238,6 +238,8 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'warehouseItems',
   'warehouseReferenceLocks',
   'warehouseOrderRefs',
+  'livestockPurchaseLines',
+  'livestockVendorProfiles',
   // User/permission tables — no businessId column
   'users',
   'accounts',

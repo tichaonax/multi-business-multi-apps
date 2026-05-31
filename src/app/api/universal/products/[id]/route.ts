@@ -26,6 +26,8 @@ const UpdateProductSchema = z.object({
   dietaryRestrictions: z.array(z.string()).optional(),
   allergens: z.array(z.string()).optional(),
   isInventoryTracked: z.boolean().optional(),
+  isSoldByWeight: z.boolean().optional(),
+  pricePerKg: z.number().min(0).nullable().optional(),
   images: z.array(z.any()).optional(),
   variants: z.array(z.object({
     id: z.string().optional(),

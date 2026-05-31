@@ -19,6 +19,8 @@ const CreateProductSchema = z.object({
   businessType: z.string().min(1),
   attributes: z.record(z.string(), z.any()).optional(),
   isInventoryTracked: z.boolean().optional(),
+  isSoldByWeight: z.boolean().optional(),
+  pricePerKg: z.number().min(0).optional().nullable(),
   variants: z.array(z.object({
     id: z.string().optional(), // ID for existing variants
     name: z.string().optional(),

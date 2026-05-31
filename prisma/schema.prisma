@@ -279,6 +279,8 @@ model BusinessProducts {
   requiresCompanionItem       Boolean                    @default(false)
   isInventoryTracked          Boolean                    @default(false)
   isProductTemplate           Boolean                    @default(false)
+  isSoldByWeight              Boolean                    @default(false)
+  pricePerKg                  Decimal?                   @db.Decimal(10, 2)
   business_brands             BusinessBrands?            @relation(fields: [brandId], references: [id])
   businesses                  Businesses                 @relation(fields: [businessId], references: [id])
   business_categories         BusinessCategories         @relation(fields: [categoryId], references: [id])
@@ -364,8 +366,10 @@ model BusinessSuppliers {
   chicken_feed_logs         ChickenFeedLog[]              @relation("ChickenFeedSupplier")
   chicken_inventory         ChickenInventory[]            @relation("ChickenInventorySupplier")
   customBulkProducts        CustomBulkProducts[]          @relation("CustomBulkSupplier")
-  combo_section_payee       ComboPaymentRequestSections[] @relation("ComboSectionPayeeSupplier")
-  combo_item_payee          ComboPaymentRequestItems[]    @relation("ComboItemPayeeSupplier")
+  combo_section_payee         ComboPaymentRequestSections[] @relation("ComboSectionPayeeSupplier")
+  combo_item_payee            ComboPaymentRequestItems[]    @relation("ComboItemPayeeSupplier")
+  livestock_purchase_sessions LivestockPurchaseSessions[]
+  livestock_vendor_profiles   LivestockVendorProfiles[]
 
   @@unique([businessType, supplierNumber])
   @@map("business_suppliers")
@@ -582,6 +586,9 @@ model Businesses {
   leave_policies_umbrella                                                  LeavePolicies[]               @relation("LeavePolicyUmbrella")
   leave_policies_business                                                  LeavePolicies[]               @relation("LeavePolicyBusiness")
   restaurant_credit_payments                                               RestaurantCreditPayments[]
+  weight_pricing_rules                                                     WeightPricingRules[]
+  livestock_purchase_sessions                                              LivestockPurchaseSessions[]
+  livestock_vendor_profiles                                                LivestockVendorProfiles[]
 
   @@map("businesses")
 }
@@ -7331,4 +7338,82 @@ model WarehouseOrderRefs {
   @@index([orderNumber])
   @@index([trackingNumber])
   @@map("warehouse_order_refs")
+}
+
+model WeightPricingRules {
+  id           String    @id @default(uuid())
+  businessId   String
+  categoryName String
+  ruleType     String    @default("PURCHASE")
+  pricePerKg   Decimal   @db.Decimal(10, 2)
+  emoji        String    @default("📦")
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  businesses   Businesses @relation(fields: [businessId], references: [id])
+
+  @@unique([businessId, categoryName, ruleType])
+  @@index([businessId])
+  @@map("weight_pricing_rules")
+}
+
+model LivestockPurchaseSessions {
+  id               String    @id @default(uuid())
+  businessId       String
+  supplierId       String
+  status           String    @default("OPEN")
+  totalWeightKg    Decimal   @default(0) @db.Decimal(10, 3)
+  totalAmount      Decimal   @default(0) @db.Decimal(10, 2)
+  notes            String?
+  expenseAccountId String?
+  submittedAt      DateTime?
+  cancelledAt      DateTime?
+  createdBy        String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  businesses              Businesses             @relation(fields: [businessId], references: [id])
+  business_suppliers      BusinessSuppliers      @relation(fields: [supplierId], references: [id])
+  livestock_purchase_lines LivestockPurchaseLines[]
+
+  @@index([businessId])
+  @@index([supplierId])
+  @@index([status])
+  @@map("livestock_purchase_sessions")
+}
+
+model LivestockPurchaseLines {
+  id           String   @id @default(uuid())
+  sessionId    String
+  categoryName String
+  weightKg     Decimal  @db.Decimal(10, 3)
+  pricePerKg   Decimal  @db.Decimal(10, 2)
+  totalAmount  Decimal  @db.Decimal(10, 2)
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  livestock_purchase_sessions LivestockPurchaseSessions @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("livestock_purchase_lines")
+}
+
+model LivestockVendorProfiles {
+  id         String   @id @default(uuid())
+  businessId String
+  vendorId   String
+  name       String
+  emoji      String   @default("📦")
+  pricePerKg Decimal  @db.Decimal(10, 2)
+  sortOrder  Int      @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  businesses         Businesses        @relation(fields: [businessId], references: [id])
+  business_suppliers BusinessSuppliers @relation(fields: [vendorId], references: [id])
+
+  @@index([businessId, vendorId])
+  @@map("livestock_vendor_profiles")
 }

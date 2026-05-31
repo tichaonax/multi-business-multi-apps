@@ -20,6 +20,7 @@ import { CartProvider } from '@/contexts/global-cart-context'
 import { NotificationProvider } from '@/components/providers/notification-provider'
 import { FloatingChat } from '@/components/chat/floating-chat'
 import { PolicyGuard } from '@/components/policies/PolicyGuard'
+import { ScaleProvider } from '@/contexts/ScaleContext'
 
 export const metadata: Metadata = {
   title: 'Multi-Business Management Platform',
@@ -69,6 +70,7 @@ export default function RootLayout({
                 <PromptProvider>
                   <BusinessPermissionsProvider>
                     <CartProvider>
+                      <ScaleProvider>
                       <NotificationProvider>
                       <NavigationProvider>
                         <GlobalBarcodeProvider>
@@ -88,6 +90,7 @@ export default function RootLayout({
                         </GlobalBarcodeProvider>
                       </NavigationProvider>
                       </NotificationProvider>
+                      </ScaleProvider>
                     </CartProvider>
                   </BusinessPermissionsProvider>
                 </PromptProvider>
