@@ -141,6 +141,18 @@ export default function ProjectDetailPage() {
 
   const projectId = params.projectId as string
 
+  // Assign payment modal state
+  const [assignModalOpen, setAssignModalOpen] = useState(false)
+  const [assignSearch, setAssignSearch] = useState('')
+  const [assignPayments, setAssignPayments] = useState<{
+    id: string; expenseAccountId: string; expenseAccountName: string
+    amount: number; paymentDate: string; notes: string | null
+    status: string; payeeName: string | null
+    category: { id: string; name: string; emoji: string } | null
+  }[]>([])
+  const [assignSearchLoading, setAssignSearchLoading] = useState(false)
+  const [assigningId, setAssigningId] = useState<string | null>(null)
+
   useEffect(() => {
     if (projectId) {
       fetchProject()
@@ -166,6 +178,35 @@ export default function ProjectDetailPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const loadUnlinkedPayments = async (search: string) => {
+    setAssignSearchLoading(true)
+    try {
+      const res = await fetch(
+        `/api/projects/${projectId}/unlinked-payments?search=${encodeURIComponent(search)}&limit=40`,
+        { credentials: 'include' }
+      )
+      const data = await res.json()
+      setAssignPayments(data.payments || [])
+    } catch { setAssignPayments([]) }
+    finally { setAssignSearchLoading(false) }
+  }
+
+  const linkPaymentToProject = async (paymentId: string, expenseAccountId: string) => {
+    setAssigningId(paymentId)
+    try {
+      const res = await fetch(`/api/expense-account/${expenseAccountId}/payments/${paymentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ projectId }),
+      })
+      if (res.ok) {
+        setAssignPayments(prev => prev.filter(p => p.id !== paymentId))
+        fetchProject()
+      }
+    } finally { setAssigningId(null) }
   }
 
   const canViewProject = (businessType: string) => {
@@ -654,17 +695,87 @@ export default function ProjectDetailPage() {
               </TabsContent>
 
               <TabsContent value="expenses" className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-sm text-secondary/60">
+                    {project.expensePayments?.length ?? 0} payment(s)
+                    {(project.financialSummary.expensePaymentsTotal ?? 0) > 0 && ` — Total: ${formatCurrency(project.financialSummary.expensePaymentsTotal)}`}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => { setAssignModalOpen(true); loadUnlinkedPayments('') }}
+                  >
+                    + Assign Payment
+                  </Button>
+                </div>
+
+                {/* Assign Payment Modal */}
+                {assignModalOpen && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setAssignModalOpen(false)}>
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                        <h3 className="font-semibold text-gray-900 dark:text-white">Assign Existing Payment</h3>
+                        <button onClick={() => setAssignModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">×</button>
+                      </div>
+                      <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+                        <input
+                          type="text"
+                          placeholder="Search by payee, notes, or category…"
+                          value={assignSearch}
+                          onChange={e => {
+                            setAssignSearch(e.target.value)
+                            loadUnlinkedPayments(e.target.value)
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="overflow-y-auto flex-1 p-2">
+                        {assignSearchLoading ? (
+                          <p className="text-center text-sm text-gray-400 py-6">Searching…</p>
+                        ) : assignPayments.length === 0 ? (
+                          <p className="text-center text-sm text-gray-400 py-6">No unlinked payments found.</p>
+                        ) : (
+                          <ul className="space-y-1">
+                            {assignPayments.map(p => (
+                              <li key={p.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{p.payeeName || p.payeeType}</span>
+                                    {p.category && <span className="text-xs text-gray-500">{p.category.emoji} {p.category.name}</span>}
+                                  </div>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {new Date(p.paymentDate).toLocaleDateString()} · {p.expenseAccountName}
+                                    {p.notes && ` · ${p.notes.slice(0, 40)}`}
+                                  </p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <p className="text-sm font-bold text-gray-900 dark:text-white">${Number(p.amount).toFixed(2)}</p>
+                                  <button
+                                    onClick={() => linkPaymentToProject(p.id, p.expenseAccountId)}
+                                    disabled={assigningId === p.id}
+                                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50 mt-0.5"
+                                  >
+                                    {assigningId === p.id ? 'Linking…' : 'Link'}
+                                  </button>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {(!project.expensePayments || project.expensePayments.length === 0) ? (
                   <div className="text-center py-8">
                     <DollarSign className="h-12 w-12 text-secondary/40 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold text-secondary mb-2">No Expense Payments</h3>
-                    <p className="text-secondary/80">No expense payments have been linked to this project yet.</p>
+                    <p className="text-secondary/80">Use the button above to assign existing payments to this project.</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <p className="text-sm text-secondary/60 mb-3">
-                      {project.expensePayments.length} payment(s) — Total: {formatCurrency(project.financialSummary.expensePaymentsTotal)}
-                    </p>
                     {project.expensePayments.map((payment) => {
                       const payeeName = payment.payeePerson?.fullName || payment.payeeEmployee?.fullName || payment.payeeSupplier?.name || payment.payeeBusiness?.name || payment.payeeType
                       return (

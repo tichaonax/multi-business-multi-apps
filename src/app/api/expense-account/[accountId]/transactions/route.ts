@@ -228,6 +228,9 @@ export async function GET(
                   expenseAccount: { select: { id: true, accountName: true } },
                 },
               },
+              project: {
+                select: { id: true, name: true },
+              },
             },
             orderBy: [{ paidAt: sortOrder as 'asc' | 'desc' }, { paymentDate: sortOrder as 'asc' | 'desc' }],
           })
@@ -462,6 +465,8 @@ export async function GET(
         comboRequestId: comboRequestMap.get(payment.id) ?? null,
         comboPayees: (() => { const rid = comboRequestMap.get(payment.id); return rid ? (comboPayeesMap.get(rid) ?? []) : [] })(),
         comboRequester: comboRequesterMap.get(payment.id) ?? null,
+        projectId: payment.projectId ?? null,
+        project: (payment as any).project ?? null,
         createdBy: payment.creator,
         createdAt: payment.createdAt,
       })

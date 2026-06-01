@@ -3503,6 +3503,50 @@ Go to **Construction → Suppliers** to maintain a list of your material supplie
 
 ---
 
+### Linking Expense Account Payments to a Project
+
+Expense account payments (recorded through Quick Payment or Edit Payment) can be linked to a project. There are three ways to do this:
+
+#### 1 — At the time of payment (Quick Payment / Edit Payment)
+
+When making or editing a payment, a **Link to Project** dropdown appears if the business has active projects. Select the project before submitting. The payment will appear in the project's Expense Payments tab immediately.
+
+#### 2 — From the payment list (assign after the fact)
+
+Every payment row in the transaction history has a **📁** icon on the right side:
+- If no project is linked: a faint **📁** icon appears — click it to open an inline dropdown and select a project.
+- If a project is already linked: a coloured **📁 ProjectName** badge is shown — click it to change or remove the project.
+
+#### 3 — From the project page (assign existing payments)
+
+1. Open the project from the **Projects** list.
+2. Go to the **Expense Payments** tab.
+3. Click **+ Assign Payment**.
+4. A search modal opens showing unlinked payments from the business's expense accounts.
+5. Type to filter by payee name, notes, or category.
+6. Click **Link** on any payment to associate it with this project.
+
+The payment appears in the Expense Payments list immediately and the project's financial totals update.
+
+---
+
+### Expense Payments Tab — Project Payment Report
+
+The **Expense Payments** tab on a project detail page shows all expense account payments that have been linked to this project:
+
+| Column | What it shows |
+|--------|--------------|
+| Payee | Name of the person, employee, supplier, or business paid |
+| Category | Expense category with emoji |
+| Notes | Payment notes or reference |
+| Date · Account · Channel | When it was paid, from which account, and how (cash/EcoCash) |
+| Amount | Payment amount |
+| Status | PAID / SUBMITTED badge |
+
+The total of all linked payments is shown at the top of the tab and is also included in the project's **Financial Summary** tab under *Expense Payments*.
+
+---
+
 ## 12. Driver & Vehicle Log
 
 > **Who reads this:** Drivers responsible for logging their trips and vehicle maintenance.
@@ -5692,6 +5736,17 @@ On the transaction history table, every payment row has a small receipt icon (�
 | **🧾 N** (green, with a number) | N receipts are already attached — click to view or add more |
 | **🧾** (grey, no number) | No receipt yet — click to attach the first one |
 
+#### The Project Badge
+
+Payment rows also show a **project badge** (📁) when the business has active projects:
+
+| Badge appearance | Meaning |
+|---|---|
+| **📁 ProjectName** (indigo/purple, with name) | Payment is linked to that project — click to reassign or unlink |
+| **📁** (grey, no label) | No project assigned — click to assign one |
+
+Clicking either state opens a compact **inline dropdown** directly on the row. Select a project to link it, or choose **— No project —** to remove an existing link. The change takes effect immediately — no page reload needed.
+
 #### Attaching the First Receipt
 
 1. In the transaction history, find the payment row and click the grey **🧾** icon.
@@ -6327,6 +6382,18 @@ If no matches are found anywhere, the message "No matches found — please selec
 | **Amount** | Yes | Enter the payment amount in dollars |
 | **Payment Channel** | Yes | Cash, EcoCash, Bank Transfer, etc. |
 | **Notes / Reference** | No | Invoice number, receipt number, or free text description |
+
+#### Link to Project (optional)
+
+If the account is linked to a business that has active projects, a **Link to Project** dropdown appears in the payment form. Use it to associate the payment with a specific project — for example, recording a material purchase against a building project.
+
+- Select a project from the dropdown to link the payment.
+- Leave it blank if the payment does not relate to a project.
+- You can also **create a new project inline** directly from the dropdown without navigating away.
+
+The project link is also available in the **Edit Payment** modal, so you can assign or change a project on a payment that was already submitted.
+
+---
 
 Click **Submit Payment** to record the payment.
 

@@ -58,6 +58,8 @@ interface Transaction {
   comboPayees?: { name: string; phone?: string | null }[]
   comboRequester?: { id: string; name: string } | null
   notes?: string | null
+  projectId?: string | null
+  project?: { id: string; name: string } | null
   createdBy?: { id: string; name: string }
   createdAt: string
 }
@@ -130,6 +132,11 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   // Voucher state
   const [voucherModal, setVoucherModal] = useState<{ payment: PaymentSummary; existing: any | null } | null>(null)
   const [voucherMap, setVoucherMap] = useState<Record<string, any>>({}) // paymentId → voucher or false
+
+  // Project state
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([])
+  const [assignTxId, setAssignTxId] = useState<string | null>(null)
+  const [assigning, setAssigning] = useState(false)
 
   // Receipt state
   const [receiptCountMap, setReceiptCountMap] = useState<Record<string, number>>({}) // paymentId → count
@@ -410,6 +417,36 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
     setDebouncedMaxAmount('')
     setActiveQuickFilter('30 Days')
     setPage(0)
+  }
+
+  // Load projects for the business (only when businessId is set)
+  useEffect(() => {
+    if (!businessId) return
+    fetch(`/api/projects?businessId=${businessId}&status=active`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => setProjects((data.projects || []).map((p: any) => ({ id: p.id, name: p.name }))))
+      .catch(() => {})
+  }, [businessId])
+
+  async function assignProject(transactionId: string, projectId: string) {
+    setAssigning(true)
+    try {
+      const res = await fetch(`/api/expense-account/${accountId}/payments/${transactionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ projectId: projectId || null }),
+      })
+      if (res.ok) {
+        const linked = projectId ? (projects.find(p => p.id === projectId) ?? null) : null
+        setTransactions(prev => prev.map(t =>
+          t.id === transactionId ? { ...t, projectId: projectId || null, project: linked } : t
+        ))
+        setAssignTxId(null)
+      }
+    } finally {
+      setAssigning(false)
+    }
   }
 
   const applyAllTime = () => {
@@ -942,6 +979,41 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                             </button>
                           )
                         })()}
+
+                        {/* Project badge / assign button */}
+                        {!isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO' && projects.length > 0 && (
+                          assignTxId === transaction.id ? (
+                            <select
+                              autoFocus
+                              disabled={assigning}
+                              value={transaction.projectId || ''}
+                              onChange={e => assignProject(transaction.id, e.target.value)}
+                              onBlur={() => setAssignTxId(null)}
+                              className="ml-1 text-xs border border-indigo-300 dark:border-indigo-600 rounded px-1 py-0.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white max-w-[140px]"
+                            >
+                              <option value="">— No project —</option>
+                              {projects.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                              ))}
+                            </select>
+                          ) : transaction.project ? (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setAssignTxId(transaction.id) }}
+                              className="ml-1 inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800/60 font-medium transition-colors"
+                              title={`Project: ${transaction.project.name} — click to change`}
+                            >
+                              📁 {transaction.project.name.length > 12 ? transaction.project.name.slice(0, 12) + '…' : transaction.project.name}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setAssignTxId(transaction.id) }}
+                              className="ml-1 text-sm px-1 py-0.5 rounded text-gray-300 dark:text-gray-600 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
+                              title="Assign to a project"
+                            >
+                              📁
+                            </button>
+                          )
+                        )}
 
                         {/* Payment Voucher icon — appears on all PAYMENT rows when businessId is provided */}
                         {!isDeposit && !transaction.isAutoTransfer && businessId && (
