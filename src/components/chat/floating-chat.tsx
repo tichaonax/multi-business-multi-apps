@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
+import { usePathname } from 'next/navigation'
 import { io, Socket } from 'socket.io-client'
 
 interface Recipient { id: string; name: string }
@@ -50,6 +51,7 @@ function getUserColor(userId: string) {
 
 export function FloatingChat() {
   const { data: session, status } = useSession()
+  const pathname = usePathname()
   const currentUserId = (session?.user as any)?.id as string | undefined
 
   const [isOpen, setIsOpen] = useState(false)
@@ -513,6 +515,7 @@ export function FloatingChat() {
     )
   }
 
+  if (pathname?.startsWith('/customer-display')) return null
   if (status !== 'authenticated') return null
 
   // ── Minimized bubble ───────────────────────────────────────────────────────
