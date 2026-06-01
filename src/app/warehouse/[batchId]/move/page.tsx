@@ -613,7 +613,8 @@ export default function MoveWizardPage() {
     const effBizId = row.itemBusinessId || selectedBusinessId
     const effBiz = businesses.find(b => b.businessId === effBizId)
     if (!effBizId || !effBiz) { toast.error('Select a target business for this item'); return }
-    const leafCategoryId = departments.length > 0 ? row.categoryId : (row.subCategoryId || row.categoryId)
+    const subCatIsBusinessCat = row.subCategoryId ? subCategories.some(s => s.id === row.subCategoryId) : false
+    const leafCategoryId = departments.length > 0 ? row.categoryId : (subCatIsBusinessCat ? row.subCategoryId : row.categoryId)
     if (!leafCategoryId) { toast.error('Select a category for this item'); return }
     const sellPrice = parseFloat(row.sellingPrice)
     if (!sellPrice || sellPrice <= 0) { toast.error('Set a selling price > 0'); return }
@@ -673,7 +674,7 @@ export default function MoveWizardPage() {
           itemId: r.item.id,
           sellingPrice: parseFloat(r.sellingPrice),
           barcode: r.barcode || undefined,
-          categoryId: useDomainCat ? r.categoryId : (r.subCategoryId || r.categoryId),
+          categoryId: useDomainCat ? r.categoryId : (subCategories.some(s => s.id === r.subCategoryId) ? r.subCategoryId : r.categoryId),
         }))
         const res = await fetch(`/api/warehouse/${batchId}/move`, {
           method: 'POST',
