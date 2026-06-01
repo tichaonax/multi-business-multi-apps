@@ -9794,6 +9794,17 @@ Navigate to **Warehouse → Import Batch**.
 | Q | Parent order |
 | R | Parcel number |
 
+**Source batch columns (optional — present when your supplier groups orders into clearance batches):**
+
+| Column | Contents |
+|--------|----------|
+| `Batch ID` | Integer — identifies which source batch this item belongs to |
+| `Batch Name` | Human-readable batch label (e.g. `Pre-Batch Import 5-31`) |
+| `Clearance Cost (USD)` | Total customs/clearance cost for the whole batch — the **same value repeats on every row** in that batch. Empty for OPEN batches. |
+| `Batch Status` | `OPEN` (clearance not yet paid) or `CLOSED` (clearance confirmed) |
+
+When these columns are present the system reads the total clearance cost once per source batch and allocates it **pro-rata by Yuan cost** across all items in that batch. Items in OPEN batches receive $0 clearance allocation until the batch is closed and re-imported.
+
 Sub-parcels (`_p2`, `_p3`, …) are automatically merged into the primary row (`_p1`), with their tracking numbers stored alongside.
 
 ---
@@ -9867,6 +9878,10 @@ When **one or more items are checked**, the toolbar shows additional actions:
 
 A collapsible panel at the bottom of the page lists all items flagged as personal. Use the **Move all X to Personal** button to record them as personal expenses in one click. Each expense is logged under the category *Warehouse* with the order number and batch name in the notes.
 
+#### Source batch filter
+
+When an import file contains items from **multiple source batches**, a filter dropdown appears above the item grid. Select a specific source batch to narrow the view to just those items. Each item row shows a coloured badge with the batch name and an OPEN / CLOSED status indicator, plus the allocated clearance cost per item.
+
 #### Scan mode
 
 Click **Scan Mode** (top-right) to open a persistent scan panel. Scan or type an order number, tracking number, or short name. The matching item is shown with its image, cost, and status. From the result you can go directly to **Move to Business** or **Move to Personal**.
@@ -9880,11 +9895,19 @@ Click **Scan Mode** (top-right) to open a persistent scan panel. Scan or type an
 Click **Move to Business** on the batch detail page (or from the scan panel) to open the move wizard.
 
 1. **Select target business** — choose which business will receive the stock (global selector at the top).
-2. **Classify each item** — pick Domain → Category → Sub-category. Use the **💡 Cat** button to auto-suggest classifications based on the product name (see [Classification Suggestion](#classification-suggestion--cat-button) below).
-3. **Set per-item target business (optional)** — override the global business for individual rows using the small searchable dropdown under each product name (see [Per-Item Target Business Override](#per-item-target-business-override)).
-4. **Set markup %** — enter a markup percentage and click **Apply** to auto-calculate selling prices for all items. Default is 30%.
-5. **Review per-row prices** — adjust individual selling prices. A barcode field is optional.
-6. Click **Move X Items to Business**.
+2. **Set markup %** — enter a markup percentage and click **Apply** to auto-calculate selling prices for all items. Default is 30%.
+3. **Review each item card** — items are displayed as cards. Each card shows:
+   - Product image on the left (click to zoom to full size).
+   - Full product name.
+   - **Sell $ [price]** field — always displayed to two decimal places (e.g. `75.50`). Edit directly.
+   - **💡** button — opens the inline pricing calculator for that item.
+   - **Move →** button — moves that single item immediately once business, category, and price are set.
+   - Order number and tracking number (second line).
+   - Cost breakdown: `Cost $XX.XX  +$X.XX transport  +$X.XX fee  +$X.XX clearance  |  Unit cost $XX.XX`
+   - Business combobox, Domain, Category, Sub-category dropdowns, **🏷 Suggest** button, and Barcode field — all filling the full card width.
+4. **Classify each item** — pick Domain → Category → Sub-category. Use the **🏷 Suggest** button (next to the Barcode field) to auto-suggest classifications based on the product name (see [Classification Suggestion](#classification-suggestion) below).
+5. **Set per-item target business (optional)** — override the global business for individual rows using the searchable business combobox in the classification row (see [Per-Item Target Business Override](#per-item-target-business-override)).
+6. Click **Move selected (N)** at the bottom to move all selected items at once.
 
 The **Qty** column in the move wizard shows the **Manifest Qty** (received qty), not the ordered qty. Cost-per-unit calculations use manifest qty so the numbers reflect what was actually received.
 
@@ -9899,13 +9922,13 @@ For each item moved, the system creates:
 
 The warehouse item status changes to **MOVED_TO_BUSINESS**.
 
-**Cost price shown:** The cost price column reflects `costUsd per unit + transaction fee + transport per unit`. All three components are shown separately in the cost column so you know exactly what margin you are working with.
+**Cost price shown:** The unit cost reflects `costUsd per unit + transaction fee + transport per unit + clearance per unit`. All four components are shown separately in the cost breakdown line so you know exactly what margin you are working with. Clearance is only non-zero when the source batch is CLOSED and a clearance cost was present in the Excel file.
 
 ---
 
-### Classification Suggestion (💡 Cat button)
+### Classification Suggestion
 
-Each item row in the move wizard has a **💡 Cat** button. Clicking it analyses the product name and suggests the best-matching inventory categories from **all business types** — not just the destination business.
+Each item card in the move wizard has a **🏷 Suggest** button, located in the classification row next to the Barcode field. Clicking it analyses the product name and suggests the best-matching inventory categories from **all business types** — not just the destination business.
 
 **How it works:**
 1. The product name is split into tokens (words / numbers), common English words ("for", "with", "and"…) are removed.
@@ -9917,7 +9940,7 @@ Each item row in the move wizard has a **💡 Cat** button. Clicking it analyses
 - If the matched domain belongs to a different business type than the destination (e.g. hardware sub-category while the destination is a clothing business), the classification is still applied — the dropdowns will show the cross-domain values correctly.
 
 **When no suggestions appear:**
-- The product name has too few recognisable keywords — edit the **Short Name** on the batch page to use plain English terms before clicking 💡.
+- The product name has too few recognisable keywords — edit the **Short Name** on the batch page to use plain English terms before clicking 🏷 Suggest.
 - The sub-category may not exist yet — add it under **Inventory → Categories** first.
 
 ---
@@ -9936,7 +9959,7 @@ When you click **Move X Items to Business**, items are grouped by their effectiv
 
 ---
 
-### Transport Cost & Transaction Fee
+### Transport Cost, Transaction Fee & Clearance
 
 When importing a batch you can supply:
 
@@ -9945,7 +9968,13 @@ When importing a batch you can supply:
 | **Transport cost (USD)** | Total freight cost for the batch — divided equally across all IN_WAREHOUSE items |
 | **Transaction fee %** | Percentage added to each item's USD cost (e.g. 3% PayPal or agent fee) |
 
-Both figures are visible in the move wizard cost column and are factored into the default selling price calculation (`cost × (1 + markup%)`).
+In addition, if the Excel file contains source batch columns, a **clearance cost** is automatically allocated per item (see [Source batch columns](#source-batch-columns-optional)) .
+
+All three adjustments are visible in the move wizard cost breakdown line and are factored into the default selling price:
+
+```
+selling price = (costPerUnit + txFee + transportPerUnit + clearancePerUnit) × (1 + markup%)
+```
 
 Individual rows can override the transport per-item amount using the **Transport Override** field in the row (visible when the batch has a non-zero transport cost).
 
@@ -10013,9 +10042,11 @@ A locked reference shows a 🔒 badge on every item row that contains it. Locked
 
 ---
 
-### Warehouse Stats
+### Warehouse Home — Search & Stats
 
-The Warehouse home page shows four summary cards:
+The Warehouse home page has a **search box** that filters the batch list in real time by batch name or original filename. Type any part of the name to narrow the list.
+
+It also shows four summary cards:
 
 | Card | Meaning |
 |------|---------|
