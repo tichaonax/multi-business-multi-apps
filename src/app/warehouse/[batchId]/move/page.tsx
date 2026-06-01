@@ -506,7 +506,7 @@ export default function MoveWizardPage() {
         domainId: existing?.domainId || saved.domainId || '',
         categoryId: existing?.categoryId || saved.categoryId || '',
         subCategoryId: existing?.subCategoryId || saved.subCategoryId || '',
-        sellingPrice: existing?.sellingPrice ?? saved.sellingPrice ?? sell,
+        sellingPrice: (() => { const v = existing?.sellingPrice ?? saved.sellingPrice ?? sell; const n = parseFloat(v); return v && !isNaN(n) ? n.toFixed(2) : v })(),
         barcode: existing?.barcode ?? saved.barcode ?? (scanItemId && item.id === scanItemId && scanBarcode ? scanBarcode : ''),
         transportOverride: existing?.transportOverride || saved.transportOverride || '',
         itemBusinessId: existing?.itemBusinessId || saved.itemBusinessId || '',
