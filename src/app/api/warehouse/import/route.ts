@@ -196,6 +196,10 @@ export async function POST(req: NextRequest) {
       containerDate: Date | null
       manifestQty: number | null
       variantSpec: string | null
+      sourceBatchId: number | null
+      sourceBatchName: string | null
+      sourceBatchStatus: string | null
+      rawClearanceUsd: number | null
     }
     const rawRows: RawRow[] = []
 
@@ -248,6 +252,10 @@ export async function POST(req: NextRequest) {
         containerDate: parseDate(get(row, 'Container Date')),
         manifestQty: parseInt2(get(row, 'Manifest Qty')),
         variantSpec: String(get(row, 'Variant/Spec') ?? '').trim() || null,
+        sourceBatchId: parseInt2(get(row, 'Batch ID')),
+        sourceBatchName: String(get(row, 'Batch Name') ?? '').trim() || null,
+        sourceBatchStatus: String(get(row, 'Batch Status') ?? '').trim() || null,
+        rawClearanceUsd: parseDecimal(get(row, 'Clearance Cost (USD)')),
       })
     })
 
@@ -271,6 +279,33 @@ export async function POST(req: NextRequest) {
     }
 
     const mergedRows = orderedPrimaries.map(k => primaryMap.get(k)!).filter(Boolean)
+
+    // Build source batch map — clearanceUsd is the TOTAL for the whole batch (same on every row)
+    interface SourceBatch { name: string; status: string | null; clearanceUsd: number | null; totalYuan: number }
+    const sourceBatchMap = new Map<number, SourceBatch>()
+    for (const row of mergedRows) {
+      if (row.sourceBatchId == null) continue
+      if (!sourceBatchMap.has(row.sourceBatchId)) {
+        sourceBatchMap.set(row.sourceBatchId, {
+          name: row.sourceBatchName ?? '',
+          status: row.sourceBatchStatus,
+          clearanceUsd: row.rawClearanceUsd,
+          totalYuan: 0,
+        })
+      } else if (sourceBatchMap.get(row.sourceBatchId)!.clearanceUsd == null && row.rawClearanceUsd != null) {
+        sourceBatchMap.get(row.sourceBatchId)!.clearanceUsd = row.rawClearanceUsd
+      }
+      sourceBatchMap.get(row.sourceBatchId)!.totalYuan += row.priceYuan ?? 0
+    }
+
+    // Compute per-item clearance pro-rata by Yuan cost; $0 for OPEN batches
+    function computeClearance(row: typeof mergedRows[0]): number | null {
+      if (row.sourceBatchId == null) return null
+      const b = sourceBatchMap.get(row.sourceBatchId)
+      if (!b || !b.clearanceUsd || b.totalYuan === 0) return null
+      if (b.status === 'OPEN') return null
+      return b.clearanceUsd * ((row.priceYuan ?? 0) / b.totalYuan)
+    }
 
     // Hard-block locked references before doing anything else
     const allOrderNums = mergedRows.map(r => r.orderNumber).filter(Boolean)
@@ -385,12 +420,16 @@ export async function POST(req: NextRequest) {
       // Set new columns via raw SQL — bypasses Prisma client validation until next prisma generate
       await prisma.$executeRaw`
         UPDATE warehouse_items SET
-          cbm            = ${row.cbm},
-          "weightKg"     = ${row.weightKg},
-          "invoiceName"  = ${row.invoiceName},
-          "containerDate"= ${row.containerDate}::date,
-          "manifestQty"  = ${row.manifestQty},
-          "variantSpec"  = ${row.variantSpec}
+          cbm                 = ${row.cbm},
+          "weightKg"          = ${row.weightKg},
+          "invoiceName"       = ${row.invoiceName},
+          "containerDate"     = ${row.containerDate}::date,
+          "manifestQty"       = ${row.manifestQty},
+          "variantSpec"       = ${row.variantSpec},
+          "sourceBatchId"     = ${row.sourceBatchId},
+          "sourceBatchName"   = ${row.sourceBatchName},
+          "sourceBatchStatus" = ${row.sourceBatchStatus},
+          "clearanceCostUsd"  = ${computeClearance(row)}
         WHERE id = ${created.id}
       `
       createdCount++

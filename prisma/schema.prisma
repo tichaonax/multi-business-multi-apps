@@ -7287,6 +7287,10 @@ model WarehouseItems {
   originalPriceYuan         Decimal?          @db.Decimal(12, 2)
   qtyChangeReason           String?
   isPersonal                Boolean           @default(false)
+  sourceBatchId             Int?
+  sourceBatchName           String?
+  sourceBatchStatus         String?
+  clearanceCostUsd          Decimal?          @db.Decimal(10, 4)
   status                    String            @default("IN_WAREHOUSE")
   businessProductId         String?
   personalExpenseId         String?

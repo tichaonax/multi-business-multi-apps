@@ -56,6 +56,10 @@ interface WarehouseItem {
   manifestQty: number | null        // received qty — editable
   orderedQty: number | null         // ordered qty from warehouse_order_refs — read-only cap
   updatedAt: string | null
+  sourceBatchId: number | null
+  sourceBatchName: string | null
+  sourceBatchStatus: string | null
+  clearanceCostUsd: number | null
 }
 
 interface LockInfo {
@@ -597,6 +601,7 @@ export default function BatchDetailPage() {
   const [orderLockMap, setOrderLockMap] = useState<Record<string, LockInfo>>({})
   const [trackingLockMap, setTrackingLockMap] = useState<Record<string, LockInfo>>({})
   const [showScanPanel, setShowScanPanel] = useState(false)
+  const [sourceBatchFilter, setSourceBatchFilter] = useState<number | null>(null)
   const [personalPanelOpen, setPersonalPanelOpen] = useState(false)
   const [personalItems, setPersonalItems] = useState<WarehouseItem[]>([])
   const [movingAllPersonal, setMovingAllPersonal] = useState(false)
@@ -840,9 +845,22 @@ export default function BatchDetailPage() {
     RECEIVED: baseItems.filter(i => i.manifestQty != null && i.manifestQty > 0).length,
   }
   const displayItems = (() => {
-    if (manifestFilter === 'ZERO') return baseItems.filter(i => i.manifestQty == null || i.manifestQty === 0)
-    if (manifestFilter === 'RECEIVED') return baseItems.filter(i => i.manifestQty != null && i.manifestQty > 0)
-    return baseItems
+    let filtered = baseItems
+    if (manifestFilter === 'ZERO') filtered = filtered.filter(i => i.manifestQty == null || i.manifestQty === 0)
+    else if (manifestFilter === 'RECEIVED') filtered = filtered.filter(i => i.manifestQty != null && i.manifestQty > 0)
+    if (sourceBatchFilter != null) filtered = filtered.filter(i => i.sourceBatchId === sourceBatchFilter)
+    return filtered
+  })()
+
+  // Unique source batches in the current page of items (for filter dropdown)
+  const uniqueSourceBatches = (() => {
+    const seen = new Map<number, { name: string | null; status: string | null }>()
+    for (const i of items) {
+      if (i.sourceBatchId != null && !seen.has(i.sourceBatchId)) {
+        seen.set(i.sourceBatchId, { name: i.sourceBatchName, status: i.sourceBatchStatus })
+      }
+    }
+    return Array.from(seen.entries()).map(([id, info]) => ({ id, ...info }))
   })()
   const selectableItems = displayItems.filter(i => i.status === 'IN_WAREHOUSE')
   const allSelectableSelected = selectableItems.length > 0 && selectableItems.every(i => selected.has(i.id))
@@ -986,6 +1004,21 @@ export default function BatchDetailPage() {
                 </button>
               )}
             </div>
+            {/* Source batch filter — only shown when this import contains multiple source batches */}
+            {uniqueSourceBatches.length > 1 && (
+              <select
+                value={sourceBatchFilter ?? ''}
+                onChange={e => setSourceBatchFilter(e.target.value ? Number(e.target.value) : null)}
+                className="px-2 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All source batches</option>
+                {uniqueSourceBatches.map(b => (
+                  <option key={b.id} value={b.id}>
+                    #{b.id} {b.name ?? ''}{b.status ? ` (${b.status})` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
             {batch && (() => {
               const eligibleSelected = items.filter(i => selected.has(i.id) && !i.isPersonal && i.status === 'IN_WAREHOUSE')
               const missingCost = eligibleSelected.some(i => i.costUsd == null)
@@ -1308,6 +1341,18 @@ export default function BatchDetailPage() {
                                 locked={isLocked}
                                 onSave={patchItem}
                               />
+                              {item.sourceBatchId != null && (
+                                <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${item.sourceBatchStatus === 'CLOSED' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>
+                                    Batch #{item.sourceBatchId}{item.sourceBatchStatus === 'CLOSED' ? ' 🔒' : ''}
+                                  </span>
+                                  {item.clearanceCostUsd != null && Number(item.clearanceCostUsd) > 0 && (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400" title="Clearance cost allocated to this item">
+                                      +${Number(item.clearanceCostUsd).toFixed(2)} clr
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </td>
                             <td className="px-3 py-2 font-mono text-gray-600 dark:text-gray-400 max-w-[140px]" title={item.orderNumber}>
                               <span className="truncate block">{item.orderNumber}</span>

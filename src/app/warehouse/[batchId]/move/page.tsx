@@ -30,6 +30,8 @@ interface WarehouseItem {
   quantity: number | null       // ordered qty — read-only
   manifestQty: number | null    // received qty — used for stock
   costUsd: number | null
+  clearanceCostUsd: number | null
+  trackingNumber: string | null
   imageId: string | null
   isPersonal: boolean
   status: string
@@ -198,10 +200,10 @@ function BusinessCombobox({
 
   const select = (bizId: string) => { onChange(bizId); setOpen(false); setSearch('') }
 
-  const inputCls = 'w-full text-[10px] px-1 py-0.5 border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400 focus:ring-1 focus:ring-blue-400 focus:outline-none disabled:opacity-50 cursor-pointer'
+  const inputCls = 'w-full text-xs px-2 py-1.5 pr-7 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 focus:outline-none disabled:opacity-50 cursor-pointer'
 
   return (
-    <div ref={containerRef} className="relative mt-0.5">
+    <div ref={containerRef} className="relative">
       <input
         ref={inputRef}
         type="text"
@@ -213,6 +215,9 @@ function BusinessCombobox({
         onChange={e => setSearch(e.target.value)}
         className={inputCls}
       />
+      <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
       {open && typeof document !== 'undefined' && createPortal(
         <div
           ref={dropdownRef}
@@ -246,6 +251,31 @@ function BusinessCombobox({
         document.body
       )}
     </div>
+  )
+}
+
+// ── Item thumbnail ────────────────────────────────────────────────────────────
+
+function ItemThumb({ imageId, name }: { imageId: string | null; name: string }) {
+  const [enlarged, setEnlarged] = useState(false)
+  if (!imageId) {
+    return <div className="w-full h-full min-h-[7rem] bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-300 text-[10px]">—</div>
+  }
+  return (
+    <>
+      <img
+        src={`/api/images/${imageId}`}
+        alt={name}
+        className="w-full h-full min-h-[7rem] object-cover cursor-zoom-in"
+        onClick={() => setEnlarged(true)}
+        onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+      />
+      {enlarged && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 cursor-zoom-out" onClick={() => setEnlarged(false)}>
+          <img src={`/api/images/${imageId}`} alt={name} className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg" />
+        </div>
+      )}
+    </>
   )
 }
 
@@ -467,7 +497,8 @@ export default function MoveWizardPage() {
       const costUsdPerUnit = costUsd / qty
       const txFee = item.costUsd != null ? costUsdPerUnit * (feePct / 100) : 0
       const transportPerUnit = (batch?.perItemTransport || 0) / qty
-      const cost = item.costUsd != null ? costUsdPerUnit + txFee + transportPerUnit : 0
+      const clearancePerUnit = Number(item.clearanceCostUsd ?? 0) / qty
+      const cost = item.costUsd != null ? costUsdPerUnit + txFee + transportPerUnit + clearancePerUnit : 0
       const sell = cost > 0 ? (cost * (1 + markup)).toFixed(2) : ''
       return {
         item,
@@ -531,7 +562,8 @@ export default function MoveWizardPage() {
       const costUsdPerUnit = costUsd / qty
       const txFee = r.item.costUsd != null ? costUsdPerUnit * (feePct / 100) : 0
       const itemTransportPerUnit = (r.transportOverride !== '' ? parseFloat(r.transportOverride) || 0 : (batch?.perItemTransport || 0)) / qty
-      const cost = r.item.costUsd != null ? costUsdPerUnit + txFee + itemTransportPerUnit : 0
+      const clearancePerUnit = Number(r.item.clearanceCostUsd ?? 0) / qty
+      const cost = r.item.costUsd != null ? costUsdPerUnit + txFee + itemTransportPerUnit + clearancePerUnit : 0
       const sell = cost > 0 ? (cost * (1 + markup)).toFixed(2) : r.sellingPrice
       return { ...r, sellingPrice: sell }
     }))
@@ -680,11 +712,8 @@ export default function MoveWizardPage() {
   const hasDomains = departments.length > 0
   const movedCount = rows.filter(r => r.status === 'moved').length
   const pendingSelected = rows.filter(r => r.selected && r.status === 'pending')
-  const batchBtnDisabled = batchMoving || pendingSelected.length === 0 || !selectedBusinessId ||
-    pendingSelected.some(r => (!r.subCategoryId && !r.categoryId) || !r.sellingPrice || parseFloat(r.sellingPrice) <= 0)
-  // colSpan for calculator expansion row
-  const colCount = 11 + (perItemTransport > 0 ? 1 : 0) + (hasDomains ? 1 : 0)
-
+  const batchBtnDisabled = batchMoving || pendingSelected.length === 0 ||
+    pendingSelected.some(r => (!r.itemBusinessId && !selectedBusinessId) || (!r.subCategoryId && !r.categoryId) || !r.sellingPrice || parseFloat(r.sellingPrice) <= 0)
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
@@ -778,335 +807,309 @@ export default function MoveWizardPage() {
                   >Deselect all</button>
                 </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-                      <th className="px-3 py-2 w-8"></th>
-                      <th className="px-3 py-2 text-left text-gray-500 uppercase tracking-wider">Product</th>
-                      <th className="px-3 py-2 text-left text-gray-500 uppercase tracking-wider">Order #</th>
-                      <th className="px-3 py-2 text-left text-gray-500 uppercase tracking-wider">Qty</th>
-                      <th className="px-3 py-2 text-left text-gray-500 uppercase tracking-wider">Cost USD</th>
-                      {perItemTransport > 0 && <th className="px-3 py-2 text-left text-gray-500 uppercase tracking-wider">+ Transport</th>}
-                      <th className="px-3 py-2 text-left text-gray-500 uppercase tracking-wider">Unit Cost</th>
-                      {hasDomains && <th className="px-3 py-2 text-left text-gray-500 uppercase tracking-wider">Domain</th>}
-                      <th className="px-3 py-2 text-left text-gray-500 uppercase tracking-wider">Category</th>
-                      <th className="px-3 py-2 text-left text-gray-500 uppercase tracking-wider">Sub-category</th>
-                      <th className="px-3 py-2 text-left text-gray-500 uppercase tracking-wider">Sell Price *</th>
-                      <th className="px-3 py-2 text-left text-gray-500 uppercase tracking-wider">Barcode</th>
-                      <th className="px-3 py-2 text-left text-gray-500 uppercase tracking-wider">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                    {rows.map((row, idx) => {
-                      const costUsd = row.item.costUsd != null ? Number(row.item.costUsd) : 0
-                      const qty = row.item.manifestQty ?? row.item.quantity ?? 1
-                      const costUsdPerUnit = costUsd / qty
-                      const itemTransportPerUnit = (row.transportOverride !== '' ? parseFloat(row.transportOverride) || 0 : perItemTransport) / qty
-                      const txFeePerUnit = row.item.costUsd != null && transactionFeePct != null ? costUsdPerUnit * (transactionFeePct / 100) : 0
-                      const costPrice = costUsdPerUnit + txFeePerUnit + itemTransportPerUnit
-                      const totalAdjustment = itemTransportPerUnit + txFeePerUnit
-                      const isMoved = row.status === 'moved'
-                      const isMoving = row.status === 'moving'
-                      const isError = row.status === 'error'
+              <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                {rows.map((row, idx) => {
+                  const costUsd = row.item.costUsd != null ? Number(row.item.costUsd) : 0
+                  const qty = row.item.manifestQty ?? row.item.quantity ?? 1
+                  const costUsdPerUnit = costUsd / qty
+                  const itemTransportPerUnit = (row.transportOverride !== '' ? parseFloat(row.transportOverride) || 0 : perItemTransport) / qty
+                  const txFeePerUnit = row.item.costUsd != null && transactionFeePct != null ? costUsdPerUnit * (transactionFeePct / 100) : 0
+                  const clearancePerUnit = Number(row.item.clearanceCostUsd ?? 0) / qty
+                  const costPrice = costUsdPerUnit + txFeePerUnit + itemTransportPerUnit + clearancePerUnit
+                  const totalAdjustment = itemTransportPerUnit + txFeePerUnit + clearancePerUnit
+                  const isMoved = row.status === 'moved'
+                  const isMoving = row.status === 'moving'
+                  const isError = row.status === 'error'
 
-                      const filteredCats = row.domainId && domainList.length > 0
-                        ? categories.filter(c => c.domainId === row.domainId)
-                        : row.domainId && departments.length > 0
-                          ? categories.filter(c => c.parentId === row.domainId)
-                          : categories
-                      const filteredSubs = row.categoryId
-                        ? subCategories.filter(c => c.parentId === row.categoryId)
-                        : subCategories
+                  const filteredCats = row.domainId && domainList.length > 0
+                    ? categories.filter(c => c.domainId === row.domainId)
+                    : row.domainId && departments.length > 0
+                      ? categories.filter(c => c.parentId === row.domainId)
+                      : categories
+                  const filteredSubs = row.categoryId
+                    ? subCategories.filter(c => c.parentId === row.categoryId)
+                    : subCategories
 
-                      // If a suggestion was applied from a different domain set, ensure the
-                      // selected domain/category/subcategory appear as options in the dropdowns
-                      const extraDomain = row.domainId && !departments.find(d => d.id === row.domainId)
-                        ? suggestDomains.find(d => d.id === row.domainId) : null
-                      const extraCat = row.categoryId && !filteredCats.find(c => c.id === row.categoryId)
-                        ? suggestAllCats.find(c => c.id === row.categoryId) : null
-                      const extraSub = row.subCategoryId && !filteredSubs.find(s => s.id === row.subCategoryId)
-                        ? suggestAllSubs.find(s => s.id === row.subCategoryId) : null
+                  const extraDomain = row.domainId && !departments.find(d => d.id === row.domainId)
+                    ? suggestDomains.find(d => d.id === row.domainId) : null
+                  const extraCat = row.categoryId && !filteredCats.find(c => c.id === row.categoryId)
+                    ? suggestAllCats.find(c => c.id === row.categoryId) : null
+                  const extraSub = row.subCategoryId && !filteredSubs.find(s => s.id === row.subCategoryId)
+                    ? suggestAllSubs.find(s => s.id === row.subCategoryId) : null
 
-                      const rowBg = isMoved
-                        ? 'bg-emerald-50 dark:bg-emerald-900/10'
-                        : isError ? 'bg-red-50 dark:bg-red-900/10'
-                        : isMoving ? 'opacity-60'
-                        : !row.selected ? 'opacity-40'
-                        : ''
+                  const cardBg = isMoved
+                    ? 'bg-emerald-50 dark:bg-emerald-900/10'
+                    : isError ? 'bg-red-50 dark:bg-red-900/10'
+                    : isMoving ? 'opacity-60'
+                    : !row.selected ? 'opacity-50'
+                    : ''
 
-                      return (
-                        <React.Fragment key={row.item.id}>
-                          <tr className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${rowBg}`}>
-                            {/* Checkbox */}
-                            <td className="px-3 py-2">
-                              <input
-                                type="checkbox"
-                                checked={row.selected}
-                                disabled={isMoved}
-                                onChange={e => updateRow(idx, { selected: e.target.checked })}
-                                className="rounded disabled:opacity-40"
-                              />
-                            </td>
+                  const selectCls = 'flex-1 min-w-0 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 disabled:opacity-50'
 
-                            {/* Product + per-item business override */}
-                            <td className="px-3 py-2 max-w-[160px]">
-                              <div className="font-medium text-gray-900 dark:text-white truncate" title={row.item.shortName || row.item.productName}>
-                                {(row.item.shortName || row.item.productName).slice(0, 40)}
-                              </div>
-                              {!isMoved && (
-                                <BusinessCombobox
-                                  value={row.itemBusinessId}
-                                  onChange={v => updateRow(idx, { itemBusinessId: v })}
-                                  businesses={businesses}
-                                  globalBusinessName={businesses.find(b => b.businessId === selectedBusinessId)?.businessName || ''}
-                                  disabled={isMoving}
-                                />
-                              )}
-                              {isMoved && row.itemBusinessId && (
-                                <div className="text-[10px] text-gray-400 truncate">
-                                  → {businesses.find(b => b.businessId === row.itemBusinessId)?.businessName}
-                                </div>
-                              )}
-                            </td>
+                  return (
+                    <div key={row.item.id} className={`flex transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30 ${cardBg}`}>
 
-                            {/* Order # */}
-                            <td className="px-3 py-2 font-mono text-gray-500 max-w-[100px] truncate">{row.item.orderNumber}</td>
+                      {/* Checkbox */}
+                      <div className="flex items-center pl-3 pr-2 shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={row.selected}
+                          disabled={isMoved}
+                          onChange={e => updateRow(idx, { selected: e.target.checked })}
+                          className="rounded disabled:opacity-40"
+                        />
+                      </div>
 
-                            {/* Qty — shows manifest (received) qty */}
-                            <td className="px-3 py-2 text-center text-gray-900 dark:text-white">
-                              {row.item.manifestQty ?? <span className="text-amber-500">?</span>}
-                              {row.item.quantity != null && row.item.quantity !== row.item.manifestQty && (
-                                <span className="block text-[10px] text-gray-400">ord: {row.item.quantity}</span>
-                              )}
-                            </td>
+                      {/* Image */}
+                      <div className="w-24 shrink-0 self-center overflow-hidden rounded" style={{ maxHeight: '7rem' }}>
+                        <ItemThumb imageId={row.item.imageId} name={row.item.productName} />
+                      </div>
 
-                            {/* Cost USD */}
-                            <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
-                              {row.item.costUsd != null ? `$${costUsd.toFixed(2)}` : <span className="text-red-500">missing</span>}
-                            </td>
+                      {/* Card content */}
+                      <div className="flex-1 min-w-0 p-3 space-y-1.5">
 
-                            {/* Transport (conditional) */}
-                            {perItemTransport > 0 && (
-                              <td className="px-3 py-2 text-amber-600 dark:text-amber-400">
-                                +${itemTransportPerUnit.toFixed(2)}
-                                {row.transportOverride !== '' && <span className="ml-1 text-gray-400">(custom)</span>}
-                                {txFeePerUnit > 0 && <div className="text-blue-600 dark:text-blue-400">+${txFeePerUnit.toFixed(2)} fee</div>}
-                                {qty > 1 && <div className="text-gray-400 text-[10px]">÷{qty} units</div>}
-                              </td>
-                            )}
-
-                            {/* Cost Price */}
-                            <td className="px-3 py-2 font-medium text-gray-900 dark:text-white">
-                              ${costPrice.toFixed(2)}
-                            </td>
-
-                            {/* Domain (conditional column) */}
-                            {hasDomains && (
-                              <td className="px-3 py-2 min-w-[110px]">
-                                {isMoved ? (
-                                  <span className="text-gray-500 dark:text-gray-400">
-                                    {(departments.find(d => d.id === row.domainId) ?? extraDomain)?.name || '—'}
-                                  </span>
-                                ) : (
-                                  <select
-                                    value={row.domainId}
-                                    disabled={isMoving}
-                                    onChange={e => updateRow(idx, { domainId: e.target.value, categoryId: '', subCategoryId: '' })}
-                                    className="w-full px-1 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
-                                  >
-                                    <option value="">Domain…</option>
-                                    {extraDomain && <option value={extraDomain.id}>{extraDomain.emoji ? `${extraDomain.emoji} ` : ''}{extraDomain.name}</option>}
-                                    {departments.map(d => (
-                                      <option key={d.id} value={d.id}>{d.emoji ? `${d.emoji} ` : ''}{d.name}</option>
-                                    ))}
-                                  </select>
-                                )}
-                              </td>
-                            )}
-
-                            {/* Category */}
-                            <td className="px-3 py-2 min-w-[110px]">
-                              {isMoved ? (
-                                <span className="text-gray-500 dark:text-gray-400">
-                                  {(categories.find(c => c.id === row.categoryId) ?? extraCat)?.name || '—'}
-                                </span>
-                              ) : (
-                                <select
-                                  value={row.categoryId}
-                                  disabled={(hasDomains && !row.domainId) || (categories.length === 0 && !extraCat) || isMoving}
-                                  onChange={e => updateRow(idx, { categoryId: e.target.value, subCategoryId: '' })}
-                                  className="w-full px-1 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
-                                >
-                                  <option value="">Category…</option>
-                                  {extraCat && <option value={extraCat.id}>{extraCat.emoji ? `${extraCat.emoji} ` : ''}{extraCat.name}</option>}
-                                  {filteredCats.map(c => (
-                                    <option key={c.id} value={c.id}>{c.emoji ? `${c.emoji} ` : ''}{c.name}</option>
-                                  ))}
-                                </select>
-                              )}
-                            </td>
-
-                            {/* Sub-category */}
-                            <td className="px-3 py-2 min-w-[110px]">
-                              {isMoved ? (
-                                <span className="text-gray-500 dark:text-gray-400">
-                                  {(subCategories.find(c => c.id === row.subCategoryId) ?? extraSub)?.name || '—'}
-                                </span>
-                              ) : (
-                                <select
-                                  value={row.subCategoryId}
-                                  disabled={!row.categoryId || (filteredSubs.length === 0 && !extraSub) || isMoving}
-                                  onChange={e => updateRow(idx, { subCategoryId: e.target.value })}
-                                  className="w-full px-1 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
-                                >
-                                  <option value="">{!row.categoryId || (filteredSubs.length === 0 && !extraSub) ? 'N/A' : 'Sub-cat…'}</option>
-                                  {extraSub && <option value={extraSub.id}>{extraSub.emoji ? `${extraSub.emoji} ` : ''}{extraSub.name}</option>}
-                                  {filteredSubs.map(c => (
-                                    <option key={c.id} value={c.id}>{c.emoji ? `${c.emoji} ` : ''}{c.name}</option>
-                                  ))}
-                                </select>
-                              )}
-                            </td>
-
-                            {/* Sell Price + action buttons */}
-                            <td className="px-3 py-2 min-w-[120px]">
-                              {isMoved ? (
-                                <span className="font-medium text-gray-900 dark:text-white">
-                                  ${parseFloat(row.sellingPrice || '0').toFixed(2)}
-                                </span>
-                              ) : (
-                                <div className="space-y-1">
-                                  <input
-                                    type="number" min="0" step="0.01"
-                                    value={row.sellingPrice}
-                                    disabled={isMoving}
-                                    onChange={e => updateRow(idx, { sellingPrice: e.target.value })}
-                                    className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 block disabled:opacity-50"
-                                  />
-                                  <div className="flex gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => setOpenCalcIdx(openCalcIdx === idx ? null : idx)}
-                                      className={`px-2 py-0.5 rounded text-xs font-medium transition-colors border ${
-                                        openCalcIdx === idx
-                                          ? 'bg-blue-100 border-blue-400 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-600'
-                                          : 'bg-gray-100 border-gray-300 text-gray-500 hover:bg-blue-50 hover:text-blue-600 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-400'
-                                      }`}
-                                    >💡 Calc</button>
-                                    {suggestAllSubs.length > 0 && (
-                                      <button
-                                        type="button"
-                                        onClick={e => handleSuggest(idx, e)}
-                                        title="Suggest category from product name"
-                                        className={`px-2 py-0.5 rounded text-xs font-medium transition-colors border ${
-                                          suggestRowIdx === idx
-                                            ? 'bg-amber-100 border-amber-400 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                                            : 'bg-amber-50 border-amber-300 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-700'
-                                        }`}
-                                      >💡 Cat</button>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                            </td>
-
-                            {/* Barcode */}
-                            <td className="px-3 py-2">
-                              {isMoved ? (
-                                <span className="text-gray-500 dark:text-gray-400">{row.barcode || '—'}</span>
-                              ) : (
+                        {/* Row 1: product name + price + calc/cat + action — all in one line */}
+                        <div className="flex items-center gap-2">
+                          <p className="flex-1 min-w-0 text-sm font-medium text-gray-900 dark:text-white leading-snug line-clamp-2" title={row.item.productName}>
+                            {row.item.productName}
+                          </p>
+                          <div className="shrink-0 flex items-center gap-1.5">
+                            {isMoved ? (
+                              <span className="text-sm font-bold text-gray-900 dark:text-white">
+                                ${parseFloat(row.sellingPrice || '0').toFixed(2)}
+                              </span>
+                            ) : (
+                              <>
+                                <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap shrink-0">Sell $</span>
                                 <input
                                   type="text"
-                                  placeholder="optional"
-                                  value={row.barcode}
+                                  inputMode="decimal"
+                                  value={row.sellingPrice}
                                   disabled={isMoving}
-                                  onChange={e => updateRow(idx, { barcode: e.target.value })}
-                                  className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+                                  onChange={e => { const v = e.target.value; if (v === '' || /^\d*\.?\d*$/.test(v)) updateRow(idx, { sellingPrice: v }) }}
+                                  onBlur={e => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0) updateRow(idx, { sellingPrice: v.toFixed(2) }) }}
+                                  placeholder="0.00"
+                                  className="w-20 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                                 />
-                              )}
-                            </td>
-
-                            {/* Action */}
-                            <td className="px-3 py-2 min-w-[80px]">
-                              {isMoved ? (
-                                <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                  </svg>
-                                  <span className="text-xs font-medium">Moved</span>
-                                </div>
-                              ) : isError ? (
-                                <div>
-                                  <button
-                                    onClick={() => handleMoveRow(idx)}
-                                    className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-                                  >Retry</button>
-                                  {row.errorMessage && (
-                                    <div className="text-red-500 text-[10px] mt-0.5 max-w-[80px]">{row.errorMessage}</div>
-                                  )}
-                                </div>
-                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setOpenCalcIdx(openCalcIdx === idx ? null : idx)}
+                                  title="Pricing calculator"
+                                  className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                                    openCalcIdx === idx
+                                      ? 'bg-blue-100 border-blue-400 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-600'
+                                      : 'bg-gray-100 border-gray-200 text-gray-500 hover:bg-blue-50 hover:text-blue-600 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-400'
+                                  }`}
+                                >💡</button>
+                              </>
+                            )}
+                            {isMoved ? (
+                              <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium text-sm">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Moved
+                              </div>
+                            ) : isError ? (
+                              <div className="flex flex-col items-end">
                                 <button
                                   onClick={() => handleMoveRow(idx)}
-                                  disabled={isMoving || !selectedBusinessId || (!row.subCategoryId && !row.categoryId) || !row.sellingPrice || parseFloat(row.sellingPrice) <= 0}
-                                  className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-                                >
-                                  {isMoving ? '…' : 'Move →'}
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-
-                          {/* Pricing calculator expansion */}
-                          {openCalcIdx === idx && (
-                            <tr className="bg-blue-50 dark:bg-gray-800 border-b border-blue-200 dark:border-gray-700">
-                              <td colSpan={colCount} className="px-6 py-3">
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs text-gray-600 dark:text-gray-400">Transport override (US$):</span>
-                                    <input
-                                      type="number" min="0" step="0.01"
-                                      placeholder={perItemTransport > 0 ? `default $${perItemTransport.toFixed(2)}` : '0.00'}
-                                      value={row.transportOverride}
-                                      onChange={e => updateRow(idx, { transportOverride: e.target.value })}
-                                      className="w-28 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500"
-                                    />
-                                    {row.transportOverride !== '' && (
-                                      <button
-                                        type="button"
-                                        onClick={() => updateRow(idx, { transportOverride: '' })}
-                                        className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                                      >Reset</button>
-                                    )}
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => setOpenCalcIdx(null)}
-                                    className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 px-2 py-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                                  >✕ Close</button>
-                                </div>
-                                {row.item.costUsd != null ? (
-                                  <PricingCalculator
-                                    costPrice={costUsdPerUnit}
-                                    sellingPrice={row.sellingPrice}
-                                    onSelectPrice={price => updateRow(idx, { sellingPrice: String(price) })}
-                                    transportEnabled={totalAdjustment > 0}
-                                    transportDistanceKm={null}
-                                    transportCostPerKm={null}
-                                    transportPerUnitOverride={totalAdjustment > 0 ? totalAdjustment : null}
-                                  />
-                                ) : (
-                                  <p className="text-xs text-amber-600 dark:text-amber-400">Set a cost price for this item to use the calculator.</p>
+                                  className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                                >Retry</button>
+                                {row.errorMessage && (
+                                  <p className="text-xs text-red-500 max-w-[120px] text-right mt-0.5">{row.errorMessage}</p>
                                 )}
-                              </td>
-                            </tr>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => handleMoveRow(idx)}
+                                disabled={isMoving || (!row.itemBusinessId && !selectedBusinessId) || (!row.subCategoryId && !row.categoryId) || !row.sellingPrice || parseFloat(row.sellingPrice) <= 0}
+                                className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap font-medium"
+                              >
+                                {isMoving ? '…' : 'Move →'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Row 2: order # / tracking / qty / cost breakdown */}
+                        <div className="flex items-center gap-4 text-xs flex-wrap">
+                          <div>
+                            <span className="font-mono text-gray-700 dark:text-gray-300 whitespace-nowrap">{row.item.orderNumber}</span>
+                            {row.item.trackingNumber && (
+                              <div className="font-mono text-xs text-blue-500 dark:text-blue-400 whitespace-nowrap">{row.item.trackingNumber}</div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400 border-l border-gray-200 dark:border-gray-600 pl-4">
+                            <span>Qty</span>
+                            <span className="font-semibold text-gray-800 dark:text-gray-200">
+                              {row.item.manifestQty ?? <span className="text-amber-500">?</span>}
+                            </span>
+                            {row.item.quantity != null && row.item.quantity !== row.item.manifestQty && (
+                              <span className="text-gray-400 ml-0.5">(ord {row.item.quantity})</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400 border-l border-gray-200 dark:border-gray-600 pl-4">
+                            <span>Cost</span>
+                            <span className="font-semibold text-gray-800 dark:text-gray-200">
+                              {row.item.costUsd != null ? `$${costUsd.toFixed(2)}` : <span className="text-red-500">missing</span>}
+                            </span>
+                          </div>
+                          {itemTransportPerUnit > 0 && (
+                            <span className="text-amber-600 dark:text-amber-400 border-l border-gray-200 dark:border-gray-600 pl-4">
+                              +${itemTransportPerUnit.toFixed(2)} transport{row.transportOverride !== '' ? ' (custom)' : ''}
+                            </span>
                           )}
-                        </React.Fragment>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                          {txFeePerUnit > 0 && (
+                            <span className="text-blue-600 dark:text-blue-400">+${txFeePerUnit.toFixed(2)} fee</span>
+                          )}
+                          {clearancePerUnit > 0 && (
+                            <span className="text-purple-600 dark:text-purple-400">+${clearancePerUnit.toFixed(2)} clearance</span>
+                          )}
+                          {qty > 1 && <span className="text-gray-400">÷{qty} units</span>}
+                          <div className="flex items-center gap-1 border-l border-gray-200 dark:border-gray-600 pl-4">
+                            <span className="text-gray-500 dark:text-gray-400">Unit cost</span>
+                            <span className="font-bold text-gray-900 dark:text-white">${costPrice.toFixed(2)}</span>
+                          </div>
+                        </div>
+
+                        {/* Row 3: business + categories + barcode */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {!isMoved ? (
+                            <div className="flex-1 min-w-0">
+                              <BusinessCombobox
+                                value={row.itemBusinessId}
+                                onChange={v => updateRow(idx, { itemBusinessId: v })}
+                                businesses={businesses}
+                                globalBusinessName={businesses.find(b => b.businessId === selectedBusinessId)?.businessName || ''}
+                                disabled={isMoving}
+                              />
+                            </div>
+                          ) : row.itemBusinessId ? (
+                            <span className="text-xs text-gray-400">
+                              → {businesses.find(b => b.businessId === row.itemBusinessId)?.businessName}
+                            </span>
+                          ) : null}
+
+                          {hasDomains && (
+                            isMoved ? (
+                              <span className="text-xs text-gray-500">{(departments.find(d => d.id === row.domainId) ?? extraDomain)?.name || '—'}</span>
+                            ) : (
+                              <select
+                                value={row.domainId}
+                                disabled={isMoving}
+                                onChange={e => updateRow(idx, { domainId: e.target.value, categoryId: '', subCategoryId: '' })}
+                                className={selectCls}
+                              >
+                                <option value="">Domain…</option>
+                                {extraDomain && <option value={extraDomain.id}>{extraDomain.emoji ? `${extraDomain.emoji} ` : ''}{extraDomain.name}</option>}
+                                {departments.map(d => (
+                                  <option key={d.id} value={d.id}>{d.emoji ? `${d.emoji} ` : ''}{d.name}</option>
+                                ))}
+                              </select>
+                            )
+                          )}
+
+                          {isMoved ? (
+                            <span className="text-xs text-gray-500">{(categories.find(c => c.id === row.categoryId) ?? extraCat)?.name || '—'}</span>
+                          ) : (
+                            <select
+                              value={row.categoryId}
+                              disabled={(hasDomains && !row.domainId) || (categories.length === 0 && !extraCat) || isMoving}
+                              onChange={e => updateRow(idx, { categoryId: e.target.value, subCategoryId: '' })}
+                              className={selectCls}
+                            >
+                              <option value="">Category…</option>
+                              {extraCat && <option value={extraCat.id}>{extraCat.emoji ? `${extraCat.emoji} ` : ''}{extraCat.name}</option>}
+                              {filteredCats.map(c => (
+                                <option key={c.id} value={c.id}>{c.emoji ? `${c.emoji} ` : ''}{c.name}</option>
+                              ))}
+                            </select>
+                          )}
+
+                          {isMoved ? (
+                            <span className="text-xs text-gray-500">{(subCategories.find(c => c.id === row.subCategoryId) ?? extraSub)?.name || '—'}</span>
+                          ) : (
+                            <select
+                              value={row.subCategoryId}
+                              disabled={!row.categoryId || (filteredSubs.length === 0 && !extraSub) || isMoving}
+                              onChange={e => updateRow(idx, { subCategoryId: e.target.value })}
+                              className={selectCls}
+                            >
+                              <option value="">{!row.categoryId || (filteredSubs.length === 0 && !extraSub) ? 'Sub-cat N/A' : 'Sub-category…'}</option>
+                              {extraSub && <option value={extraSub.id}>{extraSub.emoji ? `${extraSub.emoji} ` : ''}{extraSub.name}</option>}
+                              {filteredSubs.map(c => (
+                                <option key={c.id} value={c.id}>{c.emoji ? `${c.emoji} ` : ''}{c.name}</option>
+                              ))}
+                            </select>
+                          )}
+
+                          {!isMoved && suggestAllSubs.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={e => handleSuggest(idx, e)}
+                              title="Suggest category from product name"
+                              className={`shrink-0 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                                suggestRowIdx === idx
+                                  ? 'bg-amber-100 border-amber-400 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                                  : 'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-700'
+                              }`}
+                            >🏷 Suggest</button>
+                          )}
+
+                          {isMoved ? (
+                            <span className="text-xs text-gray-400">{row.barcode || ''}</span>
+                          ) : (
+                            <input
+                              type="text"
+                              placeholder="Barcode (optional)"
+                              value={row.barcode}
+                              disabled={isMoving}
+                              onChange={e => updateRow(idx, { barcode: e.target.value })}
+                              className="flex-1 min-w-[8rem] px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+                            />
+                          )}
+                        </div>
+
+                        {/* Pricing calculator (inline, no separate row) */}
+                        {openCalcIdx === idx && (
+                          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className="text-gray-600 dark:text-gray-400">Transport override (US$):</span>
+                                <input
+                                  type="number" min="0" step="0.01"
+                                  placeholder={perItemTransport > 0 ? `default $${perItemTransport.toFixed(2)}` : '0.00'}
+                                  value={row.transportOverride}
+                                  onChange={e => updateRow(idx, { transportOverride: e.target.value })}
+                                  className="w-28 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 text-xs"
+                                />
+                                {row.transportOverride !== '' && (
+                                  <button type="button" onClick={() => updateRow(idx, { transportOverride: '' })} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">Reset</button>
+                                )}
+                              </div>
+                              <button type="button" onClick={() => setOpenCalcIdx(null)} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 px-2 py-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700">✕ Close</button>
+                            </div>
+                            {row.item.costUsd != null ? (
+                              <PricingCalculator
+                                costPrice={costUsdPerUnit}
+                                sellingPrice={row.sellingPrice}
+                                onSelectPrice={price => updateRow(idx, { sellingPrice: String(price) })}
+                                transportEnabled={totalAdjustment > 0}
+                                transportDistanceKm={null}
+                                transportCostPerKm={null}
+                                transportPerUnitOverride={totalAdjustment > 0 ? totalAdjustment : null}
+                              />
+                            ) : (
+                              <p className="text-xs text-amber-600 dark:text-amber-400">Set a cost price for this item to use the calculator.</p>
+                            )}
+                          </div>
+                        )}
+
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}

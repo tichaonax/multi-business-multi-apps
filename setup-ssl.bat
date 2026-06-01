@@ -10,6 +10,18 @@ echo  Multi-Business App - SSL Trust Setup
 echo  =====================================
 echo.
 
+REM Check that rootCA.pem is next to this script
+if not exist "%~dp0rootCA.pem" (
+    echo  ERROR: rootCA.pem not found in the same folder as this script.
+    echo.
+    echo  Copy BOTH files to the same folder before running:
+    echo    rootCA.pem
+    echo    setup-ssl.bat
+    echo.
+    pause
+    exit /b 1
+)
+
 REM Install the root CA so Chrome/Edge trust the app certificate
 echo  Installing trusted certificate authority...
 certutil -addstore -user "Root" "%~dp0rootCA.pem"
