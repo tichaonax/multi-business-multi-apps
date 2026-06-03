@@ -17,43 +17,42 @@ export function ScaleSettings({ businessId }: ScaleSettingsProps) {
   const [detecting, setDetecting] = useState(false)
   const [detectedBaud, setDetectedBaud] = useState<number | null>(null)
   const [detectError, setDetectError] = useState(false)
+  // Baud rate saved from a previous successful detection
+  const [savedBaud, setSavedBaud] = useState<number | null>(null)
+  const [dbSaveStatus, setDbSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle')
 
+  // One-time Electron setup: subscriptions + load local store values
   useEffect(() => {
     if (!window.electron) return
     setIsElectron(true)
-
-    // Auto-load port list so the dropdown is populated immediately
     window.electron.scale.listPorts().then(setPorts)
-
-    // Load saved port — prefer electron-store (fast), fall back to DB
-    window.electron.scale.getSavedPort().then(async (saved) => {
-      if (saved) {
-        setSelectedPort(saved)
-      } else if (businessId) {
-        // Nothing in local store — try DB
-        try {
-          const res = await fetch(`/api/scale-config?businessId=${businessId}`)
-          if (res.ok) {
-            const { scaleConfig } = await res.json()
-            if (scaleConfig?.comPort) {
-              setSelectedPort(scaleConfig.comPort)
-              // Also save to local store so next startup auto-connects
-              window.electron!.scale.connect(scaleConfig.comPort)
-            }
-          }
-        } catch (_) {}
-      }
+    window.electron.scale.getSavedBaud().then(setSavedBaud)
+    window.electron.scale.getSavedPort().then((saved) => {
+      if (saved) setSelectedPort(saved)
     })
-
-    // Subscribe to status and weight events
     const unsubStatus = window.electron.scale.onStatus((s) => setStatus(s))
     const unsubWeight = window.electron.scale.onWeight((w) => setLastWeight(w))
-
-    return () => {
-      unsubStatus()
-      unsubWeight()
-    }
+    return () => { unsubStatus(); unsubWeight() }
   }, [])
+
+  // DB fallback: runs when businessId becomes available (or changes)
+  useEffect(() => {
+    if (!window.electron || !businessId) return
+    window.electron.scale.getSavedPort().then(async (saved) => {
+      if (saved) return // local store wins — no need for DB
+      try {
+        const res = await fetch(`/api/scale-config?businessId=${businessId}`)
+        if (!res.ok) return
+        const { scaleConfig } = await res.json()
+        if (scaleConfig?.comPort) {
+          setSelectedPort(scaleConfig.comPort)
+          if (scaleConfig.baudRate) setSavedBaud(scaleConfig.baudRate)
+          window.electron!.scale.connect(scaleConfig.comPort, scaleConfig.baudRate ?? 1200)
+          console.log('[ScaleSettings] Restored from DB:', scaleConfig)
+        }
+      } catch (_) {}
+    })
+  }, [businessId])
 
   async function refreshPorts() {
     if (!window.electron) return
@@ -66,7 +65,8 @@ export function ScaleSettings({ businessId }: ScaleSettingsProps) {
     }
   }
 
-  async function handleConnect() {
+  // Full detect + connect: probes each baud rate, then connects
+  async function handleDetectAndConnect() {
     if (!window.electron || !selectedPort) return
     setDetecting(true)
     setDetectedBaud(null)
@@ -78,15 +78,42 @@ export function ScaleSettings({ businessId }: ScaleSettingsProps) {
       return
     }
     setDetectedBaud(baudRate)
-    await window.electron.scale.connect(selectedPort)
+    setSavedBaud(baudRate)
+    await window.electron.scale.connect(selectedPort, baudRate)
+    saveToDb(selectedPort, baudRate)
+  }
 
-    // Persist to DB so the setting survives reinstalls
-    if (businessId) {
-      fetch('/api/scale-config', {
+  // Quick connect: skip detection, use the already-known baud rate
+  async function handleQuickConnect() {
+    if (!window.electron || !selectedPort || !savedBaud) return
+    setDetectError(false)
+    await window.electron.scale.connect(selectedPort, savedBaud)
+    saveToDb(selectedPort, savedBaud)
+  }
+
+  async function saveToDb(comPort: string, baudRate: number) {
+    if (!businessId) {
+      console.error('[ScaleSettings] saveToDb: no businessId — config will NOT be saved to DB')
+      return
+    }
+    setDbSaveStatus('saving')
+    try {
+      const res = await fetch('/api/scale-config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessId, comPort: selectedPort, baudRate }),
-      }).catch(() => {})
+        body: JSON.stringify({ businessId, comPort, baudRate }),
+      })
+      if (res.ok) {
+        setDbSaveStatus('saved')
+        console.log('[ScaleSettings] Scale config saved to DB:', { businessId, comPort, baudRate })
+      } else {
+        const err = await res.json().catch(() => ({}))
+        console.error('[ScaleSettings] DB save failed:', res.status, err)
+        setDbSaveStatus('failed')
+      }
+    } catch (e) {
+      console.error('[ScaleSettings] DB save error:', e)
+      setDbSaveStatus('failed')
     }
   }
 
@@ -144,33 +171,46 @@ export function ScaleSettings({ businessId }: ScaleSettingsProps) {
         </div>
 
         {connected ? (
-          <button
-            onClick={handleDisconnect}
-            className="px-4 py-2 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50"
-          >
-            Disconnect
-          </button>
+          <>
+            <button
+              onClick={handleDisconnect}
+              className="px-4 py-2 text-sm bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50"
+            >
+              Disconnect
+            </button>
+            <button
+              onClick={handleTare}
+              className="px-4 py-2 text-sm bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/50"
+            >
+              Tare
+            </button>
+          </>
         ) : (
-          <button
-            onClick={handleConnect}
-            disabled={!selectedPort || detecting}
-            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40"
-          >
-            {detecting ? 'Detecting…' : 'Connect'}
-          </button>
-        )}
-
-        {connected && (
-          <button
-            onClick={handleTare}
-            className="px-4 py-2 text-sm bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/50"
-          >
-            Tare
-          </button>
+          <>
+            {/* Quick Connect — available when a baud rate was already detected */}
+            {savedBaud && (
+              <button
+                onClick={handleQuickConnect}
+                disabled={!selectedPort}
+                className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-40"
+                title={`Connect at ${savedBaud} baud (previously detected)`}
+              >
+                Connect ({savedBaud} baud)
+              </button>
+            )}
+            {/* Full detect + connect */}
+            <button
+              onClick={handleDetectAndConnect}
+              disabled={!selectedPort || detecting}
+              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40"
+            >
+              {detecting ? 'Detecting…' : savedBaud ? 'Re-detect' : 'Detect & Connect'}
+            </button>
+          </>
         )}
       </div>
 
-      {/* Baud rate detection feedback */}
+      {/* Feedback */}
       {detecting && (
         <p className="text-sm text-blue-600 dark:text-blue-400">
           Detecting baud rate… (trying 1200 → 38400)
@@ -178,13 +218,25 @@ export function ScaleSettings({ businessId }: ScaleSettingsProps) {
       )}
       {!detecting && detectError && (
         <p className="text-sm text-red-600 dark:text-red-400">
-          Could not detect baud rate — check that the scale is on and the cable is connected.
+          Could not detect baud rate — check the scale is on and the cable is connected.
+          {savedBaud && ' Try "Connect" to use the previously detected baud rate instead.'}
         </p>
       )}
       {!detecting && detectedBaud && (
         <p className="text-sm text-green-600 dark:text-green-400">
           Detected: {detectedBaud} baud
         </p>
+      )}
+
+      {/* DB save status */}
+      {dbSaveStatus === 'saving' && (
+        <p className="text-xs text-gray-400">Saving configuration to database…</p>
+      )}
+      {dbSaveStatus === 'saved' && (
+        <p className="text-xs text-green-600 dark:text-green-400">Configuration saved — will auto-connect on next launch.</p>
+      )}
+      {dbSaveStatus === 'failed' && (
+        <p className="text-xs text-red-600 dark:text-red-400">Failed to save to database. Check browser console for details.</p>
       )}
 
       {/* Status badge */}

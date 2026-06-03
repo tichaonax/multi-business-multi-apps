@@ -166,9 +166,9 @@ async function detectBaud(comPort) {
     }
   }
   console.log('[Scale] No baud rate detected')
-  // Clear any stale saved port so isConfigured stays false
+  // Only clear the COM port (prevents auto-connect to an unresponsive port).
+  // Keep baudRate — it's still valid for the next manual attempt.
   store.delete('scale.comPort')
-  store.delete('scale.baudRate')
   return { baudRate: null }
 }
 
