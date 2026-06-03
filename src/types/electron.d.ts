@@ -29,7 +29,8 @@ export interface ElectronAPI {
   scale: {
     listPorts: () => Promise<ComPort[]>
     getSavedPort: () => Promise<string | null>
-    connect: (comPort: string) => Promise<{ ok: boolean }>
+    getSavedBaud: () => Promise<number | null>
+    connect: (comPort: string, baudRate?: number) => Promise<{ ok: boolean }>
     disconnect: () => Promise<{ ok: boolean }>
     tare: () => Promise<{ ok: boolean }>
     detectBaud: (comPort: string) => Promise<{ baudRate: number | null }>

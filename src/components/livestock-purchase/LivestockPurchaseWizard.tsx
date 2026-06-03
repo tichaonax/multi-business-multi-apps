@@ -353,24 +353,34 @@ export function LivestockPurchaseWizard({ businessId, businessType, onClose }: P
       const biz = businessData.data ?? businessData
 
       const lines = updatedSession.livestock_purchase_lines ?? []
+      const shortId = session.id.slice(-6).toUpperCase()
       const receipt: ReceiptData = {
+        receiptNumber: {
+          globalId: session.id,
+          dailySequence: shortId,
+          formattedNumber: `LSP-${shortId}`,
+        },
+        businessId,
+        businessType,
         businessName: biz.businessName ?? biz.name ?? 'Business',
         businessAddress: biz.address ?? '',
         businessPhone: biz.phone ?? '',
-        receiptNumber: `LSP-${session.id.slice(-6).toUpperCase()}`,
-        date: new Date().toISOString(),
+        transactionId: session.id,
+        transactionDate: new Date(),
+        salespersonName: 'Livestock Purchase',
+        salespersonId: 'livestock',
         items: lines.map((l) => ({
-          name: `${l.categoryName} (${Number(l.weightKg).toFixed(3)} kg @ ${Number(l.pricePerKg).toFixed(2)}/kg)`,
+          name: `${l.categoryName}`,
           quantity: 1,
-          price: Number(l.totalAmount),
-          total: Number(l.totalAmount),
+          unitPrice: Number(l.totalAmount),
+          totalPrice: Number(l.totalAmount),
+          notes: `${Number(l.weightKg).toFixed(3)} kg @ $${Number(l.pricePerKg).toFixed(2)}/kg`,
         })),
         subtotal: Number(updatedSession.totalAmount),
         tax: 0,
         total: Number(updatedSession.totalAmount),
-        paymentMethod: 'EXPENSE ACCOUNT',
-        footer: `Supplier: ${updatedSession.business_suppliers?.name ?? ''}`,
-        receiptType: 'LIVESTOCK_PURCHASE',
+        paymentMethod: 'Expense Account',
+        footerMessage: `Vendor: ${updatedSession.business_suppliers?.name ?? ''}`,
       }
       setReceiptData(receipt)
       setSession(updatedSession)
@@ -412,12 +422,17 @@ export function LivestockPurchaseWizard({ businessId, businessType, onClose }: P
   if (receiptData) {
     return (
       <UnifiedReceiptPreviewModal
+        isOpen={true}
         receiptData={receiptData}
         businessType={businessType}
+        hideCustomerCopy={true}
         onClose={onClose}
-        onPrintConfirm={async (printer) => {
-          await ReceiptPrintManager.printReceipt(receiptData, businessType, { printer })
-          onClose()
+        onPrintConfirm={async (options) => {
+          await ReceiptPrintManager.printReceipt(receiptData, businessType, {
+            ...options,
+            autoPrint: true,
+            printCustomerCopy: false,
+          })
         }}
       />
     )

@@ -6,10 +6,12 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { LivestockPurchaseWizard } from '@/components/livestock-purchase/LivestockPurchaseWizard'
+import { LivestockReprintHistory } from '@/components/livestock-purchase/LivestockReprintHistory'
 
 export default function RestaurantLivestockPurchasePage() {
   const { currentBusinessId, currentBusiness } = useBusinessPermissionsContext()
   const [showWizard, setShowWizard] = useState(false)
+  const [historyKey, setHistoryKey] = useState(0)
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
@@ -52,11 +54,13 @@ export default function RestaurantLivestockPurchasePage() {
         </div>
       </div>
 
+      <LivestockReprintHistory key={historyKey} businessId={currentBusinessId} businessType="restaurant" />
+
       {showWizard && (
         <LivestockPurchaseWizard
           businessId={currentBusinessId}
           businessType="restaurant"
-          onClose={() => setShowWizard(false)}
+          onClose={() => { setShowWizard(false); setHistoryKey(k => k + 1) }}
         />
       )}
     </div>

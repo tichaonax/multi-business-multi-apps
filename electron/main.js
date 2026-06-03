@@ -247,8 +247,10 @@ ipcMain.handle('scale:list-ports', () => scaleService.listPorts())
 
 ipcMain.handle('scale:get-saved-port', () => scaleService.getSavedPort())
 
-ipcMain.handle('scale:connect', (_event, comPort) => {
-  scaleService.connect(comPort)
+ipcMain.handle('scale:get-saved-baud', () => scaleService.getSavedBaudRate())
+
+ipcMain.handle('scale:connect', (_event, comPort, baudRateOverride) => {
+  scaleService.connect(comPort, baudRateOverride)
   return { ok: true }
 })
 

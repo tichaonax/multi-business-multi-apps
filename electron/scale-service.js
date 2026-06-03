@@ -200,7 +200,11 @@ function getSavedPort() {
   return store.get('scale.comPort', null)
 }
 
-function connect(comPort) {
+function getSavedBaudRate() {
+  return store.get('scale.baudRate', null)
+}
+
+function connect(comPort, baudRateOverride) {
   autoReconnect = true
   clearReconnect()
 
@@ -216,7 +220,8 @@ function connect(comPort) {
     return
   }
 
-  const baudRate = store.get('scale.baudRate', 1200)
+  const baudRate = baudRateOverride ?? store.get('scale.baudRate', 1200)
+  if (baudRateOverride) store.set('scale.baudRate', baudRateOverride)
   console.log(`[Scale] Connecting at ${baudRate} baud`)
   port = new SerialPort({ path: comPort, baudRate, dataBits: 8, stopBits: 1, parity: 'none', rtscts: false, autoOpen: false })
 
@@ -279,4 +284,4 @@ function tare() {
   return true
 }
 
-module.exports = { init, listPorts, getSavedPort, connect, disconnect, tare, detectBaud }
+module.exports = { init, listPorts, getSavedPort, getSavedBaudRate, connect, disconnect, tare, detectBaud }

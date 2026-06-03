@@ -23,7 +23,9 @@ contextBridge.exposeInMainWorld('electron', {
 
     getSavedPort: () => ipcRenderer.invoke('scale:get-saved-port'),
 
-    connect: (comPort) => ipcRenderer.invoke('scale:connect', comPort),
+    getSavedBaud: () => ipcRenderer.invoke('scale:get-saved-baud'),
+
+    connect: (comPort, baudRate) => ipcRenderer.invoke('scale:connect', comPort, baudRate),
 
     disconnect: () => ipcRenderer.invoke('scale:disconnect'),
 

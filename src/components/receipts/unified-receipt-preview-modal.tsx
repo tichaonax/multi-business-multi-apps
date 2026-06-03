@@ -59,6 +59,8 @@ interface UnifiedReceiptPreviewModalProps {
   extraEscPosJobs?: string[]
   /** When provided, shows a "Cancel Order" button that triggers the manager override flow */
   onCancelOrder?: () => void
+  /** Hide the customer copy option (e.g. for vendor payment vouchers) */
+  hideCustomerCopy?: boolean
 }
 
 export function UnifiedReceiptPreviewModal({
@@ -69,6 +71,7 @@ export function UnifiedReceiptPreviewModal({
   extraEscPosJobs,
   onPrintConfirm,
   onCancelOrder,
+  hideCustomerCopy,
 }: UnifiedReceiptPreviewModalProps) {
   const [printers, setPrinters] = useState<NetworkPrinter[]>(() => printerCache?.printers || [])
   const [selectedPrinterId, setSelectedPrinterId] = useState<string | undefined>()
@@ -355,7 +358,7 @@ export function UnifiedReceiptPreviewModal({
   const isLocalSelected = selectedPrinterId === LOCAL_PRINTER_ID
   const isQzSelected = selectedPrinterId?.startsWith(QZ_PRINTER_PREFIX) ?? false
   const isRestaurant = businessType === 'restaurant'
-  const supportsCustomerCopy = ['restaurant', 'grocery', 'clothing', 'services'].includes(businessType)
+  const supportsCustomerCopy = !hideCustomerCopy && ['restaurant', 'grocery', 'clothing', 'services'].includes(businessType)
   const hasPrintersOrLocal = printers.length > 0 || hasLocalPrinter || qzPrinters.length > 0
 
   if (!isOpen) return null
