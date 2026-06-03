@@ -51,17 +51,20 @@ interface Session {
   status: string
   totalWeightKg: number
   totalAmount: number
-  business_suppliers: { id: string; name: string }
+  business_suppliers: { id: string; name: string; phone?: string | null }
   livestock_purchase_lines: Line[]
 }
+
+type PurchaseType = 'LIVESTOCK' | 'GOODS'
 
 interface Props {
   businessId: string
   businessType: 'restaurant' | 'grocery'
+  purchaseType?: PurchaseType
   onClose: () => void
 }
 
-export function LivestockPurchaseWizard({ businessId, businessType, onClose }: Props) {
+export function LivestockPurchaseWizard({ businessId, businessType, purchaseType = 'LIVESTOCK', onClose }: Props) {
   const { weight, status: scaleStatus } = useScale()
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
@@ -190,11 +193,11 @@ export function LivestockPurchaseWizard({ businessId, businessType, onClose }: P
       .then((data) => setSuppliers(Array.isArray(data) ? data : data.suppliers ?? []))
       .catch(() => {})
 
-    fetch(`/api/weight-pricing-rules?businessId=${businessId}`)
+    fetch(`/api/weight-pricing-rules?businessId=${businessId}&purchaseType=${purchaseType}`)
       .then((r) => r.json())
       .then((data) => setPricingRules(Array.isArray(data) ? data : []))
       .catch(() => {})
-  }, [businessId, businessType])
+  }, [businessId, businessType, purchaseType])
 
   // Auto-lock stable reading — but only after scale has been cleared between items
   useEffect(() => {
@@ -215,7 +218,7 @@ export function LivestockPurchaseWizard({ businessId, businessType, onClose }: P
     setProfilesLoading(true)
     try {
       const [profilesRes, historyRes] = await Promise.all([
-        fetch(`/api/livestock-purchase/vendor-profiles?businessId=${businessId}&vendorId=${vendorId}`),
+        fetch(`/api/livestock-purchase/vendor-profiles?businessId=${businessId}&vendorId=${vendorId}&purchaseType=${purchaseType}`),
         fetch(`/api/livestock-purchase/vendor-history?businessId=${businessId}&vendorId=${vendorId}`),
       ])
       const profilesData = profilesRes.ok ? await profilesRes.json() : []
@@ -233,8 +236,14 @@ export function LivestockPurchaseWizard({ businessId, businessType, onClose }: P
     const res = await fetch('/api/livestock-purchase/sessions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ businessId, supplierId: selectedSupplierId }),
+      body: JSON.stringify({ businessId, supplierId: selectedSupplierId, purchaseType }),
     })
+    if (!res.ok) {
+      const errText = await res.text()
+      console.error('[startSession] API error', res.status, errText)
+      alert('Failed to start session. Please try again.')
+      return
+    }
     const data = await res.json()
     setSession(data)
     loadVendorData(selectedSupplierId)
@@ -262,7 +271,7 @@ export function LivestockPurchaseWizard({ businessId, businessType, onClose }: P
       const res = await fetch('/api/livestock-purchase/vendor-profiles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessId, vendorId: session.supplierId, name: n, emoji: newProfile.emoji || '📦', pricePerKg: p }),
+        body: JSON.stringify({ businessId, vendorId: session.supplierId, name: n, emoji: newProfile.emoji || '📦', pricePerKg: p, purchaseType }),
       })
       if (res.ok) {
         const created = await res.json()
@@ -280,7 +289,7 @@ export function LivestockPurchaseWizard({ businessId, businessType, onClose }: P
     const res = await fetch('/api/livestock-purchase/vendor-profiles', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ businessId, vendorId: session.supplierId, name: h.categoryName, emoji: '📦', pricePerKg: h.pricePerKg }),
+      body: JSON.stringify({ businessId, vendorId: session.supplierId, name: h.categoryName, emoji: '📦', pricePerKg: h.pricePerKg, purchaseType }),
     })
     if (res.ok) {
       const created = await res.json()
@@ -367,8 +376,8 @@ export function LivestockPurchaseWizard({ businessId, businessType, onClose }: P
         businessPhone: biz.phone ?? '',
         transactionId: session.id,
         transactionDate: new Date(),
-        salespersonName: 'Livestock Purchase',
-        salespersonId: 'livestock',
+        salespersonName: updatedSession.business_suppliers?.name ?? 'Unknown Vendor',
+        salespersonId: 'vendor',
         items: lines.map((l) => ({
           name: `${l.categoryName}`,
           quantity: 1,
@@ -378,9 +387,13 @@ export function LivestockPurchaseWizard({ businessId, businessType, onClose }: P
         })),
         subtotal: Number(updatedSession.totalAmount),
         tax: 0,
+        hideTax: true,
         total: Number(updatedSession.totalAmount),
         paymentMethod: 'Expense Account',
-        footerMessage: `Vendor: ${updatedSession.business_suppliers?.name ?? ''}`,
+        footerMessage: [
+          updatedSession.business_suppliers?.phone ? `Tel: ${updatedSession.business_suppliers.phone}` : '',
+          'Present this voucher to the cashier to claim payment.',
+        ].filter(Boolean).join('  \u2022  '),
       }
       setReceiptData(receipt)
       setSession(updatedSession)
@@ -393,6 +406,11 @@ export function LivestockPurchaseWizard({ businessId, businessType, onClose }: P
     if (!session) return
     showConfirm('Cancel this livestock purchase session?', async () => {
       await fetch(`/api/livestock-purchase/sessions/${session.id}/cancel`, { method: 'POST' })
+      // Clear the customer display
+      const sync = new BroadcastSync({ businessId })
+      sync.connect()
+      sync.send('VENDOR_SESSION', { vendorSessionStatus: 'CANCELLED' })
+      sync.disconnect()
       onClose()
     })
   }
@@ -425,13 +443,12 @@ export function LivestockPurchaseWizard({ businessId, businessType, onClose }: P
         isOpen={true}
         receiptData={receiptData}
         businessType={businessType}
-        hideCustomerCopy={true}
+        title="Print Voucher"
         onClose={onClose}
         onPrintConfirm={async (options) => {
           await ReceiptPrintManager.printReceipt(receiptData, businessType, {
             ...options,
             autoPrint: true,
-            printCustomerCopy: false,
           })
         }}
       />
@@ -443,7 +460,9 @@ export function LivestockPurchaseWizard({ businessId, businessType, onClose }: P
       <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md">
           <div className="px-6 pt-6 pb-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Livestock Purchase</h2>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+              {purchaseType === 'GOODS' ? 'Goods Purchase' : 'Livestock Purchase'}
+            </h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Select a vendor to begin</p>
           </div>
           <div className="px-6 py-6 space-y-4">
@@ -547,7 +566,9 @@ export function LivestockPurchaseWizard({ businessId, businessType, onClose }: P
         <div className="px-6 pt-5 pb-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">Livestock Purchase</h2>
+              <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">
+              {purchaseType === 'GOODS' ? 'Goods Purchase' : 'Livestock Purchase'}
+            </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 Vendor: {session.business_suppliers?.name}
               </p>
@@ -585,7 +606,7 @@ export function LivestockPurchaseWizard({ businessId, businessType, onClose }: P
           </div>
 
           {lockedWeight != null && (
-            <button onClick={() => { setLockedWeight(null); setWaitingForScaleEmpty(true) }} className="w-full text-xs text-amber-600 dark:text-amber-400 hover:underline">
+            <button onClick={() => { setLockedWeight(null); setWaitingForScaleEmpty(false) }} className="w-full text-xs text-amber-600 dark:text-amber-400 hover:underline">
               Re-weigh (clear lock)
             </button>
           )}

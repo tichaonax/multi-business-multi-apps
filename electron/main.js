@@ -10,6 +10,35 @@ const path = require('path')
 const fs = require('fs')
 const scaleService = require('./scale-service')
 
+// ─── EPIPE protection ───────────────────────────────────────────────────────
+// Wrap console output in try-catch so a USB unplug (which closes stdout/stderr)
+// does not crash the main process with an EPIPE error.
+;['log', 'error', 'warn'].forEach((level) => {
+  const orig = console[level].bind(console)
+  console[level] = (...args) => {
+    try { orig(...args) } catch (_) {}
+  }
+})
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── Single-instance lock ────────────────────────────────────────────────────
+// Prevents two Electron processes running at the same time (which would cause
+// "Access denied" on the COM port because the first instance still holds it).
+if (!app.requestSingleInstanceLock()) {
+  // app.exit() is synchronous — execution stops here.
+  // app.quit() is async and would let the code continue, creating windows before exiting.
+  console.log('[App] Another instance is already running — exiting immediately.')
+  app.exit(0)
+}
+// If a second launch is attempted, bring the existing window to the foreground.
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+  }
+})
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Suppress GPU hardware acceleration errors (common on headless/remote desktop environments)
 app.commandLine.appendSwitch('disable-gpu')
 app.commandLine.appendSwitch('disable-software-rasterizer')
@@ -85,14 +114,24 @@ function createWindows() {
   // This allows flexibility to use any business type without restarting Electron
   mainWindow.loadURL(`${SERVER_URL}/`)
 
-  // Clear auth cookies when window closes (but keep localStorage for theme)
-  mainWindow.on('close', () => {
-    if (mainWindow && mainWindow.webContents && mainWindow.webContents.session) {
-      // Clear cookies (removes NextAuth session)
-      mainWindow.webContents.session.clearStorageData({
-        storages: ['cookies'], // Only clear cookies, not localStorage
-      }).catch(err => console.error('Error clearing cookies:', err))
-    }
+  // When the user closes the main window: release the COM port FIRST, then
+  // destroy the window. This guarantees the serial port is freed even if the
+  // OS never fires before-quit (e.g. task-kill, power-off, crash).
+  mainWindow.on('close', (event) => {
+    if (app.isQuitting) return  // already handled by before-quit path
+    event.preventDefault()      // hold the close until COM port is released
+    app.isQuitting = true
+    console.log('[App] Main window closing — releasing COM port…')
+    scaleService.disconnectAsync().then(() => {
+      // Clear cookies (removes NextAuth session) then destroy the window
+      const session = mainWindow?.webContents?.session
+      const clear = session
+        ? session.clearStorageData({ storages: ['cookies'] }).catch(() => {})
+        : Promise.resolve()
+      clear.finally(() => {
+        mainWindow?.destroy()  // destroy() bypasses the 'close' event so no recursion
+      })
+    })
   })
 
   // Open customer display immediately on secondary monitor (if available)
@@ -295,9 +334,14 @@ app.on('window-all-closed', () => {
   }
 })
 
-// Set quitting flag when app is quitting
-app.on('before-quit', () => {
+// Fallback: if app.quit() is called without the window close path running
+// (e.g. programmatic quit, macOS ⌘Q), still ensure the COM port is released.
+app.on('before-quit', (event) => {
+  if (app.isQuitting) return  // window close path already handled it
   app.isQuitting = true
-  // Release the COM port so it doesn't stay locked after the app closes
-  scaleService.disconnect()
+  event.preventDefault()
+  console.log('[App] before-quit — releasing COM port…')
+  scaleService.disconnectAsync().then(() => {
+    app.quit()
+  })
 })

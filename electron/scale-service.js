@@ -12,9 +12,10 @@ const store = new Store({ name: 'scale-config' })
 
 let port = null
 let rawBuffer = ''
-let reconnectTimer = null
+const reconnectTimers = new Set()   // tracks ALL pending retry timers so clearReconnect() cancels every one
 let mainWindowRef = null
 let autoReconnect = true
+let connectPending = false  // mutex: prevents concurrent connect() calls
 
 const BAUD_RATES_TO_TRY = [1200, 2400, 4800, 9600, 19200, 38400]
 const RECONNECT_DELAY_MS = 5000
@@ -66,7 +67,6 @@ function parseWeightLine(line) {
     }
   }
 
-  console.log('[Scale] No regex match for line:', JSON.stringify(trimmed))
   return null
 }
 
@@ -78,7 +78,6 @@ function processBuffer() {
   for (const line of parts) {
     const trimmed = line.trim()
     if (!trimmed) continue
-    console.log('[Scale] RAW line:', JSON.stringify(trimmed))
     const result = parseWeightLine(trimmed)
     if (result) emit('scale:weight', result)
   }
@@ -91,16 +90,17 @@ function emit(channel, data) {
 }
 
 function scheduleReconnect(comPort) {
-  clearReconnect()
   if (!autoReconnect) return
-  reconnectTimer = setTimeout(() => connect(comPort), RECONNECT_DELAY_MS)
+  const t = setTimeout(() => {
+    reconnectTimers.delete(t)
+    if (autoReconnect) connect(comPort)
+  }, RECONNECT_DELAY_MS)
+  reconnectTimers.add(t)
 }
 
 function clearReconnect() {
-  if (reconnectTimer) {
-    clearTimeout(reconnectTimer)
-    reconnectTimer = null
-  }
+  for (const t of reconnectTimers) clearTimeout(t)
+  reconnectTimers.clear()
 }
 
 // ─── Baud Rate Detection ──────────────────────────────────────────────────────
@@ -131,7 +131,6 @@ function tryBaudRate(comPort, baudRate) {
       setTimeout(() => {
         const pct = totalBytes > 0 ? Math.round(100 * readableBytes / totalBytes) : 0
         const ok = pct >= 40
-        console.log(`[Scale] detectBaud ${baudRate}: ${totalBytes} bytes, ${pct}% readable → ${ok ? 'MATCH' : 'no'}`)
         testPort.close(() => resolve(ok))
       }, 1500)
     })
@@ -139,8 +138,6 @@ function tryBaudRate(comPort, baudRate) {
 }
 
 async function detectBaud(comPort) {
-  console.log(`[Scale] Auto-detecting baud rate on ${comPort}...`)
-
   // Stop auto-reconnect so closing the port doesn't trigger a reconnect race
   autoReconnect = false
   clearReconnect()
@@ -160,12 +157,10 @@ async function detectBaud(comPort) {
   for (const baud of BAUD_RATES_TO_TRY) {
     const ok = await tryBaudRate(comPort, baud)
     if (ok) {
-      console.log(`[Scale] Detected baud rate: ${baud}`)
       store.set('scale.baudRate', baud)
       return { baudRate: baud }
     }
   }
-  console.log('[Scale] No baud rate detected')
   // Only clear the COM port (prevents auto-connect to an unresponsive port).
   // Keep baudRate — it's still valid for the next manual attempt.
   store.delete('scale.comPort')
@@ -174,13 +169,18 @@ async function detectBaud(comPort) {
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
+const STARTUP_DELAY_MS = 3000  // wait for any previous Electron process to release the COM port
+
 function init(mainWindow) {
   mainWindowRef = mainWindow
 
-  // Auto-connect to previously saved port on startup
   const saved = getSavedPort()
   if (saved) {
-    connect(saved)
+    const t = setTimeout(() => {
+      reconnectTimers.delete(t)
+      if (autoReconnect) connect(saved)
+    }, STARTUP_DELAY_MS)
+    reconnectTimers.add(t)
   }
 }
 
@@ -204,13 +204,21 @@ function getSavedBaudRate() {
   return store.get('scale.baudRate', null)
 }
 
-function connect(comPort, baudRateOverride, _retryCount = 0) {
+function connect(comPort, baudRateOverride) {
+  // Deduplicate: if a connect is already in flight, ignore this call.
+  // This prevents ScaleContext + ScaleSettings both calling connect simultaneously.
+  if (connectPending) {
+    return
+  }
+  connectPending = true
   autoReconnect = true
   clearReconnect()
 
-  // Close existing port if open
+  // Discard existing port — remove listeners first so stale callbacks
+  // from the old port don't race with the new one.
   if (port) {
-    try { port.close() } catch (_) {}
+    port.removeAllListeners()
+    if (port.isOpen) { try { port.close() } catch (_) {} }
     port = null
   }
   rawBuffer = ''
@@ -222,47 +230,74 @@ function connect(comPort, baudRateOverride, _retryCount = 0) {
 
   const baudRate = baudRateOverride ?? store.get('scale.baudRate', 1200)
   if (baudRateOverride) store.set('scale.baudRate', baudRateOverride)
-  console.log(`[Scale] Connecting to ${comPort} at ${baudRate} baud (attempt ${_retryCount + 1})`)
-  port = new SerialPort({ path: comPort, baudRate, dataBits: 8, stopBits: 1, parity: 'none', rtscts: false, autoOpen: false })
 
-  port.open((err) => {
+  const thisPort = new SerialPort({ path: comPort, baudRate, dataBits: 8, stopBits: 1, parity: 'none', rtscts: false, autoOpen: false })
+  port = thisPort
+
+  thisPort.open((err) => {
+    // Guard: if connect() was called again while we were waiting for open(),
+    // this callback belongs to a discarded port.
+    // If it somehow succeeded in opening, close it immediately to release the COM port.
+    if (port !== thisPort) {
+      if (!err) { try { thisPort.close() } catch (_) {} }
+      return
+    }
+
     if (err) {
-      console.error(`[Scale] Failed to open ${comPort}:`, err.message)
-      emit('scale:status', { status: 'error', error: err.message, comPort })
+      const msg = err.message
+      const isLocked = msg.toLowerCase().includes('access denied') ||
+                       msg.toLowerCase().includes('cannot open')
+      if (isLocked) {
+        // Keep connectPending = true for the full retry window so the UI cannot
+        // fire additional connect() calls while we are waiting to retry.
+        // connectPending is released inside the timer, just before retrying.
+        emit('scale:status', { status: 'connecting', comPort })
+        port = null
+        clearReconnect()
+        const t = setTimeout(() => {
+          reconnectTimers.delete(t)
+          connectPending = false  // release mutex here, not on the error path above
+          if (autoReconnect) connect(comPort, baudRateOverride)
+        }, 3000)
+        reconnectTimers.add(t)
+        return
+      }
+      connectPending = false  // non-lock error: release immediately
+      console.error(`[Scale] Failed to open ${comPort}:`, msg)
+      emit('scale:status', { status: 'error', error: msg, comPort })
       scheduleReconnect(comPort)
       return
     }
+    connectPending = false  // success: release mutex
     // Only persist after a successful open
     store.set('scale.comPort', comPort)
-    // Assert RTS+DTR so the scale starts streaming
-    port.set({ rts: true, dtr: true }, () => {})
-    console.log(`[Scale] Connected to ${comPort}`)
+    port.set({ rts: true, dtr: true }, () => {})  // connectPending already false (released on error path)
     emit('scale:status', { status: 'connected', comPort })
   })
 
-  // Raw data — log every chunk so we can see exactly what the scale sends
-  port.on('data', (chunk) => {
-    const hex = Buffer.from(chunk).toString('hex')
+  thisPort.on('data', (chunk) => {
+    if (port !== thisPort) return
     const str = chunk.toString('latin1')
-    console.log('[Scale] RAW chunk hex:', hex, '| text:', JSON.stringify(str))
     rawBuffer += str
     processBuffer()
   })
 
-  port.on('error', (err) => {
+  thisPort.on('error', (err) => {
+    if (port !== thisPort) return
     console.error(`[Scale] Port error on ${comPort}:`, err.message)
     emit('scale:status', { status: 'error', error: err.message, comPort })
     scheduleReconnect(comPort)
   })
 
-  port.on('close', () => {
-    console.log(`[Scale] Port closed: ${comPort}`)
+  thisPort.on('close', () => {
+    if (port !== thisPort) return
     emit('scale:status', { status: 'disconnected', comPort })
     scheduleReconnect(comPort)
   })
 }
 
 function disconnect() {
+  connectPending = false
   autoReconnect = false
   clearReconnect()
 
@@ -275,6 +310,45 @@ function disconnect() {
   emit('scale:status', { status: 'disconnected', comPort: null })
 }
 
+// Promise-based close used by before-quit so the serial driver finishes cleanup
+// before the process exits — prevents "Access denied" on rapid restart.
+function disconnectAsync() {
+  connectPending = false
+  autoReconnect = false
+  clearReconnect()
+  rawBuffer = ''
+
+  return new Promise((resolve) => {
+    if (!port) {
+      emit('scale:status', { status: 'disconnected', comPort: null })
+      return resolve()
+    }
+    const p = port
+    port = null
+
+    // Hard 2-second timeout — if close() callback never fires, quit anyway.
+    // Without this, a pending open() can deadlock before-quit forever.
+    let resolved = false
+    const safeResolve = (_reason) => {
+      if (resolved) return
+      resolved = true
+      emit('scale:status', { status: 'disconnected', comPort: null })
+      resolve()
+    }
+    const deadline = setTimeout(() => safeResolve('timeout (2s)'), 2000)
+
+    try {
+      p.close(() => {
+        clearTimeout(deadline)
+        safeResolve('port closed')
+      })
+    } catch (_e) {
+      clearTimeout(deadline)
+      safeResolve('close() threw')
+    }
+  })
+}
+
 function tare() {
   if (!port || !port.isOpen) return false
   // MG-S8200 tare command
@@ -284,4 +358,4 @@ function tare() {
   return true
 }
 
-module.exports = { init, listPorts, getSavedPort, getSavedBaudRate, connect, disconnect, tare, detectBaud }
+module.exports = { init, listPorts, getSavedPort, getSavedBaudRate, connect, disconnect, disconnectAsync, tare, detectBaud }

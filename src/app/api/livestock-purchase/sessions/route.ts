@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const sessions = await prisma.livestockPurchaseSessions.findMany({
     where: { businessId },
     include: {
-      business_suppliers: { select: { id: true, name: true } },
+      business_suppliers: { select: { id: true, name: true, phone: true } },
       livestock_purchase_lines: true,
     },
     orderBy: { createdAt: 'desc' },
@@ -30,27 +30,33 @@ export async function POST(request: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { businessId, supplierId, notes } = body
+  const { businessId, supplierId, notes, purchaseType } = body
 
   if (!businessId || !supplierId) {
     return NextResponse.json({ error: 'businessId and supplierId required' }, { status: 400 })
   }
 
-  const purchaseSession = await prisma.livestockPurchaseSessions.create({
-    data: {
-      businessId,
-      supplierId,
-      notes: notes || null,
-      status: 'OPEN',
-      totalWeightKg: 0,
-      totalAmount: 0,
-      createdBy: (session.user as any)?.id ?? 'unknown',
-    },
-    include: {
-      business_suppliers: { select: { id: true, name: true } },
-      livestock_purchase_lines: true,
-    },
-  })
+  try {
+    const purchaseSession = await prisma.livestockPurchaseSessions.create({
+      data: {
+        businessId,
+        supplierId,
+        notes: notes || null,
+        status: 'OPEN',
+        purchaseType: purchaseType || 'LIVESTOCK',
+        totalWeightKg: 0,
+        totalAmount: 0,
+        createdBy: (session.user as any)?.id ?? 'unknown',
+      },
+      include: {
+        business_suppliers: { select: { id: true, name: true, phone: true } },
+        livestock_purchase_lines: true,
+      },
+    })
 
-  return NextResponse.json(purchaseSession, { status: 201 })
+    return NextResponse.json(purchaseSession, { status: 201 })
+  } catch (err) {
+    console.error('[sessions POST]', err)
+    return NextResponse.json({ error: 'Failed to create session' }, { status: 500 })
+  }
 }

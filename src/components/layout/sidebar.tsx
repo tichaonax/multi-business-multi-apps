@@ -107,9 +107,9 @@ export function Sidebar() {
   // Get global cart for real-time sidebar badge updates
   const { getCartItemCount: getGlobalCartCount } = useGlobalCart()
 
-  const { isElectron, isConfigured: scaleConfigured } = useScale()
-  // In Electron, hide Livestock Purchase until the scale is configured
-  const showLivestock = !isElectron || scaleConfigured
+  const { isElectron, status: scaleStatus } = useScale()
+  // Always show Livestock Purchase — the page handles scale setup when not connected
+  const showLivestock = true
 
   // Fetch user profile photo from linked employee record
   useEffect(() => {
@@ -801,7 +801,10 @@ export function Sidebar() {
                 {showLivestock && (isSystemAdmin(currentUser) || hasPermission('canManageInventory') || hasPermission('canAccessFinancialData')) && (
                   <Link href="/restaurant/livestock-purchase" className={getLinkClasses('/restaurant/livestock-purchase')}>
                     <span className="text-lg">⚖️</span>
-                    <span>Livestock Purchase</span>
+                    <span>Vendor Purchase</span>
+                    {isElectron && scaleStatus.status !== 'connected' && (
+                      <span className="ml-auto w-2 h-2 rounded-full bg-yellow-400 shrink-0" title="Scale not connected" />
+                    )}
                   </Link>
                 )}
                 {(isSystemAdmin(currentUser) || hasPermission('canViewBusiness')) && (
@@ -879,7 +882,10 @@ export function Sidebar() {
                 {showLivestock && (isSystemAdmin(currentUser) || hasPermission('canManageInventory') || hasPermission('canAccessFinancialData')) && (
                   <Link href="/grocery/livestock-purchase" className={getLinkClasses('/grocery/livestock-purchase')}>
                     <span className="text-lg">⚖️</span>
-                    <span>Livestock Purchase</span>
+                    <span>Vendor Purchase</span>
+                    {isElectron && scaleStatus.status !== 'connected' && (
+                      <span className="ml-auto w-2 h-2 rounded-full bg-yellow-400 shrink-0" title="Scale not connected" />
+                    )}
                   </Link>
                 )}
                 {(isSystemAdmin(currentUser) || hasPermission('canViewBusiness')) && (

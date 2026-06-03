@@ -12,10 +12,16 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const businessId = searchParams.get('businessId')
   const vendorId = searchParams.get('vendorId')
+  const purchaseType = searchParams.get('purchaseType')
 
   if (!businessId) return NextResponse.json({ error: 'businessId required' }, { status: 400 })
 
-  const where = { businessId, ...(vendorId ? { vendorId } : {}), isActive: true }
+  const where = {
+    businessId,
+    ...(vendorId ? { vendorId } : {}),
+    ...(purchaseType ? { purchaseType } : {}),
+    isActive: true,
+  }
 
   const profiles = await prisma.livestockVendorProfiles.findMany({
     where,
@@ -29,7 +35,7 @@ export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { businessId, vendorId, name, emoji, pricePerKg, sortOrder } = await request.json()
+  const { businessId, vendorId, name, emoji, pricePerKg, sortOrder, purchaseType } = await request.json()
 
   if (!businessId || !vendorId || !name || pricePerKg == null) {
     return NextResponse.json({ error: 'businessId, vendorId, name, pricePerKg required' }, { status: 400 })
@@ -41,6 +47,7 @@ export async function POST(request: NextRequest) {
       vendorId,
       name,
       emoji: emoji || '📦',
+      purchaseType: purchaseType || 'LIVESTOCK',
       pricePerKg: parseFloat(pricePerKg),
       sortOrder: sortOrder ?? 0,
       isActive: true,

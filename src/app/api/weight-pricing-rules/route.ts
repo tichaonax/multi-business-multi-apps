@@ -10,10 +10,11 @@ export async function GET(request: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const businessId = request.nextUrl.searchParams.get('businessId')
+  const purchaseType = request.nextUrl.searchParams.get('purchaseType')
   if (!businessId) return NextResponse.json({ error: 'businessId required' }, { status: 400 })
 
   const rules = await prisma.weightPricingRules.findMany({
-    where: { businessId },
+    where: { businessId, ...(purchaseType ? { purchaseType } : {}) },
     orderBy: [{ ruleType: 'asc' }, { categoryName: 'asc' }],
   })
 
@@ -25,7 +26,11 @@ export async function POST(request: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { businessId, categoryName, ruleType, pricePerKg, emoji } = body
+  const {
+    businessId, categoryName, ruleType, pricePerKg, emoji,
+    purchaseType,
+    derivedFromUnitPrice, derivedFromUnitCount, derivedFromSampleWeightKg,
+  } = body
 
   if (!businessId || !categoryName || !ruleType || pricePerKg == null) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -36,9 +41,13 @@ export async function POST(request: NextRequest) {
       businessId,
       categoryName: categoryName.trim(),
       ruleType,
+      purchaseType: purchaseType || 'LIVESTOCK',
       pricePerKg,
       emoji: emoji || '📦',
       isActive: true,
+      ...(derivedFromUnitPrice != null && { derivedFromUnitPrice }),
+      ...(derivedFromUnitCount != null && { derivedFromUnitCount }),
+      ...(derivedFromSampleWeightKg != null && { derivedFromSampleWeightKg }),
     },
   })
 

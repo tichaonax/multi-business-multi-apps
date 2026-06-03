@@ -45,8 +45,8 @@ export function MobileSidebar() {
     isSystemAdmin: isAdmin,
   } = useBusinessPermissionsContext()
 
-  const { isElectron, isConfigured: scaleConfigured } = useScale()
-  const showLivestock = !isElectron || scaleConfigured
+  const { isElectron, status: scaleStatus } = useScale()
+  const showLivestock = true  // page handles scale setup when not connected
 
   // Check WiFi integrations for current business
   useEffect(() => {
@@ -151,7 +151,15 @@ export function MobileSidebar() {
                 {navLink('/restaurant/meal-program/eligible-items', '✅', 'Eligible Items')}
               </>
             )}
-            {showLivestock && (isAdmin || hasBusinessPermission('canManageInventory') || hasBusinessPermission('canAccessFinancialData')) && navLink('/restaurant/livestock-purchase', '⚖️', 'Livestock Purchase')}
+            {showLivestock && (isAdmin || hasBusinessPermission('canManageInventory') || hasBusinessPermission('canAccessFinancialData')) && (
+              <Link href="/restaurant/livestock-purchase" className={linkClass} onClick={close}>
+                <span>⚖️</span>
+                <span>Vendor Purchase</span>
+                {isElectron && scaleStatus.status !== 'connected' && (
+                  <span className="ml-auto w-2 h-2 rounded-full bg-yellow-400 shrink-0" title="Scale not connected" />
+                )}
+              </Link>
+            )}
             {(isAdmin || hasBusinessPermission('canViewBusiness')) && navLink('/restaurant/settings/pos', '⚙️', 'POS Settings')}
             {canViewOrders && navLink('/restaurant/orders', '📦', 'Orders')}
             {navLink('/services/list', '🔧', 'Services')}
@@ -167,7 +175,15 @@ export function MobileSidebar() {
             {navLink('/grocery/inventory', '📦', 'Inventory')}
             {navLink('/grocery/products', '📦', 'Products')}
             {navLink('/grocery/inventory?tab=bales', '📦', 'Bales Inventory')}
-            {showLivestock && (isAdmin || hasBusinessPermission('canManageInventory') || hasBusinessPermission('canAccessFinancialData')) && navLink('/grocery/livestock-purchase', '⚖️', 'Livestock Purchase')}
+            {showLivestock && (isAdmin || hasBusinessPermission('canManageInventory') || hasBusinessPermission('canAccessFinancialData')) && (
+              <Link href="/grocery/livestock-purchase" className={linkClass} onClick={close}>
+                <span>⚖️</span>
+                <span>Vendor Purchase</span>
+                {isElectron && scaleStatus.status !== 'connected' && (
+                  <span className="ml-auto w-2 h-2 rounded-full bg-yellow-400 shrink-0" title="Scale not connected" />
+                )}
+              </Link>
+            )}
             {(isAdmin || hasBusinessPermission('canViewBusiness')) && navLink('/grocery/settings/pos', '⚙️', 'POS Settings')}
             {canViewOrders && navLink('/grocery/orders', '📦', 'Orders')}
             {navLink('/services/list', '🔧', 'Services')}

@@ -7345,19 +7345,23 @@ model WarehouseOrderRefs {
 }
 
 model WeightPricingRules {
-  id           String    @id @default(uuid())
-  businessId   String
-  categoryName String
-  ruleType     String    @default("PURCHASE")
-  pricePerKg   Decimal   @db.Decimal(10, 2)
-  emoji        String    @default("📦")
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                       String    @id @default(uuid())
+  businessId               String
+  categoryName             String
+  ruleType                 String    @default("PURCHASE")
+  purchaseType             String    @default("LIVESTOCK")
+  pricePerKg               Decimal   @db.Decimal(10, 2)
+  emoji                    String    @default("📦")
+  isActive                 Boolean   @default(true)
+  derivedFromUnitPrice     Decimal?  @db.Decimal(10, 2)
+  derivedFromUnitCount     Int?
+  derivedFromSampleWeightKg Decimal? @db.Decimal(10, 3)
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
   businesses   Businesses @relation(fields: [businessId], references: [id])
 
-  @@unique([businessId, categoryName, ruleType])
+  @@unique([businessId, categoryName, ruleType, purchaseType])
   @@index([businessId])
   @@map("weight_pricing_rules")
 }
@@ -7367,6 +7371,7 @@ model LivestockPurchaseSessions {
   businessId       String
   supplierId       String
   status           String    @default("OPEN")
+  purchaseType     String    @default("LIVESTOCK")
   totalWeightKg    Decimal   @default(0) @db.Decimal(10, 3)
   totalAmount      Decimal   @default(0) @db.Decimal(10, 2)
   notes            String?
@@ -7404,16 +7409,17 @@ model LivestockPurchaseLines {
 }
 
 model LivestockVendorProfiles {
-  id         String   @id @default(uuid())
-  businessId String
-  vendorId   String
-  name       String
-  emoji      String   @default("📦")
-  pricePerKg Decimal  @db.Decimal(10, 2)
-  sortOrder  Int      @default(0)
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id           String   @id @default(uuid())
+  businessId   String
+  vendorId     String
+  name         String
+  emoji        String   @default("📦")
+  purchaseType String   @default("LIVESTOCK")
+  pricePerKg   Decimal  @db.Decimal(10, 2)
+  sortOrder    Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   businesses         Businesses        @relation(fields: [businessId], references: [id])
   business_suppliers BusinessSuppliers @relation(fields: [vendorId], references: [id])

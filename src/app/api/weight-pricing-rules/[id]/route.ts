@@ -11,7 +11,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   const { id } = await params
   const body = await request.json()
-  const { categoryName, ruleType, pricePerKg, isActive, emoji } = body
+  const {
+    categoryName, ruleType, pricePerKg, isActive, emoji, purchaseType,
+    derivedFromUnitPrice, derivedFromUnitCount, derivedFromSampleWeightKg,
+  } = body
 
   const rule = await prisma.weightPricingRules.update({
     where: { id },
@@ -21,6 +24,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       ...(pricePerKg !== undefined && { pricePerKg }),
       ...(isActive !== undefined && { isActive }),
       ...(emoji !== undefined && { emoji }),
+      ...(purchaseType !== undefined && { purchaseType }),
+      ...(derivedFromUnitPrice !== undefined && { derivedFromUnitPrice }),
+      ...(derivedFromUnitCount !== undefined && { derivedFromUnitCount }),
+      ...(derivedFromSampleWeightKg !== undefined && { derivedFromSampleWeightKg }),
     },
   })
 

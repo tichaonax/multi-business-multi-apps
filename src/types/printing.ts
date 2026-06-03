@@ -208,6 +208,9 @@ export interface ReceiptData {
   footerMessage?: string;
   returnPolicy?: string;
 
+  // Voucher mode — hides the tax row (use when this document is a vendor payment voucher, not a POS receipt)
+  hideTax?: boolean;
+
   // Tax Configuration
   taxIncludedInPrice?: boolean;
   taxRate?: number;

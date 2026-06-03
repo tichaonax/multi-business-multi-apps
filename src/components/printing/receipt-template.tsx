@@ -105,10 +105,12 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
             <span>-${Number(data.discount).toFixed(2)}</span>
           </div>
         )}
-        <div className="flex justify-between mb-1">
-          <span>Tax:</span>
-          <span>${Number(data.tax).toFixed(2)}</span>
-        </div>
+        {!data.hideTax && (
+          <div className="flex justify-between mb-1">
+            <span>Tax:</span>
+            <span>${Number(data.tax).toFixed(2)}</span>
+          </div>
+        )}
         {data.paymentMethod.toUpperCase() === 'ECOCASH' && Number(data.ecocashFeeAmount) > 0 && (
           <div className="flex justify-between mb-1 text-orange-600">
             <span>EcoCash Fee:</span>

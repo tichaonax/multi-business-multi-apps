@@ -9,6 +9,7 @@ interface ScaleContextValue {
   status: ScaleStatus
   isElectron: boolean
   isConfigured: boolean
+  isConnected: boolean
   tare: () => Promise<void>
 }
 
@@ -19,6 +20,7 @@ const ScaleContext = createContext<ScaleContextValue>({
   status: defaultStatus,
   isElectron: false,
   isConfigured: false,
+  isConnected: false,
   tare: async () => {},
 })
 
@@ -46,15 +48,19 @@ export function ScaleProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Auto-restore: runs whenever businessId is available.
-  // Prefers electron-store (already wired in init()); falls back to DB if nothing is saved locally.
+  // Auto-restore: runs whenever the active business changes.
+  // On switch: if a saved port exists, always call connect() — it's idempotent
+  // (scale service ignores the call if the port is already open on the same path).
+  // Falls back to DB config when no local store entry exists.
   useEffect(() => {
     if (!window.electron?.scale) return
 
     window.electron.scale.getSavedPort().then(async (savedPort) => {
       if (savedPort) {
-        // electron-store has a port → init() already called connect() at startup
         setIsConfigured(true)
+        // Re-connect on every business switch so scale is always live after switching
+        const savedBaud = await window.electron!.scale.getSavedBaud()
+        await window.electron!.scale.connect(savedPort, savedBaud ?? 1200)
         return
       }
 
@@ -79,7 +85,7 @@ export function ScaleProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <ScaleContext.Provider value={{ weight, status, isElectron, isConfigured, tare }}>
+    <ScaleContext.Provider value={{ weight, status, isElectron, isConfigured, isConnected: status.status === 'connected', tare }}>
       {children}
     </ScaleContext.Provider>
   )

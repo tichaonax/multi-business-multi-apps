@@ -15,7 +15,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     where: { id: sessionId },
     include: {
       livestock_purchase_lines: true,
-      business_suppliers: { select: { id: true, name: true } },
+      business_suppliers: { select: { id: true, name: true, phone: true } },
     },
   })
 
@@ -31,7 +31,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     orderBy: { createdAt: 'asc' },
   })
 
+  // Best-effort category lookup — search for common vendor/stock purchase category names
+  const purchaseTypeLabel = purchaseSession.purchaseType === 'GOODS' ? 'goods' : 'livestock'
+  const expenseCategory = await prisma.expenseCategories.findFirst({
+    where: {
+      OR: [
+        { name: { contains: 'Stock Purchase', mode: 'insensitive' } },
+        { name: { contains: purchaseTypeLabel, mode: 'insensitive' } },
+        { name: { contains: 'Vendor Purchase', mode: 'insensitive' } },
+        { name: { contains: 'Inventory Purchase', mode: 'insensitive' } },
+        { name: { contains: 'Stock', mode: 'insensitive' } },
+        { name: { contains: 'Inventory', mode: 'insensitive' } },
+        { name: { contains: 'Purchase', mode: 'insensitive' } },
+      ],
+    },
+    orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+  })
+
   const totalAmount = Number(purchaseSession.totalAmount)
+  const purchaseLabel = purchaseSession.purchaseType === 'GOODS' ? 'Goods' : 'Livestock'
 
   const result = await prisma.$transaction(async (tx) => {
     let expensePaymentId: string | null = null
@@ -44,9 +62,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           payeeSupplierId: purchaseSession.supplierId,
           amount: totalAmount,
           paymentDate: new Date(),
-          status: 'SUBMITTED',
+          status: 'REQUEST',
           paymentType: 'REGULAR',
-          notes: `Livestock purchase — ${purchaseSession.livestock_purchase_lines.length} item(s), ${Number(purchaseSession.totalWeightKg).toFixed(3)} kg`,
+          categoryId: expenseCategory?.id ?? null,
+          notes: `${purchaseLabel} purchase — ${purchaseSession.livestock_purchase_lines.length} item(s), ${Number(purchaseSession.totalWeightKg).toFixed(3)} kg`,
           createdBy: (session.user as any)?.id ?? 'unknown',
         },
       })
@@ -62,7 +81,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       },
       include: {
         livestock_purchase_lines: true,
-        business_suppliers: { select: { id: true, name: true } },
+        business_suppliers: { select: { id: true, name: true, phone: true } },
       },
     })
   })

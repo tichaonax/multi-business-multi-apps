@@ -47,8 +47,8 @@ export function ScaleSettings({ businessId }: ScaleSettingsProps) {
         if (scaleConfig?.comPort) {
           setSelectedPort(scaleConfig.comPort)
           if (scaleConfig.baudRate) setSavedBaud(scaleConfig.baudRate)
-          window.electron!.scale.connect(scaleConfig.comPort, scaleConfig.baudRate ?? 1200)
-          console.log('[ScaleSettings] Restored from DB:', scaleConfig)
+          // ScaleContext handles the actual connection — only update UI state here
+          console.log('[ScaleSettings] UI restored from DB:', scaleConfig)
         }
       } catch (_) {}
     })

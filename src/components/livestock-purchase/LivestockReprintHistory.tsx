@@ -19,7 +19,7 @@ interface Session {
   totalAmount: number
   submittedAt: string | null
   createdAt: string
-  business_suppliers: { name: string } | null
+  business_suppliers: { name: string; phone?: string | null } | null
   livestock_purchase_lines: Line[]
 }
 
@@ -63,8 +63,8 @@ export function LivestockReprintHistory({ businessId, businessType }: Props) {
       businessPhone: biz.phone ?? '',
       transactionId: s.id,
       transactionDate: new Date(s.submittedAt ?? s.createdAt),
-      salespersonName: 'Livestock Purchase',
-      salespersonId: 'livestock',
+      salespersonName: s.business_suppliers?.name ?? 'Unknown Vendor',
+      salespersonId: 'vendor',
       items: s.livestock_purchase_lines.map(l => ({
         name: `${l.categoryName}`,
         quantity: 1,
@@ -74,9 +74,13 @@ export function LivestockReprintHistory({ businessId, businessType }: Props) {
       })),
       subtotal: Number(s.totalAmount),
       tax: 0,
+      hideTax: true,
       total: Number(s.totalAmount),
       paymentMethod: 'Expense Account',
-      footerMessage: `Vendor: ${s.business_suppliers?.name ?? ''}`,
+      footerMessage: [
+        s.business_suppliers?.phone ? `Tel: ${s.business_suppliers.phone}` : '',
+        'Present this voucher to the cashier to claim payment.',
+      ].filter(Boolean).join('  \u2022  '),
       isReprint: true,
     }
     setReprintData(receipt)
@@ -124,14 +128,13 @@ export function LivestockReprintHistory({ businessId, businessType }: Props) {
         isOpen={reprintData != null}
         receiptData={reprintData}
         businessType={businessType}
-        hideCustomerCopy={true}
+        title="Print Voucher"
         onClose={() => setReprintData(null)}
         onPrintConfirm={async (options) => {
           if (!reprintData) return
           await ReceiptPrintManager.printReceipt(reprintData, businessType, {
             ...options,
             autoPrint: true,
-            printCustomerCopy: false,
           })
         }}
       />

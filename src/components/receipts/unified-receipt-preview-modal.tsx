@@ -61,6 +61,8 @@ interface UnifiedReceiptPreviewModalProps {
   onCancelOrder?: () => void
   /** Hide the customer copy option (e.g. for vendor payment vouchers) */
   hideCustomerCopy?: boolean
+  /** Override the modal/button title. Defaults to "Print Receipt". Pass "Print Voucher" for vendor payment vouchers. */
+  title?: string
 }
 
 export function UnifiedReceiptPreviewModal({
@@ -72,6 +74,7 @@ export function UnifiedReceiptPreviewModal({
   onPrintConfirm,
   onCancelOrder,
   hideCustomerCopy,
+  title = 'Print Receipt',
 }: UnifiedReceiptPreviewModalProps) {
   const [printers, setPrinters] = useState<NetworkPrinter[]>(() => printerCache?.printers || [])
   const [selectedPrinterId, setSelectedPrinterId] = useState<string | undefined>()
@@ -359,6 +362,7 @@ export function UnifiedReceiptPreviewModal({
   const isQzSelected = selectedPrinterId?.startsWith(QZ_PRINTER_PREFIX) ?? false
   const isRestaurant = businessType === 'restaurant'
   const supportsCustomerCopy = !hideCustomerCopy && ['restaurant', 'grocery', 'clothing', 'services'].includes(businessType)
+  const copyLabel = title.includes('Voucher') ? 'Vendor Copy' : 'Customer Copy'
   const hasPrintersOrLocal = printers.length > 0 || hasLocalPrinter || qzPrinters.length > 0
 
   if (!isOpen) return null
@@ -367,7 +371,7 @@ export function UnifiedReceiptPreviewModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Print Receipt"
+      title={title}
       size="xl"
       noPadding
     >
@@ -378,7 +382,7 @@ export function UnifiedReceiptPreviewModal({
         <div className="md:w-[42%] border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700 flex flex-col bg-gray-50 dark:bg-gray-800/50">
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
-              <span>🧾</span> Receipt Preview
+              <span>🧾</span> {title.replace('Print ', '')} Preview
             </h3>
           </div>
           <div className="flex-1 overflow-y-auto p-3 max-h-[55vh] md:max-h-[70vh]">
@@ -562,7 +566,7 @@ export function UnifiedReceiptPreviewModal({
                 {/* Copies */}
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1.5">
-                    Customer Copy Qty
+                    {copyLabel} Qty
                   </label>
                   <div className="flex items-center gap-2">
                     <input
@@ -580,7 +584,7 @@ export function UnifiedReceiptPreviewModal({
                 {/* Customer copy toggle */}
                 <div className="flex items-center justify-between py-2.5 px-3 border rounded-lg dark:border-gray-600 bg-gray-50 dark:bg-gray-800/50">
                   <div>
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Print Customer Copy</p>
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Print {copyLabel}</p>
                     <p className="text-xs text-gray-500 mt-0.5">Optional — business copy always prints</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer ml-3 flex-shrink-0">
@@ -602,10 +606,10 @@ export function UnifiedReceiptPreviewModal({
               <ul className="space-y-1 text-blue-800 dark:text-blue-200 text-sm">
                 <li className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-blue-500" /> Business Copy: 1</li>
                 {supportsCustomerCopy && printCustomerCopy && (
-                  <li className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-blue-500" /> Customer Copy: {copies}</li>
+                  <li className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-blue-500" /> {copyLabel}: {copies}</li>
                 )}
                 {supportsCustomerCopy && !printCustomerCopy && (
-                  <li className="flex items-center gap-1.5 text-blue-400 dark:text-blue-500 line-through">Customer Copy: disabled</li>
+                  <li className="flex items-center gap-1.5 text-blue-400 dark:text-blue-500 line-through">{copyLabel}: disabled</li>
                 )}
               </ul>
             </div>
@@ -638,7 +642,7 @@ export function UnifiedReceiptPreviewModal({
               }
             >
               <Printer className="w-4 h-4 mr-2" />
-              {loading ? 'Printing...' : 'Print Receipt'}
+              {loading ? 'Printing...' : title}
             </Button>
           </div>
         </div>
