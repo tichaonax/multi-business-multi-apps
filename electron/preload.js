@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('electron', {
 
     tare: () => ipcRenderer.invoke('scale:tare'),
 
+    detectBaud: (comPort) => ipcRenderer.invoke('scale:detect-baud', comPort),
+
     // Subscribe to live weight updates; returns cleanup function
     onWeight: (callback) => {
       const handler = (_event, data) => callback(data)

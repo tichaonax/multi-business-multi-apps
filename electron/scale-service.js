@@ -6,38 +6,81 @@
  */
 
 const { SerialPort } = require('serialport')
-const { ReadlineParser } = require('@serialport/parser-readline')
 const Store = require('electron-store')
 
 const store = new Store({ name: 'scale-config' })
 
 let port = null
-let parser = null
+let rawBuffer = ''
 let reconnectTimer = null
 let mainWindowRef = null
 let autoReconnect = true
 
-const BAUD_RATE = 9600
+const BAUD_RATES_TO_TRY = [1200, 2400, 4800, 9600, 19200, 38400]
 const RECONNECT_DELAY_MS = 5000
 
-// MG-S8200 output: "ST,+  1.234 kg\r\n" | "US,+  1.234 kg\r\n" | "OL,+  9.999 kg\r\n"
-const WEIGHT_REGEX = /^(ST|US|OL|ER),([+-])\s*([\d.]+)\s*(kg|g|lb)/i
+// Format 1 (Star standard): "ST,+  1.234 kg"  "US, 0.000 kg"
+const WEIGHT_REGEX_STANDARD = /^(ST|US|OL|ER),\s*([+\-]?)\s*([\d.]+)\s*(kg|g|lb)/i
+// Format 2 (simple, used by MG-S8200 at 1200 baud): "  +      91  g"
+const WEIGHT_REGEX_SIMPLE = /^\s*([+\-]?)\s*([\d.]+)\s*(kg|g|lb)\s*$/i
+
+// Always emit weight in kg so all consumers are consistent
+function toKg(value, unit) {
+  if (unit === 'g') return value / 1000
+  if (unit === 'lb') return value * 0.453592
+  return value
+}
 
 function parseWeightLine(line) {
-  const match = line.trim().match(WEIGHT_REGEX)
-  if (!match) return null
+  const trimmed = line.trim()
+  if (!trimmed) return null
 
-  const sign = match[2] === '-' ? -1 : 1
-  const value = parseFloat(match[3]) * sign
-  const unit = match[4].toLowerCase()
-  const code = match[1].toUpperCase()
+  // Try standard Star protocol format first
+  let match = trimmed.match(WEIGHT_REGEX_STANDARD)
+  if (match) {
+    const sign = match[2] === '-' ? -1 : 1
+    const code = match[1].toUpperCase()
+    const rawUnit = match[4].toLowerCase()
+    const rawValue = parseFloat(match[3]) * sign
+    return {
+      weight: toKg(rawValue, rawUnit),
+      stable: code === 'ST',
+      overload: code === 'OL',
+      error: code === 'ER',
+      unit: 'kg',
+    }
+  }
 
-  return {
-    weight: value,
-    stable: code === 'ST',
-    overload: code === 'OL',
-    error: code === 'ER',
-    unit,
+  // Try simple format (sign + value + unit, no status prefix)
+  match = trimmed.match(WEIGHT_REGEX_SIMPLE)
+  if (match) {
+    const sign = match[1] === '-' ? -1 : 1
+    const rawUnit = match[3].toLowerCase()
+    const rawValue = parseFloat(match[2]) * sign
+    return {
+      weight: toKg(rawValue, rawUnit),
+      stable: true,
+      overload: false,
+      error: false,
+      unit: 'kg',
+    }
+  }
+
+  console.log('[Scale] No regex match for line:', JSON.stringify(trimmed))
+  return null
+}
+
+// Process raw buffer — split on any combination of \r and \n
+function processBuffer() {
+  const parts = rawBuffer.split(/[\r\n]+/)
+  // Last part may be an incomplete line — keep it in the buffer
+  rawBuffer = parts.pop()
+  for (const line of parts) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    console.log('[Scale] RAW line:', JSON.stringify(trimmed))
+    const result = parseWeightLine(trimmed)
+    if (result) emit('scale:weight', result)
   }
 }
 
@@ -58,6 +101,75 @@ function clearReconnect() {
     clearTimeout(reconnectTimer)
     reconnectTimer = null
   }
+}
+
+// ─── Baud Rate Detection ──────────────────────────────────────────────────────
+
+function tryBaudRate(comPort, baudRate) {
+  return new Promise((resolve) => {
+    const testPort = new SerialPort({
+      path: comPort, baudRate,
+      dataBits: 8, stopBits: 1, parity: 'none',
+      rtscts: false, autoOpen: false,
+    })
+
+    let totalBytes = 0
+    let readableBytes = 0
+
+    testPort.open((err) => {
+      if (err) return resolve(false)
+      testPort.set({ rts: true, dtr: true }, () => {})
+
+      testPort.on('data', (chunk) => {
+        totalBytes += chunk.length
+        for (const b of chunk) {
+          if (b >= 0x20 && b <= 0x7e) readableBytes++
+        }
+      })
+      testPort.on('error', () => {})
+
+      setTimeout(() => {
+        const pct = totalBytes > 0 ? Math.round(100 * readableBytes / totalBytes) : 0
+        const ok = pct >= 40
+        console.log(`[Scale] detectBaud ${baudRate}: ${totalBytes} bytes, ${pct}% readable → ${ok ? 'MATCH' : 'no'}`)
+        testPort.close(() => resolve(ok))
+      }, 1500)
+    })
+  })
+}
+
+async function detectBaud(comPort) {
+  console.log(`[Scale] Auto-detecting baud rate on ${comPort}...`)
+
+  // Stop auto-reconnect so closing the port doesn't trigger a reconnect race
+  autoReconnect = false
+  clearReconnect()
+
+  // Wait for the port to fully close before probing
+  await new Promise((resolve) => {
+    if (!port) return resolve()
+    const p = port
+    port = null
+    rawBuffer = ''
+    p.close(() => resolve())
+  })
+
+  // Small delay for the OS to release the port handle
+  await new Promise(r => setTimeout(r, 300))
+
+  for (const baud of BAUD_RATES_TO_TRY) {
+    const ok = await tryBaudRate(comPort, baud)
+    if (ok) {
+      console.log(`[Scale] Detected baud rate: ${baud}`)
+      store.set('scale.baudRate', baud)
+      return { baudRate: baud }
+    }
+  }
+  console.log('[Scale] No baud rate detected')
+  // Clear any stale saved port so isConfigured stays false
+  store.delete('scale.comPort')
+  store.delete('scale.baudRate')
+  return { baudRate: null }
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -96,19 +208,17 @@ function connect(comPort) {
   if (port) {
     try { port.close() } catch (_) {}
     port = null
-    parser = null
   }
+  rawBuffer = ''
 
   if (!comPort) {
     emit('scale:status', { status: 'disconnected', comPort: null })
     return
   }
 
-  // Persist the chosen port
-  store.set('scale.comPort', comPort)
-
-  port = new SerialPort({ path: comPort, baudRate: BAUD_RATE, autoOpen: false })
-  parser = port.pipe(new ReadlineParser({ delimiter: '\r\n' }))
+  const baudRate = store.get('scale.baudRate', 1200)
+  console.log(`[Scale] Connecting at ${baudRate} baud`)
+  port = new SerialPort({ path: comPort, baudRate, dataBits: 8, stopBits: 1, parity: 'none', rtscts: false, autoOpen: false })
 
   port.open((err) => {
     if (err) {
@@ -117,13 +227,21 @@ function connect(comPort) {
       scheduleReconnect(comPort)
       return
     }
+    // Only persist after a successful open
+    store.set('scale.comPort', comPort)
+    // Assert RTS+DTR so the scale starts streaming
+    port.set({ rts: true, dtr: true }, () => {})
     console.log(`[Scale] Connected to ${comPort}`)
     emit('scale:status', { status: 'connected', comPort })
   })
 
-  parser.on('data', (line) => {
-    const result = parseWeightLine(line)
-    if (result) emit('scale:weight', result)
+  // Raw data — log every chunk so we can see exactly what the scale sends
+  port.on('data', (chunk) => {
+    const hex = Buffer.from(chunk).toString('hex')
+    const str = chunk.toString('latin1')
+    console.log('[Scale] RAW chunk hex:', hex, '| text:', JSON.stringify(str))
+    rawBuffer += str
+    processBuffer()
   })
 
   port.on('error', (err) => {
@@ -146,8 +264,8 @@ function disconnect() {
   if (port) {
     try { port.close() } catch (_) {}
     port = null
-    parser = null
   }
+  rawBuffer = ''
 
   emit('scale:status', { status: 'disconnected', comPort: null })
 }
@@ -161,4 +279,4 @@ function tare() {
   return true
 }
 
-module.exports = { init, listPorts, getSavedPort, connect, disconnect, tare }
+module.exports = { init, listPorts, getSavedPort, connect, disconnect, tare, detectBaud }

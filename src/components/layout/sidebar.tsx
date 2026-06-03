@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import { canAccessModule, hasPermission, checkPermission, isSystemAdmin, hasUserPermission, SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useNavigation } from '@/contexts/navigation-context'
+import { useScale } from '@/contexts/ScaleContext'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { BusinessRevenueBreakdownModal } from '@/components/dashboard/business-revenue-breakdown-modal'
 
@@ -105,6 +106,10 @@ export function Sidebar() {
 
   // Get global cart for real-time sidebar badge updates
   const { getCartItemCount: getGlobalCartCount } = useGlobalCart()
+
+  const { isElectron, isConfigured: scaleConfigured } = useScale()
+  // In Electron, hide Livestock Purchase until the scale is configured
+  const showLivestock = !isElectron || scaleConfigured
 
   // Fetch user profile photo from linked employee record
   useEffect(() => {
@@ -793,7 +798,7 @@ export function Sidebar() {
                     </Link>
                   </>
                 )}
-                {(isSystemAdmin(currentUser) || hasPermission('canManageInventory') || hasPermission('canAccessFinancialData')) && (
+                {showLivestock && (isSystemAdmin(currentUser) || hasPermission('canManageInventory') || hasPermission('canAccessFinancialData')) && (
                   <Link href="/restaurant/livestock-purchase" className={getLinkClasses('/restaurant/livestock-purchase')}>
                     <span className="text-lg">⚖️</span>
                     <span>Livestock Purchase</span>
@@ -871,7 +876,7 @@ export function Sidebar() {
                     <span>R710 WiFi Sales</span>
                   </Link>
                 )}
-                {(isSystemAdmin(currentUser) || hasPermission('canManageInventory') || hasPermission('canAccessFinancialData')) && (
+                {showLivestock && (isSystemAdmin(currentUser) || hasPermission('canManageInventory') || hasPermission('canAccessFinancialData')) && (
                   <Link href="/grocery/livestock-purchase" className={getLinkClasses('/grocery/livestock-purchase')}>
                     <span className="text-lg">⚖️</span>
                     <span>Livestock Purchase</span>

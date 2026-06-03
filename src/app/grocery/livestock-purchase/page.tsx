@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { LivestockPurchaseWizard } from '@/components/livestock-purchase/LivestockPurchaseWizard'
@@ -10,8 +10,10 @@ import { LivestockPurchaseWizard } from '@/components/livestock-purchase/Livesto
 export default function GroceryLivestockPurchasePage() {
   const { currentBusinessId, currentBusiness } = useBusinessPermissionsContext()
   const [showWizard, setShowWizard] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
-  if (!currentBusinessId) {
+  if (!mounted || !currentBusinessId) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-gray-400 text-sm">Loading…</div>

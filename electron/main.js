@@ -259,6 +259,8 @@ ipcMain.handle('scale:disconnect', () => {
 
 ipcMain.handle('scale:tare', () => ({ ok: scaleService.tare() }))
 
+ipcMain.handle('scale:detect-baud', (_event, comPort) => scaleService.detectBaud(comPort))
+
 // ─── App ready ────────────────────────────────────────────────────────────────
 
 // App ready event
@@ -294,4 +296,6 @@ app.on('window-all-closed', () => {
 // Set quitting flag when app is quitting
 app.on('before-quit', () => {
   app.isQuitting = true
+  // Release the COM port so it doesn't stay locked after the app closes
+  scaleService.disconnect()
 })

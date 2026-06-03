@@ -84,6 +84,12 @@ export interface CartMessage {
     vendorSessionStatus?: 'OPEN' | 'SUBMITTED' | 'CANCELLED'
     vendorTotalAmount?: number
     vendorTotalWeightKg?: number
+    vendorLines?: Array<{ categoryName: string; weightKg: number; pricePerKg: number; totalAmount: number }>
+    // Live weighing state shown on customer display
+    currentWeightKg?: number | null
+    currentCategory?: string
+    currentPricePerKg?: number
+    currentLineTotal?: number | null
   }
   timestamp: number
   businessId: string

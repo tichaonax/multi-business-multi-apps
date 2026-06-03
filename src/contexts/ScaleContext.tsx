@@ -7,6 +7,7 @@ interface ScaleContextValue {
   weight: ScaleWeight | null
   status: ScaleStatus
   isElectron: boolean
+  isConfigured: boolean
   tare: () => Promise<void>
 }
 
@@ -16,11 +17,13 @@ const ScaleContext = createContext<ScaleContextValue>({
   weight: null,
   status: defaultStatus,
   isElectron: false,
+  isConfigured: false,
   tare: async () => {},
 })
 
 export function ScaleProvider({ children }: { children: ReactNode }) {
   const [isElectron, setIsElectron] = useState(false)
+  const [isConfigured, setIsConfigured] = useState(false)
   const [weight, setWeight] = useState<ScaleWeight | null>(null)
   const [status, setStatus] = useState<ScaleStatus>(defaultStatus)
 
@@ -28,8 +31,17 @@ export function ScaleProvider({ children }: { children: ReactNode }) {
     if (!window.electron?.scale) return
     setIsElectron(true)
 
+    // Check if a COM port has been saved (scale was previously configured)
+    window.electron.scale.getSavedPort().then((saved) => {
+      if (saved) setIsConfigured(true)
+    })
+
     const unsubWeight = window.electron.scale.onWeight(setWeight)
-    const unsubStatus = window.electron.scale.onStatus(setStatus)
+    const unsubStatus = window.electron.scale.onStatus((s) => {
+      setStatus(s)
+      // Mark configured as soon as a successful connection is made
+      if (s.status === 'connected') setIsConfigured(true)
+    })
 
     return () => {
       unsubWeight()
@@ -43,7 +55,7 @@ export function ScaleProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <ScaleContext.Provider value={{ weight, status, isElectron, tare }}>
+    <ScaleContext.Provider value={{ weight, status, isElectron, isConfigured, tare }}>
       {children}
     </ScaleContext.Provider>
   )

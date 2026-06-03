@@ -3,21 +3,46 @@
 import { useEffect, useState } from 'react'
 import type { ComPort, ScaleStatus, ScaleWeight } from '@/types/electron'
 
-export function ScaleSettings() {
+interface ScaleSettingsProps {
+  businessId?: string
+}
+
+export function ScaleSettings({ businessId }: ScaleSettingsProps) {
   const [isElectron, setIsElectron] = useState(false)
   const [ports, setPorts] = useState<ComPort[]>([])
   const [selectedPort, setSelectedPort] = useState<string>('')
   const [status, setStatus] = useState<ScaleStatus>({ status: 'disconnected', comPort: null })
   const [lastWeight, setLastWeight] = useState<ScaleWeight | null>(null)
   const [loading, setLoading] = useState(false)
+  const [detecting, setDetecting] = useState(false)
+  const [detectedBaud, setDetectedBaud] = useState<number | null>(null)
+  const [detectError, setDetectError] = useState(false)
 
   useEffect(() => {
     if (!window.electron) return
     setIsElectron(true)
 
-    // Load saved port & initial status
-    window.electron.scale.getSavedPort().then((saved) => {
-      if (saved) setSelectedPort(saved)
+    // Auto-load port list so the dropdown is populated immediately
+    window.electron.scale.listPorts().then(setPorts)
+
+    // Load saved port — prefer electron-store (fast), fall back to DB
+    window.electron.scale.getSavedPort().then(async (saved) => {
+      if (saved) {
+        setSelectedPort(saved)
+      } else if (businessId) {
+        // Nothing in local store — try DB
+        try {
+          const res = await fetch(`/api/scale-config?businessId=${businessId}`)
+          if (res.ok) {
+            const { scaleConfig } = await res.json()
+            if (scaleConfig?.comPort) {
+              setSelectedPort(scaleConfig.comPort)
+              // Also save to local store so next startup auto-connects
+              window.electron!.scale.connect(scaleConfig.comPort)
+            }
+          }
+        } catch (_) {}
+      }
     })
 
     // Subscribe to status and weight events
@@ -43,7 +68,26 @@ export function ScaleSettings() {
 
   async function handleConnect() {
     if (!window.electron || !selectedPort) return
+    setDetecting(true)
+    setDetectedBaud(null)
+    setDetectError(false)
+    const { baudRate } = await window.electron.scale.detectBaud(selectedPort)
+    setDetecting(false)
+    if (!baudRate) {
+      setDetectError(true)
+      return
+    }
+    setDetectedBaud(baudRate)
     await window.electron.scale.connect(selectedPort)
+
+    // Persist to DB so the setting survives reinstalls
+    if (businessId) {
+      fetch('/api/scale-config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId, comPort: selectedPort, baudRate }),
+      }).catch(() => {})
+    }
   }
 
   async function handleDisconnect() {
@@ -109,10 +153,10 @@ export function ScaleSettings() {
         ) : (
           <button
             onClick={handleConnect}
-            disabled={!selectedPort}
+            disabled={!selectedPort || detecting}
             className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40"
           >
-            Connect
+            {detecting ? 'Detecting…' : 'Connect'}
           </button>
         )}
 
@@ -125,6 +169,23 @@ export function ScaleSettings() {
           </button>
         )}
       </div>
+
+      {/* Baud rate detection feedback */}
+      {detecting && (
+        <p className="text-sm text-blue-600 dark:text-blue-400">
+          Detecting baud rate… (trying 1200 → 38400)
+        </p>
+      )}
+      {!detecting && detectError && (
+        <p className="text-sm text-red-600 dark:text-red-400">
+          Could not detect baud rate — check that the scale is on and the cable is connected.
+        </p>
+      )}
+      {!detecting && detectedBaud && (
+        <p className="text-sm text-green-600 dark:text-green-400">
+          Detected: {detectedBaud} baud
+        </p>
+      )}
 
       {/* Status badge */}
       <div className="flex items-center gap-2 text-sm">

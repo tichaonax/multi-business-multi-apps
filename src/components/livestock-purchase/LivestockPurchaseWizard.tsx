@@ -5,6 +5,7 @@ import { useScale } from '@/contexts/ScaleContext'
 import { UnifiedReceiptPreviewModal } from '@/components/receipts/unified-receipt-preview-modal'
 import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
 import type { ReceiptData } from '@/types/printing'
+import { BroadcastSync } from '@/lib/customer-display/broadcast-sync'
 
 interface Supplier {
   id: string
@@ -112,6 +113,8 @@ export function LivestockPurchaseWizard({ businessId, businessType, onClose }: P
   const [customPricePerKg, setCustomPricePerKg] = useState('')
   const [lineNotes, setLineNotes] = useState('')
   const [addingLine, setAddingLine] = useState(false)
+  // After adding a line, wait for the scale to go near-zero before auto-locking the next item
+  const [waitingForScaleEmpty, setWaitingForScaleEmpty] = useState(false)
 
   // Vendor profiles + history
   const [vendorProfiles, setVendorProfiles] = useState<VendorProfile[]>([])
@@ -151,9 +154,34 @@ export function LivestockPurchaseWizard({ businessId, businessType, onClose }: P
   const matchedRule = pricingRules.find(
     (r) => r.categoryName === categoryName && r.ruleType === 'PURCHASE' && r.isActive
   )
-  const pricePerKg = customPricePerKg ? parseFloat(customPricePerKg) : (matchedRule?.pricePerKg ?? 0)
+  const pricePerKg = customPricePerKg ? parseFloat(customPricePerKg) : Number(matchedRule?.pricePerKg ?? 0)
   const displayWeight = lockedWeight ?? liveWeight
   const lineTotal = displayWeight != null && pricePerKg > 0 ? displayWeight * pricePerKg : null
+
+  // Broadcast live session state to customer display
+  useEffect(() => {
+    if (!session) return
+    const sync = new BroadcastSync({ businessId })
+    sync.connect()
+    sync.send('VENDOR_SESSION', {
+      subtotal: 0, tax: 0, total: Number(session.totalAmount),
+      vendorName: session.business_suppliers?.name,
+      vendorSessionStatus: session.status as 'OPEN' | 'SUBMITTED' | 'CANCELLED',
+      vendorTotalAmount: Number(session.totalAmount),
+      vendorTotalWeightKg: Number(session.totalWeightKg),
+      vendorLines: session.livestock_purchase_lines.map(l => ({
+        categoryName: l.categoryName,
+        weightKg: Number(l.weightKg),
+        pricePerKg: Number(l.pricePerKg),
+        totalAmount: Number(l.totalAmount),
+      })),
+      currentWeightKg: displayWeight,
+      currentCategory: categoryName || undefined,
+      currentPricePerKg: pricePerKg || undefined,
+      currentLineTotal: lineTotal,
+    })
+    sync.disconnect()
+  }, [session, displayWeight, categoryName, pricePerKg, lineTotal, businessId])
 
   // Load suppliers and pricing rules on mount
   useEffect(() => {
@@ -168,12 +196,20 @@ export function LivestockPurchaseWizard({ businessId, businessType, onClose }: P
       .catch(() => {})
   }, [businessId, businessType])
 
-  // Auto-lock stable reading
+  // Auto-lock stable reading — but only after scale has been cleared between items
   useEffect(() => {
-    if (lockedWeight == null && weight?.stable && !weight.overload && weight.weight > 0) {
+    if (lockedWeight != null || weight == null) return
+
+    if (waitingForScaleEmpty) {
+      // Scale is empty enough — ready for next item
+      if (weight.weight < 0.02) setWaitingForScaleEmpty(false)
+      return
+    }
+
+    if (weight.stable && !weight.overload && weight.weight > 0) {
       setLockedWeight(weight.weight)
     }
-  }, [weight, lockedWeight])
+  }, [weight, lockedWeight, waitingForScaleEmpty])
 
   async function loadVendorData(vendorId: string) {
     setProfilesLoading(true)
@@ -280,8 +316,11 @@ export function LivestockPurchaseWizard({ businessId, businessType, onClose }: P
 
       setSession(updated)
 
-      // Reset line form
+      // Reset line form — wait for scale to empty before auto-locking next item
       setLockedWeight(null)
+      setWaitingForScaleEmpty(true)
+      setSelectedCategory('')
+      setCustomCategory('')
       setCustomPricePerKg('')
       setLineNotes('')
     } finally {
@@ -531,7 +570,7 @@ export function LivestockPurchaseWizard({ businessId, businessType, onClose }: P
           </div>
 
           {lockedWeight != null && (
-            <button onClick={() => setLockedWeight(null)} className="w-full text-xs text-amber-600 dark:text-amber-400 hover:underline">
+            <button onClick={() => { setLockedWeight(null); setWaitingForScaleEmpty(true) }} className="w-full text-xs text-amber-600 dark:text-amber-400 hover:underline">
               Re-weigh (clear lock)
             </button>
           )}

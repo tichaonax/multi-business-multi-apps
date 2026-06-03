@@ -107,11 +107,11 @@ export function POSSettingsHub({ businessId, businessType, posLink }: POSSetting
               <div>
                 <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Scale — MG-S8200</h2>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  RS-232 scale connection settings. Per-machine — stored locally.
+                  RS-232 scale connection settings. Stored in database — auto-restores on login.
                 </p>
               </div>
             </div>
-            <ScaleSettings />
+            <ScaleSettings businessId={businessId} />
           </section>
         </>
       )}

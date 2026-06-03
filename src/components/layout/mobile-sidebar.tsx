@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { hasUserPermission, SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { useScale } from '@/contexts/ScaleContext'
 
 const businessTypeModules = [
   { type: 'restaurant', icon: '🍽️', name: 'Restaurant' },
@@ -43,6 +44,9 @@ export function MobileSidebar() {
     hasPermission: hasBusinessPermission,
     isSystemAdmin: isAdmin,
   } = useBusinessPermissionsContext()
+
+  const { isElectron, isConfigured: scaleConfigured } = useScale()
+  const showLivestock = !isElectron || scaleConfigured
 
   // Check WiFi integrations for current business
   useEffect(() => {
@@ -147,7 +151,7 @@ export function MobileSidebar() {
                 {navLink('/restaurant/meal-program/eligible-items', '✅', 'Eligible Items')}
               </>
             )}
-            {(isAdmin || hasBusinessPermission('canManageInventory') || hasBusinessPermission('canAccessFinancialData')) && navLink('/restaurant/livestock-purchase', '⚖️', 'Livestock Purchase')}
+            {showLivestock && (isAdmin || hasBusinessPermission('canManageInventory') || hasBusinessPermission('canAccessFinancialData')) && navLink('/restaurant/livestock-purchase', '⚖️', 'Livestock Purchase')}
             {(isAdmin || hasBusinessPermission('canViewBusiness')) && navLink('/restaurant/settings/pos', '⚙️', 'POS Settings')}
             {canViewOrders && navLink('/restaurant/orders', '📦', 'Orders')}
             {navLink('/services/list', '🔧', 'Services')}
@@ -163,7 +167,7 @@ export function MobileSidebar() {
             {navLink('/grocery/inventory', '📦', 'Inventory')}
             {navLink('/grocery/products', '📦', 'Products')}
             {navLink('/grocery/inventory?tab=bales', '📦', 'Bales Inventory')}
-            {(isAdmin || hasBusinessPermission('canManageInventory') || hasBusinessPermission('canAccessFinancialData')) && navLink('/grocery/livestock-purchase', '⚖️', 'Livestock Purchase')}
+            {showLivestock && (isAdmin || hasBusinessPermission('canManageInventory') || hasBusinessPermission('canAccessFinancialData')) && navLink('/grocery/livestock-purchase', '⚖️', 'Livestock Purchase')}
             {(isAdmin || hasBusinessPermission('canViewBusiness')) && navLink('/grocery/settings/pos', '⚙️', 'POS Settings')}
             {canViewOrders && navLink('/grocery/orders', '📦', 'Orders')}
             {navLink('/services/list', '🔧', 'Services')}

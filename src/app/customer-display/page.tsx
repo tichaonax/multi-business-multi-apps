@@ -21,6 +21,7 @@ import { SyncMode } from '@/lib/customer-display/sync-manager'
 import { CartMessage } from '@/lib/customer-display/broadcast-sync'
 import { CartDisplay } from '@/components/customer-display/cart-display'
 import { MarketingDisplay } from '@/components/customer-display/marketing-display'
+import { LivestockDisplay } from '@/components/customer-display/livestock-display'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 
 // Force dynamic rendering
@@ -155,8 +156,20 @@ function CustomerDisplayContent() {
   // Reward pending state
   const [rewardPending, setRewardPending] = useState<{ amount: number } | null>(null)
 
-  // Display mode: 'marketing' when cart is empty OR not in POS, 'cart' when in POS with items
-  const [displayMode, setDisplayMode] = useState<'cart' | 'marketing'>('marketing')
+  // Display mode
+  const [displayMode, setDisplayMode] = useState<'cart' | 'marketing' | 'livestock'>('marketing')
+
+  // Livestock session state
+  const [livestockSession, setLivestockSession] = useState<{
+    vendorName?: string
+    vendorTotalAmount?: number
+    vendorTotalWeightKg?: number
+    vendorLines?: Array<{ categoryName: string; weightKg: number; pricePerKg: number; totalAmount: number }>
+    currentWeightKg?: number | null
+    currentCategory?: string
+    currentPricePerKg?: number
+    currentLineTotal?: number | null
+  } | null>(null)
 
   // Inactivity timer for auto-clearing cart (privacy)
   const [lastActivityTime, setLastActivityTime] = useState<number>(Date.now())
@@ -438,6 +451,23 @@ function CustomerDisplayContent() {
         })
         break
 
+      case 'VENDOR_SESSION':
+        if (message.payload.vendorSessionStatus === 'SUBMITTED' || message.payload.vendorSessionStatus === 'CANCELLED') {
+          setLivestockSession(null)
+        } else {
+          setLivestockSession({
+            vendorName: message.payload.vendorName,
+            vendorTotalAmount: message.payload.vendorTotalAmount,
+            vendorTotalWeightKg: message.payload.vendorTotalWeightKg,
+            vendorLines: message.payload.vendorLines,
+            currentWeightKg: message.payload.currentWeightKg,
+            currentCategory: message.payload.currentCategory,
+            currentPricePerKg: message.payload.currentPricePerKg,
+            currentLineTotal: message.payload.currentLineTotal,
+          })
+        }
+        break
+
       case 'ORDER_CANCELLED':
         setCancellationState({
           orderNumber: message.payload.orderNumber || '',
@@ -610,16 +640,14 @@ function CustomerDisplayContent() {
       currentDisplayMode: displayMode
     })
 
-    // If user is in POS and has items, show cart
-    if (pageContext === 'pos' && cart.items.length > 0) {
-      console.log('✅ [CustomerDisplay] Switching to CART mode')
+    if (livestockSession) {
+      setDisplayMode('livestock')
+    } else if (pageContext === 'pos' && cart.items.length > 0) {
       setDisplayMode('cart')
     } else {
-      console.log('📺 [CustomerDisplay] Switching to MARKETING mode')
-      // Otherwise show marketing (whether cart is empty OR user is not in POS)
       setDisplayMode('marketing')
     }
-  }, [cart.items.length, pageContext, displayMode])
+  }, [cart.items.length, pageContext, livestockSession, displayMode])
 
   // Auto-clear cart after inactivity (privacy feature)
   // DISABLED: Cart should only clear on explicit CLEAR_CART message or payment complete
@@ -804,6 +832,26 @@ function CustomerDisplayContent() {
           }`}
         >
           <MarketingDisplay businessId={displayBusinessId} />
+        </div>
+
+        {/* Livestock Display - fade in/out */}
+        <div
+          className={`absolute inset-0 transition-opacity duration-700 ${
+            displayMode === 'livestock' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+          }`}
+        >
+          {livestockSession && (
+            <LivestockDisplay
+              vendorName={livestockSession.vendorName}
+              vendorTotalAmount={livestockSession.vendorTotalAmount}
+              vendorTotalWeightKg={livestockSession.vendorTotalWeightKg}
+              vendorLines={livestockSession.vendorLines}
+              currentWeightKg={livestockSession.currentWeightKg}
+              currentCategory={livestockSession.currentCategory}
+              currentPricePerKg={livestockSession.currentPricePerKg}
+              currentLineTotal={livestockSession.currentLineTotal}
+            />
+          )}
         </div>
 
         {/* Cart Display - fade in/out */}
