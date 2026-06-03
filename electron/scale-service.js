@@ -7,7 +7,6 @@
 
 const { SerialPort } = require('serialport')
 const Store = require('electron-store')
-const { execSync } = require('child_process')
 
 const store = new Store({ name: 'scale-config' })
 
@@ -101,38 +100,6 @@ function clearReconnect() {
   if (reconnectTimer) {
     clearTimeout(reconnectTimer)
     reconnectTimer = null
-  }
-}
-
-// ─── Stale Process Cleanup ────────────────────────────────────────────────────
-
-// Kill other Electron processes that may be holding the COM port open.
-// Called once on the first "Access denied" so the OS releases the handle before we retry.
-async function killStaleInstances() {
-  const ourPid = process.pid
-  try {
-    const result = execSync(
-      'powershell -Command "Get-Process -Name electron -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id"',
-      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }
-    )
-    const pids = result.trim().split(/\s+/)
-      .map(s => parseInt(s.trim(), 10))
-      .filter(pid => !isNaN(pid) && pid !== ourPid)
-    if (pids.length === 0) {
-      console.log('[Scale] No stale Electron processes found')
-      return false
-    }
-    for (const pid of pids) {
-      try {
-        execSync(`taskkill /F /PID ${pid}`, { stdio: 'ignore' })
-        console.log(`[Scale] Killed stale Electron process PID ${pid}`)
-      } catch (_) {}
-    }
-    // Give the OS ~800 ms to release all handles held by the killed processes
-    await new Promise(r => setTimeout(r, 800))
-    return true
-  } catch (_) {
-    return false
   }
 }
 
@@ -260,24 +227,6 @@ function connect(comPort, baudRateOverride, _retryCount = 0) {
 
   port.open((err) => {
     if (err) {
-      const isLocked = err.message.toLowerCase().includes('access denied') ||
-                       err.message.toLowerCase().includes('cannot open')
-      if (isLocked) {
-        emit('scale:status', { status: 'connecting', comPort })
-        port = null
-        if (_retryCount === 0) {
-          // First attempt: kill stale Electron processes holding the port, then retry immediately
-          console.log(`[Scale] ${comPort} locked — killing stale instances…`)
-          killStaleInstances().then(() => connect(comPort, baudRateOverride, 1))
-          return
-        }
-        if (_retryCount < 6) {
-          // Subsequent retries: wait 2 s for OS to finish releasing handles
-          console.log(`[Scale] ${comPort} still locked, retrying in 2s (${_retryCount}/5)…`)
-          setTimeout(() => connect(comPort, baudRateOverride, _retryCount + 1), 2000)
-          return
-        }
-      }
       console.error(`[Scale] Failed to open ${comPort}:`, err.message)
       emit('scale:status', { status: 'error', error: err.message, comPort })
       scheduleReconnect(comPort)
