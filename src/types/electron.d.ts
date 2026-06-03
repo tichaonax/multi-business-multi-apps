@@ -7,7 +7,7 @@ export interface ScaleWeight {
 }
 
 export interface ScaleStatus {
-  status: 'connected' | 'disconnected' | 'error'
+  status: 'connected' | 'disconnected' | 'connecting' | 'error'
   comPort: string | null
   error?: string
 }

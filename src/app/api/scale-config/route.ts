@@ -10,10 +10,12 @@ export async function GET(request: NextRequest) {
   const businessId = request.nextUrl.searchParams.get('businessId')
   if (!businessId) return NextResponse.json({ error: 'businessId required' }, { status: 400 })
 
-  const membership = await prisma.businessMemberships.findFirst({
-    where: { businessId, userId: user.id, isActive: true },
-  })
-  if (!membership) return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+  if (user.role !== 'admin') {
+    const membership = await prisma.businessMemberships.findFirst({
+      where: { businessId, userId: user.id, isActive: true },
+    })
+    if (!membership) return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+  }
 
   const business = await prisma.businesses.findUnique({
     where: { id: businessId },
@@ -38,10 +40,12 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'businessId, comPort and baudRate required' }, { status: 400 })
   }
 
-  const membership = await prisma.businessMemberships.findFirst({
-    where: { businessId, userId: user.id, isActive: true },
-  })
-  if (!membership) return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+  if (user.role !== 'admin') {
+    const membership = await prisma.businessMemberships.findFirst({
+      where: { businessId, userId: user.id, isActive: true },
+    })
+    if (!membership) return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+  }
 
   const business = await prisma.businesses.findUnique({
     where: { id: businessId },

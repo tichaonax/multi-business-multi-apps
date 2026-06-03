@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react'
 import type { ScaleWeight, ScaleStatus } from '@/types/electron'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface ScaleContextValue {
   weight: ScaleWeight | null
@@ -26,20 +27,16 @@ export function ScaleProvider({ children }: { children: ReactNode }) {
   const [isConfigured, setIsConfigured] = useState(false)
   const [weight, setWeight] = useState<ScaleWeight | null>(null)
   const [status, setStatus] = useState<ScaleStatus>(defaultStatus)
+  const { currentBusinessId } = useBusinessPermissionsContext()
 
+  // One-time setup: subscribe to scale events
   useEffect(() => {
     if (!window.electron?.scale) return
     setIsElectron(true)
 
-    // Check if a COM port has been saved (scale was previously configured)
-    window.electron.scale.getSavedPort().then((saved) => {
-      if (saved) setIsConfigured(true)
-    })
-
     const unsubWeight = window.electron.scale.onWeight(setWeight)
     const unsubStatus = window.electron.scale.onStatus((s) => {
       setStatus(s)
-      // Mark configured as soon as a successful connection is made
       if (s.status === 'connected') setIsConfigured(true)
     })
 
@@ -48,6 +45,33 @@ export function ScaleProvider({ children }: { children: ReactNode }) {
       unsubStatus()
     }
   }, [])
+
+  // Auto-restore: runs whenever businessId is available.
+  // Prefers electron-store (already wired in init()); falls back to DB if nothing is saved locally.
+  useEffect(() => {
+    if (!window.electron?.scale) return
+
+    window.electron.scale.getSavedPort().then(async (savedPort) => {
+      if (savedPort) {
+        // electron-store has a port → init() already called connect() at startup
+        setIsConfigured(true)
+        return
+      }
+
+      // No local config — try database
+      if (!currentBusinessId) return
+      try {
+        const res = await fetch(`/api/scale-config?businessId=${currentBusinessId}`)
+        if (!res.ok) return
+        const { scaleConfig } = await res.json()
+        if (scaleConfig?.comPort) {
+          console.log('[ScaleContext] Restoring scale from DB:', scaleConfig)
+          await window.electron!.scale.connect(scaleConfig.comPort, scaleConfig.baudRate ?? 1200)
+          setIsConfigured(true)
+        }
+      } catch (_) {}
+    })
+  }, [currentBusinessId])
 
   const tare = useCallback(async () => {
     if (!window.electron?.scale) return

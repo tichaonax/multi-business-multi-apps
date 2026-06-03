@@ -243,12 +243,22 @@ export function ScaleSettings({ businessId }: ScaleSettingsProps) {
       <div className="flex items-center gap-2 text-sm">
         <span
           className={`inline-block w-2.5 h-2.5 rounded-full ${
-            connected ? 'bg-green-500' : hasError ? 'bg-red-500' : 'bg-gray-400'
+            connected ? 'bg-green-500'
+            : status.status === 'connecting' ? 'bg-yellow-400 animate-pulse'
+            : hasError ? 'bg-red-500'
+            : 'bg-gray-400'
           }`}
         />
-        <span className={connected ? 'text-green-700 dark:text-green-400' : hasError ? 'text-red-600 dark:text-red-400' : 'text-gray-500'}>
+        <span className={
+          connected ? 'text-green-700 dark:text-green-400'
+          : status.status === 'connecting' ? 'text-yellow-600 dark:text-yellow-400'
+          : hasError ? 'text-red-600 dark:text-red-400'
+          : 'text-gray-500'
+        }>
           {connected
             ? `Connected — ${status.comPort}`
+            : status.status === 'connecting'
+            ? `Connecting to ${status.comPort}…`
             : hasError
             ? `Error: ${status.error ?? 'unknown'}`
             : 'Disconnected'}
