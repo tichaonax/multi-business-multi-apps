@@ -183,9 +183,9 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
 
   // Determine if this is a business copy (condensed) or customer copy (detailed)
   // Default to business copy if receiptType is not specified
-  console.log(`📄 [Receipt Template] receiptType="${data.receiptType}" (business=${data.receiptType !== 'customer'}, customer=${data.receiptType === 'customer'})`)
   const isBusinessCopy = data.receiptType !== 'customer'; // business or undefined = business copy
   const isCustomerCopy = data.receiptType === 'customer'; // only true when explicitly 'customer'
+  const isVoucher = !!data.hideTax; // livestock payment voucher — relabels copies
 
   // ============================================================================
   // 1. HEADER - Center aligned
@@ -215,7 +215,7 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
   // ============================================================================
   // Always show label to distinguish business vs customer copy
   receipt += ALIGN_CENTER;
-  const label = isBusinessCopy ? '--- BUSINESS COPY ---' : '--- CUSTOMER COPY ---';
+  const label = isBusinessCopy ? '--- BUSINESS COPY ---' : (isVoucher ? '--- VENDOR COPY ---' : '--- CUSTOMER COPY ---');
   receipt += label + LF;
 
   // ============================================================================
@@ -225,7 +225,8 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
   receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
   receipt += `Date: ${formatDateTime(data.transactionDate)}` + LF;
   if (data.salespersonName) {
-    receipt += `Salesperson: ${stripEmojis(data.salespersonName)}` + LF;
+    const salespersonLabel = isVoucher ? 'Vendor' : 'Salesperson'
+    receipt += `${salespersonLabel}: ${stripEmojis(data.salespersonName)}` + LF;
   }
   // Blank line only for customer copy
   if (isCustomerCopy) {

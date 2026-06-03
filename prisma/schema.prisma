@@ -328,44 +328,44 @@ model BusinessStockMovements {
 }
 
 model BusinessSuppliers {
-  id                        String                        @id @default(uuid())
-  businessId                String?
-  supplierNumber            String
-  name                      String
-  contactPerson             String?
-  email                     String?
-  phone                     String?
-  address                   String?
-  paymentTerms              String?
-  creditLimit               Decimal?                      @db.Decimal(12, 2)
-  isActive                  Boolean                       @default(true)
-  businessType              String
-  attributes                Json?
-  createdAt                 DateTime                      @default(now())
-  updatedAt                 DateTime                      @updatedAt
-  accountBalance            Decimal?                      @default(0) @db.Decimal(12, 2)
-  emoji                     String?
-  notes                     String?
-  taxId                     String?
-  productsSupplied          String?
-  hasSpecialInstructions    Boolean                       @default(false)
-  specialInstructions       String?
-  posBlocked                Boolean                       @default(false)
-  discontinued              Boolean                       @default(false)
-  supplierType              String?
-  business_products         BusinessProducts[]            @relation("ProductSupplier")
-  barcode_inventory_items   BarcodeInventoryItems[]       @relation("InventoryItemSupplier")
-  businesses                Businesses?                   @relation(fields: [businessId], references: [id])
-  supplier_products         SupplierProducts[]
-  expense_account_payments  ExpenseAccountPayments[]      @relation("ExpensePaymentPayeeSupplier")
-  expense_payment_receipts  ExpensePaymentReceipts[]      @relation("ReceiptPayeeSupplier")
-  supplier_payment_requests SupplierPaymentRequests[]
-  supplier_ratings          SupplierRatings[]
-  rent_configs              BusinessRentConfig[]          @relation("RentLandlord")
-  chicken_batches           ChickenBatch[]                @relation("ChickenBatchSupplier")
-  chicken_feed_logs         ChickenFeedLog[]              @relation("ChickenFeedSupplier")
-  chicken_inventory         ChickenInventory[]            @relation("ChickenInventorySupplier")
-  customBulkProducts        CustomBulkProducts[]          @relation("CustomBulkSupplier")
+  id                          String                        @id @default(uuid())
+  businessId                  String?
+  supplierNumber              String
+  name                        String
+  contactPerson               String?
+  email                       String?
+  phone                       String?
+  address                     String?
+  paymentTerms                String?
+  creditLimit                 Decimal?                      @db.Decimal(12, 2)
+  isActive                    Boolean                       @default(true)
+  businessType                String
+  attributes                  Json?
+  createdAt                   DateTime                      @default(now())
+  updatedAt                   DateTime                      @updatedAt
+  accountBalance              Decimal?                      @default(0) @db.Decimal(12, 2)
+  emoji                       String?
+  notes                       String?
+  taxId                       String?
+  productsSupplied            String?
+  hasSpecialInstructions      Boolean                       @default(false)
+  specialInstructions         String?
+  posBlocked                  Boolean                       @default(false)
+  discontinued                Boolean                       @default(false)
+  supplierType                String?
+  business_products           BusinessProducts[]            @relation("ProductSupplier")
+  barcode_inventory_items     BarcodeInventoryItems[]       @relation("InventoryItemSupplier")
+  businesses                  Businesses?                   @relation(fields: [businessId], references: [id])
+  supplier_products           SupplierProducts[]
+  expense_account_payments    ExpenseAccountPayments[]      @relation("ExpensePaymentPayeeSupplier")
+  expense_payment_receipts    ExpensePaymentReceipts[]      @relation("ReceiptPayeeSupplier")
+  supplier_payment_requests   SupplierPaymentRequests[]
+  supplier_ratings            SupplierRatings[]
+  rent_configs                BusinessRentConfig[]          @relation("RentLandlord")
+  chicken_batches             ChickenBatch[]                @relation("ChickenBatchSupplier")
+  chicken_feed_logs           ChickenFeedLog[]              @relation("ChickenFeedSupplier")
+  chicken_inventory           ChickenInventory[]            @relation("ChickenInventorySupplier")
+  customBulkProducts          CustomBulkProducts[]          @relation("CustomBulkSupplier")
   combo_section_payee         ComboPaymentRequestSections[] @relation("ComboSectionPayeeSupplier")
   combo_item_payee            ComboPaymentRequestItems[]    @relation("ComboItemPayeeSupplier")
   livestock_purchase_sessions LivestockPurchaseSessions[]
@@ -2105,14 +2105,14 @@ model EmojiLookup {
 }
 
 model Images {
-  id               String           @id @default(uuid())
-  data             Bytes
-  mimeType         String           @default("image/jpeg")
-  size             Int
-  expiresAt        DateTime?
-  createdAt        DateTime         @default(now())
-  product_images   ProductImages[]
-  warehouse_items  WarehouseItems[]
+  id              String           @id @default(uuid())
+  data            Bytes
+  mimeType        String           @default("image/jpeg")
+  size            Int
+  expiresAt       DateTime?
+  createdAt       DateTime         @default(now())
+  product_images  ProductImages[]
+  warehouse_items WarehouseItems[]
 
   @@map("images")
 }
@@ -3188,25 +3188,25 @@ model StageContractorAssignments {
 }
 
 model PayeeCategoryGroups {
-  id           String             @id @default(uuid())
-  name         String             @unique
+  id           String            @id @default(uuid())
+  name         String            @unique
   emoji        String
-  displayOrder Int                @default(0)
-  isActive     Boolean            @default(true)
-  createdAt    DateTime           @default(now())
+  displayOrder Int               @default(0)
+  isActive     Boolean           @default(true)
+  createdAt    DateTime          @default(now())
   categories   PayeeCategories[]
 
   @@map("payee_category_groups")
 }
 
 model PayeeCategories {
-  id           String            @id @default(uuid())
+  id           String              @id @default(uuid())
   groupId      String
   name         String
   emoji        String
-  displayOrder Int               @default(0)
-  isActive     Boolean           @default(true)
-  createdAt    DateTime          @default(now())
+  displayOrder Int                 @default(0)
+  isActive     Boolean             @default(true)
+  createdAt    DateTime            @default(now())
   group        PayeeCategoryGroups @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@unique([groupId, name])
@@ -3226,13 +3226,13 @@ model ContractorCategoryGroups {
 }
 
 model ContractorCategories {
-  id           String                  @id @default(uuid())
+  id           String                   @id @default(uuid())
   groupId      String
   name         String
   emoji        String
-  displayOrder Int                     @default(0)
-  isActive     Boolean                 @default(true)
-  createdAt    DateTime                @default(now())
+  displayOrder Int                      @default(0)
+  isActive     Boolean                  @default(true)
+  createdAt    DateTime                 @default(now())
   group        ContractorCategoryGroups @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@unique([groupId, name])
@@ -4311,12 +4311,12 @@ model R710Tokens {
 }
 
 model R710TokenSales {
-  id               String          @id @default(uuid())
-  businessId       String
-  tokenId          String
-  expenseAccountId String
-  saleAmount       Decimal         @db.Decimal(12, 2)
-  paymentMethod    String          @db.VarChar(50)
+  id                     String          @id @default(uuid())
+  businessId             String
+  tokenId                String
+  expenseAccountId       String
+  saleAmount             Decimal         @db.Decimal(12, 2)
+  paymentMethod          String          @db.VarChar(50)
   saleChannel            R710SaleChannel @default(DIRECT)
   soldAt                 DateTime        @default(now())
   soldBy                 String
@@ -7232,32 +7232,32 @@ model IssuingAuthorities {
 }
 
 model WarehouseBatches {
-  id                   String           @id @default(uuid())
-  batchName            String
-  batchNumber          String?
-  importedBy           String
-  importedAt           DateTime         @default(now())
-  status               String           @default("ACTIVE")
-  rowCount             Int
-  totalYuanCost        Decimal?         @db.Decimal(14, 2)
-  totalUsdCost         Decimal?         @db.Decimal(14, 2)
-  collectionFee        String?
-  pickedUpFromHarare   Boolean          @default(false)
-  transportCostHarare  Decimal?         @db.Decimal(10, 2)
-  transactionFeePct    Decimal?         @db.Decimal(5, 2)
-  fileHash             String           @unique
-  originalFileName     String
-  notes                String?
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @default(now()) @updatedAt
-  users                Users            @relation(fields: [importedBy], references: [id])
-  warehouse_items      WarehouseItems[]
+  id                  String           @id @default(uuid())
+  batchName           String
+  batchNumber         String?
+  importedBy          String
+  importedAt          DateTime         @default(now())
+  status              String           @default("ACTIVE")
+  rowCount            Int
+  totalYuanCost       Decimal?         @db.Decimal(14, 2)
+  totalUsdCost        Decimal?         @db.Decimal(14, 2)
+  collectionFee       String?
+  pickedUpFromHarare  Boolean          @default(false)
+  transportCostHarare Decimal?         @db.Decimal(10, 2)
+  transactionFeePct   Decimal?         @db.Decimal(5, 2)
+  fileHash            String           @unique
+  originalFileName    String
+  notes               String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @default(now()) @updatedAt
+  users               Users            @relation(fields: [importedBy], references: [id])
+  warehouse_items     WarehouseItems[]
 
   @@map("warehouse_batches")
 }
 
 model WarehouseItems {
-  id                        String            @id @default(uuid())
+  id                        String           @id @default(uuid())
   batchId                   String
   rowNumber                 Int?
   orderNumber               String
@@ -7266,42 +7266,42 @@ model WarehouseItems {
   productName               String
   shortName                 String?
   quantity                  Int?
-  priceYuan                 Decimal?          @db.Decimal(12, 2)
-  costUsd                   Decimal?          @db.Decimal(10, 2)
-  exchangeRate              Decimal?          @db.Decimal(8, 4)
-  orderDate                 DateTime?         @db.Date
+  priceYuan                 Decimal?         @db.Decimal(12, 2)
+  costUsd                   Decimal?         @db.Decimal(10, 2)
+  exchangeRate              Decimal?         @db.Decimal(8, 4)
+  orderDate                 DateTime?        @db.Date
   stage                     String?
   shipment                  String?
   location                  String?
   courierName               String?
   courierStatus             String?
-  courierTime               DateTime?         @db.Date
-  cbm                       Decimal?          @db.Decimal(10, 4)
-  weightKg                  Decimal?          @db.Decimal(10, 2)
+  courierTime               DateTime?        @db.Date
+  cbm                       Decimal?         @db.Decimal(10, 4)
+  weightKg                  Decimal?         @db.Decimal(10, 2)
   invoiceName               String?
-  containerDate             DateTime?         @db.Date
+  containerDate             DateTime?        @db.Date
   manifestQty               Int?
   variantSpec               String?
   imageId                   String?
   originalQty               Int?
-  originalPriceYuan         Decimal?          @db.Decimal(12, 2)
+  originalPriceYuan         Decimal?         @db.Decimal(12, 2)
   qtyChangeReason           String?
-  isPersonal                Boolean           @default(false)
+  isPersonal                Boolean          @default(false)
   sourceBatchId             Int?
   sourceBatchName           String?
   sourceBatchStatus         String?
-  clearanceCostUsd          Decimal?          @db.Decimal(10, 4)
-  status                    String            @default("IN_WAREHOUSE")
+  clearanceCostUsd          Decimal?         @db.Decimal(10, 4)
+  status                    String           @default("IN_WAREHOUSE")
   businessProductId         String?
   personalExpenseId         String?
   movedAt                   DateTime?
   movedBy                   String?
   notes                     String?
-  createdAt                 DateTime          @default(now())
-  updatedAt                 DateTime          @default(now()) @updatedAt
-  warehouse_batches         WarehouseBatches  @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  images                    Images?           @relation(fields: [imageId], references: [id])
-  moved_by_user             Users?            @relation("WarehouseItemMover", fields: [movedBy], references: [id])
+  createdAt                 DateTime         @default(now())
+  updatedAt                 DateTime         @default(now()) @updatedAt
+  warehouse_batches         WarehouseBatches @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  images                    Images?          @relation(fields: [imageId], references: [id])
+  moved_by_user             Users?           @relation("WarehouseItemMover", fields: [movedBy], references: [id])
 
   @@index([batchId])
   @@index([orderNumber])
@@ -7345,21 +7345,21 @@ model WarehouseOrderRefs {
 }
 
 model WeightPricingRules {
-  id                       String    @id @default(uuid())
-  businessId               String
-  categoryName             String
-  ruleType                 String    @default("PURCHASE")
-  purchaseType             String    @default("LIVESTOCK")
-  pricePerKg               Decimal   @db.Decimal(10, 2)
-  emoji                    String    @default("📦")
-  isActive                 Boolean   @default(true)
-  derivedFromUnitPrice     Decimal?  @db.Decimal(10, 2)
-  derivedFromUnitCount     Int?
+  id                        String   @id @default(uuid())
+  businessId                String
+  categoryName              String
+  ruleType                  String   @default("PURCHASE")
+  purchaseType              String   @default("LIVESTOCK")
+  pricePerKg                Decimal  @db.Decimal(10, 2)
+  emoji                     String   @default("📦")
+  isActive                  Boolean  @default(true)
+  derivedFromUnitPrice      Decimal? @db.Decimal(10, 2)
+  derivedFromUnitCount      Int?
   derivedFromSampleWeightKg Decimal? @db.Decimal(10, 3)
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
 
-  businesses   Businesses @relation(fields: [businessId], references: [id])
+  businesses Businesses @relation(fields: [businessId], references: [id])
 
   @@unique([businessId, categoryName, ruleType, purchaseType])
   @@index([businessId])
@@ -7382,8 +7382,8 @@ model LivestockPurchaseSessions {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  businesses              Businesses             @relation(fields: [businessId], references: [id])
-  business_suppliers      BusinessSuppliers      @relation(fields: [supplierId], references: [id])
+  businesses               Businesses               @relation(fields: [businessId], references: [id])
+  business_suppliers       BusinessSuppliers        @relation(fields: [supplierId], references: [id])
   livestock_purchase_lines LivestockPurchaseLines[]
 
   @@index([businessId])

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { emitNotification } from '@/lib/notifications/notification-emitter'
 
 export const dynamic = 'force-dynamic'
 
@@ -85,6 +86,44 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       },
     })
   })
+
+  // Notify cashiers/admins that a vendor payment request needs approval
+  const submitterId = (session.user as any)?.id
+  const supplierName = result.business_suppliers?.name ?? 'vendor'
+  const amountStr = `$${totalAmount.toFixed(2)}`
+  const notifMessage = `${(session.user as any)?.name ?? 'Staff'} submitted a ${purchaseLabel} purchase — ${supplierName}: ${amountStr}`
+
+  const reviewers = await prisma.users.findMany({
+    where: {
+      isActive: true,
+      OR: [
+        { role: 'admin' },
+        { permissions: { path: ['canSubmitPaymentBatch'], equals: true } },
+      ],
+    },
+    select: { id: true },
+  })
+  const reviewerIds = reviewers.map(r => r.id).filter(id => id !== submitterId)
+
+  if (reviewerIds.length > 0) {
+    await emitNotification({
+      userIds: reviewerIds,
+      type: 'PAYMENT_SUBMITTED',
+      title: `💰 ${purchaseLabel} Purchase Approval Request`,
+      message: notifMessage,
+      linkUrl: '/admin/pending-actions',
+    })
+  }
+
+  if (submitterId) {
+    await emitNotification({
+      userIds: [submitterId],
+      type: 'PAYMENT_SUBMITTED',
+      title: 'Purchase Submitted',
+      message: `Your ${purchaseLabel.toLowerCase()} purchase request of ${amountStr} from ${supplierName} has been submitted for approval.`,
+      linkUrl: '/admin/pending-actions',
+    })
+  }
 
   return NextResponse.json({ success: true, data: result })
 }

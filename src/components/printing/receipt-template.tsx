@@ -48,7 +48,7 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
           <span>{data.transactionId}</span>
         </div>
         <div className="flex justify-between mb-0.5">
-          <span>Salesperson:</span>
+          <span>{data.hideTax ? 'Vendor:' : 'Salesperson:'}</span>
           <span>{data.salespersonName}</span>
         </div>
       </div>
