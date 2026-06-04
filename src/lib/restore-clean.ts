@@ -162,6 +162,9 @@ const RESTORE_ORDER = [
   'employeeAbsences',           // depends on businesses + employees
   'perDiemEntries',             // depends on businesses + employees + users
 
+  // Weight pricing rules must come before businessProducts (FK: business_products.weightPricingRuleId)
+  'weightPricingRules',       // Depends on businesses only — moved here for MBM-229 FK
+
   // Products and inventory
   'businessProducts',
   'productVariants',
@@ -419,8 +422,7 @@ const RESTORE_ORDER = [
   'warehouseItems',         // Depends on warehouseBatches, images (imageId), users (movedBy)
   'warehouseReferenceLocks', // Depends on users (lockedById)
   'warehouseOrderRefs',      // No foreign key dependencies — standalone order/tracking max table
-  // Scale integration (MBM-226)
-  'weightPricingRules',       // Depends on businesses
+  // Scale integration (MBM-226) — weightPricingRules moved earlier (before businessProducts) for MBM-229 FK
   'livestockPurchaseSessions', // Depends on businesses, business_suppliers
   'livestockPurchaseLines',    // Depends on livestockPurchaseSessions
   'livestockVendorProfiles',   // Depends on businesses, business_suppliers (MBM-227)

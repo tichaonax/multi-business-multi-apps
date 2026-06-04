@@ -134,7 +134,9 @@
 53. [Scale Integration — Star Micronics MG-S8200](#53-scale-integration--star-micronics-mg-s8200)
     - [Connecting the Scale](#connecting-the-scale)
     - [Scale Status Panel — Live Weight Display](#scale-status-panel--live-weight-display)
-    - [Weight Pricing Rules](#weight-pricing-rules)
+    - [POS Settings — Scale & Weighing Tab](#pos-settings--scale--weighing-tab)
+    - [Selling Presets — Setup](#selling-presets--setup)
+    - [Vendor Purchase Presets — Setup](#vendor-purchase-presets--setup)
     - [Marking a Product as Sold by Weight](#marking-a-product-as-sold-by-weight)
     - [Selling by Weight at the POS — Grocery](#selling-by-weight-at-the-pos--grocery)
     - [Selling by Weight at the POS — Restaurant](#selling-by-weight-at-the-pos--restaurant)
@@ -10419,8 +10421,8 @@ The scale connects via a standard RS-232 serial cable. On a modern PC use a USB-
 1. Plug the scale into the PC and note the COM port assigned (e.g. `COM3`). Windows Device Manager → Ports will show it.
 2. Open the POS for your business (Restaurant or Grocery).
 3. Click **⚙️ POS Settings** (top-right of the POS page).
-4. Scroll to the **⚖️ Scale — MG-S8200** section.
-5. Click **↺** to refresh the port list, then select the correct COM port from the dropdown.
+4. Click the **⚖️ Scale & Weighing** tab.
+5. In the **Scale Hardware — MG-S8200** section, click **↺** to refresh the port list, then select the correct COM port from the dropdown.
 6. Click **Connect**. The status indicator turns green and a live weight reading appears below.
 7. Place an empty container on the scale and click **Tare** to zero it before weighing.
 
@@ -10454,60 +10456,99 @@ Click the **⚖️ Scale** button in the top bar of the Grocery or Restaurant PO
 | **Connected / Disconnected** label | Confirms hardware status at a glance |
 | Weight reading | Live weight in kg to 3 decimal places (e.g. `1.350 kg`) |
 | **Tare** button | Zeros the scale — remove all items first, then press Tare |
+| **Sale Pricing Rules** | Quick-reference list of active selling presets (emoji + name + $/kg) — visible without opening POS Settings |
+| **⚙️ Configure pricing rules →** | Link to the Scale & Weighing settings tab |
 
 **Grocery POS:** The panel is visible in both **Scan Mode** and **Desk Mode** — use it whenever the scale is in use regardless of which mode you are in.
 
-**Restaurant POS:** The panel sits alongside the Live POS / Manual Entry / Meal Program mode selector in the top area of the POS.
+**Restaurant POS:** The panel sits alongside the Live POS / Manual Entry / Meal Program mode selector in the top area of the POS. When the scale panel is open, the **Today's Sales** summary is hidden to reduce distraction while weighing.
 
-> This panel is for monitoring weight and performing a quick tare. To connect the scale or change the COM port, go to **⚙️ POS Settings → Scale**.
+> This panel is for monitoring weight, checking presets, and performing a quick tare. To connect the scale or change the COM port, go to **⚙️ POS Settings → ⚖️ Scale & Weighing**.
 
 ---
 
-### Weight Pricing Rules
+### POS Settings — Scale & Weighing Tab
 
-Weight pricing rules define the price per kilogram for each animal or product category. They are stored per business and are used by both the livestock purchase workflow and the POS weigh-item flow.
+POS Settings has been reorganised into two tabs:
 
-**Where to set them up:**
+| Tab | Contents |
+|-----|----------|
+| **🖨️ Printing & Performance** | Receipt printer preferences, sales performance thresholds |
+| **⚖️ Scale & Weighing** | Scale hardware connection, selling presets, vendor purchase presets |
 
-POS Settings → **🏷️ Weight Pricing Rules** section (Restaurant and Grocery only; requires **Manage Business Settings** permission).
+Open POS Settings from the **⚙️ POS Settings** button (top-right of the POS page), then click **⚖️ Scale & Weighing**.
 
-**Adding a rule:**
+Permission required: **Manage Business Settings** (Restaurant and Grocery only).
 
-1. Click **+ Add pricing rule**.
-2. Enter the **Category name** (e.g. *Whole Chicken*, *Chicken Feet*, *Offals*, *Goat*).
-3. Select the **Type**:
-   - `PURCHASE` — price paid to a vendor when buying livestock
-   - `SALE` — price charged to a customer when selling by weight at the POS
-4. Enter the **Price / kg**.
-5. Click **Add**.
+---
 
-**Editing:** Click the active toggle to enable or disable a rule without deleting it. Click **Remove** to delete permanently.
+### Selling Presets — Setup
 
-Rules are matched by category name. If no matching rule exists, the cashier can enter a custom price during the workflow.
+**Selling presets** are the prices you charge customers per kilogram. They are separate from vendor purchase presets and are what the POS uses when a cashier weighs an item for a customer.
+
+**Where:** POS Settings → ⚖️ Scale & Weighing → **🛒 Selling Presets**
+
+**Adding a preset:**
+
+1. Click **+ Add selling preset**.
+2. Type an emoji icon (e.g. 🥩), a preset name (e.g. *Beef Mince*), and the **Price / kg**.
+3. Click **Add Preset**.
+
+The preset appears in the list with an **Active** toggle and a **"X items"** badge showing how many inventory products are linked to it.
+
+**Editing:** Click the emoji cell to change the icon (inline edit, auto-saves on blur). Click the Active toggle to enable or disable without deleting. Click **Remove** to permanently delete.
+
+**Dynamic pricing:** Changing a preset's price instantly affects all inventory items linked to it — no need to re-save each product individually.
+
+---
+
+### Vendor Purchase Presets — Setup
+
+**Vendor purchase presets** are the prices you pay suppliers per kilogram. They are used only in the livestock purchase workflow (not at the customer-facing POS).
+
+**Where:** POS Settings → ⚖️ Scale & Weighing → **🚚 Vendor Purchase Presets**
+
+Two sub-tabs: **🐄 Livestock** and **🥦 Goods** — choose based on what you are buying.
+
+**Adding a preset:**
+
+1. Select the correct sub-tab (Livestock or Goods).
+2. Click **+ Add livestock / goods purchase preset**.
+3. Enter the category name and price per kg.
+4. For Livestock, click **🧮 Calculate $/kg from unit price** to derive the rate from a sample weighing (count × price/unit ÷ total weight).
+5. Click **Save Preset**.
+
+Rules matched by category name in the livestock purchase wizard. If no match exists, the cashier can enter a custom price manually during the session.
 
 ---
 
 ### Marking a Product as Sold by Weight
 
-Any **restaurant** or **grocery** inventory item can be flagged as "sold by weight". When a customer buys that item at the POS the cashier is prompted to place it on the scale — the total price is calculated automatically from the weight and the price per kg.
+Any **restaurant** or **grocery** inventory item can be flagged as "sold by weight". When a customer buys that item at the POS the cashier is prompted to place it on the scale — the total price is calculated automatically.
 
-**Grocery Inventory:**
+**Steps (same for both Restaurant and Grocery Inventory):**
 
-1. Go to **Grocery → Inventory**.
+1. Go to **Grocery → Inventory** (or **Restaurant → Inventory**).
 2. Find the product and click **Edit**.
-3. In the **amber bar** at the top of the form, tick **Sell by Weight (kg)**.
-4. Enter the **Price per kg** in the field that appears.
+3. In the **amber weight bar** at the top of the form, tick **Sell by Weight (kg)**.
+4. Choose how to set the price:
+
+   **Option A — Use a preset (recommended):**
+   - Select a selling preset from the **"Use preset"** dropdown (e.g. *🥩 Beef Mince — $8.50/kg*).
+   - The bar shows **"Effective price: $8.50/kg (follows preset)"** — the price is dynamic. If you update the preset later, all linked products automatically reflect the new price without any re-save.
+
+   **Option B — Enter a manual price:**
+   - Leave the dropdown at *"None — enter price manually"*.
+   - Type the **Price per kg** in the field that appears.
+   - This price is fixed at save time — it does not follow any preset.
+
 5. Click **Save**.
 
-**Restaurant Inventory:**
+Once flagged, tapping the product card at the POS opens the **Weigh Item** modal instead of adding directly to the cart. Product cards for weight-priced items show a small **⚖️** badge so cashiers can identify them at a glance.
 
-1. Go to **Restaurant → Inventory**.
-2. Find the menu item and click **Edit**.
-3. In the **amber bar** at the top of the form, tick **Sell by Weight (kg)**.
-4. Enter the **Price per kg** in the field that appears.
-5. Click **Save**.
+> **No presets yet?** A link **"⚙️ Configure selling presets →"** appears in the amber bar. Click it to go directly to POS Settings and create your first preset, then come back to link it.
 
-Once flagged, tapping the product card at the POS opens the **Weigh Item** modal instead of adding directly to the cart.
+> **Changing preset vs unlinking:** Unchecking "Sell by Weight" clears the preset link and the price — the product reverts to normal fixed-price selling.
 
 ---
 

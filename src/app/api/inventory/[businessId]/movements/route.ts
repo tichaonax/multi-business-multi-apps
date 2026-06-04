@@ -128,7 +128,7 @@ export async function GET(
       return {
         id: movement.id,
         businessId: movement.businessId,
-        itemId: movement.productVariantId,
+        itemId: movement.productVariantId ?? '',
         itemName: movement.product_variants?.business_products?.name || 'Unknown Product',
         itemSku: movement.product_variants?.sku || 'Unknown SKU',
         movementType: movement.movementType.toLowerCase() as any,
@@ -325,7 +325,7 @@ export async function POST(
           id: randomUUID(),
           productId: product.id,
           name: 'Default',
-          sku: product.sku,
+          sku: product.sku ?? product.id,
           stockQuantity: 0,
           reorderLevel: 10,
           price: product.basePrice ?? 0,
@@ -341,7 +341,8 @@ export async function POST(
     const quantityChange = Math.round(parseFloat(body.quantity))
 
     // Map friendly movement type names to the StockMovementType enum
-    const movementTypeMap: Record<string, string> = {
+    type PrismaMovementType = 'SALE' | 'EXPIRED' | 'PURCHASE_RECEIVED' | 'RETURN_IN' | 'RETURN_OUT' | 'ADJUSTMENT' | 'TRANSFER_IN' | 'TRANSFER_OUT' | 'DAMAGE' | 'THEFT' | 'PRODUCTION_IN' | 'PRODUCTION_OUT'
+    const movementTypeMap: Record<string, PrismaMovementType> = {
       receive: 'PURCHASE_RECEIVED',
       use: 'SALE',
       waste: 'DAMAGE',
@@ -349,7 +350,7 @@ export async function POST(
       transfer: 'TRANSFER_IN',
       return: 'RETURN_IN',
     }
-    const movementType = movementTypeMap[body.movementType?.toLowerCase()] ?? body.movementType?.toUpperCase()
+    const movementType: PrismaMovementType = movementTypeMap[body.movementType?.toLowerCase()] ?? (body.movementType?.toUpperCase() as PrismaMovementType)
 
     // Create stock movement record
     const stockMovement = await prisma.businessStockMovements.create({
@@ -366,8 +367,8 @@ export async function POST(
         businessType: variant.business_products.businessType,
         attributes: body.scannedBarcode ? {
           scannedBarcode: body.scannedBarcode,
-          notes: body.notes || null
-        } : body.notes ? { notes: body.notes } : null,
+          notes: body.notes || undefined
+        } : body.notes ? { notes: body.notes } : undefined,
         createdAt: new Date()
       }
     })
