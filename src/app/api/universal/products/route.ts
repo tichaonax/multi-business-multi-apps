@@ -138,8 +138,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Exclude zero-price products from browse results (skip for direct product lookups)
+    // Exception: isSoldByWeight products may have basePrice=0 (price comes from weight × $/kg)
     if (!productId) {
-      where.basePrice = { gt: 0 }
+      where.OR = [
+        { basePrice: { gt: 0 } },
+        { isSoldByWeight: true }
+      ]
     }
 
     if (categoryId) where.categoryId = categoryId

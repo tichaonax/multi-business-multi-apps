@@ -82,7 +82,7 @@ export function PricingCalculator({
   }
 
   return (
-    <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
+    <div className="mt-2 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
           <span className="text-sm">💡</span>
@@ -131,15 +131,16 @@ export function PricingCalculator({
       )}
 
       {/* Markup buttons */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="grid grid-cols-4 gap-2">
         {calc.suggestions.map(({ pct, price }) => (
           <button
             key={pct}
             type="button"
             onClick={() => onSelectPrice(price)}
-            className="px-2 py-1 text-xs rounded bg-blue-100 dark:bg-blue-800/50 text-blue-800 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-700 border border-blue-300 dark:border-blue-600 transition-colors"
+            className="flex flex-col items-center justify-center py-2 rounded bg-blue-100 dark:bg-blue-800/50 text-blue-800 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-700 border border-blue-300 dark:border-blue-600 transition-colors"
           >
-            {pct}% · ${price.toFixed(2)}
+            <span className="text-xs font-semibold">{pct}%</span>
+            <span className="text-xs opacity-75">${price.toFixed(2)}</span>
           </button>
         ))}
 
@@ -148,9 +149,10 @@ export function PricingCalculator({
           <button
             type="button"
             onClick={() => setShowCustom(true)}
-            className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 transition-colors"
+            className="flex flex-col items-center justify-center py-2 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 transition-colors"
           >
-            Custom %
+            <span className="text-xs font-semibold">Custom</span>
+            <span className="text-xs opacity-60">%</span>
           </button>
         ) : (
           <div className="flex items-center gap-1">

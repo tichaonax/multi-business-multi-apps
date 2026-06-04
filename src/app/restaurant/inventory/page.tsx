@@ -50,6 +50,8 @@ function RestaurantInventoryContent() {
   const [pricePerKg, setPricePerKg] = useState('')
   const [weightPricingRuleId, setWeightPricingRuleId] = useState<string>('')
   const [saleRules, setSaleRules] = useState<{ id: string; categoryName: string; pricePerKg: number; emoji: string }[]>([])
+  const [purchaseRules, setPurchaseRules] = useState<{ id: string; categoryName: string; pricePerKg: number; emoji: string }[]>([])
+  const [purchaseRuleId, setPurchaseRuleId] = useState<string>('')
   const searchParams = useSearchParams()
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -150,16 +152,17 @@ function RestaurantInventoryContent() {
       .catch(() => {})
   }, [currentBusinessId])
 
-  // Fetch active SALE pricing presets for the weight preset dropdown
+  // Fetch SALE and PURCHASE pricing presets for the weight preset dropdowns
   useEffect(() => {
     if (!currentBusinessId) return
     fetch(`/api/weight-pricing-rules?businessId=${currentBusinessId}`)
       .then(r => r.json())
-      .then(data => setSaleRules(
-        (Array.isArray(data) ? data : [])
-          .filter((r: any) => r.ruleType === 'SALE' && r.isActive)
-          .map((r: any) => ({ id: r.id, categoryName: r.categoryName, pricePerKg: Number(r.pricePerKg), emoji: r.emoji }))
-      ))
+      .then(data => {
+        const all = Array.isArray(data) ? data : []
+        const toRule = (r: any) => ({ id: r.id, categoryName: r.categoryName, pricePerKg: Number(r.pricePerKg), emoji: r.emoji })
+        setSaleRules(all.filter((r: any) => r.ruleType === 'SALE' && r.isActive).map(toRule))
+        setPurchaseRules(all.filter((r: any) => r.ruleType === 'PURCHASE' && r.isActive).map(toRule))
+      })
       .catch(() => {})
   }, [currentBusinessId])
 
@@ -177,8 +180,18 @@ function RestaurantInventoryContent() {
       setIsSoldByWeight(false)
       setPricePerKg('')
       setWeightPricingRuleId('')
+      setPurchaseRuleId('')
     }
   }, [selectedItem])
+
+  // Auto-match saved costPrice to a purchase rule when editing
+  useEffect(() => {
+    if (!selectedItem || purchaseRules.length === 0) return
+    const savedCost = Number((selectedItem as any).costPrice)
+    if (!savedCost) return
+    const match = purchaseRules.find(r => Math.abs(r.pricePerKg - savedCost) < 0.001)
+    if (match) setPurchaseRuleId(match.id)
+  }, [selectedItem, purchaseRules])
 
   // Redirect to signin if not authenticated
   useEffect(() => {
@@ -693,8 +706,19 @@ function RestaurantInventoryContent() {
                       return next
                     })}
                     refreshTrigger={refreshTrigger}
-                    onItemEdit={canManageInventory ? (item) => {
-                      setSelectedItem(item)
+                    onItemEdit={canManageInventory ? async (item) => {
+                      // Fetch full product detail so weight fields (isSoldByWeight, weightPricingRuleId) are included
+                      try {
+                        const res = await fetch(`/api/inventory/${businessId}/items/${item.id}`)
+                        if (res.ok) {
+                          const data = await res.json()
+                          setSelectedItem(data.data ?? item)
+                        } else {
+                          setSelectedItem(item)
+                        }
+                      } catch {
+                        setSelectedItem(item)
+                      }
                       setShowAddForm(true)
                     } : undefined}
                     onItemView={(item) => {
@@ -764,136 +788,134 @@ function RestaurantInventoryContent() {
               onClick={(e) => { if (e.target === e.currentTarget) { setShowAddForm(false); setSelectedItem(null) } }}
             >
               <div className="min-h-full flex items-start justify-center p-4 sm:p-6">
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-6xl my-4">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-7xl my-4">
 
-                  {/* Compact inventory tracking bar — sits above the form's own header */}
-                  <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800 rounded-t-lg">
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        id="isInventoryTracked"
-                        checked={isInventoryTracked}
-                        onChange={(e) => setIsInventoryTracked(e.target.checked)}
-                        className="rounded"
-                      />
-                      <span className="text-sm font-semibold text-blue-900 dark:text-blue-100">
-                        Track Inventory for POS
-                      </span>
-                      <span className="text-xs text-blue-600 dark:text-blue-400 hidden sm:inline">
-                        — shows live stock badge on menu card
-                      </span>
-                    </label>
+                  {/* Unified options bar */}
+                  <div className="rounded-t-lg border-b border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-700">
 
-                    {isInventoryTracked && (
-                      <label className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                          Reorder at:
-                        </span>
+                    {/* Row 1 — Inventory tracking */}
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-5 py-2.5 bg-blue-50 dark:bg-blue-900/20">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
                         <input
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={reorderLevel || ''}
-                          onChange={(e) => setReorderLevel(parseInt(e.target.value) || 0)}
-                          className={`input-field w-20 py-1 text-sm ${
-                            reorderLevel < 1 ? 'border-red-400 dark:border-red-500 ring-1 ring-red-300 dark:ring-red-600' : ''
-                          }`}
-                          placeholder="e.g. 5"
+                          type="checkbox"
+                          checked={isInventoryTracked}
+                          onChange={(e) => setIsInventoryTracked(e.target.checked)}
+                          className="rounded accent-blue-600"
                         />
-                        <span className="text-xs hidden sm:inline">
-                          {reorderLevel < 1
-                            ? <span className="text-red-500 font-medium">Required — cannot be 0</span>
-                            : <span className="text-gray-500 dark:text-gray-400">units (badge turns amber)</span>
-                          }
-                        </span>
+                        <span className="text-sm font-semibold text-blue-800 dark:text-blue-200">📦 Track Inventory</span>
+                        <span className="text-xs text-blue-500 dark:text-blue-400 hidden sm:inline">live stock badge on POS card</span>
                       </label>
-                    )}
-                  </div>
+                      {isInventoryTracked && (
+                        <label className="flex items-center gap-2">
+                          <span className="text-xs text-gray-600 dark:text-gray-400">Reorder at:</span>
+                          <input
+                            type="number" min="1" step="1"
+                            value={reorderLevel || ''}
+                            onChange={(e) => setReorderLevel(parseInt(e.target.value) || 0)}
+                            className={`input-field w-20 py-1 text-sm ${reorderLevel < 1 ? 'border-red-400 dark:border-red-500' : ''}`}
+                            placeholder="5"
+                          />
+                          <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline">
+                            {reorderLevel < 1 ? <span className="text-red-500 font-medium">Required</span> : 'units'}
+                          </span>
+                        </label>
+                      )}
+                    </div>
 
-                  {/* Weight selling bar */}
-                  <div className="px-6 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 space-y-2">
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={isSoldByWeight}
-                        onChange={(e) => {
-                          setIsSoldByWeight(e.target.checked)
-                          if (!e.target.checked) { setWeightPricingRuleId(''); setPricePerKg('') }
-                        }}
-                        className="rounded"
-                      />
-                      <span className="text-sm font-semibold text-amber-900 dark:text-amber-100">
-                        Sell by Weight (kg)
-                      </span>
-                      <span className="text-xs text-amber-600 dark:text-amber-400 hidden sm:inline">
-                        — scale weigh prompt opens at POS when tapped
-                      </span>
-                    </label>
+                    {/* Row 2 — Sell by Weight */}
+                    <div className={`px-5 py-2.5 ${isSoldByWeight ? 'bg-amber-50 dark:bg-amber-900/20' : 'bg-white dark:bg-gray-800'}`}>
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={isSoldByWeight}
+                          onChange={(e) => {
+                            setIsSoldByWeight(e.target.checked)
+                            if (!e.target.checked) { setWeightPricingRuleId(''); setPricePerKg('') }
+                          }}
+                          className="rounded accent-amber-600"
+                        />
+                        <span className={`text-sm font-semibold ${isSoldByWeight ? 'text-amber-800 dark:text-amber-200' : 'text-gray-700 dark:text-gray-300'}`}>
+                          ⚖️ Sell by Weight (kg)
+                        </span>
+                        {!isSoldByWeight && <span className="text-xs text-gray-400 dark:text-gray-500 hidden sm:inline">scale weigh prompt at POS</span>}
+                      </label>
 
-                    {isSoldByWeight && (
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pl-6">
-                        {/* Preset selector */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Use preset:</span>
-                          <select
-                            value={weightPricingRuleId}
-                            onChange={(e) => {
-                              const ruleId = e.target.value
-                              setWeightPricingRuleId(ruleId)
-                              if (ruleId) {
-                                const rule = saleRules.find(r => r.id === ruleId)
-                                if (rule) setPricePerKg(String(rule.pricePerKg))
-                              } else {
-                                setPricePerKg('')
-                              }
-                            }}
-                            className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                          >
-                            <option value="">None — enter price manually</option>
-                            {saleRules.map(r => (
-                              <option key={r.id} value={r.id}>
-                                {r.emoji} {r.categoryName} — ${r.pricePerKg.toFixed(2)}/kg
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Price display / manual input */}
-                        {weightPricingRuleId ? (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs text-gray-500 dark:text-gray-400">Effective price:</span>
-                            <span className="text-sm font-mono font-semibold text-amber-800 dark:text-amber-200">
-                              ${saleRules.find(r => r.id === weightPricingRuleId)?.pricePerKg.toFixed(2)}/kg
-                            </span>
-                            <span className="text-xs text-gray-400 italic">(follows preset)</span>
+                      {isSoldByWeight && (
+                        <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3 pl-6">
+                          {/* Selling preset */}
+                          <div>
+                            <label className="block text-xs font-medium text-green-700 dark:text-green-400 mb-1">🛒 Selling preset *</label>
+                            <select
+                              value={weightPricingRuleId}
+                              onChange={(e) => {
+                                const ruleId = e.target.value
+                                setWeightPricingRuleId(ruleId)
+                                if (ruleId) {
+                                  const rule = saleRules.find(r => r.id === ruleId)
+                                  if (rule) setPricePerKg(String(rule.pricePerKg))
+                                } else { setPricePerKg('') }
+                              }}
+                              className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                            >
+                              <option value="">None — enter manually</option>
+                              {saleRules.map(r => (
+                                <option key={r.id} value={r.id}>{r.emoji} {r.categoryName} — ${r.pricePerKg.toFixed(2)}/kg</option>
+                              ))}
+                            </select>
+                            {weightPricingRuleId ? (
+                              <div className="mt-1 flex items-center gap-1.5 text-xs">
+                                <span className="text-gray-500">Sell at</span>
+                                <span className="font-mono font-bold text-green-700 dark:text-green-300">
+                                  ${saleRules.find(r => r.id === weightPricingRuleId)?.pricePerKg.toFixed(2)}/kg
+                                </span>
+                                <span className="text-gray-400 italic">follows preset</span>
+                              </div>
+                            ) : (
+                              <div className="mt-1.5 flex items-center gap-2">
+                                <span className="text-xs text-gray-500">Manual price/kg:</span>
+                                <input type="number" min="0" step="0.01"
+                                  value={pricePerKg}
+                                  onChange={(e) => setPricePerKg(e.target.value)}
+                                  className="input-field w-24 py-1 text-sm font-mono"
+                                  placeholder="0.00" />
+                              </div>
+                            )}
+                            {saleRules.length === 0 && (
+                              <a href={`/restaurant/settings/pos?businessId=${businessId}`} className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1 block">
+                                ⚙️ Configure selling presets →
+                              </a>
+                            )}
                           </div>
-                        ) : (
-                          <label className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                              Price per kg:
-                            </span>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={pricePerKg}
-                              onChange={(e) => setPricePerKg(e.target.value)}
-                              className="input-field w-28 py-1 text-sm font-mono"
-                              placeholder="0.00"
-                            />
-                          </label>
-                        )}
 
-                        {saleRules.length === 0 && (
-                          <a
-                            href={`/restaurant/settings/pos?businessId=${businessId}`}
-                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                          >
-                            ⚙️ Configure selling presets →
-                          </a>
-                        )}
-                      </div>
-                    )}
+                          {/* Cost preset */}
+                          <div>
+                            <label className="block text-xs font-medium text-orange-700 dark:text-orange-400 mb-1">🚚 Cost per kg *</label>
+                            <select
+                              value={purchaseRuleId}
+                              onChange={(e) => {
+                                const ruleId = e.target.value
+                                setPurchaseRuleId(ruleId)
+                                if (ruleId) {
+                                  const rule = purchaseRules.find(r => r.id === ruleId)
+                                  if (rule) setPricePerKg(String(rule.pricePerKg))
+                                }
+                              }}
+                              className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                            >
+                              <option value="">Select vendor purchase preset…</option>
+                              {purchaseRules.map(r => (
+                                <option key={r.id} value={r.id}>{r.emoji} {r.categoryName} — ${r.pricePerKg.toFixed(2)}/kg</option>
+                              ))}
+                            </select>
+                            {purchaseRules.length === 0 && (
+                              <a href={`/restaurant/settings/pos?businessId=${businessId}`} className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1 block">
+                                ⚙️ Configure vendor purchase presets →
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <UniversalInventoryForm
@@ -901,6 +923,7 @@ function RestaurantInventoryContent() {
                     businessType="restaurant"
                     item={selectedItem}
                     onSubmit={handleFormSubmit}
+                    hideWeightBar
                     onCancel={() => {
                       setShowAddForm(false)
                       setSelectedItem(null)

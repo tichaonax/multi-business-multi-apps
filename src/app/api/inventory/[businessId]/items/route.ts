@@ -151,7 +151,7 @@ export async function GET(
     //   Note: Prisma comparison operators (lte/gt) silently exclude NULL, so null must be handled explicitly.
     if (priceFilter === 'with') {
       const withConditions = businessType === 'restaurant'
-        ? { basePrice: { gt: 0 } }
+        ? { OR: [{ basePrice: { gt: 0 } }, { isSoldByWeight: true }] }
         : { OR: [{ costPrice: { gt: 0 } }, { basePrice: { gt: 0 } }] }
 
       if (search) {
@@ -476,7 +476,8 @@ export async function POST(
 
     // Validate price is greater than 0 (except for WiFi promotional items)
     const isWiFiToken = body.attributes?.isWiFiToken === true || body.name?.toLowerCase().includes('wifi')
-    if (!isWiFiToken && (!basePrice || basePrice <= 0)) {
+    const isSoldByWeight = body.isSoldByWeight === true
+    if (!isWiFiToken && !isSoldByWeight && (!basePrice || basePrice <= 0)) {
       return NextResponse.json(
         { error: 'Product price must be greater than $0. Use discounts or promotions for price reductions.' },
         { status: 400 }

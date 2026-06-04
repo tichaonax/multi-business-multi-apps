@@ -1132,8 +1132,11 @@ export default function RestaurantPOS() {
           // Transform universal products to menu items format
           const items = data.data
             .filter((product: any) => {
-              // Only show available, active items with a valid price > 0
-              if (!product.isAvailable || !product.isActive) return false
+              // Exclude explicitly inactive or unavailable — treat null/undefined as available
+              if (product.isActive === false) return false
+              if (product.isAvailable === false) return false
+              // isSoldByWeight products don't need a basePrice (price = weight × pricePerKg)
+              if (product.isSoldByWeight) return !!product.resolvedPricePerKg || !!product.pricePerKg
               const price = Number(product.basePrice)
               return price > 0 && !isNaN(price)
             })
@@ -2709,6 +2712,7 @@ export default function RestaurantPOS() {
               return [...prev, { ...weightedItem, quantity: 1 }]
             })
             setWeighingItem(null)
+            tareScale()
           }}
         />
       )}
@@ -2943,18 +2947,24 @@ export default function RestaurantPOS() {
                     Tare
                   </button>
                 </div>
-                {/* SALE pricing rules */}
+                {/* Sell-by-weight product cards */}
                 <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                  <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Sale Pricing Rules</div>
-                  {scalePricingRules.length === 0 ? (
-                    <p className="text-xs text-gray-400 dark:text-gray-500 italic">No SALE pricing rules configured.</p>
+                  <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Tap to Weigh & Sell</div>
+                  {menuItems.filter((item: any) => item.isSoldByWeight && item.pricePerKg).length === 0 ? (
+                    <p className="text-xs text-gray-400 dark:text-gray-500 italic">No sell-by-weight products found.</p>
                   ) : (
-                    <div className="space-y-1">
-                      {scalePricingRules.map((rule: any) => (
-                        <div key={rule.id} className="flex items-center justify-between text-sm">
-                          <span>{rule.emoji} {rule.categoryName}</span>
-                          <span className="font-mono font-medium">${Number(rule.pricePerKg).toFixed(2)}/kg</span>
-                        </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {menuItems.filter((item: any) => item.isSoldByWeight && item.pricePerKg).map((item: any) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => addToCart(item)}
+                          className="flex flex-col items-center justify-center p-3 rounded-lg bg-white dark:bg-gray-700 border-2 border-blue-200 dark:border-blue-700 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors text-center"
+                        >
+                          <span className="text-lg mb-1">⚖️</span>
+                          <span className="text-xs font-semibold text-gray-800 dark:text-gray-100 leading-tight">{item.name}</span>
+                          <span className="text-xs text-blue-600 dark:text-blue-400 font-mono mt-0.5">${Number(item.pricePerKg).toFixed(2)}/kg</span>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -4374,7 +4384,7 @@ export default function RestaurantPOS() {
 
             <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
               {cart.map(item => (
-                <div key={item.id} className="border-b border-gray-100 dark:border-gray-700 pb-2 last:border-b-0">
+                <div key={`${item.id}_${item.name}`} className="border-b border-gray-100 dark:border-gray-700 pb-2 last:border-b-0">
                   <div className="flex justify-between items-center">
                     <div className="flex-1">
                       <div className="font-medium text-sm flex items-center gap-1.5">

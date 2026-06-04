@@ -341,13 +341,26 @@ function GroceryInventoryContent() {
       .catch(() => {})
   }, [businessId])
 
-  const handleItemEdit = (item: any) => {
+  const handleItemEdit = async (item: any) => {
+    setFormReady(false)
+    setShowAddForm(true)
+    // Fetch full detail so weight fields are included
+    try {
+      const res = await fetch(`/api/inventory/${businessId}/items/${item.id}`)
+      if (res.ok) {
+        const data = await res.json()
+        const full = data.data ?? item
+        setSelectedItem(full)
+        setIsSoldByWeight(full.isSoldByWeight ?? false)
+        setPricePerKg(full.pricePerKg != null ? String(full.pricePerKg) : '')
+        setWeightPricingRuleId(full.weightPricingRuleId ?? '')
+        return
+      }
+    } catch {}
     setSelectedItem(item)
-    setFormReady(false)  // reset until form signals categories are loaded
     setIsSoldByWeight(item.isSoldByWeight ?? false)
     setPricePerKg(item.pricePerKg != null ? String(item.pricePerKg) : '')
     setWeightPricingRuleId(item.weightPricingRuleId ?? '')
-    setShowAddForm(true)
   }
 
   const handleItemView = (item: any) => {
@@ -1003,6 +1016,7 @@ function GroceryInventoryContent() {
                     businessType="grocery"
                     item={selectedItem}
                     onSubmit={handleFormSubmit}
+                    hideWeightBar
                     onCancel={() => {
                       setShowAddForm(false)
                       setSelectedItem(null)

@@ -142,6 +142,7 @@ export async function GET(
           isActive: bc.isActive !== false,
           notes: bc.notes || null
         })),
+        isAvailable: (product as any).isAvailable ?? true,
         isInventoryTracked: (product as any).isInventoryTracked ?? false,
         isSoldByWeight: (product as any).isSoldByWeight ?? false,
         pricePerKg: (product as any).pricePerKg != null ? Number((product as any).pricePerKg) : null,
@@ -357,6 +358,7 @@ export async function PUT(
     if (body.sellPrice) updateData.basePrice = parseFloat(body.sellPrice) // Accept sellPrice for compatibility
     if (body.costPrice !== undefined) updateData.costPrice = body.costPrice ? parseFloat(body.costPrice) : null
     if (body.isActive !== undefined) updateData.isActive = body.isActive
+    if (body.isAvailable !== undefined) updateData.isAvailable = body.isAvailable
     if (body.attributes) updateData.attributes = body.attributes
     if (body.isInventoryTracked !== undefined) updateData.isInventoryTracked = body.isInventoryTracked
     if (body.isSoldByWeight !== undefined) updateData.isSoldByWeight = body.isSoldByWeight
@@ -373,7 +375,8 @@ export async function PUT(
                         existingProduct.name?.toLowerCase().includes('wifi') ||
                         updateData.name?.toLowerCase().includes('wifi')
 
-    if (!isWiFiToken && updateData.basePrice !== undefined && updateData.basePrice <= 0) {
+    const isSoldByWeight = updateData.isSoldByWeight ?? existingProduct.isSoldByWeight
+    if (!isWiFiToken && !isSoldByWeight && updateData.basePrice !== undefined && updateData.basePrice <= 0) {
       return NextResponse.json(
         { error: 'Product price must be greater than $0. Use discounts or promotions for price reductions.' },
         { status: 400 }

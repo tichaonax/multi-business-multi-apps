@@ -737,6 +737,12 @@ export function Sidebar() {
                     <span className="text-lg">📋</span>
                     <span>Menu Management</span>
                   </Link>
+                {(isSystemAdmin(currentUser) || hasPermission('canManageInventory')) && (
+                  <Link href="/restaurant/inventory" className={getLinkClasses('/restaurant/inventory')}>
+                    <span className="text-lg">📦</span>
+                    <span>Inventory</span>
+                  </Link>
+                )}
                 {/* Prep Inventory */}
                 {(isSystemAdmin(currentUser) || hasPermission('canManageInventory')) && (
                   <Link href="/restaurant/inventory/initialize" className={getLinkClasses('/restaurant/inventory/initialize')}>
