@@ -136,6 +136,7 @@
     - [Scale Status Panel — Live Weight Display](#scale-status-panel--live-weight-display)
     - [POS Settings — Scale & Weighing Tab](#pos-settings--scale--weighing-tab)
     - [Selling Presets — Setup](#selling-presets--setup)
+    - [Linking a Preset to a POS Menu Item](#linking-a-preset-to-a-pos-menu-item)
     - [Vendor Purchase Presets — Setup](#vendor-purchase-presets--setup)
     - [Marking a Product as Sold by Weight](#marking-a-product-as-sold-by-weight)
     - [Selling by Weight at the POS — Grocery](#selling-by-weight-at-the-pos--grocery)
@@ -6278,6 +6279,27 @@ Products marked as *Sell by Weight* open the **Weigh Item** modal when tapped �
 
 ---
 
+### Emoji Picker — How It Works
+
+Several fields throughout the system combine **auto-suggest** with a full **searchable emoji picker**. The same behaviour applies in Line Items (this section), Selling Presets and Vendor Purchase Presets in POS Settings (Section 53), and category editors throughout the system.
+
+**Auto-suggest (no click needed):**
+As you type a name or description, the system searches the expense taxonomy and auto-fills the emoji field after 350 ms. For example, typing *chicken* suggests 🍗, typing *fuel* suggests ⛽. You can accept the suggestion or override it at any time.
+
+**Manual selection — click the emoji button:**
+The emoji field is displayed as a large clickable button showing the current emoji. Clicking it expands an inline searchable picker:
+
+| Action | What happens |
+|--------|-------------|
+| **Click the emoji button** | Expands the picker below the button |
+| **Type a keyword** in the picker | Suggestions from the database appear (300 ms debounce) — most-used shown first with ⭐ |
+| **Paste any emoji** into the picker search box | Sets it immediately and closes the picker |
+| **Click any emoji** in the results grid | Sets that emoji and closes the picker |
+| **Click outside** the picker | Closes without changing the current emoji |
+| **Type in the name field** (after closing) | Auto-suggest re-activates for a new suggestion |
+
+---
+
 ### Quick Payment Modal
 
 The **Quick Payment** button appears on any expense account detail page. It opens a focused payment form directly on the account, without navigating away. This is the fastest way to record a payment from an account.
@@ -6409,6 +6431,24 @@ If the account is linked to a business that has active projects, a **Link to Pro
 - You can also **create a new project inline** directly from the dropdown without navigating away.
 
 The project link is also available in the **Edit Payment** modal, so you can assign or change a project on a payment that was already submitted.
+
+---
+
+#### Line Items (Optional Breakdown)
+
+Below the amount field, both the **Quick Payment** and **Edit Payment** modals include a **Line Items** section. Use it when a single payment covers multiple distinct expenses and you want an itemised breakdown on the receipt or for reporting.
+
+**Adding a line item:**
+
+1. In the **emoji field** (left side of the input row), type or paste an emoji to set it — or just start typing the item name and the emoji auto-suggests after a short pause (e.g. typing *beef* → 🥩, *fuel* → ⛽).
+2. In the **name field**, type a description or pick from the category dropdown that appears as you type (categories are loaded based on the domain/business selected above).
+3. Enter the **amount** for this line.
+4. Optionally add a **description** in the second row (e.g. invoice number, supplier reference) — indented below the name field.
+5. Click **Add** (or press **Enter** in the amount field).
+
+The item appears in the list below with its emoji, name, optional description, and amount. Repeat for each line. A running total is shown at the bottom.
+
+> **Tip:** Line items are entirely optional. If you don't add any, the payment is recorded as a single lump sum. If you do add them, the total of all line items should match (or be close to) the main payment amount.
 
 ---
 
@@ -10491,14 +10531,50 @@ Permission required: **Manage Business Settings** (Restaurant and Grocery only).
 **Adding a preset:**
 
 1. Click **+ Add selling preset**.
-2. Type an emoji icon (e.g. 🥩), a preset name (e.g. *Beef Mince*), and the **Price / kg**.
-3. Click **Add Preset**.
+2. Type the **Preset name** (e.g. *Beef Mince*). The Icon field auto-suggests an emoji as you type — it updates after a short pause.
+3. To change the auto-suggested icon, **click the emoji button** to expand the full searchable picker. Type a keyword or paste any emoji to override.
+4. Enter the **Price / kg**.
+5. Click **Add Preset**.
 
-The preset appears in the list with an **Active** toggle and a **"X items"** badge showing how many inventory products are linked to it.
+The preset appears in the list with:
+- An **Active** toggle — disable without deleting
+- A **"X items"** badge showing how many inventory products are currently linked
+- The emoji is editable inline — click any row's emoji to open the picker and change it
 
-**Editing:** Click the emoji cell to change the icon (inline edit, auto-saves on blur). Click the Active toggle to enable or disable without deleting. Click **Remove** to permanently delete.
+**Dynamic pricing:** Updating a preset's price instantly affects every inventory item linked to it — no product re-save needed.
 
-**Dynamic pricing:** Changing a preset's price instantly affects all inventory items linked to it — no need to re-save each product individually.
+---
+
+### Linking a Preset to a POS Menu Item
+
+A selling preset only does something at the POS when it is linked to an inventory product. Here is the full setup workflow:
+
+**Restaurant — creating a weight-priced menu item:**
+
+1. Go to **Restaurant → Inventory**.
+2. Click **Add Item** (or find an existing item and click **Edit**).
+3. Fill in the **product name** (e.g. *Grilled Chicken*, *Beef Mince*) and select a category.
+4. In the **amber "Sell by Weight" bar** above the form, tick **Sell by Weight (kg)**.
+5. In the **"Use preset"** dropdown, select the selling preset (e.g. *🍗 Grilled Chicken — $7.50/kg*).
+   - The bar shows **"Effective price: $7.50/kg (follows preset)"** — the price is always live from the preset.
+6. Click **Save**.
+
+**Grocery — same steps at Grocery → Inventory.**
+
+**What happens at the POS after linking:**
+
+- The product appears as a normal card in the POS product grid.
+- The price on the card shows **$X.XX/kg** (the preset price per kilogram) — not a fixed unit price — so cashiers always know the rate before weighing.
+- A small **⚖️ badge** in the corner confirms it is weight-priced.
+- Tapping the card opens the **Weigh Item** modal directly — no quantity prompt, just place on scale, lock weight, confirm.
+- The total is calculated as `weight (kg) × preset price` and added to the cart as `Product Name (X.XXX kg)`.
+
+> **$/kg display applies in both modes:** Desk Mode and Scan Mode in Grocery POS, and the standard Live POS grid in Restaurant POS.
+
+**Multiple products, one preset:**
+You can link many products to the same preset (e.g. *Prime Beef*, *Beef Offcuts*, and *Minced Beef* all linked to *🥩 Beef Mince — $8.50/kg*). Change the preset price once — all three update instantly.
+
+**No preset yet?** If you open Inventory before creating a preset, the amber bar shows a link **"⚙️ Configure selling presets →"** — click it, create the preset, then come back to finish linking.
 
 ---
 
@@ -10514,9 +10590,11 @@ Two sub-tabs: **🐄 Livestock** and **🥦 Goods** — choose based on what you
 
 1. Select the correct sub-tab (Livestock or Goods).
 2. Click **+ Add livestock / goods purchase preset**.
-3. Enter the category name and price per kg.
-4. For Livestock, click **🧮 Calculate $/kg from unit price** to derive the rate from a sample weighing (count × price/unit ÷ total weight).
-5. Click **Save Preset**.
+3. Type the **Category name** (e.g. *Whole Chicken*, *Offals*). The Icon auto-suggests as you type.
+4. To override the icon, **click the emoji button** to open the searchable picker.
+5. Enter the **Price / kg**.
+6. For Livestock, click **🧮 Calculate $/kg from unit price** to derive the rate from a sample weighing (count × price/unit ÷ total weight).
+7. Click **Save Preset**.
 
 Rules matched by category name in the livestock purchase wizard. If no match exists, the cashier can enter a custom price manually during the session.
 
@@ -10544,7 +10622,9 @@ Any **restaurant** or **grocery** inventory item can be flagged as "sold by weig
 
 5. Click **Save**.
 
-Once flagged, tapping the product card at the POS opens the **Weigh Item** modal instead of adding directly to the cart. Product cards for weight-priced items show a small **⚖️** badge so cashiers can identify them at a glance.
+Once flagged, tapping the product card at the POS opens the **Weigh Item** modal instead of adding directly to the cart. Product cards for weight-priced items show:
+- The price as **$X.XX/kg** (preset rate) instead of a fixed unit price
+- A small **⚖️** badge in the corner so cashiers can identify them at a glance
 
 > **No presets yet?** A link **"⚙️ Configure selling presets →"** appears in the amber bar. Click it to go directly to POS Settings and create your first preset, then come back to link it.
 
