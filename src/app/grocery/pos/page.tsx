@@ -41,6 +41,8 @@ import { AddStockPanel } from '@/components/clothing/add-stock-panel'
 import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 import { SalespersonEodModal } from '@/components/eod/salesperson-eod-modal'
 import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
+import { useScale } from '@/contexts/ScaleContext'
+import { WeighItemModal } from '@/components/pos/WeighItemModal'
 
 interface POSItem {
   id: string
@@ -68,6 +70,8 @@ interface POSItem {
   subcategoryEmoji?: string
   domainEmoji?: string
   isExpiryDiscount?: boolean
+  isSoldByWeight?: boolean
+  pricePerKg?: number
 }
 
 interface CartItem extends POSItem {
@@ -125,11 +129,12 @@ function GroceryPOSContent() {
   const [weightInput, setWeightInput] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'snap' | 'loyalty' | 'ecocash'>('cash')
   const [ecocashTxCode, setEcocashTxCode] = useState('')
-  const [isScaleConnected, setIsScaleConnected] = useState(true)
-  const [currentWeight, setCurrentWeight] = useState(0)
+  const { weight: scaleWeightData, isConnected: isScaleConnected, tare: tareScale } = useScale()
+  const currentWeight = scaleWeightData?.weight ?? 0
   const [showCustomerLookup, setShowCustomerLookup] = useState(false)
   const [posMode, setPosMode] = useState<'live' | 'manual'>('live')
   const [scaleVisible, setScaleVisible] = useState(false)
+  const [weighingItem, setWeighingItem] = useState<POSItem | null>(null)
   const [deskMode, setDeskMode] = useState(true)
   // EOD gate state (Phase 4 / Phase 8)
   const [eodGate, setEodGate] = useState<{
@@ -782,7 +787,9 @@ function GroceryPOSContent() {
                     snapEligible: product.attributes?.snapEligible || false,
                     organicCertified: product.attributes?.organicCertified || false,
                     loyaltyPoints: product.attributes?.loyaltyPoints || 0,
-                    imageUrl: imageUrl  // Product image for customer display
+                    imageUrl: imageUrl,
+                    isSoldByWeight: product.isSoldByWeight ?? false,
+                    pricePerKg: product.pricePerKg != null ? Number(product.pricePerKg) : undefined,
                   })
                 })
               } else {
@@ -802,7 +809,9 @@ function GroceryPOSContent() {
                   snapEligible: product.attributes?.snapEligible || false,
                   organicCertified: product.attributes?.organicCertified || false,
                   loyaltyPoints: product.attributes?.loyaltyPoints || 0,
-                  imageUrl: imageUrl  // Product image for customer display
+                  imageUrl: imageUrl,
+                  isSoldByWeight: product.isSoldByWeight ?? false,
+                  pricePerKg: product.pricePerKg != null ? Number(product.pricePerKg) : undefined,
                 })
               }
             })
@@ -1228,17 +1237,6 @@ function GroceryPOSContent() {
     preferredPaymentMethod: 'card'
   }
 
-  // Simulate scale weight updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (isScaleConnected) {
-        // Simulate slight weight fluctuations
-        setCurrentWeight(prev => prev + (Math.random() - 0.5) * 0.1)
-      }
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [isScaleConnected])
 
   // Load daily sales (today + yesterday + day before for comparison)
   const loadDailySales = async () => {
@@ -1433,7 +1431,6 @@ function GroceryPOSContent() {
     setBarcodeInput('')
     setPluInput('')
     setWeightInput('')
-    setCurrentWeight(0)
   }
 
   // Add inventory item (BarcodeInventoryItem from Add Stock) to cart
@@ -2555,6 +2552,28 @@ function GroceryPOSContent() {
         />
       )}
 
+      {/* Weigh Item Modal — for isSoldByWeight products */}
+      {weighingItem && weighingItem.pricePerKg && (
+        <WeighItemModal
+          itemName={weighingItem.name}
+          pricePerKg={weighingItem.pricePerKg}
+          onConfirm={(weightKg, totalPrice) => {
+            const weightedItem = {
+              ...weighingItem,
+              price: totalPrice,
+              name: `${weighingItem.name} (${weightKg.toFixed(3)} kg)`,
+            }
+            setCart(prev => {
+              const newCart = [...prev, { ...weightedItem, quantity: 1, subtotal: totalPrice }]
+              broadcastCartState(newCart)
+              return newCart
+            })
+            setWeighingItem(null)
+          }}
+          onCancel={() => setWeighingItem(null)}
+        />
+      )}
+
       {/* EOD blocking overlay — salesperson must submit prior-day report before selling */}
       {eodGate?.hasPending && currentBusinessId && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-4">
@@ -3018,31 +3037,26 @@ function GroceryPOSContent() {
               </div>
             </div>
 
-            {/* Scale Display — shown only when toggled on and not in desk mode */}
-            {!deskMode && scaleVisible && (
+            {/* Scale Display — shown when toggled on in any mode */}
+            {scaleVisible && (
               <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-lg">⚖️</span>
-                    <span className="font-medium">Digital Scale</span>
+                    <span className="font-medium">Scale</span>
                     <span className={`inline-block w-2 h-2 rounded-full ${isScaleConnected ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                    <span className="text-xs text-gray-500">{isScaleConnected ? 'Connected' : 'Disconnected'}</span>
                   </div>
                   <div className="text-2xl font-mono font-bold min-w-[80px] text-right">
-                    {currentWeight.toFixed(2)} lbs
+                    {currentWeight.toFixed(3)} kg
                   </div>
                 </div>
-                <div className="mt-2 flex flex-col xs:flex-row gap-2">
+                <div className="mt-2">
                   <button
-                    onClick={() => setCurrentWeight(0)}
-                    className="w-full xs:w-auto px-3 py-2 bg-gray-600 text-white rounded text-sm"
+                    onClick={tareScale}
+                    className="px-3 py-2 bg-gray-600 text-white rounded text-sm"
                   >
                     Tare
-                  </button>
-                  <button
-                    onClick={() => setCurrentWeight(Math.random() * 5 + 0.1)}
-                    className="w-full xs:w-auto px-3 py-2 bg-blue-600 text-white rounded text-sm"
-                  >
-                    Simulate Weight
                   </button>
                 </div>
               </div>
@@ -3300,10 +3314,15 @@ function GroceryPOSContent() {
                     return (
                   <div
                     key={product.id}
-                    onClick={isOutOfStock ? undefined : () => product.weightRequired ?
-                      (currentWeight > 0 ? addToCart(product, 1, currentWeight) : void customAlert({ title: 'Weigh item', description: 'Please weigh item first' })) :
-                      addToCart(product)
-                    }
+                    onClick={isOutOfStock ? undefined : () => {
+                      if (product.isSoldByWeight && product.pricePerKg) {
+                        setWeighingItem(product)
+                      } else if (product.weightRequired) {
+                        currentWeight > 0 ? addToCart(product, 1, currentWeight) : void customAlert({ title: 'Weigh item', description: 'Please weigh item first' })
+                      } else {
+                        addToCart(product)
+                      }
+                    }}
                     className={`relative bg-gray-100 dark:bg-gray-800 border rounded-lg text-sm text-primary min-w-0 select-none ${
                       isOutOfStock
                         ? 'opacity-50 cursor-not-allowed'

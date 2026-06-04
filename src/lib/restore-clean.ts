@@ -521,8 +521,8 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   // Warehouse Order Refs: composite unique on (orderNumber, trackingNumber)
   'warehouseOrderRefs': { fields: ['orderNumber', 'trackingNumber'] },
 
-  // Weight Pricing Rules: composite unique on (businessId, categoryName, ruleType)
-  'weightPricingRules': { fields: ['businessId', 'categoryName', 'ruleType'] },
+  // Weight Pricing Rules: composite unique on (businessId, categoryName, ruleType, purchaseType)
+  'weightPricingRules': { fields: ['businessId', 'categoryName', 'ruleType', 'purchaseType'] },
 
   // Policy Management: composite unique constraints
   'policyVersions': { fields: ['policyId', 'version'] },             // @@unique([policyId, version])

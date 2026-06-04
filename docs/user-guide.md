@@ -133,9 +133,11 @@
     - [Restore Progress & Warnings](#restore-progress--warnings)
 53. [Scale Integration — Star Micronics MG-S8200](#53-scale-integration--star-micronics-mg-s8200)
     - [Connecting the Scale](#connecting-the-scale)
+    - [Scale Status Panel — Live Weight Display](#scale-status-panel--live-weight-display)
     - [Weight Pricing Rules](#weight-pricing-rules)
     - [Marking a Product as Sold by Weight](#marking-a-product-as-sold-by-weight)
-    - [Selling by Weight at the POS](#selling-by-weight-at-the-pos)
+    - [Selling by Weight at the POS — Grocery](#selling-by-weight-at-the-pos--grocery)
+    - [Selling by Weight at the POS — Restaurant](#selling-by-weight-at-the-pos--restaurant)
     - [Livestock Purchase Workflow](#livestock-purchase-workflow)
 
 ---
@@ -6255,6 +6257,19 @@ Adding items to the cart in Desk Mode works identically to Scan Mode — click a
 
 ---
 
+### Scale in Desk Mode
+
+The **⚖️ Scale** toggle button in the top bar works in **both Desk Mode and Scan Mode**. Click it to show or hide the live scale reading panel below the toolbar.
+
+When the panel is visible it shows:
+- Green / red dot — scale connected or disconnected
+- Live weight in **kg** (3 decimal places, e.g. `1.350 kg`)
+- **Tare** button — zeros the scale (remove all items first, then tare)
+
+Products marked as *Sell by Weight* open the **Weigh Item** modal when tapped — regardless of whether Desk Mode is on or off. See [Section 53 — Scale Integration](#53-scale-integration--star-micronics-mg-s8200) for the full weighing workflow.
+
+---
+
 ## 22. Expense Account — Quick Payment & My Payment Queue
 
 > **Who reads this:** Managers and cashiers who process expense payments. Covers the Quick Payment modal and the My Payment Queue panel on the account detail page.
@@ -10423,6 +10438,31 @@ The scale service auto-reconnects every 5 seconds if the cable is briefly discon
 
 ---
 
+### Scale Status Panel — Live Weight Display
+
+Both the **Grocery POS** and the **Restaurant POS** have a built-in scale status panel accessible directly from the POS toolbar — no need to open POS Settings just to check the weight or tare.
+
+**Showing the panel:**
+
+Click the **⚖️ Scale** button in the top bar of the Grocery or Restaurant POS. Click it again to hide the panel. Your preference is remembered per business.
+
+**What the panel shows:**
+
+| Element | Description |
+|---------|-------------|
+| Dot (green / red) | Scale connected or disconnected |
+| **Connected / Disconnected** label | Confirms hardware status at a glance |
+| Weight reading | Live weight in kg to 3 decimal places (e.g. `1.350 kg`) |
+| **Tare** button | Zeros the scale — remove all items first, then press Tare |
+
+**Grocery POS:** The panel is visible in both **Scan Mode** and **Desk Mode** — use it whenever the scale is in use regardless of which mode you are in.
+
+**Restaurant POS:** The panel sits alongside the Live POS / Manual Entry / Meal Program mode selector in the top area of the POS.
+
+> This panel is for monitoring weight and performing a quick tare. To connect the scale or change the COM port, go to **⚙️ POS Settings → Scale**.
+
+---
+
 ### Weight Pricing Rules
 
 Weight pricing rules define the price per kilogram for each animal or product category. They are stored per business and are used by both the livestock purchase workflow and the POS weigh-item flow.
@@ -10449,27 +10489,35 @@ Rules are matched by category name. If no matching rule exists, the cashier can 
 
 ### Marking a Product as Sold by Weight
 
-Any restaurant or grocery inventory item can be flagged as "sold by weight". When a customer buys that item at the POS the cashier is prompted to place it on the scale instead of entering a quantity manually.
+Any **restaurant** or **grocery** inventory item can be flagged as "sold by weight". When a customer buys that item at the POS the cashier is prompted to place it on the scale — the total price is calculated automatically from the weight and the price per kg.
 
-**Steps:**
+**Grocery Inventory:**
 
-1. Go to **Restaurant → Inventory** (or **Grocery → Inventory**).
+1. Go to **Grocery → Inventory**.
 2. Find the product and click **Edit**.
-3. In the amber bar above the form, tick **Sell by Weight (kg)**.
+3. In the **amber bar** at the top of the form, tick **Sell by Weight (kg)**.
 4. Enter the **Price per kg** in the field that appears.
-5. Save the form.
+5. Click **Save**.
+
+**Restaurant Inventory:**
+
+1. Go to **Restaurant → Inventory**.
+2. Find the menu item and click **Edit**.
+3. In the **amber bar** at the top of the form, tick **Sell by Weight (kg)**.
+4. Enter the **Price per kg** in the field that appears.
+5. Click **Save**.
 
 Once flagged, tapping the product card at the POS opens the **Weigh Item** modal instead of adding directly to the cart.
 
 ---
 
-### Selling by Weight at the POS
+### Selling by Weight at the POS — Grocery
 
-When a cashier taps a product marked as *sold by weight*, the Weigh Item modal opens automatically.
+In the Grocery POS, tapping a product card that is marked *Sell by Weight* opens the **Weigh Item** modal automatically — in both Scan Mode and Desk Mode.
 
 **Workflow:**
 
-1. Place the item on the scale (tare the container first if needed).
+1. Place the item on the scale (tare the container first if needed — use the **⚖️ Scale** panel or the Tare button inside the modal).
 2. The modal displays the live reading in large digits:
    - **UNSTABLE** (amber) — the scale is still settling; wait.
    - **STABLE** (green) — the reading has settled. The calculated total appears.
@@ -10478,7 +10526,7 @@ When a cashier taps a product marked as *sold by weight*, the Weigh Item modal o
 5. Click **Tare** to zero the scale (e.g. to remove packaging weight).
 6. Click **Add to Cart** once you are satisfied with the weight and price.
 
-The cart item is added as `Product Name (X.XXX kg)` with the total price pre-calculated (not unit price × quantity).
+The cart item is added as `Product Name (X.XXX kg)` with the total price pre-calculated (weight × price per kg).
 
 | Control | Action |
 |---------|--------|
@@ -10487,7 +10535,19 @@ The cart item is added as `Product Name (X.XXX kg)` with the total price pre-cal
 | **Add to Cart** | Disabled until a stable, positive weight is locked |
 | **Cancel** | Closes the modal without adding anything to the cart |
 
-> **No scale connected?** The modal shows "Scale not connected" and Add to Cart is disabled. Go to POS Settings → Scale to connect.
+> **No scale connected?** The modal shows "Scale not connected" and Add to Cart is disabled. Go to **⚙️ POS Settings → Scale** to connect the hardware first.
+
+---
+
+### Selling by Weight at the POS — Restaurant
+
+The Restaurant POS has the same **Weigh Item** modal behaviour for menu items flagged as *Sell by Weight*. Tap a product card in the Live POS view — if the item has `isSoldByWeight` enabled, the modal opens instead of adding directly to the cart.
+
+You can also monitor the scale reading at any time using the **⚖️ Scale** toggle button next to the Live / Manual / Meal Program mode switcher (see [Scale Status Panel](#scale-status-panel--live-weight-display) above).
+
+**Workflow:** identical to Grocery above — place item, wait for STABLE, review LOCKED reading, click **Add to Cart**.
+
+> **No scale connected?** The modal shows "Scale not connected" and Add to Cart is disabled. Go to **⚙️ POS Settings → Scale** to connect. For the livestock purchase vendor workflow a manual weight entry field appears automatically when the scale is offline — see [Scale Offline — Manual Weight Entry](#scale-offline--manual-weight-entry).
 
 ---
 
@@ -10519,11 +10579,12 @@ Use this when a vendor brings live animals to the premises and you need to weigh
 For each category of animals (e.g. whole chickens first, then offals):
 
 1. Place the animals on the scale and wait for **STABLE** — the weight auto-locks.
+   > **Scale offline?** If the scale is not connected, a **"Scale offline — enter weight manually (kg)"** input field appears below the weight display. Type the weight you read from the physical scale and the workflow continues as normal. The weight box shows the value in purple with a **MANUAL** badge so it is clear the reading was entered by hand. See [Scale Offline — Manual Weight Entry](#scale-offline--manual-weight-entry) below.
 2. Select the **Category** from the dropdown. The matching purchase price per kg fills in automatically.
    - Choose *Other (custom)* to type a category name and enter the price manually.
 3. Adjust the price if needed.
 4. Add optional notes.
-5. Click **+ Add Line**. The line appears in the table and the running total updates.
+5. Click **+ Add Line**. The line appears in the table and the running total updates. The manual weight field clears automatically so you are ready for the next item.
 6. Click **Re-weigh** to unlock for the next group of animals.
 
 Repeat for every category. To remove a mistaken line, click the **×** on that row.
@@ -10542,6 +10603,30 @@ Repeat for every category. To remove a mistaken line, click the **×** on that r
 The printed voucher shows: business name, date, vendor name, each line (category / kg / $/kg / total), and the grand total. Hand it to the vendor — the cashier completes the cash payment through the normal expense approval process.
 
 **Cancelling a session:** Click **Cancel** (bottom-left of the wizard). No expense payment is created and the session is marked CANCELLED.
+
+---
+
+#### Scale Offline — Manual Weight Entry
+
+If the scale cable is unplugged, the COM port is unavailable, or the integration is not working, you do not need to abandon the session. The livestock purchase wizard detects the disconnection automatically and shows a manual fallback:
+
+| What you see | What it means |
+|---|---|
+| Grey dot · *Scale not connected* | The scale driver has lost the connection |
+| **"Scale offline — enter weight manually (kg)"** field | Type the kg value you can read on the physical scale display |
+| Weight box with purple **MANUAL** badge | The entered weight is in use — proceed normally |
+
+**Using the manual field:**
+
+1. Read the weight from the physical scale display.
+2. Type the value into the **Enter weight manually** field (e.g. `2.450`).
+3. The weight box updates immediately — the total preview appears as normal.
+4. Select a category, set the price, and click **+ Add Line**.
+5. The manual weight field clears after each line so you can type the next weight.
+
+> **When the scale reconnects** the manual field disappears and live weight reading resumes automatically. Any value you had typed is discarded to prevent it overriding a real scale reading.
+
+> **Audit note:** Lines added with a manual weight are indistinguishable from lines added via the scale in the submitted session data. Accuracy is the responsibility of the person reading the physical display.
 
 ---
 

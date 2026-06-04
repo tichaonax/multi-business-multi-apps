@@ -119,6 +119,9 @@ export function LivestockPurchaseWizard({ businessId, businessType, purchaseType
   // After adding a line, wait for the scale to go near-zero before auto-locking the next item
   const [waitingForScaleEmpty, setWaitingForScaleEmpty] = useState(false)
 
+  // Manual weight entry — used when scale is not connected
+  const [manualWeightInput, setManualWeightInput] = useState('')
+
   // Vendor profiles + history
   const [vendorProfiles, setVendorProfiles] = useState<VendorProfile[]>([])
   const [vendorHistory, setVendorHistory] = useState<VendorHistoryItem[]>([])
@@ -158,7 +161,10 @@ export function LivestockPurchaseWizard({ businessId, businessType, purchaseType
     (r) => r.categoryName === categoryName && r.ruleType === 'PURCHASE' && r.isActive
   )
   const pricePerKg = customPricePerKg ? parseFloat(customPricePerKg) : Number(matchedRule?.pricePerKg ?? 0)
-  const displayWeight = lockedWeight ?? liveWeight
+  const manualWeightValue = !connected && manualWeightInput !== '' && parseFloat(manualWeightInput) > 0
+    ? parseFloat(manualWeightInput)
+    : null
+  const displayWeight = lockedWeight ?? liveWeight ?? manualWeightValue
   const lineTotal = displayWeight != null && pricePerKg > 0 ? displayWeight * pricePerKg : null
 
   // Broadcast live session state to customer display
@@ -198,6 +204,11 @@ export function LivestockPurchaseWizard({ businessId, businessType, purchaseType
       .then((data) => setPricingRules(Array.isArray(data) ? data : []))
       .catch(() => {})
   }, [businessId, businessType, purchaseType])
+
+  // Clear manual weight when scale reconnects
+  useEffect(() => {
+    if (connected) setManualWeightInput('')
+  }, [connected])
 
   // Auto-lock stable reading — but only after scale has been cleared between items
   useEffect(() => {
@@ -332,6 +343,7 @@ export function LivestockPurchaseWizard({ businessId, businessType, purchaseType
       setCustomCategory('')
       setCustomPricePerKg('')
       setLineNotes('')
+      setManualWeightInput('')
     } finally {
       setAddingLine(false)
     }
@@ -594,14 +606,15 @@ export function LivestockPurchaseWizard({ businessId, businessType, purchaseType
           {/* Live weight */}
           <div className="rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-center">
             <div className="text-3xl font-mono font-bold text-gray-900 dark:text-gray-100">
-              {lockedWeight != null ? `${lockedWeight.toFixed(3)} kg` : liveWeight != null ? `${liveWeight.toFixed(3)} kg` : '— kg'}
+              {lockedWeight != null ? `${lockedWeight.toFixed(3)} kg` : liveWeight != null ? `${liveWeight.toFixed(3)} kg` : manualWeightValue != null ? `${manualWeightValue.toFixed(3)} kg` : '— kg'}
             </div>
             <div className={`mt-1 text-xs font-medium ${
               lockedWeight != null ? 'text-blue-600 dark:text-blue-400'
+              : manualWeightValue != null ? 'text-purple-600 dark:text-purple-400'
               : weight?.stable ? 'text-green-600 dark:text-green-400'
               : 'text-amber-500'
             }`}>
-              {lockedWeight != null ? 'LOCKED' : weight?.stable ? 'STABLE' : connected ? 'UNSTABLE' : 'NO SCALE'}
+              {lockedWeight != null ? 'LOCKED' : manualWeightValue != null ? 'MANUAL' : weight?.stable ? 'STABLE' : connected ? 'UNSTABLE' : 'NO SCALE'}
             </div>
           </div>
 
@@ -609,6 +622,23 @@ export function LivestockPurchaseWizard({ businessId, businessType, purchaseType
             <button onClick={() => { setLockedWeight(null); setWaitingForScaleEmpty(false) }} className="w-full text-xs text-amber-600 dark:text-amber-400 hover:underline">
               Re-weigh (clear lock)
             </button>
+          )}
+
+          {!connected && lockedWeight == null && (
+            <div className="space-y-1">
+              <label className="block text-xs text-gray-500 dark:text-gray-400">
+                Scale offline — enter weight manually (kg)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.001"
+                value={manualWeightInput}
+                onChange={(e) => setManualWeightInput(e.target.value)}
+                placeholder="e.g. 2.450"
+                className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono"
+              />
+            </div>
           )}
 
           {/* Quick-add chips */}

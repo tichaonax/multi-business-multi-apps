@@ -54,6 +54,7 @@ import { generateBarcodeEscPos } from '@/lib/printing/card-print-utils'
 import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
 import { generateWifiFlierPdf, WifiFlierData } from '@/lib/wifi-flier-pdf'
 import { WeighItemModal } from '@/components/pos/WeighItemModal'
+import { useScale } from '@/contexts/ScaleContext'
 
 interface MenuItem {
   id: string
@@ -151,6 +152,8 @@ export default function RestaurantPOS() {
   const [wifiFlierPrinting, setWifiFlierPrinting] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [posMode, setPosMode] = useState<'live' | 'manual' | 'meal_program'>('live')
+  const [scaleVisible, setScaleVisible] = useState(false)
+  const { weight: scaleWeight, isConnected: isScaleConnected, tare: tareScale } = useScale()
   const [manualCart, setManualCart] = useState<ManualCartItem[]>([])
   const [manualSuccessActive, setManualSuccessActive] = useState(false)
   const [manualResetTrigger, setManualResetTrigger] = useState(0)
@@ -2857,8 +2860,9 @@ export default function RestaurantPOS() {
               </div>
             </div>
 
-            {/* Live / Manual Entry Mode Toggle */}
+            {/* Live / Manual Entry Mode Toggle + Scale Toggle */}
             {(isAdmin || hasPermission('canEnterManualOrders')) && (
+              <div className="flex items-center gap-2 flex-wrap">
               <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">
                 <button
                   onClick={() => setPosMode('live')}
@@ -2890,6 +2894,43 @@ export default function RestaurantPOS() {
                 >
                   🍱 Meal Program
                 </button>
+              </div>
+              <button
+                onClick={() => setScaleVisible(v => !v)}
+                title={scaleVisible ? 'Hide scale' : 'Show scale'}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                  scaleVisible
+                    ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
+                    : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-400'
+                }`}
+              >
+                ⚖️ Scale
+              </button>
+              </div>
+            )}
+
+            {/* Scale panel */}
+            {scaleVisible && (
+              <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">⚖️</span>
+                    <span className="font-medium text-sm">Scale</span>
+                    <span className={`inline-block w-2 h-2 rounded-full ${isScaleConnected ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                    <span className="text-xs text-gray-500">{isScaleConnected ? 'Connected' : 'Disconnected'}</span>
+                  </div>
+                  <div className="text-2xl font-mono font-bold min-w-[80px] text-right">
+                    {scaleWeight ? scaleWeight.weight.toFixed(3) : '0.000'} kg
+                  </div>
+                </div>
+                <div className="mt-2">
+                  <button
+                    onClick={tareScale}
+                    className="px-3 py-2 bg-gray-600 text-white rounded text-sm"
+                  >
+                    Tare
+                  </button>
+                </div>
               </div>
             )}
 

@@ -1107,7 +1107,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
       if (r.isExistingItem && r.currentStock !== null && r.currentStock > 0 && (r.physicalCount === '' || Number(r.physicalCount) === 0)) bad.add('physicalCount')
       if (!r.isFreeItem && !r.isExistingItem && Number(r.sellingPrice) <= 0) bad.add('sellingPrice')
       if (!r.isFreeItem && r.isExistingItem && (!r.sellingPrice || Number(r.sellingPrice) < 0)) bad.add('sellingPrice')
-      if (!r.isFreeItem && (!r.costPrice || Number(r.costPrice) <= 0)) bad.add('costPrice')
+      if (!r.isFreeItem && !r.isExistingItem && (!r.costPrice || Number(r.costPrice) <= 0)) bad.add('costPrice')
       if (bad.size > 0) fieldErrorMap[r.rowId] = bad
     })
     if (Object.keys(fieldErrorMap).length > 0) {

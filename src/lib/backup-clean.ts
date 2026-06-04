@@ -1462,13 +1462,20 @@ export async function createCleanBackup(
     : []
   businessData.warehouseReferenceLocks = await (prisma.$queryRaw`SELECT * FROM warehouse_reference_locks` as Promise<any[]>)
   businessData.warehouseOrderRefs = await (prisma.$queryRaw`SELECT * FROM warehouse_order_refs` as Promise<any[]>)
-  businessData.weightPricingRules = await (prisma.$queryRaw`SELECT * FROM weight_pricing_rules WHERE "businessId" = ${businessId}` as Promise<any[]>)
-  businessData.livestockPurchaseSessions = await (prisma.$queryRaw`SELECT * FROM livestock_purchase_sessions WHERE "businessId" = ${businessId}` as Promise<any[]>)
+  const scaleBusinessFilter = businessId ? { businessId: { in: businessIds } } : {}
+  businessData.weightPricingRules = await (prisma as any).weightPricingRules.findMany({
+    where: scaleBusinessFilter
+  })
+  businessData.livestockPurchaseSessions = await (prisma as any).livestockPurchaseSessions.findMany({
+    where: scaleBusinessFilter
+  })
   const sessionIds: string[] = (businessData.livestockPurchaseSessions as any[]).map((s: any) => s.id)
   businessData.livestockPurchaseLines = sessionIds.length > 0
-    ? await (prisma.$queryRaw`SELECT * FROM livestock_purchase_lines WHERE "sessionId" = ANY(${sessionIds}::text[])` as Promise<any[]>)
+    ? await (prisma as any).livestockPurchaseLines.findMany({ where: { sessionId: { in: sessionIds } } })
     : []
-  businessData.livestockVendorProfiles = await (prisma.$queryRaw`SELECT * FROM livestock_vendor_profiles WHERE "businessId" = ${businessId}` as Promise<any[]>)
+  businessData.livestockVendorProfiles = await (prisma as any).livestockVendorProfiles.findMany({
+    where: scaleBusinessFilter
+  })
 
   // Extend image backup: include warehouse item images + product_images imageId refs
   const warehouseImageIds = businessData.warehouseItems
@@ -1552,7 +1559,7 @@ export async function createCleanBackup(
       deviceRecords,
       uncompressedSize
     },
-    schemaVersion: '6.31.0',
+    schemaVersion: '6.32.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum
