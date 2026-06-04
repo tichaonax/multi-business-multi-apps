@@ -3877,7 +3877,10 @@ export default function RestaurantPOS() {
                         {/* Left column: price on top, sold badge below */}
                         <div className="flex flex-col justify-between">
                           <p className={`text-sm sm:text-base font-bold leading-tight ${hasDiscount ? 'text-red-500' : 'text-sky-400 dark:text-sky-300'}`}>
-                            ${Number(item.price).toFixed(2)}
+                            {(item as any).isSoldByWeight && (item as any).pricePerKg
+                              ? <>${Number((item as any).pricePerKg).toFixed(2)}<span className="text-xs font-normal opacity-70">/kg</span></>
+                              : <>${Number(item.price).toFixed(2)}</>
+                            }
                             {hasDiscount && (
                               <span className="ml-1 text-xs text-secondary line-through font-normal">
                                 ${Number(item.originalPrice || 0).toFixed(2)}
@@ -3900,7 +3903,10 @@ export default function RestaurantPOS() {
                     ) : (
                       <div className="flex items-center gap-1 mt-1">
                         <p className={`text-sm sm:text-base font-bold ${hasDiscount ? 'text-red-500' : 'text-sky-400 dark:text-sky-300'}`}>
-                          ${Number(item.price).toFixed(2)}
+                          {(item as any).isSoldByWeight && (item as any).pricePerKg
+                            ? <>${Number((item as any).pricePerKg).toFixed(2)}<span className="text-xs font-normal opacity-70">/kg</span></>
+                            : <>${Number(item.price).toFixed(2)}</>
+                          }
                         </p>
                         {hasDiscount && (
                           <p className="text-xs text-secondary line-through">

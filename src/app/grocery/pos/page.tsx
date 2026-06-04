@@ -3435,7 +3435,12 @@ function GroceryPOSContent() {
                         <div className="mt-1 space-y-1">
                           {/* Price + sold badge + revenue */}
                           <div className="flex items-center justify-between gap-1 flex-wrap">
-                            <span className="font-semibold text-green-700 dark:text-green-300 text-sm bg-green-100 dark:bg-green-950/60 px-1.5 py-0.5 rounded-md">{formatCurrency(product.price)}/{product.unit}</span>
+                            <span className="font-semibold text-green-700 dark:text-green-300 text-sm bg-green-100 dark:bg-green-950/60 px-1.5 py-0.5 rounded-md">
+                              {product.isSoldByWeight && product.pricePerKg
+                                ? <>{formatCurrency(product.pricePerKg)}<span className="text-xs font-normal opacity-70">/kg</span></>
+                                : <>{formatCurrency(product.price)}/{product.unit}</>
+                              }
+                            </span>
                             {showBar && canSeeSoldCount && (
                               <div className="flex items-center gap-1">
                                 <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300">
@@ -3486,7 +3491,10 @@ function GroceryPOSContent() {
                     {/* Compact mode price — also shown for WiFi tokens in desk mode (they skip the stats block) */}
                     {(!deskMode || (product as any).wifiToken || (product as any).r710Token) && (
                       <div className="font-semibold text-green-600">
-                        {formatCurrency(product.price)}/{product.unit}
+                        {product.isSoldByWeight && product.pricePerKg
+                          ? <>{formatCurrency(product.pricePerKg)}<span className="text-xs font-normal opacity-70">/kg</span></>
+                          : <>{formatCurrency(product.price)}/{product.unit}</>
+                        }
                       </div>
                     )}
                     {/* WiFi token details - Duration and Bandwidth (ESP32 only) */}

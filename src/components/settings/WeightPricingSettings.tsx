@@ -1,6 +1,40 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { EmojiPickerEnhanced } from '@/components/business/emoji-picker-enhanced'
+
+// Small reusable: auto-suggest input + expandable EmojiPickerEnhanced
+function EmojiAutoField({
+  value, onChange, label
+}: { value: string; onChange: (e: string, manual: boolean) => void; label?: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div>
+      {label && (
+        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+          {label} <span className="text-gray-400 font-normal">(auto-suggested)</span>
+        </label>
+      )}
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        title={open ? 'Close picker' : 'Click to search & select emoji'}
+        className="text-2xl w-14 h-10 flex items-center justify-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 hover:border-blue-400 transition-colors"
+      >
+        {value}
+      </button>
+      {open && (
+        <div className="mt-2 border border-blue-300 dark:border-blue-700 rounded-lg bg-white dark:bg-gray-800 p-3 w-80">
+          <EmojiPickerEnhanced
+            selectedEmoji={value}
+            onSelect={e => { onChange(e, true); setOpen(false) }}
+            searchPlaceholder="Search or paste emoji…"
+          />
+        </div>
+      )}
+    </div>
+  )
+}
 
 type PurchaseType = 'LIVESTOCK' | 'GOODS'
 
@@ -41,6 +75,12 @@ export function WeightPricingSettings({ businessId, section }: Props) {
   const [newName, setNewName] = useState('')
   const [newPrice, setNewPrice] = useState('')
   const [newEmoji, setNewEmoji] = useState('📦')
+  // Track whether user manually edited the emoji — stops auto-suggest if true
+  const emojiUserEdited = useRef(false)
+
+  // Inline emoji picker state for existing rows
+  const [openEmojiRowId, setOpenEmojiRowId] = useState<string | null>(null)
+  const emojiPopoverRef = useRef<HTMLDivElement>(null)
   // Purchase-form extras
   const [newPurchaseType, setNewPurchaseType] = useState<PurchaseType>('LIVESTOCK')
   const [showCalc, setShowCalc] = useState(false)
@@ -59,12 +99,43 @@ export function WeightPricingSettings({ businessId, section }: Props) {
       .finally(() => setLoading(false))
   }, [businessId])
 
+  // Auto-suggest emoji from expense taxonomy as user types the preset name
+  useEffect(() => {
+    const name = newName.trim()
+    if (name.length < 2 || emojiUserEdited.current) return
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(name)}`)
+        if (!res.ok) return
+        const data = await res.json()
+        const top = data.suggestions?.[0]
+        if (!top) return
+        const emoji = top.subSubcategoryEmoji ?? top.subcategoryEmoji ?? top.categoryEmoji ?? top.domainEmoji
+        if (emoji) setNewEmoji(emoji)
+      } catch {}
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [newName])
+
+  // Close row emoji popover on outside click
+  useEffect(() => {
+    if (!openEmojiRowId) return
+    function handleOutside(e: MouseEvent) {
+      if (emojiPopoverRef.current && !emojiPopoverRef.current.contains(e.target as Node)) {
+        setOpenEmojiRowId(null)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [openEmojiRowId])
+
   function resetAdd() {
     setShowAdd(false)
     setShowCalc(false)
     setNewName('')
     setNewPrice('')
     setNewEmoji('📦')
+    emojiUserEdited.current = false
     setNewPurchaseType('LIVESTOCK')
     setCalc({ unitCount: '', totalWeightKg: '', pricePerUnit: '' })
   }
@@ -145,14 +216,29 @@ export function WeightPricingSettings({ businessId, section }: Props) {
                 {saleRules.map(rule => (
                   <tr key={rule.id} className={rule.isActive ? '' : 'opacity-50'}>
                     <td className="px-3 py-2">
-                      <input
-                        type="text"
-                        value={rule.emoji ?? '📦'}
-                        onChange={e => setRules(prev => prev.map(r => r.id === rule.id ? { ...r, emoji: e.target.value } : r))}
-                        onBlur={e => patchRule(rule.id, { emoji: e.target.value || '📦' })}
-                        className="w-10 text-center text-lg bg-transparent border border-transparent hover:border-gray-300 dark:hover:border-gray-600 rounded focus:outline-none focus:border-blue-400"
-                        maxLength={2}
-                      />
+                      <div className="relative" ref={openEmojiRowId === rule.id ? emojiPopoverRef : undefined}>
+                        <button
+                          type="button"
+                          onClick={() => setOpenEmojiRowId(openEmojiRowId === rule.id ? null : rule.id)}
+                          title="Click to change emoji"
+                          className="w-10 h-10 text-xl flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700 border border-transparent hover:border-gray-300 dark:hover:border-gray-600"
+                        >
+                          {rule.emoji ?? '📦'}
+                        </button>
+                        {openEmojiRowId === rule.id && (
+                          <div className="absolute left-0 top-full mt-1 z-50 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3">
+                            <EmojiPickerEnhanced
+                              selectedEmoji={rule.emoji}
+                              onSelect={emoji => {
+                                patchRule(rule.id, { emoji })
+                                setRules(prev => prev.map(r => r.id === rule.id ? { ...r, emoji } : r))
+                                setOpenEmojiRowId(null)
+                              }}
+                              searchPlaceholder="Search or paste emoji…"
+                            />
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100">{rule.categoryName}</td>
                     <td className="px-3 py-2 text-right font-mono text-gray-900 dark:text-gray-100">
@@ -197,23 +283,17 @@ export function WeightPricingSettings({ businessId, section }: Props) {
           <div className="p-4 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 space-y-3">
             <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">New selling preset</p>
             <div className="flex flex-wrap gap-2 items-end">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Icon</label>
-                <input
-                  type="text"
-                  value={newEmoji}
-                  onChange={e => setNewEmoji(e.target.value)}
-                  className="text-lg text-center border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 bg-white dark:bg-gray-800 w-14"
-                  maxLength={2}
-                  placeholder="📦"
-                />
-              </div>
+              <EmojiAutoField
+                value={newEmoji}
+                label="Icon"
+                onChange={(e, manual) => { emojiUserEdited.current = manual; setNewEmoji(e) }}
+              />
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Preset name</label>
                 <input
                   type="text"
                   value={newName}
-                  onChange={e => setNewName(e.target.value)}
+                  onChange={e => { emojiUserEdited.current = false; setNewName(e.target.value) }}
                   placeholder="e.g. Beef Mince, Fish Fillets"
                   className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 w-44"
                 />
@@ -303,14 +383,29 @@ export function WeightPricingSettings({ businessId, section }: Props) {
               {tabRules.map(rule => (
                 <tr key={rule.id} className={rule.isActive ? '' : 'opacity-50'}>
                   <td className="px-3 py-2">
-                    <input
-                      type="text"
-                      value={rule.emoji ?? '📦'}
-                      onChange={e => setRules(prev => prev.map(r => r.id === rule.id ? { ...r, emoji: e.target.value } : r))}
-                      onBlur={e => patchRule(rule.id, { emoji: e.target.value || '📦' })}
-                      className="w-10 text-center text-lg bg-transparent border border-transparent hover:border-gray-300 dark:hover:border-gray-600 rounded focus:outline-none focus:border-blue-400"
-                      maxLength={2}
-                    />
+                    <div className="relative" ref={openEmojiRowId === rule.id ? emojiPopoverRef : undefined}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenEmojiRowId(openEmojiRowId === rule.id ? null : rule.id)}
+                        title="Click to change emoji"
+                        className="w-10 h-10 text-xl flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700 border border-transparent hover:border-gray-300 dark:hover:border-gray-600"
+                      >
+                        {rule.emoji ?? '📦'}
+                      </button>
+                      {openEmojiRowId === rule.id && (
+                        <div className="absolute left-0 top-full mt-1 z-50 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3">
+                          <EmojiPickerEnhanced
+                            selectedEmoji={rule.emoji}
+                            onSelect={emoji => {
+                              patchRule(rule.id, { emoji })
+                              setRules(prev => prev.map(r => r.id === rule.id ? { ...r, emoji } : r))
+                              setOpenEmojiRowId(null)
+                            }}
+                            searchPlaceholder="Search or paste emoji…"
+                          />
+                        </div>
+                      )}
+                    </div>
                   </td>
                   <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{rule.categoryName}</td>
                   <td className="px-3 py-2 text-right font-mono text-gray-900 dark:text-gray-100">
@@ -344,23 +439,17 @@ export function WeightPricingSettings({ businessId, section }: Props) {
       {showAdd ? (
         <div className="p-4 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 space-y-3">
           <div className="flex flex-wrap gap-2 items-end">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Icon</label>
-              <input
-                type="text"
-                value={newEmoji}
-                onChange={e => setNewEmoji(e.target.value)}
-                className="text-lg text-center border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-2 bg-white dark:bg-gray-800 w-14"
-                maxLength={2}
-                placeholder="📦"
-              />
-            </div>
+            <EmojiAutoField
+              value={newEmoji}
+              label="Icon"
+              onChange={(e, manual) => { emojiUserEdited.current = manual; setNewEmoji(e) }}
+            />
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Category name</label>
               <input
                 type="text"
                 value={newName}
-                onChange={e => setNewName(e.target.value)}
+                onChange={e => { emojiUserEdited.current = false; setNewName(e.target.value) }}
                 placeholder={purchaseTab === 'LIVESTOCK' ? 'e.g. Whole Chicken' : 'e.g. Tomatoes'}
                 className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 w-40"
               />

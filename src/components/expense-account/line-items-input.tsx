@@ -6,6 +6,7 @@ export interface LineItem {
   name: string
   emoji: string
   amount: number
+  description?: string
 }
 
 interface DomainItem {
@@ -27,9 +28,11 @@ export function LineItemsInput({ domainId, value, onChange, totalAmount }: LineI
   const [search, setSearch] = useState('')
   const [emoji, setEmoji] = useState('📂')
   const [amount, setAmount] = useState('')
+  const [description, setDescription] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const emojiUserEdited = useRef(false)
 
   useEffect(() => {
     if (!domainId) {
@@ -53,6 +56,24 @@ export function LineItemsInput({ domainId, value, onChange, totalAmount }: LineI
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
+  // Auto-suggest emoji from expense taxonomy as user types the item name
+  useEffect(() => {
+    const name = search.trim()
+    if (name.length < 2 || emojiUserEdited.current) return
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(name)}`)
+        if (!res.ok) return
+        const data = await res.json()
+        const top = data.suggestions?.[0]
+        if (!top) return
+        const suggested = top.subSubcategoryEmoji ?? top.subcategoryEmoji ?? top.categoryEmoji ?? top.domainEmoji
+        if (suggested) setEmoji(suggested)
+      } catch {}
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [search])
+
   const filtered = search.trim()
     ? domainItems.filter(i => i.name.toLowerCase().includes(search.toLowerCase()))
     : domainItems
@@ -60,6 +81,7 @@ export function LineItemsInput({ domainId, value, onChange, totalAmount }: LineI
   function selectItem(item: DomainItem) {
     setSearch(item.name)
     setEmoji(item.emoji || '📂')
+    emojiUserEdited.current = true
     setShowDropdown(false)
     setTimeout(() => searchRef.current?.blur(), 0)
   }
@@ -68,10 +90,12 @@ export function LineItemsInput({ domainId, value, onChange, totalAmount }: LineI
     const name = search.trim()
     const amt = parseFloat(amount)
     if (!name || isNaN(amt) || amt <= 0) return
-    onChange([...value, { name, emoji: emoji || '📂', amount: amt }])
+    onChange([...value, { name, emoji: emoji || '📂', amount: amt, description: description.trim() || undefined }])
     setSearch('')
     setEmoji('📂')
     setAmount('')
+    setDescription('')
+    emojiUserEdited.current = false
   }
 
   function removeItem(index: number) {
@@ -86,115 +110,128 @@ export function LineItemsInput({ domainId, value, onChange, totalAmount }: LineI
         Line Items <span className="text-gray-400 font-normal">(optional)</span>
       </div>
 
-      {!domainId ? (
-        <p className="text-sm text-gray-400 italic">Select a Business category above to browse items</p>
-      ) : (
-        <>
-          {/* Input row */}
-          <div className="flex gap-2 items-start">
-            {/* Emoji input */}
+      {/* Input area — always shown; domainId only controls the category dropdown */}
+      <div className="space-y-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+        {/* Row 1: emoji + name + amount + add */}
+        <div className="flex gap-2 items-start">
+          {/* Emoji — auto-suggested as name is typed */}
+          <input
+            type="text"
+            value={emoji}
+            onChange={e => { emojiUserEdited.current = true; setEmoji(e.target.value) }}
+            className="w-12 px-2 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm text-center flex-shrink-0"
+            maxLength={2}
+            title="Auto-filled as you type the item name — override by typing or pasting an emoji"
+          />
+
+          {/* Name input with category dropdown */}
+          <div className="relative flex-1 min-w-0">
             <input
+              ref={searchRef}
               type="text"
-              value={emoji}
-              onChange={e => setEmoji(e.target.value.slice(0, 2))}
-              className="w-12 px-2 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm text-center"
+              value={search}
+              onChange={e => { emojiUserEdited.current = false; setSearch(e.target.value); setShowDropdown(true) }}
+              onFocus={() => { if (domainId) setShowDropdown(true) }}
+              placeholder="Item name..."
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
-
-            {/* Search / name input with dropdown */}
-            <div className="relative flex-1">
-              <input
-                ref={searchRef}
-                type="text"
-                value={search}
-                onChange={e => { setSearch(e.target.value); setShowDropdown(true) }}
-                onFocus={() => setShowDropdown(true)}
-                placeholder="Search or type item name..."
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              {showDropdown && (
-                <div
-                  ref={dropdownRef}
-                  className="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg"
-                >
-                  {filtered.length === 0 && search.trim() ? (
-                    <button
-                      type="button"
-                      onMouseDown={() => { setEmoji('📂'); setShowDropdown(false) }}
-                      className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700"
-                    >
-                      📂 &quot;{search.trim()}&quot; — Add custom
-                    </button>
-                  ) : (
-                    filtered.map(item => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onMouseDown={() => selectItem(item)}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
-                      >
-                        <span className="mr-1">{item.emoji}</span>
-                        <span>{item.name}</span>
-                        {item.groupName && (
-                          <span className="ml-1 text-gray-400 text-xs">· {item.groupName}</span>
-                        )}
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Amount input */}
-            <div className="w-28">
-              <input
-                type="number"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addItem() } }}
-                placeholder="0.00"
-                min="0"
-                step="0.01"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Add button */}
-            <button
-              type="button"
-              onClick={addItem}
-              disabled={!search.trim() || !amount || parseFloat(amount) <= 0}
-              className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
-            >
-              Add
-            </button>
-          </div>
-
-          {/* Items list */}
-          {value.length > 0 && (
-            <div className="space-y-1">
-              {value.map((item, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm py-1 border-b border-gray-100 dark:border-gray-700 last:border-0">
-                  <span className="w-6 text-center">{item.emoji}</span>
-                  <span className="flex-1 text-gray-800 dark:text-gray-200">{item.name}</span>
-                  <span className="text-gray-600 dark:text-gray-400 font-medium">${item.amount.toFixed(2)}</span>
+            {showDropdown && domainId && (
+              <div
+                ref={dropdownRef}
+                className="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg"
+              >
+                {filtered.length === 0 && search.trim() ? (
                   <button
                     type="button"
-                    onClick={() => removeItem(i)}
-                    className="text-gray-400 hover:text-red-500 ml-1"
+                    onMouseDown={() => { setShowDropdown(false) }}
+                    className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700"
                   >
-                    ×
+                    {emoji} &quot;{search.trim()}&quot; — Add custom
                   </button>
-                </div>
-              ))}
-              <div className="text-xs text-gray-500 dark:text-gray-400 pt-1">
-                Total: ${lineTotal.toFixed(2)}
-                {totalAmount != null && (
-                  <span> of ${totalAmount.toFixed(2)}</span>
+                ) : (
+                  filtered.map(item => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onMouseDown={() => selectItem(item)}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
+                      <span className="mr-1">{item.emoji}</span>
+                      <span>{item.name}</span>
+                      {item.groupName && (
+                        <span className="ml-1 text-gray-400 text-xs">· {item.groupName}</span>
+                      )}
+                    </button>
+                  ))
                 )}
               </div>
+            )}
+          </div>
+
+          {/* Amount */}
+          <input
+            type="number"
+            value={amount}
+            onChange={e => setAmount(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addItem() } }}
+            placeholder="0.00"
+            min="0"
+            step="0.01"
+            className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 flex-shrink-0"
+          />
+
+          {/* Add button */}
+          <button
+            type="button"
+            onClick={addItem}
+            disabled={!search.trim() || !amount || parseFloat(amount) <= 0}
+            className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap flex-shrink-0"
+          >
+            Add
+          </button>
+        </div>
+
+        {/* Row 2: optional description */}
+        <div className="pl-14">
+          <input
+            type="text"
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            placeholder="Description (optional) — e.g. invoice number, supplier name"
+            className="w-full px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs focus:ring-1 focus:ring-blue-400"
+          />
+        </div>
+      </div>
+
+      {/* Items list */}
+      {value.length > 0 && (
+        <div className="space-y-1">
+          {value.map((item, i) => (
+            <div key={i} className="flex items-start gap-2 text-sm py-1.5 border-b border-gray-100 dark:border-gray-700 last:border-0">
+              <span className="w-6 text-center flex-shrink-0 mt-0.5">{item.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <span className="text-gray-800 dark:text-gray-200">{item.name}</span>
+                {item.description && (
+                  <div className="text-xs text-gray-400 dark:text-gray-500 truncate">{item.description}</div>
+                )}
+              </div>
+              <span className="text-gray-600 dark:text-gray-400 font-medium flex-shrink-0">${item.amount.toFixed(2)}</span>
+              <button
+                type="button"
+                onClick={() => removeItem(i)}
+                className="text-gray-400 hover:text-red-500 ml-1 flex-shrink-0"
+              >
+                ×
+              </button>
             </div>
-          )}
-        </>
+          ))}
+          <div className="text-xs text-gray-500 dark:text-gray-400 pt-1">
+            Total: ${lineTotal.toFixed(2)}
+            {totalAmount != null && (
+              <span> of ${totalAmount.toFixed(2)}</span>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )

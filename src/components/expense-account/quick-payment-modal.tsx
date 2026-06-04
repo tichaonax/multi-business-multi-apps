@@ -1580,7 +1580,7 @@ export function QuickPaymentModal({
   return (
     <>
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-md sm:max-w-2xl shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto overflow-x-hidden">
+      <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-2xl sm:max-w-4xl shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto overflow-x-hidden">
         {/* Header */}
         <div className="mb-4">
           <h2 className="text-xl font-bold text-primary">Quick Payment</h2>
