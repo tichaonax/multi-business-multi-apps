@@ -153,6 +153,7 @@ export default function RestaurantPOS() {
   const [searchTerm, setSearchTerm] = useState('')
   const [posMode, setPosMode] = useState<'live' | 'manual' | 'meal_program'>('live')
   const [scaleVisible, setScaleVisible] = useState(false)
+  const [scalePricingRules, setScalePricingRules] = useState<any[]>([])
   const { weight: scaleWeight, isConnected: isScaleConnected, tare: tareScale } = useScale()
   const [manualCart, setManualCart] = useState<ManualCartItem[]>([])
   const [manualSuccessActive, setManualSuccessActive] = useState(false)
@@ -528,6 +529,17 @@ export default function RestaurantPOS() {
     })()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
+
+  // Fetch SALE pricing rules whenever the scale panel opens
+  useEffect(() => {
+    if (!scaleVisible || !currentBusinessId) return
+    fetch(`/api/weight-pricing-rules?businessId=${currentBusinessId}`)
+      .then(r => r.json())
+      .then(data => setScalePricingRules(
+        (Array.isArray(data) ? data : []).filter((r: any) => r.ruleType === 'SALE' && r.isActive)
+      ))
+      .catch(() => {})
+  }, [scaleVisible, currentBusinessId])
 
   // Handle addCustomBulk URL param — navigated here from GlobalBarcodeModal "Add to Cart" on another business
   useEffect(() => {
@@ -1152,7 +1164,7 @@ export default function RestaurantPOS() {
                 stockQuantity: product.variants?.[0]?.stockQuantity ?? 0,
                 reorderLevel: product.variants?.[0]?.reorderLevel ?? 0,
                 isSoldByWeight: product.isSoldByWeight ?? false,
-                pricePerKg: product.pricePerKg != null ? Number(product.pricePerKg) : null,
+                pricePerKg: product.resolvedPricePerKg ?? (product.pricePerKg != null ? Number(product.pricePerKg) : null),
               }
             })
 
@@ -2931,11 +2943,33 @@ export default function RestaurantPOS() {
                     Tare
                   </button>
                 </div>
+                {/* SALE pricing rules */}
+                <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                  <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Sale Pricing Rules</div>
+                  {scalePricingRules.length === 0 ? (
+                    <p className="text-xs text-gray-400 dark:text-gray-500 italic">No SALE pricing rules configured.</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {scalePricingRules.map((rule: any) => (
+                        <div key={rule.id} className="flex items-center justify-between text-sm">
+                          <span>{rule.emoji} {rule.categoryName}</span>
+                          <span className="font-mono font-medium">${Number(rule.pricePerKg).toFixed(2)}/kg</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <a
+                    href={`/restaurant/settings/pos?businessId=${currentBusinessId}`}
+                    className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    ⚙️ Configure pricing rules →
+                  </a>
+                </div>
               </div>
             )}
 
-            {/* Daily Sales Summary Widget - Only for users with financial access */}
-            {dailySales && (isAdmin || hasPermission('canAccessFinancialData') || hasPermission('canViewWifiReports')) && (
+            {/* Daily Sales Summary Widget - Only for users with financial access; hidden when scale panel is open */}
+            {dailySales && !scaleVisible && (isAdmin || hasPermission('canAccessFinancialData') || hasPermission('canViewWifiReports')) && (
               <div className="card bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-900/20 dark:to-green-900/20 p-4 rounded-lg shadow">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-lg font-bold text-primary flex items-center gap-2">
@@ -3789,6 +3823,13 @@ export default function RestaurantPOS() {
                         <span className="bg-red-500 text-white text-xs px-1 rounded">
                           {item.discountPercent ? `-${item.discountPercent}%` : 'SALE'}
                         </span>
+                      </div>
+                    )}
+
+                    {/* Scale indicator — weight-priced items */}
+                    {(item as any).isSoldByWeight && !isUnavailable && !hasDiscount && (
+                      <div className="absolute top-1 right-1">
+                        <span className="text-xs" title="Sold by weight — scale will open at POS">⚖️</span>
                       </div>
                     )}
 

@@ -334,7 +334,7 @@ export async function POST(
         include: {
           business_products: true
         }
-      })
+      }) as NonNullable<typeof variant>
     }
 
     // Calculate the actual stock change — schema requires Int

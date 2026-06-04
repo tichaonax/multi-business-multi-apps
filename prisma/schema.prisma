@@ -281,12 +281,14 @@ model BusinessProducts {
   isProductTemplate           Boolean                    @default(false)
   isSoldByWeight              Boolean                    @default(false)
   pricePerKg                  Decimal?                   @db.Decimal(10, 2)
+  weightPricingRuleId         String?
   business_brands             BusinessBrands?            @relation(fields: [brandId], references: [id])
   businesses                  Businesses                 @relation(fields: [businessId], references: [id])
   business_categories         BusinessCategories         @relation(fields: [categoryId], references: [id])
   business_locations          BusinessLocations?         @relation("ProductLocation", fields: [locationId], references: [id])
   inventory_subcategory       InventorySubcategories?    @relation(fields: [subcategoryId], references: [id])
   business_suppliers          BusinessSuppliers?         @relation("ProductSupplier", fields: [supplierId], references: [id])
+  weight_pricing_rules        WeightPricingRules?        @relation(fields: [weightPricingRuleId], references: [id], onDelete: SetNull)
   business_stock_movements    BusinessStockMovements[]
   menu_combo_items            MenuComboItems[]
   product_attributes          ProductAttributes[]
@@ -7359,7 +7361,8 @@ model WeightPricingRules {
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
 
-  businesses Businesses @relation(fields: [businessId], references: [id])
+  businesses        Businesses        @relation(fields: [businessId], references: [id])
+  business_products BusinessProducts[]
 
   @@unique([businessId, categoryName, ruleType, purchaseType])
   @@index([businessId])

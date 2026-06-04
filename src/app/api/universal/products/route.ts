@@ -64,11 +64,22 @@ function normalizeProduct(product: any) {
     product.costPrice = Number(product.costPrice)
   }
 
+  // Resolve pricePerKg from linked rule (dynamic) or fall back to product's own value
+  const linkedRule = product.weight_pricing_rules
+  product.weightPricingRuleId = product.weightPricingRuleId ?? null
+  product.weightPricingRule = linkedRule
+    ? { id: linkedRule.id, categoryName: linkedRule.categoryName, emoji: linkedRule.emoji, pricePerKg: Number(linkedRule.pricePerKg) }
+    : null
+  product.resolvedPricePerKg = linkedRule
+    ? Number(linkedRule.pricePerKg)
+    : (product.pricePerKg != null ? Number(product.pricePerKg) : null)
+
   // remove internal/plural fields so responses match previous shape
   delete product.business_brands
   delete product.business_categories
   delete product.product_variants
   delete product.ProductImages
+  delete product.weight_pricing_rules
 
   return product
 }
@@ -191,7 +202,10 @@ export async function GET(request: NextRequest) {
                 { sortOrder: 'asc' }
               ]
             }
-          })
+          }),
+          weight_pricing_rules: {
+            select: { id: true, pricePerKg: true, categoryName: true, emoji: true }
+          }
         },
         orderBy: sortBy === 'sku' ? [{ sku: 'asc' }] : [{ name: 'asc' }],
         skip,

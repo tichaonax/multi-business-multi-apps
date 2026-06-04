@@ -109,6 +109,8 @@ function GroceryInventoryContent() {
   const [showBulkPrintModal, setShowBulkPrintModal] = useState(false)
   const [isSoldByWeight, setIsSoldByWeight] = useState(false)
   const [pricePerKg, setPricePerKg] = useState('')
+  const [weightPricingRuleId, setWeightPricingRuleId] = useState<string>('')
+  const [saleRules, setSaleRules] = useState<{ id: string; categoryName: string; pricePerKg: number; emoji: string }[]>([])
   const [insightsTarget, setInsightsTarget] = useState<{ type: 'bale' | 'inventory'; id: string } | null>(null)
   const searchParams = useSearchParams()
 
@@ -327,11 +329,24 @@ function GroceryInventoryContent() {
     }
   }
 
+  useEffect(() => {
+    if (!businessId) return
+    fetch(`/api/weight-pricing-rules?businessId=${businessId}`)
+      .then(r => r.json())
+      .then(data => setSaleRules(
+        (Array.isArray(data) ? data : [])
+          .filter((r: any) => r.ruleType === 'SALE' && r.isActive)
+          .map((r: any) => ({ id: r.id, categoryName: r.categoryName, pricePerKg: Number(r.pricePerKg), emoji: r.emoji }))
+      ))
+      .catch(() => {})
+  }, [businessId])
+
   const handleItemEdit = (item: any) => {
     setSelectedItem(item)
     setFormReady(false)  // reset until form signals categories are loaded
     setIsSoldByWeight(item.isSoldByWeight ?? false)
     setPricePerKg(item.pricePerKg != null ? String(item.pricePerKg) : '')
+    setWeightPricingRuleId(item.weightPricingRuleId ?? '')
     setShowAddForm(true)
   }
 
@@ -375,7 +390,8 @@ function GroceryInventoryContent() {
         businessId,
         businessType: 'grocery',
         isSoldByWeight,
-        pricePerKg: isSoldByWeight && pricePerKg ? parseFloat(pricePerKg) : null,
+        pricePerKg: isSoldByWeight && !weightPricingRuleId && pricePerKg ? parseFloat(pricePerKg) : null,
+        weightPricingRuleId: weightPricingRuleId || null,
       }
 
       const response = await fetch(url, {
@@ -900,36 +916,85 @@ function GroceryInventoryContent() {
                   </div>
 
                   {/* Weight selling bar */}
-                  <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3 mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <div className="px-6 py-3 mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg space-y-2">
                     <label className="flex items-center gap-2 cursor-pointer select-none">
                       <input
                         type="checkbox"
                         checked={isSoldByWeight}
-                        onChange={(e) => setIsSoldByWeight(e.target.checked)}
+                        onChange={(e) => {
+                          setIsSoldByWeight(e.target.checked)
+                          if (!e.target.checked) { setWeightPricingRuleId(''); setPricePerKg('') }
+                        }}
                         className="rounded"
                       />
                       <span className="text-sm font-semibold text-amber-900 dark:text-amber-100">
                         Sell by Weight (kg)
                       </span>
                       <span className="text-xs text-amber-600 dark:text-amber-400 hidden sm:inline">
-                        — enables scale weigh prompt at POS
+                        — scale weigh prompt opens at POS when tapped
                       </span>
                     </label>
                     {isSoldByWeight && (
-                      <label className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                          Price per kg:
-                        </span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={pricePerKg}
-                          onChange={(e) => setPricePerKg(e.target.value)}
-                          className="input-field w-28 py-1 text-sm font-mono"
-                          placeholder="0.00"
-                        />
-                      </label>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pl-6">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">Use preset:</span>
+                          <select
+                            value={weightPricingRuleId}
+                            onChange={(e) => {
+                              const ruleId = e.target.value
+                              setWeightPricingRuleId(ruleId)
+                              if (ruleId) {
+                                const rule = saleRules.find(r => r.id === ruleId)
+                                if (rule) setPricePerKg(String(rule.pricePerKg))
+                              } else {
+                                setPricePerKg('')
+                              }
+                            }}
+                            className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                          >
+                            <option value="">None — enter price manually</option>
+                            {saleRules.map(r => (
+                              <option key={r.id} value={r.id}>
+                                {r.emoji} {r.categoryName} — ${r.pricePerKg.toFixed(2)}/kg
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {weightPricingRuleId ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-gray-500 dark:text-gray-400">Effective price:</span>
+                            <span className="text-sm font-mono font-semibold text-amber-800 dark:text-amber-200">
+                              ${saleRules.find(r => r.id === weightPricingRuleId)?.pricePerKg.toFixed(2)}/kg
+                            </span>
+                            <span className="text-xs text-gray-400 italic">(follows preset)</span>
+                          </div>
+                        ) : (
+                          <label className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                              Price per kg:
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={pricePerKg}
+                              onChange={(e) => setPricePerKg(e.target.value)}
+                              className="input-field w-28 py-1 text-sm font-mono"
+                              placeholder="0.00"
+                            />
+                          </label>
+                        )}
+
+                        {saleRules.length === 0 && (
+                          <a
+                            href={`/grocery/settings/pos?businessId=${businessId}`}
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            ⚙️ Configure selling presets →
+                          </a>
+                        )}
+                      </div>
                     )}
                   </div>
 

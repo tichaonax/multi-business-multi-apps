@@ -134,6 +134,7 @@ function GroceryPOSContent() {
   const [showCustomerLookup, setShowCustomerLookup] = useState(false)
   const [posMode, setPosMode] = useState<'live' | 'manual'>('live')
   const [scaleVisible, setScaleVisible] = useState(false)
+  const [scalePricingRules, setScalePricingRules] = useState<any[]>([])
   const [weighingItem, setWeighingItem] = useState<POSItem | null>(null)
   const [deskMode, setDeskMode] = useState(true)
   // EOD gate state (Phase 4 / Phase 8)
@@ -434,6 +435,17 @@ function GroceryPOSContent() {
   useEffect(() => {
     if (!currentBusinessId) return
     localStorage.setItem(`grocery-pos-scale-${currentBusinessId}`, String(scaleVisible))
+  }, [scaleVisible, currentBusinessId])
+
+  // Fetch SALE pricing rules whenever the scale panel opens
+  useEffect(() => {
+    if (!scaleVisible || !currentBusinessId) return
+    fetch(`/api/weight-pricing-rules?businessId=${currentBusinessId}`)
+      .then(r => r.json())
+      .then(data => setScalePricingRules(
+        (Array.isArray(data) ? data : []).filter((r: any) => r.ruleType === 'SALE' && r.isActive)
+      ))
+      .catch(() => {})
   }, [scaleVisible, currentBusinessId])
 
   // Restore + persist deskMode preference per business (defaults to true)
@@ -789,7 +801,7 @@ function GroceryPOSContent() {
                     loyaltyPoints: product.attributes?.loyaltyPoints || 0,
                     imageUrl: imageUrl,
                     isSoldByWeight: product.isSoldByWeight ?? false,
-                    pricePerKg: product.pricePerKg != null ? Number(product.pricePerKg) : undefined,
+                    pricePerKg: product.resolvedPricePerKg ?? (product.pricePerKg != null ? Number(product.pricePerKg) : undefined),
                   })
                 })
               } else {
@@ -811,7 +823,7 @@ function GroceryPOSContent() {
                   loyaltyPoints: product.attributes?.loyaltyPoints || 0,
                   imageUrl: imageUrl,
                   isSoldByWeight: product.isSoldByWeight ?? false,
-                  pricePerKg: product.pricePerKg != null ? Number(product.pricePerKg) : undefined,
+                  pricePerKg: product.resolvedPricePerKg ?? (product.pricePerKg != null ? Number(product.pricePerKg) : undefined),
                 })
               }
             })
@@ -3059,6 +3071,28 @@ function GroceryPOSContent() {
                     Tare
                   </button>
                 </div>
+                {/* SALE pricing rules */}
+                <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                  <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Sale Pricing Rules</div>
+                  {scalePricingRules.length === 0 ? (
+                    <p className="text-xs text-gray-400 dark:text-gray-500 italic">No SALE pricing rules configured.</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {scalePricingRules.map((rule: any) => (
+                        <div key={rule.id} className="flex items-center justify-between text-sm">
+                          <span>{rule.emoji} {rule.categoryName}</span>
+                          <span className="font-mono font-medium">${Number(rule.pricePerKg).toFixed(2)}/kg</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <a
+                    href={`/grocery/settings/pos?businessId=${currentBusinessId}`}
+                    className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    ⚙️ Configure pricing rules →
+                  </a>
+                </div>
               </div>
             )}
 
@@ -3338,6 +3372,10 @@ function GroceryPOSContent() {
                       <span className="absolute top-1.5 right-1.5 min-w-[1.25rem] h-5 flex items-center justify-center bg-blue-600 text-white text-xs font-bold rounded-full px-1">
                         {cartQty}
                       </span>
+                    )}
+                    {/* Scale badge — weight-priced items */}
+                    {product.isSoldByWeight && !isOutOfStock && !(deskMode && cartQty > 0) && (
+                      <span className="absolute top-1.5 right-1.5 text-xs" title="Sold by weight — scale opens at POS">⚖️</span>
                     )}
                     <div className={`font-medium ${deskMode ? 'text-base leading-snug mb-1' : ''}`}>
                       {deskMode && <span className="mr-1 text-lg" title={product.category}>{resolveProductEmoji(product)}</span>}

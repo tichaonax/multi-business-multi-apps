@@ -238,8 +238,8 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'warehouseItems',
   'warehouseReferenceLocks',
   'warehouseOrderRefs',
-  'livestockPurchaseLines',
-  'livestockVendorProfiles',
+  // Scale/livestock child tables — no direct businessId (MBM-226)
+  'livestockPurchaseLines',   // linked via sessionId, no businessId field
   // User/permission tables — no businessId column
   'users',
   'accounts',

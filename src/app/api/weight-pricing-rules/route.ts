@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
   const rules = await prisma.weightPricingRules.findMany({
     where: { businessId, ...(purchaseType ? { purchaseType } : {}) },
     orderBy: [{ ruleType: 'asc' }, { categoryName: 'asc' }],
+    include: { _count: { select: { business_products: true } } },
   })
 
   return NextResponse.json(rules)

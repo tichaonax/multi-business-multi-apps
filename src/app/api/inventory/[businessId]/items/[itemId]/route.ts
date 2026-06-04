@@ -145,6 +145,7 @@ export async function GET(
         isInventoryTracked: (product as any).isInventoryTracked ?? false,
         isSoldByWeight: (product as any).isSoldByWeight ?? false,
         pricePerKg: (product as any).pricePerKg != null ? Number((product as any).pricePerKg) : null,
+        weightPricingRuleId: (product as any).weightPricingRuleId ?? null,
         reorderLevel: product.product_variants[0]?.reorderLevel ?? 0
       }
     })
@@ -360,6 +361,10 @@ export async function PUT(
     if (body.isInventoryTracked !== undefined) updateData.isInventoryTracked = body.isInventoryTracked
     if (body.isSoldByWeight !== undefined) updateData.isSoldByWeight = body.isSoldByWeight
     if (body.pricePerKg !== undefined) updateData.pricePerKg = body.pricePerKg != null ? parseFloat(body.pricePerKg) : null
+    if (body.weightPricingRuleId !== undefined) {
+      updateData.weightPricingRuleId = body.weightPricingRuleId || null
+      if (body.weightPricingRuleId) updateData.isSoldByWeight = true
+    }
 
     // Validate price is greater than 0 (except for WiFi promotional items)
     const finalPrice = updateData.basePrice ?? existingProduct.basePrice
