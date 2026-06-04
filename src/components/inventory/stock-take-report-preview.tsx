@@ -50,7 +50,7 @@ export function StockTakeReportPreview({
 
   // Load active employees for this business
   useEffect(() => {
-    fetch(`/api/employees?status=active&limit=200`)
+    fetch(`/api/employees?status=active&limit=200${businessId ? `&businessId=${businessId}` : ''}`)
       .then(r => r.json())
       .then(d => {
         const list: Employee[] = Array.isArray(d) ? d : (d.data ?? d.employees ?? [])

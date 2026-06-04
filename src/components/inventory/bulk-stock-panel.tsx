@@ -1928,6 +1928,7 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
   // Existing BarcodeInventoryItems can be temporarily unlocked for category/domain editing
   const canEdit = row.isExistingItem && row.itemType !== 'bale' && row.itemType !== 'bulk' && row.itemType !== 'product'
   const inv = (field: string) => invalidFields.has(field)
+  const [calcDismissed, setCalcDismissed] = useState(false)
 
   // ── Suggest Classification ──────────────────────────────────────────────────
   type SuggestItem = {
@@ -2292,16 +2293,17 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
         <input type="number" min="0" step="0.01" value={row.sellingPrice} disabled={row.isFreeItem}
           onChange={e => onChange({ sellingPrice: e.target.value })}
           className={`${row.isFreeItem ? roClass : inputClass} w-full text-center ${inv('sellingPrice') && !row.isFreeItem ? 'border-red-400 dark:border-red-500' : ''}`} placeholder="price" />
-        {!row.isFreeItem && row.costPrice && Number(row.costPrice) > 0 && (
+        {!row.isFreeItem && row.costPrice && Number(row.costPrice) > 0 && !calcDismissed && (
           <div className="absolute left-0 top-full z-30 w-72">
             <PricingCalculator
               costPrice={Number(row.costPrice)}
               sellingPrice={row.sellingPrice}
-              onSelectPrice={(price) => onChange({ sellingPrice: String(price) })}
+              onSelectPrice={(price) => { onChange({ sellingPrice: String(price) }); setCalcDismissed(true) }}
               transportEnabled={transportConfig.enabled}
               transportDistanceKm={transportConfig.distanceKm}
               transportCostPerKm={transportConfig.ratePerKm}
               batchQuantity={totalBatchQuantity}
+              onClose={() => setCalcDismissed(true)}
             />
           </div>
         )}
@@ -2314,11 +2316,11 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
           className="w-4 h-4 cursor-pointer accent-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed" />
       </td>
 
-      {/* Cost */}
+      {/* Cost — always editable (required field) */}
       <td className="px-2 py-1.5">
-        <input type="number" min="0" step="0.01" value={row.costPrice} readOnly={row.isExistingItem}
-          onChange={e => onChange({ costPrice: e.target.value })}
-          className={`${row.isExistingItem ? roClass : inputClass} w-full text-center ${!row.isFreeItem && inv('costPrice') ? 'border-red-400 dark:border-red-500' : ''}`} placeholder="cost" />
+        <input type="number" min="0" step="0.01" value={row.costPrice}
+          onChange={e => { onChange({ costPrice: e.target.value }); setCalcDismissed(false) }}
+          className={`${inputClass} w-full text-center ${!row.isFreeItem && inv('costPrice') ? 'border-red-400 dark:border-red-500' : ''}`} placeholder="cost" />
       </td>
 
       {/* SKU */}

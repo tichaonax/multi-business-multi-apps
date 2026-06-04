@@ -12,6 +12,8 @@ export interface PricingCalculatorProps {
   batchQuantity?: number
   /** Direct per-unit transport override — skips km×rate calculation (used by warehouse move wizard) */
   transportPerUnitOverride?: number | null
+  /** Called when the user clicks the close button — omit to hide the button */
+  onClose?: () => void
 }
 
 const MARKUP_TIERS = [10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100]
@@ -30,6 +32,7 @@ export function PricingCalculator({
   transportCostPerKm,
   batchQuantity = 1,
   transportPerUnitOverride,
+  onClose,
 }: PricingCalculatorProps) {
   const [customPct, setCustomPct] = useState('')
   const [showCustom, setShowCustom] = useState(false)
@@ -80,9 +83,21 @@ export function PricingCalculator({
 
   return (
     <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
-      <div className="flex items-center gap-1.5 mb-2">
-        <span className="text-sm">💡</span>
-        <span className="text-xs font-semibold text-blue-800 dark:text-blue-300 uppercase tracking-wide">Pricing Calculator</span>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm">💡</span>
+          <span className="text-xs font-semibold text-blue-800 dark:text-blue-300 uppercase tracking-wide">Pricing Calculator</span>
+        </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-blue-400 hover:text-blue-700 dark:hover:text-blue-200 text-sm leading-none px-1"
+            title="Close calculator"
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {/* Cost breakdown */}

@@ -132,6 +132,7 @@ export function UniversalInventoryForm({
     score: number
   }
   const [suggestOpen, setSuggestOpen] = useState(false)
+  const [calcDismissed, setCalcDismissed] = useState(false)
   const [suggestions, setSuggestions] = useState<SuggestItem[]>([])
 
   const { data: session } = useSession()
@@ -1249,7 +1250,7 @@ export function UniversalInventoryForm({
                   type="number"
                   step="0.01"
                   value={formData.costPrice === 0 ? '' : formData.costPrice}
-                  onChange={(e) => handleInputChange('costPrice', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                  onChange={(e) => { handleInputChange('costPrice', e.target.value === '' ? 0 : parseFloat(e.target.value)); setCalcDismissed(false) }}
                   className={`input-field ${errors.costPrice ? 'border-red-500 border-2' : ''}`}
                   placeholder="0.00"
                 />
@@ -1268,15 +1269,18 @@ export function UniversalInventoryForm({
                   placeholder="0.00"
                 />
                 {errors.sellPrice && <p className="text-red-600 text-xs mt-1 font-medium">{errors.sellPrice}</p>}
-                <PricingCalculator
-                  costPrice={formData.costPrice > 0 ? formData.costPrice : null}
-                  sellingPrice={formData.sellPrice > 0 ? String(formData.sellPrice) : ''}
-                  onSelectPrice={(price) => handleInputChange('sellPrice', price)}
-                  transportEnabled={transportConfig.enabled}
-                  transportDistanceKm={transportConfig.distanceKm}
-                  transportCostPerKm={transportConfig.ratePerKm}
-                  batchQuantity={formData.currentStock > 0 ? formData.currentStock : 1}
-                />
+                {!calcDismissed && (
+                  <PricingCalculator
+                    costPrice={formData.costPrice > 0 ? formData.costPrice : null}
+                    sellingPrice={formData.sellPrice > 0 ? String(formData.sellPrice) : ''}
+                    onSelectPrice={(price) => { handleInputChange('sellPrice', price); setCalcDismissed(true) }}
+                    transportEnabled={transportConfig.enabled}
+                    transportDistanceKm={transportConfig.distanceKm}
+                    transportCostPerKm={transportConfig.ratePerKm}
+                    batchQuantity={formData.currentStock > 0 ? formData.currentStock : 1}
+                    onClose={() => setCalcDismissed(true)}
+                  />
+                )}
               </div>
 
               {/* Supplier + Location — side by side */}

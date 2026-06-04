@@ -28,8 +28,9 @@ export async function GET(req: NextRequest) {
     // Add additional filters
     const whereClause: any = {
       ...accessFilter,
-      ...(status === 'active' ? { isActive: true } : {}),
+      ...(status === 'active' ? { isActive: true, employmentStatus: 'active' } : {}),
       ...(status === 'inactive' ? { isActive: false } : {}),
+      ...(status === 'terminated' ? { employmentStatus: 'terminated' } : {}),
       ...(businessId && { primaryBusinessId: businessId }),
       ...(businessType && {
         businesses: {
