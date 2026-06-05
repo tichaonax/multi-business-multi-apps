@@ -34,6 +34,7 @@ export default function ExpensePaymentDetailPage() {
   const [cancelReason, setCancelReason] = useState('')
   const [cancelReasonError, setCancelReasonError] = useState('')
   const [inlineAdjustmentReason, setInlineAdjustmentReason] = useState('')
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
     if (!accountId || !paymentId) return
@@ -59,7 +60,13 @@ export default function ExpensePaymentDetailPage() {
           receiptServiceProvider: data.data.payment.receiptServiceProvider || '',
           receiptReason: data.data.payment.receiptReason || '',
           isFullPayment: data.data.payment.isFullPayment || false,
+          projectId: data.data.payment.projectId || '',
         })
+        // Fetch projects for the project assignment dropdown
+        fetch(`/api/construction/projects?businessId=${data.data.payment.businessId || ''}&status=ACTIVE`)
+          .then(r => r.ok ? r.json() : { data: [] })
+          .then(d => setProjects((d.data || d || []).map((p: any) => ({ id: p.id, name: p.name }))))
+          .catch(() => {})
         // Auto-open edit mode when arriving from the rejected tab via ?resubmit=true
         if (resubmitMode && data.data.payment.status === 'REJECTED') {
           setIsEditing(true)
@@ -255,6 +262,7 @@ export default function ExpensePaymentDetailPage() {
         receiptServiceProvider: payment.receiptServiceProvider || '',
         receiptReason: payment.receiptReason || '',
         isFullPayment: payment.isFullPayment || false,
+        projectId: payment.projectId || '',
       })
     }
   }
@@ -762,6 +770,21 @@ export default function ExpensePaymentDetailPage() {
                   className="w-4 h-4"
                 />
                 <label htmlFor="isFullPayment" className="text-sm font-medium">Full Payment</label>
+              </div>
+
+              {/* Project assignment */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Project (optional)</label>
+                <select
+                  value={editFormData.projectId || ''}
+                  onChange={(e) => setEditFormData({ ...editFormData, projectId: e.target.value })}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                >
+                  <option value="">No project linked</option>
+                  {projects.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="flex gap-2">

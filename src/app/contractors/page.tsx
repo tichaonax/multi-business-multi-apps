@@ -61,6 +61,9 @@ export default function ContractorsPage() {
   const [showProjectModal, setShowProjectModal] = useState(false)
   const [selectedContractor, setSelectedContractor] = useState<Person | null>(null)
   const [projects, setProjects] = useState<any[]>([])
+  const [projectSearch, setProjectSearch] = useState('')
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false)
+  const projectDropdownRef = useRef<HTMLDivElement>(null)
   const [assignmentForm, setAssignmentForm] = useState({
     projectId: '',
     role: '',
@@ -125,6 +128,17 @@ export default function ContractorsPage() {
       fetchContractors()
     }
   }, [canManage])
+
+  // Close project dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (projectDropdownRef.current && !projectDropdownRef.current.contains(e.target as Node)) {
+        setShowProjectDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   // alert/confirm hooks
   const customAlert = useAlert()
@@ -311,7 +325,7 @@ export default function ContractorsPage() {
 
   const fetchProjects = async () => {
     try {
-      const response = await fetch('/api/construction/projects', {
+      const response = await fetch('/api/projects', {
         method: 'GET',
         credentials: 'include',
         headers: {
@@ -387,9 +401,15 @@ export default function ContractorsPage() {
   // Filter projects to only show unassigned ones
   const getAvailableProjects = () => {
     if (!selectedContractor) return projects
-    
-    const assignedProjectIds = selectedContractor.project_contractors.map(pc => pc.project.id)
+    const assignedProjectIds = selectedContractor.projectContractors.map((pc: any) => pc.project?.id).filter(Boolean)
     return projects.filter(project => !assignedProjectIds.includes(project.id))
+  }
+
+  const getFilteredProjects = () => {
+    const available = getAvailableProjects()
+    if (!projectSearch.trim()) return available
+    const search = projectSearch.toLowerCase()
+    return available.filter((p: any) => p.name.toLowerCase().includes(search))
   }
 
   const handleProjectSubmit = async (e: React.FormEvent) => {
@@ -452,7 +472,7 @@ export default function ContractorsPage() {
     
     setSubmitting(true)
     try {
-      const response = await fetch(`/api/construction/projects/${assignmentForm.projectId}/contractors`, {
+      const response = await fetch(`/api/projects/${assignmentForm.projectId}/contractors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -479,6 +499,7 @@ export default function ContractorsPage() {
           endDate: '',
           notes: ''
         })
+        setProjectSearch('')
         setShowAssignModal(false)
         setSelectedContractor(null)
         
@@ -991,6 +1012,8 @@ export default function ContractorsPage() {
                       onClick={() => {
                         setShowAssignModal(false)
                         setSelectedContractor(null)
+                        setProjectSearch('')
+                        setShowProjectDropdown(false)
                       }}
                       aria-label="Close assign to project"
                       className="text-gray-400 hover:text-gray-600"
@@ -1004,29 +1027,62 @@ export default function ContractorsPage() {
                       <label className="block text-sm font-medium text-secondary mb-1">
                         Project *
                       </label>
-                      <select
-                        value={assignmentForm.projectId}
-                        onChange={(e) => {
-                          if (e.target.value === 'ADD_NEW') {
-                            setShowProjectModal(true)
-                          } else {
-                            setAssignmentForm({ ...assignmentForm, projectId: e.target.value })
-                          }
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        required
-                      >
-                        <option value="">Select project...</option>
-                        {getAvailableProjects().map((project) => (
-                          <option key={project.id} value={project.id}>
-                            {project.name} ({project.status})
-                          </option>
-                        ))}
-                        <option value="ADD_NEW" className="font-semibold text-blue-600">+ Add New Project</option>
-                        {getAvailableProjects().length === 0 && (
-                          <option disabled>All existing projects already assigned</option>
+                      <div className="relative" ref={projectDropdownRef}>
+                        <input
+                          type="text"
+                          value={assignmentForm.projectId
+                            ? (projects.find((p: any) => p.id === assignmentForm.projectId)?.name ?? projectSearch)
+                            : projectSearch}
+                          onChange={(e) => {
+                            setProjectSearch(e.target.value)
+                            setAssignmentForm({ ...assignmentForm, projectId: '' })
+                            setShowProjectDropdown(true)
+                          }}
+                          onFocus={() => setShowProjectDropdown(true)}
+                          placeholder="Search or select a project..."
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                          autoComplete="off"
+                        />
+                        {/* Hidden required input to trigger form validation */}
+                        <input type="text" value={assignmentForm.projectId} required readOnly className="sr-only" tabIndex={-1} />
+                        {showProjectDropdown && (
+                          <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-56 overflow-y-auto">
+                            {getFilteredProjects().length === 0 && getAvailableProjects().length === 0 ? (
+                              <div className="px-3 py-2 text-sm text-secondary">All projects already assigned</div>
+                            ) : getFilteredProjects().length === 0 ? (
+                              <div className="px-3 py-2 text-sm text-secondary">No projects match "{projectSearch}"</div>
+                            ) : (
+                              getFilteredProjects().map((project: any) => (
+                                <button
+                                  key={project.id}
+                                  type="button"
+                                  onMouseDown={() => {
+                                    setAssignmentForm({ ...assignmentForm, projectId: project.id })
+                                    setProjectSearch('')
+                                    setShowProjectDropdown(false)
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-primary"
+                                >
+                                  <span className="font-medium">{project.name}</span>
+                                  {project.status && (
+                                    <span className="ml-2 text-xs text-secondary">({project.status})</span>
+                                  )}
+                                </button>
+                              ))
+                            )}
+                            <button
+                              type="button"
+                              onMouseDown={() => {
+                                setShowProjectDropdown(false)
+                                setShowProjectModal(true)
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 border-t border-gray-200 dark:border-gray-600"
+                            >
+                              + Add New Project
+                            </button>
+                          </div>
                         )}
-                      </select>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -1124,6 +1180,8 @@ export default function ContractorsPage() {
                       onClick={() => {
                         setShowAssignModal(false)
                         setSelectedContractor(null)
+                        setProjectSearch('')
+                        setShowProjectDropdown(false)
                       }}
                       className="btn-secondary"
                       disabled={submitting}

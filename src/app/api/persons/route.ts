@@ -42,6 +42,13 @@ export async function GET(req: NextRequest) {
                 name: true,
                 status: true
               }
+            },
+            projects: {
+              select: {
+                id: true,
+                name: true,
+                status: true
+              }
             }
           }
         },
@@ -55,12 +62,12 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' }
     })
 
-    // Map constructionProject to project for UI compatibility
+    // Map constructionProject or generic project to `project` for UI compatibility
     const personsWithMappedProjects = persons.map(person => ({
       ...person,
       projectContractors: person.project_contractors.map(contractor => ({
         ...contractor,
-        project: (contractor as any).construction_projects
+        project: (contractor as any).construction_projects ?? (contractor as any).projects
       }))
     }))
 
