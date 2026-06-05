@@ -10499,7 +10499,7 @@ Click the **⚖️ Scale** button in the top bar of the Grocery or Restaurant PO
 | **Tap to Weigh & Sell** cards | Clickable product cards for every sell-by-weight item — tap one to open the Weigh Item modal directly from the scale panel |
 | **⚙️ Configure pricing rules →** | Link to the Scale & Weighing settings tab |
 
-**Tap to Weigh & Sell cards:** Each sell-by-weight product configured for this business appears as a card showing the product name and its price per kg. Tap any card to open the **Weigh Item** modal — place the item on the scale, wait for a stable reading, and tap **Add to Cart**. After confirming, the scale automatically zeros (tares) so it is ready for the next item.
+**Tap to Weigh & Sell cards:** Each sell-by-weight product configured for this business appears as a clickable card showing the product name, price per kg, and (for users with financial access) sold count, revenue, and a performance bar. Cards are sorted identically to the main menu grid — items sold today appear first by first-sale time. Tap any card to open the **Weigh Item** modal — place the item on the scale, wait for the 2-second stable hold (**● CONFIRMED — READY**), and tap **Add to Cart**. After confirming, the scale automatically tares so it is ready for the next item. If the panel is re-opened after navigating away, the product list refreshes automatically.
 
 **Grocery POS:** The panel is visible in both **Scan Mode** and **Desk Mode** — use it whenever the scale is in use regardless of which mode you are in.
 
@@ -10627,9 +10627,12 @@ Any **restaurant** or **grocery** inventory item can be flagged as "sold by weig
 5. Optionally select a **vendor purchase preset** in the **🚚 Cost per kg** dropdown — this records what you pay the supplier per kg and is used in the pricing calculator for margin analysis. When you re-open the product for editing, the saved preset is pre-selected automatically.
 6. Click **Save** (or **Update Item** when editing).
 
+**Automatic emoji:** When a selling preset is linked, its emoji is automatically prepended to the product name on save (e.g. *Beef Manyama* → *🥩 Beef Manyama*). If the name already starts with an emoji, it is not duplicated.
+
 Once flagged, tapping the product card at the POS opens the **Weigh Item** modal instead of adding directly to the cart. Product cards for weight-priced items show:
 - The price as **$X.XX/kg** (preset rate) instead of a fixed unit price
 - A small **⚖️** badge in the corner so cashiers can identify them at a glance
+- Performance stats (sold count, revenue, progress bar) for users with financial access — sorted by first-sold-today order so popular items stay at the top
 
 > **No presets yet?** A link **"⚙️ Configure selling presets →"** appears in the amber bar. Click it to go directly to POS Settings and create your first preset, then come back to link it.
 
@@ -10643,26 +10646,40 @@ Once flagged, tapping the product card at the POS opens the **Weigh Item** modal
 
 In the Grocery POS, tapping a product card that is marked *Sell by Weight* opens the **Weigh Item** modal automatically — in both Scan Mode and Desk Mode.
 
+**Two ways to open the modal:**
+- **Scale panel** — click **⚖️ Scale** in the toolbar to show the **Tap to Weigh & Sell** cards. Tap any card to open the modal instantly.
+- **Product grid** — weight-priced products appear with an **⚖️** badge and **$X.XX/kg** price. Tap the card — the modal opens instead of adding to cart.
+- **Sell this Item** — clicking **Sell this Item** from the inventory edit form navigates to the POS and opens the weigh modal automatically.
+
 **Workflow:**
 
-1. Place the item on the scale (tare the container first if needed — use the **⚖️ Scale** panel or the Tare button inside the modal).
-2. The modal displays the **live scale reading** continuously in large digits. The border colour tells you the status:
+1. Place the item on the scale (tare the container first if needed — use the **Tare (Zero Scale)** button).
+2. The modal shows the **live scale reading** and a stability status:
+   - **Amber border / ○ HOLDING… Xs** — the scale just became stable. A 2-second hold timer counts down.
+   - **Green border / ● CONFIRMED — READY** — the reading has held stable for 2 seconds. **Add to Cart** is now enabled.
    - **Amber border / ○ READING…** — the scale is still settling; wait.
-   - **Green border / ● STABLE — LIVE** — the reading has settled. The calculated total appears and **Add to Cart** becomes active.
-3. The weight is **always live** — it never locks. If more food is added to the scale after placing, the weight updates immediately and **Add to Cart** stays disabled until the new reading stabilises. This prevents undercharging.
-4. Click **Tare (Zero Scale)** to zero the scale (e.g. to subtract a container's weight).
-5. Click **Add to Cart** when the green STABLE indicator is showing and the total looks correct.
+3. The weight is **always live and never locks.** If an employee adds more food during the hold countdown, the scale goes unstable, the timer resets, and **Add to Cart** disables again — the full 2-second hold must complete at the new weight before confirming.
+4. Click **Tare (Zero Scale)** to zero the scale at any point.
+5. Click **Add to Cart** once the green **CONFIRMED — READY** state is reached.
 
-After confirming, the scale **automatically tares** so it is zeroed and ready for the next item in the same transaction.
+After confirming, the scale **automatically tares** so it is ready for the next item.
 
-The cart item is added as `Product Name (X.XXX kg)` with the total price pre-calculated (weight × price per kg).
+**Cart display for weight items:**
+- Name shows `Beef Manyama` (weight removed from display name)
+- Subtitle shows `GRC-00002 · $13.00/kg` (actual $/kg rate)
+- Middle column shows `0.367 kg` (actual weight weighed)
+- No +/− quantity buttons — weight items are fixed; only the × remove button appears
 
-**Selling the same product twice at different weights:** Tap the product card again after the first item is confirmed. Each weigh produces a separate cart line (e.g. *Grilled Chicken (0.350 kg)* and *Grilled Chicken (0.512 kg)*) so they are billed independently.
+**Customer display:** shows `0.367 kg @ $13.00/kg` so the customer can verify both the weight and the rate.
+
+**Receipt:** prints the item name, total price, and a sub-line `0.367 kg @ $13.00/kg` so the customer has a complete record.
+
+**Selling the same product twice at different weights:** tap the product card again. Each weigh produces a separate cart line billed independently.
 
 | Control | Action |
 |---------|--------|
 | **Tare (Zero Scale)** | Zeros the scale — remove all items first, tare, then place items back |
-| **Add to Cart** | Enabled only when the scale shows a stable, positive reading |
+| **Add to Cart** | Enabled only after 2 continuous seconds of stable reading |
 | **Cancel** | Closes the modal without adding anything to the cart |
 
 > **No scale connected?** The modal shows "Scale not connected" and Add to Cart is disabled. Go to **⚙️ POS Settings → Scale** to connect the hardware first.
@@ -10674,14 +10691,17 @@ The cart item is added as `Product Name (X.XXX kg)` with the total price pre-cal
 The Restaurant POS has two ways to sell a weight-priced item:
 
 **Option A — From the scale panel (recommended):**
-Click the **⚖️ Scale** toggle in the top bar to open the scale panel. The **Tap to Weigh & Sell** section shows a card for every sell-by-weight product. Tap the card for the item being purchased — the Weigh Item modal opens immediately.
+Click the **⚖️ Scale** toggle in the top bar to open the scale panel. The **Tap to Weigh & Sell** section shows a card for every sell-by-weight product, sorted by first-sold-today order (same as the main menu grid). Tap the card — the Weigh Item modal opens immediately.
 
 **Option B — From the main product grid:**
 Sell-by-weight products appear in the standard POS grid with a **⚖️** badge and show their price as **$X.XX/kg**. Tap the card — the Weigh Item modal opens instead of adding directly to the cart.
 
-**Workflow:** identical to Grocery — place item on scale, wait for the green **● STABLE — LIVE** indicator, then tap **Add to Cart**. The weight is always live (never locks), so any food added after placing on the scale is captured automatically. After confirming, the scale auto-tares for the next item.
+**Option C — Sell this Item from Inventory:**
+Clicking **Sell this Item** on a sell-by-weight product in the inventory edit form navigates to the Restaurant POS and opens the weigh modal automatically.
 
-You can monitor the live weight reading at any time using the **⚖️ Scale** toggle button next to the Live / Manual / Meal Program mode switcher (see [Scale Status Panel](#scale-status-panel--live-weight-display) above).
+**Workflow:** identical to Grocery — place item on scale, wait for the 2-second hold countdown (**○ HOLDING… Xs**), then tap **Add to Cart** once **● CONFIRMED — READY** shows. Any food added during the countdown resets the timer. After confirming, the scale auto-tares for the next item.
+
+**Performance cards in the scale panel** show the same stats as the main menu grid (sold count, revenue, progress bar) — gated by the same financial permissions (`canAccessFinancialData` or `canViewPOSSoldCount`). Cards are sorted: items sold today come first (by first-sale time), unsold items alphabetically below.
 
 > **No scale connected?** The modal shows "Scale not connected" and Add to Cart is disabled. Go to **⚙️ POS Settings → Scale** to connect. For the livestock purchase vendor workflow a manual weight entry field appears automatically when the scale is offline — see [Scale Offline — Manual Weight Entry](#scale-offline--manual-weight-entry).
 
