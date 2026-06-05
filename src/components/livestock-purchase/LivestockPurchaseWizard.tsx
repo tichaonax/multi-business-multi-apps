@@ -112,12 +112,16 @@ export function LivestockPurchaseWizard({ businessId, businessType, purchaseType
   // Add-line form
   const [selectedCategory, setSelectedCategory] = useState('')
   const [customCategory, setCustomCategory] = useState('')
-  const [lockedWeight, setLockedWeight] = useState<number | null>(null)
   const [customPricePerKg, setCustomPricePerKg] = useState('')
   const [lineNotes, setLineNotes] = useState('')
   const [addingLine, setAddingLine] = useState(false)
-  // After adding a line, wait for the scale to go near-zero before auto-locking the next item
-  const [waitingForScaleEmpty, setWaitingForScaleEmpty] = useState(false)
+  // 2-second stable hold — same anti-cheat logic as WeighItemModal
+  const [weightConfirmed, setWeightConfirmed] = useState(false)
+  const [holdCountdown, setHoldCountdown] = useState(0)
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const holdIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const stableStartRef = useRef<number | null>(null)
+  const HOLD_MS = 2000
 
   // Manual weight entry — used when scale is not connected
   const [manualWeightInput, setManualWeightInput] = useState('')
@@ -154,7 +158,8 @@ export function LivestockPurchaseWizard({ businessId, businessType, purchaseType
   const [submitting, setSubmitting] = useState(false)
 
   const connected = scaleStatus.status === 'connected'
-  const liveWeight = weight?.stable && !weight.overload ? weight.weight : null
+  const isStable = !!weight?.stable && !weight.overload && (weight?.weight ?? 0) > 0
+  const liveWeight = weight?.weight ?? 0
 
   const categoryName = selectedCategory === '__custom__' ? customCategory.trim() : selectedCategory
   const matchedRule = pricingRules.find(
@@ -164,7 +169,8 @@ export function LivestockPurchaseWizard({ businessId, businessType, purchaseType
   const manualWeightValue = !connected && manualWeightInput !== '' && parseFloat(manualWeightInput) > 0
     ? parseFloat(manualWeightInput)
     : null
-  const displayWeight = lockedWeight ?? liveWeight ?? manualWeightValue
+  // Use live weight when scale connected, manual entry when offline
+  const displayWeight = connected ? (weightConfirmed ? liveWeight : null) : manualWeightValue
   const lineTotal = displayWeight != null && pricePerKg > 0 ? displayWeight * pricePerKg : null
 
   // Broadcast live session state to customer display
@@ -210,20 +216,36 @@ export function LivestockPurchaseWizard({ businessId, businessType, purchaseType
     if (connected) setManualWeightInput('')
   }, [connected])
 
-  // Auto-lock stable reading — but only after scale has been cleared between items
+  // 2-second stable hold — resets if weight changes (same as WeighItemModal)
   useEffect(() => {
-    if (lockedWeight != null || weight == null) return
-
-    if (waitingForScaleEmpty) {
-      // Scale is empty enough — ready for next item
-      if (weight.weight < 0.02) setWaitingForScaleEmpty(false)
-      return
+    const clearTimers = () => {
+      if (holdTimerRef.current) { clearTimeout(holdTimerRef.current); holdTimerRef.current = null }
+      if (holdIntervalRef.current) { clearInterval(holdIntervalRef.current); holdIntervalRef.current = null }
+      stableStartRef.current = null
+      setWeightConfirmed(false)
+      setHoldCountdown(0)
     }
 
-    if (weight.stable && !weight.overload && weight.weight > 0) {
-      setLockedWeight(weight.weight)
-    }
-  }, [weight, lockedWeight, waitingForScaleEmpty])
+    if (!connected || !isStable) { clearTimers(); return }
+
+    stableStartRef.current = Date.now()
+    setHoldCountdown(Math.ceil(HOLD_MS / 1000))
+
+    holdIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - (stableStartRef.current ?? Date.now())
+      const remaining = Math.ceil((HOLD_MS - elapsed) / 1000)
+      setHoldCountdown(remaining > 0 ? remaining : 0)
+    }, 200)
+
+    holdTimerRef.current = setTimeout(() => {
+      if (holdIntervalRef.current) { clearInterval(holdIntervalRef.current); holdIntervalRef.current = null }
+      setHoldCountdown(0)
+      setWeightConfirmed(true)
+    }, HOLD_MS)
+
+    return clearTimers
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, isStable, liveWeight])
 
   async function loadVendorData(vendorId: string) {
     setProfilesLoading(true)
@@ -336,9 +358,8 @@ export function LivestockPurchaseWizard({ businessId, businessType, purchaseType
 
       setSession(updated)
 
-      // Reset line form — wait for scale to empty before auto-locking next item
-      setLockedWeight(null)
-      setWaitingForScaleEmpty(true)
+      // Reset line form — weightConfirmed resets automatically when scale changes
+      setWeightConfirmed(false)
       setSelectedCategory('')
       setCustomCategory('')
       setCustomPricePerKg('')
@@ -603,28 +624,48 @@ export function LivestockPurchaseWizard({ businessId, businessType, purchaseType
             </span>
           </div>
 
-          {/* Live weight */}
-          <div className="rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 text-center">
-            <div className="text-3xl font-mono font-bold text-gray-900 dark:text-gray-100">
-              {lockedWeight != null ? `${lockedWeight.toFixed(3)} kg` : liveWeight != null ? `${liveWeight.toFixed(3)} kg` : manualWeightValue != null ? `${manualWeightValue.toFixed(3)} kg` : '— kg'}
-            </div>
-            <div className={`mt-1 text-xs font-medium ${
-              lockedWeight != null ? 'text-blue-600 dark:text-blue-400'
-              : manualWeightValue != null ? 'text-purple-600 dark:text-purple-400'
-              : weight?.stable ? 'text-green-600 dark:text-green-400'
-              : 'text-amber-500'
-            }`}>
-              {lockedWeight != null ? 'LOCKED' : manualWeightValue != null ? 'MANUAL' : weight?.stable ? 'STABLE' : connected ? 'UNSTABLE' : 'NO SCALE'}
-            </div>
+          {/* Live weight — always live, 2-second hold before Add Line enables */}
+          <div className={`rounded-xl border-2 p-4 text-center transition-colors ${
+            !connected ? 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900'
+            : weight?.overload ? 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20'
+            : weightConfirmed ? 'border-green-400 dark:border-green-600 bg-green-50 dark:bg-green-900/20'
+            : isStable ? 'border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20'
+            : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900'
+          }`}>
+            {weight?.overload ? (
+              <p className="text-2xl font-mono font-bold text-red-500">OVERLOAD</p>
+            ) : (
+              <>
+                <div className="text-3xl font-mono font-bold text-gray-900 dark:text-gray-100">
+                  {connected
+                    ? `${liveWeight.toFixed(3)} kg`
+                    : manualWeightValue != null ? `${manualWeightValue.toFixed(3)} kg` : '— kg'}
+                </div>
+                <div className={`mt-1 text-xs font-semibold tracking-wide ${
+                  !connected && manualWeightValue != null ? 'text-purple-600 dark:text-purple-400'
+                  : weightConfirmed ? 'text-green-600 dark:text-green-400'
+                  : isStable ? 'text-amber-600 dark:text-amber-400'
+                  : connected ? 'text-gray-400' : 'text-gray-400'
+                }`}>
+                  {!connected && manualWeightValue != null ? 'MANUAL'
+                    : weightConfirmed ? '● CONFIRMED — READY'
+                    : isStable ? `○ HOLDING… ${holdCountdown}s`
+                    : connected ? '○ READING…' : 'NO SCALE'}
+                </div>
+                {/* Countdown progress bar */}
+                {connected && isStable && !weightConfirmed && (
+                  <div className="mt-2 h-1 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-amber-400"
+                      style={{ width: `${Math.max(0, (1 - holdCountdown / Math.ceil(HOLD_MS / 1000)) * 100)}%`, transition: `width ${HOLD_MS}ms linear` }}
+                    />
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
-          {lockedWeight != null && (
-            <button onClick={() => { setLockedWeight(null); setWaitingForScaleEmpty(false) }} className="w-full text-xs text-amber-600 dark:text-amber-400 hover:underline">
-              Re-weigh (clear lock)
-            </button>
-          )}
-
-          {!connected && lockedWeight == null && (
+          {!connected && (
             <div className="space-y-1">
               <label className="block text-xs text-gray-500 dark:text-gray-400">
                 Scale offline — enter weight manually (kg)
@@ -832,10 +873,10 @@ export function LivestockPurchaseWizard({ businessId, businessType, purchaseType
 
           <button
             onClick={addLine}
-            disabled={addingLine || !categoryName || displayWeight == null || pricePerKg <= 0}
-            className="w-full py-2.5 text-sm font-semibold bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-40"
+            disabled={addingLine || !categoryName || displayWeight == null || pricePerKg <= 0 || (connected && !weightConfirmed)}
+            className="w-full py-2.5 text-sm font-semibold bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {addingLine ? 'Adding…' : '+ Add Line'}
+            {addingLine ? 'Adding…' : connected && !weightConfirmed && isStable ? `Hold… ${holdCountdown}s` : '+ Add Line'}
           </button>
 
           {/* Lines table */}
