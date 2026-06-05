@@ -84,40 +84,46 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Call the PostgreSQL function generate_next_sku()
-    // This function was created in Phase 1: Migration 4
-    const result = await prisma.$queryRaw<Array<{ generate_next_sku: string }>>`
-      SELECT generate_next_sku(
-        ${businessId}::TEXT,
-        ${categoryName || null}::VARCHAR,
-        ${departmentName || null}::VARCHAR
-      )
-    `;
-
-    if (!result || result.length === 0) {
-      return NextResponse.json(
-        { error: 'Failed to generate SKU' },
-        { status: 500 }
-      );
-    }
-
-    const generatedSku = result[0].generate_next_sku;
-
-    // Parse the SKU to extract prefix and sequence
-    const skuParts = generatedSku.split('-');
-    const prefix = skuParts.slice(0, -1).join('-');
-    const sequenceStr = skuParts[skuParts.length - 1];
-    const sequence = parseInt(sequenceStr, 10);
-
-    // Get the format from business settings
     const format = business.sku_format || '{BUSINESS}-{SEQ}';
+    const prefix = business.sku_prefix || 'SKU';
+    const digits = business.sku_digits || 5;
+
+    // Atomically claim the next sequence number (same logic as the inventory items POST route)
+    const claimed = await prisma.$queryRaw<Array<{ next_seq: bigint }>>`
+      INSERT INTO sku_sequences ("businessId", prefix, "currentSequence", "updatedAt")
+      VALUES (
+        ${businessId}::TEXT,
+        ${prefix}::VARCHAR,
+        COALESCE((
+          SELECT MAX(CAST(NULLIF(TRIM(SUBSTRING(sku, LENGTH(${`${prefix}-`}) + 1)), '') AS INTEGER))
+          FROM business_products
+          WHERE "businessId" = ${businessId}
+            AND sku LIKE ${`${prefix}-%`}
+        ), 0) + 1,
+        NOW()
+      )
+      ON CONFLICT ("businessId", prefix) DO UPDATE
+        SET "currentSequence" = GREATEST(
+          sku_sequences."currentSequence",
+          COALESCE((
+            SELECT MAX(CAST(NULLIF(TRIM(SUBSTRING(sku, LENGTH(${`${prefix}-`}) + 1)), '') AS INTEGER))
+            FROM business_products
+            WHERE "businessId" = ${businessId}
+              AND sku LIKE ${`${prefix}-%`}
+          ), 0)
+        ) + 1,
+        "updatedAt" = NOW()
+      RETURNING "currentSequence" AS next_seq
+    `;
+    const nextSeq = Number(claimed[0]?.next_seq ?? 1);
+    const generatedSku = `${prefix}-${String(nextSeq).padStart(digits, '0')}`;
 
     return NextResponse.json({
       success: true,
       sku: generatedSku,
       format: format,
       prefix: prefix,
-      sequence: sequence,
+      sequence: nextSeq,
       businessName: business.name,
     });
   } catch (error) {
@@ -214,17 +220,16 @@ export async function GET(request: NextRequest) {
       finalPrefix = `${prefix}-${catPrefix}`;
     }
 
-    // Get the current sequence for this prefix
-    const sequenceRecord = await prisma.sku_sequences.findUnique({
-      where: {
-        businessId_prefix: {
-          businessId: businessId,
-          prefix: finalPrefix,
-        },
-      },
-    });
-
-    const nextSequence = sequenceRecord ? sequenceRecord.currentSequence + 1 : 1;
+    // Scan actual products to find the true numeric max — sequence table can drift
+    const allSkus = await prisma.businessProducts.findMany({
+      where: { businessId, sku: { startsWith: `${finalPrefix}-` } },
+      select: { sku: true }
+    })
+    const maxSeq = allSkus.reduce((max, p) => {
+      const num = parseInt((p.sku ?? '').replace(`${finalPrefix}-`, ''), 10)
+      return isNaN(num) ? max : Math.max(max, num)
+    }, 0)
+    const nextSequence = maxSeq + 1
     const previewSku = `${finalPrefix}-${nextSequence.toString().padStart(digits, '0')}`;
 
     return NextResponse.json({

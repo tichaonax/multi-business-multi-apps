@@ -11,8 +11,11 @@ export default function CustomerDisplayLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="h-screen w-screen overflow-hidden">
-      {children}
-    </div>
+    <>
+      <style>{`html, body { overflow: hidden !important; height: 100%; margin: 0; padding: 0; }`}</style>
+      <div className="h-screen w-screen overflow-hidden">
+        {children}
+      </div>
+    </>
   )
 }

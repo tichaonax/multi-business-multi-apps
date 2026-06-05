@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, categories: [], items: [] })
     }
 
-    const [rawItems, serviceProducts] = await Promise.all([
+    const [rawItems, serviceProducts, weightProducts] = await Promise.all([
       prisma.barcodeInventoryItems.findMany({
         where: { businessId, isActive: true, stockQuantity: { gt: 0 } },
         include: {
@@ -41,6 +41,16 @@ export async function GET(request: NextRequest) {
         include: {
           business_categories: { select: { id: true, name: true, emoji: true, color: true } },
           product_variants: { where: { isActive: true }, take: 1 }
+        },
+        orderBy: { name: 'asc' }
+      }),
+      // Sell-by-weight products — price comes from pricePerKg, not basePrice
+      prisma.businessProducts.findMany({
+        where: { businessId, isActive: true, isAvailable: true, isSoldByWeight: true },
+        include: {
+          business_categories: { select: { id: true, name: true, emoji: true, color: true } },
+          product_variants: { where: { isActive: true }, take: 1 },
+          weight_pricing_rules: { select: { pricePerKg: true, emoji: true } }
         },
         orderBy: { name: 'asc' }
       })
@@ -139,7 +149,36 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({ success: true, categories, items: [...items, ...serviceItems] })
+    const weightItems = weightProducts.map(p => {
+      const resolvedPricePerKg = p.weight_pricing_rules
+        ? Number(p.weight_pricing_rules.pricePerKg)
+        : (p.pricePerKg != null ? Number(p.pricePerKg) : 0)
+      const variant = p.product_variants[0]
+      return {
+        id: variant?.id ?? p.id,
+        name: p.name,
+        sku: p.sku ?? undefined,
+        barcode: undefined,
+        category: p.business_categories?.name ?? 'General',
+        categoryId: p.categoryId ?? '__uncategorized__',
+        categoryEmoji: p.weight_pricing_rules?.emoji ?? p.business_categories?.emoji ?? undefined,
+        categoryColor: p.business_categories?.color ?? '#F59E0B',
+        subcategoryEmoji: undefined,
+        domainEmoji: undefined,
+        price: 0,
+        pricePerKg: resolvedPricePerKg,
+        isSoldByWeight: true,
+        stockQuantity: undefined,
+        unitType: 'each' as const,
+        unit: 'kg',
+        taxable: false,
+        weightRequired: true,
+        pluCode: p.sku ?? undefined,
+        isExpiryDiscount: false,
+      }
+    })
+
+    return NextResponse.json({ success: true, categories, items: [...items, ...serviceItems, ...weightItems] })
   } catch (error: any) {
     console.error('[grocery/desk-products] Error:', error)
     return NextResponse.json(

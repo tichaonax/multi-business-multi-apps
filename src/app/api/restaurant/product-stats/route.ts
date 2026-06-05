@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
         },
         select: {
           quantity: true,
+          totalPrice: true,
           attributes: true,
           product_variants: {
             select: {
@@ -75,7 +76,7 @@ export async function GET(request: NextRequest) {
     console.log(`[product-stats] businessId=${businessId}, todayStart=${todayStart.toISOString()}, found ${todayItems.length} order items today`)
 
     // Aggregate by product — use variant linkage OR attributes.productId fallback
-    const productStats: Record<string, { productId: string; productName: string; totalSold: number; soldToday: number; firstSoldTodayAt: Date | null }> = {}
+    const productStats: Record<string, { productId: string; productName: string; totalSold: number; soldToday: number; revenueToday: number; firstSoldTodayAt: Date | null }> = {}
 
     todayItems.forEach(item => {
       // Try to get product from variant linkage first
@@ -105,6 +106,7 @@ export async function GET(request: NextRequest) {
           productName: productName || 'Unknown',
           totalSold: 0,
           soldToday: 0,
+          revenueToday: 0,
           firstSoldTodayAt: orderCreatedAt,
         }
       } else {
@@ -117,6 +119,7 @@ export async function GET(request: NextRequest) {
       const qty = Number(item.quantity)
       productStats[productId].totalSold += qty
       productStats[productId].soldToday += qty
+      productStats[productId].revenueToday += Number((item as any).totalPrice ?? 0)
     })
 
     // Aggregate yesterday's sold counts

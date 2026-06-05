@@ -10495,15 +10495,19 @@ Click the **⚖️ Scale** button in the top bar of the Grocery or Restaurant PO
 | Dot (green / red) | Scale connected or disconnected |
 | **Connected / Disconnected** label | Confirms hardware status at a glance |
 | Weight reading | Live weight in kg to 3 decimal places (e.g. `1.350 kg`) |
-| **Tare** button | Zeros the scale — remove all items first, then press Tare |
-| **Sale Pricing Rules** | Quick-reference list of active selling presets (emoji + name + $/kg) — visible without opening POS Settings |
+| **Tare (Zero Scale)** button | Zeros the scale — remove all items first, then press Tare |
+| **Tap to Weigh & Sell** cards | Clickable product cards for every sell-by-weight item — tap one to open the Weigh Item modal directly from the scale panel |
 | **⚙️ Configure pricing rules →** | Link to the Scale & Weighing settings tab |
+
+**Tap to Weigh & Sell cards:** Each sell-by-weight product configured for this business appears as a card showing the product name and its price per kg. Tap any card to open the **Weigh Item** modal — place the item on the scale, wait for a stable reading, and tap **Add to Cart**. After confirming, the scale automatically zeros (tares) so it is ready for the next item.
 
 **Grocery POS:** The panel is visible in both **Scan Mode** and **Desk Mode** — use it whenever the scale is in use regardless of which mode you are in.
 
 **Restaurant POS:** The panel sits alongside the Live POS / Manual Entry / Meal Program mode selector in the top area of the POS. When the scale panel is open, the **Today's Sales** summary is hidden to reduce distraction while weighing.
 
-> This panel is for monitoring weight, checking presets, and performing a quick tare. To connect the scale or change the COM port, go to **⚙️ POS Settings → ⚖️ Scale & Weighing**.
+> This panel is for monitoring weight and selling weight-based items. To connect the scale or change the COM port, go to **⚙️ POS Settings → ⚖️ Scale & Weighing**.
+> 
+> **Tip:** If the product cards do not appear after navigating away and returning, click the ⚖️ Scale button to close and re-open the panel — it reloads the product list automatically on open.
 
 ---
 
@@ -10620,7 +10624,8 @@ Any **restaurant** or **grocery** inventory item can be flagged as "sold by weig
    - Type the **Price per kg** in the field that appears.
    - This price is fixed at save time — it does not follow any preset.
 
-5. Click **Save**.
+5. Optionally select a **vendor purchase preset** in the **🚚 Cost per kg** dropdown — this records what you pay the supplier per kg and is used in the pricing calculator for margin analysis. When you re-open the product for editing, the saved preset is pre-selected automatically.
+6. Click **Save** (or **Update Item** when editing).
 
 Once flagged, tapping the product card at the POS opens the **Weigh Item** modal instead of adding directly to the cart. Product cards for weight-priced items show:
 - The price as **$X.XX/kg** (preset rate) instead of a fixed unit price
@@ -10629,6 +10634,8 @@ Once flagged, tapping the product card at the POS opens the **Weigh Item** modal
 > **No presets yet?** A link **"⚙️ Configure selling presets →"** appears in the amber bar. Click it to go directly to POS Settings and create your first preset, then come back to link it.
 
 > **Changing preset vs unlinking:** Unchecking "Sell by Weight" clears the preset link and the price — the product reverts to normal fixed-price selling.
+
+> **Sell by Weight saved on create:** When you create a new product with Sell by Weight ticked, the flag is saved immediately. Re-opening the product for editing will show the checkbox correctly checked — no need to re-tick it.
 
 ---
 
@@ -10639,21 +10646,23 @@ In the Grocery POS, tapping a product card that is marked *Sell by Weight* opens
 **Workflow:**
 
 1. Place the item on the scale (tare the container first if needed — use the **⚖️ Scale** panel or the Tare button inside the modal).
-2. The modal displays the live reading in large digits:
-   - **UNSTABLE** (amber) — the scale is still settling; wait.
-   - **STABLE** (green) — the reading has settled. The calculated total appears.
-3. The weight **auto-locks** when stable. The status changes to **LOCKED** (blue).
-4. If the weight looks wrong, click **Re-weigh** to unlock and capture a fresh reading.
-5. Click **Tare** to zero the scale (e.g. to remove packaging weight).
-6. Click **Add to Cart** once you are satisfied with the weight and price.
+2. The modal displays the **live scale reading** continuously in large digits. The border colour tells you the status:
+   - **Amber border / ○ READING…** — the scale is still settling; wait.
+   - **Green border / ● STABLE — LIVE** — the reading has settled. The calculated total appears and **Add to Cart** becomes active.
+3. The weight is **always live** — it never locks. If more food is added to the scale after placing, the weight updates immediately and **Add to Cart** stays disabled until the new reading stabilises. This prevents undercharging.
+4. Click **Tare (Zero Scale)** to zero the scale (e.g. to subtract a container's weight).
+5. Click **Add to Cart** when the green STABLE indicator is showing and the total looks correct.
+
+After confirming, the scale **automatically tares** so it is zeroed and ready for the next item in the same transaction.
 
 The cart item is added as `Product Name (X.XXX kg)` with the total price pre-calculated (weight × price per kg).
 
+**Selling the same product twice at different weights:** Tap the product card again after the first item is confirmed. Each weigh produces a separate cart line (e.g. *Grilled Chicken (0.350 kg)* and *Grilled Chicken (0.512 kg)*) so they are billed independently.
+
 | Control | Action |
 |---------|--------|
-| **Tare** | Zeros the scale — remove all items first, tare, then place items back |
-| **Re-weigh** | Unlocks a locked reading to capture a new value |
-| **Add to Cart** | Disabled until a stable, positive weight is locked |
+| **Tare (Zero Scale)** | Zeros the scale — remove all items first, tare, then place items back |
+| **Add to Cart** | Enabled only when the scale shows a stable, positive reading |
 | **Cancel** | Closes the modal without adding anything to the cart |
 
 > **No scale connected?** The modal shows "Scale not connected" and Add to Cart is disabled. Go to **⚙️ POS Settings → Scale** to connect the hardware first.
@@ -10662,11 +10671,17 @@ The cart item is added as `Product Name (X.XXX kg)` with the total price pre-cal
 
 ### Selling by Weight at the POS — Restaurant
 
-The Restaurant POS has the same **Weigh Item** modal behaviour for menu items flagged as *Sell by Weight*. Tap a product card in the Live POS view — if the item has `isSoldByWeight` enabled, the modal opens instead of adding directly to the cart.
+The Restaurant POS has two ways to sell a weight-priced item:
 
-You can also monitor the scale reading at any time using the **⚖️ Scale** toggle button next to the Live / Manual / Meal Program mode switcher (see [Scale Status Panel](#scale-status-panel--live-weight-display) above).
+**Option A — From the scale panel (recommended):**
+Click the **⚖️ Scale** toggle in the top bar to open the scale panel. The **Tap to Weigh & Sell** section shows a card for every sell-by-weight product. Tap the card for the item being purchased — the Weigh Item modal opens immediately.
 
-**Workflow:** identical to Grocery above — place item, wait for STABLE, review LOCKED reading, click **Add to Cart**.
+**Option B — From the main product grid:**
+Sell-by-weight products appear in the standard POS grid with a **⚖️** badge and show their price as **$X.XX/kg**. Tap the card — the Weigh Item modal opens instead of adding directly to the cart.
+
+**Workflow:** identical to Grocery — place item on scale, wait for the green **● STABLE — LIVE** indicator, then tap **Add to Cart**. The weight is always live (never locks), so any food added after placing on the scale is captured automatically. After confirming, the scale auto-tares for the next item.
+
+You can monitor the live weight reading at any time using the **⚖️ Scale** toggle button next to the Live / Manual / Meal Program mode switcher (see [Scale Status Panel](#scale-status-panel--live-weight-display) above).
 
 > **No scale connected?** The modal shows "Scale not connected" and Add to Cart is disabled. Go to **⚙️ POS Settings → Scale** to connect. For the livestock purchase vendor workflow a manual weight entry field appears automatically when the scale is offline — see [Scale Offline — Manual Weight Entry](#scale-offline--manual-weight-entry).
 

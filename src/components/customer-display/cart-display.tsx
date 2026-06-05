@@ -59,6 +59,14 @@ function formatCurrency(amount: number): string {
   }).format(amount)
 }
 
+// Returns a density level based on item count so rows shrink to fit without scrolling
+function getDensity(count: number): 'lg' | 'md' | 'sm' | 'xs' {
+  if (count <= 3) return 'lg'
+  if (count <= 6) return 'md'
+  if (count <= 9) return 'sm'
+  return 'xs'
+}
+
 export function CartDisplay({
   items,
   subtotal,
@@ -78,21 +86,26 @@ export function CartDisplay({
   ecocashFee = 0
 }: CartDisplayProps) {
   const isEcocash = paymentMethod?.toUpperCase() === 'ECOCASH'
+  const density = getDensity(items.length)
+
+  const headerSize = density === 'lg' ? 'text-4xl' : density === 'md' ? 'text-3xl' : 'text-2xl'
+  const itemCountSize = density === 'lg' ? 'text-3xl' : 'text-2xl'
+
   return (
-    <div className="h-full w-full flex flex-col bg-gradient-to-br from-blue-50 via-white to-blue-50 p-4">
+    <div className="h-full w-full flex flex-col bg-gradient-to-br from-blue-50 via-white to-blue-50 p-4 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between mb-3 pb-3 border-b-4 border-blue-600">
-        <h1 className="text-4xl font-bold text-gray-900 tracking-tight">
+      <div className={`flex items-center justify-between pb-2 border-b-4 border-blue-600 ${density === 'lg' ? 'mb-3' : 'mb-1.5'}`}>
+        <h1 className={`${headerSize} font-bold text-gray-900 tracking-tight`}>
           Your Order
         </h1>
         <div className="text-right">
-          <div className="text-xl text-gray-600">Items</div>
-          <div className="text-3xl font-bold text-blue-600">{items.length}</div>
+          <div className="text-lg text-gray-600">Items</div>
+          <div className={`${itemCountSize} font-bold text-blue-600`}>{items.length}</div>
         </div>
       </div>
 
-      {/* Items List */}
-      <div className="flex-1 overflow-y-auto space-y-2 mb-4">
+      {/* Items List — flex-1 + overflow-hidden means it never scrolls, rows shrink to fit */}
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col justify-start gap-1">
         {items.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center text-gray-400">
@@ -101,8 +114,8 @@ export function CartDisplay({
             </div>
           </div>
         ) : (
-          items.map((item) => (
-            <CartItemRow key={item.id} item={item} />
+          items.map((item, idx) => (
+            <CartItemRow key={`${item.id}-${idx}`} item={item} density={density} />
           ))
         )}
       </div>
@@ -237,58 +250,53 @@ export function CartDisplay({
 /**
  * Individual cart item row
  */
-function CartItemRow({ item }: { item: CartItem }) {
-  const lineTotal = item.quantity * item.price
+function CartItemRow({ item, density = 'lg' }: { item: CartItem; density?: 'lg' | 'md' | 'sm' | 'xs' }) {
+  // Weight items: price IS the line total (weight × $/kg), quantity is always 1
+  const isWeightLine = item.variant?.includes('/kg')
+  const lineTotal = isWeightLine ? item.price : item.quantity * item.price
+
+  const imgSize = density === 'lg' ? 'w-14 h-14' : density === 'md' ? 'w-10 h-10' : 'w-8 h-8'
+  const nameSize = density === 'lg' ? 'text-2xl' : density === 'md' ? 'text-xl' : density === 'sm' ? 'text-lg' : 'text-base'
+  const subSize = density === 'lg' ? 'text-lg' : 'text-sm'
+  const numSize = density === 'lg' ? 'text-3xl' : density === 'md' ? 'text-2xl' : 'text-xl'
+  const padding = density === 'lg' ? 'px-4 py-2' : density === 'md' ? 'px-3 py-1.5' : 'px-2 py-1'
 
   return (
-    <div className="bg-white rounded-xl shadow px-4 py-2 border border-gray-200">
+    <div className={`bg-white rounded-xl shadow ${padding} border border-gray-200`}>
       <div className="flex items-center gap-3">
         {/* Product Image */}
         {item.imageUrl ? (
-          <div className="relative w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
+          <div className={`relative ${imgSize} flex-shrink-0 rounded-lg overflow-hidden bg-gray-100`}>
             <Image src={item.imageUrl} alt={item.name} fill className="object-cover" sizes="56px" />
           </div>
         ) : (
-          <div className="w-14 h-14 flex-shrink-0 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
-            <div className="text-2xl">{item.isCombo ? '🍽️' : '📦'}</div>
+          <div className={`${imgSize} flex-shrink-0 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center`}>
+            <div className={density === 'lg' ? 'text-2xl' : 'text-lg'}>{item.isCombo ? '🍽️' : '📦'}</div>
           </div>
         )}
 
         {/* Item Details */}
         <div className="flex-1 min-w-0">
-          <div className="text-2xl font-bold text-gray-900 leading-tight">{item.name}</div>
-          {item.variant && !item.isCombo && (
-            <div className="text-lg text-gray-500">{item.variant}</div>
-          )}
-          {item.isCombo && item.comboItems && item.comboItems.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-1">
-              {item.comboItems.map((ci, idx) => {
-                const isWiFiToken = ci.tokenConfigId || ci.wifiToken
-                const itemName = ci.wifiToken?.name || ci.product?.name || ci.name || 'Item'
-                return (
-                  <span key={idx} className="text-sm text-gray-500">
-                    {isWiFiToken ? `📶 ${itemName}` : `• ${itemName}`}
-                    {ci.quantity && ci.quantity > 1 ? ` x${ci.quantity}` : ''}
-                  </span>
-                )
-              })}
-            </div>
-          )}
-          <div className="text-lg text-gray-400">{formatCurrency(item.price)} each</div>
+          <div className={`${nameSize} font-bold text-gray-900 leading-tight truncate`}>{item.name}</div>
+          <div className={`${subSize} text-gray-400`}>
+            {item.variant && item.variant !== 'each' && item.variant !== 'units' && item.variant !== ''
+              ? item.variant
+              : `${formatCurrency(item.price)} each`}
+          </div>
         </div>
 
         {/* Quantity */}
         <div className="flex-shrink-0 text-center">
-          <div className="text-sm text-gray-500">Qty</div>
-          <div className="text-3xl font-bold text-blue-600 bg-blue-50 rounded-lg px-3 py-1">
+          <div className="text-xs text-gray-500">Qty</div>
+          <div className={`${numSize} font-bold text-blue-600 bg-blue-50 rounded-lg px-2 py-0.5`}>
             {item.quantity}
           </div>
         </div>
 
         {/* Line Total */}
-        <div className="flex-shrink-0 text-right min-w-[120px]">
-          <div className="text-sm text-gray-500">Total</div>
-          <div className="text-3xl font-bold text-gray-900">{formatCurrency(lineTotal)}</div>
+        <div className="flex-shrink-0 text-right min-w-[90px]">
+          <div className="text-xs text-gray-500">Total</div>
+          <div className={`${numSize} font-bold text-gray-900`}>{formatCurrency(lineTotal)}</div>
         </div>
       </div>
     </div>

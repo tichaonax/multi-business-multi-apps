@@ -248,8 +248,19 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
   // 5. ITEMS SECTION
   // ============================================================================
   data.items.forEach((item, index) => {
-    // Standard item line (name, qty, price, total)
-    receipt += formatLineItem(item.name, item.quantity, item.unitPrice, item.totalPrice);
+    // For sell-by-weight items: strip weight from name and show it as a sub-line with $/kg rate
+    const weightMatch = item.name.match(/\(([0-9.]+)\s*kg\)/)
+    const weightKg = weightMatch ? parseFloat(weightMatch[1]) : null
+    const displayName = weightKg ? item.name.replace(/\s*\([0-9.]+ kg\)/, '') : item.name
+    const pricePerKg = weightKg && weightKg > 0 ? item.totalPrice / weightKg : null
+
+    receipt += formatLineItem(displayName, item.quantity, item.unitPrice, item.totalPrice);
+
+    // Weight sub-line: "  0.367 kg @ $13.00/kg"
+    if (weightKg && pricePerKg) {
+      const weightLine = `  ${weightKg.toFixed(3)} kg @ ${formatMoney(pricePerKg)}/kg`
+      receipt += weightLine + LF
+    }
 
     // Business-specific item details (barcode, SKU, allergens, etc.)
     if (sections.itemDetailsRenderer) {

@@ -701,9 +701,9 @@ export function UniversalInventoryGrid({
           )}
           {/* Desktop Table View */}
           {!loading && (
-          <div className="hidden lg:block overflow-x-auto">
+          <div className="hidden lg:block overflow-x-auto max-h-[calc(100vh-280px)] overflow-y-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 dark:bg-gray-800">
+              <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
                 <tr>
                   {mergeMode && (
                     <th className="w-10 p-3" />

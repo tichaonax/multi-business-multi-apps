@@ -147,7 +147,7 @@ function GroceryPOSContent() {
   } | null>(null)
   const [eodGateLoading, setEodGateLoading] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  const [productStatsMap, setProductStatsMap] = useState<Map<string, { soldToday: number; soldYesterday: number; soldDayBefore: number; firstSoldTodayAt: string | null }>>(new Map())
+  const [productStatsMap, setProductStatsMap] = useState<Map<string, { soldToday: number; revenueToday: number; soldYesterday: number; soldDayBefore: number; firstSoldTodayAt: string | null }>>(new Map())
   const [deskSearchTerm, setDeskSearchTerm] = useState('')
   const [deskProducts, setDeskProducts] = useState<POSItem[]>([])
   const [deskCategories, setDeskCategories] = useState<{ key: string; label: string; emoji: string; stockTotal: number }[]>([])
@@ -437,9 +437,11 @@ function GroceryPOSContent() {
     localStorage.setItem(`grocery-pos-scale-${currentBusinessId}`, String(scaleVisible))
   }, [scaleVisible, currentBusinessId])
 
-  // Fetch SALE pricing rules whenever the scale panel opens
+  // Reload products when scale panel opens so weight cards are always current
   useEffect(() => {
     if (!scaleVisible || !currentBusinessId) return
+    // Products are already loaded by the main load flow — just trigger a refresh
+    // by re-fetching pricing rules (kept for settings link reference)
     fetch(`/api/weight-pricing-rules?businessId=${currentBusinessId}`)
       .then(r => r.json())
       .then(data => setScalePricingRules(
@@ -586,14 +588,22 @@ function GroceryPOSContent() {
     }
 
     const cartMessage = {
-      items: cartItems.map(item => ({
-        id: item.id,
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price,
-        variant: item.unit || '',
-        imageUrl: item.imageUrl  // Include product image for customer display
-      })),
+      items: cartItems.map(item => {
+        const isWeightItem = (item as any).isSoldByWeight
+        const weightMatch = isWeightItem ? item.name.match(/\(([0-9.]+)\s*kg\)/) : null
+        const weightKg = weightMatch ? parseFloat(weightMatch[1]) : null
+        const pricePerKg = weightKg && weightKg > 0 ? item.price / weightKg : null
+        return {
+          id: item.id,
+          name: isWeightItem ? item.name.replace(/\s*\([0-9.]+ kg\)/, '') : item.name,
+          quantity: item.quantity,
+          price: item.price,
+          variant: isWeightItem && weightKg
+            ? `${weightKg.toFixed(3)} kg @ ${pricePerKg ? `$${pricePerKg.toFixed(2)}/kg` : ''}`
+            : (item.unit || ''),
+          imageUrl: item.imageUrl,
+        }
+      }),
       subtotal,
       tax,
       total,
@@ -1036,7 +1046,7 @@ function GroceryPOSContent() {
       if (!res.ok) return
       const result = await res.json()
       if (result.success && Array.isArray(result.data)) {
-        const map = new Map<string, { soldToday: number; soldYesterday: number; soldDayBefore: number; firstSoldTodayAt: string | null }>()
+        const map = new Map<string, { soldToday: number; revenueToday: number; soldYesterday: number; soldDayBefore: number; firstSoldTodayAt: string | null }>()
         result.data.forEach((s: any) => map.set(s.productId, s))
         setProductStatsMap(map)
       }
@@ -1334,7 +1344,13 @@ function GroceryPOSContent() {
   }
 
   const addToCart = async (product: POSItem, quantity = 1, weight?: number) => {
-    // Prevent adding $0 items to cart (except WiFi tokens)
+    // Sell-by-weight products: intercept and open the weigh modal
+    if (product.isSoldByWeight && product.pricePerKg) {
+      setWeighingItem(product)
+      return
+    }
+
+    // Prevent adding $0 items to cart (except WiFi tokens and sell-by-weight)
     const isWiFiToken = (product as any).wifiToken === true
     const isR710Token = (product as any).r710Token === true
     const isAnyToken = isWiFiToken || isR710Token
@@ -1583,9 +1599,43 @@ function GroceryPOSContent() {
     if (products.length === 0 || productsLoading) return
     autoAddProductIdRef.current = null
 
-    const product = products.find(p => p.id === productId)
-    if (!product) {
-      console.error('❌ Auto-add: product not found:', productId)
+    // Products list stores variant.id — try matching by variant ID first, then product ID
+    let product = products.find(p => p.id === productId)
+
+    // Not found by variant ID — fetch directly to handle weight products whose ID is the product ID
+    if (!product && currentBusinessId) {
+      ;(async () => {
+        try {
+          const res = await fetch(`/api/inventory/${currentBusinessId}/items/${productId}`)
+          if (!res.ok) return
+          const data = await res.json()
+          const item = data.data
+          if (!item) return
+          if (item.isSoldByWeight && item.pricePerKg) {
+            setWeighingItem({
+              id: item.id,
+              name: item.name,
+              price: 0,
+              pricePerKg: Number(item.pricePerKg),
+              isSoldByWeight: true,
+              category: item.category || 'General',
+              unitType: 'each',
+              unit: 'kg',
+              taxable: false,
+              weightRequired: true,
+            })
+          }
+        } catch (e) {
+          console.error('❌ Auto-add weight product failed:', e)
+        }
+      })()
+      return
+    }
+    if (!product) return
+
+    // Sell-by-weight: open the weigh modal instead of directly adding to cart
+    if (product.isSoldByWeight && product.pricePerKg) {
+      setWeighingItem(product)
       return
     }
     // Skip if item is already in the cart (may have been restored from localStorage)
@@ -2646,8 +2696,8 @@ function GroceryPOSContent() {
         { label: 'Point of Sale', isActive: true }
       ]}
     >
-      {/* Financial Summary — only for users with canAccessFinancialData */}
-      {(isAdmin || hasPermission('canAccessFinancialData')) && (
+      {/* Financial Summary moved into the grid left column — removed from here to prevent blank space above sidebar */}
+      {false && (
         <div className="mb-6 space-y-3">
           <DailySalesWidget
             dailySales={dailySales}
@@ -2689,8 +2739,8 @@ function GroceryPOSContent() {
         </div>
       )}
 
-      {/* Recent Orders — for non-financial users (salespeople) */}
-      {!isAdmin && !hasPermission('canAccessFinancialData') && recentTransactions.length > 0 && (
+      {/* Recent Orders moved into grid left column */}
+      {false && !isAdmin && !hasPermission('canAccessFinancialData') && recentTransactions.length > 0 && (
         <div className="mb-4 card bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           <button
             onClick={() => setShowRecentTransactions(v => !v)}
@@ -2913,9 +2963,63 @@ function GroceryPOSContent() {
       )}
 
       {posMode === 'live' && (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 lg:items-start">
         {/* Main POS Area */}
         <div className="lg:col-span-2 space-y-4">
+
+          {/* Financial Summary — shown here so sidebar starts at same height */}
+          {(isAdmin || hasPermission('canAccessFinancialData')) && (
+            <div className="space-y-3">
+              <DailySalesWidget
+                dailySales={dailySales}
+                yesterdaySales={yesterdaySales}
+                dayBeforeYesterdaySales={dayBeforeYesterdaySales}
+                recentTransactions={recentTransactions}
+                loadingRecent={loadingRecent}
+                businessType="grocery"
+                onRefresh={() => { loadDailySales(); loadRecentTransactions() }}
+                businessId={currentBusinessId || undefined}
+                canCloseBooks={isAdmin || hasPermission('canCloseBooks')}
+                managerName={sessionUser?.name || sessionUser?.email || 'Manager'}
+                onReorder={(orderItems) => {
+                  setCart(prev => {
+                    const next = [...prev]
+                    for (const item of orderItems) {
+                      const name = item.product_variants?.business_products?.name || item.attributes?.productName || item.notes || 'Item'
+                      const variantId = item.productVariantId || item.id
+                      const price = Number(item.unitPrice) || 0
+                      const qty = Number(item.quantity) || 1
+                      const idx = next.findIndex(c => c.id === variantId)
+                      if (idx >= 0) {
+                        next[idx] = { ...next[idx], quantity: next[idx].quantity + qty, subtotal: (next[idx].quantity + qty) * price }
+                      } else {
+                        next.push({ id: variantId, name, price, quantity: qty, subtotal: qty * price } as any)
+                      }
+                    }
+                    return next
+                  })
+                  toast.push('Items added to cart', { type: 'success' })
+                }}
+              />
+              {currentBusinessId && (
+                <TodayExpensesWidget businessId={currentBusinessId} refreshKey={financialRefreshKey} />
+              )}
+            </div>
+          )}
+
+          {/* Recent Orders — for non-financial users */}
+          {!isAdmin && !hasPermission('canAccessFinancialData') && recentTransactions.length > 0 && (
+            <div className="card bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+              <button
+                onClick={() => setShowRecentTransactions(v => !v)}
+                className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+              >
+                <span className="text-sm font-semibold">Recent Orders</span>
+                <span className="text-xs text-gray-400">{recentTransactions.length} orders {showRecentTransactions ? '▲' : '▼'}</span>
+              </button>
+            </div>
+          )}
+
           {/* Product Entry */}
           <div className={`card ${deskMode ? 'pt-0 px-4 sm:px-6 pb-4' : 'p-4 sm:p-6'}`}>
             {!deskMode && <h3 className="text-lg font-semibold mb-4">Product Entry</h3>}
@@ -3071,28 +3175,104 @@ function GroceryPOSContent() {
                     Tare
                   </button>
                 </div>
-                {/* SALE pricing rules */}
-                <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                  <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5">Sale Pricing Rules</div>
-                  {scalePricingRules.length === 0 ? (
-                    <p className="text-xs text-gray-400 dark:text-gray-500 italic">No SALE pricing rules configured.</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {scalePricingRules.map((rule: any) => (
-                        <div key={rule.id} className="flex items-center justify-between text-sm">
-                          <span>{rule.emoji} {rule.categoryName}</span>
-                          <span className="font-mono font-medium">${Number(rule.pricePerKg).toFixed(2)}/kg</span>
+                {/* Sell-by-weight product cards */}
+                {(() => {
+                  const canSeeFinancials = isAdmin || hasPermission('canAccessFinancialData')
+                  const canSeeSoldCount = canSeeFinancials || hasPermission('canViewPOSSoldCount')
+                  const weightItems = [...products, ...deskProducts]
+                    .filter((p: any) => p.isSoldByWeight && p.pricePerKg)
+                    // dedupe by id
+                    .filter((p, idx, arr) => arr.findIndex(x => x.id === p.id) === idx)
+                    .slice()
+                    .sort((a: any, b: any) => {
+                      const sa = productStatsMap.get(a.id)
+                      const sb = productStatsMap.get(b.id)
+                      const aSoldToday = (sa?.soldToday ?? 0) > 0
+                      const bSoldToday = (sb?.soldToday ?? 0) > 0
+                      if (aSoldToday !== bSoldToday) return aSoldToday ? -1 : 1
+                      if (aSoldToday && bSoldToday) {
+                        const aTime = sa?.firstSoldTodayAt ? new Date(sa.firstSoldTodayAt).getTime() : Infinity
+                        const bTime = sb?.firstSoldTodayAt ? new Date(sb.firstSoldTodayAt).getTime() : Infinity
+                        return aTime - bTime
+                      }
+                      return (a.name || '').localeCompare(b.name || '')
+                    })
+                  return (
+                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                      <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Tap to Weigh & Sell</div>
+                      {weightItems.length === 0 ? (
+                        <p className="text-xs text-gray-400 dark:text-gray-500 italic">No sell-by-weight products found.</p>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                          {weightItems.map((item: any) => {
+                            const stats = productStatsMap.get(item.id)
+                            const soldToday = stats?.soldToday ?? 0
+                            const soldYesterday = stats?.soldYesterday ?? 0
+                            let barFill = 0
+                            let barColorClass = 'bg-red-500'
+                            let barTextColorClass = 'text-red-500 dark:text-red-400'
+                            let barLabel = 'Low'
+                            const showBar = canSeeSoldCount && soldToday > 0
+                            if (showBar) {
+                              if (soldYesterday > 0) {
+                                const ratio = soldToday / soldYesterday
+                                barFill = Math.min(100, ratio * 100)
+                                if (ratio >= 1.0) { barColorClass = 'bg-green-500'; barTextColorClass = 'text-green-500 dark:text-green-400'; barLabel = 'Good' }
+                                else if (ratio >= 0.5) { barColorClass = 'bg-amber-400'; barTextColorClass = 'text-amber-500 dark:text-amber-400'; barLabel = 'Fair' }
+                              } else {
+                                barFill = 60; barColorClass = 'bg-green-500'; barTextColorClass = 'text-green-500 dark:text-green-400'; barLabel = 'New'
+                              }
+                            }
+                            return (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => addToCart(item)}
+                                className="flex flex-col p-3 rounded-lg bg-white dark:bg-gray-700 border-2 border-blue-200 dark:border-blue-700 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors text-left w-full"
+                              >
+                                <div className="flex items-start justify-between w-full gap-1">
+                                  <div className="flex items-center gap-1 min-w-0">
+                                    {item.categoryEmoji && <span className="text-base flex-shrink-0">{item.categoryEmoji}</span>}
+                                    <span className="text-xs font-semibold text-gray-800 dark:text-gray-100 leading-tight line-clamp-2">{item.name}</span>
+                                  </div>
+                                  <span className="text-base flex-shrink-0">⚖️</span>
+                                </div>
+                                <div className="flex items-end justify-between w-full mt-1">
+                                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400 font-mono">${Number(item.pricePerKg).toFixed(2)}<span className="font-normal opacity-70">/kg</span></span>
+                                  {canSeeSoldCount && soldToday > 0 && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50 whitespace-nowrap">
+                                      <span className="text-yellow-500 font-bold">{soldToday}</span> sold
+                                    </span>
+                                  )}
+                                </div>
+                                {canSeeFinancials && soldToday > 0 && (
+                                  <span className={`text-sm font-black leading-none mt-0.5 ${barTextColorClass}`}>
+                                    ${(stats?.revenueToday ?? 0) > 0 ? (stats!.revenueToday).toFixed(2) : (Number(item.pricePerKg) * soldToday).toFixed(2)}
+                                  </span>
+                                )}
+                                {showBar && (
+                                  <div className="mt-1.5 flex items-center gap-1.5 w-full">
+                                    <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${barColorClass}`} />
+                                    <div className="flex-1 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full overflow-hidden">
+                                      <div className={`h-full transition-all duration-500 ${barColorClass} opacity-70`} style={{ width: `${barFill}%` }} />
+                                    </div>
+                                    <span className={`text-[10px] font-semibold flex-shrink-0 ${barTextColorClass}`}>{barLabel}</span>
+                                  </div>
+                                )}
+                              </button>
+                            )
+                          })}
                         </div>
-                      ))}
+                      )}
+                      <a
+                        href={`/grocery/settings/pos?businessId=${currentBusinessId}`}
+                        className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        ⚙️ Configure pricing rules →
+                      </a>
                     </div>
-                  )}
-                  <a
-                    href={`/grocery/settings/pos?businessId=${currentBusinessId}`}
-                    className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                  >
-                    ⚙️ Configure pricing rules →
-                  </a>
-                </div>
+                  )
+                })()}
               </div>
             )}
 
@@ -3448,7 +3628,7 @@ function GroceryPOSContent() {
                                 </span>
                                 {canSeeFinancials && (
                                   <span className={`text-xs font-semibold ${barTextColorClass}`}>
-                                    {formatCurrency(product.price * soldToday)}
+                                    {formatCurrency((stats?.revenueToday ?? 0) > 0 ? stats!.revenueToday : product.price * soldToday)}
                                   </span>
                                 )}
                               </div>
@@ -3798,46 +3978,59 @@ function GroceryPOSContent() {
                 <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
                   {cart.map((item, index) => (
                     <div key={`summary-${item.id}-${index}`} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">
-                          {(item.name === 'Default' || item.name === 'default' || !item.name)
-                            ? ((item.barcode && !item.barcode.startsWith('inv_')) ? item.barcode : item.id)
-                            : item.name}
-                        </div>
-                        <div className="text-xs text-secondary">
-                          {(item as any).sku ? `${(item as any).sku} · ` : ''}{formatCurrency(item.price)}/{item.unit}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {!item.weightRequired && (
+                      {(() => {
+                        const isWeightItem = (item as any).isSoldByWeight
+                        // Extract weight from name e.g. "Beef Manyama (0.367 kg)" → "0.367 kg"
+                        const weightMatch = isWeightItem ? item.name.match(/\(([0-9.]+)\s*kg\)/) : null
+                        const weightKg = weightMatch ? parseFloat(weightMatch[1]) : null
+                        const pricePerKg = weightKg && weightKg > 0 ? item.price / weightKg : null
+                        // Base name without the (X.XXX kg) suffix
+                        const baseName = isWeightItem ? item.name.replace(/\s*\([0-9.]+ kg\)/, '') : item.name
+                        const displayName = (baseName === 'Default' || baseName === 'default' || !baseName)
+                          ? ((item.barcode && !item.barcode.startsWith('inv_')) ? item.barcode : item.id)
+                          : baseName
+                        return (
                           <>
-                            <button
-                              onClick={() => item.quantity <= 1 ? removeFromCart(item.id) : updateQuantity(item.id, item.quantity - 1)}
-                              className="w-6 h-6 flex items-center justify-center rounded bg-gray-200 dark:bg-gray-600 hover:bg-red-100 dark:hover:bg-red-900/40 text-xs font-bold"
-                            >
-                              −
-                            </button>
-                            <span className="w-6 text-center text-sm font-medium">{item.quantity}</span>
-                            <button
-                              onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                              className="w-6 h-6 flex items-center justify-center rounded bg-gray-200 dark:bg-gray-600 hover:bg-green-100 dark:hover:bg-green-900/40 text-xs font-bold"
-                            >
-                              +
-                            </button>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium truncate">{displayName}</div>
+                              <div className="text-xs text-secondary">
+                                {(item as any).sku ? `${(item as any).sku} · ` : ''}
+                                {isWeightItem && pricePerKg
+                                  ? `${formatCurrency(pricePerKg)}/kg`
+                                  : `${formatCurrency(item.price)}/${item.unit}`}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {isWeightItem ? (
+                                // Weight items: show actual weight, no qty controls
+                                <span className="text-xs text-secondary whitespace-nowrap">
+                                  {weightKg != null ? `${weightKg.toFixed(3)} kg` : ''}
+                                </span>
+                              ) : !item.weightRequired ? (
+                                <>
+                                  <button
+                                    onClick={() => item.quantity <= 1 ? removeFromCart(item.id) : updateQuantity(item.id, item.quantity - 1)}
+                                    className="w-6 h-6 flex items-center justify-center rounded bg-gray-200 dark:bg-gray-600 hover:bg-red-100 dark:hover:bg-red-900/40 text-xs font-bold"
+                                  >−</button>
+                                  <span className="w-6 text-center text-sm font-medium">{item.quantity}</span>
+                                  <button
+                                    onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                    className="w-6 h-6 flex items-center justify-center rounded bg-gray-200 dark:bg-gray-600 hover:bg-green-100 dark:hover:bg-green-900/40 text-xs font-bold"
+                                  >+</button>
+                                </>
+                              ) : (
+                                <span className="text-xs text-secondary">{item.quantity.toFixed(2)} {item.unit}</span>
+                              )}
+                              <span className="font-semibold text-sm whitespace-nowrap w-14 text-right">{formatCurrency(item.subtotal)}</span>
+                              <button
+                                onClick={() => removeFromCart(item.id)}
+                                className="p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/20 rounded text-xs"
+                                title="Remove"
+                              >✕</button>
+                            </div>
                           </>
-                        )}
-                        {item.weightRequired && (
-                          <span className="text-xs text-secondary">{item.quantity.toFixed(2)} {item.unit}</span>
-                        )}
-                        <span className="font-semibold text-sm whitespace-nowrap w-14 text-right">{formatCurrency(item.subtotal)}</span>
-                        <button
-                          onClick={() => removeFromCart(item.id)}
-                          className="p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/20 rounded text-xs"
-                          title="Remove"
-                        >
-                          ✕
-                        </button>
-                      </div>
+                        )
+                      })()}
                     </div>
                   ))}
                 </div>

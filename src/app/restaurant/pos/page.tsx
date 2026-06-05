@@ -489,7 +489,41 @@ export default function RestaurantPOS() {
 
     const itemId = variantId ? `${productId}-${variantId}` : productId
     const found = menuItemsRef.current.find(m => m.id === itemId || m.id === productId)
-    if (!found) return
+
+    // Not found or weight fields missing — fetch directly from inventory API
+    if (!found || (found.isSoldByWeight && !found.pricePerKg)) {
+      ;(async () => {
+        try {
+          const res = await fetch(`/api/inventory/${currentBusinessId}/items/${productId}`)
+          if (!res.ok) return
+          const data = await res.json()
+          const item = data.data
+          if (!item) return
+          if (item.isSoldByWeight && item.pricePerKg) {
+            setWeighingItem({
+              id: item.id,
+              name: item.name,
+              price: 0,
+              pricePerKg: Number(item.pricePerKg),
+              isSoldByWeight: true,
+              category: item.category || 'General',
+            } as any)
+          } else if (!found) {
+            // Normal product fallback — shouldn't happen but safe
+            console.warn('[POS] auto-add: product not found in menu list', productId)
+          }
+        } catch (e) {
+          console.error('❌ Auto-add: fetch failed', e)
+        }
+      })()
+      return
+    }
+
+    // Sell-by-weight: open the weigh modal instead of directly adding to cart
+    if (found.isSoldByWeight && found.pricePerKg) {
+      setWeighingItem(found)
+      return
+    }
 
     // Use setCart directly (not addToCart) so we can skip if already in cart.
     // Cart may have been restored from localStorage — adding again would double-count.
@@ -530,7 +564,7 @@ export default function RestaurantPOS() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
 
-  // Fetch SALE pricing rules whenever the scale panel opens
+  // Fetch SALE pricing rules and reload menu items whenever the scale panel opens
   useEffect(() => {
     if (!scaleVisible || !currentBusinessId) return
     fetch(`/api/weight-pricing-rules?businessId=${currentBusinessId}`)
@@ -539,6 +573,8 @@ export default function RestaurantPOS() {
         (Array.isArray(data) ? data : []).filter((r: any) => r.ruleType === 'SALE' && r.isActive)
       ))
       .catch(() => {})
+    // Reload menu items so sell-by-weight cards are always current when panel opens
+    loadMenuItems()
   }, [scaleVisible, currentBusinessId])
 
   // Handle addCustomBulk URL param — navigated here from GlobalBarcodeModal "Add to Cart" on another business
@@ -1113,6 +1149,7 @@ export default function RestaurantPOS() {
           let purchaseCounts: Record<string, number> = {}
           let soldTodayCounts: Record<string, number> = {}
           let soldYesterdayCounts: Record<string, number> = {}
+          let revenueTodayMap: Record<string, number> = {}
           let firstSoldTodayAtMap: Record<string, string | null> = {}
           if (statsResponse.ok) {
             const statsData = await statsResponse.json()
@@ -1122,6 +1159,7 @@ export default function RestaurantPOS() {
                 purchaseCounts[item.productId] = item.totalSold || 0
                 soldTodayCounts[item.productId] = item.soldToday || 0
                 soldYesterdayCounts[item.productId] = item.soldYesterday || 0
+                revenueTodayMap[item.productId] = item.revenueToday || 0
                 firstSoldTodayAtMap[item.productId] = item.firstSoldTodayAt || null
               })
             }
@@ -1162,12 +1200,14 @@ export default function RestaurantPOS() {
                 purchaseCount: purchaseCounts[product.id] || 0,
                 soldToday: soldTodayCounts[product.id] || 0,
                 soldYesterday: soldYesterdayCounts[product.id] || 0,
+                revenueToday: revenueTodayMap[product.id] || 0,
                 firstSoldTodayAt: firstSoldTodayAtMap[product.id] || null,
                 isInventoryTracked: product.isInventoryTracked ?? false,
                 stockQuantity: product.variants?.[0]?.stockQuantity ?? 0,
                 reorderLevel: product.variants?.[0]?.reorderLevel ?? 0,
                 isSoldByWeight: product.isSoldByWeight ?? false,
                 pricePerKg: product.resolvedPricePerKg ?? (product.pricePerKg != null ? Number(product.pricePerKg) : null),
+                categoryEmoji: product.categoryEmoji ?? product.weightPricingRule?.emoji ?? null,
               }
             })
 
@@ -2816,7 +2856,7 @@ export default function RestaurantPOS() {
       )}
 
       <div className="min-h-screen page-background bg-white dark:bg-gray-900">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 p-2 lg:p-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 p-2 lg:p-4 lg:items-start">
           <div className="lg:col-span-2 space-y-4">
             <div className="space-y-2">
               <h1 className="text-lg sm:text-2xl font-bold text-primary">Point of Sale</h1>
@@ -2948,33 +2988,101 @@ export default function RestaurantPOS() {
                   </button>
                 </div>
                 {/* Sell-by-weight product cards */}
-                <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                  <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Tap to Weigh & Sell</div>
-                  {menuItems.filter((item: any) => item.isSoldByWeight && item.pricePerKg).length === 0 ? (
-                    <p className="text-xs text-gray-400 dark:text-gray-500 italic">No sell-by-weight products found.</p>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-2">
-                      {menuItems.filter((item: any) => item.isSoldByWeight && item.pricePerKg).map((item: any) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => addToCart(item)}
-                          className="flex flex-col items-center justify-center p-3 rounded-lg bg-white dark:bg-gray-700 border-2 border-blue-200 dark:border-blue-700 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors text-center"
-                        >
-                          <span className="text-lg mb-1">⚖️</span>
-                          <span className="text-xs font-semibold text-gray-800 dark:text-gray-100 leading-tight">{item.name}</span>
-                          <span className="text-xs text-blue-600 dark:text-blue-400 font-mono mt-0.5">${Number(item.pricePerKg).toFixed(2)}/kg</span>
-                        </button>
-                      ))}
+                {(() => {
+                  const canSeeFinancials = isAdmin || hasPermission('canAccessFinancialData')
+                  const canSeeSoldCount = canSeeFinancials || hasPermission('canViewPOSSoldCount')
+                  const weightItems = menuItems
+                    .filter((item: any) => item.isSoldByWeight && item.pricePerKg)
+                    .slice()
+                    .sort((a: any, b: any) => {
+                      const aSoldToday = (a.soldToday || 0) > 0
+                      const bSoldToday = (b.soldToday || 0) > 0
+                      if (aSoldToday !== bSoldToday) return aSoldToday ? -1 : 1
+                      if (aSoldToday && bSoldToday) {
+                        const aTime = a.firstSoldTodayAt ? new Date(a.firstSoldTodayAt).getTime() : Infinity
+                        const bTime = b.firstSoldTodayAt ? new Date(b.firstSoldTodayAt).getTime() : Infinity
+                        return aTime - bTime
+                      }
+                      return (a.name || '').localeCompare(b.name || '')
+                    })
+                  return (
+                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                      <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Tap to Weigh & Sell</div>
+                      {weightItems.length === 0 ? (
+                        <p className="text-xs text-gray-400 dark:text-gray-500 italic">No sell-by-weight products found.</p>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                          {weightItems.map((item: any) => {
+                            const soldToday = item.soldToday || 0
+                            const soldYesterday = item.soldYesterday || 0
+                            let barFill = 0
+                            let barColorClass = 'bg-red-500'
+                            let barTextColorClass = 'text-red-500 dark:text-red-400'
+                            let barLabel = 'Low'
+                            const showBar = canSeeSoldCount && soldToday > 0
+                            if (showBar) {
+                              if (soldYesterday > 0) {
+                                const ratio = soldToday / soldYesterday
+                                barFill = Math.min(100, ratio * 100)
+                                if (ratio >= 1.0) { barColorClass = 'bg-green-500'; barTextColorClass = 'text-green-500 dark:text-green-400'; barLabel = 'Good' }
+                                else if (ratio >= 0.5) { barColorClass = 'bg-amber-400'; barTextColorClass = 'text-amber-500 dark:text-amber-400'; barLabel = 'Fair' }
+                              } else {
+                                barFill = 60; barColorClass = 'bg-green-500'; barTextColorClass = 'text-green-500 dark:text-green-400'; barLabel = 'New'
+                              }
+                            }
+                            return (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => addToCart(item)}
+                                className="flex flex-col p-3 rounded-lg bg-white dark:bg-gray-700 border-2 border-blue-200 dark:border-blue-700 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors text-left w-full"
+                              >
+                                <div className="flex items-start justify-between w-full gap-1">
+                                  <div className="flex items-center gap-1 min-w-0">
+                                    {item.categoryEmoji && <span className="text-base flex-shrink-0">{item.categoryEmoji}</span>}
+                                    <span className="text-xs font-semibold text-gray-800 dark:text-gray-100 leading-tight line-clamp-2">{item.name}</span>
+                                  </div>
+                                  <span className="text-base flex-shrink-0">⚖️</span>
+                                </div>
+                                {/* Price + sold count row */}
+                                <div className="flex items-end justify-between w-full mt-1">
+                                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400 font-mono">${Number(item.pricePerKg).toFixed(2)}<span className="font-normal opacity-70">/kg</span></span>
+                                  {canSeeSoldCount && soldToday > 0 && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50 whitespace-nowrap">
+                                      <span className="text-yellow-500 font-bold">{soldToday}</span> sold
+                                    </span>
+                                  )}
+                                </div>
+                                {/* Revenue — financial users only */}
+                                {canSeeFinancials && soldToday > 0 && (
+                                  <span className={`text-sm font-black leading-none mt-0.5 ${barTextColorClass}`}>
+                                    ${(item.revenueToday ?? 0).toFixed(2)}
+                                  </span>
+                                )}
+                                {/* Performance bar */}
+                                {showBar && (
+                                  <div className="mt-1.5 flex items-center gap-1.5 w-full">
+                                    <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${barColorClass}`} />
+                                    <div className="flex-1 h-1.5 bg-gray-300 dark:bg-gray-600 rounded-full overflow-hidden">
+                                      <div className={`h-full transition-all duration-500 ${barColorClass} opacity-70`} style={{ width: `${barFill}%` }} />
+                                    </div>
+                                    <span className={`text-[10px] font-semibold flex-shrink-0 ${barTextColorClass}`}>{barLabel}</span>
+                                  </div>
+                                )}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                      <a
+                        href={`/restaurant/settings/pos?businessId=${currentBusinessId}`}
+                        className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        ⚙️ Configure pricing rules →
+                      </a>
                     </div>
-                  )}
-                  <a
-                    href={`/restaurant/settings/pos?businessId=${currentBusinessId}`}
-                    className="mt-2 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                  >
-                    ⚙️ Configure pricing rules →
-                  </a>
-                </div>
+                  )
+                })()}
               </div>
             )}
 
@@ -3905,7 +4013,7 @@ export default function RestaurantPOS() {
                         {canSeeFinancials && (
                           <div className="flex items-center justify-end flex-1">
                             <span className={`text-lg sm:text-xl font-black leading-none ${barTextColorClass}`}>
-                              ${(Number(item.price) * soldToday).toFixed(2)}
+                              ${((item as any).revenueToday > 0 ? (item as any).revenueToday : Number(item.price) * soldToday).toFixed(2)}
                             </span>
                           </div>
                         )}

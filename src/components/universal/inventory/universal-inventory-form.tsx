@@ -467,11 +467,9 @@ export function UniversalInventoryForm({
     // if (!formData.sku.trim()) newErrors.sku = 'SKU is required'
     if (!formData.categoryId?.trim()) newErrors.categoryId = 'Category is required'
     if (!formData.unit.trim()) newErrors.unit = 'Unit is required'
-    if (formData.currentStock < 0) newErrors.currentStock = 'Stock cannot be negative'
-    if (isSoldByWeight) {
-      // Weight-based: cost per kg is mandatory (from vendor purchase preset), stock and fixed cost are optional
-      const hasCostPerKg = (weightPricingRuleId && purchaseRules.length > 0) || formData.costPrice > 0
-      if (!hasCostPerKg) newErrors.costPrice = 'Select a cost per kg preset or enter a cost price'
+    if (!effectiveWeightMode && formData.currentStock < 0) newErrors.currentStock = 'Stock cannot be negative'
+    if (effectiveWeightMode) {
+      // Weight-based: cost/stock managed via parent bar — no validation needed here
     } else {
       if (formData.costPrice <= 0) newErrors.costPrice = 'Cost price is required'
     }
@@ -1033,13 +1031,9 @@ export function UniversalInventoryForm({
                   // Inventory items: use addInventoryItem param (dedicated handler in POS)
                   const url = `/${businessType}/pos?businessId=${businessId}&addInventoryItem=${rawId}`
                   window.location.href = url
-                } else if (isSingleUnit) {
-                  // Auto-add to cart with quantity 1 for single-unit product items
-                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${rawId}&autoAdd=true`
-                  window.location.href = url
                 } else {
-                  // Just navigate to POS for weight-based or other unit types
-                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${rawId}`
+                  // Always pass autoAdd=true — POS decides whether to add directly or open weigh modal
+                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${rawId}&autoAdd=true`
                   window.location.href = url
                 }
               }}
@@ -1613,13 +1607,9 @@ export function UniversalInventoryForm({
                   // Inventory items: use addInventoryItem param (dedicated handler in POS)
                   const url = `/${businessType}/pos?businessId=${businessId}&addInventoryItem=${rawId}`
                   window.location.href = url
-                } else if (isSingleUnit) {
-                  // Auto-add to cart with quantity 1 for single-unit product items
-                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${rawId}&autoAdd=true`
-                  window.location.href = url
                 } else {
-                  // Just navigate to POS for weight-based or other unit types
-                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${rawId}`
+                  // Always pass autoAdd=true — POS decides whether to add directly or open weigh modal
+                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${rawId}&autoAdd=true`
                   window.location.href = url
                 }
               }}

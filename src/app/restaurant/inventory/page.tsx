@@ -26,6 +26,7 @@ import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 import { StockTakeReportsList } from '@/components/inventory/stock-take-reports-list'
 import { ItemInsightsPanel } from '@/components/inventory/item-insights-panel'
 import { MergeInventoryModal } from '@/components/inventory/merge-inventory-modal'
+import { WeightSellingBar } from '@/components/inventory/weight-selling-bar'
 
 function RestaurantInventoryContent() {
   const [activeTab, setActiveTab] = useState<'ingredients' | 'recipes' | 'prep' | 'alerts' | 'receiving'>('ingredients')
@@ -52,6 +53,8 @@ function RestaurantInventoryContent() {
   const [saleRules, setSaleRules] = useState<{ id: string; categoryName: string; pricePerKg: number; emoji: string }[]>([])
   const [purchaseRules, setPurchaseRules] = useState<{ id: string; categoryName: string; pricePerKg: number; emoji: string }[]>([])
   const [purchaseRuleId, setPurchaseRuleId] = useState<string>('')
+  const [costPricePerKg, setCostPricePerKg] = useState<string>('')
+  const [weightFormSubmitted, setWeightFormSubmitted] = useState(false)
   const searchParams = useSearchParams()
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -316,22 +319,43 @@ function RestaurantInventoryContent() {
       alert('Reorder level must be at least 1 when Track Inventory for POS is enabled. This is the stock level at which the badge turns amber.')
       return
     }
+    // Validate sell-by-weight required fields
+    setWeightFormSubmitted(true)
+    if (isSoldByWeight) {
+      if (!weightPricingRuleId && !pricePerKg) return
+      if (!weightPricingRuleId && pricePerKg && parseFloat(pricePerKg) <= 0) return
+    }
     try {
       const method = selectedItem ? 'PUT' : 'POST'
       const url = selectedItem
         ? `/api/inventory/${businessId}/items/${selectedItem.id}`
         : `/api/inventory/${businessId}/items`
 
+      // Auto-prepend the selling preset emoji to the product name for sell-by-weight items
+      let productName: string = formData.name || ''
+      if (isSoldByWeight && weightPricingRuleId) {
+        const rule = saleRules.find(r => r.id === weightPricingRuleId)
+        if (rule?.emoji) {
+          // Only prepend if the name doesn't already start with this emoji
+          const alreadyHasEmoji = /^\p{Emoji}/u.test(productName.trim())
+          if (!alreadyHasEmoji) {
+            productName = `${rule.emoji} ${productName.trim()}`
+          }
+        }
+      }
+
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
+          name: productName,
           isInventoryTracked,
           reorderLevel,
           isSoldByWeight,
           pricePerKg: isSoldByWeight && !weightPricingRuleId && pricePerKg ? parseFloat(pricePerKg) : null,
           weightPricingRuleId: weightPricingRuleId || null,
+          costPrice: isSoldByWeight && costPricePerKg ? parseFloat(costPricePerKg) : formData.costPrice,
         })
       })
 
@@ -823,99 +847,22 @@ function RestaurantInventoryContent() {
                     </div>
 
                     {/* Row 2 — Sell by Weight */}
-                    <div className={`px-5 py-2.5 ${isSoldByWeight ? 'bg-amber-50 dark:bg-amber-900/20' : 'bg-white dark:bg-gray-800'}`}>
-                      <label className="flex items-center gap-2 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={isSoldByWeight}
-                          onChange={(e) => {
-                            setIsSoldByWeight(e.target.checked)
-                            if (!e.target.checked) { setWeightPricingRuleId(''); setPricePerKg('') }
-                          }}
-                          className="rounded accent-amber-600"
-                        />
-                        <span className={`text-sm font-semibold ${isSoldByWeight ? 'text-amber-800 dark:text-amber-200' : 'text-gray-700 dark:text-gray-300'}`}>
-                          ⚖️ Sell by Weight (kg)
-                        </span>
-                        {!isSoldByWeight && <span className="text-xs text-gray-400 dark:text-gray-500 hidden sm:inline">scale weigh prompt at POS</span>}
-                      </label>
-
-                      {isSoldByWeight && (
-                        <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3 pl-6">
-                          {/* Selling preset */}
-                          <div>
-                            <label className="block text-xs font-medium text-green-700 dark:text-green-400 mb-1">🛒 Selling preset *</label>
-                            <select
-                              value={weightPricingRuleId}
-                              onChange={(e) => {
-                                const ruleId = e.target.value
-                                setWeightPricingRuleId(ruleId)
-                                if (ruleId) {
-                                  const rule = saleRules.find(r => r.id === ruleId)
-                                  if (rule) setPricePerKg(String(rule.pricePerKg))
-                                } else { setPricePerKg('') }
-                              }}
-                              className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                            >
-                              <option value="">None — enter manually</option>
-                              {saleRules.map(r => (
-                                <option key={r.id} value={r.id}>{r.emoji} {r.categoryName} — ${r.pricePerKg.toFixed(2)}/kg</option>
-                              ))}
-                            </select>
-                            {weightPricingRuleId ? (
-                              <div className="mt-1 flex items-center gap-1.5 text-xs">
-                                <span className="text-gray-500">Sell at</span>
-                                <span className="font-mono font-bold text-green-700 dark:text-green-300">
-                                  ${saleRules.find(r => r.id === weightPricingRuleId)?.pricePerKg.toFixed(2)}/kg
-                                </span>
-                                <span className="text-gray-400 italic">follows preset</span>
-                              </div>
-                            ) : (
-                              <div className="mt-1.5 flex items-center gap-2">
-                                <span className="text-xs text-gray-500">Manual price/kg:</span>
-                                <input type="number" min="0" step="0.01"
-                                  value={pricePerKg}
-                                  onChange={(e) => setPricePerKg(e.target.value)}
-                                  className="input-field w-24 py-1 text-sm font-mono"
-                                  placeholder="0.00" />
-                              </div>
-                            )}
-                            {saleRules.length === 0 && (
-                              <a href={`/restaurant/settings/pos?businessId=${businessId}`} className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1 block">
-                                ⚙️ Configure selling presets →
-                              </a>
-                            )}
-                          </div>
-
-                          {/* Cost preset */}
-                          <div>
-                            <label className="block text-xs font-medium text-orange-700 dark:text-orange-400 mb-1">🚚 Cost per kg *</label>
-                            <select
-                              value={purchaseRuleId}
-                              onChange={(e) => {
-                                const ruleId = e.target.value
-                                setPurchaseRuleId(ruleId)
-                                if (ruleId) {
-                                  const rule = purchaseRules.find(r => r.id === ruleId)
-                                  if (rule) setPricePerKg(String(rule.pricePerKg))
-                                }
-                              }}
-                              className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                            >
-                              <option value="">Select vendor purchase preset…</option>
-                              {purchaseRules.map(r => (
-                                <option key={r.id} value={r.id}>{r.emoji} {r.categoryName} — ${r.pricePerKg.toFixed(2)}/kg</option>
-                              ))}
-                            </select>
-                            {purchaseRules.length === 0 && (
-                              <a href={`/restaurant/settings/pos?businessId=${businessId}`} className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1 block">
-                                ⚙️ Configure vendor purchase presets →
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    <WeightSellingBar
+                      businessId={businessId}
+                      businessType="restaurant"
+                      isSoldByWeight={isSoldByWeight}
+                      onIsSoldByWeightChange={(v) => { setIsSoldByWeight(v); setWeightFormSubmitted(false) }}
+                      saleRules={saleRules}
+                      weightPricingRuleId={weightPricingRuleId}
+                      onWeightPricingRuleIdChange={setWeightPricingRuleId}
+                      pricePerKg={pricePerKg}
+                      onPricePerKgChange={setPricePerKg}
+                      purchaseRules={purchaseRules}
+                      purchaseRuleId={purchaseRuleId}
+                      onPurchaseRuleIdChange={setPurchaseRuleId}
+                      onCostPriceChange={setCostPricePerKg}
+                      submitted={weightFormSubmitted}
+                    />
                   </div>
 
                   <UniversalInventoryForm

@@ -42,7 +42,8 @@ const UpdateProductSchema = CreateProductSchema.partial().extend({
 function normalizeProduct(product: any) {
   // map schema relation names back to legacy keys expected by the frontend
   product.brand = product.brand || (product.business_brands ? { id: product.business_brands.id, name: product.business_brands.name } : null)
-  product.category = product.category || (product.business_categories ? { id: product.business_categories.id, name: product.business_categories.name } : null)
+  product.category = product.category || (product.business_categories ? { id: product.business_categories.id, name: product.business_categories.name, emoji: product.business_categories.emoji ?? null } : null)
+  product.categoryEmoji = product.business_categories?.emoji ?? product.category?.emoji ?? null
   product.variants = product.variants || product.product_variants || []
   product.images = product.images || product.product_images || []
   product.business = product.business || null
@@ -191,7 +192,7 @@ export async function GET(request: NextRequest) {
             select: { id: true, name: true }
           },
           business_categories: {
-            select: { id: true, name: true }
+            select: { id: true, name: true, emoji: true }
           },
           ...(includeVariants && {
             product_variants: {

@@ -589,81 +589,59 @@ export async function POST(
       }
     }
 
-    // Generate SKU: always call generate_next_sku() in auto mode to properly increment the sequence
+    // SKU assignment:
+    // - manual mode: use exactly what the user typed
+    // - auto mode: server claims the next sequence atomically — body.sku is ignored entirely
     let sku: string | null = null
     if (body.skuMode === 'manual' && body.sku) {
       sku = body.sku
     } else {
       try {
-        const categoryName = categoryId
-          ? (await prisma.businessCategories.findUnique({ where: { id: categoryId }, select: { name: true } }))?.name ?? null
-          : null
+        const bizSettings = await prisma.businesses.findUnique({
+          where: { id: businessId },
+          select: { sku_prefix: true, sku_digits: true }
+        })
+        const prefix = bizSettings?.sku_prefix ?? 'GRC'
+        const digits = bizSettings?.sku_digits ?? 5
 
-        // Generate SKU and verify it doesn't already exist.
-        // generate_next_sku() increments the DB sequence on every call, so each retry
-        // produces the next value in order.
-        const MAX_ATTEMPTS = 10
-        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-          const result = await prisma.$queryRaw<Array<{ generate_next_sku: string }>>`
-            SELECT generate_next_sku(${businessId}::TEXT, ${categoryName}::VARCHAR, NULL::VARCHAR)
-          `
-          const candidate = result[0]?.generate_next_sku ?? null
-          if (!candidate) break
+        // Atomically claim the next sequence number.
+        // The single SQL statement:
+        //   1. Upserts the sku_sequences row (creates it if missing)
+        //   2. Sets currentSequence = MAX(existing sequence, actual max from products) + 1
+        //   3. Returns the claimed value — no two concurrent transactions can claim the same number
+        const claimed = await prisma.$queryRaw<Array<{ next_seq: bigint }>>`
+          INSERT INTO sku_sequences ("businessId", prefix, "currentSequence", "updatedAt")
+          VALUES (
+            ${businessId}::TEXT,
+            ${prefix}::VARCHAR,
+            COALESCE((
+              SELECT MAX(CAST(NULLIF(TRIM(SUBSTRING(sku, LENGTH(${`${prefix}-`}) + 1)), '') AS INTEGER))
+              FROM business_products
+              WHERE "businessId" = ${businessId}
+                AND sku LIKE ${`${prefix}-%`}
+            ), 0) + 1,
+            NOW()
+          )
+          ON CONFLICT ("businessId", prefix) DO UPDATE
+            SET "currentSequence" = GREATEST(
+              sku_sequences."currentSequence",
+              COALESCE((
+                SELECT MAX(CAST(NULLIF(TRIM(SUBSTRING(sku, LENGTH(${`${prefix}-`}) + 1)), '') AS INTEGER))
+                FROM business_products
+                WHERE "businessId" = ${businessId}
+                  AND sku LIKE ${`${prefix}-%`}
+              ), 0)
+            ) + 1,
+            "updatedAt" = NOW()
+          RETURNING "currentSequence" AS next_seq
+        `
 
-          const existing = await prisma.businessProducts.findFirst({
-            where: { businessId, sku: candidate },
-            select: { id: true }
-          })
-          if (!existing) {
-            sku = candidate
-            break
-          }
-          console.log(`[SKU] ${candidate} already exists, advancing sequence (attempt ${attempt + 1}/${MAX_ATTEMPTS})`)
-        }
-
-        // Hard fallback: if all attempts were duplicates, sync the sequence to the actual
-        // max used in the DB then generate once more — guarantees a unique value.
-        if (!sku) {
-          console.warn(`[SKU] Sequence still behind after ${MAX_ATTEMPTS} attempts — force-syncing sequence`)
-          const bizSettings = await prisma.businesses.findUnique({
-            where: { id: businessId },
-            select: { sku_prefix: true, sku_digits: true }
-          })
-          const prefix = bizSettings?.sku_prefix ?? 'GRC'
-          const digits = bizSettings?.sku_digits ?? 5
-
-          // Find the highest sequence number currently used for this prefix
-          const maxProduct = await prisma.businessProducts.findFirst({
-            where: { businessId, sku: { startsWith: `${prefix}-` } },
-            orderBy: { sku: 'desc' },
-            select: { sku: true }
-          })
-          const maxSeq = maxProduct?.sku
-            ? parseInt(maxProduct.sku.replace(`${prefix}-`, ''), 10) || 0
-            : 0
-
-          // Advance the DB sequence past the max in use
-          await prisma.$executeRaw`
-            INSERT INTO sku_sequences ("businessId", prefix, "currentSequence", "updatedAt")
-            VALUES (${businessId}::TEXT, ${prefix}::VARCHAR, ${maxSeq}, NOW())
-            ON CONFLICT ("businessId", prefix)
-            DO UPDATE SET
-              "currentSequence" = GREATEST(sku_sequences."currentSequence", ${maxSeq}),
-              "updatedAt" = NOW()
-          `
-
-          // Now generate — sequence is guaranteed to be past all existing SKUs
-          const result = await prisma.$queryRaw<Array<{ generate_next_sku: string }>>`
-            SELECT generate_next_sku(${businessId}::TEXT, ${categoryName}::VARCHAR, NULL::VARCHAR)
-          `
-          sku = result[0]?.generate_next_sku ?? `${prefix}-${String(maxSeq + 1).padStart(digits, '0')}`
-          console.log(`[SKU] Force-synced and generated: ${sku}`)
-        }
-
+        const nextSeq = Number(claimed[0]?.next_seq ?? 1)
+        sku = `${prefix}-${String(nextSeq).padStart(digits, '0')}`
         console.log(`[SKU Auto-generated] ${sku} for product "${body.name}"`)
       } catch (error) {
-        console.error('Failed to auto-generate SKU, falling back to provided value:', error)
-        sku = body.sku || null
+        console.error('Failed to auto-generate SKU:', error)
+        sku = null
       }
     }
 
@@ -683,6 +661,10 @@ export async function POST(
       costPrice: body.costPrice ? parseFloat(body.costPrice) : null,
       businessType: business.type,
       isActive: body.isActive !== false,
+      isInventoryTracked: body.isInventoryTracked === true,
+      isSoldByWeight: body.isSoldByWeight === true,
+      pricePerKg: body.pricePerKg != null ? parseFloat(body.pricePerKg) : null,
+      weightPricingRuleId: body.weightPricingRuleId || null,
       attributes: body.attributes || {},
       updatedAt: new Date()
     }
@@ -718,7 +700,7 @@ export async function POST(
     const variantData = {
       productId: product.id,
       name: 'Default',
-      sku: body.sku || product.sku || `${product.name.replace(/\s+/g, '-').toUpperCase()}-001`,
+      sku: product.sku || `${product.name.replace(/\s+/g, '-').toUpperCase()}-001`,
       stockQuantity: existingVariant?.stockQuantity || 0,
       reorderLevel: body.lowStockThreshold || 10,
       price: parseFloat(basePrice),

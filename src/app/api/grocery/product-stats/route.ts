@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
     // Fetch order items for the last 2 days in parallel
     const selectShape = {
       quantity: true,
+      totalPrice: true,
       attributes: true,
       productVariantId: true,
       business_orders: { select: { createdAt: true } },
@@ -109,19 +110,21 @@ export async function GET(request: NextRequest) {
       return null
     }
 
-    // Build today's stats (soldToday + firstSoldTodayAt)
-    const statsMap: Record<string, { soldToday: number; firstSoldTodayAt: Date | null }> = {}
+    // Build today's stats (soldToday + revenueToday + firstSoldTodayAt)
+    const statsMap: Record<string, { soldToday: number; revenueToday: number; firstSoldTodayAt: Date | null }> = {}
 
     for (const item of todayItems) {
       const key = getProductKey(item)
       if (!key) continue
       const qty = Number(item.quantity)
+      const revenue = Number((item as any).totalPrice ?? 0)
       const orderTime = item.business_orders?.createdAt ?? null
 
       if (!statsMap[key]) {
-        statsMap[key] = { soldToday: qty, firstSoldTodayAt: orderTime }
+        statsMap[key] = { soldToday: qty, revenueToday: revenue, firstSoldTodayAt: orderTime }
       } else {
         statsMap[key].soldToday += qty
+        statsMap[key].revenueToday += revenue
         if (orderTime && (!statsMap[key].firstSoldTodayAt || orderTime < statsMap[key].firstSoldTodayAt!)) {
           statsMap[key].firstSoldTodayAt = orderTime
         }
@@ -154,6 +157,7 @@ export async function GET(request: NextRequest) {
     const data = Array.from(allKeys).map(productId => ({
       productId,
       soldToday:     statsMap[productId]?.soldToday     ?? 0,
+      revenueToday:  statsMap[productId]?.revenueToday  ?? 0,
       soldYesterday: yesterdayMap[productId]            ?? 0,
       soldDayBefore: dayBeforeMap[productId]            ?? 0,
       firstSoldTodayAt: statsMap[productId]?.firstSoldTodayAt ?? null,

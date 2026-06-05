@@ -407,7 +407,8 @@ export async function POST(request: NextRequest) {
     const regularItems = items.filter(item => item.attributes?.wifiToken !== true && item.attributes?.r710Token !== true && item.attributes?.businessService !== true && item.attributes?.isService !== true && !item.attributes?.baleId && !isInventoryItemWithFakeId(item) && !item.attributes?.isCustomBulk && !item.attributes?.customBulkId)
 
     // Verify all product variants exist and get their details (for regular items only)
-    const variantIds = regularItems.map(item => item.productVariantId).filter(Boolean) as string[]
+    // Deduplicate IDs — the same variant can appear multiple times (e.g. two weighed portions of the same product)
+    const variantIds = [...new Set(regularItems.map(item => item.productVariantId).filter(Boolean) as string[])]
     const variants = await prisma.productVariants.findMany({
       where: {
         id: { in: variantIds },
@@ -424,7 +425,7 @@ export async function POST(request: NextRequest) {
       },
       include: {
         business_products: {
-          select: { name: true, productType: true, businessType: true }
+          select: { name: true, productType: true, businessType: true, isSoldByWeight: true }
         }
       }
     })
@@ -444,7 +445,7 @@ export async function POST(request: NextRequest) {
       if (!item.productVariantId) continue
       const variant = variants.find(v => v.id === item.productVariantId)
       if (!variant) continue
-      if ((variant as any).business_products?.productType === 'PHYSICAL' && variant.stockQuantity < item.quantity) {
+      if ((variant as any).business_products?.productType === 'PHYSICAL' && !(variant as any).business_products?.isSoldByWeight && variant.stockQuantity < item.quantity) {
         stockIssues.push({
           variantId: item.productVariantId,
           requested: item.quantity,
