@@ -186,14 +186,21 @@ export function buildReceiptData(
       if (attrs.batchNumber) noteParts.push(`Batch: ${attrs.batchNumber}`)
       if (attrs.specialInstructions) noteParts.push(attrs.specialInstructions)
       if (attrs.couponCode) noteParts.push(`Coupon: ${attrs.couponCode}`)
-      // Build AYLI combo breakdown note for receipt
+      // Build AYLI structured breakdown (passed separately for clear rendering)
+      let ayliBreakdown: { size: string; basePrice: number; lines: any[] } | undefined
       if (attrs.isAYLICombo && attrs.ayliBreakdown) {
         const b = attrs.ayliBreakdown
-        const capitalize = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s
-        const linesNote = (b.lines || []).map((l: any) =>
-          `  ${l.emoji || ''}${l.emoji ? ' ' : ''}${l.productName} ${Number(l.weightKg).toFixed(3)}kg @ $${Number(l.pricePerKg).toFixed(2)}/kg = $${Number(l.linePrice).toFixed(2)}`
-        ).join('\n')
-        noteParts.push(`${capitalize(b.size)} base: $${Number(b.basePrice).toFixed(2)}\n${linesNote}`)
+        ayliBreakdown = {
+          size: b.size,
+          basePrice: Number(b.basePrice),
+          lines: (b.lines || []).map((l: any) => ({
+            emoji: l.emoji || '',
+            name: l.productName,
+            weightKg: Number(l.weightKg),
+            pricePerKg: Number(l.pricePerKg),
+            linePrice: Number(l.linePrice),
+          }))
+        }
       }
 
       return {
@@ -203,7 +210,8 @@ export function buildReceiptData(
         unitPrice: item.unitPrice,
         totalPrice: item.totalPrice,
         isCombo: !!(attrs.isCombo) || !!(attrs.isAYLICombo),
-        notes: noteParts.length > 0 ? noteParts.join(' · ') : undefined
+        notes: noteParts.length > 0 ? noteParts.join(' · ') : undefined,
+        ayliBreakdown,
       }
     }),
     subtotal: order.subtotal,

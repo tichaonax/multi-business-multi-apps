@@ -396,6 +396,27 @@ export function BusinessOrderDetailModal({ orderId, isOpen, onClose, onUpdate }:
                               </span>
                             )}
                           </div>
+                          {/* AYLI combo breakdown */}
+                          {item.attributes?.isAYLICombo && item.attributes?.ayliBreakdown && (
+                            <div className="mt-1.5 border-l-2 border-purple-300 dark:border-purple-700 pl-2 space-y-0.5">
+                              <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                {item.attributes.ayliBreakdown.size} — base ${Number(item.attributes.ayliBreakdown.basePrice).toFixed(2)}
+                              </p>
+                              {(item.attributes.ayliBreakdown.lines || []).map((l: any, i: number) => (
+                                <div key={i} className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+                                  <span>
+                                    {l.emoji && <span className="mr-0.5">{l.emoji}</span>}
+                                    {l.productName}
+                                    <span className="text-gray-400 ml-1">
+                                      {Number(l.weightKg).toFixed(3)}kg × ${Number(l.pricePerKg).toFixed(2)}/kg
+                                    </span>
+                                  </span>
+                                  <span className="font-medium ml-3">${Number(l.linePrice).toFixed(2)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
                           {item.attributes?.scannedBarcode && (
                             <div className="mt-1 flex items-center gap-2 text-xs">
                               <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">

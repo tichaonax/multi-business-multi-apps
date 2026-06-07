@@ -1700,7 +1700,19 @@ export default function RestaurantPOS() {
         quantity: item.quantity,
         unitPrice: item.price,
         totalPrice: item.price * item.quantity,
-        isCombo: !!item.isCombo,
+        isCombo: !!item.isCombo || !!item.isAYLICombo,
+        // AYLI combo breakdown — maps cart aylicData to the structured receipt format
+        ayliBreakdown: item.isAYLICombo && item.aylicData ? {
+          size: item.aylicData.size,
+          basePrice: Number(item.aylicData.basePrice),
+          lines: (item.aylicData.lines || []).map((l: any) => ({
+            emoji: l.emoji || '',
+            name: l.productName,
+            weightKg: Number(l.weightKg),
+            pricePerKg: Number(l.pricePerKg),
+            linePrice: Number(l.linePrice),
+          })),
+        } : undefined,
         // Mark the first item as the subsidized meal program item
         notes: order.attributes?.mealProgram && index === 0
           ? `[Meals Program] Subsidy: $${Number(order.attributes.expenseAmount || 0.50).toFixed(2)}`
@@ -4650,7 +4662,7 @@ export default function RestaurantPOS() {
               </div>
             )}
 
-            <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
+            <div className="space-y-2 max-h-96 overflow-y-auto mb-4">
               {cart.map(item => (
                 <div key={`${item.id}_${item.name}`} className="border-b border-gray-100 dark:border-gray-700 pb-2 last:border-b-0">
                   <div className="flex justify-between items-center">

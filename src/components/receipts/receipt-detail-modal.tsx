@@ -277,21 +277,49 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
                   <div className="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
                     {receipt.items.map((item: any, index: number) => {
                       const emoji = getItemEmoji(item)
+                      const ayli = item.ayliBreakdown
                       return (
                         <div key={index} className="px-4 py-3">
                           <div className="flex justify-between items-start gap-3">
-                            {emoji && (
+                            {emoji && !ayli && (
                               <span className="text-xl leading-none mt-0.5 flex-shrink-0">{emoji}</span>
                             )}
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                                {item.isCombo && (
+                                  <span className="text-[9px] font-bold bg-purple-600 text-white px-1 py-0.5 rounded mr-1 leading-none align-middle">✦ COMBO</span>
+                                )}
                                 {item.name || 'Unknown Product'}
                               </p>
-                              {item.notes && (
+
+                              {/* AYLI breakdown */}
+                              {ayli && (
+                                <div className="mt-1.5 border-l-2 border-purple-300 dark:border-purple-700 pl-2 space-y-0.5">
+                                  <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                    {ayli.size} — base ${Number(ayli.basePrice).toFixed(2)}
+                                  </p>
+                                  {ayli.lines.map((l: any, i: number) => (
+                                    <div key={i} className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+                                      <span>
+                                        {l.emoji && <span className="mr-0.5">{l.emoji}</span>}
+                                        {l.name}
+                                        <span className="text-gray-400 ml-1">
+                                          {Number(l.weightKg).toFixed(3)}kg × ${Number(l.pricePerKg).toFixed(2)}/kg
+                                        </span>
+                                      </span>
+                                      <span className="font-medium ml-3">${Number(l.linePrice).toFixed(2)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Generic notes (non-AYLI) */}
+                              {!ayli && item.notes && (
                                 <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
                                   {item.notes}
                                 </p>
                               )}
+
                               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                                 Qty: {item.quantity} × {formatCurrency(item.unitPrice)}
                               </p>

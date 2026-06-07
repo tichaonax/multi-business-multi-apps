@@ -713,11 +713,12 @@ export async function POST(req: NextRequest) {
             });
           }
 
-          // Create order item for WiFi token (no variant needed)
+          // Create order item for WiFi token — store wifiTokenIds for reprint lookup
+          const soldWifiTokenIds = tokensToSell.map((t: any) => t.id)
           await prisma.businessOrderItems.create({
             data: {
               orderId: newOrder.id,
-              productVariantId: null, // WiFi tokens don't have variants
+              productVariantId: null,
               quantity: itemQuantity,
               unitPrice: itemPrice,
               discountAmount: 0,
@@ -727,7 +728,8 @@ export async function POST(req: NextRequest) {
                 category: item.category || 'wifi-access',
                 wifiToken: true,
                 tokenConfigId: item.tokenConfigId,
-                businessTokenMenuItemId: item.businessTokenMenuItemId
+                businessTokenMenuItemId: item.businessTokenMenuItemId,
+                tokenIds: soldWifiTokenIds, // IDs of the tokens just sold
               }
             }
           })
@@ -864,7 +866,7 @@ export async function POST(req: NextRequest) {
             });
           }
 
-          // Create order item for R710 token
+          // Create order item for R710 token — store tokenIds for reprint lookup
           await prisma.businessOrderItems.create({
             data: {
               orderId: newOrder.id,
@@ -878,7 +880,8 @@ export async function POST(req: NextRequest) {
                 category: item.category || 'r710-wifi',
                 r710Token: true,
                 tokenConfigId: item.tokenConfigId,
-                businessTokenMenuItemId: item.businessTokenMenuItemId
+                businessTokenMenuItemId: item.businessTokenMenuItemId,
+                tokenIds: soldTokenIdsForRollback.slice(-itemQuantity), // IDs of the tokens just sold
               }
             }
           });

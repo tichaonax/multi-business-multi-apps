@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { buildReceiptFromOrder } from '@/lib/printing/receipt-builder'
 import { generateReceipt } from '@/lib/printing/receipt-templates'
+import { lookupOrderTokens } from '@/lib/printing/token-lookup'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 
@@ -132,6 +133,8 @@ export async function POST(
       orderDate: order.processedAt || order.createdAt,
       processedAt: order.processedAt || order.createdAt,
       createdAt: order.createdAt,
+      r710Tokens: [] as any[],   // populated by lookupOrderTokens below
+      wifiTokens: [] as any[],   // populated by lookupOrderTokens below
       cancellation: (order as any).order_cancellation ? {
         refundAmount: Number((order as any).order_cancellation.refundAmount),
         requestedBy: (order as any).order_cancellation.requestedByUser?.name,
@@ -155,6 +158,11 @@ export async function POST(
         }
       }),
     }
+
+    // Look up tokens sold with this order (R710 + ESP32 WiFi)
+    const { r710Tokens, wifiTokens } = await lookupOrderTokens(prisma, order)
+    if (r710Tokens.length > 0) orderData.r710Tokens = r710Tokens
+    if (wifiTokens.length > 0) orderData.wifiTokens = wifiTokens
 
     // Build receipt data with reprint flag (pass current user as fallback salesperson)
     const receiptData = await buildReceiptFromOrder(orderData, order.businessId, {

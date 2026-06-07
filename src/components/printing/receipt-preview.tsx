@@ -171,20 +171,54 @@ export function ReceiptPreview({
 
               {/* Items */}
               <div className="border-t-2 border-dashed border-gray-300 dark:border-gray-600 pt-2">
-                {receiptData.items.map((item, index) => (
-                  <div key={index} className="flex justify-between py-1 text-gray-900 dark:text-gray-100">
-                    <div className="flex-1">
-                      {(item as any).isCombo && (
-                        <span className="text-[9px] font-bold bg-purple-600 text-white px-1 py-0.5 rounded mr-1 leading-none">✦ COMBO</span>
+                {receiptData.items.map((item, index) => {
+                  const ayli = (item as any).ayliBreakdown
+                  return (
+                    <div key={index} className="py-1 text-gray-900 dark:text-gray-100">
+                      {/* Main item row */}
+                      <div className="flex justify-between">
+                        <div className="flex-1">
+                          {(item as any).isCombo && (
+                            <span className="text-[9px] font-bold bg-purple-600 text-white px-1 py-0.5 rounded mr-1 leading-none">✦ COMBO</span>
+                          )}
+                          <span>{item.name}</span>
+                          {item.quantity > 1 && (
+                            <span className="text-gray-600 dark:text-gray-400 ml-2">x{item.quantity}</span>
+                          )}
+                        </div>
+                        <span className="font-medium">{formatCurrency(item.price * item.quantity)}</span>
+                      </div>
+
+                      {/* AYLI breakdown — size base + each pool item line */}
+                      {ayli && (
+                        <div className="mt-1 ml-2 space-y-0.5 border-l-2 border-purple-300 dark:border-purple-700 pl-2">
+                          <div className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold uppercase tracking-wide">
+                            {ayli.size} — base ${ayli.basePrice.toFixed(2)}
+                          </div>
+                          {ayli.lines.map((l: any, i: number) => (
+                            <div key={i} className="flex justify-between text-[11px] text-gray-600 dark:text-gray-400">
+                              <span>
+                                {l.emoji && <span className="mr-0.5">{l.emoji}</span>}
+                                {l.name}
+                                <span className="text-gray-400 ml-1">
+                                  {l.weightKg.toFixed(3)}kg × ${l.pricePerKg.toFixed(2)}/kg
+                                </span>
+                              </span>
+                              <span className="font-medium ml-2">${l.linePrice.toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
                       )}
-                      <span>{item.name}</span>
-                      {item.quantity > 1 && (
-                        <span className="text-gray-600 dark:text-gray-400 ml-2">x{item.quantity}</span>
+
+                      {/* Generic notes (non-AYLI) */}
+                      {!ayli && (item as any).notes && (
+                        <div className="text-[10px] text-gray-500 dark:text-gray-400 ml-2 mt-0.5 whitespace-pre-line">
+                          {(item as any).notes}
+                        </div>
                       )}
                     </div>
-                    <span className="font-medium">{formatCurrency(item.price * item.quantity)}</span>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
 
               {/* Totals */}

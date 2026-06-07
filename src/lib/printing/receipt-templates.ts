@@ -279,8 +279,20 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
       }
     }
 
-    // Always render item notes (e.g. Meals Program tag)
-    if (item.notes) {
+    // AYLI combo breakdown — structured line-by-line
+    if ((item as any).ayliBreakdown) {
+      const ayli = (item as any).ayliBreakdown
+      receipt += `  [${ayli.size.toUpperCase()}] Base: $${Number(ayli.basePrice).toFixed(2)}` + LF;
+      for (const l of ayli.lines) {
+        const left  = `  ${l.emoji ? l.emoji + ' ' : ''}${l.name}`
+        const mid   = `${Number(l.weightKg).toFixed(3)}kg x $${Number(l.pricePerKg).toFixed(2)}`
+        const right = `$${Number(l.linePrice).toFixed(2)}`
+        // Fit onto one 42-char line: name ... weight@rate ... price
+        const gap = Math.max(1, 42 - left.length - mid.length - right.length)
+        receipt += left + ' '.repeat(gap) + mid + ' ' + right + LF;
+      }
+    } else if (item.notes) {
+      // Generic notes (non-AYLI)
       receipt += `  ${item.notes}` + LF;
     }
   });
@@ -1290,7 +1302,17 @@ function generateGenericReceipt(data: ReceiptData): string {
     } else if (item.sku) {
       receipt += `  SKU: ${item.sku}\n`;
     }
-    if (item.notes) {
+    if ((item as any).ayliBreakdown) {
+      const ayli = (item as any).ayliBreakdown
+      receipt += `  [${ayli.size.toUpperCase()}] Base: $${Number(ayli.basePrice).toFixed(2)}` + LF;
+      for (const l of ayli.lines) {
+        const left  = `  ${l.emoji ? l.emoji + ' ' : ''}${l.name}`
+        const mid   = `${Number(l.weightKg).toFixed(3)}kg x $${Number(l.pricePerKg).toFixed(2)}`
+        const right = `$${Number(l.linePrice).toFixed(2)}`
+        const gap = Math.max(1, 42 - left.length - mid.length - right.length)
+        receipt += left + ' '.repeat(gap) + mid + ' ' + right + LF;
+      }
+    } else if (item.notes) {
       receipt += `  ${item.notes}` + LF;
     }
   });
