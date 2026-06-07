@@ -21,6 +21,8 @@ import { SyncMode } from '@/lib/customer-display/sync-manager'
 import { CartMessage } from '@/lib/customer-display/broadcast-sync'
 import { CartDisplay } from '@/components/customer-display/cart-display'
 import { MarketingDisplay } from '@/components/customer-display/marketing-display'
+import { SmartProductDisplay } from '@/components/customer-display/smart-product-display'
+import { MenuPanel } from '@/components/customer-display/menu-panel'
 import { LivestockDisplay } from '@/components/customer-display/livestock-display'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 
@@ -160,6 +162,12 @@ function CustomerDisplayContent() {
 
   // Display mode
   const [displayMode, setDisplayMode] = useState<'cart' | 'marketing' | 'livestock'>('marketing')
+
+  // Business type — populated from business info fetch, used for SmartProductDisplay + MenuPanel
+  const [businessType, setBusinessType] = useState<'restaurant' | 'grocery' | 'clothing' | null>(null)
+
+  // Search term broadcast from POS — filters the MenuPanel
+  const [menuSearchTerm, setMenuSearchTerm] = useState('')
 
   // Livestock session state
   const [livestockSession, setLivestockSession] = useState<{
@@ -367,6 +375,16 @@ function CustomerDisplayContent() {
         if (message.payload.pageContext) {
           setPageContext(message.payload.pageContext)
         }
+        break
+
+      case 'DISPLAY_REFRESH':
+        // Tell SmartProductDisplay / MenuPanel to re-fetch their data immediately
+        window.postMessage({ type: 'DISPLAY_REFRESH' }, '*')
+        break
+
+      case 'MENU_SEARCH':
+        // Filter the menu panel to match the cashier's search term
+        setMenuSearchTerm(message.payload.searchTerm ?? '')
         break
 
       case 'PAYMENT_STARTED':
@@ -577,6 +595,11 @@ function CustomerDisplayContent() {
           setTaxIncludedInPrice(business.taxIncludedInPrice ?? true)
           setTaxRate(business.taxRate || 0)
           setTaxLabel(business.taxLabel || 'Tax')
+
+          // Track business type for SmartProductDisplay
+          if (['restaurant', 'grocery', 'clothing'].includes(business.type)) {
+            setBusinessType(business.type as 'restaurant' | 'grocery' | 'clothing')
+          }
 
           console.log('[CustomerDisplay] Business config applied:', {
             ecocashEnabled: business.ecocashEnabled,
@@ -827,13 +850,35 @@ function CustomerDisplayContent() {
 
       {/* Display content with smooth transitions */}
       <div className="flex-1 relative overflow-hidden">
-        {/* Marketing Display - fade in/out */}
+        {/* Marketing mode: rotating ads (left) + menu panel (right) */}
         <div
-          className={`absolute inset-0 transition-opacity duration-700 ${
+          className={`absolute inset-0 transition-opacity duration-700 flex ${
             displayMode === 'marketing' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
           }`}
         >
-          <MarketingDisplay businessId={displayBusinessId} />
+          {/* Left: rotating ads — 28% of total width, flex-shrink-0 so menu never squeezes it */}
+          <div className="w-[28%] flex-shrink-0 border-r border-white/10">
+            {displayBusinessId && businessType ? (
+              <SmartProductDisplay businessId={displayBusinessId} businessType={businessType} />
+            ) : (
+              <MarketingDisplay businessId={displayBusinessId} />
+            )}
+          </div>
+
+          {/* Right: full menu grid — 65% */}
+          <div className="flex-1 overflow-hidden">
+            {displayBusinessId && businessType ? (
+              <MenuPanel
+                businessId={displayBusinessId}
+                businessType={businessType}
+                searchTerm={menuSearchTerm}
+              />
+            ) : (
+              <div className="h-full bg-gray-950 flex items-center justify-center text-white/20">
+                Loading menu…
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Livestock Display - fade in/out */}

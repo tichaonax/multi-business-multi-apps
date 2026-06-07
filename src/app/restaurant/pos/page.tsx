@@ -312,6 +312,12 @@ export default function RestaurantPOS() {
   // Keep sendToDisplayRef in sync so the barcode-scan handler always calls the latest version
   sendToDisplayRef.current = sendToDisplay as unknown as (type: string, payload: Record<string, unknown>) => void
 
+  // Broadcast search term to customer display so it filters the menu panel in real time
+  useEffect(() => {
+    sendToDisplayRef.current?.('MENU_SEARCH', { searchTerm })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm])
+
   // Open Customer Display utility
   const { openDisplay } = useOpenCustomerDisplay(currentBusinessId || '', terminalId)
 

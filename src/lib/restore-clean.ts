@@ -317,6 +317,10 @@ const RESTORE_ORDER = [
   'asYouLikeItComboSizes',   // Depends on asYouLikeItCombos
   'asYouLikeItComboItems',   // Depends on asYouLikeItCombos + asYouLikeItPoolItems
 
+  // Smart Customer Display configs (MBM-232)
+  'displayProductConfigs',   // Depends on businesses
+  'displayGlobalSettings',   // Depends on businesses (@unique businessId)
+
   'orders',
   'orderItems',
 
@@ -536,6 +540,10 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   // AYLI Combo child tables: composite unique constraints
   'asYouLikeItComboSizes': { fields: ['comboId', 'sizeName'] },
   'asYouLikeItComboItems': { fields: ['comboId', 'poolItemId'] },
+
+  // Smart display: unique constraints
+  'displayProductConfigs': { fields: ['businessId', 'itemType', 'itemId'] },
+  'displayGlobalSettings': 'businessId',
 
   // Policy Management: composite unique constraints
   'policyVersions': { fields: ['policyId', 'version'] },             // @@unique([policyId, version])

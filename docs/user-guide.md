@@ -10424,7 +10424,7 @@ Compare these numbers to what was shown in the validation report.
 
 Each backup file records the schema version at the time it was created (e.g. `6.31.0`). When restoring to a different installation, the schema versions should match. If they differ, run `prisma migrate deploy` on the target installation first to bring the schema up to date, then restore.
 
-The current schema version is **6.34.0** (adds `as_you_like_it_combos`, `as_you_like_it_combo_sizes`, `as_you_like_it_pool_items`, and `as_you_like_it_combo_items` for the restaurant As-You-Like-It weight-based combo feature).
+The current schema version is **6.35.0** (adds `display_product_configs` and `display_global_settings` for the smart customer display advertising engine — MBM-232).
 
 #### Tables added in schema 6.34.0 — As-You-Like-It Combos
 

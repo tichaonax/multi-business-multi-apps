@@ -1477,6 +1477,14 @@ export async function createCleanBackup(
     where: scaleBusinessFilter
   })
 
+  // 60. Smart Customer Display configs
+  businessData.displayProductConfigs = await (prisma as any).displayProductConfig.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.displayGlobalSettings = await (prisma as any).displayGlobalSettings.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
   // 59. As-You-Like-It (AYLI) Combos (restaurant)
   businessData.asYouLikeItCombos = await (prisma as any).asYouLikeItCombos.findMany({
     where: { businessId: { in: businessIds } }
@@ -1574,7 +1582,7 @@ export async function createCleanBackup(
       deviceRecords,
       uncompressedSize
     },
-    schemaVersion: '6.34.0',
+    schemaVersion: '6.35.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

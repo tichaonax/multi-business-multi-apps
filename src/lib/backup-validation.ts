@@ -340,6 +340,8 @@ const SKIP_BUSINESS_SCOPING = new Set([
   // AYLI Combo child tables — no businessId (linked via comboId)
   'asYouLikeItComboSizes',       // comboId FK, no businessId field
   'asYouLikeItComboItems',       // comboId + poolItemId FKs, no businessId field
+  // Smart display global settings — unique on businessId (one row per business, not a child table)
+  'displayGlobalSettings',       // @unique businessId, backed up globally
 ])
 
 /**

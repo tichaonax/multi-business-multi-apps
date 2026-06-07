@@ -490,6 +490,8 @@ model Businesses {
   businesses                                                               Businesses?                   @relation("businessesTobusinesses", fields: [umbrellaBusinessId], references: [id])
   other_businesses                                                         Businesses[]                  @relation("businessesTobusinesses")
   customer_display_ads                                                     CustomerDisplayAd[]
+  display_product_configs                                                  DisplayProductConfig[]
+  display_global_settings                                                  DisplayGlobalSettings?
   customer_display_sessions                                                CustomerDisplaySession[]
   customer_laybys                                                          CustomerLayby[]
   customer_rewards                                                         CustomerRewards[]
@@ -4855,6 +4857,39 @@ model CustomerDisplayAd {
 
   @@index([businessId, isActive, sortOrder])
   @@map("customer_display_ads")
+}
+
+model DisplayProductConfig {
+  id                  String     @id @default(uuid())
+  businessId          String
+  itemType            String     // 'menu_item' | 'product' | 'ayli_combo' | 'category'
+  itemId              String
+  priorityBoost       Int        @default(0)
+  isDailySpecial      Boolean    @default(false)
+  isFeatured          Boolean    @default(false)
+  isHidden            Boolean    @default(false)
+  displayDurationSecs Int?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  businesses          Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, itemType, itemId])
+  @@index([businessId, itemType])
+  @@map("display_product_configs")
+}
+
+model DisplayGlobalSettings {
+  id                   String     @id @default(uuid())
+  businessId           String     @unique
+  rotationIntervalSecs Int        @default(6)
+  enableSmartDisplay   Boolean    @default(true)
+  enableSplitLayout    Boolean    @default(true)
+  maxItemsInRotation   Int        @default(12)
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  businesses           Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@map("display_global_settings")
 }
 
 model PosTerminalConfig {

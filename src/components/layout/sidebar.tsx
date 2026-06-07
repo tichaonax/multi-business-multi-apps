@@ -823,6 +823,12 @@ export function Sidebar() {
                     <span>POS Settings</span>
                   </Link>
                 )}
+                {(isSystemAdmin(currentUser) || hasPermission('canViewBusiness')) && (
+                  <Link href="/restaurant/settings/display" className={getLinkClasses('/restaurant/settings/display')}>
+                    <span className="text-lg">📺</span>
+                    <span>Customer Display</span>
+                  </Link>
+                )}
               </>
             )}
 
