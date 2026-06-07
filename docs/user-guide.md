@@ -142,6 +142,24 @@
     - [Selling by Weight at the POS — Grocery](#selling-by-weight-at-the-pos--grocery)
     - [Selling by Weight at the POS — Restaurant](#selling-by-weight-at-the-pos--restaurant)
     - [Livestock Purchase Workflow](#livestock-purchase-workflow)
+54. [As-You-Like-It (AYLI) Weight-Based Combo — Restaurant](#54-as-you-like-it-ayli-weight-based-combo--restaurant)
+    - [Concept](#concept)
+    - [Back-Office Configuration](#back-office-configuration)
+    - [Pool Items — Setting Up Ingredients](#pool-items--setting-up-ingredients)
+    - [Combo Definition](#combo-definition)
+    - [POS Workflow — Step by Step](#pos-workflow--step-by-step)
+    - [Price Calculation Reference](#price-calculation-reference)
+    - [Rules & Constraints](#rules--constraints)
+    - [AYLI on the Scale Tab](#ayli-on-the-scale-tab)
+    - [Customer Display — Live Weighing](#customer-display--live-weighing)
+55. [Smart Customer Display — Dynamic Menu & Ads](#55-smart-customer-display--dynamic-menu--ads)
+    - [Overview](#overview-2)
+    - [Rotating Ads Panel](#rotating-ads-panel)
+    - [Live Menu Panel](#live-menu-panel)
+    - [Search Sync](#search-sync)
+    - [Management Screen](#management-screen)
+    - [Daily Special](#daily-special)
+    - [Backup — New Tables](#backup--new-tables-1)
 
 ---
 
@@ -10830,3 +10848,295 @@ If the scale cable is unplugged, the COM port is unavailable, or the integration
 ---
 
 *For technical support, contact your system administrator.*
+
+---
+
+## 54. As-You-Like-It (AYLI) Weight-Based Combo — Restaurant
+
+> **Who reads this:** Restaurant managers configuring combos in the back office, and cashiers selling AYLI combos at the POS.
+
+---
+
+### Concept
+
+An **As-You-Like-It Combo** lets a customer fill a single pre-marked container with a mix of food items, sold by weight. The customer picks what goes in, the scale measures each ingredient, and the POS calculates the price as items are added.
+
+Key principles:
+
+- One container = one cart line (the **combo parent**), with child lines for each ingredient.
+- The **size** (Small / Medium / Large) is chosen first and determines the flat **base price** and the **per-kg rates** for every ingredient.
+- **Size is locked** once the first ingredient is captured — it cannot be changed mid-fill.
+- Maximum **8 kg** total net weight and **7 distinct ingredients** per combo.
+
+---
+
+### Back-Office Configuration
+
+AYLI combos are configured in two parts: **Pool Items** (the shared ingredient library) and **Combo Definitions** (the combo itself with its sizes).
+
+**Where:** Restaurant → AYLI Combos (sidebar)
+
+---
+
+### Pool Items — Setting Up Ingredients
+
+Pool Items are the ingredients that can appear in any AYLI combo. Each pool item carries its own per-kg pricing at three size tiers.
+
+**To add a pool item:**
+
+1. Go to **Restaurant → AYLI Combos → Pool Items**.
+2. Click **+ Add Pool Item**.
+3. Fill in:
+
+| Field | Description |
+|-------|-------------|
+| **Name** | Ingredient name shown on the receipt and POS (e.g. *Chicken*, *Beef*, *Veggies*) |
+| **Emoji** | Icon shown on the cashier and customer display |
+| **Price/kg — Small** | Per-kg rate when the customer chooses a Small combo |
+| **Price/kg — Medium** | Per-kg rate for a Medium combo |
+| **Price/kg — Large** | Per-kg rate for a Large combo |
+
+**Size-based pricing example:**
+
+| Ingredient | Small $/kg | Medium $/kg | Large $/kg |
+|-----------|-----------|------------|-----------|
+| Chicken | $10.00 | $9.50 | $9.00 |
+| Beef | $12.00 | $11.50 | $11.00 |
+| Veggies | $8.00 | $7.50 | $7.00 |
+
+> Larger combos can offer a slight per-kg discount to reward bigger purchases.
+
+4. Click **Save**.
+
+---
+
+### Combo Definition
+
+**To create an AYLI combo:**
+
+1. Go to **Restaurant → AYLI Combos → Combos**.
+2. Click **+ New Combo**.
+3. Fill in:
+
+| Field | Description |
+|-------|-------------|
+| **Combo name** | Shown on the POS card and receipt (e.g. *Build-Your-Own Bowl*, *Mama's Choice*) |
+| **Max weight (kg)** | Hard cap on total net weight — default 8 kg |
+| **Max distinct items** | Cap on different ingredients — default 7 |
+| **Sizes** | Add Small, Medium, Large with a fixed **base price** each |
+| **Allowed items** | Select which pool items can go in this combo |
+
+**Example size configuration:**
+
+| Size | Base price |
+|------|-----------|
+| Small | $1.00 |
+| Medium | $1.50 |
+| Large | $2.00 |
+
+4. Click **Save**.
+
+The combo appears as an AYLI card (green badge ⚖️ AYLI) in the restaurant POS menu grid and on the Scale Tab.
+
+---
+
+### POS Workflow — Step by Step
+
+#### Step 1 — Open the Combo
+
+1. Tap the AYLI combo card (e.g. *Mama's Choice*) in the POS menu or Scale Tab.
+2. The **AYLI Combo modal** opens full-screen, blocking other POS actions until complete.
+
+#### Step 2 — Place the Container
+
+3. The modal shows **"Step 1 of 3 — Place container"**.
+4. Place the **empty combo container** on the scale.
+5. Once the scale reads a stable weight it automatically **tares** (zeroes) after 2 seconds — the container weight is removed from all subsequent readings.
+6. Tap **Skip (no container)** to tare immediately without a container.
+
+#### Step 3 — Select Size
+
+7. The modal advances to **"Step 2 of 3 — Select size"**.
+8. Tap **Small**, **Medium**, or **Large**.
+9. The base price locks in. Size **cannot be changed** after the next step.
+
+#### Step 4 — Fill the Container
+
+10. The modal shows **"Step 3 of 3 — Fill"** with the scale reading, capacity bars (weight and item count), and the ingredient grid.
+11. For each ingredient:
+    - Tap the ingredient card (e.g. *Chicken*). Cards already added show a **green border** and a weight badge.
+    - Have the customer add that ingredient to the container.
+    - After **2 seconds stable**, the button turns green: **✓ Capture +0.200 kg of Chicken**.
+    - Tap the capture button. A child line appears in the **Contents** list: `🍗 Chicken  0.200 kg × $9.50/kg  $1.90`.
+12. Repeat for each additional ingredient.
+13. The **weight bar** and **items bar** show capacity used. Exceeding 8 kg or 7 items is blocked with a warning.
+
+#### Step 5 — Confirm
+
+14. Tap **Done — Add to Cart ($X.XX)**.
+15. The combo is added to the cart as a single line item.
+16. The receipt prints a breakdown: base price, each ingredient with weight and per-kg rate, and the total.
+
+---
+
+### Price Calculation Reference
+
+```
+Combo total = Base price (for chosen size)
+            + Σ (ingredient weight × ingredient price/kg for chosen size)
+```
+
+**Example — Medium combo:**
+
+| | | |
+|-|-|-|
+| Base price | | $1.50 |
+| Chicken | 0.200 kg × $9.50/kg | $1.90 |
+| Beef | 0.150 kg × $11.50/kg | $1.73 |
+| Veggies | 0.150 kg × $7.50/kg | $1.13 |
+| **Total** | | **$6.26** |
+
+**Example — Large combo (same weights):**
+
+| | | |
+|-|-|-|
+| Base price | | $2.00 |
+| Chicken | 0.200 kg × $9.00/kg | $1.80 |
+| Beef | 0.150 kg × $11.00/kg | $1.65 |
+| Veggies | 0.150 kg × $7.00/kg | $1.05 |
+| **Total** | | **$6.50** |
+
+The Large combo has a higher base but cheaper per-kg rates — a "buy more, save per kg" effect.
+
+---
+
+### Rules & Constraints
+
+| Rule | Detail |
+|------|--------|
+| **Max weight** | 8 kg net (container tared out) |
+| **Max distinct ingredients** | 7 different items per combo |
+| **Size lock** | Locked after first ingredient is captured |
+| **Same ingredient twice** | Allowed — weight is added to the existing child line |
+| **Scale required** | Capture button is disabled if scale is not connected |
+| **Tare** | Container is auto-tared so container weight is excluded from the total |
+
+---
+
+### AYLI on the Scale Tab
+
+AYLI combo cards appear in the **⚖️ Scale** panel (alongside regular sell-by-weight products). Tap a combo card from the Scale Tab to open the AYLI modal — identical workflow to tapping it in the main menu grid.
+
+---
+
+### Customer Display — Live Weighing
+
+As each ingredient is captured, the customer display updates in real time showing the in-progress combo with each captured ingredient, its weight, and line price. When the combo is confirmed the display shows the finalised line like any other cart item.
+
+---
+
+## 55. Smart Customer Display — Dynamic Menu & Ads
+
+> **Who reads this:** Restaurant, grocery, and clothing managers who want to understand or configure the customer-facing display screen.
+
+---
+
+### Overview
+
+When no sale is in progress, the customer display shows two panels side by side:
+
+```
+┌────────────────┬──────────────────────────────────────────┐
+│  Rotating Ads  │  Live Menu Panel                         │
+│   (~28% wide)  │  (~72% wide)                             │
+│                │                                          │
+│  • Daily       │  • 12 items per page, 3 columns          │
+│    Special     │  • Sales-sorted (history required)       │
+│  • Animated    │  • Alternates: Menu ↔ AYLI Combos        │
+│    product     │  • Filters when cashier searches         │
+│    cards       │  • Price only — no stock/financial data  │
+└────────────────┴──────────────────────────────────────────┘
+```
+
+When a sale is in progress (items in cart), the right panel switches to the live cart display. The rotating ads panel stays visible throughout.
+
+---
+
+### Rotating Ads Panel
+
+The left panel shows rotating product cards sorted by sales score:
+
+```
+Sales score = (today's units × 3) + (yesterday × 2) + (day before × 1) + (boost × 10)
+```
+
+- **Daily Special** — if set, pinned left in an amber card with glowing large price and "TODAY'S SPECIAL" badge
+- **Featured** items appear first in rotation
+- **Hidden** items never appear
+- Cards rotate at a configurable speed (default 6 seconds)
+- AYLI Combos appear alongside regular items, showing each size and base price
+
+---
+
+### Live Menu Panel
+
+The right panel shows a 3-column grid:
+
+- Only items **with sales history** (salesScore > 0) are displayed
+- Maximum **12 items per page**, cards stretch to fill the full panel height
+- Alternates every **8 seconds** between:
+  - Regular menu items (paginated if more than 12)
+  - AYLI Combos view (emerald-tinted cards)
+- Prices displayed large with animated glow — no stock quantities or financial data
+- Dot indicators in the header show the current page/view
+
+---
+
+### Search Sync
+
+When the cashier types in the POS search box, the customer display filters the live menu panel in real time. A blue "Searching" pill appears in the header. When the search is cleared, the full menu returns.
+
+---
+
+### Management Screen
+
+**Where:** Restaurant sidebar → **📺 Customer Display**
+
+| Setting | Description |
+|---------|-------------|
+| Smart display enabled | Toggle the entire smart display on/off |
+| Daily Special left panel | Enable/disable the split layout |
+| Rotation speed | How long each card shows (3–30 seconds) |
+| Max items in rotation | How many items cycle through the ads (3–20) |
+
+**Per-item controls in the item list:**
+
+| Control | Effect |
+|---------|--------|
+| ⭐ Special | Sets this item as the Daily Special (clears the previous) |
+| ★ Feature | Pushes to front of rotation |
+| 🚫 Hide | Removes from display entirely |
+| Boost (0–100) | Manual priority — adds `boost × 10` to sales score |
+
+Saving broadcasts a **Display Refresh** to the customer display immediately.
+
+---
+
+### Daily Special
+
+Only one item can be the Daily Special at a time. When set with the split layout enabled, it occupies the left portion of the ads panel as a large amber card with an animated glowing price. Setting a new Daily Special automatically clears the previous one.
+
+---
+
+### Backup — New Tables
+
+| Table | Contents | Added in |
+|-------|---------|----------|
+| `as_you_like_it_combos` | AYLI combo definitions | MBM-231 |
+| `as_you_like_it_combo_sizes` | Size tiers per combo | MBM-231 |
+| `as_you_like_it_pool_items` | Shared ingredient library | MBM-231 |
+| `as_you_like_it_combo_items` | Pool items assigned to each combo | MBM-231 |
+| `display_product_configs` | Per-item display priority overrides | MBM-232 |
+| `display_global_settings` | Per-business display settings | MBM-232 |
+
+All six tables are backed up automatically with every full backup and restored in the correct dependency order.
