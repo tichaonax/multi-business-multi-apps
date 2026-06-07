@@ -8,6 +8,7 @@ interface MenuItem {
   name: string
   price: number
   emoji: string | null
+  imageId?: string | null
   category: string | null
   sizes?: Array<{ sizeName: string; basePrice: number }>
   salesScore: number
@@ -20,10 +21,10 @@ interface MenuPanelProps {
   searchTerm: string
 }
 
-// 3 columns × 4 rows = 12 items per page — large enough to read from a distance
-const PAGE_SIZE = 12
-// Max total items tracked (28 = ~3 pages of 12, minus daily special shown in ads)
-const MAX_ITEMS = 28
+// 3 columns × 3 rows = 9 items per page
+const PAGE_SIZE = 9
+// Max total items tracked (~5 pages of 6)
+const MAX_ITEMS = 30
 const VIEW_INTERVAL_MS = 8000
 
 function fmt(p: number) {
@@ -50,9 +51,14 @@ export function MenuPanel({ businessId, businessType, searchTerm }: MenuPanelPro
         ...(data.dailySpecial ? [data.dailySpecial] : []),
         ...(data.items ?? []),
       ]
-      // Only items with real sales history, capped at MAX_ITEMS
+      // Restaurant: only items with real sales history (salesScore > 0)
+      // Grocery/clothing: show all items sorted by score — they may not have 3-day sales but are still relevant
+      const nonAyli = all.filter(i => i.itemType !== 'ayli_combo')
       setRegularItems(
-        all.filter(i => i.itemType !== 'ayli_combo' && i.salesScore > 0).slice(0, MAX_ITEMS)
+        (businessType === 'restaurant'
+          ? nonAyli.filter(i => i.salesScore > 0)
+          : nonAyli
+        ).slice(0, MAX_ITEMS)
       )
       setAylicItems(all.filter(i => i.itemType === 'ayli_combo'))
     } catch { /* silent */ }
@@ -111,9 +117,12 @@ export function MenuPanel({ businessId, businessType, searchTerm }: MenuPanelPro
       ? Math.floor(cycleIndex / 2) % regularPages
       : cycleIndex % regularPages
     items = filteredRegular.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-    label = regularPages > 1
-      ? `🍽️ Menu — Page ${(hasAyli ? Math.floor(cycleIndex / 2) : cycleIndex) % regularPages + 1} of ${regularPages}`
+    const baseLabel = businessType === 'grocery' ? '🛒 Products'
+      : businessType === 'clothing' ? '👕 Catalogue'
       : '🍽️ Menu'
+    label = regularPages > 1
+      ? `${baseLabel} — ${(hasAyli ? Math.floor(cycleIndex / 2) : cycleIndex) % regularPages + 1} / ${regularPages}`
+      : baseLabel
   }
 
   return (
@@ -137,7 +146,10 @@ export function MenuPanel({ businessId, businessType, searchTerm }: MenuPanelPro
       <div className="flex-1 p-2 overflow-hidden">
         {items.length === 0 ? (
           <div className="h-full flex items-center justify-center text-white/20 text-xl">
-            {term ? `No results for "${searchTerm}"` : 'No items with sales history yet'}
+            {term ? `No results for "${searchTerm}"`
+              : businessType === 'restaurant' ? 'No items with sales history yet'
+              : businessType === 'grocery' ? 'No products found'
+              : 'No catalogue items found'}
           </div>
         ) : (
           <div
@@ -173,9 +185,18 @@ function Card({ item, isSpecial, isAyliView }: { item: MenuItem; isSpecial: bool
 
   return (
     <div className={`rounded-xl border flex flex-col justify-between p-4 overflow-hidden ${bg}`}>
-      {/* Top: emoji + name */}
+      {/* Top: image or emoji + name */}
       <div className="flex items-start gap-2">
-        <span className="text-4xl flex-shrink-0 leading-none">{item.emoji ?? '🍽️'}</span>
+        {item.imageId ? (
+          <img
+            src={`/api/images/${item.imageId}`}
+            alt={item.name}
+            className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+          />
+        ) : (
+          <span className="text-4xl flex-shrink-0 leading-none">{item.emoji ?? '🍽️'}</span>
+        )}
         <span className="text-white font-bold text-2xl leading-snug line-clamp-2">
           {item.name}
           {isSpecial && <span className="ml-1 text-amber-400 text-sm">⭐</span>}

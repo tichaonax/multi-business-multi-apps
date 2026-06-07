@@ -43,7 +43,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
   try {
     salesRows = await prisma.$queryRaw`
       SELECT
-        (boi.attributes->>'productId')                      AS "productId",
+        COALESCE(
+          NULLIF(boi.attributes->>'productId', ''),
+          CASE WHEN boi.attributes->>'inventoryItemId' IS NOT NULL
+            THEN 'inv_' || (boi.attributes->>'inventoryItemId')
+            ELSE NULL
+          END,
+          boi."productVariantId"
+        )                                                    AS "productId",
         (boi.attributes->'ayliBreakdown'->>'comboId')       AS "comboId",
         (boi.attributes->>'isAYLICombo')::boolean           AS "isAYLI",
         SUM(CASE WHEN bo."createdAt" >= ${todayStart}     THEN boi.quantity ELSE 0 END) AS "todayQty",
@@ -55,7 +62,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         AND bo."createdAt" >= ${dayBeforeStart}
         AND bo.status NOT IN ('CANCELLED', 'REFUNDED')
       GROUP BY
-        (boi.attributes->>'productId'),
+        COALESCE(
+          NULLIF(boi.attributes->>'productId', ''),
+          CASE WHEN boi.attributes->>'inventoryItemId' IS NOT NULL
+            THEN 'inv_' || (boi.attributes->>'inventoryItemId')
+            ELSE NULL
+          END,
+          boi."productVariantId"
+        ),
         (boi.attributes->'ayliBreakdown'->>'comboId'),
         (boi.attributes->>'isAYLICombo')::boolean
     `
@@ -110,6 +124,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         name: true,
         basePrice: true,
         business_categories: { select: { name: true, emoji: true } },
+        product_images: {
+          select: { imageId: true },
+          orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+          take: 1,
+        },
       }
     })
 
@@ -129,6 +148,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         price: Number(p.basePrice ?? 0),
         emoji: (p as any).business_categories?.emoji ?? null,
         category: (p as any).business_categories?.name ?? null,
+        imageId: (p as any).product_images?.[0]?.imageId ?? null,
         salesScore: ss,
         displayScore: buildDisplayScore('menu_item', p.id, ss),
         isFeatured: isFeatured('menu_item', p.id),
@@ -174,57 +194,183 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
     items = allItems ? candidates : candidates.slice(0, globalSettings.maxItemsInRotation)
 
   } else if (businessType === 'grocery') {
-    const products = await prisma.businessProducts.findMany({
-      where: { businessId, isActive: true },
-      select: {
-        id: true,
-        name: true,
-        basePrice: true,
-        business_categories: { select: { name: true, emoji: true } },
-      }
-    })
+    // Mirror the POS desk-products list: BarcodeInventoryItems (main stock) + SERVICE BusinessProducts
+    const [invItems, serviceProducts] = await Promise.all([
+      prisma.barcodeInventoryItems.findMany({
+        where: { businessId, isActive: true, stockQuantity: { gt: 0 } },
+        select: {
+          id: true, name: true, sellingPrice: true,
+          business_category: { select: { name: true, emoji: true } },
+        }
+      }),
+      prisma.businessProducts.findMany({
+        where: { businessId, isActive: true, isAvailable: true, productType: 'SERVICE', basePrice: { gt: 0 } },
+        include: {
+          business_categories: { select: { name: true, emoji: true } },
+          product_variants: { where: { isActive: true }, take: 1 },
+        }
+      })
+    ])
+
     const candidates: any[] = []
-    for (const p of products) {
+
+    // Inventory items — sales key is inv_${id} (matches the SQL COALESCE above)
+    for (const p of invItems) {
       if (isHidden('product', p.id)) continue
-      const ss = salesScore(productSales.get(p.id))
+      const price = Number(p.sellingPrice ?? 0)
+      if (price <= 0) continue
+      const invKey = `inv_${p.id}`
+      const ss = salesScore(productSales.get(invKey))
       candidates.push({
-        id: p.id, itemType: 'product', name: p.name, price: Number(p.basePrice ?? 0),
-        emoji: (p as any).business_categories?.emoji ?? null,
-        category: (p as any).business_categories?.name ?? null,
+        id: p.id, itemType: 'product', name: p.name, price,
+        emoji: (p as any).business_category?.emoji ?? null,
+        category: (p as any).business_category?.name ?? null,
         salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss),
         isFeatured: isFeatured('product', p.id),
         priorityBoost: configMap.get(`product:${p.id}`)?.priorityBoost ?? 0,
-        salesBreakdown: productSales.get(p.id) ?? { today: 0, yesterday: 0, dayBefore: 0 },
+        salesBreakdown: productSales.get(invKey) ?? { today: 0, yesterday: 0, dayBefore: 0 },
       })
     }
+
+    // Service products — sold via productVariantId, sales key is the variant ID
+    for (const svc of serviceProducts) {
+      if (isHidden('product', svc.id)) continue
+      const variantId = svc.product_variants[0]?.id ?? svc.id
+      const ss = salesScore(productSales.get(variantId))
+      candidates.push({
+        id: svc.id, itemType: 'product', name: svc.name, price: Number(svc.basePrice),
+        emoji: (svc as any).business_categories?.emoji ?? null,
+        category: (svc as any).business_categories?.name ?? null,
+        salesScore: ss, displayScore: buildDisplayScore('product', svc.id, ss),
+        isFeatured: isFeatured('product', svc.id),
+        priorityBoost: configMap.get(`product:${svc.id}`)?.priorityBoost ?? 0,
+        salesBreakdown: productSales.get(variantId) ?? { today: 0, yesterday: 0, dayBefore: 0 },
+      })
+    }
+
     candidates.sort((a, b) => { if (a.isFeatured !== b.isFeatured) return a.isFeatured ? -1 : 1; return b.displayScore - a.displayScore })
     items = allItems ? candidates : candidates.slice(0, globalSettings.maxItemsInRotation)
 
   } else if (businessType === 'clothing') {
-    const categories = await prisma.businessCategories.findMany({
-      where: { businessId },
-      select: { id: true, name: true, emoji: true }
-    })
-    const baleRows: any[] = await prisma.$queryRaw`
-      SELECT category, COUNT(*) AS "baleCount"
-      FROM clothing_bales WHERE "businessId" = ${businessId} AND "isSold" = false
-      GROUP BY category
-    `
+    const newArrivalCutoff = subDays(todayStart, 14)
+
+    const [baleCategories, baleRows, newArrivalRows, invItems, bizProducts]: [any[], any[], any[], any[], any[]] = await Promise.all([
+      // Bale categories live in clothing_bale_categories, not business_categories
+      prisma.clothingBaleCategories.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true }
+      }),
+      prisma.$queryRaw`
+        SELECT "categoryId", COUNT(*) AS "baleCount"
+        FROM clothing_bales
+        WHERE "businessId" = ${businessId} AND "isActive" = true AND "remainingCount" > 0
+        GROUP BY "categoryId"
+      `,
+      // Bales added in the last 14 days — used to rank new arrivals first
+      prisma.$queryRaw`
+        SELECT "categoryId", COUNT(*) AS "newCount"
+        FROM clothing_bales
+        WHERE "businessId" = ${businessId} AND "isActive" = true AND "remainingCount" > 0 AND "createdAt" >= ${newArrivalCutoff}
+        GROUP BY "categoryId"
+      `,
+      prisma.barcodeInventoryItems.findMany({
+        where: { businessId, isActive: true, stockQuantity: { gt: 0 } },
+        select: {
+          id: true, name: true, sellingPrice: true, createdAt: true,
+          business_category: { select: { name: true, emoji: true } },
+        }
+      }),
+      // BusinessProducts (quick-add items) — sold via productVariantId
+      prisma.businessProducts.findMany({
+        where: { businessId, isActive: true, isAvailable: true },
+        select: {
+          id: true, name: true, basePrice: true, createdAt: true,
+          business_categories: { select: { name: true, emoji: true } },
+          product_variants: {
+            where: { isActive: true },
+            select: { id: true, price: true },
+            orderBy: { createdAt: 'asc' },
+            take: 10,
+          },
+          product_images: {
+            select: { imageId: true },
+            orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+            take: 1,
+          },
+        }
+      })
+    ])
+
     const baleCountByCategory = new Map<string, number>()
-    for (const row of baleRows) baleCountByCategory.set(row.category, Number(row.baleCount))
+    for (const row of baleRows) baleCountByCategory.set(row.categoryId, Number(row.baleCount))
+
+    const newArrivalsByCategory = new Map<string, number>()
+    for (const row of newArrivalRows) newArrivalsByCategory.set(row.categoryId, Number(row.newCount))
 
     const candidates: any[] = []
-    for (const cat of categories) {
+
+    // Bale categories — keyed by categoryId
+    for (const cat of baleCategories) {
       if (isHidden('category', cat.id)) continue
-      const ds = buildDisplayScore('category', cat.id, 0)
+      const newCount = newArrivalsByCategory.get(cat.id) ?? 0
+      const ds = buildDisplayScore('category', cat.id, newCount)
       candidates.push({
-        id: cat.id, itemType: 'category', name: cat.name, emoji: cat.emoji ?? '👕',
-        activeBales: baleCountByCategory.get(cat.name) ?? 0,
-        salesScore: 0, displayScore: ds, isFeatured: isFeatured('category', cat.id),
+        id: cat.id, itemType: 'category', name: cat.name, emoji: '👕',
+        price: 0,
+        activeBales: baleCountByCategory.get(cat.id) ?? 0,
+        salesScore: newCount, displayScore: ds, isFeatured: isFeatured('category', cat.id),
         priorityBoost: configMap.get(`category:${cat.id}`)?.priorityBoost ?? 0,
         salesBreakdown: { today: 0, yesterday: 0, dayBefore: 0 },
       })
     }
+
+    // Regular inventory items — new arrivals (last 14 days) score higher
+    for (const p of invItems) {
+      if (isHidden('product', p.id)) continue
+      const price = Number(p.sellingPrice ?? 0)
+      if (price <= 0) continue
+      const isNew = new Date(p.createdAt) >= newArrivalCutoff
+      const invKey = `inv_${p.id}`
+      const ss = salesScore(productSales.get(invKey)) + (isNew ? 10 : 0)
+      candidates.push({
+        id: p.id, itemType: 'product', name: p.name, price,
+        emoji: (p as any).business_category?.emoji ?? '👕',
+        category: (p as any).business_category?.name ?? null,
+        salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss),
+        isFeatured: isFeatured('product', p.id),
+        priorityBoost: configMap.get(`product:${p.id}`)?.priorityBoost ?? 0,
+        salesBreakdown: productSales.get(invKey) ?? { today: 0, yesterday: 0, dayBefore: 0 },
+      })
+    }
+
+    // BusinessProducts (quick-add items) — sales tracked per variant, aggregate across all variants
+    for (const p of bizProducts) {
+      if (isHidden('product', p.id)) continue
+      const price = Number(p.basePrice ?? p.product_variants[0]?.price ?? 0)
+      if (price <= 0) continue
+      const isNew = new Date(p.createdAt) >= newArrivalCutoff
+      // Aggregate sales across all variants
+      const variantSales = (p.product_variants as any[]).reduce(
+        (acc: { today: number; yesterday: number; dayBefore: number }, v: any) => {
+          const s = productSales.get(v.id)
+          if (!s) return acc
+          return { today: acc.today + s.today, yesterday: acc.yesterday + s.yesterday, dayBefore: acc.dayBefore + s.dayBefore }
+        },
+        { today: 0, yesterday: 0, dayBefore: 0 }
+      )
+      const ss = salesScore(variantSales) + (isNew ? 10 : 0)
+      candidates.push({
+        id: p.id, itemType: 'product', name: p.name, price,
+        emoji: (p as any).business_categories?.emoji ?? '👕',
+        category: (p as any).business_categories?.name ?? null,
+        imageId: (p as any).product_images?.[0]?.imageId ?? null,
+        salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss),
+        isFeatured: isFeatured('product', p.id),
+        priorityBoost: configMap.get(`product:${p.id}`)?.priorityBoost ?? 0,
+        salesBreakdown: variantSales,
+      })
+    }
+
     candidates.sort((a, b) => { if (a.isFeatured !== b.isFeatured) return a.isFeatured ? -1 : 1; return b.displayScore - a.displayScore })
     items = allItems ? candidates : candidates.slice(0, globalSettings.maxItemsInRotation)
   }
