@@ -27,6 +27,8 @@ interface CartItem {
   imageUrl?: string
   isCombo?: boolean
   comboItems?: ComboItem[]
+  isAYLICombo?: boolean
+  aylicData?: any
 }
 
 interface CartDisplayProps {
@@ -264,14 +266,16 @@ function CartItemRow({ item, density = 'lg' }: { item: CartItem; density?: 'lg' 
   return (
     <div className={`bg-white rounded-xl shadow ${padding} border border-gray-200`}>
       <div className="flex items-center gap-3">
-        {/* Product Image */}
+        {/* Product Image / Emoji */}
         {item.imageUrl ? (
           <div className={`relative ${imgSize} flex-shrink-0 rounded-lg overflow-hidden bg-gray-100`}>
             <Image src={item.imageUrl} alt={item.name} fill className="object-cover" sizes="56px" />
           </div>
         ) : (
           <div className={`${imgSize} flex-shrink-0 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center`}>
-            <div className={density === 'lg' ? 'text-2xl' : 'text-lg'}>{item.isCombo ? '🍽️' : '📦'}</div>
+            <div className={density === 'lg' ? 'text-2xl' : 'text-lg'}>
+              {item.isAYLICombo ? '🥗' : item.isCombo ? '🍽️' : '📦'}
+            </div>
           </div>
         )}
 
@@ -299,6 +303,19 @@ function CartItemRow({ item, density = 'lg' }: { item: CartItem; density?: 'lg' 
           <div className={`${numSize} font-bold text-gray-900`}>{formatCurrency(lineTotal)}</div>
         </div>
       </div>
+
+      {/* AYLI combo breakdown */}
+      {item.isAYLICombo && item.aylicData?.lines && (
+        <div className="mt-1 ml-1 space-y-0.5">
+          <div className={`${subSize} text-gray-400`}>Base ({item.aylicData.size}): {formatCurrency(item.aylicData.basePrice)}</div>
+          {item.aylicData.lines.map((l: any, i: number) => (
+            <div key={i} className={`${subSize} text-gray-600 flex justify-between`}>
+              <span>{l.emoji || '🍽️'} {l.productName} {Number(l.weightKg).toFixed(3)} kg × ${Number(l.pricePerKg).toFixed(2)}/kg</span>
+              <span className="font-semibold ml-2">{formatCurrency(l.linePrice)}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

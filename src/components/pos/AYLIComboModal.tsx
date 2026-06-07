@@ -1,0 +1,478 @@
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import { useScale } from '@/contexts/ScaleContext'
+
+const STABLE_HOLD_MS = 2000
+const SIZE_ORDER = ['small', 'medium', 'large']
+
+export interface AYLIComboData {
+  comboId: string
+  comboName: string
+  size: string
+  basePrice: number
+  lines: Array<{ poolItemId: string; productName: string; emoji: string; weightKg: number; pricePerKg: number; linePrice: number }>
+  totalPrice: number
+}
+
+interface ComboSize { sizeName: string; basePrice: number }
+// ComboItem now carries pool_item with pre-set 3-tier prices
+interface ComboItem {
+  poolItemId: string
+  pool_item: { id: string; name: string; emoji: string; pricePerKgSmall: number; pricePerKgMedium: number; pricePerKgLarge: number }
+}
+
+interface Props {
+  combo: { id: string; name: string; maxWeightKg: number; maxItems: number; sizes: ComboSize[]; items: ComboItem[] }
+  onConfirm: (data: AYLIComboData) => void
+  onCancel: () => void
+  onProgress?: (snapshot: Omit<AYLIComboData, 'totalPrice'>) => void
+}
+
+function getPriceForSize(item: ComboItem, size: string): number {
+  if (size === 'small') return Number(item.pool_item.pricePerKgSmall)
+  if (size === 'medium') return Number(item.pool_item.pricePerKgMedium)
+  return Number(item.pool_item.pricePerKgLarge)
+}
+
+export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress }: Props) {
+  const { weight, status, tare } = useScale()
+
+  // Step 0 = container placement + auto-tare, Step 1 = size picker, Step 2 = fill panel
+  const [step, setStep] = useState<0 | 1 | 2>(0)
+  const [tared, setTared] = useState(false)
+  const [selectedSize, setSelectedSize] = useState<string>('')
+  const [basePrice, setBasePrice] = useState(0)
+  const [sizeLocked, setSizeLocked] = useState(false)
+
+  // Fill panel state
+  const [selectedItemId, setSelectedItemId] = useState<string>('')  // poolItemId
+  const [previousWeight, setPreviousWeight] = useState(0)
+  const [lines, setLines] = useState<AYLIComboData['lines']>([])
+  const [error, setError] = useState<string | null>(null)
+
+  // Scale stable-weight tracking
+  const [readyToCapture, setReadyToCapture] = useState(false)
+  const [countdown, setCountdown] = useState(0)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const stableStartRef = useRef<number | null>(null)
+
+  const connected = status.status === 'connected'
+  const liveWeight = weight?.weight ?? 0
+  const isStable = !!weight?.stable && !weight.overload && liveWeight >= 0
+  const isOverload = !!weight?.overload
+
+  const maxWeightKg = Number(combo.maxWeightKg)
+  const maxItems = combo.maxItems
+  const totalWeightKg = lines.reduce((s, l) => s + l.weightKg, 0)
+  const distinctCount = lines.length
+  const delta = Math.max(0, liveWeight - previousWeight)
+
+  // Step 0: auto-tare when container is stable on the scale
+  useEffect(() => {
+    if (step !== 0 || tared || !isStable || liveWeight <= 0) return
+    // Container stable for 2s → auto-tare
+    const timer = setTimeout(() => {
+      tare()
+      setTared(true)
+      // Brief pause to let scale settle, then advance to size picker
+      setTimeout(() => setStep(1), 600)
+    }, STABLE_HOLD_MS)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, tared, isStable, liveWeight])
+
+  // Step 1: While the user picks a size, track the scale's settled post-tare reading.
+  // Each stable reading updates previousWeight so that by the time a size is tapped,
+  // the baseline already reflects the actual zeroed scale (not a hardcoded 0).
+  useEffect(() => {
+    if (step !== 1 || !isStable || liveWeight < 0) return
+    setPreviousWeight(liveWeight)
+  }, [step, isStable, liveWeight])
+
+  // Stable hold-down timer for fill panel
+  useEffect(() => {
+    if (step !== 2) return
+    const clearTimers = () => {
+      if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null }
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null }
+      stableStartRef.current = null
+      setReadyToCapture(false)
+      setCountdown(0)
+    }
+    if (!isStable || liveWeight <= previousWeight) { clearTimers(); return }
+
+    stableStartRef.current = Date.now()
+    setCountdown(Math.ceil(STABLE_HOLD_MS / 1000))
+
+    intervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - (stableStartRef.current ?? Date.now())
+      const remaining = Math.ceil((STABLE_HOLD_MS - elapsed) / 1000)
+      setCountdown(remaining > 0 ? remaining : 0)
+    }, 200)
+
+    timerRef.current = setTimeout(() => {
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null }
+      setCountdown(0)
+      setReadyToCapture(true)
+    }, STABLE_HOLD_MS)
+
+    return clearTimers
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStable, liveWeight, step])
+
+  function handleSelectSize(size: ComboSize) {
+    setSelectedSize(size.sizeName)
+    setBasePrice(Number(size.basePrice))
+    setPreviousWeight(liveWeight)  // snapshot scale reading so first item's delta is food-only
+    setStep(2)
+  }
+
+  function handleCapture() {
+    if (!readyToCapture || !selectedItemId || delta <= 0) return
+    setError(null)
+
+    const newTotal = totalWeightKg + delta
+    if (newTotal > maxWeightKg) {
+      setError(`Adding ${delta.toFixed(3)} kg would exceed the ${maxWeightKg} kg limit (currently ${totalWeightKg.toFixed(3)} kg).`)
+      return
+    }
+
+    const comboItem = combo.items.find(it => it.poolItemId === selectedItemId)
+    if (!comboItem) return
+
+    const existingLine = lines.find(l => l.poolItemId === selectedItemId)
+    const isNewItem = !existingLine
+
+    if (isNewItem && distinctCount >= maxItems) {
+      setError(`Maximum of ${maxItems} distinct items reached.`)
+      return
+    }
+
+    const pricePerKg = getPriceForSize(comboItem, selectedSize)
+    const addedPrice = delta * pricePerKg
+
+    const newLines: AYLIComboData['lines'] = existingLine
+      ? lines.map(l => l.poolItemId === selectedItemId
+          ? { ...l, weightKg: l.weightKg + delta, linePrice: l.linePrice + addedPrice }
+          : l)
+      : [...lines, {
+          poolItemId: selectedItemId,
+          productName: comboItem.pool_item.name,
+          emoji: comboItem.pool_item.emoji || '🍽️',
+          weightKg: delta,
+          pricePerKg,
+          linePrice: addedPrice
+        }]
+
+    setLines(newLines)
+    onProgress?.({ comboId: combo.id, comboName: combo.name, size: selectedSize, basePrice, lines: newLines })
+
+    // Lock size after first capture
+    if (!sizeLocked) setSizeLocked(true)
+
+    // Advance the tracking weight
+    setPreviousWeight(liveWeight)
+    setReadyToCapture(false)
+    setSelectedItemId('')
+  }
+
+  function handleDone() {
+    if (lines.length === 0) return
+    const itemsTotal = lines.reduce((s, l) => s + l.linePrice, 0)
+    onConfirm({
+      comboId: combo.id,
+      comboName: combo.name,
+      size: selectedSize,
+      basePrice,
+      lines,
+      totalPrice: basePrice + itemsTotal
+    })
+  }
+
+  const itemsTotal = lines.reduce((s, l) => s + l.linePrice, 0)
+  const comboTotal = basePrice + itemsTotal
+  const weightPct = Math.min(100, (totalWeightKg / maxWeightKg) * 100)
+
+  const captureDisabled = !readyToCapture || !selectedItemId || delta <= 0 || liveWeight > maxWeightKg
+
+  const borderClass = !connected
+    ? 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20'
+    : isOverload
+    ? 'border-red-400 bg-red-50 dark:border-red-700 dark:bg-red-900/20'
+    : readyToCapture
+    ? 'border-green-400 bg-green-50 dark:border-green-600 dark:bg-green-900/20'
+    : isStable && liveWeight > previousWeight
+    ? 'border-amber-300 bg-amber-50 dark:border-amber-600 dark:bg-amber-900/20'
+    : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50'
+
+  return (
+    /* Full-screen blocking overlay — nothing behind is clickable */
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-start justify-center overflow-y-auto py-4 px-4">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-xl">
+
+        {/* Header */}
+        <div className="px-5 pt-5 pb-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">🥗 {combo.name}</h2>
+              {step === 0 && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Step 1 of 3 — Place container</p>
+            )}
+            {step === 1 && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Step 2 of 3 — Select size</p>
+            )}
+            {step === 2 && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 capitalize">
+                  {selectedSize} — Base: ${basePrice.toFixed(2)}
+                  {sizeLocked && <span className="ml-2 text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-1.5 py-0.5 rounded">size locked</span>}
+                </p>
+              )}
+            </div>
+            {step === 2 && (
+              <button onClick={tare} type="button"
+                className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600">
+                ⚖️ Tare
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Step 0: Container placement + auto-tare */}
+        {step === 0 && (
+          <div className="p-6 text-center space-y-5">
+            <div className="text-5xl">🥡</div>
+            <div>
+              <h3 className="text-base font-semibold text-primary mb-1">Place empty container on the scale</h3>
+              <p className="text-sm text-secondary">Once it's stable, the scale will zero automatically and the size picker will open.</p>
+            </div>
+
+            {/* Live scale reading */}
+            <div className={`rounded-xl border-2 p-4 transition-colors ${
+              !connected ? 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20'
+              : isOverload ? 'border-red-400 bg-red-50 dark:border-red-700 dark:bg-red-900/20'
+              : isStable && liveWeight > 0 ? 'border-amber-300 bg-amber-50 dark:border-amber-600 dark:bg-amber-900/20'
+              : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50'
+            }`}>
+              <div className="flex items-center gap-2 mb-2 justify-center">
+                <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-400'}`} />
+                <span className="text-xs text-secondary">{connected ? `Scale — ${status.comPort}` : 'Scale not connected'}</span>
+              </div>
+              {!connected ? (
+                <p className="text-sm text-red-500">No scale connected. Go to POS Settings to configure.</p>
+              ) : isOverload ? (
+                <p className="text-2xl font-mono font-bold text-red-500">OVERLOAD</p>
+              ) : liveWeight <= 0 ? (
+                <p className="text-sm text-secondary">Waiting for container… (reading: {liveWeight.toFixed(3)} kg)</p>
+              ) : isStable ? (
+                <div>
+                  <div className="text-3xl font-mono font-bold text-amber-600 dark:text-amber-300">{liveWeight.toFixed(3)} kg</div>
+                  <div className="text-xs text-amber-600 dark:text-amber-400 mt-1 font-semibold">Stable — zeroing in {Math.ceil(STABLE_HOLD_MS / 1000)}s…</div>
+                </div>
+              ) : (
+                <div>
+                  <div className="text-3xl font-mono font-bold text-gray-500">{liveWeight.toFixed(3)} kg</div>
+                  <div className="text-xs text-secondary mt-1">Keep container still…</div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button type="button" onClick={onCancel} className="flex-1 btn-secondary">Cancel</button>
+              <button type="button" onClick={() => { tare(); setTimeout(() => setStep(1), 600) }}
+                className="flex-1 py-2 px-4 rounded-lg text-sm font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
+                Skip (no container)
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 1: Size Picker */}
+        {step === 1 && (
+          <div className="p-5">
+            <p className="text-sm text-secondary mb-4">Select a size to start the combo:</p>
+            <div className="grid grid-cols-3 gap-3">
+              {[...combo.sizes].sort((a, b) => SIZE_ORDER.indexOf(a.sizeName) - SIZE_ORDER.indexOf(b.sizeName)).map(s => (
+                <button key={s.sizeName} type="button" onClick={() => handleSelectSize(s)}
+                  className="flex flex-col items-center justify-center py-5 rounded-xl border-2 border-blue-200 dark:border-blue-700 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">
+                  <span className="capitalize text-base font-semibold text-primary">{s.sizeName}</span>
+                  <span className="text-xl font-bold text-blue-600 dark:text-blue-400 mt-1">${Number(s.basePrice).toFixed(2)}</span>
+                  <span className="text-xs text-secondary mt-0.5">base price</span>
+                </button>
+              ))}
+            </div>
+            <div className="flex justify-end mt-5">
+              <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Fill Panel */}
+        {step === 2 && (
+          <div className="p-5 space-y-4">
+
+            {/* Scale display */}
+            <div className={`rounded-xl border-2 p-4 transition-colors ${borderClass}`}>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-400'}`} />
+                  <span className="text-xs text-secondary">{connected ? `Scale — ${status.comPort}` : 'Scale not connected'}</span>
+                </div>
+                {isStable && liveWeight > previousWeight && !readyToCapture && (
+                  <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold">Holding… {countdown}s</span>
+                )}
+                {readyToCapture && (
+                  <span className="text-xs text-green-600 dark:text-green-400 font-semibold">● Ready</span>
+                )}
+              </div>
+              <div className="text-center">
+                {isOverload ? (
+                  <p className="text-2xl font-mono font-bold text-red-500">OVERLOAD</p>
+                ) : (
+                  <>
+                    <div className="text-4xl font-mono font-bold text-gray-900 dark:text-gray-100">{liveWeight.toFixed(3)} kg</div>
+                    {liveWeight > previousWeight && (
+                      <div className="text-sm text-blue-600 dark:text-blue-400 mt-0.5">
+                        +{delta.toFixed(3)} kg {selectedItemId ? `→ ${combo.items.find(it => it.poolItemId === selectedItemId)?.pool_item?.name}` : '(select item first)'}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Capacity bars */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="flex justify-between text-xs text-secondary mb-1">
+                  <span>Weight</span>
+                  <span>{totalWeightKg.toFixed(3)} / {maxWeightKg} kg</span>
+                </div>
+                <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${weightPct >= 100 ? 'bg-red-500' : weightPct >= 80 ? 'bg-amber-400' : 'bg-blue-500'}`}
+                    style={{ width: `${weightPct}%` }} />
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between text-xs text-secondary mb-1">
+                  <span>Items</span>
+                  <span>{distinctCount} / {maxItems}</span>
+                </div>
+                <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${distinctCount >= maxItems ? 'bg-red-500' : 'bg-green-500'}`}
+                    style={{ width: `${(distinctCount / maxItems) * 100}%` }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Item selector */}
+            <div>
+              <p className="text-xs font-medium text-secondary mb-2">SELECT NEXT ITEM TO ADD:</p>
+              <div className="grid grid-cols-2 gap-2">
+                {combo.items.map(it => {
+                  const price = getPriceForSize(it, selectedSize)
+                  const isSelected = selectedItemId === it.poolItemId
+                  const addedLine = lines.find(l => l.poolItemId === it.poolItemId)
+                  return (
+                    <button key={it.poolItemId} type="button"
+                      onClick={() => { setSelectedItemId(it.poolItemId); setError(null) }}
+                      className={`text-left p-2.5 rounded-lg border-2 transition-colors relative ${
+                        isSelected
+                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
+                          : addedLine
+                          ? 'border-green-400 bg-green-50 dark:border-green-600 dark:bg-green-900/20'
+                          : 'border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-600'
+                      }`}>
+                      {addedLine && (
+                        <span className="absolute top-1 right-1 bg-green-500 text-white text-[9px] font-bold rounded px-1 py-0.5 leading-none">
+                          {addedLine.weightKg.toFixed(3)} kg
+                        </span>
+                      )}
+                      <div className="text-2xl mb-0.5">{it.pool_item.emoji || '🍽️'}</div>
+                      <div className="font-medium text-sm text-primary truncate">{it.pool_item.name}</div>
+                      <div className="text-xs text-blue-600 dark:text-blue-400">${price.toFixed(2)}/kg</div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg px-3 py-2 text-sm text-red-600 dark:text-red-400">
+                {error}
+              </div>
+            )}
+
+            {/* Capture button */}
+            <button type="button" onClick={handleCapture} disabled={captureDisabled}
+              className={`w-full py-3 rounded-xl font-semibold text-sm transition-colors ${
+                captureDisabled
+                  ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                  : 'bg-green-600 hover:bg-green-700 text-white'
+              }`}>
+              {!selectedItemId
+                ? 'Select an item above first'
+                : !readyToCapture
+                ? `Waiting for stable weight…`
+                : `✓ Capture +${delta.toFixed(3)} kg of ${combo.items.find(it => it.poolItemId === selectedItemId)?.pool_item?.name}`
+              }
+            </button>
+
+            {/* Lines */}
+            {lines.length > 0 && (
+              <div className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+                <div className="bg-gray-50 dark:bg-gray-700/50 px-3 py-1.5 text-xs font-semibold text-secondary uppercase tracking-wide">Contents</div>
+                {lines.map(l => {
+                  const poolItem = combo.items.find(it => it.poolItemId === l.poolItemId)
+                  return (
+                  <div key={l.poolItemId} className="flex items-center justify-between px-3 py-2 border-t border-gray-100 dark:border-gray-700">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">{poolItem?.pool_item.emoji || '🍽️'}</span>
+                      <div>
+                        <span className="text-sm font-medium text-primary">{l.productName}</span>
+                        <span className="text-xs text-secondary ml-2">{l.weightKg.toFixed(3)} kg × ${l.pricePerKg.toFixed(2)}/kg</span>
+                      </div>
+                    </div>
+                    <span className="text-sm font-semibold text-primary">${l.linePrice.toFixed(2)}</span>
+                  </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Totals */}
+            <div className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+              <div className="flex justify-between px-3 py-2 text-sm text-secondary">
+                <span className="capitalize">Base ({selectedSize})</span>
+                <span>${basePrice.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between px-3 py-2 text-sm text-secondary border-t border-gray-100 dark:border-gray-700">
+                <span>Items total</span>
+                <span>${itemsTotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between px-3 py-2.5 text-base font-bold text-primary border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50">
+                <span>Combo Total</span>
+                <span>${comboTotal.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Footer actions */}
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={onCancel} className="flex-1 btn-secondary">Cancel</button>
+              <button type="button" onClick={handleDone} disabled={lines.length === 0}
+                className={`flex-1 py-2 px-4 rounded-lg font-semibold text-sm transition-colors ${
+                  lines.length === 0
+                    ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                }`}>
+                Done — Add to Cart (${comboTotal.toFixed(2)})
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

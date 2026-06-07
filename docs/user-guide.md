@@ -10424,7 +10424,27 @@ Compare these numbers to what was shown in the validation report.
 
 Each backup file records the schema version at the time it was created (e.g. `6.31.0`). When restoring to a different installation, the schema versions should match. If they differ, run `prisma migrate deploy` on the target installation first to bring the schema up to date, then restore.
 
-The current schema version is **6.31.0** (adds `weight_pricing_rules`, `livestock_purchase_sessions`, `livestock_purchase_lines`, and two columns on `business_products` for scale integration — MBM-226).
+The current schema version is **6.34.0** (adds `as_you_like_it_combos`, `as_you_like_it_combo_sizes`, `as_you_like_it_pool_items`, and `as_you_like_it_combo_items` for the restaurant As-You-Like-It weight-based combo feature).
+
+#### Tables added in schema 6.34.0 — As-You-Like-It Combos
+
+| Table | Contents | Scoped by |
+|-------|----------|-----------|
+| `as_you_like_it_combos` | Combo definitions (name, max weight, max items) | `businessId` |
+| `as_you_like_it_combo_sizes` | Size tiers per combo (small / medium / large base prices) | `comboId` |
+| `as_you_like_it_pool_items` | Shared pool of food items with per-size kg prices | `businessId` |
+| `as_you_like_it_combo_items` | Which pool items belong to each combo | `comboId + poolItemId` |
+
+**Verification after restore:**
+
+```sql
+SELECT COUNT(*) FROM as_you_like_it_combos;
+SELECT COUNT(*) FROM as_you_like_it_combo_sizes;
+SELECT COUNT(*) FROM as_you_like_it_pool_items;
+SELECT COUNT(*) FROM as_you_like_it_combo_items;
+```
+
+All four counts should match the source system.
 
 ---
 

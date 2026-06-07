@@ -512,6 +512,8 @@ model Businesses {
   inter_business_loans_inter_business_loans_lenderBusinessIdTobusinesses   InterBusinessLoans[]          @relation("inter_business_loans_lenderBusinessIdTobusinesses")
   mac_acl_entries                                                          MacAclEntry[]
   menu_combos                                                              MenuCombos[]
+  as_you_like_it_combos                                                    AsYouLikeItCombos[]
+  as_you_like_it_pool_items                                                AsYouLikeItPoolItems[]
   menu_promotions                                                          MenuPromotions[]
   payroll_account_deposits                                                 PayrollAccountDeposits[]
   payroll_accounts                                                         PayrollAccounts?
@@ -7429,4 +7431,68 @@ model LivestockVendorProfiles {
 
   @@index([businessId, vendorId])
   @@map("livestock_vendor_profiles")
+}
+
+model AsYouLikeItPoolItems {
+  id               String   @id @default(uuid())
+  businessId       String
+  name             String
+  emoji            String   @default("🍽️")
+  pricePerKgSmall  Decimal  @db.Decimal(10, 2)
+  pricePerKgMedium Decimal  @db.Decimal(10, 2)
+  pricePerKgLarge  Decimal  @db.Decimal(10, 2)
+  isActive         Boolean  @default(true)
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  businesses             Businesses              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  as_you_like_it_combo_items AsYouLikeItComboItems[]
+
+  @@map("as_you_like_it_pool_items")
+}
+
+model AsYouLikeItCombos {
+  id          String   @id @default(uuid())
+  businessId  String
+  name        String
+  description String?
+  maxWeightKg Decimal  @default(8.000) @db.Decimal(6, 3)
+  maxItems    Int      @default(7)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  businesses Businesses              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  sizes      AsYouLikeItComboSizes[]
+  items      AsYouLikeItComboItems[]
+
+  @@map("as_you_like_it_combos")
+}
+
+model AsYouLikeItComboSizes {
+  id        String  @id @default(uuid())
+  comboId   String
+  sizeName  String
+  basePrice Decimal @db.Decimal(10, 2)
+  sortOrder Int     @default(0)
+
+  combo AsYouLikeItCombos @relation(fields: [comboId], references: [id], onDelete: Cascade)
+
+  @@unique([comboId, sizeName])
+  @@map("as_you_like_it_combo_sizes")
+}
+
+model AsYouLikeItComboItems {
+  id         String  @id @default(uuid())
+  comboId    String
+  poolItemId String
+  sortOrder  Int     @default(0)
+  isActive   Boolean @default(true)
+
+  combo     AsYouLikeItCombos    @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  pool_item AsYouLikeItPoolItems @relation(fields: [poolItemId], references: [id], onDelete: Cascade)
+
+  @@unique([comboId, poolItemId])
+  @@map("as_you_like_it_combo_items")
 }

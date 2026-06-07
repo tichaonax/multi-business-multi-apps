@@ -3,39 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { EmojiPickerEnhanced } from '@/components/business/emoji-picker-enhanced'
 
-// Small reusable: auto-suggest input + expandable EmojiPickerEnhanced
-function EmojiAutoField({
-  value, onChange, label
-}: { value: string; onChange: (e: string, manual: boolean) => void; label?: string }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div>
-      {label && (
-        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-          {label} <span className="text-gray-400 font-normal">(auto-suggested)</span>
-        </label>
-      )}
-      <button
-        type="button"
-        onClick={() => setOpen(v => !v)}
-        title={open ? 'Close picker' : 'Click to search & select emoji'}
-        className="text-2xl w-14 h-10 flex items-center justify-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 hover:border-blue-400 transition-colors"
-      >
-        {value}
-      </button>
-      {open && (
-        <div className="mt-2 border border-blue-300 dark:border-blue-700 rounded-lg bg-white dark:bg-gray-800 p-3 w-80">
-          <EmojiPickerEnhanced
-            selectedEmoji={value}
-            onSelect={e => { onChange(e, true); setOpen(false) }}
-            searchPlaceholder="Search or paste emoji…"
-          />
-        </div>
-      )}
-    </div>
-  )
-}
-
 type PurchaseType = 'LIVESTOCK' | 'GOODS'
 
 interface Rule {
@@ -78,6 +45,12 @@ export function WeightPricingSettings({ businessId, section }: Props) {
   // Track whether user manually edited the emoji — stops auto-suggest if true
   const emojiUserEdited = useRef(false)
 
+  // Searchable suggest dropdown for the name input
+  const [suggestions, setSuggestions] = useState<Array<{ name: string; emoji: string }>>([])
+  const [showSuggest, setShowSuggest] = useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const suggestRef = useRef<HTMLDivElement>(null)
+
   // Inline emoji picker state for existing rows
   const [openEmojiRowId, setOpenEmojiRowId] = useState<string | null>(null)
   const emojiPopoverRef = useRef<HTMLDivElement>(null)
@@ -99,23 +72,39 @@ export function WeightPricingSettings({ businessId, section }: Props) {
       .finally(() => setLoading(false))
   }, [businessId])
 
-  // Auto-suggest emoji from expense taxonomy as user types the preset name
+  // Populate visible suggestion dropdown as user types the preset name
   useEffect(() => {
     const name = newName.trim()
-    if (name.length < 2 || emojiUserEdited.current) return
+    if (name.length < 2) { setSuggestions([]); return }
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(name)}`)
         if (!res.ok) return
         const data = await res.json()
-        const top = data.suggestions?.[0]
-        if (!top) return
-        const emoji = top.subSubcategoryEmoji ?? top.subcategoryEmoji ?? top.categoryEmoji ?? top.domainEmoji
-        if (emoji) setNewEmoji(emoji)
+        const mapped = (data.suggestions ?? []).map((s: any) => ({
+          name: s.subSubcategoryName ?? s.subcategoryName ?? s.categoryName ?? s.domainName,
+          emoji: s.subSubcategoryEmoji ?? s.subcategoryEmoji ?? s.categoryEmoji ?? s.domainEmoji ?? '📦'
+        })).filter((s: any) => s.name)
+        // Deduplicate by name
+        const seen = new Set<string>()
+        const unique = mapped.filter((s: any) => { if (seen.has(s.name)) return false; seen.add(s.name); return true })
+        setSuggestions(unique.slice(0, 8))
+        setShowSuggest(true)  // always show — "no matches" + browse button
       } catch {}
-    }, 350)
+    }, 300)
     return () => clearTimeout(timer)
   }, [newName])
+
+  // Close suggest dropdown on outside click
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (suggestRef.current && !suggestRef.current.contains(e.target as Node)) {
+        setShowSuggest(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [])
 
   // Close row emoji popover on outside click
   useEffect(() => {
@@ -136,6 +125,9 @@ export function WeightPricingSettings({ businessId, section }: Props) {
     setNewPrice('')
     setNewEmoji('📦')
     emojiUserEdited.current = false
+    setSuggestions([])
+    setShowSuggest(false)
+    setShowEmojiPicker(false)
     setNewPurchaseType('LIVESTOCK')
     setCalc({ unitCount: '', totalWeightKg: '', pricePerUnit: '' })
   }
@@ -283,20 +275,67 @@ export function WeightPricingSettings({ businessId, section }: Props) {
           <div className="p-4 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 space-y-3">
             <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">New selling preset</p>
             <div className="flex flex-wrap gap-2 items-end">
-              <EmojiAutoField
-                value={newEmoji}
-                label="Icon"
-                onChange={(e, manual) => { emojiUserEdited.current = manual; setNewEmoji(e) }}
-              />
               <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Icon</label>
+                <input
+                  type="text"
+                  value={newEmoji}
+                  onChange={e => { emojiUserEdited.current = true; setNewEmoji(e.target.value) }}
+                  maxLength={2}
+                  title="Type or paste an emoji"
+                  className="w-12 h-9 text-xl text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="relative" ref={suggestRef}>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Preset name</label>
                 <input
                   type="text"
                   value={newName}
-                  onChange={e => { emojiUserEdited.current = false; setNewName(e.target.value) }}
+                  onChange={e => { emojiUserEdited.current = false; setNewName(e.target.value); setShowSuggest(true) }}
+                  onFocus={() => { if (suggestions.length > 0) setShowSuggest(true) }}
+                  onBlur={() => setTimeout(() => { setShowSuggest(false); setShowEmojiPicker(false) }, 150)}
                   placeholder="e.g. Beef Mince, Fish Fillets"
                   className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 w-44"
+                  autoComplete="off"
                 />
+                {showSuggest && (
+                  <div className="absolute left-0 top-full mt-1 z-50 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl overflow-hidden">
+                    {suggestions.length === 0 && (
+                      <div className="px-3 py-2 text-xs text-gray-400">No matches</div>
+                    )}
+                    {suggestions.map((s, i) => (
+                      <button key={i} type="button"
+                        onMouseDown={() => { setNewName(s.name); if (!emojiUserEdited.current) setNewEmoji(s.emoji); setShowSuggest(false) }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-left border-b border-gray-100 dark:border-gray-700">
+                        <span className="text-base flex-shrink-0">{s.emoji}</span>
+                        <span className="text-gray-900 dark:text-gray-100 truncate">{s.name}</span>
+                      </button>
+                    ))}
+                    {newName.trim().length >= 2 && (
+                      <button type="button"
+                        onMouseDown={() => { setShowSuggest(false); setShowEmojiPicker(v => !v) }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-left font-medium">
+                        🔍 Browse more emojis for "{newName}"…
+                      </button>
+                    )}
+                  </div>
+                )}
+                {showEmojiPicker && (
+                  <div className="absolute left-0 top-full mt-1 z-50 w-72 bg-white dark:bg-gray-800 border border-blue-300 dark:border-blue-700 rounded-lg shadow-xl">
+                    <div className="flex items-center justify-between px-3 pt-2 pb-1 border-b border-gray-100 dark:border-gray-700">
+                      <span className="text-xs font-medium text-gray-500">Emoji search — "{newName}"</span>
+                      <button type="button" onClick={() => setShowEmojiPicker(false)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+                    </div>
+                    <div className="p-3">
+                      <EmojiPickerEnhanced
+                        selectedEmoji={newEmoji}
+                        initialQuery={newName.trim()}
+                        onSelect={e => { setNewEmoji(e); emojiUserEdited.current = true; setShowEmojiPicker(false) }}
+                        searchPlaceholder="Or search for a different emoji…"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Price / kg</label>
@@ -439,20 +478,40 @@ export function WeightPricingSettings({ businessId, section }: Props) {
       {showAdd ? (
         <div className="p-4 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 space-y-3">
           <div className="flex flex-wrap gap-2 items-end">
-            <EmojiAutoField
-              value={newEmoji}
-              label="Icon"
-              onChange={(e, manual) => { emojiUserEdited.current = manual; setNewEmoji(e) }}
-            />
             <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Icon</label>
+              <input
+                type="text"
+                value={newEmoji}
+                onChange={e => { emojiUserEdited.current = true; setNewEmoji(e.target.value) }}
+                maxLength={2}
+                title="Type or paste an emoji"
+                className="w-12 h-9 text-xl text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="relative" ref={suggestRef}>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Category name</label>
               <input
                 type="text"
                 value={newName}
-                onChange={e => { emojiUserEdited.current = false; setNewName(e.target.value) }}
+                onChange={e => { emojiUserEdited.current = false; setNewName(e.target.value); setShowSuggest(true) }}
+                onFocus={() => { if (suggestions.length > 0) setShowSuggest(true) }}
                 placeholder={purchaseTab === 'LIVESTOCK' ? 'e.g. Whole Chicken' : 'e.g. Tomatoes'}
                 className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 w-40"
+                autoComplete="off"
               />
+              {showSuggest && suggestions.length > 0 && (
+                <div className="absolute left-0 top-full mt-1 z-50 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl overflow-hidden">
+                  {suggestions.map((s, i) => (
+                    <button key={i} type="button"
+                      onMouseDown={() => { setNewName(s.name); if (!emojiUserEdited.current) setNewEmoji(s.emoji); setShowSuggest(false) }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-left">
+                      <span className="text-base flex-shrink-0">{s.emoji}</span>
+                      <span className="text-gray-900 dark:text-gray-100 truncate">{s.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">

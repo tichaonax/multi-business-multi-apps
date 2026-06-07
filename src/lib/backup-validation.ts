@@ -337,6 +337,9 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'employeeAbsences',            // backed up globally, not scoped by business
   // Chat (MBM-210)
   'chatMessageRecipients',       // messageId + userId FK, no businessId column
+  // AYLI Combo child tables — no businessId (linked via comboId)
+  'asYouLikeItComboSizes',       // comboId FK, no businessId field
+  'asYouLikeItComboItems',       // comboId + poolItemId FKs, no businessId field
 ])
 
 /**

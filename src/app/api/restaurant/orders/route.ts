@@ -915,6 +915,36 @@ export async function POST(req: NextRequest) {
             r710TokenError: errorMessage
           }, { status: 400 });
         }
+      } else if ((item as any).isAYLICombo === true) {
+        // Handle As-You-Like-It weight-based combo — save as single order item with full breakdown
+        const aylicData = (item as any).aylicData
+        const itemQuantity = item.quantity || 1
+        const itemPrice = Number(item.price)
+        const itemTotal = itemPrice * itemQuantity
+        await prisma.businessOrderItems.create({
+          data: {
+            orderId: newOrder.id,
+            productVariantId: null,
+            quantity: itemQuantity,
+            unitPrice: itemPrice,
+            discountAmount: 0,
+            totalPrice: itemTotal,
+            attributes: {
+              productName: item.name,
+              category: 'ayli-combos',
+              isAYLICombo: true,
+              ayliBreakdown: aylicData ? {
+                comboId: aylicData.comboId,
+                comboName: aylicData.comboName,
+                size: aylicData.size,
+                basePrice: aylicData.basePrice,
+                lines: aylicData.lines
+              } : null
+            }
+          }
+        })
+        continue
+
       } else if ((item as any).isCombo === true) {
         // Handle combo items - check if combo contains WiFi tokens
         try {
@@ -1445,7 +1475,7 @@ export async function POST(req: NextRequest) {
 
     // Deduct from prep inventory batches (FIFO — oldest batch first)
     try {
-      const regularItems = items.filter((item: any) => !item.wifiToken && !item.r710Token)
+      const regularItems = items.filter((item: any) => !item.wifiToken && !item.r710Token && !item.isAYLICombo && !item.isCombo)
       if (regularItems.length > 0) {
         const productIds = regularItems.map((item: any) => item.id)
         const trackedConfigs = await prisma.menuItemInventoryConfig.findMany({

@@ -55,6 +55,8 @@ interface CartItem {
   imageUrl?: string
   isCombo?: boolean
   comboItems?: any[]
+  isAYLICombo?: boolean
+  aylicData?: any
 }
 
 interface CartState {

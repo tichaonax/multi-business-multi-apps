@@ -54,6 +54,7 @@ import { generateBarcodeEscPos } from '@/lib/printing/card-print-utils'
 import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
 import { generateWifiFlierPdf, WifiFlierData } from '@/lib/wifi-flier-pdf'
 import { WeighItemModal } from '@/components/pos/WeighItemModal'
+import { AYLIComboModal, type AYLIComboData } from '@/components/pos/AYLIComboModal'
 import { useScale } from '@/contexts/ScaleContext'
 
 interface MenuItem {
@@ -107,8 +108,13 @@ export default function RestaurantPOS() {
   const printInFlightRef = useRef(false)
   // Stable ref to sendToDisplay so barcode-scan handler (empty-deps effect) always calls the latest version
   const sendToDisplayRef = useRef<((type: string, payload: Record<string, unknown>) => void) | null>(null)
+  // In-progress AYLI combo virtual cart item — injected into broadcastCartState so the customer
+  // display sees the combo being built before it's confirmed and added to the real cart
+  const aylicInProgressRef = useRef<any>(null)
   const [cart, setCart] = useState<CartItem[]>([])
   const [weighingItem, setWeighingItem] = useState<MenuItem | null>(null)
+  const [aylicSession, setAylicSession] = useState<any | null>(null)  // active AYLI combo being built
+  const [aylicCombos, setAylicCombos] = useState<any[]>([])           // loaded combo definitions
   const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; customerNumber: string; name: string; email?: string; phone?: string; address?: string; city?: string; customerType: string; creditBalance?: number; isBlacklisted?: boolean; blacklistReason?: string | null } | null>(null)
   const [selectedSalesperson, setSelectedSalesperson] = useState<SelectedSalesperson | null>(null)
   const selectedSalespersonRef = useRef<SelectedSalesperson | null>(null)
@@ -798,8 +804,10 @@ export default function RestaurantPOS() {
 
   // Broadcast cart state to customer display
   const broadcastCartState = (cartItems: CartItem[]) => {
-    console.log('[POS] Broadcasting cart state, items:', cartItems.length)
-    const subtotal = cartItems.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0)
+    // Merge in-progress AYLI combo (if one is being built) so customer sees live weighing
+    const allItems = aylicInProgressRef.current ? [...cartItems, aylicInProgressRef.current as CartItem] : cartItems
+    console.log('[POS] Broadcasting cart state, items:', allItems.length)
+    const subtotal = allItems.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0)
 
     // Calculate tax and total based on business settings
     let tax: number
@@ -833,7 +841,7 @@ export default function RestaurantPOS() {
     }
 
     const cartMessage = {
-      items: cartItems.map(item => ({
+      items: allItems.map(item => ({
         id: item.id,
         name: item.name,
         quantity: item.quantity,
@@ -841,7 +849,9 @@ export default function RestaurantPOS() {
         variant: item.category,
         imageUrl: item.imageUrl,
         isCombo: (item as any).isCombo || false,
-        comboItems: (item as any).comboItems || null
+        comboItems: (item as any).comboItems || null,
+        isAYLICombo: (item as any).isAYLICombo || false,
+        aylicData: (item as any).aylicData || null,
       })),
       subtotal,
       tax,
@@ -1437,8 +1447,30 @@ export default function RestaurantPOS() {
             } catch { /* ignore */ }
           }
 
-          // Merge regular items, combos, ESP32 WiFi tokens, R710 WiFi tokens, and inventory items
-          setMenuItems([...items, ...comboItems, ...wifiTokenItems, ...r710TokenItems, ...inventoryItems])
+          // Load AYLI combos and add as special menu items
+          let aylicMenuItems: any[] = []
+          try {
+            const aylicRes = await fetch(`/api/restaurant/ayc-combos?businessId=${currentBusinessId}`)
+            if (aylicRes.ok) {
+              const aylicData = await aylicRes.json()
+              setAylicCombos(aylicData)
+              aylicMenuItems = aylicData.map((combo: any) => ({
+                id: `aylic-${combo.id}`,
+                name: `🥗 ${combo.name}`,
+                price: 0,
+                category: 'ayli-combos',
+                isAvailable: true,
+                isAYLICombo: true,
+                aylicComboId: combo.id,
+                aylicSizes: (combo.sizes ?? []).sort((a: any, b: any) =>
+                  ['small','medium','large'].indexOf(a.sizeName) - ['small','medium','large'].indexOf(b.sizeName)
+                ),
+              }))
+            }
+          } catch { /* ignore — AYLI combos are optional */ }
+
+          // Merge regular items, combos, ESP32 WiFi tokens, R710 WiFi tokens, inventory items, and AYLI combos
+          setMenuItems([...items, ...comboItems, ...wifiTokenItems, ...r710TokenItems, ...inventoryItems, ...aylicMenuItems])
         }
       }
     } catch (error) {
@@ -1994,6 +2026,16 @@ export default function RestaurantPOS() {
 
   const addToCart = async (item: MenuItem) => {
     console.log('➕ Adding to cart:', item.name, 'Price:', item.price)
+
+    // Block all additions while an AYLI combo session is active
+    if (aylicSession) return
+
+    // Intercept AYLI combo cards — open the combo modal
+    if ((item as any).isAYLICombo) {
+      const combo = aylicCombos.find(c => c.id === (item as any).aylicComboId)
+      if (combo) setAylicSession(combo)
+      return
+    }
 
     // Intercept weight-sold items — open the weigh modal instead
     if (item.isSoldByWeight && item.pricePerKg) {
@@ -2729,6 +2771,45 @@ export default function RestaurantPOS() {
   }
   return (
     <BusinessTypeRoute requiredBusinessType="restaurant">
+      {/* ── AYLI Combo Modal (session-exclusive, blocks all other POS interaction) ── */}
+      {aylicSession && (
+        <AYLIComboModal
+          combo={aylicSession}
+          onCancel={() => {
+            aylicInProgressRef.current = null
+            setAylicSession(null)
+            broadcastCartState(cart)
+          }}
+          onProgress={(snapshot) => {
+            const totalPrice = snapshot.basePrice + snapshot.lines.reduce((s, l) => s + l.linePrice, 0)
+            aylicInProgressRef.current = {
+              id: 'aylic-in-progress',
+              name: `🥗 ${snapshot.comboName} (${snapshot.size.charAt(0).toUpperCase() + snapshot.size.slice(1)}) — Building...`,
+              price: totalPrice,
+              quantity: 1,
+              category: 'ayli-combos',
+              isAYLICombo: true,
+              aylicData: { ...snapshot, totalPrice },
+            }
+            broadcastCartState(cart)
+          }}
+          onConfirm={(data: AYLIComboData) => {
+            aylicInProgressRef.current = null
+            const comboCartItem: CartItem = {
+              id: `aylic-${data.comboId}-${Date.now()}`,
+              name: `${data.comboName} (${data.size.charAt(0).toUpperCase() + data.size.slice(1)})`,
+              price: data.totalPrice,
+              quantity: 1,
+              category: 'ayli-combos',
+              isAYLICombo: true,
+              aylicData: data,
+            } as any
+            setCart(prev => [...prev, comboCartItem])
+            setAylicSession(null)
+          }}
+        />
+      )}
+
       {/* ── Weigh Item Modal ──────────────────────────────────────────────── */}
       {weighingItem && weighingItem.pricePerKg && (
         <WeighItemModal
@@ -3083,6 +3164,44 @@ export default function RestaurantPOS() {
                     </div>
                   )
                 })()}
+
+                {/* AYLI Combo section */}
+                {aylicCombos.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">🥗 As-You-Like-It Combos</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {aylicCombos.map((combo: any) => {
+                        const sizes = [...(combo.sizes ?? [])].sort((a: any, b: any) =>
+                          ['small', 'medium', 'large'].indexOf(a.sizeName) - ['small', 'medium', 'large'].indexOf(b.sizeName)
+                        )
+                        return (
+                          <button
+                            key={combo.id}
+                            type="button"
+                            disabled={!!aylicSession}
+                            onClick={() => setAylicSession(combo)}
+                            className="flex flex-col p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border-2 border-emerald-200 dark:border-emerald-700 hover:border-emerald-400 dark:hover:border-emerald-500 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors text-left w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <div className="flex items-start justify-between w-full gap-1 mb-1">
+                              <span className="text-xs font-semibold text-gray-800 dark:text-gray-100 leading-tight line-clamp-2">{combo.name}</span>
+                              <span className="text-base flex-shrink-0">⚖️</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {sizes.map((s: any) => (
+                                <span key={s.sizeName} className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                                  {s.sizeName[0].toUpperCase()} ${Number(s.basePrice).toFixed(2)}
+                                </span>
+                              ))}
+                            </div>
+                            <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
+                              up to {combo.maxWeightKg} kg · {combo.maxItems} items
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -3924,8 +4043,12 @@ export default function RestaurantPOS() {
                   <div
                     key={item.id}
                     onClick={() => !isUnavailable && addToCart(item)}
-                      className={`card bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg shadow hover:shadow-lg transition-shadow text-left min-h-[80px] touch-manipulation relative ${
+                    className={`card p-3 sm:p-4 rounded-lg shadow hover:shadow-lg transition-shadow text-left min-h-[80px] touch-manipulation relative ${
                       isUnavailable ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                    } ${
+                      (item as any).isAYLICombo
+                        ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 hover:border-emerald-400'
+                        : 'bg-white dark:bg-gray-800'
                     }`}
                   >
                     {/* Unavailable indicator */}
@@ -3958,6 +4081,15 @@ export default function RestaurantPOS() {
                       </div>
                     )}
 
+                    {/* AYLI combo badge */}
+                    {(item as any).isAYLICombo && (
+                      <div className="absolute top-1 left-1 z-10">
+                        <span className="text-[9px] font-bold bg-emerald-600 dark:bg-emerald-700 text-white px-1.5 py-0.5 rounded leading-none tracking-wide">
+                          ⚖️ AYLI
+                        </span>
+                      </div>
+                    )}
+
                     {/* Combo indicator with hover tooltip listing combo contents */}
                     {(item as any).isCombo && (
                       <div className={`absolute left-1 ${item.spiceLevel != null && item.spiceLevel > 0 ? 'top-5' : 'top-1'} group z-10`}>
@@ -3983,7 +4115,7 @@ export default function RestaurantPOS() {
                     )}
 
                     <h3 className="font-semibold text-[10px] sm:text-xs line-clamp-2 mt-2">
-                      {item.name}
+                      {(item as any).isAYLICombo ? item.name.replace(/^🥗\s*/, '') : item.name}
                       {item.requiresCompanionItem && (
                         <span className="ml-1 text-xs bg-orange-500 text-white px-1 rounded" title="Requires main item">+</span>
                       )}
@@ -3994,6 +4126,16 @@ export default function RestaurantPOS() {
                       <div className="flex items-stretch gap-2 mt-1">
                         {/* Left column: price on top, sold badge below */}
                         <div className="flex flex-col justify-between">
+                          {(item as any).isAYLICombo && (item as any).aylicSizes?.length > 0 ? (
+                            <div className="flex flex-col gap-0.5 mt-0.5">
+                              {(item as any).aylicSizes.map((s: any) => (
+                                <div key={s.sizeName} className="flex items-center gap-1">
+                                  <span className="text-[9px] font-semibold text-emerald-400 uppercase w-3">{s.sizeName[0]}</span>
+                                  <span className="text-xs font-bold text-sky-400 dark:text-sky-300">${Number(s.basePrice).toFixed(2)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
                           <p className={`text-sm sm:text-base font-bold leading-tight ${hasDiscount ? 'text-red-500' : 'text-sky-400 dark:text-sky-300'}`}>
                             {(item as any).isSoldByWeight && (item as any).pricePerKg
                               ? <>${Number((item as any).pricePerKg).toFixed(2)}<span className="text-xs font-normal opacity-70">/kg</span></>
@@ -4005,6 +4147,7 @@ export default function RestaurantPOS() {
                               </span>
                             )}
                           </p>
+                          )}
                           <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50 whitespace-nowrap self-start mt-0.5">
                             <span className="text-yellow-400 font-bold">{soldToday}</span> sold
                           </span>
@@ -4020,12 +4163,23 @@ export default function RestaurantPOS() {
                       </div>
                     ) : (
                       <div className="flex items-center gap-1 mt-1">
+                        {(item as any).isAYLICombo && (item as any).aylicSizes?.length > 0 ? (
+                          <div className="flex items-center gap-2">
+                            {(item as any).aylicSizes.map((s: any) => (
+                              <div key={s.sizeName} className="flex items-center gap-0.5">
+                                <span className="text-[9px] font-semibold text-emerald-400 uppercase">{s.sizeName[0]}</span>
+                                <span className="text-xs font-bold text-sky-400 dark:text-sky-300">${Number(s.basePrice).toFixed(2)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
                         <p className={`text-sm sm:text-base font-bold ${hasDiscount ? 'text-red-500' : 'text-sky-400 dark:text-sky-300'}`}>
                           {(item as any).isSoldByWeight && (item as any).pricePerKg
                             ? <>${Number((item as any).pricePerKg).toFixed(2)}<span className="text-xs font-normal opacity-70">/kg</span></>
                             : <>${Number(item.price).toFixed(2)}</>
                           }
                         </p>
+                        )}
                         {hasDiscount && (
                           <p className="text-xs text-secondary line-through">
                             ${Number(item.originalPrice || 0).toFixed(2)}
@@ -4517,6 +4671,18 @@ export default function RestaurantPOS() {
                       </button>
                     </div>
                   </div>
+                  {/* Show AYLI combo itemized lines */}
+                  {(item as any).isAYLICombo && (item as any).aylicData?.lines && (
+                    <div className="mt-1 ml-2 text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
+                      <div className="text-gray-400 dark:text-gray-500">Base ({(item as any).aylicData.size}): ${Number((item as any).aylicData.basePrice).toFixed(2)}</div>
+                      {(item as any).aylicData.lines.map((l: any, idx: number) => (
+                        <div key={idx} className="flex justify-between gap-2">
+                          <span>{l.emoji || '🍽️'} {l.productName} {l.weightKg.toFixed(3)} kg × ${Number(l.pricePerKg).toFixed(2)}/kg</span>
+                          <span className="flex-shrink-0">${l.linePrice.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {/* Show combo contents including WiFi tokens */}
                   {(item as any).isCombo && (item as any).comboItems && (
                     <div className="mt-1 ml-2 text-xs text-gray-500 dark:text-gray-400">

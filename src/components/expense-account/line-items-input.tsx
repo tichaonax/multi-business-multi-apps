@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { EmojiPickerEnhanced } from '@/components/business/emoji-picker-enhanced'
 
 export interface LineItem {
   name: string
@@ -30,6 +31,7 @@ export function LineItemsInput({ domainId, value, onChange, totalAmount }: LineI
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const emojiUserEdited = useRef(false)
@@ -50,6 +52,7 @@ export function LineItemsInput({ domainId, value, onChange, totalAmount }: LineI
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
           searchRef.current && !searchRef.current.contains(e.target as Node)) {
         setShowDropdown(false)
+        setShowEmojiPicker(false)
       }
     }
     document.addEventListener('mousedown', handleClick)
@@ -95,6 +98,7 @@ export function LineItemsInput({ domainId, value, onChange, totalAmount }: LineI
     setEmoji('📂')
     setAmount('')
     setDescription('')
+    setShowEmojiPicker(false)
     emojiUserEdited.current = false
   }
 
@@ -132,29 +136,24 @@ export function LineItemsInput({ domainId, value, onChange, totalAmount }: LineI
               value={search}
               onChange={e => { emojiUserEdited.current = false; setSearch(e.target.value); setShowDropdown(true) }}
               onFocus={() => { if (domainId) setShowDropdown(true) }}
+              onBlur={() => setTimeout(() => { setShowDropdown(false); setShowEmojiPicker(false) }, 150)}
               placeholder="Item name..."
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
             {showDropdown && domainId && (
               <div
                 ref={dropdownRef}
-                className="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg"
+                className="absolute z-50 left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg"
               >
                 {filtered.length === 0 && search.trim() ? (
-                  <button
-                    type="button"
-                    onMouseDown={() => { setShowDropdown(false) }}
-                    className="w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-gray-700"
-                  >
-                    {emoji} &quot;{search.trim()}&quot; — Add custom
-                  </button>
+                  <div className="px-3 py-2 text-xs text-gray-400">No matches for &quot;{search.trim()}&quot;</div>
                 ) : (
                   filtered.map(item => (
                     <button
                       key={item.id}
                       type="button"
                       onMouseDown={() => selectItem(item)}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-0"
                     >
                       <span className="mr-1">{item.emoji}</span>
                       <span>{item.name}</span>
@@ -164,6 +163,32 @@ export function LineItemsInput({ domainId, value, onChange, totalAmount }: LineI
                     </button>
                   ))
                 )}
+                {/* Browse button — only when something is typed */}
+                {search.trim().length >= 2 && (
+                  <button
+                    type="button"
+                    onMouseDown={() => { setShowDropdown(false); setShowEmojiPicker(v => !v) }}
+                    className="w-full text-left px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 font-medium border-t border-gray-100 dark:border-gray-700"
+                  >
+                    🔍 Browse more emojis for "{search}"…
+                  </button>
+                )}
+              </div>
+            )}
+            {showEmojiPicker && (
+              <div className="absolute left-0 top-full mt-1 z-50 w-72 bg-white dark:bg-gray-800 border border-blue-300 dark:border-blue-700 rounded-lg shadow-xl">
+                <div className="flex items-center justify-between px-3 pt-2 pb-1 border-b border-gray-100 dark:border-gray-700">
+                  <span className="text-xs font-medium text-gray-500">Emoji search — "{search}"</span>
+                  <button type="button" onMouseDown={() => setShowEmojiPicker(false)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+                </div>
+                <div className="p-3">
+                  <EmojiPickerEnhanced
+                    selectedEmoji={emoji}
+                    initialQuery={search.trim()}
+                    onSelect={e => { setEmoji(e); emojiUserEdited.current = true; setShowEmojiPicker(false) }}
+                    searchPlaceholder="Or search for a different emoji…"
+                  />
+                </div>
               </div>
             )}
           </div>

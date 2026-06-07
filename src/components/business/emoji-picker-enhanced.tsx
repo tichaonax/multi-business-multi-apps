@@ -15,14 +15,16 @@ interface EmojiPickerEnhancedProps {
   onSelect: (emoji: string) => void;
   selectedEmoji?: string;
   searchPlaceholder?: string;
+  initialQuery?: string;  // pre-fill search and fire immediately
 }
 
 export function EmojiPickerEnhanced({
   onSelect,
   selectedEmoji,
   searchPlaceholder = 'Search by name or paste an emoji directly…',
+  initialQuery = '',
 }: EmojiPickerEnhancedProps) {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
 
   /** Returns true if the string is purely an emoji (paste from internet) */
   function looksLikeEmoji(str: string): boolean {
@@ -134,17 +136,16 @@ export function EmojiPickerEnhanced({
     }
   };
 
-  // Debounce search input
+  // Debounce search; fire immediately when initialQuery pre-populates the field
   useEffect(() => {
+    const delay = initialQuery && searchQuery === initialQuery ? 0 : 300
     const timer = setTimeout(() => {
-      searchLocalEmojis(searchQuery);
-      // Clear GitHub results when search changes
-      setGithubResults([]);
-      setGithubError(null);
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery, searchLocalEmojis]);
+      searchLocalEmojis(searchQuery)
+      setGithubResults([])
+      setGithubError(null)
+    }, delay)
+    return () => clearTimeout(timer)
+  }, [searchQuery, searchLocalEmojis, initialQuery]);
 
   const handleEmojiSelect = async (emoji: string, source: 'local' | 'github') => {
     onSelect(emoji);
@@ -219,6 +220,7 @@ export function EmojiPickerEnhanced({
           value={searchQuery}
           onChange={handleSearchChange}
           placeholder={searchPlaceholder}
+          autoFocus
           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
         />
       </div>

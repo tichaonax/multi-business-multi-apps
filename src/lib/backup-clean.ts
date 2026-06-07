@@ -1477,6 +1477,21 @@ export async function createCleanBackup(
     where: scaleBusinessFilter
   })
 
+  // 59. As-You-Like-It (AYLI) Combos (restaurant)
+  businessData.asYouLikeItCombos = await (prisma as any).asYouLikeItCombos.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.asYouLikeItPoolItems = await (prisma as any).asYouLikeItPoolItems.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  const aylicComboIds = (businessData.asYouLikeItCombos as any[]).map((c: any) => c.id)
+  businessData.asYouLikeItComboSizes = aylicComboIds.length > 0
+    ? await (prisma as any).asYouLikeItComboSizes.findMany({ where: { comboId: { in: aylicComboIds } } })
+    : []
+  businessData.asYouLikeItComboItems = aylicComboIds.length > 0
+    ? await (prisma as any).asYouLikeItComboItems.findMany({ where: { comboId: { in: aylicComboIds } } })
+    : []
+
   // Extend image backup: include warehouse item images + product_images imageId refs
   const warehouseImageIds = businessData.warehouseItems
     .map((i: any) => i.imageId)
@@ -1559,7 +1574,7 @@ export async function createCleanBackup(
       deviceRecords,
       uncompressedSize
     },
-    schemaVersion: '6.33.0',
+    schemaVersion: '6.34.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

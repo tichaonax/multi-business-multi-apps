@@ -737,6 +737,10 @@ export function Sidebar() {
                     <span className="text-lg">📋</span>
                     <span>Menu Management</span>
                   </Link>
+                  <Link href="/restaurant/ayc-combos" className={getLinkClasses('/restaurant/ayc-combos')}>
+                    <span className="text-lg">🥗</span>
+                    <span>AYLI Combos</span>
+                  </Link>
                 {(isSystemAdmin(currentUser) || hasPermission('canManageInventory')) && (
                   <Link href="/restaurant/inventory" className={getLinkClasses('/restaurant/inventory')}>
                     <span className="text-lg">📦</span>

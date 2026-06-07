@@ -310,6 +310,13 @@ const RESTORE_ORDER = [
   'menuCombos',
   'menuComboItems',  // Depends on menuCombos AND r710TokenConfigs (tokenConfigId FK)
   'menuPromotions',
+
+  // As-You-Like-It (AYLI) Combos — restaurant (MBM-230)
+  'asYouLikeItCombos',       // Depends on businesses
+  'asYouLikeItPoolItems',    // Depends on businesses
+  'asYouLikeItComboSizes',   // Depends on asYouLikeItCombos
+  'asYouLikeItComboItems',   // Depends on asYouLikeItCombos + asYouLikeItPoolItems
+
   'orders',
   'orderItems',
 
@@ -525,6 +532,10 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
 
   // Weight Pricing Rules: composite unique on (businessId, categoryName, ruleType, purchaseType)
   'weightPricingRules': { fields: ['businessId', 'categoryName', 'ruleType', 'purchaseType'] },
+
+  // AYLI Combo child tables: composite unique constraints
+  'asYouLikeItComboSizes': { fields: ['comboId', 'sizeName'] },
+  'asYouLikeItComboItems': { fields: ['comboId', 'poolItemId'] },
 
   // Policy Management: composite unique constraints
   'policyVersions': { fields: ['policyId', 'version'] },             // @@unique([policyId, version])
