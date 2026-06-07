@@ -1500,7 +1500,7 @@ export async function createCleanBackup(
     ? await (prisma as any).asYouLikeItComboItems.findMany({ where: { comboId: { in: aylicComboIds } } })
     : []
 
-  // Extend image backup: include warehouse item images + product_images imageId refs
+  // Extend image backup: warehouse images + product_images + inventory display images + ad images
   const warehouseImageIds = businessData.warehouseItems
     .map((i: any) => i.imageId)
     .filter((id: any) => typeof id === 'string' && id.length > 0)
@@ -1509,10 +1509,20 @@ export async function createCleanBackup(
         .map((pi: any) => pi.imageId)
         .filter((id: any) => typeof id === 'string' && id.length > 0)
     : []
+  // BarcodeInventoryItems display images (imageId added in MBM-233)
+  const inventoryDisplayImageIds = (businessData.barcodeInventoryItems as any[] || [])
+    .map((i: any) => i.imageId)
+    .filter((id: any) => typeof id === 'string' && id.length > 0)
+  // Advertising images stored in DisplayProductConfig (advertisingImageId added in MBM-233)
+  const displayAdImageIds = (businessData.displayProductConfigs as any[] || [])
+    .map((c: any) => c.advertisingImageId)
+    .filter((id: any) => typeof id === 'string' && id.length > 0)
   const extendedImageIds = [...new Set([
     ...(businessData.images || []).map((i: any) => i.id),
     ...warehouseImageIds,
     ...productImageRefs,
+    ...inventoryDisplayImageIds,
+    ...displayAdImageIds,
   ])]
   if (extendedImageIds.length > (businessData.images || []).length) {
     const alreadyFetched = new Set((businessData.images || []).map((i: any) => i.id))

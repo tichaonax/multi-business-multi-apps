@@ -9,6 +9,8 @@ interface MenuItem {
   price: number
   emoji: string | null
   imageId?: string | null
+  adImageId?: string | null
+  advertisingNote?: string | null
   category: string | null
   sizes?: Array<{ sizeName: string; basePrice: number }>
   salesScore: number
@@ -171,6 +173,30 @@ export function MenuPanel({ businessId, businessType, searchTerm }: MenuPanelPro
   )
 }
 
+function NoteBadge({ note }: { note: string }) {
+  const text = note.slice(0, 80)
+  const isBogo    = /bogo/i.test(note)
+  const isPct     = /%/.test(note)
+  const isSpecial = /special/i.test(note)
+
+  const style = isBogo
+    ? 'bg-amber-500/30 border-amber-400/50 text-amber-200'
+    : isPct
+    ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
+    : isSpecial
+    ? 'bg-yellow-500/20 border-yellow-400/40 text-yellow-200'
+    : 'bg-indigo-500/20 border-indigo-400/40 text-indigo-300'
+
+  const icon = isBogo ? '🔥' : isPct ? '🏷️' : isSpecial ? '⭐' : '💬'
+
+  return (
+    <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-bold uppercase tracking-wide mt-1 ${style}`}>
+      <span>{icon}</span>
+      <span>{text}</span>
+    </div>
+  )
+}
+
 function Card({ item, isSpecial, isAyliView }: { item: MenuItem; isSpecial: boolean; isAyliView: boolean }) {
   const bg = isSpecial
     ? 'bg-gradient-to-br from-amber-900/60 to-orange-900/40 border-amber-500/40'
@@ -184,9 +210,9 @@ function Card({ item, isSpecial, isAyliView }: { item: MenuItem; isSpecial: bool
     : '0 0 20px rgba(52,211,153,0.45)'
 
   return (
-    <div className={`rounded-xl border flex flex-col justify-between p-4 overflow-hidden ${bg}`}>
-      {/* Top: image or emoji + name */}
-      <div className="flex items-start gap-2">
+    <div className={`rounded-xl border flex flex-col p-4 gap-2 overflow-hidden ${bg}`}>
+      {/* Top: product image/emoji + name */}
+      <div className="flex items-start gap-2 flex-shrink-0">
         {item.imageId ? (
           <img
             src={`/api/images/${item.imageId}`}
@@ -203,29 +229,46 @@ function Card({ item, isSpecial, isAyliView }: { item: MenuItem; isSpecial: bool
         </span>
       </div>
 
-      {/* Bottom: price — large, animated, no quantity info */}
-      {item.sizes && item.sizes.length > 0 ? (
-        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-          {item.sizes.map(s => (
-            <div key={s.sizeName} className="flex items-baseline gap-1">
-              <span className="text-white/35 text-xs capitalize">{s.sizeName[0]}</span>
-              <span
-                className={`font-black text-2xl leading-none animate-pulse ${priceColour}`}
-                style={{ textShadow: priceShadow }}
-              >
-                {fmt(s.basePrice)}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div
-          className={`font-black text-4xl leading-none animate-pulse mt-2 ${priceColour}`}
-          style={{ textShadow: priceShadow }}
-        >
-          {fmt(item.price)}
+      {/* Advertising image — full width, below name, grows to fill available space */}
+      {item.adImageId && (
+        <div className="flex-1 min-h-0 rounded-lg overflow-hidden">
+          <img
+            src={`/api/images/${item.adImageId}`}
+            alt="advertising"
+            className="w-full h-full object-cover"
+            onError={e => { (e.target as HTMLImageElement).parentElement!.style.display = 'none' }}
+          />
         </div>
       )}
+
+      {/* Advertising note badge */}
+      {item.advertisingNote && <NoteBadge note={item.advertisingNote} />}
+
+      {/* Price */}
+      <div className="flex-shrink-0">
+        {item.sizes && item.sizes.length > 0 ? (
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            {item.sizes.map(s => (
+              <div key={s.sizeName} className="flex items-baseline gap-1">
+                <span className="text-white/35 text-xs capitalize">{s.sizeName[0]}</span>
+                <span
+                  className={`font-black text-2xl leading-none animate-pulse ${priceColour}`}
+                  style={{ textShadow: priceShadow }}
+                >
+                  {fmt(s.basePrice)}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div
+            className={`font-black text-4xl leading-none animate-pulse ${priceColour}`}
+            style={{ textShadow: priceShadow }}
+          >
+            {fmt(item.price)}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

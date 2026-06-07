@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ businessId: string }> }) {
   const { businessId } = await params
   const body = await req.json()
-  const { itemType, itemId, priorityBoost, isDailySpecial, isFeatured, isHidden, displayDurationSecs } = body
+  const { itemType, itemId, priorityBoost, isDailySpecial, isFeatured, isHidden, displayDurationSecs, advertisingNote, advertisingImageId } = body
 
   if (!itemType || !itemId) {
     return NextResponse.json({ error: 'itemType and itemId are required' }, { status: 400 })
@@ -28,6 +28,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ busi
       isFeatured: isFeatured ?? false,
       isHidden: isHidden ?? false,
       displayDurationSecs: displayDurationSecs ?? null,
+      advertisingNote: advertisingNote ?? null,
+      advertisingImageId: advertisingImageId ?? null,
     },
     update: {
       ...(priorityBoost !== undefined && { priorityBoost }),
@@ -35,6 +37,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ busi
       ...(isFeatured !== undefined && { isFeatured }),
       ...(isHidden !== undefined && { isHidden }),
       ...(displayDurationSecs !== undefined && { displayDurationSecs }),
+      ...(advertisingNote !== undefined && { advertisingNote }),
+      ...(advertisingImageId !== undefined && { advertisingImageId }),
     },
   })
 

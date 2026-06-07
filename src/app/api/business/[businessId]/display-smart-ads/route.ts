@@ -109,6 +109,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
     return configMap.get(`${itemType}:${itemId}`)?.isFeatured === true
   }
 
+  function getNote(itemType: string, itemId: string): string | null {
+    return configMap.get(`${itemType}:${itemId}`)?.advertisingNote ?? null
+  }
+
+  function getAdImage(itemType: string, itemId: string): string | null {
+    return configMap.get(`${itemType}:${itemId}`)?.advertisingImageId ?? null
+  }
+
   function isDailySpecial(itemType: string, itemId: string): boolean {
     return configMap.get(`${itemType}:${itemId}`)?.isDailySpecial === true
   }
@@ -149,6 +157,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         emoji: (p as any).business_categories?.emoji ?? null,
         category: (p as any).business_categories?.name ?? null,
         imageId: (p as any).product_images?.[0]?.imageId ?? null,
+        advertisingNote: getNote('menu_item', p.id),
+        adImageId: getAdImage('menu_item', p.id),
         salesScore: ss,
         displayScore: buildDisplayScore('menu_item', p.id, ss),
         isFeatured: isFeatured('menu_item', p.id),
@@ -173,6 +183,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         sizes,
         emoji: '🥗',
         category: 'ayli-combos',
+        advertisingNote: getNote('ayli_combo', c.id),
+        adImageId: getAdImage('ayli_combo', c.id),
         salesScore: ss,
         displayScore: buildDisplayScore('ayli_combo', c.id, ss),
         isFeatured: isFeatured('ayli_combo', c.id),
@@ -199,7 +211,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
       prisma.barcodeInventoryItems.findMany({
         where: { businessId, isActive: true, stockQuantity: { gt: 0 } },
         select: {
-          id: true, name: true, sellingPrice: true,
+          id: true, name: true, sellingPrice: true, imageId: true,
           business_category: { select: { name: true, emoji: true } },
         }
       }),
@@ -225,6 +237,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         id: p.id, itemType: 'product', name: p.name, price,
         emoji: (p as any).business_category?.emoji ?? null,
         category: (p as any).business_category?.name ?? null,
+        imageId: (p as any).imageId ?? null,
+        advertisingNote: getNote('product', p.id),
+        adImageId: getAdImage('product', p.id),
         salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss),
         isFeatured: isFeatured('product', p.id),
         priorityBoost: configMap.get(`product:${p.id}`)?.priorityBoost ?? 0,
@@ -241,6 +256,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         id: svc.id, itemType: 'product', name: svc.name, price: Number(svc.basePrice),
         emoji: (svc as any).business_categories?.emoji ?? null,
         category: (svc as any).business_categories?.name ?? null,
+        advertisingNote: getNote('product', svc.id),
+        adImageId: getAdImage('product', svc.id),
         salesScore: ss, displayScore: buildDisplayScore('product', svc.id, ss),
         isFeatured: isFeatured('product', svc.id),
         priorityBoost: configMap.get(`product:${svc.id}`)?.priorityBoost ?? 0,
@@ -276,7 +293,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
       prisma.barcodeInventoryItems.findMany({
         where: { businessId, isActive: true, stockQuantity: { gt: 0 } },
         select: {
-          id: true, name: true, sellingPrice: true, createdAt: true,
+          id: true, name: true, sellingPrice: true, createdAt: true, imageId: true,
           business_category: { select: { name: true, emoji: true } },
         }
       }),
@@ -318,6 +335,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         id: cat.id, itemType: 'category', name: cat.name, emoji: '👕',
         price: 0,
         activeBales: baleCountByCategory.get(cat.id) ?? 0,
+        advertisingNote: getNote('category', cat.id),
+        adImageId: getAdImage('category', cat.id),
         salesScore: newCount, displayScore: ds, isFeatured: isFeatured('category', cat.id),
         priorityBoost: configMap.get(`category:${cat.id}`)?.priorityBoost ?? 0,
         salesBreakdown: { today: 0, yesterday: 0, dayBefore: 0 },
@@ -336,6 +355,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         id: p.id, itemType: 'product', name: p.name, price,
         emoji: (p as any).business_category?.emoji ?? '👕',
         category: (p as any).business_category?.name ?? null,
+        imageId: (p as any).imageId ?? null,
+        advertisingNote: getNote('product', p.id),
+        adImageId: getAdImage('product', p.id),
         salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss),
         isFeatured: isFeatured('product', p.id),
         priorityBoost: configMap.get(`product:${p.id}`)?.priorityBoost ?? 0,
@@ -364,6 +386,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         emoji: (p as any).business_categories?.emoji ?? '👕',
         category: (p as any).business_categories?.name ?? null,
         imageId: (p as any).product_images?.[0]?.imageId ?? null,
+        advertisingNote: getNote('product', p.id),
+        adImageId: getAdImage('product', p.id),
         salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss),
         isFeatured: isFeatured('product', p.id),
         priorityBoost: configMap.get(`product:${p.id}`)?.priorityBoost ?? 0,

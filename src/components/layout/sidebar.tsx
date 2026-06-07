@@ -910,6 +910,12 @@ export function Sidebar() {
                     <span>POS Settings</span>
                   </Link>
                 )}
+                {(isSystemAdmin(currentUser) || hasPermission('canViewBusiness')) && (
+                  <Link href="/grocery/manage/customer-display" className={getLinkClasses('/grocery/manage/customer-display')}>
+                    <span className="text-lg">📺</span>
+                    <span>Customer Display</span>
+                  </Link>
+                )}
               </>
             )}
 
@@ -980,6 +986,12 @@ export function Sidebar() {
                   <Link href="/clothing/settings/pos" className={getLinkClasses('/clothing/settings/pos')}>
                     <span className="text-lg">⚙️</span>
                     <span>POS Settings</span>
+                  </Link>
+                )}
+                {(isSystemAdmin(currentUser) || hasPermission('canViewBusiness')) && (
+                  <Link href="/clothing/manage/customer-display" className={getLinkClasses('/clothing/manage/customer-display')}>
+                    <span className="text-lg">📺</span>
+                    <span>Customer Display</span>
                   </Link>
                 )}
               </>

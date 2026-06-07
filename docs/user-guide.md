@@ -11047,12 +11047,12 @@ When no sale is in progress, the customer display shows two panels side by side:
 
 ```
 ┌────────────────┬──────────────────────────────────────────┐
-│  Rotating Ads  │  Live Menu Panel                         │
+│  Rotating Ads  │  Live Menu / Product Panel               │
 │   (~28% wide)  │  (~72% wide)                             │
 │                │                                          │
-│  • Daily       │  • 12 items per page, 3 columns          │
-│    Special     │  • Sales-sorted (history required)       │
-│  • Animated    │  • Alternates: Menu ↔ AYLI Combos        │
+│  • Daily       │  • 9 items per page (3 × 3 grid)        │
+│    Special     │  • Cycles every 8 seconds                │
+│  • Animated    │  • Alternates: Items ↔ AYLI Combos       │
 │    product     │  • Filters when cashier searches         │
 │    cards       │  • Price only — no stock/financial data  │
 └────────────────┴──────────────────────────────────────────┘
@@ -11060,75 +11060,147 @@ When no sale is in progress, the customer display shows two panels side by side:
 
 When a sale is in progress (items in cart), the right panel switches to the live cart display. The rotating ads panel stays visible throughout.
 
+**Supported business types:** Restaurant, Grocery, Clothing — each shows the items relevant to that business type.
+
+---
+
+### What Each Business Type Shows
+
+| Business | Left panel (rotating ads) | Right panel (live grid) |
+|----------|--------------------------|------------------------|
+| **Restaurant** | Menu items + AYLI Combos sorted by sales | Menu items with sales history; alternates with AYLI Combos view |
+| **Grocery** | Barcode inventory items + service products by sales | Same pool, paginated 9 per page |
+| **Clothing** | Bale categories (sorted by new arrivals) + barcode inventory + quick-add products | Same pool, sorted by new arrivals then sales |
+
 ---
 
 ### Rotating Ads Panel
 
-The left panel shows rotating product cards sorted by sales score:
+The left panel shows rotating product cards sorted by display score:
 
 ```
-Sales score = (today's units × 3) + (yesterday × 2) + (day before × 1) + (boost × 10)
+Display score = (today's units × 3) + (yesterday × 2) + (day before × 1) + (priority boost × 10)
 ```
 
-- **Daily Special** — if set, pinned left in an amber card with glowing large price and "TODAY'S SPECIAL" badge
-- **Featured** items appear first in rotation
+- **Daily Special** (restaurant) — amber card with animated glowing price, "TODAY'S SPECIAL" badge
+- **Featured** items sort to the top of the rotation
 - **Hidden** items never appear
-- Cards rotate at a configurable speed (default 6 seconds)
-- AYLI Combos appear alongside regular items, showing each size and base price
+- **Clothing** — categories with new bales added in the last 14 days score higher; items added in the last 14 days get +10 bonus
+- Cards rotate every 6 seconds (configurable in global settings)
+- AYLI Combos appear alongside menu items with each size price
 
 ---
 
-### Live Menu Panel
+### Live Menu Panel (Right Side)
 
-The right panel shows a 3-column grid:
+The right panel shows a **3 × 3 grid** (9 items per page):
 
-- Only items **with sales history** (salesScore > 0) are displayed
-- Maximum **12 items per page**, cards stretch to fill the full panel height
-- Alternates every **8 seconds** between:
-  - Regular menu items (paginated if more than 12)
-  - AYLI Combos view (emerald-tinted cards)
-- Prices displayed large with animated glow — no stock quantities or financial data
-- Dot indicators in the header show the current page/view
+- Pages cycle automatically every 8 seconds
+- **Restaurant:** only items with sales history are shown
+- **Grocery / Clothing:** all in-stock items shown, sorted by sales score
+- Alternates between regular items and AYLI Combos (restaurant) or stays on items (grocery/clothing)
+- Advertising note badges appear on cards when set (see below)
+- Product images shown when available — advertising image takes priority over the product's own image
+- Dot indicators in the header show current page / total pages
+
+---
+
+### Advertising Notes
+
+Staff can attach a short promotional note (up to 80 characters) to any item. Notes appear as a coloured badge on the product card:
+
+| Badge | Trigger | Colour |
+|-------|---------|--------|
+| 🔥 BOGO ... | Note contains "BOGO" | Amber |
+| 🏷️ 20% OFF | Note contains "%" | Green |
+| ⭐ TODAY'S SPECIAL | Note contains "special" | Gold |
+| 💬 Custom note | Any other text | Indigo/blue |
+
+Examples: `BOGO — Buy One Get One Free`, `20% OFF today only`, `New Arrival`
+
+---
+
+### Product Images vs Advertising Images
+
+Each item on the display can show two separate images:
+
+| Image | Where it comes from | How to change |
+|-------|--------------------|-----------||
+| **Product image** | Product / inventory record | Via inventory or product management |
+| **Advertising image** | Display settings (per-item) | Via the Product Display Settings panel |
+
+The **advertising image takes priority** on the customer display. If no advertising image is set, the product's own image is used. If neither is set, the category emoji is shown.
+
+The advertising image is completely separate — uploading or removing it does not affect the product record.
 
 ---
 
 ### Search Sync
 
-When the cashier types in the POS search box, the customer display filters the live menu panel in real time. A blue "Searching" pill appears in the header. When the search is cleared, the full menu returns.
+When the cashier types in the POS search box, the customer display filters the live panel in real time. When the search is cleared, the full menu/product list returns automatically.
 
 ---
 
-### Management Screen
+### Management — Where to Find It
 
-**Where:** Restaurant sidebar → **📺 Customer Display**
+| Business | Navigation |
+|----------|-----------|
+| Restaurant | Sidebar → **📺 Customer Display** |
+| Grocery | Sidebar → **📺 Customer Display** |
+| Clothing | Sidebar → **📺 Customer Display** |
+
+Each page has two sections:
+1. **Advertisements** — upload/manage rotating image ads shown during idle
+2. **Product Display Settings** — configure how individual items appear on the rotating display
+
+---
+
+### Product Display Settings Panel
+
+The **Product Display Settings** section lists every item the display can show. It has a sticky search bar and loads 20 items per page.
+
+#### Searching
+- Type in the search bar to filter items by name
+- Click **×** to clear the search and return to the full list
+- Changing the search resets to page 1
+
+#### Editing an Item
+Click **Edit** on any row to expand the settings panel:
+
+| Field | Description |
+|-------|-------------|
+| **Product Image** | Read-only preview — managed via inventory/products |
+| **Advertising Image** | Upload a separate image just for the display. Click **Upload** → pick a file. Click **Replace** to swap. Click **Remove** to clear. |
+| **Advertising Note** | Short promo text (max 80 chars). Determines the badge colour automatically. |
+| **Featured** toggle | Sorts item to the top of the rotation |
+| **Hidden** toggle | Removes item from the display entirely |
+| **Daily Special** toggle | Restaurant only — sets as the featured amber special card |
+| **Priority Boost** | Number 0–10; each point adds 10 to the item's display score |
+
+Click **Save** to apply immediately. The customer display picks up changes on its next data refresh (every 5 minutes) or on the next page load.
+
+---
+
+### Global Display Settings
+
+**Where:** Restaurant sidebar → **Restaurant Settings → Display** (restaurant only for now)
 
 | Setting | Description |
 |---------|-------------|
-| Smart display enabled | Toggle the entire smart display on/off |
-| Daily Special left panel | Enable/disable the split layout |
+| Smart display enabled | Toggle the entire smart product display on/off |
+| Split layout | Enable/disable the ads panel |
 | Rotation speed | How long each card shows (3–30 seconds) |
-| Max items in rotation | How many items cycle through the ads (3–20) |
-
-**Per-item controls in the item list:**
-
-| Control | Effect |
-|---------|--------|
-| ⭐ Special | Sets this item as the Daily Special (clears the previous) |
-| ★ Feature | Pushes to front of rotation |
-| 🚫 Hide | Removes from display entirely |
-| Boost (0–100) | Manual priority — adds `boost × 10` to sales score |
-
-Saving broadcasts a **Display Refresh** to the customer display immediately.
+| Max items in rotation | How many items appear in the ads rotation |
 
 ---
 
-### Daily Special
+### Daily Special (Restaurant)
 
-Only one item can be the Daily Special at a time. When set with the split layout enabled, it occupies the left portion of the ads panel as a large amber card with an animated glowing price. Setting a new Daily Special automatically clears the previous one.
+Only one item can be the Daily Special at a time. Setting a new one automatically clears the previous. The daily special appears as a large amber card in the left ads panel with an animated glowing price and "TODAY'S SPECIAL" badge. It is also excluded from the regular item rotation (so it does not appear twice).
 
 ---
 
-### Backup — New Tables
+### Backup — Tables
 
 | Table | Contents | Added in |
 |-------|---------|----------|
@@ -11136,7 +11208,12 @@ Only one item can be the Daily Special at a time. When set with the split layout
 | `as_you_like_it_combo_sizes` | Size tiers per combo | MBM-231 |
 | `as_you_like_it_pool_items` | Shared ingredient library | MBM-231 |
 | `as_you_like_it_combo_items` | Pool items assigned to each combo | MBM-231 |
-| `display_product_configs` | Per-item display priority overrides | MBM-232 |
-| `display_global_settings` | Per-business display settings | MBM-232 |
+| `display_product_configs` | Per-item display settings (note, images, boost) | MBM-232/233 |
+| `display_global_settings` | Per-business global display settings | MBM-232 |
 
-All six tables are backed up automatically with every full backup and restored in the correct dependency order.
+New columns (not new tables):
+- `barcode_inventory_items.imageId` — links to `images` table for the item's own display image
+- `display_product_configs.advertisingNote` — short promo text shown as a badge
+- `display_product_configs.advertisingImageId` — links to `images` table for the advertising-only image
+
+All tables and their referenced images are backed up automatically with every full backup.

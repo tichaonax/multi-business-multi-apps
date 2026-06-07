@@ -7,6 +7,7 @@ import { BusinessProvider } from '@/components/universal'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { AdUploadForm } from '@/components/customer-display/ad-upload-form'
 import { AdList } from '@/components/customer-display/ad-list'
+import { DisplayItemsManager } from '@/components/customer-display/display-items-manager'
 
 interface Ad {
   id: string
@@ -148,6 +149,17 @@ export default function GroceryCustomerDisplayPage() {
                 onEdit={handleEdit}
                 refreshTrigger={refreshTrigger}
               />
+            </div>
+
+            {/* Product Display Settings */}
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
+                Product Display Settings
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Add advertising notes and images to products shown on the rotating customer display.
+              </p>
+              <DisplayItemsManager businessId={currentBusinessId} businessType="grocery" />
             </div>
           </div>
         </ContentLayout>

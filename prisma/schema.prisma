@@ -2111,14 +2111,16 @@ model EmojiLookup {
 }
 
 model Images {
-  id              String           @id @default(uuid())
-  data            Bytes
-  mimeType        String           @default("image/jpeg")
-  size            Int
-  expiresAt       DateTime?
-  createdAt       DateTime         @default(now())
-  product_images  ProductImages[]
-  warehouse_items WarehouseItems[]
+  id                      String                  @id @default(uuid())
+  data                    Bytes
+  mimeType                String                  @default("image/jpeg")
+  size                    Int
+  expiresAt               DateTime?
+  createdAt               DateTime                @default(now())
+  product_images             ProductImages[]
+  warehouse_items            WarehouseItems[]
+  barcode_inventory_items    BarcodeInventoryItems[]
+  display_product_configs    DisplayProductConfig[]   @relation("DisplayAdImage")
 
   @@map("images")
 }
@@ -4706,7 +4708,9 @@ model BarcodeInventoryItems {
   inventory_subcategory    InventorySubcategories?  @relation(fields: [subcategoryId], references: [id])
   business_location        BusinessLocations?       @relation(fields: [locationId], references: [id])
   isExpiryDiscount         Boolean                  @default(false)
+  imageId                  String?
   originalItemId           String?
+  image                    Images?                  @relation(fields: [imageId], references: [id])
   originalItem             BarcodeInventoryItems?   @relation("ExpiryDiscountSource", fields: [originalItemId], references: [id])
   discountedItems          BarcodeInventoryItems[]  @relation("ExpiryDiscountSource")
   expiryBatches            ItemExpiryBatch[]
@@ -4869,9 +4873,12 @@ model DisplayProductConfig {
   isFeatured          Boolean    @default(false)
   isHidden            Boolean    @default(false)
   displayDurationSecs Int?
+  advertisingNote     String?
+  advertisingImageId  String?
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
   businesses          Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  advertising_image   Images?    @relation("DisplayAdImage", fields: [advertisingImageId], references: [id], onDelete: SetNull)
 
   @@unique([businessId, itemType, itemId])
   @@index([businessId, itemType])
