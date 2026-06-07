@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { hasPermission } from '@/lib/permission-utils'
 
 interface RouteParams { params: Promise<{ id: string }> }
 
@@ -11,6 +12,13 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
     const { id } = await params
     const body = await req.json()
+
+    // Full edit requires canCreateAYLIPoolItems; isActive-only toggle requires canDisableAYLIPoolItems
+    const isFullEdit = body.name !== undefined
+    const requiredPermission = isFullEdit ? 'canCreateAYLIPoolItems' : 'canDisableAYLIPoolItems'
+    if (!hasPermission(user, requiredPermission)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    }
 
     // Support both full edit and isActive-only toggle
     const data: any = {}
@@ -35,6 +43,9 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!hasPermission(user, 'canDeleteAYLIPoolItems')) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    }
 
     const { id } = await params
     await prisma.asYouLikeItPoolItems.update({ where: { id }, data: { isActive: false } })

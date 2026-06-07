@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { hasPermission } from '@/lib/permission-utils'
 
 export async function GET(req: NextRequest) {
   try {
@@ -28,6 +29,9 @@ export async function POST(req: NextRequest) {
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!hasPermission(user, 'canCreateAYLIPoolItems')) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    }
 
     const { businessId, name, emoji, pricePerKgSmall, pricePerKgMedium, pricePerKgLarge } = await req.json()
 

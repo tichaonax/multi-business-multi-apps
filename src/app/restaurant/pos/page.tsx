@@ -159,6 +159,7 @@ export default function RestaurantPOS() {
   const [searchTerm, setSearchTerm] = useState('')
   const [posMode, setPosMode] = useState<'live' | 'manual' | 'meal_program'>('live')
   const [scaleVisible, setScaleVisible] = useState(false)
+  const [scaleEnabled, setScaleEnabled] = useState(true)
   const [scalePricingRules, setScalePricingRules] = useState<any[]>([])
   const { weight: scaleWeight, isConnected: isScaleConnected, tare: tareScale } = useScale()
   const [manualCart, setManualCart] = useState<ManualCartItem[]>([])
@@ -575,6 +576,20 @@ export default function RestaurantPOS() {
     })()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
+
+  // Fetch scale enabled flag — hides the Scale button when integration is disabled
+  useEffect(() => {
+    if (!currentBusinessId) return
+    fetch(`/api/scale-config?businessId=${currentBusinessId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && data.scaleEnabled === false) {
+          setScaleEnabled(false)
+          setScaleVisible(false)
+        }
+      })
+      .catch(() => {})
+  }, [currentBusinessId])
 
   // Fetch SALE pricing rules and reload menu items whenever the scale panel opens
   useEffect(() => {
@@ -3050,17 +3065,19 @@ export default function RestaurantPOS() {
                   🍱 Meal Program
                 </button>
               </div>
-              <button
-                onClick={() => setScaleVisible(v => !v)}
-                title={scaleVisible ? 'Hide scale' : 'Show scale'}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
-                  scaleVisible
-                    ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
-                    : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-400'
-                }`}
-              >
-                ⚖️ Scale
-              </button>
+              {scaleEnabled && (
+                <button
+                  onClick={() => setScaleVisible(v => !v)}
+                  title={scaleVisible ? 'Hide scale' : 'Show scale'}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                    scaleVisible
+                      ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
+                      : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-400'
+                  }`}
+                >
+                  ⚖️ Scale
+                </button>
+              )}
               </div>
             )}
 

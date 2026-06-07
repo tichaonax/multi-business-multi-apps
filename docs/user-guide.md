@@ -134,6 +134,7 @@
 53. [Scale Integration — Star Micronics MG-S8200](#53-scale-integration--star-micronics-mg-s8200)
     - [Connecting the Scale](#connecting-the-scale)
     - [Scale Status Panel — Live Weight Display](#scale-status-panel--live-weight-display)
+    - [Scale Integration Toggle (Enable / Disable)](#scale-integration-toggle-enable--disable)
     - [POS Settings — Scale & Weighing Tab](#pos-settings--scale--weighing-tab)
     - [Selling Presets — Setup](#selling-presets--setup)
     - [Linking a Preset to a POS Menu Item](#linking-a-preset-to-a-pos-menu-item)
@@ -152,12 +153,16 @@
     - [Rules & Constraints](#rules--constraints)
     - [AYLI on the Scale Tab](#ayli-on-the-scale-tab)
     - [Customer Display — Live Weighing](#customer-display--live-weighing)
+    - [Receipt — AYLI Breakdown](#receipt--ayli-breakdown)
+    - [Permissions](#permissions-1)
 55. [Smart Customer Display — Dynamic Menu & Ads](#55-smart-customer-display--dynamic-menu--ads)
     - [Overview](#overview-2)
     - [Rotating Ads Panel](#rotating-ads-panel)
     - [Live Menu Panel](#live-menu-panel)
     - [Search Sync](#search-sync)
-    - [Management Screen](#management-screen)
+    - [Permissions](#permissions-2)
+    - [Management — Where to Find It](#management--where-to-find-it)
+    - [Global Display Settings](#global-display-settings)
     - [Daily Special](#daily-special)
     - [Backup — New Tables](#backup--new-tables-1)
 
@@ -10549,6 +10554,23 @@ Click the **⚖️ Scale** button in the top bar of the Grocery or Restaurant PO
 
 ---
 
+### Scale Integration Toggle (Enable / Disable)
+
+Owners and managers can switch the scale integration on or off business-wide. When disabled the **⚖️ Scale & Weighing** tab is hidden from all staff and the **⚖️ Scale** button is removed from the POS toolbar — the hardware is completely hidden from cashiers.
+
+**Where:** POS Settings → ⚖️ Scale & Weighing → **Scale Integration** toggle (top of the tab)
+
+| State | Effect |
+|-------|--------|
+| **Enabled** (default) | Scale tab visible to users with `canAccessScaleSettings`; Scale button visible in POS |
+| **Disabled** | Scale tab hidden from all non-admin users; Scale button removed from POS toolbar |
+
+> **Re-enabling:** Admins and owners still see the tab even when disabled (with a notice). Toggle it back on to restore access for all staff.
+
+Permission required to toggle: `canAccessScaleSettings`
+
+---
+
 ### POS Settings — Scale & Weighing Tab
 
 POS Settings has been reorganised into two tabs:
@@ -10560,7 +10582,9 @@ POS Settings has been reorganised into two tabs:
 
 Open POS Settings from the **⚙️ POS Settings** button (top-right of the POS page), then click **⚖️ Scale & Weighing**.
 
-Permission required: **Manage Business Settings** (Restaurant and Grocery only).
+Permission required: `canAccessScaleSettings` (Restaurant and Grocery only).
+
+> **Vendor pricing sub-sections** (Selling Presets and Vendor Purchase Presets) within this tab require the separate `canAccessVendorPricing` permission. A user with `canAccessScaleSettings` but not `canAccessVendorPricing` can configure the hardware connection but cannot view or edit pricing rules.
 
 ---
 
@@ -10839,11 +10863,14 @@ If the scale cable is unplugged, the COM port is unavailable, or the integration
 
 | Action | Required permission |
 |--------|-------------------|
-| Connect scale / change COM port | Manage Business Settings |
-| Manage weight pricing rules | Manage Business Settings |
-| Mark product as sold by weight | Manage Inventory |
+| Enable / disable scale integration toggle | `canAccessScaleSettings` |
+| Access the Scale & Weighing tab in POS Settings | `canAccessScaleSettings` |
+| View / edit Selling Presets and Vendor Purchase Presets | `canAccessVendorPricing` |
+| Mark product as sold by weight | `canManageInventory` |
 | Sell by weight at POS | Standard cashier access |
 | Start / submit / cancel livestock purchase | Standard cashier access |
+
+> Default grants: **Owner** and **Manager** receive both `canAccessScaleSettings` and `canAccessVendorPricing` by default. Employees, associates, and salespersons do not. Grant individually via the user permissions panel if needed.
 
 ---
 
@@ -11035,6 +11062,50 @@ As each ingredient is captured, the customer display updates in real time showin
 
 ---
 
+### Receipt — AYLI Breakdown
+
+The printed receipt and the on-screen preview both show a full ingredient breakdown for each AYLI combo. The combo appears as a single item with its total on the right, followed by indented breakdown lines that are informational only (not counted again in the totals):
+
+```
+Lunch Special (Small)              $4.04
+  [SMALL] Base: $2.00
+    Beef dishes
+      0.072kg x $9.50/kg = $0.68
+    Family chicken meal
+      0.091kg x $4.50/kg = $0.41
+    Bean soups
+      0.236kg x $4.00/kg = $0.94
+```
+
+The breakdown shows the size tier, base price, and for each ingredient: name on one line, then weight × rate = line total on the next line, both indented to the left so they are clearly informational and do not interfere with the item totals column.
+
+---
+
+### Permissions
+
+Access to AYLI back-office management is controlled by fine-grained permissions. All three actions (create, delete, disable) are separately grantable:
+
+| Action | Required permission | Default |
+|--------|-------------------|---------|
+| View the AYLI Combos page (read-only) | Any authenticated member | All roles |
+| **Create** or edit pool items | `canCreateAYLIPoolItems` | Owner, Manager |
+| **Delete** (remove) pool items | `canDeleteAYLIPoolItems` | Owner, Manager |
+| **Enable / Disable** pool items | `canDisableAYLIPoolItems` | Owner, Manager, Restaurant-associate, Grocery-associate, Salesperson |
+| **Create** or edit combos | `canCreateAYLICombos` | Owner, Manager |
+| **Delete** combos | `canDeleteAYLICombos` | Owner, Manager |
+| **Enable / Disable** combos | `canDisableAYLICombos` | Owner, Manager, Restaurant-associate, Grocery-associate, Salesperson |
+
+**What this means in practice:**
+
+- **Cashiers / associates / salespersons** can enable or disable pool items and combos (e.g. to hide a sold-out ingredient during service) but cannot create new ones or permanently remove them.
+- **Managers and owners** have full access to create, edit, and delete.
+- Buttons are hidden in the UI when the user does not have the required permission — no error message, just a clean read-only view.
+- Any permission can be granted or revoked individually per user via **Settings → User Permissions**.
+
+> **API enforcement:** Permission checks are enforced server-side on every write endpoint — hiding buttons in the UI is not the only protection.
+
+---
+
 ## 55. Smart Customer Display — Dynamic Menu & Ads
 
 > **Who reads this:** Restaurant, grocery, and clothing managers who want to understand or configure the customer-facing display screen.
@@ -11141,6 +11212,23 @@ When the cashier types in the POS search box, the customer display filters the l
 
 ---
 
+### Permissions
+
+Customer Display access uses two separate permissions:
+
+| Permission | What it allows | Default |
+|------------|---------------|---------|
+| `canViewCustomerDisplay` | View the Customer Display page (read-only — no editing) | Owner, Manager, Employee, Restaurant-associate, Grocery-associate, Salesperson |
+| `canManageCustomerDisplay` | Upload/delete ads, edit product display settings, change global settings | Owner, Manager |
+
+**Sidebar link** — the **📺 Customer Display** link is visible to anyone who has `canViewCustomerDisplay` or `canManageCustomerDisplay`.
+
+**View-only mode** — users with only `canViewCustomerDisplay` see the page but the **Upload New Ad** button is hidden and ad edit/delete actions are unavailable. They can still open a **Preview Display** window to see what's currently showing.
+
+**Managers and owners** have full management access by default. Grant `canManageCustomerDisplay` individually if another role needs editing rights.
+
+---
+
 ### Management — Where to Find It
 
 | Business | Navigation |
@@ -11184,6 +11272,8 @@ Click **Save** to apply immediately. The customer display picks up changes on it
 ### Global Display Settings
 
 **Where:** Restaurant sidebar → **Restaurant Settings → Display** (restaurant only for now)
+
+Permission required: `canManageCustomerDisplay`. Users with only `canViewCustomerDisplay` see this page in read-only mode — toggles and sliders are disabled and the **Save Settings** button is hidden.
 
 | Setting | Description |
 |---------|-------------|

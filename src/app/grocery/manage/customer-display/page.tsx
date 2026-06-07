@@ -18,7 +18,9 @@ interface Ad {
 }
 
 export default function GroceryCustomerDisplayPage() {
-  const { currentBusinessId, currentBusiness, isAuthenticated, loading } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness, isAuthenticated, loading, hasPermission } = useBusinessPermissionsContext()
+  const canView = hasPermission('canViewCustomerDisplay') || hasPermission('canManageCustomerDisplay')
+  const canManage = hasPermission('canManageCustomerDisplay')
   const [showUploadForm, setShowUploadForm] = useState(false)
   const [editingAd, setEditingAd] = useState<Ad | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
@@ -53,12 +55,12 @@ export default function GroceryCustomerDisplayPage() {
     )
   }
 
-  if (!isAuthenticated || !currentBusinessId) {
+  if (!isAuthenticated || !currentBusinessId || !canView) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
-          <p className="text-gray-600">You need to be logged in with admin access to manage customer displays.</p>
+          <p className="text-gray-600">You don&apos;t have permission to access customer display settings.</p>
         </div>
       </div>
     )
@@ -98,7 +100,7 @@ export default function GroceryCustomerDisplayPage() {
                   </svg>
                   Preview Display
                 </button>
-                {!showUploadForm && (
+                {canManage && !showUploadForm && (
                   <button
                     onClick={() => setShowUploadForm(true)}
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
@@ -146,7 +148,7 @@ export default function GroceryCustomerDisplayPage() {
               </h2>
               <AdList
                 businessId={currentBusinessId}
-                onEdit={handleEdit}
+                onEdit={canManage ? handleEdit : undefined}
                 refreshTrigger={refreshTrigger}
               />
             </div>

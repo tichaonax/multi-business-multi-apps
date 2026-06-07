@@ -134,6 +134,7 @@ function GroceryPOSContent() {
   const [showCustomerLookup, setShowCustomerLookup] = useState(false)
   const [posMode, setPosMode] = useState<'live' | 'manual'>('live')
   const [scaleVisible, setScaleVisible] = useState(false)
+  const [scaleEnabled, setScaleEnabled] = useState(true)
   const [scalePricingRules, setScalePricingRules] = useState<any[]>([])
   const [weighingItem, setWeighingItem] = useState<POSItem | null>(null)
   const [deskMode, setDeskMode] = useState(true)
@@ -424,6 +425,20 @@ function GroceryPOSContent() {
       localStorage.setItem(`grocery-pos-pinned-cats-${currentBusinessId}`, JSON.stringify([...pinnedCategoryKeys]))
     } catch { /* non-critical */ }
   }, [pinnedCategoryKeys, currentBusinessId])
+
+  // Fetch scale enabled flag — hides Scale button when integration is disabled
+  useEffect(() => {
+    if (!currentBusinessId) return
+    fetch(`/api/scale-config?businessId=${currentBusinessId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && data.scaleEnabled === false) {
+          setScaleEnabled(false)
+          setScaleVisible(false)
+        }
+      })
+      .catch(() => {})
+  }, [currentBusinessId])
 
   // Restore + persist scaleVisible preference per business
   useEffect(() => {
@@ -2907,18 +2922,20 @@ function GroceryPOSContent() {
           <div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />
         )}
 
-        {/* Scale toggle */}
-        <button
-          onClick={() => setScaleVisible(v => !v)}
-          title={scaleVisible ? 'Hide digital scale' : 'Show digital scale'}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-            scaleVisible
-              ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700'
-              : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
-          }`}
-        >
-          ⚖️ Scale
-        </button>
+        {/* Scale toggle — hidden when integration is disabled */}
+        {scaleEnabled && (
+          <button
+            onClick={() => setScaleVisible(v => !v)}
+            title={scaleVisible ? 'Hide digital scale' : 'Show digital scale'}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+              scaleVisible
+                ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700'
+                : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+            }`}
+          >
+            ⚖️ Scale
+          </button>
+        )}
 
         {/* Desk mode toggle */}
         <button

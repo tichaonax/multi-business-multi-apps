@@ -359,7 +359,7 @@ function ComboModal({
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function AYCCombosPage() {
-  const { currentBusinessId } = useBusinessPermissionsContext()
+  const { currentBusinessId, hasPermission } = useBusinessPermissionsContext()
   const toast = useToastContext()
   const confirm = useConfirm()
 
@@ -436,14 +436,18 @@ export default function AYCCombosPage() {
                   <h2 className="text-base font-semibold text-primary">Pool Items</h2>
                   <p className="text-xs text-secondary mt-0.5">The shared list of items available in any AYLI combo. Each has pre-set per-kg prices for all 3 sizes.</p>
                 </div>
-                <button className="btn-primary text-sm" onClick={() => setPoolModal({ open: true, editing: null })}>+ Add Item</button>
+                {hasPermission('canCreateAYLIPoolItems') && (
+                  <button className="btn-primary text-sm" onClick={() => setPoolModal({ open: true, editing: null })}>+ Add Item</button>
+                )}
               </div>
 
               {poolItems.length === 0 ? (
                 <div className="border border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center">
                   <div className="text-3xl mb-2">🥩</div>
                   <p className="text-secondary text-sm mb-3">No pool items yet. Add items like Chicken, Beef, Veggies with their 3-tier prices.</p>
-                  <button className="btn-primary text-sm" onClick={() => setPoolModal({ open: true, editing: null })}>Add First Item</button>
+                  {hasPermission('canCreateAYLIPoolItems') && (
+                    <button className="btn-primary text-sm" onClick={() => setPoolModal({ open: true, editing: null })}>Add First Item</button>
+                  )}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -469,13 +473,19 @@ export default function AYCCombosPage() {
                         </div>
                       </div>
                       <div className="flex flex-col gap-1 flex-shrink-0 items-end">
-                        <button onClick={() => setPoolModal({ open: true, editing: item })} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Edit</button>
-                        <button
-                          onClick={() => togglePoolItem(item)}
-                          className={`text-xs font-medium hover:underline ${item.isActive ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                          {item.isActive ? 'Disable' : 'Enable'}
-                        </button>
-                        <button onClick={() => deletePoolItem(item)} className="text-xs text-red-500 hover:underline">Remove</button>
+                        {hasPermission('canCreateAYLIPoolItems') && (
+                          <button onClick={() => setPoolModal({ open: true, editing: item })} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Edit</button>
+                        )}
+                        {hasPermission('canDisableAYLIPoolItems') && (
+                          <button
+                            onClick={() => togglePoolItem(item)}
+                            className={`text-xs font-medium hover:underline ${item.isActive ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                            {item.isActive ? 'Disable' : 'Enable'}
+                          </button>
+                        )}
+                        {hasPermission('canDeleteAYLIPoolItems') && (
+                          <button onClick={() => deletePoolItem(item)} className="text-xs text-red-500 hover:underline">Remove</button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -490,17 +500,21 @@ export default function AYCCombosPage() {
                   <h2 className="text-base font-semibold text-primary">Combos</h2>
                   <p className="text-xs text-secondary mt-0.5">Each combo selects which pool items are available and sets the Small / Medium / Large base prices.</p>
                 </div>
-                <button className="btn-primary text-sm" onClick={() => setComboModal({ open: true, editing: null })}
-                  disabled={poolItems.length === 0} title={poolItems.length === 0 ? 'Add pool items first' : ''}>
-                  + New Combo
-                </button>
+                {hasPermission('canCreateAYLICombos') && (
+                  <button className="btn-primary text-sm" onClick={() => setComboModal({ open: true, editing: null })}
+                    disabled={poolItems.length === 0} title={poolItems.length === 0 ? 'Add pool items first' : ''}>
+                    + New Combo
+                  </button>
+                )}
               </div>
 
               {combos.length === 0 ? (
                 <div className="border border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center">
                   <div className="text-3xl mb-2">🥗</div>
                   <p className="text-secondary text-sm mb-3">{poolItems.length === 0 ? 'Add pool items first, then create a combo.' : 'No combos yet.'}</p>
-                  {poolItems.length > 0 && <button className="btn-primary text-sm" onClick={() => setComboModal({ open: true, editing: null })}>Create First Combo</button>}
+                  {poolItems.length > 0 && hasPermission('canCreateAYLICombos') && (
+                    <button className="btn-primary text-sm" onClick={() => setComboModal({ open: true, editing: null })}>Create First Combo</button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -512,8 +526,12 @@ export default function AYCCombosPage() {
                           {combo.description && <p className="text-xs text-secondary mt-0.5">{combo.description}</p>}
                         </div>
                         <div className="flex gap-2">
-                          <button className="btn-secondary text-xs py-1" onClick={() => setComboModal({ open: true, editing: combo })}>Edit</button>
-                          <button className="text-xs text-red-500 hover:underline" onClick={() => deleteCombo(combo)}>Delete</button>
+                          {hasPermission('canCreateAYLICombos') && (
+                            <button className="btn-secondary text-xs py-1" onClick={() => setComboModal({ open: true, editing: combo })}>Edit</button>
+                          )}
+                          {hasPermission('canDeleteAYLICombos') && (
+                            <button className="text-xs text-red-500 hover:underline" onClick={() => deleteCombo(combo)}>Delete</button>
+                          )}
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-2 mb-3">

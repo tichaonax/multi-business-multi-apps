@@ -321,6 +321,24 @@ export interface CoreBusinessPermissions {
 
   // Services (Business-level - access Services link in sidebar)
   canViewServices: boolean;
+
+  // AYLI Pool Item Management (Restaurant)
+  canCreateAYLIPoolItems: boolean;
+  canDeleteAYLIPoolItems: boolean;
+  canDisableAYLIPoolItems: boolean;
+
+  // AYLI Combo Management (Restaurant)
+  canCreateAYLICombos: boolean;
+  canDeleteAYLICombos: boolean;
+  canDisableAYLICombos: boolean;
+
+  // Customer Display
+  canViewCustomerDisplay: boolean;
+  canManageCustomerDisplay: boolean;
+
+  // POS Settings (Scale & Weighing, Vendor Pricing)
+  canAccessScaleSettings: boolean;
+  canAccessVendorPricing: boolean;
 }
 
 // Business-Type-Specific Permission Modules
@@ -1520,6 +1538,22 @@ export const CORE_PERMISSIONS = {
   servicesAccess: [
     { key: 'canViewServices', label: 'View Services Link' },
   ],
+  ayliManagement: [
+    { key: 'canCreateAYLIPoolItems', label: 'Create AYLI Pool Items' },
+    { key: 'canDeleteAYLIPoolItems', label: 'Delete AYLI Pool Items' },
+    { key: 'canDisableAYLIPoolItems', label: 'Enable / Disable AYLI Pool Items' },
+    { key: 'canCreateAYLICombos', label: 'Create AYLI Combos' },
+    { key: 'canDeleteAYLICombos', label: 'Delete AYLI Combos' },
+    { key: 'canDisableAYLICombos', label: 'Enable / Disable AYLI Combos' },
+  ],
+  customerDisplayManagement: [
+    { key: 'canViewCustomerDisplay', label: 'View Customer Display' },
+    { key: 'canManageCustomerDisplay', label: 'Manage Customer Display (Create / Edit / Delete Ads)' },
+  ],
+  posSettings: [
+    { key: 'canAccessScaleSettings', label: 'Access Scale & Weighing Settings' },
+    { key: 'canAccessVendorPricing', label: 'Access Vendor Pricing Presets (Buying & Selling per kg)' },
+  ],
 }
 
 // Business-level role presets (Core permissions only)
@@ -1692,6 +1726,16 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canViewServices: true,
   canViewPOSSoldCount: true,
   canViewPOSStockCount: true,
+  canCreateAYLIPoolItems: true,
+  canDeleteAYLIPoolItems: true,
+  canDisableAYLIPoolItems: true,
+  canCreateAYLICombos: true,
+  canDeleteAYLICombos: true,
+  canDisableAYLICombos: true,
+  canViewCustomerDisplay: true,
+  canManageCustomerDisplay: true,
+  canAccessScaleSettings: true,
+  canAccessVendorPricing: true,
 };
 
 export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
@@ -1865,6 +1909,16 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canViewServices: true,
   canViewPOSSoldCount: true,
   canViewPOSStockCount: true,
+  canCreateAYLIPoolItems: true,
+  canDeleteAYLIPoolItems: true,
+  canDisableAYLIPoolItems: true,
+  canCreateAYLICombos: true,
+  canDeleteAYLICombos: true,
+  canDisableAYLICombos: true,
+  canViewCustomerDisplay: true,
+  canManageCustomerDisplay: true,
+  canAccessScaleSettings: true,
+  canAccessVendorPricing: true,
 };
 
 export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
@@ -2038,6 +2092,16 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canViewServices: true,
   canViewPOSSoldCount: true,
   canViewPOSStockCount: true,
+  canCreateAYLIPoolItems: false,
+  canDeleteAYLIPoolItems: false,
+  canDisableAYLIPoolItems: false,
+  canCreateAYLICombos: false,
+  canDeleteAYLICombos: false,
+  canDisableAYLICombos: false,
+  canViewCustomerDisplay: true,
+  canManageCustomerDisplay: false,
+  canAccessScaleSettings: false,
+  canAccessVendorPricing: false,
 };
 
 export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
@@ -2209,6 +2273,16 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canViewServices: true,
   canViewPOSSoldCount: false,
   canViewPOSStockCount: false,
+  canCreateAYLIPoolItems: false,
+  canDeleteAYLIPoolItems: false,
+  canDisableAYLIPoolItems: false,
+  canCreateAYLICombos: false,
+  canDeleteAYLICombos: false,
+  canDisableAYLICombos: false,
+  canViewCustomerDisplay: false,
+  canManageCustomerDisplay: false,
+  canAccessScaleSettings: false,
+  canAccessVendorPricing: false,
 };
 
 // Delivery Driver permissions - Delivery queue and status updates only
@@ -2385,6 +2459,16 @@ export const BUSINESS_DELIVERY_DRIVER_PERMISSIONS: CoreBusinessPermissions = {
   canViewServices: false,
   canViewPOSSoldCount: false,
   canViewPOSStockCount: false,
+  canCreateAYLIPoolItems: false,
+  canDeleteAYLIPoolItems: false,
+  canDisableAYLIPoolItems: false,
+  canCreateAYLICombos: false,
+  canDeleteAYLICombos: false,
+  canDisableAYLICombos: false,
+  canViewCustomerDisplay: false,
+  canManageCustomerDisplay: false,
+  canAccessScaleSettings: false,
+  canAccessVendorPricing: false,
 };
 
 // Restaurant Associate permissions - Food prep and POS operations
@@ -2559,6 +2643,16 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canViewServices: false,
   canViewPOSSoldCount: false,
   canViewPOSStockCount: false,
+  canCreateAYLIPoolItems: false,
+  canDeleteAYLIPoolItems: false,
+  canDisableAYLIPoolItems: true,
+  canCreateAYLICombos: false,
+  canDeleteAYLICombos: false,
+  canDisableAYLICombos: true,
+  canViewCustomerDisplay: true,
+  canManageCustomerDisplay: false,
+  canAccessScaleSettings: false,
+  canAccessVendorPricing: false,
 };
 
 // Salesperson permissions - Minimal access for sales staff only
@@ -2733,6 +2827,16 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canViewServices: false,
   canViewPOSSoldCount: true,
   canViewPOSStockCount: true,
+  canCreateAYLIPoolItems: false,
+  canDeleteAYLIPoolItems: false,
+  canDisableAYLIPoolItems: true,
+  canCreateAYLICombos: false,
+  canDeleteAYLICombos: false,
+  canDisableAYLICombos: true,
+  canViewCustomerDisplay: true,
+  canManageCustomerDisplay: false,
+  canAccessScaleSettings: false,
+  canAccessVendorPricing: false,
 };
 
 // System admin permissions (cross-business)
@@ -2904,6 +3008,16 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canViewServices: true,
   canViewPOSSoldCount: true,
   canViewPOSStockCount: true,
+  canCreateAYLIPoolItems: true,
+  canDeleteAYLIPoolItems: true,
+  canDisableAYLIPoolItems: true,
+  canCreateAYLICombos: true,
+  canDeleteAYLICombos: true,
+  canDisableAYLICombos: true,
+  canViewCustomerDisplay: true,
+  canManageCustomerDisplay: true,
+  canAccessScaleSettings: true,
+  canAccessVendorPricing: true,
 };
 
 // User-Level Permission Presets

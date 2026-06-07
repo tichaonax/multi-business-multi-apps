@@ -53,7 +53,8 @@ export default function RestaurantDisplaySettingsPage() {
 
   const sessionUser = session?.user as SessionUser
   const isAdmin = sessionUser?.role === 'admin'
-  const canAccess = isAdmin || hasPermission('canViewBusiness')
+  const canAccess = isAdmin || hasPermission('canViewCustomerDisplay') || hasPermission('canManageCustomerDisplay')
+  const canManage = isAdmin || hasPermission('canManageCustomerDisplay')
 
   const [settings, setSettings] = useState<GlobalSettings>({
     rotationIntervalSecs: 6,
@@ -189,8 +190,9 @@ export default function RestaurantDisplaySettingsPage() {
                 <span className="text-sm text-gray-700 dark:text-gray-300">Smart display enabled</span>
                 <button
                   type="button"
-                  onClick={() => setSettings(s => ({ ...s, enableSmartDisplay: !s.enableSmartDisplay }))}
-                  className={`relative w-10 h-5 rounded-full transition-colors ${settings.enableSmartDisplay ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                  disabled={!canManage}
+                  onClick={() => canManage && setSettings(s => ({ ...s, enableSmartDisplay: !s.enableSmartDisplay }))}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${settings.enableSmartDisplay ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'} disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${settings.enableSmartDisplay ? 'translate-x-5' : 'translate-x-0.5'}`} />
                 </button>
@@ -200,8 +202,9 @@ export default function RestaurantDisplaySettingsPage() {
                 <span className="text-sm text-gray-700 dark:text-gray-300">Daily Special left panel</span>
                 <button
                   type="button"
-                  onClick={() => setSettings(s => ({ ...s, enableSplitLayout: !s.enableSplitLayout }))}
-                  className={`relative w-10 h-5 rounded-full transition-colors ${settings.enableSplitLayout ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                  disabled={!canManage}
+                  onClick={() => canManage && setSettings(s => ({ ...s, enableSplitLayout: !s.enableSplitLayout }))}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${settings.enableSplitLayout ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'} disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${settings.enableSplitLayout ? 'translate-x-5' : 'translate-x-0.5'}`} />
                 </button>
@@ -242,18 +245,20 @@ export default function RestaurantDisplaySettingsPage() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={saveSettings}
-              disabled={saving}
-              className={`mt-5 w-full py-2 rounded-lg text-sm font-semibold transition-colors ${
-                saved
-                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                  : 'bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50'
-              }`}
-            >
-              {saved ? '✓ Saved & display refreshed' : saving ? 'Saving…' : 'Save Settings'}
-            </button>
+            {canManage && (
+              <button
+                type="button"
+                onClick={saveSettings}
+                disabled={saving}
+                className={`mt-5 w-full py-2 rounded-lg text-sm font-semibold transition-colors ${
+                  saved
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50'
+                }`}
+              >
+                {saved ? '✓ Saved & display refreshed' : saving ? 'Saving…' : 'Save Settings'}
+              </button>
+            )}
           </div>
 
           {/* Score legend */}

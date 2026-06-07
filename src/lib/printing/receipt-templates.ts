@@ -279,17 +279,14 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
       }
     }
 
-    // AYLI combo breakdown — structured line-by-line
+    // AYLI combo breakdown — two lines per pool item, left-aligned (no right-column price)
     if ((item as any).ayliBreakdown) {
       const ayli = (item as any).ayliBreakdown
       receipt += `  [${ayli.size.toUpperCase()}] Base: $${Number(ayli.basePrice).toFixed(2)}` + LF;
       for (const l of ayli.lines) {
-        const left  = `  ${l.emoji ? l.emoji + ' ' : ''}${l.name}`
-        const mid   = `${Number(l.weightKg).toFixed(3)}kg x $${Number(l.pricePerKg).toFixed(2)}`
-        const right = `$${Number(l.linePrice).toFixed(2)}`
-        // Fit onto one 42-char line: name ... weight@rate ... price
-        const gap = Math.max(1, 42 - left.length - mid.length - right.length)
-        receipt += left + ' '.repeat(gap) + mid + ' ' + right + LF;
+        const itemName = stripEmojis(`${l.emoji ? l.emoji + ' ' : ''}${l.name}`)
+        receipt += `    ${itemName}` + LF;
+        receipt += `      ${Number(l.weightKg).toFixed(3)}kg x $${Number(l.pricePerKg).toFixed(2)}/kg = $${Number(l.linePrice).toFixed(2)}` + LF;
       }
     } else if (item.notes) {
       // Generic notes (non-AYLI)
@@ -1306,11 +1303,9 @@ function generateGenericReceipt(data: ReceiptData): string {
       const ayli = (item as any).ayliBreakdown
       receipt += `  [${ayli.size.toUpperCase()}] Base: $${Number(ayli.basePrice).toFixed(2)}` + LF;
       for (const l of ayli.lines) {
-        const left  = `  ${l.emoji ? l.emoji + ' ' : ''}${l.name}`
-        const mid   = `${Number(l.weightKg).toFixed(3)}kg x $${Number(l.pricePerKg).toFixed(2)}`
-        const right = `$${Number(l.linePrice).toFixed(2)}`
-        const gap = Math.max(1, 42 - left.length - mid.length - right.length)
-        receipt += left + ' '.repeat(gap) + mid + ' ' + right + LF;
+        const itemName = stripEmojis(`${l.emoji ? l.emoji + ' ' : ''}${l.name}`)
+        receipt += `    ${itemName}` + LF;
+        receipt += `      ${Number(l.weightKg).toFixed(3)}kg x $${Number(l.pricePerKg).toFixed(2)}/kg = $${Number(l.linePrice).toFixed(2)}` + LF;
       }
     } else if (item.notes) {
       receipt += `  ${item.notes}` + LF;

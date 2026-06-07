@@ -75,23 +75,41 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
           <span className="flex-1 text-right">Price</span>
           <span className="flex-1 text-right">Total</span>
         </div>
-        {data.items.map((item, index) => (
-          <div key={index} className="mb-2">
-            <div className="font-bold mb-0.5 flex items-center gap-1">
-              {(item as any).isCombo && <span className="text-[8px] font-black border border-current px-0.5 leading-tight">[COMBO]</span>}
-              {item.name}
+        {data.items.map((item, index) => {
+          const ayli = (item as any).ayliBreakdown
+          return (
+            <div key={index} className="mb-2">
+              <div className="font-bold mb-0.5 flex items-center gap-1">
+                {ayli
+                  ? <span className="text-[8px] font-black border border-current px-0.5 leading-tight">[AYLI]</span>
+                  : (item as any).isCombo && <span className="text-[8px] font-black border border-current px-0.5 leading-tight">[COMBO]</span>
+                }
+                {item.name}
+              </div>
+              <div className="flex justify-between text-[11px]">
+                <span className="flex-[2]"></span>
+                <span className="flex-1 text-center">{item.quantity}</span>
+                <span className="flex-1 text-right">${Number(item.unitPrice).toFixed(2)}</span>
+                <span className="flex-1 text-right">${Number(item.totalPrice).toFixed(2)}</span>
+              </div>
+              {/* AYLI breakdown — size base price + each pool item line */}
+              {ayli && (
+                <div className="ml-1 mt-0.5 text-[10px] text-gray-600 border-l-2 border-gray-300 pl-1.5 space-y-0.5">
+                  <div className="font-semibold uppercase tracking-wide">{ayli.size} — base ${Number(ayli.basePrice).toFixed(2)}</div>
+                  {(ayli.lines || []).map((l: any, i: number) => (
+                    <div key={i} className="flex justify-between gap-1">
+                      <span>{l.emoji ? l.emoji + ' ' : ''}{l.name} {Number(l.weightKg).toFixed(3)}kg×${Number(l.pricePerKg).toFixed(2)}/kg</span>
+                      <span className="font-medium flex-shrink-0">${Number(l.linePrice).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!ayli && item.notes && (
+                <div className={`text-[10px] mt-0.5 ml-1 ${item.notes.startsWith('[BOGO') ? 'text-pink-600 font-medium' : 'text-gray-600 italic'}`}>{item.notes}</div>
+              )}
             </div>
-            <div className="flex justify-between text-[11px]">
-              <span className="flex-[2]"></span>
-              <span className="flex-1 text-center">{item.quantity}</span>
-              <span className="flex-1 text-right">${Number(item.unitPrice).toFixed(2)}</span>
-              <span className="flex-1 text-right">${Number(item.totalPrice).toFixed(2)}</span>
-            </div>
-            {item.notes && (
-              <div className={`text-[10px] mt-0.5 ml-1 ${item.notes.startsWith('[BOGO') ? 'text-pink-600 font-medium' : 'text-gray-600 italic'}`}>{item.notes}</div>
-            )}
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       <div className="mb-4">

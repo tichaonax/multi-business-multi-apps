@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { PrinterPreferencesSettings } from './PrinterPreferencesSettings'
@@ -21,14 +21,34 @@ export function POSSettingsHub({ businessId, businessType, posLink }: POSSetting
   const { data: session } = useSession()
   const { hasPermission } = useBusinessPermissionsContext()
   const [activeTab, setActiveTab] = useState<TabKey>('printing')
+  const [scaleEnabled, setScaleEnabled] = useState(true)
 
   const sessionUser = session?.user as SessionUser
   const isSystemAdmin = sessionUser?.role === 'admin'
 
   const canSeePrinterPrefs = isSystemAdmin || hasPermission('canViewBusiness')
   const canSeeThresholds = isSystemAdmin || hasPermission('canManageBusinessSettings')
-  const canSeeScale = isSystemAdmin || hasPermission('canManageBusinessSettings')
+  const canSeeScale = isSystemAdmin || hasPermission('canAccessScaleSettings')
+  const canSeeVendorPricing = isSystemAdmin || hasPermission('canAccessVendorPricing')
   const hasScale = businessType === 'restaurant' || businessType === 'grocery'
+
+  // Fetch scaleEnabled from DB; defaults to true if not set
+  useEffect(() => {
+    if (!hasScale) return
+    fetch(`/api/scale-config?businessId=${businessId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setScaleEnabled(data.scaleEnabled ?? true) })
+      .catch(() => {})
+  }, [businessId, hasScale])
+
+  const handleToggleScale = useCallback(async (enabled: boolean) => {
+    const res = await fetch('/api/scale-config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ businessId, scaleEnabled: enabled }),
+    })
+    if (res.ok) setScaleEnabled(enabled)
+  }, [businessId])
 
   const hasAnything = canSeePrinterPrefs || canSeeThresholds || canSeeScale
 
@@ -46,9 +66,12 @@ export function POSSettingsHub({ businessId, businessType, posLink }: POSSetting
     )
   }
 
+  // Non-admin: tab hidden when integration is disabled; admin still sees it to re-enable
+  const showScaleTab = canSeeScale && hasScale && (scaleEnabled || isSystemAdmin)
+
   const tabs: { key: TabKey; label: string; show: boolean }[] = [
     { key: 'printing', label: '🖨️ Printing & Performance', show: canSeePrinterPrefs || canSeeThresholds },
-    { key: 'scale',   label: '⚖️ Scale & Weighing',        show: canSeeScale && hasScale },
+    { key: 'scale',   label: '⚖️ Scale & Weighing',        show: showScaleTab },
   ]
 
   const visibleTabs = tabs.filter(t => t.show)
@@ -109,7 +132,7 @@ export function POSSettingsHub({ businessId, businessType, posLink }: POSSetting
       )}
 
       {/* ── Tab: Scale & Weighing ───────────────────────────────────── */}
-      {activeTab === 'scale' && canSeeScale && hasScale && (
+      {activeTab === 'scale' && showScaleTab && (
         <div className="space-y-10">
 
           {/* Scale Hardware */}
@@ -123,40 +146,48 @@ export function POSSettingsHub({ businessId, businessType, posLink }: POSSetting
                 </p>
               </div>
             </div>
-            <ScaleSettings businessId={businessId} />
+            <ScaleSettings
+              businessId={businessId}
+              scaleEnabled={scaleEnabled}
+              onToggleScale={canSeeScale ? handleToggleScale : undefined}
+            />
           </section>
 
           <hr className="border-gray-200 dark:border-gray-700" />
 
           {/* Selling Presets */}
-          <section>
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-2xl">🛒</span>
-              <div>
-                <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Selling Presets</h2>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Prices you charge customers per kg. Assign a preset to any inventory item so the scale auto-prices it at the POS.
-                </p>
+          {canSeeVendorPricing && scaleEnabled && (
+            <section>
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-2xl">🛒</span>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Selling Presets</h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    Prices you charge customers per kg. Assign a preset to any inventory item so the scale auto-prices it at the POS.
+                  </p>
+                </div>
               </div>
-            </div>
-            <WeightPricingSettings businessId={businessId} section="sale" />
-          </section>
+              <WeightPricingSettings businessId={businessId} section="sale" />
+            </section>
+          )}
 
-          <hr className="border-gray-200 dark:border-gray-700" />
+          {canSeeVendorPricing && scaleEnabled && <hr className="border-gray-200 dark:border-gray-700" />}
 
           {/* Vendor Purchase Presets */}
-          <section>
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-2xl">🚚</span>
-              <div>
-                <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Vendor Purchase Presets</h2>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Prices you pay suppliers per kg. Used in the livestock / goods purchase workflow.
-                </p>
+          {canSeeVendorPricing && scaleEnabled && (
+            <section>
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-2xl">🚚</span>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Vendor Purchase Presets</h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    Prices you pay suppliers per kg. Used in the livestock / goods purchase workflow.
+                  </p>
+                </div>
               </div>
-            </div>
-            <WeightPricingSettings businessId={businessId} section="purchase" />
-          </section>
+              <WeightPricingSettings businessId={businessId} section="purchase" />
+            </section>
+          )}
 
         </div>
       )}

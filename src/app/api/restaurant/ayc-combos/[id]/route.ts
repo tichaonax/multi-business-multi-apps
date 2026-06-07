@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { hasPermission } from '@/lib/permission-utils'
 
 interface RouteParams { params: Promise<{ id: string }> }
 
@@ -33,6 +34,9 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!hasPermission(user, 'canCreateAYLICombos')) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    }
 
     const { id } = await params
     const { name, description, sizes, poolItemIds } = await req.json()
@@ -81,6 +85,9 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!hasPermission(user, 'canDeleteAYLICombos')) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    }
 
     const { id } = await params
     await prisma.asYouLikeItCombos.update({ where: { id }, data: { isActive: false } })

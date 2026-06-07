@@ -5,9 +5,11 @@ import type { ComPort, ScaleStatus, ScaleWeight } from '@/types/electron'
 
 interface ScaleSettingsProps {
   businessId?: string
+  scaleEnabled?: boolean
+  onToggleScale?: (enabled: boolean) => void
 }
 
-export function ScaleSettings({ businessId }: ScaleSettingsProps) {
+export function ScaleSettings({ businessId, scaleEnabled = true, onToggleScale }: ScaleSettingsProps) {
   const [isElectron, setIsElectron] = useState(false)
   const [ports, setPorts] = useState<ComPort[]>([])
   const [selectedPort, setSelectedPort] = useState<string>('')
@@ -127,21 +129,49 @@ export function ScaleSettings({ businessId }: ScaleSettingsProps) {
     await window.electron.scale.tare()
   }
 
-  if (!isElectron) {
-    return (
-      <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800/50">
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Scale integration is only available in the desktop (Electron) app.
-        </p>
-      </div>
-    )
-  }
-
   const connected = status.status === 'connected'
   const hasError = status.status === 'error'
 
   return (
     <div className="space-y-4">
+      {/* Enable / Disable toggle — shown to users who can manage scale settings */}
+      {onToggleScale && (
+        <div className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+          <div>
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Scale Integration</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              {scaleEnabled ? 'Enabled — scale hardware can connect and price items by weight.' : 'Disabled — Scale & Weighing tab is hidden from all staff.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onToggleScale(!scaleEnabled)}
+            className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${scaleEnabled ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+          >
+            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${scaleEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+          </button>
+        </div>
+      )}
+
+      {/* When disabled, show nothing else */}
+      {!scaleEnabled && (
+        <div className="rounded-lg border border-amber-200 dark:border-amber-800 p-4 bg-amber-50 dark:bg-amber-900/20">
+          <p className="text-sm text-amber-800 dark:text-amber-300">
+            Scale integration is disabled. Enable it above to configure hardware and pricing presets.
+          </p>
+        </div>
+      )}
+
+      {scaleEnabled && !isElectron && (
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800/50">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Scale integration is only available in the desktop (Electron) app.
+          </p>
+        </div>
+      )}
+
+      {/* Hardware UI — only when enabled and running in Electron */}
+      {scaleEnabled && isElectron && <div className="space-y-4">
       {/* Connection row */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-48">
@@ -276,6 +306,7 @@ export function ScaleSettings({ businessId }: ScaleSettingsProps) {
           </span>
         </div>
       )}
+      </div>}
     </div>
   )
 }

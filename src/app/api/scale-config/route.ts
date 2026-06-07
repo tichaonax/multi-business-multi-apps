@@ -24,8 +24,9 @@ export async function GET(request: NextRequest) {
 
   const settings = (business?.settings ?? {}) as Record<string, unknown>
   const scaleConfig = (settings.scaleConfig ?? null) as { comPort: string; baudRate: number } | null
+  const scaleEnabled = settings.scaleEnabled !== false // default true when not set
 
-  return NextResponse.json({ scaleConfig })
+  return NextResponse.json({ scaleConfig, scaleEnabled })
 }
 
 // PUT /api/scale-config
@@ -34,10 +35,14 @@ export async function PUT(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { businessId, comPort, baudRate } = body
+  const { businessId, comPort, baudRate, scaleEnabled } = body
 
-  if (!businessId || !comPort || !baudRate) {
-    return NextResponse.json({ error: 'businessId, comPort and baudRate required' }, { status: 400 })
+  if (!businessId) {
+    return NextResponse.json({ error: 'businessId required' }, { status: 400 })
+  }
+  // Either comPort+baudRate (hardware config) or scaleEnabled (toggle) must be present
+  if (comPort === undefined && scaleEnabled === undefined) {
+    return NextResponse.json({ error: 'comPort/baudRate or scaleEnabled required' }, { status: 400 })
   }
 
   if (user.role !== 'admin') {
@@ -53,7 +58,13 @@ export async function PUT(request: NextRequest) {
   })
 
   const existing = (business?.settings ?? {}) as Record<string, unknown>
-  const updated = { ...existing, scaleConfig: { comPort, baudRate } }
+  const updated: Record<string, unknown> = { ...existing }
+  if (comPort !== undefined && baudRate !== undefined) {
+    updated.scaleConfig = { comPort, baudRate }
+  }
+  if (scaleEnabled !== undefined) {
+    updated.scaleEnabled = Boolean(scaleEnabled)
+  }
 
   await prisma.businesses.update({
     where: { id: businessId },

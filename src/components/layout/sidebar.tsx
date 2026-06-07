@@ -823,7 +823,7 @@ export function Sidebar() {
                     <span>POS Settings</span>
                   </Link>
                 )}
-                {(isSystemAdmin(currentUser) || hasPermission('canViewBusiness')) && (
+                {(isSystemAdmin(currentUser) || hasPermission('canViewCustomerDisplay') || hasPermission('canManageCustomerDisplay')) && (
                   <Link href="/restaurant/settings/display" className={getLinkClasses('/restaurant/settings/display')}>
                     <span className="text-lg">📺</span>
                     <span>Customer Display</span>
@@ -910,7 +910,7 @@ export function Sidebar() {
                     <span>POS Settings</span>
                   </Link>
                 )}
-                {(isSystemAdmin(currentUser) || hasPermission('canViewBusiness')) && (
+                {(isSystemAdmin(currentUser) || hasPermission('canViewCustomerDisplay') || hasPermission('canManageCustomerDisplay')) && (
                   <Link href="/grocery/manage/customer-display" className={getLinkClasses('/grocery/manage/customer-display')}>
                     <span className="text-lg">📺</span>
                     <span>Customer Display</span>
@@ -988,7 +988,7 @@ export function Sidebar() {
                     <span>POS Settings</span>
                   </Link>
                 )}
-                {(isSystemAdmin(currentUser) || hasPermission('canViewBusiness')) && (
+                {(isSystemAdmin(currentUser) || hasPermission('canViewCustomerDisplay') || hasPermission('canManageCustomerDisplay')) && (
                   <Link href="/clothing/manage/customer-display" className={getLinkClasses('/clothing/manage/customer-display')}>
                     <span className="text-lg">📺</span>
                     <span>Customer Display</span>

@@ -176,6 +176,8 @@ export async function POST(request: NextRequest) {
         unitPrice: item.unitPrice || item.price || 0,
         totalPrice: item.totalPrice || (item.quantity * (item.unitPrice || item.price || 0)),
         notes: item.notes,
+        isCombo: item.isCombo,
+        ayliBreakdown: item.ayliBreakdown,
         barcode: item.barcode ? {
           type: item.barcode.type,
           code: item.barcode.code
