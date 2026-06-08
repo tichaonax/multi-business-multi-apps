@@ -289,8 +289,11 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
         receipt += `      ${Number(l.weightKg).toFixed(3)}kg x $${Number(l.pricePerKg).toFixed(2)}/kg = $${Number(l.linePrice).toFixed(2)}` + LF;
       }
     } else if (item.notes) {
-      // Generic notes (non-AYLI)
-      receipt += `  ${item.notes}` + LF;
+      if (item.notes.startsWith('Regular price:')) {
+        receipt += `  * TODAY'S SPECIAL - ${item.notes}` + LF;
+      } else {
+        receipt += `  ${item.notes}` + LF;
+      }
     }
   });
 

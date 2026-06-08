@@ -314,7 +314,12 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
                               )}
 
                               {/* Generic notes (non-AYLI) */}
-                              {!ayli && item.notes && (
+                              {!ayli && item.notes?.startsWith('Regular price:') && (
+                                <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 mt-0.5">
+                                  ⭐ Today's Special · {item.notes}
+                                </p>
+                              )}
+                              {!ayli && item.notes && !item.notes.startsWith('Regular price:') && (
                                 <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
                                   {item.notes}
                                 </p>

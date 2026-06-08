@@ -16,6 +16,11 @@ interface ReceiptTemplateProps {
 export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: ReceiptTemplateProps) {
   return (
     <div className="receipt-template font-mono text-xs max-w-[300px] p-2.5 bg-white text-black">
+      {data.isReprint && (
+        <div className="text-center font-bold border-2 border-black py-1 mb-2 tracking-widest text-[11px]">
+          *** RE-PRINT ***
+        </div>
+      )}
       {showHeader && (
         <div className="text-center mb-4 border-b-2 border-dashed border-black pb-2.5">
           <div className="text-base font-bold mb-1">
@@ -104,7 +109,12 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
                   ))}
                 </div>
               )}
-              {!ayli && item.notes && (
+              {!ayli && item.notes?.startsWith('Regular price:') && (
+                <div className="text-[10px] font-bold text-amber-700 mt-0.5 ml-1 border-l-2 border-amber-500 pl-1">
+                  ⭐ TODAY'S SPECIAL · {item.notes}
+                </div>
+              )}
+              {!ayli && item.notes && !item.notes.startsWith('Regular price:') && (
                 <div className={`text-[10px] mt-0.5 ml-1 ${item.notes.startsWith('[BOGO') ? 'text-pink-600 font-medium' : 'text-gray-600 italic'}`}>{item.notes}</div>
               )}
             </div>
