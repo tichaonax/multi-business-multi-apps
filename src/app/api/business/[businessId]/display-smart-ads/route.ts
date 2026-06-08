@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
   })
   const globalSettings = {
     rotationIntervalSecs: settings?.rotationIntervalSecs ?? 6,
-    enableSmartDisplay: settings?.enableSmartDisplay ?? true,
+    enableSmartDisplay: settings?.enableSmartDisplay ?? false,
     enableSplitLayout: settings?.enableSplitLayout ?? true,
     maxItemsInRotation: settings?.maxItemsInRotation ?? 12,
   }

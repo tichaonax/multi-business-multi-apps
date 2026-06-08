@@ -9,7 +9,7 @@ interface ScaleSettingsProps {
   onToggleScale?: (enabled: boolean) => void
 }
 
-export function ScaleSettings({ businessId, scaleEnabled = true, onToggleScale }: ScaleSettingsProps) {
+export function ScaleSettings({ businessId, scaleEnabled = false, onToggleScale }: ScaleSettingsProps) {
   const [isElectron, setIsElectron] = useState(false)
   const [ports, setPorts] = useState<ComPort[]>([])
   const [selectedPort, setSelectedPort] = useState<string>('')

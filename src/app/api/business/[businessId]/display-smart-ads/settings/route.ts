@@ -9,7 +9,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ bus
   })
   return NextResponse.json({
     rotationIntervalSecs: settings?.rotationIntervalSecs ?? 6,
-    enableSmartDisplay: settings?.enableSmartDisplay ?? true,
+    enableSmartDisplay: settings?.enableSmartDisplay ?? false,
     enableSplitLayout: settings?.enableSplitLayout ?? true,
     maxItemsInRotation: settings?.maxItemsInRotation ?? 12,
   })
@@ -26,7 +26,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ busi
     create: {
       businessId,
       rotationIntervalSecs: rotationIntervalSecs ?? 6,
-      enableSmartDisplay: enableSmartDisplay ?? true,
+      enableSmartDisplay: enableSmartDisplay ?? false,
       enableSplitLayout: enableSplitLayout ?? true,
       maxItemsInRotation: maxItemsInRotation ?? 12,
     },

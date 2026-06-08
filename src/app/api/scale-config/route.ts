@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
   const settings = (business?.settings ?? {}) as Record<string, unknown>
   const scaleConfig = (settings.scaleConfig ?? null) as { comPort: string; baudRate: number } | null
-  const scaleEnabled = settings.scaleEnabled !== false // default true when not set
+  const scaleEnabled = settings.scaleEnabled === true // default false — admin must enable
 
   return NextResponse.json({ scaleConfig, scaleEnabled })
 }

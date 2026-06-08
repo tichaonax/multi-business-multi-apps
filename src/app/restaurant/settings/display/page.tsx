@@ -60,7 +60,7 @@ export default function RestaurantDisplaySettingsPage() {
 
   const [settings, setSettings] = useState<GlobalSettings>({
     rotationIntervalSecs: 6,
-    enableSmartDisplay: true,
+    enableSmartDisplay: false,
     enableSplitLayout: true,
     maxItemsInRotation: 12,
   })
