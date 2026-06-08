@@ -10961,9 +10961,13 @@ Pool Items are the ingredients that can appear in any AYLI combo. Each pool item
 | Medium | $1.50 |
 | Large | $2.00 |
 
-4. Click **Save**.
+4. Click **Create AYLI Combo** (or **Save Changes** when editing an existing combo).
 
 The combo appears as an AYLI card (green badge ⚖️ AYLI) in the restaurant POS menu grid and on the Scale Tab.
+
+> **Important — pool items are required for display:** An AYLI combo with no pool items configured will not appear on the customer display. Always add at least one pool item before assigning a menu number.
+
+> **Warning — menu number assignment:** When you assign or change a menu number from the **Menu Numbers** page, only the number is updated. The combo's pool items and sizes are never touched. Editing the combo directly from the AYLI Combos page and clicking **Save Changes** is the only action that modifies pool items.
 
 ---
 
@@ -11158,7 +11162,9 @@ Display score = (today's units × 3) + (yesterday × 2) + (day before × 1) + (p
 - **Hidden** items never appear
 - **Clothing** — categories with new bales added in the last 14 days score higher; items added in the last 14 days get +10 bonus
 - Cards rotate every 6 seconds (configurable in global settings)
-- AYLI Combos appear alongside menu items with each size price
+- All cards on the left panel are **equal height** — layout is a CSS grid so no card can grow taller than its neighbours regardless of image size
+- AYLI Combos appear alongside menu items listing their pool items (ingredients) and per-kg price; size base prices are shown at the bottom of the card
+- **AYLI combos with no pool items configured are automatically hidden** from the customer display
 
 ---
 
@@ -11233,45 +11239,66 @@ Customer Display access uses two separate permissions:
 
 | Business | Navigation |
 |----------|-----------|
-| Restaurant | Sidebar → **📺 Customer Display** |
+| Restaurant | **Restaurant → Settings → Customer Display** |
 | Grocery | Sidebar → **📺 Customer Display** |
 | Clothing | Sidebar → **📺 Customer Display** |
 
-Each page has two sections:
-1. **Advertisements** — upload/manage rotating image ads shown during idle
-2. **Product Display Settings** — configure how individual items appear on the rotating display
+The restaurant Customer Display settings page has two sections:
+1. **Global Settings** — rotation speed, max items, enable/disable the smart display
+2. **Item Priority** — configure every numbered item's priority, advertising image, and promo note
 
 ---
 
-### Product Display Settings Panel
+### Adding Items to the Customer Display
 
-The **Product Display Settings** section lists every item the display can show. It has a sticky search bar and loads 20 items per page.
+Items appear on the customer display automatically **when they have a menu number assigned**. If any item has a menu number, only numbered items are shown (items without a number are excluded).
 
-#### Searching
-- Type in the search bar to filter items by name
-- Click **×** to clear the search and return to the full list
-- Changing the search resets to page 1
+**To add a new item to the display:**
 
-#### Editing an Item
-Click **Edit** on any row to expand the settings panel:
+1. Go to **Restaurant → Manage → Menu Numbers**
+2. Find the item (menu item or AYLI combo)
+3. Assign a menu number (e.g. `8`, `9`, `10a`)
+4. The item now appears in **Settings → Customer Display → Item Priority**
 
-| Field | Description |
-|-------|-------------|
-| **Product Image** | Read-only preview — managed via inventory/products |
-| **Advertising Image** | Upload a separate image just for the display. Click **Upload** → pick a file. Click **Replace** to swap. Click **Remove** to clear. |
-| **Advertising Note** | Short promo text (max 80 chars). Determines the badge colour automatically. |
-| **Featured** toggle | Sorts item to the top of the rotation |
-| **Hidden** toggle | Removes item from the display entirely |
-| **Daily Special** toggle | Restaurant only — sets as the featured amber special card |
-| **Priority Boost** | Number 0–10; each point adds 10 to the item's display score |
+---
 
-Click **Save** to apply immediately. The customer display picks up changes on its next data refresh (every 5 minutes) or on the next page load.
+### Adding an Advertising Image (per item)
+
+Each item in the Item Priority list has an inline image upload:
+
+1. Go to **Restaurant → Settings → Customer Display**
+2. Find the item in the **Item Priority** list
+3. Click **📷 Add ad image** under that item
+4. Pick an image file from your device — it uploads and saves immediately
+5. A thumbnail appears confirming the image is set
+
+To replace the image click **📷 Add ad image** again (the new upload overwrites the old). To remove it click **Remove image**.
+
+The advertising image shows as a large photo on both the left rotating panel and the right menu grid. It takes priority over the product's own image.
+
+---
+
+### Item Priority Panel
+
+The **Item Priority** panel lists every numbered item the display can show. Each row is fully inline — no separate edit modal needed. Changes apply immediately when you interact with a control.
+
+| Control | Description |
+|---------|-------------|
+| **Score bar** | Visual display score (T = today, Y = yesterday, D = day before) |
+| **Boost** | Number field (0–100); each point adds 10 to the display score. Tab away to save. |
+| **📷 Add ad image** | Click to pick an image file — uploads and saves immediately. Thumbnail appears once set. Click **Remove image** to clear. |
+| **Ad note field** | Type a short promo text (up to 80 chars). Tab away or click elsewhere to save. Determines the badge colour automatically (see Advertising Notes section). |
+| **⭐ Special** | Toggle daily special — amber card in the left panel. Only one item can be the special at a time. |
+| **★ Feature** | Toggle featured — sorts item to the front of the rotation. |
+| **🚫 Hide** | Toggle hidden — removes item from the display entirely. |
+
+All changes are saved immediately (no Save button needed per item). The customer display refreshes within 5 minutes or on next page load.
 
 ---
 
 ### Global Display Settings
 
-**Where:** Restaurant sidebar → **Restaurant Settings → Display** (restaurant only for now)
+**Where:** Restaurant sidebar → **Settings → Customer Display** — left panel (restaurant only for now)
 
 Permission required: `canManageCustomerDisplay`. Users with only `canViewCustomerDisplay` see this page in read-only mode — toggles and sliders are disabled and the **Save Settings** button is hidden.
 
@@ -11305,5 +11332,7 @@ New columns (not new tables):
 - `barcode_inventory_items.imageId` — links to `images` table for the item's own display image
 - `display_product_configs.advertisingNote` — short promo text shown as a badge
 - `display_product_configs.advertisingImageId` — links to `images` table for the advertising-only image
+- `business_products.menuNumber` — display number (e.g. `1`, `1a`) used to filter what appears on the customer display
+- `as_you_like_it_combos.menuNumber` — same for AYLI combos; assigned via the Menu Numbers management page
 
 All tables and their referenced images are backed up automatically with every full backup.
