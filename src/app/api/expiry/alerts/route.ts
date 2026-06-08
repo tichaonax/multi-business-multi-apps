@@ -73,18 +73,20 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const batchRows = batches.map(b =>
-      toRow(
-        b.id,
-        b.inventoryItemId,
-        b.inventoryItem.name,
-        b.inventoryItem.barcodeData,
-        b.inventoryItem.sku,
-        b.quantity,
-        b.expiryDate!,
-        b.inventoryItem.sellingPrice
+    const batchRows = batches
+      .filter(b => b.inventoryItem !== null)
+      .map(b =>
+        toRow(
+          b.id,
+          b.inventoryItemId,
+          b.inventoryItem.name,
+          b.inventoryItem.barcodeData,
+          b.inventoryItem.sku,
+          b.quantity,
+          b.expiryDate!,
+          b.inventoryItem.sellingPrice
+        )
       )
-    )
 
     // Legacy items get a synthetic batchId so the action API can distinguish them
     const legacyRows = legacyItems.map(item =>
