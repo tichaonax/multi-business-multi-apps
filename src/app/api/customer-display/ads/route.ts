@@ -11,6 +11,7 @@ import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
 import { getServerUser } from '@/lib/get-server-user'
+import { hasPermission } from '@/lib/permission-utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -139,20 +140,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if user has admin access to this business
-    const userBusinesses = await prisma.employeeBusinesses.findFirst({
-      where: {
-        employeeId: user.id,
-        businessId,
-        role: {
-          in: ['admin', 'owner']
-        }
-      }
-    })
-
-    if (!userBusinesses) {
+    // Check permission using the standard permission system
+    if (!hasPermission(user, 'canManageCustomerDisplay')) {
       return NextResponse.json(
-        { success: false, error: 'Unauthorized - Admin access required' },
+        { success: false, error: 'Insufficient permissions' },
         { status: 403 }
       )
     }
