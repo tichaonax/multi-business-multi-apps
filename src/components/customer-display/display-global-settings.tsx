@@ -10,6 +10,7 @@ interface Settings {
   enableSmartDisplay: boolean
   enableSplitLayout: boolean
   maxItemsInRotation: number
+  specialShowPercentage: number
 }
 
 interface Props {
@@ -30,6 +31,7 @@ export function DisplayGlobalSettings({ businessId }: Props) {
     enableSmartDisplay: false,
     enableSplitLayout: true,
     maxItemsInRotation: 12,
+    specialShowPercentage: 25,
   })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -124,6 +126,21 @@ export function DisplayGlobalSettings({ businessId }: Props) {
           disabled={!canManage}
           value={settings.maxItemsInRotation}
           onChange={e => setSettings(s => ({ ...s, maxItemsInRotation: Number(e.target.value) }))}
+          className="w-full disabled:opacity-50"
+        />
+      </div>
+
+      {/* Today's Special show frequency */}
+      <div>
+        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">
+          Today&apos;s Special show frequency — <span className="font-mono">{settings.specialShowPercentage}%</span>
+        </label>
+        <div className="text-xs text-gray-400 mb-1">How often the special card replaces the rotating product view (0 = never show, 100 = always show)</div>
+        <input
+          type="range" min={0} max={100} step={5}
+          disabled={!canManage}
+          value={settings.specialShowPercentage}
+          onChange={e => setSettings(s => ({ ...s, specialShowPercentage: Number(e.target.value) }))}
           className="w-full disabled:opacity-50"
         />
       </div>

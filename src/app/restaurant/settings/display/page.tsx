@@ -319,9 +319,9 @@ export default function RestaurantDisplaySettingsPage() {
                       <div className="flex items-center gap-3 mt-1">
                         <ScoreBar score={item.displayScore} max={maxScore} />
                         <div className="text-xs text-gray-400 dark:text-gray-500 space-x-2">
-                          <span title="Today">T:{item.salesBreakdown.today}</span>
-                          <span title="Yesterday">Y:{item.salesBreakdown.yesterday}</span>
-                          <span title="Day before">D:{item.salesBreakdown.dayBefore}</span>
+                          <span title="Today">T:{item.salesBreakdown?.today ?? 0}</span>
+                          <span title="Yesterday">Y:{item.salesBreakdown?.yesterday ?? 0}</span>
+                          <span title="Day before">D:{item.salesBreakdown?.dayBefore ?? 0}</span>
                         </div>
                       </div>
 

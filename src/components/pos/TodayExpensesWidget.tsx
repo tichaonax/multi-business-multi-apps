@@ -101,6 +101,7 @@ export function TodayExpensesWidget({ businessId, refreshKey }: Props) {
   const [expenses, setExpenses] = useState<{ total: number; count: number; items: ExpenseItem[]; yesterdayTotal: number; twoDaysAgoTotal: number } | null>(null)
   const [activeModal, setActiveModal] = useState<ExpenseDay | null>(null)
   const [loadingDay, setLoadingDay] = useState<number | null>(null)
+  const [collapsed, setCollapsed] = useState(true)
 
   const tz = typeof window !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC'
 
@@ -143,49 +144,62 @@ export function TodayExpensesWidget({ businessId, refreshKey }: Props) {
 
   return (
     <>
-      <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 rounded-lg px-4 py-3 flex items-center justify-between">
-        <div>
-          <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Today&apos;s Expenses</div>
-          <div className="text-xl font-bold text-red-600 dark:text-red-400">${expenses.total.toFixed(2)}</div>
-          <div className="text-xs text-gray-500 dark:text-gray-400">
-            {expenses.count} payment{expenses.count !== 1 ? 's' : ''}
+      <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 rounded-lg overflow-hidden">
+        {/* Clickable header — always visible */}
+        <button
+          className="w-full flex items-center justify-between px-4 py-3 hover:bg-red-100/40 dark:hover:bg-red-900/30 transition-colors"
+          onClick={() => setCollapsed(v => !v)}
+        >
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Today&apos;s Expenses</span>
+          <div className="flex items-center gap-3">
+            <span className="text-base font-bold text-red-600 dark:text-red-400">${expenses.total.toFixed(2)}</span>
+            <span className="text-xs text-gray-400 dark:text-gray-500">
+              {expenses.count} payment{expenses.count !== 1 ? 's' : ''}
+            </span>
+            <span className="text-gray-400 dark:text-gray-500 text-sm">{collapsed ? '▼' : '▲'}</span>
           </div>
+        </button>
 
-          {/* Yesterday comparison — clickable */}
-          {yInfo ? (
-            <button
-              type="button"
-              onClick={() => openDayModal(1, 'Yesterday\'s')}
-              disabled={loadingDay === 1}
-              className={`block text-xs text-left hover:underline disabled:opacity-60 ${yInfo.up ? 'text-red-500 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}
-            >
-              {loadingDay === 1 ? '…' : `${yInfo.up ? '↑' : '↓'} vs yesterday $${expenses.yesterdayTotal.toFixed(2)} (${yInfo.pct}%)`}
-            </button>
-          ) : (expenses.yesterdayTotal === 0 && expenses.total > 0) ? (
-            <div className="text-xs text-gray-400 dark:text-gray-500">— vs yesterday $0.00</div>
-          ) : null}
+        {/* Body — only shown when expanded */}
+        {!collapsed && (
+          <div className="px-4 pb-3 border-t border-red-100 dark:border-red-800 pt-3 space-y-1">
+            {/* Yesterday comparison */}
+            {yInfo ? (
+              <button
+                type="button"
+                onClick={() => openDayModal(1, 'Yesterday\'s')}
+                disabled={loadingDay === 1}
+                className={`block text-xs text-left hover:underline disabled:opacity-60 ${yInfo.up ? 'text-red-500 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}
+              >
+                {loadingDay === 1 ? '…' : `${yInfo.up ? '↑' : '↓'} vs yesterday $${expenses.yesterdayTotal.toFixed(2)} (${yInfo.pct}%)`}
+              </button>
+            ) : (expenses.yesterdayTotal === 0 && expenses.total > 0) ? (
+              <div className="text-xs text-gray-400 dark:text-gray-500">— vs yesterday $0.00</div>
+            ) : null}
 
-          {/* 2 days ago comparison — clickable */}
-          {d2Info ? (
-            <button
-              type="button"
-              onClick={() => openDayModal(2, '2 Days Ago\'s')}
-              disabled={loadingDay === 2}
-              className={`block text-xs text-left hover:underline disabled:opacity-60 ${d2Info.up ? 'text-red-500 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}
-            >
-              {loadingDay === 2 ? '…' : `${d2Info.up ? '↑' : '↓'} vs 2 days ago $${expenses.twoDaysAgoTotal.toFixed(2)} (${d2Info.pct}%)`}
-            </button>
-          ) : (expenses.twoDaysAgoTotal === 0 && expenses.total > 0) ? (
-            <div className="text-xs text-gray-400 dark:text-gray-500">— vs 2 days ago $0.00</div>
-          ) : null}
-        </div>
-        {expenses.count > 0 && (
-          <button
-            onClick={() => setActiveModal({ label: 'Today\'s', total: expenses.total, items: expenses.items })}
-            className="text-sm text-red-600 dark:text-red-400 hover:underline font-medium"
-          >
-            View Details →
-          </button>
+            {/* 2 days ago comparison */}
+            {d2Info ? (
+              <button
+                type="button"
+                onClick={() => openDayModal(2, '2 Days Ago\'s')}
+                disabled={loadingDay === 2}
+                className={`block text-xs text-left hover:underline disabled:opacity-60 ${d2Info.up ? 'text-red-500 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}
+              >
+                {loadingDay === 2 ? '…' : `${d2Info.up ? '↑' : '↓'} vs 2 days ago $${expenses.twoDaysAgoTotal.toFixed(2)} (${d2Info.pct}%)`}
+              </button>
+            ) : (expenses.twoDaysAgoTotal === 0 && expenses.total > 0) ? (
+              <div className="text-xs text-gray-400 dark:text-gray-500">— vs 2 days ago $0.00</div>
+            ) : null}
+
+            {expenses.count > 0 && (
+              <button
+                onClick={() => setActiveModal({ label: 'Today\'s', total: expenses.total, items: expenses.items })}
+                className="text-sm text-red-600 dark:text-red-400 hover:underline font-medium pt-1 block"
+              >
+                View Details →
+              </button>
+            )}
+          </div>
         )}
       </div>
 

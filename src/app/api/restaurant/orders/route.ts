@@ -825,7 +825,51 @@ export async function POST(req: NextRequest) {
           });
 
           if (availableTokens.length < itemQuantity) {
-            throw new Error(`Insufficient R710 tokens: Need ${itemQuantity}, found ${availableTokens.length} available`);
+            // Pool exhausted — generate fresh on the fly (always non-blocking)
+            console.log(`⚠️ R710 pool empty for config ${item.tokenConfigId} — attempting on-the-fly generation`)
+            try {
+              const freshResult = await generateAndSellR710Token({
+                businessId,
+                tokenConfigId: item.tokenConfigId,
+                saleAmount: itemPrice,
+                paymentMethod,
+                soldBy: user.id,
+                saleChannel: 'POS',
+              })
+              generatedR710Tokens.push({
+                itemName: item.name,
+                password: freshResult.token.password,
+                packageName: freshResult.token.tokenConfig.name || item.name,
+                durationValue: freshResult.token.tokenConfig.durationValue || 0,
+                durationUnit: freshResult.token.tokenConfig.durationUnit || 'hour_Hours',
+                expiresAt: freshResult.token.expiresAt?.toISOString?.() ?? undefined,
+                ssid: freshResult.wlanSsid,
+                success: true,
+              })
+              await prisma.businessOrderItems.create({
+                data: {
+                  orderId: newOrder.id,
+                  productVariantId: null,
+                  quantity: itemQuantity,
+                  unitPrice: itemPrice,
+                  discountAmount: 0,
+                  totalPrice: itemPrice * itemQuantity,
+                  attributes: {
+                    productName: item.name,
+                    category: item.category || 'r710-wifi',
+                    r710Token: true,
+                    tokenConfigId: item.tokenConfigId,
+                    businessTokenMenuItemId: item.businessTokenMenuItemId,
+                    freshGenerated: true,
+                  }
+                }
+              })
+              console.log(`✅ Fresh R710 token generated on-the-fly for order ${newOrder.id}`)
+            } catch (freshErr) {
+              // Fresh generation failed — skip token, never block the sale
+              console.warn('⚠️ R710 fresh generation failed — order proceeds without token:', freshErr)
+            }
+            continue // Skip rest of normal pool flow regardless
           }
 
           const tokensToSell = availableTokens.slice(0, itemQuantity);
@@ -889,34 +933,33 @@ export async function POST(req: NextRequest) {
           // Skip inventory processing for R710 tokens
           continue;
         } catch (r710Error) {
-          console.error('❌ R710 token processing error - rolling back order:', r710Error);
+          const errorMessage = r710Error instanceof Error ? r710Error.message : 'Unknown error'
+          console.error('❌ R710 token processing error:', r710Error)
 
-          // Rollback the order
-          await prisma.businessOrderItems.deleteMany({
-            where: { orderId: newOrder.id }
-          });
-          await prisma.businessOrders.delete({
-            where: { id: newOrder.id }
-          });
-
-          // Reset any tokens that were marked SOLD before the failure
-          if (soldTokenIdsForRollback.length > 0) {
-            await prisma.r710TokenSales.deleteMany({
-              where: { tokenId: { in: soldTokenIdsForRollback } }
-            });
-            await prisma.r710Tokens.updateMany({
-              where: { id: { in: soldTokenIdsForRollback } },
-              data: { status: 'AVAILABLE' }
-            });
+          // Free token (e.g. Today's Special) — never roll back the order. Skip the token.
+          if (itemPrice === 0) {
+            console.warn('⚠️ Free R710 token failed — skipping token, order proceeds:', errorMessage)
+            // Undo any tokens that were partially marked SOLD in this iteration
+            if (soldTokenIdsForRollback.length > 0) {
+              await prisma.r710TokenSales.deleteMany({ where: { tokenId: { in: soldTokenIdsForRollback } } })
+              await prisma.r710Tokens.updateMany({ where: { id: { in: soldTokenIdsForRollback } }, data: { status: 'AVAILABLE' } })
+            }
+            continue // Skip this token item, keep processing the rest of the order
           }
 
-          const errorMessage = r710Error instanceof Error ? r710Error.message : 'Unknown error';
+          // Paid token — roll back the whole order
+          await prisma.businessOrderItems.deleteMany({ where: { orderId: newOrder.id } })
+          await prisma.businessOrders.delete({ where: { id: newOrder.id } })
+          if (soldTokenIdsForRollback.length > 0) {
+            await prisma.r710TokenSales.deleteMany({ where: { tokenId: { in: soldTokenIdsForRollback } } })
+            await prisma.r710Tokens.updateMany({ where: { id: { in: soldTokenIdsForRollback } }, data: { status: 'AVAILABLE' } })
+          }
           return NextResponse.json({
             error: `R710 Token Error: ${errorMessage}\n\nTransaction cancelled. Please try again or contact support.`,
             success: false,
             rollback: true,
             r710TokenError: errorMessage
-          }, { status: 400 });
+          }, { status: 400 })
         }
       } else if ((item as any).isAYLICombo === true) {
         // Handle As-You-Like-It weight-based combo — save as single order item with full breakdown

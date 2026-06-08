@@ -12,22 +12,36 @@ export async function GET(req: NextRequest) {
     const businessId = searchParams.get('businessId')
     if (!businessId) return NextResponse.json({ error: 'businessId required' }, { status: 400 })
 
-    const combos = await prisma.asYouLikeItCombos.findMany({
-      where: { businessId, isActive: true },
-      include: {
-        sizes: { orderBy: { sortOrder: 'asc' } },
-        items: {
-          where: { isActive: true, pool_item: { isActive: true } },
-          orderBy: { sortOrder: 'asc' },
-          include: {
-            pool_item: true   // includes name + all 3 price tiers
+    const [combos, configs] = await Promise.all([
+      prisma.asYouLikeItCombos.findMany({
+        where: { businessId, isActive: true },
+        include: {
+          sizes: { orderBy: { sortOrder: 'asc' } },
+          items: {
+            where: { isActive: true, pool_item: { isActive: true } },
+            orderBy: { sortOrder: 'asc' },
+            include: {
+              pool_item: true
+            }
           }
-        }
-      },
-      orderBy: { createdAt: 'asc' }
-    })
+        },
+        orderBy: { createdAt: 'asc' }
+      }),
+      (prisma as any).displayProductConfig.findMany({
+        where: { businessId, itemType: 'ayli_combo' },
+        select: { itemId: true, advertisingImageId: true },
+      }),
+    ])
 
-    return NextResponse.json(combos)
+    const adImageMap = new Map<string, string | null>()
+    for (const c of configs) adImageMap.set(c.itemId, c.advertisingImageId ?? null)
+
+    const result = combos.map((combo: any) => ({
+      ...combo,
+      adImageId: adImageMap.get(combo.id) ?? null,
+    }))
+
+    return NextResponse.json(result)
   } catch (error) {
     console.error('AYC combos GET error:', error)
     return NextResponse.json({ error: 'Failed to fetch combos' }, { status: 500 })

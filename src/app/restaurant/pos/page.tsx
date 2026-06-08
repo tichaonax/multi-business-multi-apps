@@ -86,6 +86,34 @@ interface MenuItem {
 
 interface CartItem extends MenuItem {
   quantity: number
+  isTodaysSpecial?: boolean
+  dailySpecialId?: string
+  isTodaysSpecialAddOn?: boolean
+  isTodaysSpecialCredit?: boolean
+  forProductId?: string  // on credit lines: the add-on product it offsets
+}
+
+interface TodaysSpecialAddOn {
+  addOnId: string
+  productId: string
+  productName: string
+  quantity: number
+  unitPrice: number
+  sortOrder: number
+  imageUrl: string | null
+}
+
+interface TodaysSpecial {
+  specialId: string
+  productId: string
+  productName: string
+  menuNumber: string | null
+  basePrice: number
+  specialPrice: number
+  includeWifi: boolean
+  bulletPoints: string[]
+  imageUrl: string | null
+  addOns: TodaysSpecialAddOn[]
 }
 
 export default function RestaurantPOS() {
@@ -113,6 +141,9 @@ export default function RestaurantPOS() {
   // display sees the combo being built before it's confirmed and added to the real cart
   const aylicInProgressRef = useRef<any>(null)
   const [cart, setCart] = useState<CartItem[]>([])
+  const [todaysSpecial, setTodaysSpecial] = useState<TodaysSpecial | null>(null)
+  const todaysSpecialRef = useRef<TodaysSpecial | null>(null)
+  useEffect(() => { todaysSpecialRef.current = todaysSpecial }, [todaysSpecial])
   const [weighingItem, setWeighingItem] = useState<MenuItem | null>(null)
   const [aylicSession, setAylicSession] = useState<any | null>(null)  // active AYLI combo being built
   const [aylicCombos, setAylicCombos] = useState<any[]>([])           // loaded combo definitions
@@ -1486,6 +1517,7 @@ export default function RestaurantPOS() {
                 isAYLICombo: true,
                 aylicComboId: combo.id,
                 menuNumber: combo.menuNumber ?? null,
+                adImageId: combo.adImageId ?? null,
                 aylicSizes: (combo.sizes ?? []).sort((a: any, b: any) =>
                   ['small','medium','large'].indexOf(a.sizeName) - ['small','medium','large'].indexOf(b.sizeName)
                 ),
@@ -1537,6 +1569,16 @@ export default function RestaurantPOS() {
     console.log('✅ Submit ref reset on mount')
   }, [])
 
+  const fetchTodaysSpecial = async (businessId: string) => {
+    try {
+      const res = await fetch(`/api/restaurant/daily-special/today?businessId=${businessId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setTodaysSpecial(data)
+      }
+    } catch { /* non-critical — POS works without the special */ }
+  }
+
   // Trigger loading of menu items when authenticated
   useEffect(() => {
     if (status === 'loading' || businessLoading) return
@@ -1548,8 +1590,17 @@ export default function RestaurantPOS() {
     if (isAdmin || isRestaurantBusiness) {
       loadMenuItems()
       loadPrepInventory()
+      if (currentBusinessId) fetchTodaysSpecial(currentBusinessId)
     }
   }, [currentBusinessId, isRestaurantBusiness, status, businessLoading, isAuthenticated, isAdmin, useServerTime])
+
+  // Re-fetch today's special every 5 minutes so mid-day changes are picked up
+  useEffect(() => {
+    if (!currentBusinessId) return
+    const interval = setInterval(() => fetchTodaysSpecial(currentBusinessId), 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentBusinessId])
 
   // Debug: Log cart changes
   useEffect(() => {
@@ -1713,7 +1764,9 @@ export default function RestaurantPOS() {
       salespersonName: selectedSalesperson?.name ?? session?.user?.name ?? 'Staff',
       salespersonId: selectedSalesperson?.employeeId ?? session?.user?.id ?? '',
       items: order.items.map((item: any, index: number) => ({
-        name: item.name,
+        name: item.isTodaysSpecial
+          ? `${item.name} (Today's Special)`
+          : item.name,
         sku: item.sku,
         quantity: item.quantity,
         unitPrice: item.price,
@@ -1731,8 +1784,9 @@ export default function RestaurantPOS() {
             linePrice: Number(l.linePrice),
           })),
         } : undefined,
-        // Mark the first item as the subsidized meal program item
-        notes: order.attributes?.mealProgram && index === 0
+        notes: item.isTodaysSpecial
+          ? `Regular price: $${Number(item.originalPrice || 0).toFixed(2)}`
+          : (order.attributes?.mealProgram && index === 0)
           ? `[Meals Program] Subsidy: $${Number(order.attributes.expenseAmount || 0.50).toFixed(2)}`
           : undefined,
       })),
@@ -2157,6 +2211,9 @@ export default function RestaurantPOS() {
       }
     }
 
+    const special = todaysSpecialRef.current
+    const isTodaysSpecialItem = special && item.id === special.productId
+
     setCart(prev => {
       const existing = prev.find(i => i.id === item.id)
       let newCart: CartItem[]
@@ -2166,8 +2223,48 @@ export default function RestaurantPOS() {
           i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
         )
       } else {
-        console.log('✅ Adding new item to cart')
-        newCart = [...prev, { ...item, quantity: 1 }]
+        const cartItem: CartItem = isTodaysSpecialItem
+          ? {
+              ...item,
+              price: special!.specialPrice,
+              originalPrice: item.price,
+              isTodaysSpecial: true,
+              dailySpecialId: special!.specialId,
+              quantity: 1,
+            }
+          : { ...item, quantity: 1 }
+
+        newCart = [...prev, cartItem]
+
+        // Auto-add add-on items + credit lines (only once per special)
+        if (isTodaysSpecialItem && special!.addOns.length > 0) {
+          const alreadyHasAddOns = prev.some(i => i.isTodaysSpecialAddOn)
+          if (!alreadyHasAddOns) {
+            for (const addOn of special!.addOns) {
+              const addOnCartId = `special-addon-${addOn.addOnId}`
+              const creditCartId = `special-credit-${addOn.addOnId}`
+              newCart.push({
+                id: addOnCartId,
+                name: addOn.productName,
+                price: addOn.unitPrice,
+                category: 'special-addon',
+                quantity: addOn.quantity,
+                isTodaysSpecialAddOn: true,
+                dailySpecialId: special!.specialId,
+              } as CartItem)
+              newCart.push({
+                id: creditCartId,
+                name: `Special Credit: ${addOn.productName}`,
+                price: -addOn.unitPrice,
+                category: 'special-credit',
+                quantity: addOn.quantity,
+                isTodaysSpecialCredit: true,
+                forProductId: addOn.productId,
+                dailySpecialId: special!.specialId,
+              } as CartItem)
+            }
+          }
+        }
       }
       // Broadcast updated cart to customer display
       broadcastCartState(newCart)
@@ -2229,7 +2326,12 @@ export default function RestaurantPOS() {
 
   const removeFromCart = (itemId: string) => {
     setCart(prev => {
-      const newCart = prev.filter(i => i.id !== itemId)
+      const removedItem = prev.find(i => i.id === itemId)
+      let newCart = prev.filter(i => i.id !== itemId)
+      // If the today's special main item is removed, also remove its add-ons and credits
+      if (removedItem?.isTodaysSpecial) {
+        newCart = newCart.filter(i => !i.isTodaysSpecialAddOn && !i.isTodaysSpecialCredit)
+      }
       // Broadcast updated cart to customer display
       broadcastCartState(newCart)
       return newCart
@@ -2319,10 +2421,15 @@ export default function RestaurantPOS() {
     : menuItems.filter(item => item.category === getCategoryFilter(selectedCategory))
 
   const filteredItems = (searchTerm.trim()
-    ? categoryFiltered.filter(item =>
-        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        ((item as any).menuNumber && (item as any).menuNumber.toLowerCase() === searchTerm.trim().toLowerCase())
-      )
+    ? categoryFiltered.filter(item => {
+        const term = searchTerm.toLowerCase().trim()
+        // "ayli" returns all AYLI combos regardless of name match
+        if (term === 'ayli') return !!(item as any).isAYLICombo
+        return (
+          item.name.toLowerCase().includes(term) ||
+          ((item as any).menuNumber && (item as any).menuNumber.toLowerCase() === term)
+        )
+      })
     : categoryFiltered
   ).sort((a, b) => {
     const aSold = (a.soldToday || 0) > 0
@@ -2489,8 +2596,28 @@ export default function RestaurantPOS() {
         ? calcEcocashFeeFromBusiness(ecoBase, currentBusiness)  // A1: was `total`
         : 0
 
+      // Auto-add free WiFi token if cart has a today's special and no WiFi token yet
+      let cartForOrder = [...cart]
+      const hasSpecialInCart = cartForOrder.some(i => i.isTodaysSpecial && todaysSpecial?.includeWifi)
+      const hasWifiAlready = cartForOrder.some(i => (i as any).esp32Token || (i as any).r710Token)
+      if (hasSpecialInCart && !hasWifiAlready) {
+        // Prefer a token with stock, but fall back to any token — server will generate fresh if pool is empty
+        const wifiMenuItem =
+          menuItems.find(i => ((i as any).esp32Token || (i as any).r710Token) && (i as any).availableQuantity > 0) ??
+          menuItems.find(i => (i as any).esp32Token || (i as any).r710Token)
+        if (wifiMenuItem) {
+          cartForOrder.push({
+            ...wifiMenuItem,
+            price: 0,
+            quantity: 1,
+            name: `${wifiMenuItem.name} (Free — Today's Special)`,
+          } as CartItem)
+        }
+        // No WiFi menu item at all — proceed without, server handles gracefully
+      }
+
       const requestBody = {
-        items: cart,
+        items: cartForOrder,
         total,
         discountAmount: rewardCredit + couponDiscount,
         rewardId: (appliedReward && !skipRewardThisTime) ? appliedReward.id : undefined,
@@ -3248,24 +3375,28 @@ export default function RestaurantPOS() {
 
             {/* Daily Sales Summary Widget - Only for users with financial access; hidden when scale panel is open */}
             {dailySales && !scaleVisible && (isAdmin || hasPermission('canAccessFinancialData') || hasPermission('canViewWifiReports')) && (
-              <div className="card bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-900/20 dark:to-green-900/20 p-4 rounded-lg shadow">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-lg font-bold text-primary flex items-center gap-2">
-                    📈 Today's Sales
+              <div className="card bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-900/20 dark:to-green-900/20 rounded-lg shadow overflow-hidden">
+                {/* Clickable header — always visible */}
+                <button
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-colors"
+                  onClick={() => setShowDailySales(v => !v)}
+                >
+                  <h2 className="text-base font-bold text-primary flex items-center gap-2">
+                    📈 Today&apos;s Sales
                     <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
                       ({formatDate(dailySales.businessDay.start)} - {formatDate(dailySales.businessDay.end)})
                     </span>
                   </h2>
                   <div className="flex items-center gap-3">
+                    <span className="text-base font-bold text-green-600 dark:text-green-400">
+                      ${dailySales.summary.totalSales.toFixed(2)}
+                    </span>
                     <SalesPerfBadge sales={dailySales.summary.totalSales} thresholds={perfThresholds} />
-                    <button
-                      onClick={() => setShowDailySales(!showDailySales)}
-                      className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium"
-                    >
-                      {showDailySales ? '▼ Hide Details' : '▶ Show Details'}
-                    </button>
+                    <span className="text-gray-400 dark:text-gray-500 text-sm">{showDailySales ? '▲' : '▼'}</span>
                   </div>
-                </div>
+                </button>
+
+                {showDailySales && <div className="px-4 pb-4">
 
                 {/* Summary Cards */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -3657,6 +3788,7 @@ export default function RestaurantPOS() {
                   )}
                   </div>
                 )}
+                </div>}
               </div>
             )}
 
@@ -4035,6 +4167,48 @@ export default function RestaurantPOS() {
               </div>
             )}
 
+            {/* ── Today's Special quick-add banner ── */}
+            {todaysSpecial && (
+              <div
+                onClick={() => {
+                  const menuItem = menuItems.find(i => i.id === todaysSpecial.productId)
+                  if (menuItem) addToCart(menuItem)
+                }}
+                className="flex items-center gap-3 mb-3 px-4 py-3 rounded-xl cursor-pointer
+                  bg-amber-500/15 border border-amber-500/40 hover:bg-amber-500/25
+                  active:scale-[0.99] transition-all select-none"
+              >
+                {/* Menu number */}
+                {todaysSpecial.menuNumber && (
+                  <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-amber-500 text-white font-black text-sm flex-shrink-0">
+                    {todaysSpecial.menuNumber}
+                  </span>
+                )}
+
+                {/* Star + label */}
+                <span className="text-amber-400 text-lg flex-shrink-0">⭐</span>
+                <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest flex-shrink-0 hidden sm:block">
+                  Today&apos;s Special
+                </span>
+
+                {/* Name */}
+                <span className="font-semibold text-sm text-primary flex-1 truncate">
+                  {todaysSpecial.productName}
+                </span>
+
+                {/* Price */}
+                <div className="flex items-baseline gap-2 flex-shrink-0">
+                  <span className="font-black text-amber-400 text-base">${todaysSpecial.specialPrice.toFixed(2)}</span>
+                  <span className="text-secondary line-through text-xs">${todaysSpecial.basePrice.toFixed(2)}</span>
+                </div>
+
+                {/* Add button */}
+                <span className="flex-shrink-0 bg-amber-500 hover:bg-amber-400 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
+                  + Add
+                </span>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2 sm:gap-4">
               {filteredItems.map(item => {
                 const hasDiscount = !!(item.originalPrice) && Number(item.originalPrice) > 0 && Number(item.originalPrice) > Number(item.price)
@@ -4080,6 +4254,9 @@ export default function RestaurantPOS() {
                   }
                 }
 
+                const isTodaysSpecialCard = todaysSpecial && item.id === todaysSpecial.productId
+                const displayPrice = isTodaysSpecialCard ? todaysSpecial!.specialPrice : item.price
+
                 return (
                   <div
                     key={item.id}
@@ -4087,11 +4264,20 @@ export default function RestaurantPOS() {
                     className={`card p-3 sm:p-4 rounded-lg shadow hover:shadow-lg transition-shadow text-left min-h-[80px] touch-manipulation relative ${
                       isUnavailable ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
                     } ${
-                      (item as any).isAYLICombo
-                        ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 hover:border-emerald-400'
-                        : 'bg-white dark:bg-gray-800'
+                      isTodaysSpecialCard
+                        ? 'bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-400 dark:border-amber-500'
+                        : (item as any).isAYLICombo
+                          ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 hover:border-emerald-400'
+                          : 'bg-white dark:bg-gray-800'
                     }`}
                   >
+                    {/* Today's Special badge */}
+                    {isTodaysSpecialCard && (
+                      <div className="absolute top-0 left-0 right-0 bg-amber-400 dark:bg-amber-500 text-white text-xs font-bold text-center py-0.5 rounded-t-lg">
+                        ⭐ TODAY&apos;S SPECIAL
+                      </div>
+                    )}
+
                     {/* Unavailable indicator */}
                     {isUnavailable && (
                       <div className="absolute top-1 right-1">
@@ -4100,7 +4286,7 @@ export default function RestaurantPOS() {
                     )}
 
                     {/* Discount indicator */}
-                    {hasDiscount && !isUnavailable && (
+                    {hasDiscount && !isUnavailable && !isTodaysSpecialCard && (
                       <div className="absolute top-1 right-1">
                         <span className="bg-red-500 text-white text-xs px-1 rounded">
                           {item.discountPercent ? `-${item.discountPercent}%` : 'SALE'}
@@ -4125,8 +4311,16 @@ export default function RestaurantPOS() {
                     )}
 
                     {/* Image slot — always same height to keep all cards uniform */}
-                    <div className="w-full h-14 sm:h-16 rounded overflow-hidden mb-1.5 bg-gray-100 dark:bg-gray-700/40 flex-shrink-0">
-                      {item.imageUrl && (
+                    <div className={`w-full h-14 sm:h-16 rounded overflow-hidden mb-1.5 bg-gray-100 dark:bg-gray-700/40 flex-shrink-0 ${isTodaysSpecialCard ? 'mt-4' : ''}`}>
+                      {/* adImageId for AYLI combos takes priority over imageUrl */}
+                      {(item as any).adImageId ? (
+                        <img
+                          src={`/api/images/${(item as any).adImageId}`}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                        />
+                      ) : item.imageUrl && (
                         <img
                           src={item.imageUrl}
                           alt={item.name}
@@ -4198,12 +4392,17 @@ export default function RestaurantPOS() {
                               ))}
                             </div>
                           ) : (
-                          <p className={`text-sm sm:text-base font-bold leading-tight ${hasDiscount ? 'text-red-500' : 'text-sky-400 dark:text-sky-300'}`}>
+                          <p className={`text-sm sm:text-base font-bold leading-tight ${isTodaysSpecialCard ? 'text-amber-600 dark:text-amber-400' : hasDiscount ? 'text-red-500' : 'text-sky-400 dark:text-sky-300'}`}>
                             {(item as any).isSoldByWeight && (item as any).pricePerKg
                               ? <>${Number((item as any).pricePerKg).toFixed(2)}<span className="text-xs font-normal opacity-70">/kg</span></>
-                              : <>${Number(item.price).toFixed(2)}</>
+                              : <>${Number(displayPrice).toFixed(2)}</>
                             }
-                            {hasDiscount && (
+                            {isTodaysSpecialCard && (
+                              <span className="ml-1 text-xs text-secondary line-through font-normal">
+                                ${Number(item.price).toFixed(2)}
+                              </span>
+                            )}
+                            {!isTodaysSpecialCard && hasDiscount && (
                               <span className="ml-1 text-xs text-secondary line-through font-normal">
                                 ${Number(item.originalPrice || 0).toFixed(2)}
                               </span>
@@ -4235,14 +4434,19 @@ export default function RestaurantPOS() {
                             ))}
                           </div>
                         ) : (
-                        <p className={`text-sm sm:text-base font-bold ${hasDiscount ? 'text-red-500' : 'text-sky-400 dark:text-sky-300'}`}>
+                        <p className={`text-sm sm:text-base font-bold ${isTodaysSpecialCard ? 'text-amber-600 dark:text-amber-400' : hasDiscount ? 'text-red-500' : 'text-sky-400 dark:text-sky-300'}`}>
                           {(item as any).isSoldByWeight && (item as any).pricePerKg
                             ? <>${Number((item as any).pricePerKg).toFixed(2)}<span className="text-xs font-normal opacity-70">/kg</span></>
-                            : <>${Number(item.price).toFixed(2)}</>
+                            : <>${Number(displayPrice).toFixed(2)}</>
                           }
                         </p>
                         )}
-                        {hasDiscount && (
+                        {isTodaysSpecialCard && (
+                          <p className="text-xs text-secondary line-through">
+                            ${Number(item.price).toFixed(2)}
+                          </p>
+                        )}
+                        {!isTodaysSpecialCard && hasDiscount && (
                           <p className="text-xs text-secondary line-through">
                             ${Number(item.originalPrice || 0).toFixed(2)}
                           </p>
@@ -4706,17 +4910,24 @@ export default function RestaurantPOS() {
               </div>
             )}
 
-            <div className="space-y-2 max-h-96 overflow-y-auto mb-4">
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto mb-4">
               {cart.map(item => (
-                <div key={`${item.id}_${item.name}`} className="border-b border-gray-100 dark:border-gray-700 pb-2 last:border-b-0">
+                <div key={`${item.id}_${item.name}`} className={`border-b border-gray-100 dark:border-gray-700 pb-2 last:border-b-0 ${(item as any).isTodaysSpecialCredit ? 'ml-4' : ''}`}>
                   <div className="flex justify-between items-center">
                     <div className="flex-1">
-                      <div className="font-medium text-sm flex items-center gap-1.5">
+                      <div className={`font-medium text-sm flex items-center gap-1.5 ${(item as any).isTodaysSpecialCredit ? 'text-green-600 dark:text-green-400' : ''}`}>
                         {(item as any).isCombo && <span className="text-[9px] font-bold bg-purple-600 text-white px-1 py-0.5 rounded leading-none flex-shrink-0">✦</span>}
+                        {(item as any).isTodaysSpecial && <span className="text-[9px] font-bold bg-amber-500 text-white px-1 py-0.5 rounded leading-none flex-shrink-0">⭐</span>}
+                        {(item as any).isTodaysSpecialAddOn && <span className="text-[9px] text-amber-600 dark:text-amber-400 flex-shrink-0">+</span>}
+                        {(item as any).isTodaysSpecialCredit && <span className="text-[9px] flex-shrink-0">↳</span>}
                         {item.name}
                       </div>
-                      <div className="text-green-600">${Number(item.price).toFixed(2)}</div>
+                      <div className={`${(item as any).isTodaysSpecialCredit ? 'text-green-600 dark:text-green-400' : 'text-green-600'}`}>
+                        {(item as any).isTodaysSpecialCredit ? '-' : ''}${Math.abs(Number(item.price)).toFixed(2)}
+                      </div>
                     </div>
+                    {/* No +/- controls for add-on or credit lines — they follow the special */}
+                    {!(item as any).isTodaysSpecialAddOn && !(item as any).isTodaysSpecialCredit && (
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={() => updateQuantity(item.id, item.quantity - 1)}
@@ -4732,6 +4943,7 @@ export default function RestaurantPOS() {
                         +
                       </button>
                     </div>
+                    )}
                   </div>
                   {/* Show AYLI combo itemized lines */}
                   {(item as any).isAYLICombo && (item as any).aylicData?.lines && (
@@ -4844,6 +5056,7 @@ export default function RestaurantPOS() {
                 </div>
               )}
 
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-2 space-y-2">
               <button
                 onClick={handleProcessOrderClick}
                 disabled={cart.length === 0 || (orderType === 'delivery' && !!deliveryAccount?.isBlacklisted)}
@@ -4870,10 +5083,11 @@ export default function RestaurantPOS() {
                   sendToDisplayRef.current?.('SET_CUSTOMER', { customerName: null, clearCustomer: true, rewardMessage: null, rewardApplied: false })
                 }}
                 disabled={cart.length === 0 && !selectedCustomer}
-                className="w-full py-3 sm:py-2 mt-2 bg-gray-500 dark:bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-600 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+                className="w-full py-3 sm:py-2 bg-gray-500 dark:bg-gray-600 text-white font-medium rounded-lg hover:bg-gray-600 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
               >
                 Cancel Order
               </button>
+              </div>
             </div>
           </div>
           )}

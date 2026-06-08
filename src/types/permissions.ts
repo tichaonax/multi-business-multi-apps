@@ -336,6 +336,10 @@ export interface CoreBusinessPermissions {
   canViewCustomerDisplay: boolean;
   canManageCustomerDisplay: boolean;
 
+  // Daily Special Management (Restaurant)
+  canManageDailySpecial: boolean;    // Create/edit/delete specials in library; manage weekly schedule
+  canOverrideDailySpecial: boolean;  // Disable today's special, switch to another, or re-enable
+
   // POS Settings (Scale & Weighing, Vendor Pricing)
   canAccessScaleSettings: boolean;
   canAccessVendorPricing: boolean;
@@ -1549,6 +1553,8 @@ export const CORE_PERMISSIONS = {
   customerDisplayManagement: [
     { key: 'canViewCustomerDisplay', label: 'View Customer Display' },
     { key: 'canManageCustomerDisplay', label: 'Manage Customer Display (Create / Edit / Delete Ads)' },
+    { key: 'canManageDailySpecial', label: 'Manage Daily Special (Library & Weekly Schedule)' },
+    { key: 'canOverrideDailySpecial', label: 'Override Today\'s Special (Disable / Swap / Re-enable)' },
   ],
   posSettings: [
     { key: 'canAccessScaleSettings', label: 'Access Scale & Weighing Settings' },
@@ -1734,6 +1740,8 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canDisableAYLICombos: true,
   canViewCustomerDisplay: true,
   canManageCustomerDisplay: true,
+  canManageDailySpecial: true,
+  canOverrideDailySpecial: true,
   canAccessScaleSettings: true,
   canAccessVendorPricing: true,
 };
@@ -1917,6 +1925,8 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canDisableAYLICombos: true,
   canViewCustomerDisplay: true,
   canManageCustomerDisplay: true,
+  canManageDailySpecial: true,
+  canOverrideDailySpecial: true,
   canAccessScaleSettings: true,
   canAccessVendorPricing: true,
 };
@@ -2100,6 +2110,8 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canDisableAYLICombos: false,
   canViewCustomerDisplay: true,
   canManageCustomerDisplay: false,
+  canManageDailySpecial: false,
+  canOverrideDailySpecial: false,
   canAccessScaleSettings: false,
   canAccessVendorPricing: false,
 };
@@ -2281,6 +2293,8 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canDisableAYLICombos: false,
   canViewCustomerDisplay: false,
   canManageCustomerDisplay: false,
+  canManageDailySpecial: false,
+  canOverrideDailySpecial: false,
   canAccessScaleSettings: false,
   canAccessVendorPricing: false,
 };
@@ -2467,6 +2481,8 @@ export const BUSINESS_DELIVERY_DRIVER_PERMISSIONS: CoreBusinessPermissions = {
   canDisableAYLICombos: false,
   canViewCustomerDisplay: false,
   canManageCustomerDisplay: false,
+  canManageDailySpecial: false,
+  canOverrideDailySpecial: false,
   canAccessScaleSettings: false,
   canAccessVendorPricing: false,
 };
@@ -2651,6 +2667,8 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canDisableAYLICombos: true,
   canViewCustomerDisplay: true,
   canManageCustomerDisplay: false,
+  canManageDailySpecial: false,
+  canOverrideDailySpecial: true,
   canAccessScaleSettings: false,
   canAccessVendorPricing: false,
 };
@@ -2835,6 +2853,8 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canDisableAYLICombos: true,
   canViewCustomerDisplay: true,
   canManageCustomerDisplay: false,
+  canManageDailySpecial: false,
+  canOverrideDailySpecial: true,
   canAccessScaleSettings: false,
   canAccessVendorPricing: false,
 };
@@ -3016,6 +3036,8 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canDisableAYLICombos: true,
   canViewCustomerDisplay: true,
   canManageCustomerDisplay: true,
+  canManageDailySpecial: true,
+  canOverrideDailySpecial: true,
   canAccessScaleSettings: true,
   canAccessVendorPricing: true,
 };

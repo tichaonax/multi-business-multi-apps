@@ -6,6 +6,20 @@ interface DisplaySettings {
   rotationIntervalSecs: number
   enableSplitLayout: boolean
   maxItemsInRotation: number
+  specialShowPercentage: number
+}
+
+interface TodaysSpecialData {
+  specialId: string
+  productId: string
+  productName: string
+  menuNumber: string | null
+  basePrice: number
+  specialPrice: number
+  includeWifi: boolean
+  bulletPoints: string[]
+  imageUrl: string | null  // final ready-to-use URL (product file path or /api/images/[id])
+  addOns: Array<{ addOnId: string; productId: string; productName: string; quantity: number; unitPrice: number; imageUrl: string | null }>
 }
 
 interface DisplayItem {
@@ -36,45 +50,110 @@ interface SmartProductDisplayProps {
 
 function fmt(p: number) { return `$${p.toFixed(2)}` }
 
-/** Compact daily special card — designed for the narrow left panel */
-function DailySpecialCard({ item }: { item: DisplayItem }) {
+/** Full-height today's special card using new DailySpecial data format */
+function DailySpecialCard({ special }: { special: TodaysSpecialData }) {
+  const saving = special.basePrice - special.specialPrice
+
   return (
     <div className="relative rounded-2xl overflow-hidden h-full
-      bg-gradient-to-br from-amber-900 via-orange-900 to-red-900
-      border border-amber-500/40 flex flex-col justify-between p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-lg">⭐</span>
-        <span className="bg-amber-400 text-gray-900 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest animate-pulse">
+      bg-gradient-to-br from-amber-950 via-orange-950 to-red-950
+      border-2 border-amber-500/60 flex flex-col">
+
+      {/* Pulsing badge */}
+      <div className="flex items-center justify-center gap-2 py-2 px-4 bg-amber-500/20 border-b border-amber-500/30 flex-shrink-0">
+        <span className="text-base">⭐</span>
+        <span className="bg-amber-400 text-gray-900 text-[11px] font-black px-3 py-0.5 rounded-full uppercase tracking-widest animate-pulse">
           Today&apos;s Special
         </span>
       </div>
-      <div className="flex items-center gap-3 flex-1 min-h-0">
-        <span className="text-5xl flex-shrink-0">{item.emoji ?? '🍽️'}</span>
-        <div className="min-w-0">
-          <div className="text-white font-bold text-lg leading-tight line-clamp-2 mb-2">{item.name}</div>
-          {item.sizes && item.sizes.length > 0 ? (
-            <div className="flex flex-wrap gap-x-3 gap-y-1">
-              {item.sizes.map(s => (
-                <div key={s.sizeName} className="flex items-baseline gap-1">
-                  <span className="text-white/40 text-[10px] capitalize">{s.sizeName[0]}</span>
-                  <span className="text-amber-300 font-black text-xl leading-none animate-pulse"
-                    style={{ textShadow: '0 0 16px rgba(252,211,77,0.55)' }}>
-                    {fmt(s.basePrice)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="font-black text-amber-300 text-3xl leading-none animate-pulse"
-              style={{ textShadow: '0 0 24px rgba(252,211,77,0.6)' }}>
-              {fmt(item.price)}
+
+      {/* Product image — only render if we have one, otherwise skip the slot entirely */}
+      {special.imageUrl && (
+        <div className="w-full flex-shrink-0 relative" style={{ height: '36%' }}>
+          <img
+            src={special.imageUrl}
+            alt={special.productName}
+            className="w-full h-full object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = 'none' }}
+          />
+          {/* Menu number — top-right, same size as rotating cards */}
+          {special.menuNumber && (
+            <div className="absolute top-2 right-2 z-20 flex items-center justify-center w-16 h-16 rounded-full bg-white text-gray-900 font-black text-4xl leading-none shadow-xl">
+              {special.menuNumber.toUpperCase()}
             </div>
           )}
         </div>
-      </div>
-      {item.salesBreakdown.today > 0 && (
-        <div className="text-amber-200/60 text-xs mt-2">🔥 {item.salesBreakdown.today} served today</div>
       )}
+
+      {/* Details */}
+      <div className="flex-1 min-h-0 flex flex-col p-4 gap-2 overflow-hidden">
+        {/* Product name — menu number only shown here if there's no image */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {special.menuNumber && !special.imageUrl && (
+            <div className="flex-shrink-0 flex items-center justify-center w-16 h-16 rounded-full bg-white text-gray-900 font-black text-4xl leading-none shadow-xl">
+              {special.menuNumber.toUpperCase()}
+            </div>
+          )}
+          <div className="text-white font-bold text-xl leading-tight line-clamp-1">
+            {special.productName}
+          </div>
+        </div>
+
+        {/* Bullet points */}
+        {special.bulletPoints.length > 0 && (
+          <ul className="space-y-1 flex-shrink-0">
+            {special.bulletPoints.slice(0, 3).map((bp, i) => (
+              <li key={i} className="text-amber-100/90 text-sm flex items-center gap-1.5">
+                <span className="text-amber-400 font-bold flex-shrink-0">•</span>
+                <span className="line-clamp-1">{bp}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* Add-ons — always shown with emoji from product name + inline image */}
+        {special.addOns.length > 0 && (
+          <div className="flex-1 min-h-0 space-y-1.5 overflow-hidden">
+            {special.addOns.slice(0, 3).map(a => (
+              <div key={a.addOnId} className="flex items-center gap-2">
+                {a.imageUrl ? (
+                  <img
+                    src={a.imageUrl}
+                    alt={a.productName}
+                    className="w-9 h-9 rounded-lg object-cover flex-shrink-0 border border-amber-400/50"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                  />
+                ) : (
+                  <div className="w-9 h-9 rounded-lg bg-amber-800/50 flex items-center justify-center flex-shrink-0 text-lg">
+                    🎁
+                  </div>
+                )}
+                <span className="text-amber-100 text-base font-semibold line-clamp-1">
+                  {a.productName}
+                </span>
+                {a.quantity > 1 && (
+                  <span className="text-amber-400 text-sm flex-shrink-0">×{a.quantity}</span>
+                )}
+                <span className="text-green-400 text-xs ml-auto flex-shrink-0 font-bold">FREE</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Price section */}
+        <div className="flex-shrink-0">
+          <div className="font-black text-amber-300 text-4xl leading-none animate-pulse"
+            style={{ textShadow: '0 0 24px rgba(252,211,77,0.6)' }}>
+            {fmt(special.specialPrice)}
+          </div>
+          <div className="flex items-center gap-3 mt-1">
+            <span className="text-white/50 text-sm line-through">{fmt(special.basePrice)}</span>
+            {saving > 0.005 && (
+              <span className="text-green-400 text-sm font-bold">save {fmt(saving)}</span>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -228,11 +307,12 @@ export function SmartProductDisplay({ businessId, businessType }: SmartProductDi
     rotationIntervalSecs: 6,
     enableSplitLayout: true,
     maxItemsInRotation: 12,
+    specialShowPercentage: 25,
   })
-  const [dailySpecial, setDailySpecial] = useState<DisplayItem | null>(null)
+  const [dailySpecial, setDailySpecial] = useState<TodaysSpecialData | null>(null)
   const [items, setItems] = useState<DisplayItem[]>([])
   const [currentIdx, setCurrentIdx] = useState(0)
-  const [fade, setFade] = useState(true) // true = visible
+  const [fade, setFade] = useState(true)
   const [isLoading, setIsLoading] = useState(true)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -263,9 +343,9 @@ export function SmartProductDisplay({ businessId, businessType }: SmartProductDi
     return () => window.removeEventListener('message', handler)
   }, [fetchData])
 
-  // Advance the window of 3 by 1 item each tick
+  // Rotation tick — only advances the rotating cards, special is always pinned
   useEffect(() => {
-    if (items.length <= 3) return
+    if (items.length <= 2) return
     const ms = (settings.rotationIntervalSecs || 6) * 1000
     intervalRef.current = setInterval(() => {
       setFade(false)
@@ -297,36 +377,33 @@ export function SmartProductDisplay({ businessId, businessType }: SmartProductDi
     )
   }
 
-  // Pick 3 consecutive items from the rotation pool
+  // With special pinned, show 2 rotating cards; without, show 3
+  const slotCount = (dailySpecial && settings.specialShowPercentage > 0) ? 2 : 3
   const n = items.length
-  const visible = n === 0 ? [] : [
-    items[currentIdx % n],
-    items[(currentIdx + 1) % n],
-    items[(currentIdx + 2) % n],
-  ].filter(Boolean)
+  const visible = n === 0 ? [] : Array.from({ length: slotCount }, (_, i) =>
+    items[(currentIdx + i) % n]
+  ).filter(Boolean)
 
-  // If daily special takes up some space, show fewer rotating items
-  const slotCount = dailySpecial ? 2 : 3
-  const rotatingItems = visible.slice(0, slotCount)
+  const showSpecial = !!(dailySpecial && settings.specialShowPercentage > 0)
 
   return (
     <div className="h-full w-full bg-gray-950 p-2 flex flex-col gap-2 overflow-hidden">
-      {/* Daily special — top slot (only if set) */}
-      {dailySpecial && (
-        <div className="flex-shrink-0" style={{ height: '34%' }}>
-          <DailySpecialCard item={dailySpecial} />
+      {/* Today's Special — always pinned at top when enabled */}
+      {showSpecial && (
+        <div className="flex-shrink-0" style={{ height: '47%' }}>
+          <DailySpecialCard special={dailySpecial!} />
         </div>
       )}
 
-      {/* 3 (or 2) rotating item slots — CSS grid guarantees truly equal rows */}
+      {/* Rotating cards below the special (or full height when no special) */}
       <div
         className="flex-1 min-h-0 grid gap-2 transition-opacity duration-350"
         style={{
           opacity: fade ? 1 : 0,
-          gridTemplateRows: `repeat(${rotatingItems.length}, 1fr)`,
+          gridTemplateRows: `repeat(${visible.length || slotCount}, 1fr)`,
         }}
       >
-        {rotatingItems.map((item, i) => (
+        {visible.map((item, i) => (
           <div key={`${item.id}-${i}`} className="min-h-0 overflow-hidden">
             <RotatingCard item={item} />
           </div>
@@ -334,7 +411,7 @@ export function SmartProductDisplay({ businessId, businessType }: SmartProductDi
       </div>
 
       {/* Dot indicators */}
-      {n > 3 && (
+      {n > slotCount && (
         <div className="flex justify-center gap-1 py-0.5 flex-shrink-0">
           {Array.from({ length: Math.min(n, 8) }).map((_, i) => (
             <div key={i}

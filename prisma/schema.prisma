@@ -301,6 +301,8 @@ model BusinessProducts {
   meal_program_eligible_items MealProgramEligibleItems[]
   menu_item_inventory_configs MenuItemInventoryConfig[]
   menu_item_inventory_batches MenuItemInventoryBatch[]
+  daily_specials              DailySpecial[]
+  daily_special_add_ons       DailySpecialAddOn[]
 
   @@unique([businessId, sku])
   @@map("business_products")
@@ -596,6 +598,9 @@ model Businesses {
   weight_pricing_rules                                                     WeightPricingRules[]
   livestock_purchase_sessions                                              LivestockPurchaseSessions[]
   livestock_vendor_profiles                                                LivestockVendorProfiles[]
+  daily_specials                                                           DailySpecial[]
+  daily_special_schedules                                                  DailySpecialSchedule[]
+  daily_special_day_overrides                                              DailySpecialDayOverride[]
 
   @@map("businesses")
 }
@@ -4889,10 +4894,11 @@ model DisplayProductConfig {
 model DisplayGlobalSettings {
   id                   String     @id @default(uuid())
   businessId           String     @unique
-  rotationIntervalSecs Int        @default(6)
-  enableSmartDisplay   Boolean    @default(true)
-  enableSplitLayout    Boolean    @default(true)
-  maxItemsInRotation   Int        @default(12)
+  rotationIntervalSecs    Int        @default(6)
+  enableSmartDisplay      Boolean    @default(true)
+  enableSplitLayout       Boolean    @default(true)
+  maxItemsInRotation      Int        @default(12)
+  specialShowPercentage   Int        @default(25)
   createdAt            DateTime   @default(now())
   updatedAt            DateTime   @updatedAt
   businesses           Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
@@ -7539,4 +7545,69 @@ model AsYouLikeItComboItems {
 
   @@unique([comboId, poolItemId])
   @@map("as_you_like_it_combo_items")
+}
+
+model DailySpecial {
+  id           String   @id @default(uuid())
+  businessId   String
+  productId    String
+  specialPrice Decimal  @db.Decimal(10, 2)
+  includeWifi  Boolean  @default(true)
+  bulletPoints Json     @default("[]")
+  imageId      String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  businesses     Businesses              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  product        BusinessProducts        @relation(fields: [productId], references: [id])
+  add_ons        DailySpecialAddOn[]
+  schedule_slots DailySpecialSchedule[]
+  day_overrides  DailySpecialDayOverride[]
+
+  @@index([businessId])
+  @@map("daily_specials")
+}
+
+model DailySpecialAddOn {
+  id             String @id @default(uuid())
+  dailySpecialId String
+  productId      String
+  quantity       Int    @default(1)
+  sortOrder      Int    @default(0)
+
+  daily_special DailySpecial     @relation(fields: [dailySpecialId], references: [id], onDelete: Cascade)
+  product       BusinessProducts @relation(fields: [productId], references: [id])
+
+  @@map("daily_special_add_ons")
+}
+
+model DailySpecialSchedule {
+  id         String @id @default(uuid())
+  businessId String
+  dayOfWeek  Int
+  specialId  String
+
+  businesses    Businesses   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  daily_special DailySpecial @relation(fields: [specialId], references: [id])
+
+  @@unique([businessId, dayOfWeek])
+  @@map("daily_special_schedules")
+}
+
+model DailySpecialDayOverride {
+  id                String   @id @default(uuid())
+  businessId        String
+  date              String
+  isDisabled        Boolean  @default(false)
+  overrideSpecialId String?
+  createdById       String
+  createdByName     String
+  createdAt         DateTime @default(now())
+
+  businesses       Businesses    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  override_special DailySpecial? @relation(fields: [overrideSpecialId], references: [id])
+
+  @@unique([businessId, date])
+  @@map("daily_special_day_overrides")
 }

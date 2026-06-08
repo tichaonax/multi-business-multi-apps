@@ -19,6 +19,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
     enableSmartDisplay: settings?.enableSmartDisplay ?? false,
     enableSplitLayout: settings?.enableSplitLayout ?? true,
     maxItemsInRotation: settings?.maxItemsInRotation ?? 12,
+    specialShowPercentage: settings?.specialShowPercentage ?? 25,
   }
 
   // Block item loading only for the customer-facing display (all=false).
@@ -129,6 +130,70 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
   let items: any[] = []
 
   if (businessType === 'restaurant') {
+    // Resolve today's special from DailySpecial tables
+    const todayDate = new Date().toLocaleDateString('en-CA')
+    const dayOfWeek = new Date().getDay()
+    const override = await prisma.dailySpecialDayOverride.findUnique({
+      where: { businessId_date: { businessId, date: todayDate } },
+    })
+    if (!override?.isDisabled) {
+      const specialId = override?.overrideSpecialId ?? (
+        await prisma.dailySpecialSchedule.findUnique({
+          where: { businessId_dayOfWeek: { businessId, dayOfWeek } },
+        })
+      )?.specialId ?? null
+      if (specialId) {
+        const sp = await prisma.dailySpecial.findFirst({
+          where: { id: specialId, businessId, isActive: true },
+          include: {
+            product: {
+              select: {
+                id: true, name: true, menuNumber: true, basePrice: true,
+                product_images: { select: { imageUrl: true }, orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }], take: 1 },
+              },
+            },
+            add_ons: {
+              include: {
+                product: {
+                  select: {
+                    id: true, name: true, basePrice: true, isActive: true,
+                    product_images: { select: { imageUrl: true }, orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }], take: 1 },
+                  },
+                },
+              },
+              orderBy: { sortOrder: 'asc' },
+            },
+          },
+        })
+        if (sp) {
+          const productImageUrl = (sp.product as any).product_images?.[0]?.imageUrl ?? null
+          const displayImageUrl = sp.imageId ? `/api/images/${sp.imageId}` : productImageUrl
+          dailySpecial = {
+            specialId: sp.id,
+            productId: sp.product.id,
+            productName: sp.product.name,
+            menuNumber: sp.product.menuNumber,
+            basePrice: Number(sp.product.basePrice),
+            specialPrice: Number(sp.specialPrice),
+            includeWifi: sp.includeWifi,
+            bulletPoints: sp.bulletPoints as string[],
+            imageUrl: displayImageUrl,
+            addOns: sp.add_ons
+              .filter((a: any) => a.product.isActive)
+              .map((a: any) => ({
+                addOnId: a.id,
+                productId: a.product.id,
+                productName: a.product.name,
+                quantity: a.quantity,
+                unitPrice: Number(a.product.basePrice),
+                sortOrder: a.sortOrder,
+                imageUrl: a.product.product_images?.[0]?.imageUrl ?? null,
+              })),
+          }
+        }
+      }
+    }
+
     const [products, combos] = await Promise.all([
       prisma.businessProducts.findMany({
         where: { businessId, isActive: true },
@@ -231,11 +296,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         priorityBoost: configMap.get(`ayli_combo:${c.id}`)?.priorityBoost ?? 0,
         salesBreakdown: ayliSales.get(c.id) ?? { today: 0, yesterday: 0, dayBefore: 0 },
       })
-    }
-
-    const specialIdx = candidates.findIndex(c => c.isDailySpecial)
-    if (specialIdx !== -1) {
-      dailySpecial = candidates.splice(specialIdx, 1)[0]
     }
 
     candidates.sort((a, b) => {

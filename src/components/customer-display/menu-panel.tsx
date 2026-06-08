@@ -51,12 +51,11 @@ export function MenuPanel({ businessId, businessType, searchTerm }: MenuPanelPro
       )
       if (!res.ok) return
       const data = await res.json()
-      setDailySpecialId(data.dailySpecial?.id ?? null)
+      // dailySpecial is TodaysSpecial format (productId, specialPrice…) — not a MenuItem.
+      // The product is already in data.items; just record its productId for the highlight badge.
+      setDailySpecialId(data.dailySpecial?.productId ?? null)
 
-      const all: MenuItem[] = [
-        ...(data.dailySpecial ? [data.dailySpecial] : []),
-        ...(data.items ?? []),
-      ]
+      const all: MenuItem[] = [...(data.items ?? [])]
       // Restaurant: only items with real sales history (salesScore > 0)
       // Grocery/clothing: show all items sorted by score — they may not have 3-day sales but are still relevant
       const nonAyli = all.filter(i => i.itemType !== 'ayli_combo')
