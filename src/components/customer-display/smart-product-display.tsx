@@ -145,10 +145,10 @@ function RotatingCard({ item }: { item: DisplayItem }) {
               {(item.poolItems ?? []).map((pi, i) => (
                 <div key={i} className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="text-base flex-shrink-0">{pi.emoji}</span>
-                    <span className="text-white/90 text-sm font-medium truncate">{pi.name}</span>
+                    <span className="text-lg flex-shrink-0">{pi.emoji}</span>
+                    <span className="text-white/90 text-base font-medium truncate">{pi.name}</span>
                   </div>
-                  <span className="text-emerald-400 text-xs font-bold flex-shrink-0">
+                  <span className="text-emerald-400 text-sm font-bold flex-shrink-0">
                     ${pi.pricePerKgMedium.toFixed(2)}/kg
                   </span>
                 </div>

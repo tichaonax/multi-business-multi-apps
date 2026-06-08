@@ -28,6 +28,8 @@ interface DisplayItem {
   isDailySpecial: boolean
   isHidden: boolean
   priorityBoost: number
+  adImageId: string | null
+  advertisingNote: string | null
   salesBreakdown: { today: number; yesterday: number; dayBefore: number }
 }
 
@@ -86,10 +88,10 @@ export default function RestaurantDisplaySettingsPage() {
       // Merge config state from adsData onto each item
       const allItems: DisplayItem[] = []
       if (adsData.dailySpecial) {
-        allItems.push({ ...adsData.dailySpecial, isDailySpecial: true, isHidden: false, priorityBoost: adsData.dailySpecial.priorityBoost ?? 0 })
+        allItems.push({ ...adsData.dailySpecial, isDailySpecial: true, isHidden: false, priorityBoost: adsData.dailySpecial.priorityBoost ?? 0, adImageId: adsData.dailySpecial.adImageId ?? null, advertisingNote: adsData.dailySpecial.advertisingNote ?? null })
       }
       for (const item of (adsData.items ?? [])) {
-        allItems.push({ ...item, isDailySpecial: false, isHidden: false, priorityBoost: item.priorityBoost ?? 0 })
+        allItems.push({ ...item, isDailySpecial: false, isHidden: false, priorityBoost: item.priorityBoost ?? 0, adImageId: item.adImageId ?? null, advertisingNote: item.advertisingNote ?? null })
       }
       // Also need hidden items — re-fetch with all items via a second request
       // For now, show all returned items (hidden items excluded by API; management screen shows them separately via configs)
@@ -128,6 +130,7 @@ export default function RestaurantDisplaySettingsPage() {
 
   async function updateItemConfig(itemType: string, itemId: string, patch: Partial<{
     priorityBoost: number; isDailySpecial: boolean; isFeatured: boolean; isHidden: boolean
+    advertisingImageId: string | null; advertisingNote: string | null
   }>) {
     if (!currentBusinessId) return
     await fetch(`/api/business/${currentBusinessId}/display-smart-ads/config`, {
@@ -333,6 +336,54 @@ export default function RestaurantDisplaySettingsPage() {
                             updateItemConfig(item.itemType, item.id, { priorityBoost: val })
                           }}
                           className="w-16 text-xs border border-gray-200 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                        />
+                      </div>
+
+                      {/* Ad image */}
+                      <div className="mt-2 flex items-center gap-2 flex-wrap">
+                        {item.adImageId ? (
+                          <>
+                            <img src={`/api/images/${item.adImageId}`} alt="ad" className="w-16 h-10 object-cover rounded border border-gray-200 dark:border-gray-600" />
+                            <button
+                              type="button"
+                              onClick={() => updateItemConfig(item.itemType, item.id, { advertisingImageId: null })}
+                              className="text-xs text-red-500 hover:underline"
+                            >
+                              Remove image
+                            </button>
+                          </>
+                        ) : (
+                          <label className="cursor-pointer text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                            📷 Add ad image
+                            <input
+                              type="file" accept="image/*" className="hidden"
+                              onChange={async e => {
+                                const file = e.target.files?.[0]
+                                if (!file) return
+                                const fd = new FormData()
+                                fd.append('files', file)
+                                fd.append('businessId', currentBusinessId ?? '')
+                                const res = await fetch('/api/universal/images', { method: 'POST', body: fd })
+                                if (res.ok) {
+                                  const data = await res.json()
+                                  const imageId = data.data?.[0]?.filename
+                                  if (imageId) await updateItemConfig(item.itemType, item.id, { advertisingImageId: imageId })
+                                }
+                                e.target.value = ''
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
+
+                      {/* Advertising note */}
+                      <div className="mt-2">
+                        <input
+                          type="text"
+                          placeholder="Ad note (e.g. BOGO, 20% off…)"
+                          defaultValue={item.advertisingNote ?? ''}
+                          onBlur={e => updateItemConfig(item.itemType, item.id, { advertisingNote: e.target.value.trim() || null })}
+                          className="w-full text-xs border border-gray-200 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400"
                         />
                       </div>
                     </div>

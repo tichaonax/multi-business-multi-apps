@@ -238,10 +238,10 @@ function Card({ item, isSpecial, isAyliView }: { item: MenuItem; isSpecial: bool
               {(item.poolItems ?? []).map((pi, i) => (
                 <div key={i} className="flex items-center justify-between gap-1">
                   <div className="flex items-center gap-1 min-w-0">
-                    <span className="text-sm flex-shrink-0">{pi.emoji}</span>
-                    <span className="text-white/85 text-xs font-medium truncate">{pi.name}</span>
+                    <span className="text-base flex-shrink-0">{pi.emoji}</span>
+                    <span className="text-white/85 text-sm font-medium truncate">{pi.name}</span>
                   </div>
-                  <span className="text-emerald-400 text-[10px] font-bold flex-shrink-0">
+                  <span className="text-emerald-400 text-xs font-bold flex-shrink-0">
                     ${pi.pricePerKgMedium.toFixed(2)}/kg
                   </span>
                 </div>
