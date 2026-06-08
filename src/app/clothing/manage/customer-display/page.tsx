@@ -8,6 +8,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { AdUploadForm } from '@/components/customer-display/ad-upload-form'
 import { AdList } from '@/components/customer-display/ad-list'
 import { DisplayItemsManager } from '@/components/customer-display/display-items-manager'
+import { DisplayGlobalSettings } from '@/components/customer-display/display-global-settings'
 
 interface Ad {
   id: string
@@ -79,6 +80,9 @@ export default function ClothingCustomerDisplayPage() {
           ]}
         >
           <div className="space-y-6">
+            {/* Global Settings */}
+            <DisplayGlobalSettings businessId={currentBusinessId} />
+
             {/* Header */}
             <div className="flex justify-between items-start">
               <div>

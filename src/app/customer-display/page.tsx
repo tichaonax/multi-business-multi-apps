@@ -166,6 +166,9 @@ function CustomerDisplayContent() {
   // Business type — populated from business info fetch, used for SmartProductDisplay + MenuPanel
   const [businessType, setBusinessType] = useState<'restaurant' | 'grocery' | 'clothing' | null>(null)
 
+  // Whether the smart display is enabled — null = still loading (show classic screen)
+  const [smartDisplayEnabled, setSmartDisplayEnabled] = useState<boolean | null>(null)
+
   // Search term broadcast from POS — filters the MenuPanel
   const [menuSearchTerm, setMenuSearchTerm] = useState('')
 
@@ -378,7 +381,13 @@ function CustomerDisplayContent() {
         break
 
       case 'DISPLAY_REFRESH':
-        // Tell SmartProductDisplay / MenuPanel to re-fetch their data immediately
+        // Re-fetch display settings (enabled state may have changed) and tell sub-components to refresh
+        if (displayBusinessId) {
+          fetch(`/api/business/${displayBusinessId}/display-smart-ads/settings`)
+            .then(r => r.json())
+            .then(data => setSmartDisplayEnabled(data.enableSmartDisplay === true))
+            .catch(() => {})
+        }
         window.postMessage({ type: 'DISPLAY_REFRESH' }, '*')
         break
 
@@ -620,6 +629,23 @@ function CustomerDisplayContent() {
     fetchBusinessData()
   }, [displayBusinessId])
 
+  // Fetch smart display enabled state — controls split layout vs classic full-screen
+  useEffect(() => {
+    if (!displayBusinessId) return
+    let cancelled = false
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch(`/api/business/${displayBusinessId}/display-smart-ads/settings`)
+        if (!res.ok || cancelled) return
+        const data = await res.json()
+        setSmartDisplayEnabled(data.enableSmartDisplay === true)
+      } catch { setSmartDisplayEnabled(false) }
+    }
+    fetchSettings()
+    const interval = setInterval(fetchSettings, 5 * 60 * 1000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [displayBusinessId])
+
   // Handle fullscreen mode
   const enterFullscreen = async () => {
     try {
@@ -850,35 +876,30 @@ function CustomerDisplayContent() {
 
       {/* Display content with smooth transitions */}
       <div className="flex-1 relative overflow-hidden">
-        {/* Marketing mode: rotating ads (left) + menu panel (right) */}
+        {/* Marketing mode */}
         <div
-          className={`absolute inset-0 transition-opacity duration-700 flex ${
+          className={`absolute inset-0 transition-opacity duration-700 ${
             displayMode === 'marketing' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
           }`}
         >
-          {/* Left: rotating ads — 28% of total width, flex-shrink-0 so menu never squeezes it */}
-          <div className="w-[28%] flex-shrink-0 border-r border-white/10">
-            {displayBusinessId && businessType ? (
-              <SmartProductDisplay businessId={displayBusinessId} businessType={businessType} />
-            ) : (
-              <MarketingDisplay businessId={displayBusinessId} />
-            )}
-          </div>
-
-          {/* Right: full menu grid — 65% */}
-          <div className="flex-1 overflow-hidden">
-            {displayBusinessId && businessType ? (
-              <MenuPanel
-                businessId={displayBusinessId}
-                businessType={businessType}
-                searchTerm={menuSearchTerm}
-              />
-            ) : (
-              <div className="h-full bg-gray-950 flex items-center justify-center text-white/20">
-                Loading menu…
+          {smartDisplayEnabled && displayBusinessId && businessType ? (
+            /* Smart display ON — split layout: rotating ads left + menu grid right */
+            <div className="flex h-full">
+              <div className="w-[28%] flex-shrink-0 border-r border-white/10">
+                <SmartProductDisplay businessId={displayBusinessId} businessType={businessType} />
               </div>
-            )}
-          </div>
+              <div className="flex-1 overflow-hidden">
+                <MenuPanel
+                  businessId={displayBusinessId}
+                  businessType={businessType}
+                  searchTerm={menuSearchTerm}
+                />
+              </div>
+            </div>
+          ) : (
+            /* Smart display OFF (or loading) — full-screen classic marketing display */
+            <MarketingDisplay businessId={displayBusinessId ?? ''} />
+          )}
         </div>
 
         {/* Livestock Display - fade in/out */}

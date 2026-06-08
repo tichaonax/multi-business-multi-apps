@@ -21,7 +21,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
     maxItemsInRotation: settings?.maxItemsInRotation ?? 12,
   }
 
-  if (!globalSettings.enableSmartDisplay) {
+  // Block item loading only for the customer-facing display (all=false).
+  // Management pages pass all=true and must always see items regardless of the enabled toggle.
+  if (!globalSettings.enableSmartDisplay && !allItems) {
     return NextResponse.json({ settings: globalSettings, dailySpecial: null, items: [] })
   }
 
