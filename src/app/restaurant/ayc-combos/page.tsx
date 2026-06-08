@@ -348,7 +348,7 @@ function ComboModal({
           </div>
           <div className="flex justify-end gap-2 px-5 pb-5">
             <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
-            <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Saving…' : initial ? 'Update Combo' : 'Create Combo'}</button>
+            <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Saving…' : initial ? 'Save Changes' : 'Create AYLI Combo'}</button>
           </div>
         </form>
       </div>

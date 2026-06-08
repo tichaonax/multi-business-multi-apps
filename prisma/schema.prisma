@@ -282,6 +282,7 @@ model BusinessProducts {
   isSoldByWeight              Boolean                    @default(false)
   pricePerKg                  Decimal?                   @db.Decimal(10, 2)
   weightPricingRuleId         String?
+  menuNumber                  String?
   business_brands             BusinessBrands?            @relation(fields: [brandId], references: [id])
   businesses                  Businesses                 @relation(fields: [businessId], references: [id])
   business_categories         BusinessCategories         @relation(fields: [categoryId], references: [id])
@@ -7502,6 +7503,7 @@ model AsYouLikeItCombos {
   maxWeightKg Decimal  @default(8.000) @db.Decimal(6, 3)
   maxItems    Int      @default(7)
   isActive    Boolean  @default(true)
+  menuNumber  String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

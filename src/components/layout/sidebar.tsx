@@ -741,6 +741,12 @@ export function Sidebar() {
                     <span className="text-lg">🥗</span>
                     <span>AYLI Combos</span>
                   </Link>
+                  {(isSystemAdmin(currentUser) || hasPermission('canManageMenu')) && (
+                    <Link href="/restaurant/manage/menu-numbers" className={getLinkClasses('/restaurant/manage/menu-numbers')}>
+                      <span className="text-lg">🔢</span>
+                      <span>Menu Numbers</span>
+                    </Link>
+                  )}
                 {(isSystemAdmin(currentUser) || hasPermission('canManageInventory')) && (
                   <Link href="/restaurant/inventory" className={getLinkClasses('/restaurant/inventory')}>
                     <span className="text-lg">📦</span>

@@ -28,6 +28,7 @@ const UpdateProductSchema = z.object({
   isInventoryTracked: z.boolean().optional(),
   isSoldByWeight: z.boolean().optional(),
   pricePerKg: z.number().min(0).nullable().optional(),
+  menuNumber: z.string().regex(/^[1-9][0-9]*[a-z]?$/).nullable().optional(),
   images: z.array(z.any()).optional(),
   variants: z.array(z.object({
     id: z.string().optional(),
@@ -154,6 +155,30 @@ export async function PUT(
     const finalAttributes = {
       ...existingProduct.attributes,
       ...attributes
+    }
+
+    // Validate and check menuNumber uniqueness across both products and AYLI combos
+    if (updateData.menuNumber !== undefined && updateData.menuNumber !== null) {
+      const normalised = updateData.menuNumber.toLowerCase()
+      updateData.menuNumber = normalised
+      const [productConflict, ayliConflict] = await Promise.all([
+        prisma.businessProducts.findFirst({
+          where: { businessId: existingProduct.businessId, menuNumber: normalised, isActive: true, id: { not: id } },
+          select: { name: true }
+        }),
+        prisma.asYouLikeItCombos.findFirst({
+          where: { businessId: existingProduct.businessId, menuNumber: normalised, isActive: true },
+          select: { name: true }
+        })
+      ])
+      const conflict = productConflict || ayliConflict
+      const type = productConflict ? 'menu item' : 'AYLI combo'
+      if (conflict) {
+        return NextResponse.json(
+          { error: `Menu number ${normalised} is already assigned to "${conflict.name}" (${type}). Choose a different number.` },
+          { status: 409 }
+        )
+      }
     }
 
     // Check for duplicate SKU if SKU is being updated

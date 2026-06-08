@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { startOfDay, subDays } from 'date-fns'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/business/[businessId]/display-smart-ads?businessType=restaurant|grocery|clothing
 export async function GET(req: NextRequest, { params }: { params: Promise<{ businessId: string }> }) {
   const { businessId } = await params
@@ -125,38 +127,62 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
   let items: any[] = []
 
   if (businessType === 'restaurant') {
-    const products = await prisma.businessProducts.findMany({
-      where: { businessId, isActive: true },
-      select: {
-        id: true,
-        name: true,
-        basePrice: true,
-        business_categories: { select: { name: true, emoji: true } },
-        product_images: {
-          select: { imageId: true },
-          orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
-          take: 1,
-        },
-      }
-    })
+    const [products, combos] = await Promise.all([
+      prisma.businessProducts.findMany({
+        where: { businessId, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          basePrice: true,
+          menuNumber: true,
+          spiceLevel: true,
+          preparationTime: true,
+          business_categories: { select: { name: true, emoji: true } },
+          product_images: {
+            select: { imageUrl: true, sortOrder: true, isPrimary: true },
+            orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+          },
+        }
+      }),
+      // Same query as /api/restaurant/ayc-combos — proven to load pool_item correctly
+      prisma.asYouLikeItCombos.findMany({
+        where: { businessId, isActive: true },
+        include: {
+          sizes: { orderBy: { sortOrder: 'asc' } },
+          items: {
+            where: { isActive: true, pool_item: { isActive: true } },
+            orderBy: { sortOrder: 'asc' },
+            include: { pool_item: true }
+          }
+        }
+      }),
+    ])
 
-    const combos: any[] = await (prisma as any).asYouLikeItCombos.findMany({
-      where: { businessId, isActive: true },
-      include: { sizes: { orderBy: { sortOrder: 'asc' } } }
-    })
+    // Fallback rule: if 0 numbered items exist across both tables, show all (old behaviour)
+    const numberedCount =
+      products.filter((p: any) => p.menuNumber).length +
+      combos.filter(c => c.menuNumber).length
+    const filterByNumber = numberedCount > 0
 
     const candidates: any[] = []
     for (const p of products) {
       if (isHidden('menu_item', p.id)) continue
+      if (filterByNumber && !p.menuNumber) continue
       const ss = salesScore(productSales.get(p.id))
+      const productImages = ((p as any).product_images ?? []).map((img: any) => img.imageUrl).filter(Boolean)
       candidates.push({
         id: p.id,
         itemType: 'menu_item',
         name: p.name,
         price: Number(p.basePrice ?? 0),
+        menuNumber: p.menuNumber ?? null,
+        spiceLevel: p.spiceLevel ?? 0,
+        preparationTime: p.preparationTime ?? 0,
         emoji: (p as any).business_categories?.emoji ?? null,
         category: (p as any).business_categories?.name ?? null,
-        imageId: (p as any).product_images?.[0]?.imageId ?? null,
+        imageId: null,
+        imageUrl: productImages[0] ?? null,
+        productImages,
         advertisingNote: getNote('menu_item', p.id),
         adImageId: getAdImage('menu_item', p.id),
         salesScore: ss,
@@ -170,10 +196,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
 
     for (const c of combos) {
       if (isHidden('ayli_combo', c.id)) continue
+      if (filterByNumber && !c.menuNumber) continue
+      if ((c.items ?? []).length === 0) continue  // skip combos with no pool items configured
       const ss = salesScore(ayliSales.get(c.id))
       const sizes = (c.sizes ?? []).map((s: any) => ({
         sizeName: s.sizeName,
         basePrice: Number(s.basePrice),
+      }))
+      const poolItems = (c.items ?? []).map((ci: any) => ({
+        name: ci.pool_item.name,
+        emoji: ci.pool_item.emoji ?? '🍽️',
+        pricePerKgSmall: Number(ci.pool_item.pricePerKgSmall),
+        pricePerKgMedium: Number(ci.pool_item.pricePerKgMedium),
+        pricePerKgLarge: Number(ci.pool_item.pricePerKgLarge),
       }))
       candidates.push({
         id: c.id,
@@ -181,6 +216,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         name: c.name,
         price: sizes[0]?.basePrice ?? 0,
         sizes,
+        poolItems,
+        menuNumber: c.menuNumber ?? null,
         emoji: '🥗',
         category: 'ayli-combos',
         advertisingNote: getNote('ayli_combo', c.id),

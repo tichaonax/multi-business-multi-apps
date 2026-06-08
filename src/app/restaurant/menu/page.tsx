@@ -549,13 +549,25 @@ export default function MenuManagementPage() {
                   <label className="block text-sm font-medium text-secondary mb-1">
                     Search Items
                   </label>
-                  <Input
-                    type="text"
-                    placeholder="🔍 Search by name or description..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full"
-                  />
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      placeholder="🔍 Search by name or description..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pr-8"
+                    />
+                    {searchTerm && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchTerm('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none"
+                        aria-label="Clear search"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Category Filter */}

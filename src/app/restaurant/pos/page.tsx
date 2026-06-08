@@ -81,6 +81,7 @@ interface MenuItem {
   reorderLevel?: number
   isSoldByWeight?: boolean
   pricePerKg?: number | null
+  menuNumber?: string | null
 }
 
 interface CartItem extends MenuItem {
@@ -1239,6 +1240,7 @@ export default function RestaurantPOS() {
                 isSoldByWeight: product.isSoldByWeight ?? false,
                 pricePerKg: product.resolvedPricePerKg ?? (product.pricePerKg != null ? Number(product.pricePerKg) : null),
                 categoryEmoji: product.categoryEmoji ?? product.weightPricingRule?.emoji ?? null,
+                menuNumber: product.menuNumber ?? null,
               }
             })
 
@@ -1483,6 +1485,7 @@ export default function RestaurantPOS() {
                 isAvailable: true,
                 isAYLICombo: true,
                 aylicComboId: combo.id,
+                menuNumber: combo.menuNumber ?? null,
                 aylicSizes: (combo.sizes ?? []).sort((a: any, b: any) =>
                   ['small','medium','large'].indexOf(a.sizeName) - ['small','medium','large'].indexOf(b.sizeName)
                 ),
@@ -2316,7 +2319,10 @@ export default function RestaurantPOS() {
     : menuItems.filter(item => item.category === getCategoryFilter(selectedCategory))
 
   const filteredItems = (searchTerm.trim()
-    ? categoryFiltered.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    ? categoryFiltered.filter(item =>
+        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        ((item as any).menuNumber && (item as any).menuNumber.toLowerCase() === searchTerm.trim().toLowerCase())
+      )
     : categoryFiltered
   ).sort((a, b) => {
     const aSold = (a.soldToday || 0) > 0
@@ -4108,6 +4114,27 @@ export default function RestaurantPOS() {
                         <span className="text-xs" title="Sold by weight — scale will open at POS">⚖️</span>
                       </div>
                     )}
+
+                    {/* Menu number circle badge — top-right when corner is free */}
+                    {(item as any).menuNumber && !isUnavailable && !hasDiscount && !(item as any).isSoldByWeight && (
+                      <div className="absolute top-1 right-1 z-20">
+                        <span className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm font-black leading-none shadow-md border border-gray-200 dark:border-gray-600">
+                          {(item as any).menuNumber.toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Image slot — always same height to keep all cards uniform */}
+                    <div className="w-full h-14 sm:h-16 rounded overflow-hidden mb-1.5 bg-gray-100 dark:bg-gray-700/40 flex-shrink-0">
+                      {item.imageUrl && (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                        />
+                      )}
+                    </div>
 
                     {/* Spice level indicator */}
                     {item.spiceLevel != null && item.spiceLevel > 0 && (

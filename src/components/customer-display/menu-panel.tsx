@@ -9,12 +9,16 @@ interface MenuItem {
   price: number
   emoji: string | null
   imageId?: string | null
+  imageUrl?: string | null
   adImageId?: string | null
   advertisingNote?: string | null
   category: string | null
   sizes?: Array<{ sizeName: string; basePrice: number }>
   salesScore: number
   displayScore: number
+  menuNumber?: string | null
+  spiceLevel?: number | null
+  poolItems?: Array<{ name: string; emoji: string; pricePerKgSmall: number; pricePerKgMedium: number; pricePerKgLarge: number }>
 }
 
 interface MenuPanelProps {
@@ -56,12 +60,8 @@ export function MenuPanel({ businessId, businessType, searchTerm }: MenuPanelPro
       // Restaurant: only items with real sales history (salesScore > 0)
       // Grocery/clothing: show all items sorted by score — they may not have 3-day sales but are still relevant
       const nonAyli = all.filter(i => i.itemType !== 'ayli_combo')
-      setRegularItems(
-        (businessType === 'restaurant'
-          ? nonAyli.filter(i => i.salesScore > 0)
-          : nonAyli
-        ).slice(0, MAX_ITEMS)
-      )
+      // The API already handles restaurant filtering (numbered items or all in fallback)
+      setRegularItems(nonAyli.slice(0, MAX_ITEMS))
       setAylicItems(all.filter(i => i.itemType === 'ayli_combo'))
     } catch { /* silent */ }
   }, [businessId, businessType])
@@ -93,10 +93,16 @@ export function MenuPanel({ businessId, businessType, searchTerm }: MenuPanelPro
 
   // Filtered sets
   const filteredRegular = term
-    ? regularItems.filter(i => i.name.toLowerCase().includes(term))
+    ? regularItems.filter(i =>
+        i.name.toLowerCase().includes(term) ||
+        (i.menuNumber && i.menuNumber.toLowerCase() === term)
+      )
     : regularItems
   const filteredAylic = term
-    ? aylicItems.filter(i => i.name.toLowerCase().includes(term))
+    ? aylicItems.filter(i =>
+        i.name.toLowerCase().includes(term) ||
+        (i.menuNumber && i.menuNumber.toLowerCase() === term)
+      )
     : aylicItems
 
   const hasAyli = filteredAylic.length > 0
@@ -198,9 +204,10 @@ function NoteBadge({ note }: { note: string }) {
 }
 
 function Card({ item, isSpecial, isAyliView }: { item: MenuItem; isSpecial: boolean; isAyliView: boolean }) {
+  const isAyli = item.itemType === 'ayli_combo'
   const bg = isSpecial
     ? 'bg-gradient-to-br from-amber-900/60 to-orange-900/40 border-amber-500/40'
-    : isAyliView
+    : isAyliView || isAyli
     ? 'bg-gradient-to-br from-emerald-900/50 to-teal-900/30 border-emerald-500/25'
     : 'bg-gray-800/80 border-white/8'
 
@@ -210,65 +217,112 @@ function Card({ item, isSpecial, isAyliView }: { item: MenuItem; isSpecial: bool
     : '0 0 20px rgba(52,211,153,0.45)'
 
   return (
-    <div className={`rounded-xl border flex flex-col p-4 gap-2 overflow-hidden ${bg}`}>
-      {/* Top: product image/emoji + name */}
-      <div className="flex items-start gap-2 flex-shrink-0">
-        {item.imageId ? (
-          <img
-            src={`/api/images/${item.imageId}`}
-            alt={item.name}
-            className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
-            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-          />
-        ) : (
-          <span className="text-4xl flex-shrink-0 leading-none">{item.emoji ?? '🍽️'}</span>
-        )}
-        <span className="text-white font-bold text-2xl leading-snug line-clamp-2">
-          {item.name}
-          {isSpecial && <span className="ml-1 text-amber-400 text-sm">⭐</span>}
-        </span>
-      </div>
-
-      {/* Advertising image — full width, below name, grows to fill available space */}
-      {item.adImageId && (
-        <div className="flex-1 min-h-0 rounded-lg overflow-hidden">
-          <img
-            src={`/api/images/${item.adImageId}`}
-            alt="advertising"
-            className="w-full h-full object-cover"
-            onError={e => { (e.target as HTMLImageElement).parentElement!.style.display = 'none' }}
-          />
+    <div className={`relative rounded-xl border flex flex-col overflow-hidden ${bg}`}>
+      {/* Menu number circle badge — top-right corner */}
+      {item.menuNumber && (
+        <div className="absolute top-2 right-2 z-20 flex items-center justify-center w-16 h-16 rounded-full bg-white text-gray-900 font-black text-4xl leading-none shadow-xl">
+          {item.menuNumber!.toUpperCase()}
         </div>
       )}
 
-      {/* Advertising note badge */}
-      {item.advertisingNote && <NoteBadge note={item.advertisingNote} />}
+      {/* ── AYLI combo body — pool items + image shown simultaneously ── */}
+      {isAyli ? (
+        <div className="flex flex-col p-3 flex-1 min-h-0 gap-1">
+          <div className="text-white font-bold text-2xl leading-snug line-clamp-1">{item.name}</div>
+          <div className="text-emerald-300/70 text-[10px] font-semibold uppercase tracking-wide">
+            ⚖️ Choose your own portions &amp; size
+          </div>
+          {/* Pool items list */}
+          {(item.poolItems ?? []).length > 0 && (
+            <div className="flex-shrink-0 space-y-1 my-1">
+              {(item.poolItems ?? []).map((pi, i) => (
+                <div key={i} className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1 min-w-0">
+                    <span className="text-sm flex-shrink-0">{pi.emoji}</span>
+                    <span className="text-white/85 text-xs font-medium truncate">{pi.name}</span>
+                  </div>
+                  <span className="text-emerald-400 text-[10px] font-bold flex-shrink-0">
+                    ${pi.pricePerKgMedium.toFixed(2)}/kg
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Food image fills remaining space */}
+          {item.adImageId && (
+            <div className="flex-1 min-h-0 rounded-lg overflow-hidden">
+              <img
+                src={`/api/images/${item.adImageId}`}
+                alt={item.name}
+                className="w-full h-full object-cover"
+                onError={e => { (e.target as HTMLImageElement).parentElement!.style.display = 'none' }}
+              />
+            </div>
+          )}
+          {/* Sizes */}
+          {item.sizes && item.sizes.length > 0 && (
+            <div className="flex gap-2 pt-1 border-t border-white/10 flex-shrink-0">
+              {item.sizes.map(s => (
+                <div key={s.sizeName} className="flex items-baseline gap-0.5">
+                  <span className="text-white/40 text-[9px] capitalize font-semibold">{s.sizeName[0]}</span>
+                  <span className={`font-black text-lg leading-none ${priceColour}`}>{fmt(s.basePrice)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* ── Regular item body ── */
+        <div className="flex flex-col p-4 gap-2 flex-1 min-h-0">
+          {/* Top: emoji/thumbnail + name */}
+          <div className="flex items-start gap-2 flex-shrink-0">
+            {(item.imageUrl || item.imageId) ? (
+              <img
+                src={item.imageUrl || `/api/images/${item.imageId}`}
+                alt={item.name}
+                className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+              />
+            ) : (
+              <span className="text-3xl flex-shrink-0 leading-none">{item.emoji ?? '🍽️'}</span>
+            )}
+            <div className="min-w-0">
+              <span className="text-white font-bold text-2xl leading-snug line-clamp-2">
+                {item.name}
+                {isSpecial && <span className="ml-1 text-amber-400 text-sm">⭐</span>}
+              </span>
+              {(item.spiceLevel ?? 0) > 0 && (
+                <div className="text-sm mt-0.5">{'🌶️'.repeat(Math.min(item.spiceLevel!, 3))}</div>
+              )}
+            </div>
+          </div>
 
-      {/* Price */}
-      <div className="flex-shrink-0">
-        {item.sizes && item.sizes.length > 0 ? (
-          <div className="flex flex-wrap gap-x-3 gap-y-1">
-            {item.sizes.map(s => (
-              <div key={s.sizeName} className="flex items-baseline gap-1">
-                <span className="text-white/35 text-xs capitalize">{s.sizeName[0]}</span>
-                <span
-                  className={`font-black text-2xl leading-none animate-pulse ${priceColour}`}
-                  style={{ textShadow: priceShadow }}
-                >
-                  {fmt(s.basePrice)}
-                </span>
-              </div>
-            ))}
+          {/* Large image — ad image preferred, falls back to product image */}
+          {(item.adImageId || item.imageUrl || item.imageId) && (
+            <div className="flex-1 min-h-0 rounded-lg overflow-hidden">
+              <img
+                src={item.adImageId ? `/api/images/${item.adImageId}` : (item.imageUrl ?? `/api/images/${item.imageId}`)}
+                alt={item.name}
+                className="w-full h-full object-cover"
+                onError={e => { (e.target as HTMLImageElement).parentElement!.style.display = 'none' }}
+              />
+            </div>
+          )}
+
+          {/* Advertising note badge */}
+          {item.advertisingNote && <NoteBadge note={item.advertisingNote} />}
+
+          {/* Price */}
+          <div className="flex-shrink-0">
+            <div
+              className={`font-black text-3xl leading-none animate-pulse ${priceColour}`}
+              style={{ textShadow: priceShadow }}
+            >
+              {fmt(item.price)}
+            </div>
           </div>
-        ) : (
-          <div
-            className={`font-black text-4xl leading-none animate-pulse ${priceColour}`}
-            style={{ textShadow: priceShadow }}
-          >
-            {fmt(item.price)}
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

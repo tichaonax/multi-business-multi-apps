@@ -39,32 +39,70 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params
-    const { name, description, sizes, poolItemIds } = await req.json()
+    const { name, description, sizes, poolItemIds, menuNumber } = await req.json()
+
+    // Validate and enforce menuNumber uniqueness across both products and AYLI combos
+    if (menuNumber !== undefined && menuNumber !== null) {
+      const normalised = String(menuNumber).toLowerCase()
+      if (!/^[1-9][0-9]*[a-z]?$/.test(normalised)) {
+        return NextResponse.json({ error: 'Invalid menu number format. Use a positive integer with an optional lowercase letter suffix (e.g. 4, 4a).' }, { status: 400 })
+      }
+      const combo = await prisma.asYouLikeItCombos.findUnique({ where: { id }, select: { businessId: true } })
+      if (!combo) return NextResponse.json({ error: 'Combo not found' }, { status: 404 })
+      const [productConflict, ayliConflict] = await Promise.all([
+        prisma.businessProducts.findFirst({
+          where: { businessId: combo.businessId, menuNumber: normalised, isActive: true },
+          select: { name: true }
+        }),
+        prisma.asYouLikeItCombos.findFirst({
+          where: { businessId: combo.businessId, menuNumber: normalised, isActive: true, id: { not: id } },
+          select: { name: true }
+        })
+      ])
+      const conflict = productConflict || ayliConflict
+      const type = productConflict ? 'menu item' : 'AYLI combo'
+      if (conflict) {
+        return NextResponse.json(
+          { error: `Menu number ${normalised} is already assigned to "${conflict.name}" (${type}). Choose a different number.` },
+          { status: 409 }
+        )
+      }
+    }
 
     await prisma.$transaction(async (tx) => {
-      await tx.asYouLikeItComboSizes.deleteMany({ where: { comboId: id } })
-      await tx.asYouLikeItComboItems.deleteMany({ where: { comboId: id } })
+      // Only delete + recreate sizes/items when explicitly provided — a menuNumber-only
+      // update must never touch sizes or items (that would silently wipe them).
+      if (sizes !== undefined) {
+        await tx.asYouLikeItComboSizes.deleteMany({ where: { comboId: id } })
+      }
+      if (poolItemIds !== undefined) {
+        await tx.asYouLikeItComboItems.deleteMany({ where: { comboId: id } })
+      }
 
-      await tx.asYouLikeItCombos.update({
-        where: { id },
-        data: {
-          name,
-          description: description || null,
+      const updateData: any = {
+        ...(name !== undefined ? { name } : {}),
+        ...(description !== undefined ? { description: description || null } : {}),
+        ...(menuNumber !== undefined ? { menuNumber: menuNumber === null ? null : String(menuNumber).toLowerCase() } : {}),
+        ...(sizes !== undefined ? {
           sizes: {
-            create: (sizes || []).map((s: any, i: number) => ({
+            create: sizes.map((s: any, i: number) => ({
               sizeName: s.sizeName,
               basePrice: parseFloat(s.basePrice),
               sortOrder: i
             }))
-          },
+          }
+        } : {}),
+        ...(poolItemIds !== undefined ? {
           items: {
-            create: (poolItemIds || []).map((poolItemId: string, i: number) => ({
+            create: poolItemIds.map((poolItemId: string, i: number) => ({
               poolItemId,
               sortOrder: i
             }))
           }
-        }
-      })
+        } : {}),
+      }
+
+      await tx.asYouLikeItCombos.update({ where: { id }, data: updateData })
     })
 
     const updated = await prisma.asYouLikeItCombos.findUnique({
