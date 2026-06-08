@@ -5440,9 +5440,9 @@ export default function RestaurantPOS() {
       })()}
       {showReceiptModal && completedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] flex flex-col">
+            <div className="px-6 pt-6 pb-3 flex-shrink-0 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-green-600 dark:text-green-400">✅ Order Complete!</h2>
                 <button
                   onClick={() => {
@@ -5454,8 +5454,9 @@ export default function RestaurantPOS() {
                   ✕
                 </button>
               </div>
-
-              <div className="space-y-4">
+            </div>
+            <div className="overflow-y-auto flex-1 px-6">
+              <div className="space-y-4 py-4">
                 {/* Order Number */}
                 <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
                   <div className="text-sm text-gray-600 dark:text-gray-400">Order Number</div>
@@ -5727,6 +5728,9 @@ export default function RestaurantPOS() {
                   )}
                 </div>
 
+              </div>
+            </div>
+            <div className="px-6 pb-6 pt-3 space-y-2 flex-shrink-0 border-t border-gray-200 dark:border-gray-700">
                 {/* Print Button */}
                 <button
                   onClick={() => {
@@ -5783,7 +5787,6 @@ export default function RestaurantPOS() {
                 >
                   Close
                 </button>
-              </div>
             </div>
           </div>
         </div>
