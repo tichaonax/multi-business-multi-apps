@@ -29,6 +29,10 @@ interface CartItem {
   comboItems?: ComboItem[]
   isAYLICombo?: boolean
   aylicData?: any
+  isTodaysSpecial?: boolean
+  isTodaysSpecialAddOn?: boolean
+  isTodaysSpecialCredit?: boolean
+  originalPrice?: number | null
 }
 
 interface CartDisplayProps {
@@ -88,7 +92,9 @@ export function CartDisplay({
   ecocashFee = 0
 }: CartDisplayProps) {
   const isEcocash = paymentMethod?.toUpperCase() === 'ECOCASH'
-  const density = getDensity(items.length)
+  // Credits are internal accounting — hide from customer view
+  const displayItems = items.filter(item => !item.isTodaysSpecialCredit)
+  const density = getDensity(displayItems.length)
 
   const headerSize = density === 'lg' ? 'text-4xl' : density === 'md' ? 'text-3xl' : 'text-2xl'
   const itemCountSize = density === 'lg' ? 'text-3xl' : 'text-2xl'
@@ -102,13 +108,13 @@ export function CartDisplay({
         </h1>
         <div className="text-right">
           <div className="text-lg text-gray-600">Items</div>
-          <div className={`${itemCountSize} font-bold text-blue-600`}>{items.length}</div>
+          <div className={`${itemCountSize} font-bold text-blue-600`}>{displayItems.length}</div>
         </div>
       </div>
 
       {/* Items List — flex-1 + overflow-hidden means it never scrolls, rows shrink to fit */}
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col justify-start gap-1">
-        {items.length === 0 ? (
+        {displayItems.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center text-gray-400">
               <div className="text-8xl mb-4">🛒</div>
@@ -116,14 +122,14 @@ export function CartDisplay({
             </div>
           </div>
         ) : (
-          items.map((item, idx) => (
+          displayItems.map((item, idx) => (
             <CartItemRow key={`${item.id}-${idx}`} item={item} density={density} />
           ))
         )}
       </div>
 
       {/* Totals Section */}
-      {items.length > 0 && (
+      {displayItems.length > 0 && (
         <div className="border-t-4 border-gray-300 pt-3">
           {/* Reward available notification */}
           {rewardAvailableMessage && (
@@ -253,7 +259,6 @@ export function CartDisplay({
  * Individual cart item row
  */
 function CartItemRow({ item, density = 'lg' }: { item: CartItem; density?: 'lg' | 'md' | 'sm' | 'xs' }) {
-  // Weight items: price IS the line total (weight × $/kg), quantity is always 1
   const isWeightLine = item.variant?.includes('/kg')
   const lineTotal = isWeightLine ? item.price : item.quantity * item.price
 
@@ -263,45 +268,83 @@ function CartItemRow({ item, density = 'lg' }: { item: CartItem; density?: 'lg' 
   const numSize = density === 'lg' ? 'text-3xl' : density === 'md' ? 'text-2xl' : 'text-xl'
   const padding = density === 'lg' ? 'px-4 py-2' : density === 'md' ? 'px-3 py-1.5' : 'px-2 py-1'
 
+  const isSpecial = item.isTodaysSpecial
+  const isAddOn = item.isTodaysSpecialAddOn
+
+  const rowClass = isSpecial
+    ? `bg-amber-50 rounded-xl shadow-md ${padding} border-2 border-amber-400`
+    : isAddOn
+    ? `bg-green-50 rounded-xl ${padding} border border-green-200 ml-6`
+    : `bg-white rounded-xl shadow ${padding} border border-gray-200`
+
+  const iconEmoji = isSpecial ? '⭐' : isAddOn ? '✓' : item.isAYLICombo ? '🥗' : item.isCombo ? '🍽️' : '📦'
+  const iconBg = isSpecial
+    ? 'bg-gradient-to-br from-amber-200 to-amber-300'
+    : isAddOn
+    ? 'bg-gradient-to-br from-green-100 to-green-200'
+    : 'bg-gradient-to-br from-blue-100 to-blue-200'
+
   return (
-    <div className={`bg-white rounded-xl shadow ${padding} border border-gray-200`}>
+    <div className={rowClass}>
+      {/* Today's Special banner */}
+      {isSpecial && (
+        <div className="flex items-center gap-1.5 mb-1">
+          <span className={`${density === 'lg' ? 'text-sm' : 'text-xs'} font-extrabold text-amber-700 uppercase tracking-wide`}>
+            ⭐ Today's Special
+          </span>
+          {item.originalPrice != null && item.originalPrice > item.price && (
+            <span className={`${density === 'lg' ? 'text-sm' : 'text-xs'} text-gray-400 line-through`}>
+              was {formatCurrency(item.originalPrice)}
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center gap-3">
-        {/* Product Image / Emoji */}
-        {item.imageUrl ? (
+        {/* Product Image / Icon */}
+        {item.imageUrl && !isAddOn ? (
           <div className={`relative ${imgSize} flex-shrink-0 rounded-lg overflow-hidden bg-gray-100`}>
             <Image src={item.imageUrl} alt={item.name} fill className="object-cover" sizes="56px" />
           </div>
         ) : (
-          <div className={`${imgSize} flex-shrink-0 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center`}>
-            <div className={density === 'lg' ? 'text-2xl' : 'text-lg'}>
-              {item.isAYLICombo ? '🥗' : item.isCombo ? '🍽️' : '📦'}
+          <div className={`${isAddOn ? 'w-6 h-6' : imgSize} flex-shrink-0 rounded-lg ${iconBg} flex items-center justify-center`}>
+            <div className={isAddOn ? 'text-xs' : density === 'lg' ? 'text-2xl' : 'text-lg'}>
+              {iconEmoji}
             </div>
           </div>
         )}
 
         {/* Item Details */}
         <div className="flex-1 min-w-0">
-          <div className={`${nameSize} font-bold text-gray-900 leading-tight truncate`}>{item.name}</div>
-          <div className={`${subSize} text-gray-400`}>
-            {item.variant && item.variant !== 'each' && item.variant !== 'units' && item.variant !== ''
-              ? item.variant
-              : `${formatCurrency(item.price)} each`}
+          <div className={`${isAddOn ? subSize : nameSize} font-bold leading-tight truncate ${isSpecial ? 'text-amber-900' : isAddOn ? 'text-green-800' : 'text-gray-900'}`}>
+            {item.name}
           </div>
+          {isAddOn ? (
+            <div className={`text-xs text-green-600 font-medium`}>Included with special</div>
+          ) : (
+            <div className={`${subSize} text-gray-400`}>
+              {item.variant && item.variant !== 'each' && item.variant !== 'units' && item.variant !== ''
+                ? item.variant
+                : `${formatCurrency(item.price)} each`}
+            </div>
+          )}
         </div>
 
         {/* Quantity */}
         <div className="flex-shrink-0 text-center">
           <div className="text-xs text-gray-500">Qty</div>
-          <div className={`${numSize} font-bold text-blue-600 bg-blue-50 rounded-lg px-2 py-0.5`}>
+          <div className={`${isAddOn ? 'text-base' : numSize} font-bold ${isSpecial ? 'text-amber-700 bg-amber-100' : isAddOn ? 'text-green-700 bg-green-100' : 'text-blue-600 bg-blue-50'} rounded-lg px-2 py-0.5`}>
             {item.quantity}
           </div>
         </div>
 
-        {/* Line Total */}
-        <div className="flex-shrink-0 text-right min-w-[90px]">
-          <div className="text-xs text-gray-500">Total</div>
-          <div className={`${numSize} font-bold text-gray-900`}>{formatCurrency(lineTotal)}</div>
-        </div>
+        {/* Line Total — hidden for add-ons (included in special price) */}
+        {!isAddOn && (
+          <div className="flex-shrink-0 text-right min-w-[90px]">
+            <div className="text-xs text-gray-500">Total</div>
+            <div className={`${numSize} font-bold ${isSpecial ? 'text-amber-700' : 'text-gray-900'}`}>{formatCurrency(lineTotal)}</div>
+          </div>
+        )}
       </div>
 
       {/* AYLI combo breakdown */}

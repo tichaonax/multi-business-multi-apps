@@ -905,6 +905,10 @@ export default function RestaurantPOS() {
         comboItems: (item as any).comboItems || null,
         isAYLICombo: (item as any).isAYLICombo || false,
         aylicData: (item as any).aylicData || null,
+        isTodaysSpecial: (item as any).isTodaysSpecial || false,
+        isTodaysSpecialAddOn: (item as any).isTodaysSpecialAddOn || false,
+        isTodaysSpecialCredit: (item as any).isTodaysSpecialCredit || false,
+        originalPrice: (item as any).originalPrice ?? null,
       })),
       subtotal,
       tax,
@@ -4732,8 +4736,8 @@ export default function RestaurantPOS() {
 
           {/* Live Order Summary (right panel) */}
           {posMode === 'live' && (
-          <div className="card bg-white dark:bg-gray-900 p-4 rounded-lg shadow sticky top-20 self-start">
-            <div className="flex items-center justify-between mb-3">
+          <div className="card bg-white dark:bg-gray-900 p-4 rounded-lg shadow sticky top-20 self-start flex flex-col max-h-[calc(100vh-5.5rem)] overflow-hidden">
+            <div className="flex items-center justify-between mb-3 flex-shrink-0">
               <h2 className="text-xl font-bold text-primary">Order Summary</h2>
               {dailySales && (isAdmin || hasPermission('canAccessFinancialData') || hasPermission('canViewWifiReports')) && (
                 <SalesPerfBadge sales={dailySales.summary.totalSales} thresholds={perfThresholds} />
@@ -4741,7 +4745,7 @@ export default function RestaurantPOS() {
             </div>
 
             {/* Order Type Toggle */}
-            <div className="mb-3">
+            <div className="mb-3 flex-shrink-0">
               <div className="flex gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
                 {(['dine-in', 'takeaway', 'delivery'] as const).map(type => (
                   <button
@@ -4757,7 +4761,7 @@ export default function RestaurantPOS() {
 
             {/* Delivery Address / Note — shown immediately when delivery selected */}
             {orderType === 'delivery' && (
-              <div className="mb-3">
+              <div className="mb-3 flex-shrink-0">
                 <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
                   📍 Delivery Address / Note
                 </label>
@@ -4773,7 +4777,7 @@ export default function RestaurantPOS() {
 
             {/* Customer Section */}
             {currentBusinessId && (
-              <div className="mb-4 space-y-2">
+              <div className="mb-4 space-y-2 flex-shrink-0">
                 {showQuickRegister ? (
                   <CustomerQuickRegister
                     businessId={currentBusinessId}
@@ -4910,7 +4914,7 @@ export default function RestaurantPOS() {
               </div>
             )}
 
-            <div className="space-y-2 max-h-[60vh] overflow-y-auto mb-4">
+            <div className="space-y-2 flex-1 min-h-0 overflow-y-auto mb-4">
               {cart.map(item => (
                 <div key={`${item.id}_${item.name}`} className={`border-b border-gray-100 dark:border-gray-700 pb-2 last:border-b-0 ${(item as any).isTodaysSpecialCredit ? 'ml-4' : ''}`}>
                   <div className="flex justify-between items-center">
@@ -4988,7 +4992,7 @@ export default function RestaurantPOS() {
               <p className="text-secondary text-center py-8">No items in cart</p>
             )}
             
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-4 flex-shrink-0">
               {rewardCredit > 0 && (
                 <div className="flex justify-between items-center mb-1 text-sm text-green-600 dark:text-green-400">
                   <span>🎁 Reward credit</span>
