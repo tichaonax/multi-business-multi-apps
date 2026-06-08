@@ -321,6 +321,12 @@ const RESTORE_ORDER = [
   'displayProductConfigs',   // Depends on businesses
   'displayGlobalSettings',   // Depends on businesses (@unique businessId)
 
+  // Daily Specials (MBM-237)
+  'dailySpecial',            // Depends on businesses + businessProducts
+  'dailySpecialAddOn',       // Depends on dailySpecial + businessProducts
+  'dailySpecialSchedule',    // Depends on businesses + dailySpecial
+  'dailySpecialDayOverride', // Depends on businesses + dailySpecial (optional FK)
+
   'orders',
   'orderItems',
 
@@ -544,6 +550,10 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   // Smart display: unique constraints
   'displayProductConfigs': { fields: ['businessId', 'itemType', 'itemId'] },
   'displayGlobalSettings': 'businessId',
+
+  // Daily Specials: unique constraints (MBM-237)
+  'dailySpecialSchedule': { fields: ['businessId', 'dayOfWeek'] },
+  'dailySpecialDayOverride': { fields: ['businessId', 'date'] },
 
   // Policy Management: composite unique constraints
   'policyVersions': { fields: ['policyId', 'version'] },             // @@unique([policyId, version])

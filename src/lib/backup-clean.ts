@@ -1500,6 +1500,21 @@ export async function createCleanBackup(
     ? await (prisma as any).asYouLikeItComboItems.findMany({ where: { comboId: { in: aylicComboIds } } })
     : []
 
+  // 60. Daily Specials (restaurant — MBM-237)
+  businessData.dailySpecial = await (prisma as any).dailySpecial.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  const dailySpecialIds = (businessData.dailySpecial as any[]).map((s: any) => s.id)
+  businessData.dailySpecialAddOn = dailySpecialIds.length > 0
+    ? await (prisma as any).dailySpecialAddOn.findMany({ where: { dailySpecialId: { in: dailySpecialIds } } })
+    : []
+  businessData.dailySpecialSchedule = await (prisma as any).dailySpecialSchedule.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.dailySpecialDayOverride = await (prisma as any).dailySpecialDayOverride.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
   // Extend image backup: warehouse images + product_images + inventory display images + ad images
   const warehouseImageIds = businessData.warehouseItems
     .map((i: any) => i.imageId)

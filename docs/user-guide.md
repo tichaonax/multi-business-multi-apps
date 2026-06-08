@@ -163,7 +163,16 @@
     - [Permissions](#permissions-2)
     - [Management — Where to Find It](#management--where-to-find-it)
     - [Global Display Settings](#global-display-settings)
-    - [Daily Special](#daily-special)
+    - [Daily Special (Restaurant)](#daily-special-restaurant)
+      - [How it works](#how-it-works)
+      - [Setting up a Special](#setting-up-a-special)
+      - [Weekly Schedule](#weekly-schedule)
+      - [Overriding Today's Special](#overriding-todays-special)
+      - [Add-on Items (Free)](#add-on-items-free)
+      - [POS — Quick Add Banner](#pos--quick-add-banner)
+      - [Cart, Credits & Receipt](#cart-credits--receipt)
+      - [Free WiFi with Every Special](#free-wifi-with-every-special)
+      - [Daily Special Permissions](#daily-special-permissions)
     - [Backup — New Tables](#backup--new-tables-1)
 
 ---
@@ -11122,18 +11131,22 @@ When no sale is in progress, the customer display shows two panels side by side:
 
 ```
 ┌────────────────┬──────────────────────────────────────────┐
-│  Rotating Ads  │  Live Menu / Product Panel               │
+│  Left Panel    │  Live Menu / Product Panel               │
 │   (~28% wide)  │  (~72% wide)                             │
 │                │                                          │
-│  • Daily       │  • 9 items per page (3 × 3 grid)        │
-│    Special     │  • Cycles every 8 seconds                │
-│  • Animated    │  • Alternates: Items ↔ AYLI Combos       │
-│    product     │  • Filters when cashier searches         │
-│    cards       │  • Price only — no stock/financial data  │
+│  ┌──────────┐  │  • 9 items per page (3 × 3 grid)        │
+│  │ TODAY'S  │  │  • Cycles every 8 seconds                │
+│  │ SPECIAL  │  │  • Alternates: Items ↔ AYLI Combos       │
+│  │ (pinned) │  │  • Filters when cashier searches         │
+│  └──────────┘  │  • Price only — no stock/financial data  │
+│  Rotating      │                                          │
+│  product cards │                                          │
 └────────────────┴──────────────────────────────────────────┘
 ```
 
-When a sale is in progress (items in cart), the right panel switches to the live cart display. The rotating ads panel stays visible throughout.
+When a daily special is active, it is **always pinned at the top** of the left panel. Two rotating product cards fill the space below it. When no special is active, three rotating cards fill the full left panel.
+
+When a sale is in progress (items in cart), the right panel switches to the live cart display. The left panel stays visible throughout.
 
 **Supported business types:** Restaurant, Grocery, Clothing — each shows the items relevant to that business type.
 
@@ -11151,13 +11164,13 @@ When a sale is in progress (items in cart), the right panel switches to the live
 
 ### Rotating Ads Panel
 
-The left panel shows rotating product cards sorted by display score:
+The left panel shows product cards sorted by display score:
 
 ```
 Display score = (today's units × 3) + (yesterday × 2) + (day before × 1) + (priority boost × 10)
 ```
 
-- **Daily Special** (restaurant) — amber card with animated glowing price, "TODAY'S SPECIAL" badge
+- **Daily Special** (restaurant) — always pinned at the top of the left panel (not part of the rotation). Shows the product image, menu number, bullet list of what's included, add-on items with their images, special price with strikethrough original price, and savings amount. See [Daily Special (Restaurant)](#daily-special-restaurant) for full details.
 - **Featured** items sort to the top of the rotation
 - **Hidden** items never appear
 - **Clothing** — categories with new bales added in the last 14 days score higher; items added in the last 14 days get +10 bonus
@@ -11288,7 +11301,6 @@ The **Item Priority** panel lists every numbered item the display can show. Each
 | **Boost** | Number field (0–100); each point adds 10 to the display score. Tab away to save. |
 | **📷 Add ad image** | Click to pick an image file — uploads and saves immediately. Thumbnail appears once set. Click **Remove image** to clear. |
 | **Ad note field** | Type a short promo text (up to 80 chars). Tab away or click elsewhere to save. Determines the badge colour automatically (see Advertising Notes section). |
-| **⭐ Special** | Toggle daily special — amber card in the left panel. Only one item can be the special at a time. |
 | **★ Feature** | Toggle featured — sorts item to the front of the rotation. |
 | **🚫 Hide** | Toggle hidden — removes item from the display entirely. |
 
@@ -11308,12 +11320,140 @@ Permission required: `canManageCustomerDisplay`. Users with only `canViewCustome
 | Split layout | Enable/disable the ads panel |
 | Rotation speed | How long each card shows (3–30 seconds) |
 | Max items in rotation | How many items appear in the ads rotation |
+| Today's Special show frequency | 0% = never show the special card; 100% = always show it. Default 25% means the special card replaces the normal rotation roughly once every four ticks. The special is always pinned at the top of the left panel regardless of this setting when it is > 0. |
 
 ---
 
 ### Daily Special (Restaurant)
 
-Only one item can be the Daily Special at a time. Setting a new one automatically clears the previous. The daily special appears as a large amber card in the left ads panel with an animated glowing price and "TODAY'S SPECIAL" badge. It is also excluded from the regular item rotation (so it does not appear twice).
+**Where:** Restaurant sidebar → **⭐ Today's Special**
+
+The Today's Special system lets you promote an existing menu item at a reduced price for a specific day. It integrates with the POS, customer display, and receipt.
+
+---
+
+#### How it works
+
+- A **special** is an existing salable menu item — no new product is created.
+- The special has its own **override price** that replaces the base price on the day it runs.
+- **Free WiFi is always included** — every special automatically adds a free WiFi token to the order.
+- **Add-on items** (e.g. a free drink) can be attached. They appear as line items in the cart at full price with a matching credit that zeroes them out.
+- The special can be **scheduled weekly** and **overridden on the day** without affecting the schedule.
+
+---
+
+#### Setting up a Special
+
+1. Go to **Restaurant → ⭐ Today's Special → Library tab**.
+2. Click **+ New Special**.
+3. Fill in the form:
+
+| Field | Description |
+|-------|-------------|
+| **Menu Item** | Search or type to find the product. Shows menu number, name, and regular price. |
+| **Special Price** | The reduced price for today. A comparison (Regular → Special, save $X) appears automatically. |
+| **Display Image** | Shows the product's own menu image as a preview. Optionally upload a custom image to override it. Click **↩ Use menu product image instead** to revert to the default. |
+| **Additional Items (Free)** | Attach one or more existing products to give free with every sale of this special (e.g. a free drink). Each add-on shows a credit amount. |
+| **Free WiFi Included** | Always enabled — all specials include a free WiFi token. |
+| **Display Bullets** | Short text lines shown on the customer display card (e.g. "Grilled Chicken", "Free Coke"). "Free WiFi included 🌐" is auto-appended. |
+
+4. Click **Save Special**. The special is added to your library and can be assigned to days.
+
+> Specials can be edited at any time — price, add-ons, bullets, and image can all be changed. Changes take effect immediately on the next POS poll (within 5 minutes).
+
+---
+
+#### Weekly Schedule
+
+1. Go to the **Weekly Schedule tab**.
+2. For each day of the week, select a special from the dropdown (or leave it as "— No special —").
+3. Each row shows the special's name, special price, and savings amount.
+4. Changes save immediately per row.
+
+---
+
+#### Overriding Today's Special
+
+The **Today tab** shows what is running right now. From here (with `canOverrideDailySpecial` permission):
+
+| Action | What it does |
+|--------|-------------|
+| **Disable for today** | Turns off the special for the rest of today. The weekly schedule is unaffected. |
+| **Switch to different special** | Swaps today's special to another library item without changing the schedule. |
+| **Revert to scheduled** | Removes today's override and goes back to whatever the weekly schedule says. |
+
+If no special is scheduled for today, you can pick one from the library using the dropdown.
+
+---
+
+#### Add-on Items (Free)
+
+When the cashier adds a special to the cart, each configured add-on automatically appears:
+
+```
+⭐ Rice & Beef Stew (Today's Special)   $3.00
++  🌭 Russian & Chips                   $1.00
+   ↳ Special Credit: Russian & Chips   -$1.00
++  🥤 Pet Coke                          $0.80
+   ↳ Special Credit: Pet Coke          -$0.80
+──────────────────────────────────────────────
+   Total                                $3.00
+```
+
+- The add-on is shown at its **full regular price** so the customer can see its value.
+- A matching **credit line** immediately cancels the charge.
+- The net effect is zero — the customer only pays the special price.
+- If the cashier removes the special from the cart, its add-ons and credits are removed automatically.
+
+---
+
+#### POS — Quick Add Banner
+
+A **pinned amber banner** sits above the menu grid whenever a special is active. It shows the menu number, product name, special price, and a **+ Add** button. Tapping the banner adds the special (with add-ons and free WiFi) to the cart without having to find the card in the grid.
+
+The special's product card in the menu grid also shows a "⭐ TODAY'S SPECIAL" badge with amber styling and the special price, for reference.
+
+---
+
+#### Cart, Credits & Receipt
+
+The receipt (preview and printed) shows:
+
+```
+  [3] Rice & Beef Stew (Today's Special)   $3.00
+      Regular price: $2.00
+      Russian & Chips                       $1.00
+      Special Credit: Russian & Chips      -$1.00
+      Pet Coke                              $0.80
+      Special Credit: Pet Coke             -$0.80
+  WiFi Token — Free (Today's Special)       $0.00
+────────────────────────────────────────────────
+  Total                                     $3.00
+```
+
+The credits section is clearly labelled so the customer can read what they received for free — this is intentional to encourage repeat purchases when the special is available again.
+
+---
+
+#### Free WiFi with Every Special
+
+All today's specials automatically include a free WiFi token:
+
+- The system first checks the pre-generated token pool.
+- If the pool is empty, it generates a fresh token on the fly from the R710 device.
+- If token generation fails for any reason, **the sale still completes** — the WiFi token failure never cancels an order.
+- The token appears on the receipt at $0.00, labelled "WiFi Token — Free (Today's Special)".
+
+---
+
+#### Daily Special Permissions
+
+| Permission | What it allows | Default roles |
+|------------|---------------|---------------|
+| `canManageDailySpecial` | Create/edit/delete specials in library; manage weekly schedule | Owner, Manager |
+| `canOverrideDailySpecial` | Disable today's special, swap to another, or re-enable | Owner, Manager, Restaurant-associate, Salesperson |
+
+The **⭐ Today's Special** sidebar link is visible to anyone with either permission.
 
 ---
 
@@ -11327,6 +11467,10 @@ Only one item can be the Daily Special at a time. Setting a new one automaticall
 | `as_you_like_it_combo_items` | Pool items assigned to each combo | MBM-231 |
 | `display_product_configs` | Per-item display settings (note, images, boost) | MBM-232/233 |
 | `display_global_settings` | Per-business global display settings | MBM-232 |
+| `daily_specials` | Library of configured specials (product + special price + bullets + optional custom image) | MBM-237 |
+| `daily_special_add_ons` | Free add-on products attached to each special | MBM-237 |
+| `daily_special_schedules` | Weekly schedule (one special per day of the week) | MBM-237 |
+| `daily_special_day_overrides` | Per-date overrides — disable or swap today's special | MBM-237 |
 
 New columns (not new tables):
 - `barcode_inventory_items.imageId` — links to `images` table for the item's own display image
@@ -11334,5 +11478,6 @@ New columns (not new tables):
 - `display_product_configs.advertisingImageId` — links to `images` table for the advertising-only image
 - `business_products.menuNumber` — display number (e.g. `1`, `1a`) used to filter what appears on the customer display
 - `as_you_like_it_combos.menuNumber` — same for AYLI combos; assigned via the Menu Numbers management page
+- `display_global_settings.specialShowPercentage` — how often the special card appears in the left panel rotation (0–100%)
 
 All tables and their referenced images are backed up automatically with every full backup.

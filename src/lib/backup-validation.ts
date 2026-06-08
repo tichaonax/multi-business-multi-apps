@@ -342,6 +342,8 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'asYouLikeItComboItems',       // comboId + poolItemId FKs, no businessId field
   // Smart display global settings — unique on businessId (one row per business, not a child table)
   'displayGlobalSettings',       // @unique businessId, backed up globally
+  // Daily Special child table — no businessId (linked via dailySpecialId)
+  'dailySpecialAddOn',           // dailySpecialId FK, no businessId field
 ])
 
 /**
