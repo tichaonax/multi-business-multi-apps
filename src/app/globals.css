@@ -51,11 +51,11 @@ body {
 /* Custom component styles */
 @layer components {
   .btn-primary {
-    @apply bg-gradient-to-r from-primary-600 to-primary-700 text-white px-4 py-2 rounded-lg hover:from-primary-700 hover:to-primary-800 transition-all duration-200 font-medium shadow-sm hover:shadow-md;
+    @apply bg-gradient-to-r from-primary-600 to-primary-700 text-white px-4 py-2 rounded-lg hover:from-primary-700 hover:to-primary-800 transition-all duration-200 font-medium shadow-sm hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none;
   }
 
   .btn-secondary {
-    @apply bg-gradient-to-r from-neutral-600 to-neutral-700 text-white px-4 py-2 rounded-lg hover:from-neutral-700 hover:to-neutral-800 transition-all duration-200 font-medium shadow-sm hover:shadow-md dark:from-neutral-500 dark:to-neutral-600 dark:hover:from-neutral-600 dark:hover:to-neutral-700;
+    @apply bg-gradient-to-r from-neutral-600 to-neutral-700 text-white px-4 py-2 rounded-lg hover:from-neutral-700 hover:to-neutral-800 transition-all duration-200 font-medium shadow-sm hover:shadow-md dark:from-neutral-500 dark:to-neutral-600 dark:hover:from-neutral-600 dark:hover:to-neutral-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none;
   }
 
   .card {

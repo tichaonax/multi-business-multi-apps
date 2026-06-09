@@ -519,6 +519,7 @@ model Businesses {
   menu_combos                                                              MenuCombos[]
   as_you_like_it_combos                                                    AsYouLikeItCombos[]
   as_you_like_it_pool_items                                                AsYouLikeItPoolItems[]
+  ayli_pricing_calibrations                                                AyliPricingCalibrations[]
   menu_promotions                                                          MenuPromotions[]
   payroll_account_deposits                                                 PayrollAccountDeposits[]
   payroll_accounts                                                         PayrollAccounts?
@@ -7487,15 +7488,14 @@ model AsYouLikeItPoolItems {
   businessId       String
   name             String
   emoji            String   @default("🍽️")
-  pricePerKgSmall  Decimal  @db.Decimal(10, 2)
-  pricePerKgMedium Decimal  @db.Decimal(10, 2)
-  pricePerKgLarge  Decimal  @db.Decimal(10, 2)
+  buyingPricePerKg Decimal? @db.Decimal(10, 2)
+  itemCategory     String   @default("OTHER")
   isActive         Boolean  @default(true)
   sortOrder        Int      @default(0)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  businesses             Businesses              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businesses                 Businesses              @relation(fields: [businessId], references: [id], onDelete: Cascade)
   as_you_like_it_combo_items AsYouLikeItComboItems[]
 
   @@map("as_you_like_it_pool_items")
@@ -7513,19 +7513,21 @@ model AsYouLikeItCombos {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  businesses Businesses              @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  sizes      AsYouLikeItComboSizes[]
-  items      AsYouLikeItComboItems[]
+  businesses            Businesses                @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  sizes                 AsYouLikeItComboSizes[]
+  items                 AsYouLikeItComboItems[]
+  pricing_calibrations  AyliPricingCalibrations[]
 
   @@map("as_you_like_it_combos")
 }
 
 model AsYouLikeItComboSizes {
-  id        String  @id @default(uuid())
-  comboId   String
-  sizeName  String
-  basePrice Decimal @db.Decimal(10, 2)
-  sortOrder Int     @default(0)
+  id              String   @id @default(uuid())
+  comboId         String
+  sizeName        String
+  basePrice       Decimal  @db.Decimal(10, 2)
+  meatThresholdKg Decimal? @db.Decimal(6, 3)
+  sortOrder       Int      @default(0)
 
   combo AsYouLikeItCombos @relation(fields: [comboId], references: [id], onDelete: Cascade)
 
@@ -7534,17 +7536,41 @@ model AsYouLikeItComboSizes {
 }
 
 model AsYouLikeItComboItems {
-  id         String  @id @default(uuid())
-  comboId    String
-  poolItemId String
-  sortOrder  Int     @default(0)
-  isActive   Boolean @default(true)
+  id               String  @id @default(uuid())
+  comboId          String
+  poolItemId       String
+  pricePerKgSmall  Decimal @default(0) @db.Decimal(10, 2)
+  pricePerKgMedium Decimal @default(0) @db.Decimal(10, 2)
+  pricePerKgLarge  Decimal @default(0) @db.Decimal(10, 2)
+  sortOrder        Int     @default(0)
+  isActive         Boolean @default(true)
 
   combo     AsYouLikeItCombos    @relation(fields: [comboId], references: [id], onDelete: Cascade)
   pool_item AsYouLikeItPoolItems @relation(fields: [poolItemId], references: [id], onDelete: Cascade)
 
   @@unique([comboId, poolItemId])
   @@map("as_you_like_it_combo_items")
+}
+
+model AyliPricingCalibrations {
+  id               String    @id @default(uuid())
+  comboId          String
+  businessId       String
+  version          Int
+  status           String    @default("DRAFT")
+  simulationLines  Json      @default("[]")
+  targetPrices     Json      @default("{}")
+  generatedOptions Json      @default("{}")
+  selectedOptions  Json      @default("{}")
+  appliedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  combo      AsYouLikeItCombos @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  businesses Businesses        @relation(fields: [businessId], references: [id])
+
+  @@unique([comboId, version])
+  @@map("ayli_pricing_calibrations")
 }
 
 model DailySpecial {

@@ -39,7 +39,13 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params
-    const { name, description, sizes, poolItemIds, menuNumber } = await req.json()
+    const body2 = await req.json()
+    const { name, description, sizes, poolItemIds, menuNumber } = body2
+    // poolItems: [{poolItemId, pricePerKgSmall, pricePerKgMedium, pricePerKgLarge}]
+    const poolItems: any[] | undefined = body2.poolItems
+    const resolvedItems = poolItems ?? (poolItemIds !== undefined
+      ? poolItemIds.map((pid: string) => ({ poolItemId: pid, pricePerKgSmall: 0, pricePerKgMedium: 0, pricePerKgLarge: 0 }))
+      : undefined)
 
     // Validate and enforce menuNumber uniqueness across both products and AYLI combos
     if (menuNumber !== undefined && menuNumber !== null) {
@@ -75,7 +81,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       if (sizes !== undefined) {
         await tx.asYouLikeItComboSizes.deleteMany({ where: { comboId: id } })
       }
-      if (poolItemIds !== undefined) {
+      if (resolvedItems !== undefined) {
         await tx.asYouLikeItComboItems.deleteMany({ where: { comboId: id } })
       }
 
@@ -88,14 +94,18 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
             create: sizes.map((s: any, i: number) => ({
               sizeName: s.sizeName,
               basePrice: parseFloat(s.basePrice),
+              meatThresholdKg: s.meatThresholdKg != null ? parseFloat(s.meatThresholdKg) : null,
               sortOrder: i
             }))
           }
         } : {}),
-        ...(poolItemIds !== undefined ? {
+        ...(resolvedItems !== undefined ? {
           items: {
-            create: poolItemIds.map((poolItemId: string, i: number) => ({
-              poolItemId,
+            create: resolvedItems.map((item: any, i: number) => ({
+              poolItemId: item.poolItemId,
+              pricePerKgSmall: parseFloat(item.pricePerKgSmall) || 0,
+              pricePerKgMedium: parseFloat(item.pricePerKgMedium) || 0,
+              pricePerKgLarge: parseFloat(item.pricePerKgLarge) || 0,
               sortOrder: i
             }))
           }

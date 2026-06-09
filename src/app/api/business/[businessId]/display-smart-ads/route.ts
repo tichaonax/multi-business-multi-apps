@@ -273,9 +273,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
       const poolItems = (c.items ?? []).map((ci: any) => ({
         name: ci.pool_item.name,
         emoji: ci.pool_item.emoji ?? '🍽️',
-        pricePerKgSmall: Number(ci.pool_item.pricePerKgSmall),
-        pricePerKgMedium: Number(ci.pool_item.pricePerKgMedium),
-        pricePerKgLarge: Number(ci.pool_item.pricePerKgLarge),
+        pricePerKgSmall: Number(ci.pricePerKgSmall),
+        pricePerKgMedium: Number(ci.pricePerKgMedium),
+        pricePerKgLarge: Number(ci.pricePerKgLarge),
       }))
       candidates.push({
         id: c.id,

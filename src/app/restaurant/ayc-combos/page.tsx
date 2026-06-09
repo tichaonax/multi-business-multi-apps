@@ -9,18 +9,19 @@ import { useToastContext } from '@/components/ui/toast'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { AddVendorPurchasePresetModal } from '@/components/settings/AddVendorPurchasePresetModal'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface PoolItem {
   id: string; name: string; emoji: string; isActive: boolean
-  pricePerKgSmall: number; pricePerKgMedium: number; pricePerKgLarge: number
+  buyingPricePerKg: number | null; itemCategory: string
 }
 
 interface AYLICombo {
   id: string; name: string; description?: string
-  sizes: Array<{ id: string; sizeName: string; basePrice: number; sortOrder: number }>
-  items: Array<{ id: string; poolItemId: string; pool_item: PoolItem }>
+  sizes: Array<{ id: string; sizeName: string; basePrice: number; meatThresholdKg?: number | null; sortOrder: number }>
+  items: Array<{ id: string; poolItemId: string; pricePerKgSmall: number; pricePerKgMedium: number; pricePerKgLarge: number; pool_item: PoolItem }>
 }
 
 const SIZE_LABELS = ['small', 'medium', 'large']
@@ -39,14 +40,42 @@ function PoolItemModal({
   const [emoji, setEmoji] = useState(initial?.emoji ?? '🍽️')
   const [emojiManual, setEmojiManual] = useState(false)
   const [name, setName] = useState(initial?.name ?? '')
-  const [small, setSmall] = useState(initial ? String(initial.pricePerKgSmall) : '')
-  const [medium, setMedium] = useState(initial ? String(initial.pricePerKgMedium) : '')
-  const [large, setLarge] = useState(initial ? String(initial.pricePerKgLarge) : '')
+  const [buyingPrice, setBuyingPrice] = useState(initial?.buyingPricePerKg != null ? String(initial.buyingPricePerKg) : '')
+  const [category, setCategory] = useState(initial?.itemCategory ?? 'OTHER')
   const [saving, setSaving] = useState(false)
   const [suggestions, setSuggestions] = useState<Array<{ name: string; emoji: string }>>([])
   const [showSuggest, setShowSuggest] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [vendorPresets, setVendorPresets] = useState<Array<{ id: string; categoryName: string; emoji: string; pricePerKg: number }>>([])
+  const [matchedPresets, setMatchedPresets] = useState<Array<{ id: string; categoryName: string; emoji: string; pricePerKg: number }>>([])
+
+  // Load vendor pricing presets once on mount
+  useEffect(() => {
+    fetch(`/api/weight-pricing-rules?businessId=${businessId}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((rules: any[]) => setVendorPresets(rules.filter((r: any) => r.isActive && r.ruleType === 'PURCHASE').map((r: any) => ({
+        id: r.id, categoryName: r.categoryName, emoji: r.emoji, pricePerKg: Number(r.pricePerKg)
+      }))))
+      .catch(() => {})
+  }, [businessId])
+
+  // Re-match whenever name or loaded presets change
+  useEffect(() => {
+    if (!name.trim() || vendorPresets.length === 0) { setMatchedPresets([]); return }
+    const words = name.toLowerCase().split(/\s+/).filter(w => w.length >= 3)
+    if (words.length === 0) { setMatchedPresets([]); return }
+    const scored = vendorPresets
+      .map(p => {
+        const cn = p.categoryName.toLowerCase()
+        const hits = words.filter(w => cn.includes(w)).length
+        return { ...p, hits }
+      })
+      .filter(p => p.hits > 0)
+      .sort((a, b) => b.hits - a.hits)
+    setMatchedPresets(scored.slice(0, 6))
+  }, [name, vendorPresets])
   const suggestRef = useRef<HTMLDivElement>(null)
+  const nameFocusedRef = useRef(false)
   const toast = useToastContext()
 
   // Fetch suggestions as user types
@@ -67,7 +96,8 @@ function PoolItemModal({
           .filter((s: any) => s.name && !seen.has(s.name) && seen.add(s.name))
           .slice(0, 8)
         setSuggestions(items)
-        setShowSuggest(true)  // always show — even "no matches" row + browse button
+        // Only open the dropdown if the name input is still focused
+        if (nameFocusedRef.current) setShowSuggest(true)
       } catch {}
     }, 300)
     return () => clearTimeout(timer)
@@ -84,7 +114,7 @@ function PoolItemModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name.trim() || !small || !medium || !large) { toast.error('All fields required'); return }
+    if (!name.trim()) { toast.error('Item name required'); return }
     setSaving(true)
     try {
       const url = initial ? `/api/restaurant/ayc-pool-items/${initial.id}` : '/api/restaurant/ayc-pool-items'
@@ -92,7 +122,13 @@ function PoolItemModal({
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessId, name: name.trim(), emoji: emoji.trim() || '🍽️', pricePerKgSmall: small, pricePerKgMedium: medium, pricePerKgLarge: large })
+        body: JSON.stringify({
+          businessId,
+          name: name.trim(),
+          emoji: emoji.trim() || '🍽️',
+          buyingPricePerKg: buyingPrice !== '' ? buyingPrice : null,
+          itemCategory: category,
+        })
       })
       if (res.ok) {
         onSave(await res.json())
@@ -131,8 +167,8 @@ function PoolItemModal({
                     type="text"
                     value={name}
                     onChange={e => { setName(e.target.value); setEmojiManual(false); setShowSuggest(true) }}
-                    onFocus={() => { if (suggestions.length > 0) setShowSuggest(true) }}
-                    onBlur={() => setTimeout(() => { setShowSuggest(false); setShowEmojiPicker(false) }, 150)}
+                    onFocus={() => { nameFocusedRef.current = true; if (suggestions.length > 0) setShowSuggest(true) }}
+                    onBlur={() => { nameFocusedRef.current = false; setTimeout(() => { setShowSuggest(false); setShowEmojiPicker(false) }, 150) }}
                     required
                     autoComplete="off"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
@@ -179,21 +215,53 @@ function PoolItemModal({
                 </div>
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-secondary mb-2">Price per kg by size *</label>
-              <div className="grid grid-cols-3 gap-3">
-                {[['Small', small, setSmall], ['Medium', medium, setMedium], ['Large', large, setLarge]].map(([label, val, set]) => (
-                  <div key={label as string}>
-                    <label className="block text-xs text-secondary mb-1">{label as string}</label>
-                    <div className="relative">
-                      <span className="absolute left-2 top-2 text-secondary text-sm">$</span>
-                      <input type="number" step="0.01" min="0" value={val as string}
-                        onChange={e => (set as Function)(e.target.value)} required
-                        className="w-full pl-6 pr-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        placeholder="0.00" />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-secondary mb-1">Buying Price/kg</label>
+                <div className="relative">
+                  <span className="absolute left-2 top-2 text-secondary text-sm">$</span>
+                  <input type="number" step="0.01" min="0" value={buyingPrice}
+                    onChange={e => setBuyingPrice(e.target.value)}
+                    className="w-full pl-6 pr-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    placeholder="e.g. 5.00" />
+                </div>
+                {matchedPresets.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs text-secondary mb-1.5">From vendor presets — click to use:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {matchedPresets.map(p => (
+                        <button key={p.id} type="button"
+                          onClick={() => setBuyingPrice(p.pricePerKg.toFixed(2))}
+                          className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-xs transition-colors ${
+                            buyingPrice === p.pricePerKg.toFixed(2)
+                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                              : 'border-gray-200 dark:border-gray-600 hover:border-blue-400 text-primary'
+                          }`}>
+                          <span>{p.emoji}</span>
+                          <span className="font-medium">{p.categoryName}</span>
+                          <span className="text-secondary">${p.pricePerKg.toFixed(2)}/kg</span>
+                        </button>
+                      ))}
                     </div>
                   </div>
-                ))}
+                )}
+                {matchedPresets.length === 0 && vendorPresets.length > 0 && name.trim().length >= 3 && (
+                  <p className="text-xs text-secondary mt-1 italic">No vendor preset match found — enter manually</p>
+                )}
+                {vendorPresets.length === 0 && (
+                  <p className="text-xs text-secondary mt-1">Used for pricing calculations</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-secondary mb-1">Category</label>
+                <select value={category} onChange={e => setCategory(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                  <option value="MEAT">🥩 Meat</option>
+                  <option value="STARCH">🍚 Starch</option>
+                  <option value="VEGETABLE">🥦 Vegetable</option>
+                  <option value="SAUCE">🥫 Sauce</option>
+                  <option value="OTHER">🍽️ Other</option>
+                </select>
               </div>
             </div>
           </div>
@@ -224,8 +292,8 @@ function ComboModal({
   const [sizes, setSizes] = useState(() =>
     initial ? SIZE_LABELS.map(s => {
       const found = initial.sizes.find(sz => sz.sizeName === s)
-      return { sizeName: s, basePrice: found ? String(found.basePrice) : '' }
-    }) : defaultSizes()
+      return { sizeName: s, basePrice: found ? String(found.basePrice) : '', meatThresholdKg: found?.meatThresholdKg != null ? String(found.meatThresholdKg) : '' }
+    }) : SIZE_LABELS.map(s => ({ sizeName: s, basePrice: '', meatThresholdKg: '' }))
   )
   const [selectedIds, setSelectedIds] = useState<string[]>(
     () => initial ? initial.items.map(it => it.poolItemId) : []
@@ -249,7 +317,16 @@ function ComboModal({
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessId, name: name.trim(), description: description.trim() || null, sizes, poolItemIds: selectedIds })
+        body: JSON.stringify({
+          businessId,
+          name: name.trim(),
+          description: description.trim() || null,
+          sizes: sizes.map(s => ({
+            ...s,
+            meatThresholdKg: s.meatThresholdKg !== '' ? s.meatThresholdKg : null,
+          })),
+          poolItemIds: selectedIds,
+        })
       })
       if (res.ok) { onSave(await res.json()); toast.push(initial ? 'Combo updated' : 'Combo created') }
       else { const err = await res.json(); toast.error(err.error || 'Failed to save') }
@@ -279,19 +356,28 @@ function ComboModal({
                 placeholder="Optional" />
             </div>
 
-            {/* Size base prices */}
+            {/* Size base prices + meat thresholds */}
             <div>
-              <label className="block text-sm font-medium text-secondary mb-2">Size Base Prices *</label>
-              <div className="grid grid-cols-3 gap-3">
+              <label className="block text-sm font-medium text-secondary mb-2">Sizes *</label>
+              <div className="space-y-2">
                 {sizes.map((s, i) => (
-                  <div key={s.sizeName}>
-                    <label className="block text-xs text-secondary mb-1 capitalize">{s.sizeName}</label>
-                    <div className="relative">
-                      <span className="absolute left-2 top-2 text-secondary text-sm">$</span>
-                      <input type="number" step="0.01" min="0" value={s.basePrice} required
-                        onChange={e => setSizes(prev => prev.map((x, j) => j === i ? { ...x, basePrice: e.target.value } : x))}
-                        className="w-full pl-6 pr-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        placeholder="0.00" />
+                  <div key={s.sizeName} className="grid grid-cols-2 gap-2 items-end">
+                    <div>
+                      <label className="block text-xs text-secondary mb-1 capitalize">{s.sizeName} — Base Price</label>
+                      <div className="relative">
+                        <span className="absolute left-2 top-2 text-secondary text-sm">$</span>
+                        <input type="number" step="0.01" min="0" value={s.basePrice} required
+                          onChange={e => setSizes(prev => prev.map((x, j) => j === i ? { ...x, basePrice: e.target.value } : x))}
+                          className="w-full pl-6 pr-2 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                          placeholder="0.00" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-secondary mb-1">Min Meat Weight (kg)</label>
+                      <input type="number" step="0.001" min="0" value={s.meatThresholdKg}
+                        onChange={e => setSizes(prev => prev.map((x, j) => j === i ? { ...x, meatThresholdKg: e.target.value } : x))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        placeholder="e.g. 0.150" />
                     </div>
                   </div>
                 ))}
@@ -336,7 +422,8 @@ function ComboModal({
                             {!item.isActive && <span className="text-[10px] text-amber-600 dark:text-amber-400">(disabled)</span>}
                           </div>
                           <div className="text-xs text-secondary">
-                            S: ${Number(item.pricePerKgSmall).toFixed(2)} · M: ${Number(item.pricePerKgMedium).toFixed(2)} · L: ${Number(item.pricePerKgLarge).toFixed(2)} /kg
+                            {item.itemCategory !== 'OTHER' ? item.itemCategory.charAt(0) + item.itemCategory.slice(1).toLowerCase() : 'Uncategorised'}
+                            {item.buyingPricePerKg != null ? ` · $${Number(item.buyingPricePerKg).toFixed(2)}/kg cost` : ''}
                           </div>
                         </div>
                       </label>
@@ -370,6 +457,7 @@ export default function AYCCombosPage() {
   // Modal state
   const [poolModal, setPoolModal] = useState<{ open: boolean; editing: PoolItem | null; onCreated?: (item: PoolItem) => void }>({ open: false, editing: null })
   const [comboModal, setComboModal] = useState<{ open: boolean; editing: AYLICombo | null }>({ open: false, editing: null })
+  const [presetModal, setPresetModal] = useState<{ itemId: string; name: string; emoji: string } | null>(null)
 
   useEffect(() => {
     if (currentBusinessId) { fetchPoolItems(); fetchCombos() }
@@ -434,7 +522,7 @@ export default function AYCCombosPage() {
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <h2 className="text-base font-semibold text-primary">Pool Items</h2>
-                  <p className="text-xs text-secondary mt-0.5">The shared list of items available in any AYLI combo. Each has pre-set per-kg prices for all 3 sizes.</p>
+                  <p className="text-xs text-secondary mt-0.5">The shared list of items available in any AYLI combo. Set buying prices here; selling prices are calibrated per combo.</p>
                 </div>
                 {hasPermission('canCreateAYLIPoolItems') && (
                   <button className="btn-primary text-sm" onClick={() => setPoolModal({ open: true, editing: null })}>+ Add Item</button>
@@ -463,13 +551,16 @@ export default function AYCCombosPage() {
                             </span>
                           )}
                         </div>
-                        <div className="mt-1 grid grid-cols-3 gap-1 text-xs">
-                          {[['S', item.pricePerKgSmall], ['M', item.pricePerKgMedium], ['L', item.pricePerKgLarge]].map(([label, price]) => (
-                            <div key={label as string} className="bg-gray-50 dark:bg-gray-700 rounded px-1.5 py-1 text-center">
-                              <div className="text-secondary">{label}</div>
-                              <div className="font-semibold text-primary">${Number(price).toFixed(2)}</div>
-                            </div>
-                          ))}
+                        <div className="mt-1.5 flex items-center gap-2 text-xs">
+                          <span className="bg-gray-100 dark:bg-gray-700 rounded px-1.5 py-0.5 text-secondary capitalize">
+                            {item.itemCategory !== 'OTHER' ? item.itemCategory.charAt(0) + item.itemCategory.slice(1).toLowerCase() : 'Other'}
+                          </span>
+                          {item.buyingPricePerKg != null
+                            ? <span className="text-secondary">${Number(item.buyingPricePerKg).toFixed(2)}/kg cost</span>
+                            : hasPermission('canCreateAYLIPoolItems')
+                              ? <button onClick={() => setPresetModal({ itemId: item.id, name: item.name, emoji: item.emoji })} className="text-blue-500 dark:text-blue-400 italic hover:underline">Set purchase price</button>
+                              : <span className="text-secondary italic">No cost price set</span>
+                          }
                         </div>
                       </div>
                       <div className="flex flex-col gap-1 flex-shrink-0 items-end">
@@ -581,6 +672,27 @@ export default function AYCCombosPage() {
             onClose={() => setComboModal({ open: false, editing: null })}
             onSave={() => { setComboModal({ open: false, editing: null }); fetchCombos() }}
             onCreatePoolItem={openCreatePoolItemInline}
+          />
+        )}
+
+        {/* Add Purchase Preset shortcut from pool item card */}
+        {presetModal && (
+          <AddVendorPurchasePresetModal
+            businessId={currentBusinessId || ''}
+            initialName={presetModal.name}
+            initialEmoji={presetModal.emoji}
+            purchaseType="GOODS"
+            onSuccess={async (rule) => {
+              // Also patch the pool item's buyingPricePerKg so the card reflects the price
+              await fetch(`/api/restaurant/ayc-pool-items/${presetModal.itemId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ buyingPricePerKg: rule.pricePerKg }),
+              })
+              setPoolItems(prev => prev.map(p => p.id === presetModal.itemId ? { ...p, buyingPricePerKg: rule.pricePerKg } : p))
+              setPresetModal(null)
+            }}
+            onClose={() => setPresetModal(null)}
           />
         )}
       </ContentLayout>

@@ -57,7 +57,11 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { businessId, name, description, sizes, poolItemIds } = body
+    // poolItems: [{poolItemId, pricePerKgSmall, pricePerKgMedium, pricePerKgLarge}]
+    // poolItemIds: legacy simple array — prices default to 0
+    const { businessId, name, description, sizes, poolItems, poolItemIds } = body
+    const resolvedItems: Array<{ poolItemId: string; pricePerKgSmall: number; pricePerKgMedium: number; pricePerKgLarge: number }> =
+      poolItems ?? (poolItemIds ?? []).map((id: string) => ({ poolItemId: id, pricePerKgSmall: 0, pricePerKgMedium: 0, pricePerKgLarge: 0 }))
 
     if (!businessId || !name) {
       return NextResponse.json({ error: 'businessId and name are required' }, { status: 400 })
@@ -65,7 +69,7 @@ export async function POST(req: NextRequest) {
     if (!sizes || sizes.length === 0) {
       return NextResponse.json({ error: 'At least one size is required' }, { status: 400 })
     }
-    if (!poolItemIds || poolItemIds.length === 0) {
+    if (resolvedItems.length === 0) {
       return NextResponse.json({ error: 'At least one allowed item is required' }, { status: 400 })
     }
 
@@ -78,12 +82,16 @@ export async function POST(req: NextRequest) {
           create: sizes.map((s: any, i: number) => ({
             sizeName: s.sizeName,
             basePrice: parseFloat(s.basePrice),
+            meatThresholdKg: s.meatThresholdKg != null ? parseFloat(s.meatThresholdKg) : null,
             sortOrder: i
           }))
         },
         items: {
-          create: poolItemIds.map((poolItemId: string, i: number) => ({
-            poolItemId,
+          create: resolvedItems.map((item: any, i: number) => ({
+            poolItemId: item.poolItemId,
+            pricePerKgSmall: parseFloat(item.pricePerKgSmall) || 0,
+            pricePerKgMedium: parseFloat(item.pricePerKgMedium) || 0,
+            pricePerKgLarge: parseFloat(item.pricePerKgLarge) || 0,
             sortOrder: i
           }))
         }

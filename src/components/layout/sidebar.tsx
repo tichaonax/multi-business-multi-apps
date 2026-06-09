@@ -741,6 +741,10 @@ export function Sidebar() {
                     <span className="text-lg">🥗</span>
                     <span>AYLI Combos</span>
                   </Link>
+                  <Link href="/restaurant/ayli-pricing" className={getLinkClasses('/restaurant/ayli-pricing')}>
+                    <span className="text-lg">💰</span>
+                    <span>AYLI Pricing</span>
+                  </Link>
                   {(isSystemAdmin(currentUser) || hasPermission('canManageDailySpecial') || hasPermission('canOverrideDailySpecial')) && (
                     <Link href="/restaurant/daily-special" className={getLinkClasses('/restaurant/daily-special')}>
                       <span className="text-lg">⭐</span>

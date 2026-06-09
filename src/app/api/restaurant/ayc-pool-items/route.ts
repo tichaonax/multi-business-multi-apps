@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const { businessId, name, emoji, pricePerKgSmall, pricePerKgMedium, pricePerKgLarge } = await req.json()
+    const { businessId, name, emoji, buyingPricePerKg, itemCategory } = await req.json()
 
     if (!businessId || !name) {
       return NextResponse.json({ error: 'businessId and name are required' }, { status: 400 })
@@ -44,9 +44,8 @@ export async function POST(req: NextRequest) {
         businessId,
         name: name.trim(),
         emoji: emoji?.trim() || '🍽️',
-        pricePerKgSmall: parseFloat(pricePerKgSmall) || 0,
-        pricePerKgMedium: parseFloat(pricePerKgMedium) || 0,
-        pricePerKgLarge: parseFloat(pricePerKgLarge) || 0,
+        buyingPricePerKg: buyingPricePerKg != null ? parseFloat(buyingPricePerKg) : null,
+        itemCategory: itemCategory || 'OTHER',
       }
     })
 

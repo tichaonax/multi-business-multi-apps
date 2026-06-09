@@ -15,11 +15,15 @@ export interface AYLIComboData {
   totalPrice: number
 }
 
-interface ComboSize { sizeName: string; basePrice: number }
-// ComboItem now carries pool_item with pre-set 3-tier prices
+interface ComboSize { sizeName: string; basePrice: number; meatThresholdKg?: number | null }
+// Prices now live on the combo item itself (per-combo pricing)
 interface ComboItem {
+  id: string
   poolItemId: string
-  pool_item: { id: string; name: string; emoji: string; pricePerKgSmall: number; pricePerKgMedium: number; pricePerKgLarge: number }
+  pricePerKgSmall: number
+  pricePerKgMedium: number
+  pricePerKgLarge: number
+  pool_item: { id: string; name: string; emoji: string; itemCategory: string; buyingPricePerKg?: number | null }
 }
 
 interface Props {
@@ -27,15 +31,16 @@ interface Props {
   onConfirm: (data: AYLIComboData) => void
   onCancel: () => void
   onProgress?: (snapshot: Omit<AYLIComboData, 'totalPrice'>) => void
+  calibrationMode?: boolean  // skips size picker, changes Done label
 }
 
 function getPriceForSize(item: ComboItem, size: string): number {
-  if (size === 'small') return Number(item.pool_item.pricePerKgSmall)
-  if (size === 'medium') return Number(item.pool_item.pricePerKgMedium)
-  return Number(item.pool_item.pricePerKgLarge)
+  if (size === 'small') return Number(item.pricePerKgSmall)
+  if (size === 'medium') return Number(item.pricePerKgMedium)
+  return Number(item.pricePerKgLarge)
 }
 
-export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress }: Props) {
+export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibrationMode = false }: Props) {
   const { weight, status, tare } = useScale()
 
   // Step 0 = container placement + auto-tare, Step 1 = size picker, Step 2 = fill panel
@@ -50,6 +55,7 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress }: Props
   const [previousWeight, setPreviousWeight] = useState(0)
   const [lines, setLines] = useState<AYLIComboData['lines']>([])
   const [error, setError] = useState<string | null>(null)
+  const [firstMeatPoolItemId, setFirstMeatPoolItemId] = useState<string | null>(null)
 
   // Scale stable-weight tracking
   const [readyToCapture, setReadyToCapture] = useState(false)
@@ -76,8 +82,14 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress }: Props
     const timer = setTimeout(() => {
       tare()
       setTared(true)
-      // Brief pause to let scale settle, then advance to size picker
-      setTimeout(() => setStep(1), 600)
+      // In calibration mode skip size picker — default to medium and go straight to fill
+      if (calibrationMode) {
+        const mediumSize = combo.sizes.find(s => s.sizeName === 'medium') ?? combo.sizes[0]
+        if (mediumSize) { setSelectedSize(mediumSize.sizeName); setBasePrice(Number(mediumSize.basePrice)) }
+        setTimeout(() => setStep(2), 600)
+      } else {
+        setTimeout(() => setStep(1), 600)
+      }
     }, STABLE_HOLD_MS)
     return () => clearTimeout(timer)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -172,6 +184,11 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress }: Props
     // Lock size after first capture
     if (!sizeLocked) setSizeLocked(true)
 
+    // Track first meat item
+    if (!firstMeatPoolItemId && comboItem.pool_item.itemCategory === 'MEAT') {
+      setFirstMeatPoolItemId(selectedItemId)
+    }
+
     // Advance the tracking weight
     setPreviousWeight(liveWeight)
     setReadyToCapture(false)
@@ -196,6 +213,14 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress }: Props
   const weightPct = Math.min(100, (totalWeightKg / maxWeightKg) * 100)
 
   const captureDisabled = !readyToCapture || !selectedItemId || delta <= 0 || liveWeight > maxWeightKg
+
+  // Meat threshold
+  const selectedSizeData = combo.sizes.find(s => s.sizeName === selectedSize)
+  const meatThresholdKg = selectedSizeData?.meatThresholdKg ? Number(selectedSizeData.meatThresholdKg) : null
+  const hasMeatInPool = combo.items.some(it => it.pool_item.itemCategory === 'MEAT')
+  const firstMeatLine = firstMeatPoolItemId ? lines.find(l => l.poolItemId === firstMeatPoolItemId) : null
+  const firstMeatWeight = firstMeatLine?.weightKg ?? 0
+  const meatThresholdMet = !hasMeatInPool || !meatThresholdKg || firstMeatWeight >= meatThresholdKg
 
   const borderClass = !connected
     ? 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20'
@@ -225,8 +250,10 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress }: Props
             )}
             {step === 2 && (
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 capitalize">
-                  {selectedSize} — Base: ${basePrice.toFixed(2)}
-                  {sizeLocked && <span className="ml-2 text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-1.5 py-0.5 rounded">size locked</span>}
+                  {calibrationMode
+                    ? 'Pricing calibration — capturing weights'
+                    : <>{selectedSize} — Base: ${basePrice.toFixed(2)}{sizeLocked && <span className="ml-2 text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-1.5 py-0.5 rounded">size locked</span>}</>
+                  }
                 </p>
               )}
             </div>
@@ -280,7 +307,16 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress }: Props
 
             <div className="flex gap-3">
               <button type="button" onClick={onCancel} className="flex-1 btn-secondary">Cancel</button>
-              <button type="button" onClick={() => { tare(); setTimeout(() => setStep(1), 600) }}
+              <button type="button" onClick={() => {
+                tare()
+                if (calibrationMode) {
+                  const mediumSize = combo.sizes.find(s => s.sizeName === 'medium') ?? combo.sizes[0]
+                  if (mediumSize) { setSelectedSize(mediumSize.sizeName); setBasePrice(Number(mediumSize.basePrice)) }
+                  setTimeout(() => setStep(2), 600)
+                } else {
+                  setTimeout(() => setStep(1), 600)
+                }
+              }}
                 className="flex-1 py-2 px-4 rounded-lg text-sm font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">
                 Skip (no container)
               </button>
@@ -398,6 +434,16 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress }: Props
               </div>
             </div>
 
+            {/* Meat threshold warning */}
+            {hasMeatInPool && meatThresholdKg && !meatThresholdMet && (
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+                {firstMeatPoolItemId
+                  ? `⚠ Minimum ${(meatThresholdKg * 1000).toFixed(0)}g of ${firstMeatLine ? lines.find(l => l.poolItemId === firstMeatPoolItemId)?.productName : 'meat'} required. Currently ${(firstMeatWeight * 1000).toFixed(0)}g — add more.`
+                  : `⚠ This combo requires at least ${(meatThresholdKg * 1000).toFixed(0)}g of meat (chicken, beef, or fish).`
+                }
+              </div>
+            )}
+
             {/* Error */}
             {error && (
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg px-3 py-2 text-sm text-red-600 dark:text-red-400">
@@ -461,13 +507,13 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress }: Props
             {/* Footer actions */}
             <div className="flex gap-3 pt-1">
               <button type="button" onClick={onCancel} className="flex-1 btn-secondary">Cancel</button>
-              <button type="button" onClick={handleDone} disabled={lines.length === 0}
+              <button type="button" onClick={handleDone} disabled={lines.length === 0 || !meatThresholdMet}
                 className={`flex-1 py-2 px-4 rounded-lg font-semibold text-sm transition-colors ${
-                  lines.length === 0
+                  lines.length === 0 || !meatThresholdMet
                     ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
                     : 'bg-blue-600 hover:bg-blue-700 text-white'
                 }`}>
-                Done — Add to Cart (${comboTotal.toFixed(2)})
+                {calibrationMode ? `Done — Save Weights (${lines.length} items, ${totalWeightKg.toFixed(3)} kg)` : `Done — Add to Cart ($${comboTotal.toFixed(2)})`}
               </button>
             </div>
           </div>

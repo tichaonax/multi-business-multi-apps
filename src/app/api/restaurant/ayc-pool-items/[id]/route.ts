@@ -26,9 +26,12 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (body.name !== undefined) {
       data.name = body.name.trim()
       data.emoji = body.emoji?.trim() || '🍽️'
-      data.pricePerKgSmall = parseFloat(body.pricePerKgSmall) || 0
-      data.pricePerKgMedium = parseFloat(body.pricePerKgMedium) || 0
-      data.pricePerKgLarge = parseFloat(body.pricePerKgLarge) || 0
+    }
+    if ('buyingPricePerKg' in body) {
+      data.buyingPricePerKg = body.buyingPricePerKg != null ? parseFloat(body.buyingPricePerKg) : null
+    }
+    if ('itemCategory' in body) {
+      data.itemCategory = body.itemCategory || 'OTHER'
     }
 
     const item = await prisma.asYouLikeItPoolItems.update({ where: { id }, data })
