@@ -1499,6 +1499,9 @@ export async function createCleanBackup(
   businessData.asYouLikeItComboItems = aylicComboIds.length > 0
     ? await (prisma as any).asYouLikeItComboItems.findMany({ where: { comboId: { in: aylicComboIds } } })
     : []
+  businessData.ayliPricingCalibrations = aylicComboIds.length > 0
+    ? await (prisma as any).ayliPricingCalibrations.findMany({ where: { comboId: { in: aylicComboIds } } })
+    : []
 
   // 60. Daily Specials (restaurant — MBM-237)
   businessData.dailySpecial = await (prisma as any).dailySpecial.findMany({

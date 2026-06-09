@@ -316,6 +316,7 @@ const RESTORE_ORDER = [
   'asYouLikeItPoolItems',    // Depends on businesses
   'asYouLikeItComboSizes',   // Depends on asYouLikeItCombos
   'asYouLikeItComboItems',   // Depends on asYouLikeItCombos + asYouLikeItPoolItems
+  'ayliPricingCalibrations', // Depends on asYouLikeItCombos + businesses
 
   // Smart Customer Display configs (MBM-232)
   'displayProductConfigs',   // Depends on businesses

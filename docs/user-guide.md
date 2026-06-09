@@ -10463,9 +10463,10 @@ The current schema version is **6.35.0** (adds `display_product_configs` and `di
 | Table | Contents | Scoped by |
 |-------|----------|-----------|
 | `as_you_like_it_combos` | Combo definitions (name, max weight, max items) | `businessId` |
-| `as_you_like_it_combo_sizes` | Size tiers per combo (small / medium / large base prices) | `comboId` |
-| `as_you_like_it_pool_items` | Shared pool of food items with per-size kg prices | `businessId` |
+| `as_you_like_it_combo_sizes` | Size tiers per combo (small / medium / large base prices + meat threshold) | `comboId` |
+| `as_you_like_it_pool_items` | Shared pool of food items with per-size kg prices and buying cost | `businessId` |
 | `as_you_like_it_combo_items` | Which pool items belong to each combo | `comboId + poolItemId` |
+| `ayli_pricing_calibrations` | Saved pricing calibration runs (simulation lines, generated options, applied state) | `comboId + businessId` |
 
 **Verification after restore:**
 
@@ -10474,6 +10475,7 @@ SELECT COUNT(*) FROM as_you_like_it_combos;
 SELECT COUNT(*) FROM as_you_like_it_combo_sizes;
 SELECT COUNT(*) FROM as_you_like_it_pool_items;
 SELECT COUNT(*) FROM as_you_like_it_combo_items;
+SELECT COUNT(*) FROM ayli_pricing_calibrations;
 ```
 
 All four counts should match the source system.
@@ -10655,7 +10657,7 @@ You can link many products to the same preset (e.g. *Prime Beef*, *Beef Offcuts*
 
 ### Vendor Purchase Presets — Setup
 
-**Vendor purchase presets** are the prices you pay suppliers per kilogram. They are used only in the livestock purchase workflow (not at the customer-facing POS).
+**Vendor purchase presets** are the prices you pay suppliers per kilogram. They are used in the livestock purchase workflow and for cost tracking in AYLI combo pricing.
 
 **Where:** POS Settings → ⚖️ Scale & Weighing → **🚚 Vendor Purchase Presets**
 
@@ -10664,11 +10666,25 @@ Two sub-tabs: **🐄 Livestock** and **🥦 Goods** — choose based on what you
 **Adding a preset:**
 
 1. Select the correct sub-tab (Livestock or Goods).
-2. Click **+ Add livestock / goods purchase preset**.
-3. Type the **Category name** (e.g. *Whole Chicken*, *Offals*). The Icon auto-suggests as you type.
-4. To override the icon, **click the emoji button** to open the searchable picker.
+2. Click **+ Add livestock / goods purchase preset** — opens the **Add Purchase Preset modal**.
+3. Type the **Category name** (e.g. *Whole Chicken*, *Offals*). A suggestion dropdown appears as you type; selecting a suggestion also fills in the matching Icon automatically.
+4. To override the icon, type or paste an emoji in the Icon field, or click **🔍 Browse more emojis** in the dropdown to open the searchable picker.
 5. Enter the **Price / kg**.
 6. For Livestock, click **🧮 Calculate $/kg from unit price** to derive the rate from a sample weighing (count × price/unit ÷ total weight).
+
+**Editing an existing preset:**
+
+Each preset row has an **Edit** button. Clicking it opens the row for inline editing:
+
+- **Category name** — editable with live suggestion dropdown (same search as the add form). Selecting a suggestion updates the icon automatically.
+- **Price / kg** — editable number field.
+- **Icon** — click the emoji button to open the picker. While in edit mode the icon change is held in memory and saved only when you click **Save**.
+
+Click **Save** to apply all three changes in one API call. Click **Cancel** to discard.
+
+**Setting purchase price from a Pool Item card:**
+
+If a pool item has no cost price set, its card shows a **"Set purchase price"** link. Clicking it opens the Add Purchase Preset modal pre-loaded with the item's name and emoji — the suggestion search runs immediately on open. After saving, the vendor preset is created and the pool item's buying price is updated in the same action so the card immediately reflects the cost.
 7. Click **Save Preset**.
 
 Rules matched by category name in the livestock purchase wizard. If no match exists, the cashier can enter a custom price manually during the session.
@@ -11116,6 +11132,83 @@ Access to AYLI back-office management is controlled by fine-grained permissions.
 - Any permission can be granted or revoked individually per user via **Settings → User Permissions**.
 
 > **API enforcement:** Permission checks are enforced server-side on every write endpoint — hiding buttons in the UI is not the only protection.
+
+---
+
+### AYLI Pricing Calibration
+
+The **2. Calibrate** tab on the AYLI Pricing page lets you mathematically derive per-kg selling prices for each ingredient so that any combo — regardless of what the customer fills it with — hits a consistent target selling price for the small size.
+
+**Where:** Restaurant → AYLI Pricing → select a combo → **2. Calibrate**
+
+---
+
+#### How the Pricing Model Works
+
+The calibration algorithm generates **5 pricing options**. Each option represents a different split between a flat **base price** (charged upfront) and a **per-kg rate** (charged by weight):
+
+- **Option 1** — zero base, all revenue per-kg (pay only for what you fill)
+- **Option 5** — highest base, lowest per-kg (entry fee offsets weight cost)
+
+For medium and large sizes, the base price scales by the size multiplier (default: medium = 2×, large = 3×). Per-kg rates decrease accordingly so heavier fills cost proportionally less per kg.
+
+#### Step 1 — Build Combo
+
+1. Click **Build Combo** to open the AYLI Combo modal.
+2. Enter a weight for each ingredient (the typical small-size portion used in calibration).
+3. Confirm — the captured weights become the **simulation lines**.
+
+#### Step 2 — Target Prices
+
+| Field | Description |
+|-------|-------------|
+| **Target price (small)** | What you want to charge for a full small combo ($) |
+| **Medium multiplier** | How many times heavier medium is vs small (default 2) |
+| **Large multiplier** | How many times heavier large is vs small (default 3) |
+
+Click **Generate Pricing Options →** to compute the 5 options.
+
+#### Step 3 — Review Options
+
+Five option cards show each option's base prices and average per-kg rates across the three sizes. A **40% margin** label appears on each option when buying prices are set on the pool items.
+
+- **Select an option** by clicking its card — a **✓ SELECTED** badge appears. The Apply button is disabled until a selection is made.
+- A **↩ last applied** badge in amber shows which option was previously applied when loading from history — this is informational only; you must click to select before you can apply again.
+- Click **Apply Pricing** to write the calculated base prices and per-kg rates to the combo sizes and items.
+
+#### Combo Weights Breakdown
+
+Below the option cards, expand **"Combo weights used in calibration (small size)"** to see:
+
+| Column | Description |
+|--------|-------------|
+| Emoji + Name | The pool item |
+| Category badge | Current category (e.g. Meat, Vegetable, Starch) |
+| **★ first meat** badge | Marks the first MEAT item — this is the item the minimum meat threshold applies to at the POS |
+| Weight (kg) | The weight entered during the Build Combo step |
+
+The footer shows the **total meat weight** and **total weight** for the small simulation. Below that is an editable **Min. meat (small)** field:
+
+- Pre-populated from the combo's existing small-size threshold.
+- **"Use X.XXX kg"** button appears when calibration has meat items — click to fill in the calibration's own meat weight.
+- Click **Save** to write the threshold to the combo immediately (medium and large thresholds are derived from the size multipliers).
+
+#### Recalibrate with Current Costs
+
+After buying prices change (e.g. you updated a pool item's cost), click **🔄 Recalibrate with current costs** to re-run the algorithm with the same simulation weights and the same target price but the latest buying costs.
+
+- The **Target (small)** input must contain a price before the button is enabled.
+- After recalibrating, the previous selection is cleared — select an option to apply the refreshed prices.
+
+#### Calibration History
+
+The history panel (at the top of the Calibrate tab) shows up to 5 past calibrations per combo. For each:
+
+- Version number, status (DRAFT / APPLIED), creation date
+- Simulation weight total
+- **Load & Review** button — loads the calibration's simulation lines, generated options, and target price back into the wizard so you can review or re-apply it.
+
+Calibration records (including simulation lines, generated options, and applied state) are included in system backups and restores.
 
 ---
 
