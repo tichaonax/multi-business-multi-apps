@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { EmojiPickerEnhanced } from '@/components/business/emoji-picker-enhanced'
+import { AddVendorPurchasePresetModal } from '@/components/settings/AddVendorPurchasePresetModal'
+import type { VendorPurchasePreset } from '@/components/settings/AddVendorPurchasePresetModal'
 
 type PurchaseType = 'LIVESTOCK' | 'GOODS'
 
@@ -24,10 +26,6 @@ interface Props {
   section: 'sale' | 'purchase'
 }
 
-function calcPricePerKg(count: number, pricePerUnit: number, totalWeightKg: number): number | null {
-  if (count <= 0 || pricePerUnit <= 0 || totalWeightKg <= 0) return null
-  return (count * pricePerUnit) / totalWeightKg
-}
 
 export function WeightPricingSettings({ businessId, section }: Props) {
   const [rules, setRules] = useState<Rule[]>([])
@@ -54,17 +52,31 @@ export function WeightPricingSettings({ businessId, section }: Props) {
   // Inline emoji picker state for existing rows
   const [openEmojiRowId, setOpenEmojiRowId] = useState<string | null>(null)
   const emojiPopoverRef = useRef<HTMLDivElement>(null)
-  // Purchase-form extras
-  const [newPurchaseType, setNewPurchaseType] = useState<PurchaseType>('LIVESTOCK')
-  const [showCalc, setShowCalc] = useState(false)
-  const [calc, setCalc] = useState({ unitCount: '', totalWeightKg: '', pricePerUnit: '' })
 
-  const calcResult = calcPricePerKg(
-    parseFloat(calc.unitCount),
-    parseFloat(calc.pricePerUnit),
-    parseFloat(calc.totalWeightKg),
-  )
+  // Inline edit state for existing rows
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editPrice, setEditPrice] = useState('')
+  const [editEmoji, setEditEmoji] = useState('')
+  const [editSuggestions, setEditSuggestions] = useState<Array<{ name: string; emoji: string }>>([])
+  const [showEditSuggest, setShowEditSuggest] = useState(false)
+  const editSuggestRef = useRef<HTMLDivElement>(null)
 
+  function startEdit(rule: Rule) {
+    setEditingId(rule.id)
+    setEditName(rule.categoryName)
+    setEditPrice(String(Number(rule.pricePerKg).toFixed(2)))
+    setEditEmoji(rule.emoji ?? '📦')
+  }
+  function cancelEdit() {
+    setEditingId(null); setEditName(''); setEditPrice(''); setEditEmoji('')
+    setEditSuggestions([]); setShowEditSuggest(false)
+  }
+  async function saveEdit(id: string) {
+    if (!editName.trim() || !editPrice) return
+    await patchRule(id, { categoryName: editName.trim(), pricePerKg: parseFloat(editPrice), emoji: editEmoji })
+    cancelEdit()
+  }
   useEffect(() => {
     fetch(`/api/weight-pricing-rules?businessId=${businessId}`)
       .then(r => r.json())
@@ -106,6 +118,40 @@ export function WeightPricingSettings({ businessId, section }: Props) {
     return () => document.removeEventListener('mousedown', handleOutside)
   }, [])
 
+  // Fetch suggestions as user types in the edit name input
+  useEffect(() => {
+    const name = editName.trim()
+    if (!editingId || name.length < 2) { setEditSuggestions([]); return }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(name)}`)
+        if (!res.ok) return
+        const data = await res.json()
+        const mapped = (data.suggestions ?? []).map((s: any) => ({
+          name: s.subSubcategoryName ?? s.subcategoryName ?? s.categoryName ?? s.domainName,
+          emoji: s.subSubcategoryEmoji ?? s.subcategoryEmoji ?? s.categoryEmoji ?? s.domainEmoji ?? '📦'
+        })).filter((s: any) => s.name)
+        const seen = new Set<string>()
+        const unique = mapped.filter((s: any) => { if (seen.has(s.name)) return false; seen.add(s.name); return true })
+        setEditSuggestions(unique.slice(0, 8))
+        setShowEditSuggest(true)
+      } catch {}
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [editName, editingId])
+
+  // Close edit suggest dropdown on outside click
+  useEffect(() => {
+    if (!showEditSuggest) return
+    function handleOutside(e: MouseEvent) {
+      if (editSuggestRef.current && !editSuggestRef.current.contains(e.target as Node)) {
+        setShowEditSuggest(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [showEditSuggest])
+
   // Close row emoji popover on outside click
   useEffect(() => {
     if (!openEmojiRowId) return
@@ -120,7 +166,6 @@ export function WeightPricingSettings({ businessId, section }: Props) {
 
   function resetAdd() {
     setShowAdd(false)
-    setShowCalc(false)
     setNewName('')
     setNewPrice('')
     setNewEmoji('📦')
@@ -128,33 +173,23 @@ export function WeightPricingSettings({ businessId, section }: Props) {
     setSuggestions([])
     setShowSuggest(false)
     setShowEmojiPicker(false)
-    setNewPurchaseType('LIVESTOCK')
-    setCalc({ unitCount: '', totalWeightKg: '', pricePerUnit: '' })
   }
 
   async function handleAdd() {
     if (!newName.trim() || !newPrice) return
     setSaving(true)
     try {
-      const ruleType = section === 'sale' ? 'SALE' : 'PURCHASE'
-      const purchaseType = section === 'sale' ? 'GOODS' : newPurchaseType
-      const body: Record<string, unknown> = {
-        businessId,
-        categoryName: newName.trim(),
-        ruleType,
-        purchaseType,
-        pricePerKg: parseFloat(newPrice),
-        emoji: newEmoji || '📦',
-      }
-      if (section === 'purchase' && newPurchaseType === 'LIVESTOCK' && calcResult != null && parseFloat(newPrice) === calcResult) {
-        body.derivedFromUnitCount = parseFloat(calc.unitCount)
-        body.derivedFromUnitPrice = parseFloat(calc.pricePerUnit)
-        body.derivedFromSampleWeightKg = parseFloat(calc.totalWeightKg)
-      }
       const res = await fetch('/api/weight-pricing-rules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          businessId,
+          categoryName: newName.trim(),
+          ruleType: 'SALE',
+          purchaseType: 'GOODS',
+          pricePerKg: parseFloat(newPrice),
+          emoji: newEmoji || '📦',
+        }),
       })
       if (!res.ok) { const err = await res.json(); alert(err.error ?? 'Failed'); return }
       const rule = await res.json()
@@ -192,7 +227,7 @@ export function WeightPricingSettings({ businessId, section }: Props) {
     return (
       <div className="space-y-3">
         {saleRules.length > 0 && (
-          <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
@@ -215,15 +250,19 @@ export function WeightPricingSettings({ businessId, section }: Props) {
                           title="Click to change emoji"
                           className="w-10 h-10 text-xl flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700 border border-transparent hover:border-gray-300 dark:hover:border-gray-600"
                         >
-                          {rule.emoji ?? '📦'}
+                          {(editingId === rule.id ? editEmoji : rule.emoji) ?? '📦'}
                         </button>
                         {openEmojiRowId === rule.id && (
                           <div className="absolute left-0 top-full mt-1 z-50 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3">
                             <EmojiPickerEnhanced
-                              selectedEmoji={rule.emoji}
+                              selectedEmoji={editingId === rule.id ? editEmoji : rule.emoji}
                               onSelect={emoji => {
-                                patchRule(rule.id, { emoji })
-                                setRules(prev => prev.map(r => r.id === rule.id ? { ...r, emoji } : r))
+                                if (editingId === rule.id) {
+                                  setEditEmoji(emoji)
+                                } else {
+                                  patchRule(rule.id, { emoji })
+                                  setRules(prev => prev.map(r => r.id === rule.id ? { ...r, emoji } : r))
+                                }
                                 setOpenEmojiRowId(null)
                               }}
                               searchPlaceholder="Search or paste emoji…"
@@ -232,9 +271,34 @@ export function WeightPricingSettings({ businessId, section }: Props) {
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100">{rule.categoryName}</td>
+                    <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100">
+                      {editingId === rule.id
+                        ? (
+                          <div className="relative" ref={editSuggestRef}>
+                            <input autoFocus value={editName}
+                              onChange={e => { setEditName(e.target.value); setShowEditSuggest(true) }}
+                              className="w-full text-sm border border-blue-400 rounded px-2 py-1 dark:bg-gray-700 dark:text-white" />
+                            {showEditSuggest && editSuggestions.length > 0 && (
+                              <div className="absolute left-0 top-full mt-1 z-50 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl overflow-hidden">
+                                {editSuggestions.map((s, i) => (
+                                  <button key={i} type="button"
+                                    onMouseDown={() => { setEditName(s.name); setEditEmoji(s.emoji); setShowEditSuggest(false) }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-left">
+                                    <span className="text-base flex-shrink-0">{s.emoji}</span>
+                                    <span className="text-gray-900 dark:text-gray-100 truncate">{s.name}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )
+                        : rule.categoryName}
+                    </td>
                     <td className="px-3 py-2 text-right font-mono text-gray-900 dark:text-gray-100">
-                      ${Number(rule.pricePerKg).toFixed(2)}
+                      {editingId === rule.id
+                        ? <input type="number" step="0.01" min="0" value={editPrice} onChange={e => setEditPrice(e.target.value)}
+                            className="w-24 text-sm border border-blue-400 rounded px-2 py-1 text-right dark:bg-gray-700 dark:text-white" />
+                        : `$${Number(rule.pricePerKg).toFixed(2)}`}
                     </td>
                     <td className="px-3 py-2 text-center">
                       {rule._count?.business_products != null && rule._count.business_products > 0 ? (
@@ -253,10 +317,18 @@ export function WeightPricingSettings({ businessId, section }: Props) {
                         <span className={`block w-4 h-4 rounded-full bg-white shadow transition-transform mx-0.5 ${rule.isActive ? 'translate-x-4' : 'translate-x-0'}`} />
                       </button>
                     </td>
-                    <td className="px-3 py-2 text-right">
-                      <button onClick={() => handleDelete(rule.id)} className="text-red-500 hover:text-red-700 text-xs">
-                        Remove
-                      </button>
+                    <td className="px-3 py-2 text-right space-x-2">
+                      {editingId === rule.id ? (
+                        <>
+                          <button onClick={() => saveEdit(rule.id)} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Save</button>
+                          <button onClick={cancelEdit} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => startEdit(rule)} className="text-blue-500 hover:text-blue-700 text-xs">Edit</button>
+                          <button onClick={() => handleDelete(rule.id)} className="text-red-500 hover:text-red-700 text-xs">Remove</button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -404,7 +476,7 @@ export function WeightPricingSettings({ businessId, section }: Props) {
       )}
 
       {tabRules.length > 0 && (
-        <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800">
               <tr>
@@ -429,15 +501,19 @@ export function WeightPricingSettings({ businessId, section }: Props) {
                         title="Click to change emoji"
                         className="w-10 h-10 text-xl flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-700 border border-transparent hover:border-gray-300 dark:hover:border-gray-600"
                       >
-                        {rule.emoji ?? '📦'}
+                        {(editingId === rule.id ? editEmoji : rule.emoji) ?? '📦'}
                       </button>
                       {openEmojiRowId === rule.id && (
                         <div className="absolute left-0 top-full mt-1 z-50 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3">
                           <EmojiPickerEnhanced
-                            selectedEmoji={rule.emoji}
+                            selectedEmoji={editingId === rule.id ? editEmoji : rule.emoji}
                             onSelect={emoji => {
-                              patchRule(rule.id, { emoji })
-                              setRules(prev => prev.map(r => r.id === rule.id ? { ...r, emoji } : r))
+                              if (editingId === rule.id) {
+                                setEditEmoji(emoji)
+                              } else {
+                                patchRule(rule.id, { emoji })
+                                setRules(prev => prev.map(r => r.id === rule.id ? { ...r, emoji } : r))
+                              }
                               setOpenEmojiRowId(null)
                             }}
                             searchPlaceholder="Search or paste emoji…"
@@ -446,9 +522,34 @@ export function WeightPricingSettings({ businessId, section }: Props) {
                       )}
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{rule.categoryName}</td>
+                  <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100">
+                    {editingId === rule.id
+                      ? (
+                        <div className="relative" ref={editSuggestRef}>
+                          <input autoFocus value={editName}
+                            onChange={e => { setEditName(e.target.value); setShowEditSuggest(true) }}
+                            className="w-full text-sm border border-blue-400 rounded px-2 py-1 dark:bg-gray-700 dark:text-white" />
+                          {showEditSuggest && editSuggestions.length > 0 && (
+                            <div className="absolute left-0 top-full mt-1 z-50 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl overflow-hidden">
+                              {editSuggestions.map((s, i) => (
+                                <button key={i} type="button"
+                                  onMouseDown={() => { setEditName(s.name); setEditEmoji(s.emoji); setShowEditSuggest(false) }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-left">
+                                  <span className="text-base flex-shrink-0">{s.emoji}</span>
+                                  <span className="text-gray-900 dark:text-gray-100 truncate">{s.name}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                      : rule.categoryName}
+                  </td>
                   <td className="px-3 py-2 text-right font-mono text-gray-900 dark:text-gray-100">
-                    ${Number(rule.pricePerKg).toFixed(2)}
+                    {editingId === rule.id
+                      ? <input type="number" step="0.0001" min="0" value={editPrice} onChange={e => setEditPrice(e.target.value)}
+                          className="w-24 text-sm border border-blue-400 rounded px-2 py-1 text-right dark:bg-gray-700 dark:text-white" />
+                      : `$${Number(rule.pricePerKg).toFixed(2)}`}
                   </td>
                   {purchaseTab === 'LIVESTOCK' && (
                     <td className="px-3 py-2 text-xs text-gray-400">
@@ -465,8 +566,18 @@ export function WeightPricingSettings({ businessId, section }: Props) {
                       <span className={`block w-4 h-4 rounded-full bg-white shadow transition-transform mx-0.5 ${rule.isActive ? 'translate-x-4' : 'translate-x-0'}`} />
                     </button>
                   </td>
-                  <td className="px-3 py-2 text-right">
-                    <button onClick={() => handleDelete(rule.id)} className="text-red-500 hover:text-red-700 text-xs">Remove</button>
+                  <td className="px-3 py-2 text-right space-x-2">
+                    {editingId === rule.id ? (
+                      <>
+                        <button onClick={() => saveEdit(rule.id)} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Save</button>
+                        <button onClick={cancelEdit} className="text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
+                      </>
+                    ) : (
+                      <>
+                        <button onClick={() => startEdit(rule)} className="text-blue-500 hover:text-blue-700 text-xs">Edit</button>
+                        <button onClick={() => handleDelete(rule.id)} className="text-red-500 hover:text-red-700 text-xs">Remove</button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -475,153 +586,16 @@ export function WeightPricingSettings({ businessId, section }: Props) {
         </div>
       )}
 
-      {showAdd ? (
-        <div className="p-4 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 space-y-3">
-          <div className="flex flex-wrap gap-2 items-end">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Icon</label>
-              <input
-                type="text"
-                value={newEmoji}
-                onChange={e => { emojiUserEdited.current = true; setNewEmoji(e.target.value) }}
-                maxLength={2}
-                title="Type or paste an emoji"
-                className="w-12 h-9 text-xl text-center border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div className="relative" ref={suggestRef}>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Category name</label>
-              <input
-                type="text"
-                value={newName}
-                onChange={e => { emojiUserEdited.current = false; setNewName(e.target.value); setShowSuggest(true) }}
-                onFocus={() => { if (suggestions.length > 0) setShowSuggest(true) }}
-                placeholder={purchaseTab === 'LIVESTOCK' ? 'e.g. Whole Chicken' : 'e.g. Tomatoes'}
-                className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 w-40"
-                autoComplete="off"
-              />
-              {showSuggest && suggestions.length > 0 && (
-                <div className="absolute left-0 top-full mt-1 z-50 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl overflow-hidden">
-                  {suggestions.map((s, i) => (
-                    <button key={i} type="button"
-                      onMouseDown={() => { setNewName(s.name); if (!emojiUserEdited.current) setNewEmoji(s.emoji); setShowSuggest(false) }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-left">
-                      <span className="text-base flex-shrink-0">{s.emoji}</span>
-                      <span className="text-gray-900 dark:text-gray-100 truncate">{s.name}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                Price / kg
-                {calcResult != null && newPrice === calcResult.toFixed(4) && (
-                  <span className="ml-1 text-green-600 dark:text-green-400">(from calculator)</span>
-                )}
-              </label>
-              <input
-                type="number" step="0.0001" min="0"
-                value={newPrice}
-                onChange={e => setNewPrice(e.target.value)}
-                placeholder="0.00"
-                className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 w-28 font-mono"
-              />
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={handleAdd}
-                disabled={saving || !newName.trim() || !newPrice}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40"
-              >
-                {saving ? 'Saving…' : 'Save Preset'}
-              </button>
-              <button onClick={resetAdd} className="px-4 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200">
-                Cancel
-              </button>
-            </div>
-          </div>
-
-          {/* Price Calculator — LIVESTOCK only */}
-          {purchaseTab === 'LIVESTOCK' && (
-            <div>
-              {!showCalc ? (
-                <button
-                  onClick={() => setShowCalc(true)}
-                  className="text-xs text-orange-600 dark:text-orange-400 hover:underline"
-                >
-                  🧮 Calculate $/kg from unit price (e.g. 5 chickens × $6/bird ÷ total weight)
-                </button>
-              ) : (
-                <div className="mt-2 p-3 rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/10 space-y-3">
-                  <p className="text-xs font-semibold text-orange-700 dark:text-orange-300">
-                    Price Calculator — $/kg = (count × price/unit) ÷ total weight
-                  </p>
-                  <div className="flex flex-wrap gap-3 items-end">
-                    <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Count (animals)</label>
-                      <input
-                        type="number" min="1" step="1"
-                        value={calc.unitCount}
-                        onChange={e => setCalc(p => ({ ...p, unitCount: e.target.value }))}
-                        placeholder="5"
-                        className="w-20 text-sm font-mono border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Price / unit ($)</label>
-                      <input
-                        type="number" min="0" step="0.01"
-                        value={calc.pricePerUnit}
-                        onChange={e => setCalc(p => ({ ...p, pricePerUnit: e.target.value }))}
-                        placeholder="6.00"
-                        className="w-24 text-sm font-mono border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Total weight (kg)</label>
-                      <input
-                        type="number" min="0" step="0.001"
-                        value={calc.totalWeightKg}
-                        onChange={e => setCalc(p => ({ ...p, totalWeightKg: e.target.value }))}
-                        placeholder="14.500"
-                        className="w-28 text-sm font-mono border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                      />
-                    </div>
-                    <div className="flex flex-col items-start gap-1">
-                      {calcResult != null ? (
-                        <>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">Result</span>
-                          <span className="text-lg font-mono font-bold text-orange-700 dark:text-orange-300">
-                            ${calcResult.toFixed(4)}/kg
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-xs text-gray-400 italic">Enter values above</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex gap-2 pt-1">
-                    <button
-                      onClick={() => { if (calcResult != null) { setNewPrice(calcResult.toFixed(4)); setShowCalc(false) } }}
-                      disabled={calcResult == null}
-                      className="px-3 py-1.5 text-xs bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-40"
-                    >
-                      Use this price
-                    </button>
-                    <button
-                      onClick={() => { setShowCalc(false); setCalc({ unitCount: '', totalWeightKg: '', pricePerUnit: '' }) }}
-                      className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      ) : (
+      {showAdd && (
+        <AddVendorPurchasePresetModal
+          businessId={businessId}
+          initialName=""
+          purchaseType={purchaseTab}
+          onSuccess={(rule: VendorPurchasePreset) => { setRules(prev => [...prev, rule as Rule]); setShowAdd(false) }}
+          onClose={() => setShowAdd(false)}
+        />
+      )}
+      {!showAdd && (
         <button onClick={() => setShowAdd(true)} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
           + Add {purchaseTab === 'LIVESTOCK' ? 'livestock' : 'goods'} purchase preset
         </button>
