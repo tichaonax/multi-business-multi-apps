@@ -327,6 +327,7 @@ const RESTORE_ORDER = [
   'dailySpecialAddOn',       // Depends on dailySpecial + businessProducts
   'dailySpecialSchedule',    // Depends on businesses + dailySpecial
   'dailySpecialDayOverride', // Depends on businesses + dailySpecial (optional FK)
+  'cashRoundingLogs',        // Depends on businesses only (orderId is optional, no FK enforced)
 
   'orders',
   'orderItems',
