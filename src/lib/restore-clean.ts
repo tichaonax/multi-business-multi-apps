@@ -557,6 +557,9 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   'dailySpecialSchedule': { fields: ['businessId', 'dayOfWeek'] },
   'dailySpecialDayOverride': { fields: ['businessId', 'date'] },
 
+  // AYLI Pricing Calibrations: unique on (comboId, version) (MBM-238)
+  'ayliPricingCalibrations': { fields: ['comboId', 'version'] },
+
   // Policy Management: composite unique constraints
   'policyVersions': { fields: ['policyId', 'version'] },             // @@unique([policyId, version])
   'policyAcknowledgments': { fields: ['policyAssignmentId', 'userId'] }, // @@unique([policyAssignmentId, userId])

@@ -449,6 +449,30 @@ Click **Charge** or **Pay Now** to open the payment screen.
 
 After selecting the method and entering amounts, click **Complete Sale**.
 
+#### Cash Rounding
+
+When **Cash** is selected and the order total does not fall on a round step boundary (e.g. $2.62 with a $0.50 step), an amber **Cash Rounding** panel appears automatically below the Amount Received field.
+
+| Element | What it shows |
+|---------|---------------|
+| **Sub-total** | The exact cart total before rounding |
+| **Round up (+$X.XX)** | The adjustment needed to reach the next step boundary |
+| **Rounded Total** | The amount the customer pays |
+
+**Three actions are available:**
+
+| Button | What it does |
+|--------|-------------|
+| **Distribute to Items (+$X.XX)** | Spreads the rounding adjustment proportionally across the AYLI combo's ingredients. Each ingredient's line price and price/kg updates for this sale only — calibration prices in the database are never changed. Only shown when the cart contains an AYLI combo. |
+| **Apply $X.XX Rounding** | Sets the rounded amount as the final total. The original amount is logged for audit. |
+| **Keep $X.XX** | Dismisses the rounding panel without changing the total. |
+
+When the difference is small (≤ the configured auto-apply threshold, default $0.05), the panel auto-applies the rounding immediately — no button press needed.
+
+Every rounding event (up or down) is logged to the **Cash Rounding Report** (Reports → Cash Rounding). The log includes the original amount, rounded amount, adjustment, direction, and staff note where applicable.
+
+> **Configuration:** Cash rounding is enabled by default with a $0.50 step. Managers can adjust the step and threshold in **Business Settings → Cash Rounding Configuration**. See [Section 49 — Edit Business Settings](#49-edit-business-settings).
+
 ### Step 5 — The Receipt
 
 After payment is processed:
@@ -9866,6 +9890,20 @@ Shown when **Accepts Eco-Cash** is enabled.
 | Fee Value | The dollar amount or percentage to charge |
 | Min Fee ($) | Minimum fee charged when using Percentage mode |
 
+### Cash Rounding Configuration
+
+Shown when **Enable Cash Rounding** is ticked (on by default). Controls how cash payment totals are rounded to avoid impractical change.
+
+| Field | Options | Default | Description |
+|-------|---------|---------|-------------|
+| **Rounding Step** | $0.01 / $0.10 / $0.50 / $1.00 | $0.50 | The step boundary totals are rounded up to |
+| **Auto-apply Threshold** | $0.01 / $0.05 / $0.10 / $0.20 | $0.05 | When the rounding gap is ≤ this amount, rounding is applied automatically at the POS without a button press |
+
+**How it works at the POS:**
+- If the cart total is $2.62 with a $0.50 step, the cashier sees an amber panel suggesting rounding to $3.00 (+$0.38).
+- Since $0.38 > the $0.05 threshold, the cashier must manually confirm. If the gap were $0.03, it would auto-apply.
+- For AYLI combo orders, the cashier can choose to distribute the rounding adjustment proportionally across the combo's ingredients (e.g. give slightly more chicken) instead of applying a lump rounding charge.
+
 ### Transport Cost Configuration
 
 Shown when **Include Transport Cost in Pricing** is enabled. Used by the pricing calculator to factor in delivery cost.
@@ -11022,10 +11060,42 @@ The combo appears as an AYLI card (green badge ⚖️ AYLI) in the restaurant PO
 11. For each ingredient:
     - Tap the ingredient card (e.g. *Chicken*). Cards already added show a **green border** and a weight badge.
     - Have the customer add that ingredient to the container.
-    - After **2 seconds stable**, the button turns green: **✓ Capture +0.200 kg of Chicken**.
-    - Tap the capture button. A child line appears in the **Contents** list: `🍗 Chicken  0.200 kg × $9.50/kg  $1.90`.
+    - After **2 seconds stable**, the scale readout shows the pending details below the weight:
+      - **`+0.133 kg → Beef dishes  (+$0.83)`** — the weight being added and its cost at the current rate.
+      - **`New total: $1.89  ·  +$0.11 to reach $2.00`** — what the combo total will be after capture and the remaining cash rounding gap (shown only when cash rounding is configured).
+    - The capture button turns green: **✓ Capture +0.133 kg of Beef dishes**.
+    - Tap the capture button. A child line appears in the **Contents** list: `🍗 Beef dishes  0.133 kg × $6.21/kg  $0.83`.
 12. Repeat for each additional ingredient.
 13. The **weight bar** and **items bar** show capacity used. Exceeding 8 kg or 7 items is blocked with a warning.
+
+#### Removing from a Previously Captured Ingredient
+
+If you have already captured a portion and the customer wants less of a particular ingredient, you can remove weight without restarting the combo:
+
+1. **Physically remove some food** from the container (e.g. take back some beef). The scale weight drops.
+2. **Tap the ingredient card** you are removing from (e.g. *Beef dishes*). You do not need to tell the system you are removing — the negative weight change is detected automatically.
+3. The scale readout switches to **red removal mode**:
+   - Counter shows **"Removing… 2s"** while holding the reduced weight.
+   - Delta line shows **`− 0.032 kg → Beef dishes  (−$0.20)`** in red.
+   - Info line shows the new total after removal and the updated rounding gap.
+4. After 2 seconds stable, the button turns red: **✕ Remove 0.032 kg from Beef dishes**.
+5. Tap it. The ingredient's line in **Contents** updates immediately.
+
+**Removal rules:**
+- You cannot remove more weight than was captured for that ingredient. If you try, the line shows `Only X.XXX kg of [item] captured — reduce less` and the button stays disabled.
+- If the removal brings an ingredient to zero, its line is removed from Contents entirely.
+- If the removed ingredient was the first meat item and its line is cleared, the meat threshold resets.
+
+#### Cash Rounding Preview (bottom of totals)
+
+While filling the combo, the totals section shows a live rounding preview beneath **Combo Total** (only when cash rounding is enabled for the business):
+
+```
+Combo Total          $1.89
+🪙 Cash rounding (+$0.11)   $2.00
+```
+
+This lets you see — before adding items to the cart — exactly how much rounding will be needed and what the final cash amount will be. Use the pending cost line in the scale readout (above) to decide whether to add or remove a little food to land closer to a round number.
 
 #### Step 5 — Confirm
 
@@ -11074,6 +11144,7 @@ The Large combo has a higher base but cheaper per-kg rates — a "buy more, save
 | **Max distinct ingredients** | 7 different items per combo |
 | **Size lock** | Locked after first ingredient is captured |
 | **Same ingredient twice** | Allowed — weight is added to the existing child line |
+| **Removing weight** | Remove food from the container, tap the ingredient card — system detects the negative delta and shows a red Remove button. Cannot remove more than was captured for that ingredient. |
 | **Scale required** | Capture button is disabled if scale is not connected |
 | **Tare** | Container is auto-tared so container weight is excluded from the total |
 
