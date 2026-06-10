@@ -47,6 +47,8 @@ import { SalesPerfBadge, DEFAULT_SALES_PERF_THRESHOLDS } from '@/components/pos/
 import { TodayExpensesWidget } from '@/components/pos/TodayExpensesWidget'
 import type { SalesPerfThresholds } from '@/components/pos/SalesPerfBadge'
 import { calcEcocashFeeFromBusiness, getEcocashSummary } from '@/lib/ecocash-utils'
+import { getCashRoundingConfig, calcCashRounding, distributeRoundingAdjustment } from '@/lib/cash-rounding-utils'
+import type { AYLILine } from '@/lib/cash-rounding-utils'
 import { useTimeDisplay } from '@/hooks/use-time-display'
 import { generateDeliveryKitchenReceipt, generateDeliveryCustomerReceipt } from '@/lib/printing/receipt-templates'
 import type { DeliveryReceiptData } from '@/lib/printing/receipt-templates'
@@ -205,6 +207,8 @@ export default function RestaurantPOS() {
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'MOBILE' | 'ECOCASH' | 'ON_DELIVERY' | 'ON_PICKUP' | 'CREDIT'>('CASH')
   const [ecocashTxCode, setEcocashTxCode] = useState('')
   const [amountReceived, setAmountReceived] = useState('')
+  const [cashRoundingApplied, setCashRoundingApplied] = useState(false)
+  const [cashRoundedTotal, setCashRoundedTotal] = useState<number | null>(null)
   const [showReceiptModal, setShowReceiptModal] = useState(false)
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
   const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
@@ -2620,9 +2624,12 @@ export default function RestaurantPOS() {
         // No WiFi menu item at all — proceed without, server handles gracefully
       }
 
+      // Use rounded total if cash rounding was applied without distributing to items
+      const effectiveTotal = (paymentMethod === 'CASH' && cashRoundedTotal !== null) ? cashRoundedTotal : total
+
       const requestBody = {
         items: cartForOrder,
-        total,
+        total: effectiveTotal,
         discountAmount: rewardCredit + couponDiscount,
         rewardId: (appliedReward && !skipRewardThisTime) ? appliedReward.id : undefined,
         ...(appliedCoupon ? {
@@ -2905,6 +2912,8 @@ export default function RestaurantPOS() {
         setPaymentMethod('CASH')
         setAmountReceived('')
         setEcocashTxCode('')
+        setCashRoundingApplied(false)
+        setCashRoundedTotal(null)
 
         console.log('✅ Order created:', result.orderNumber)
 
@@ -2945,6 +2954,7 @@ export default function RestaurantPOS() {
       {aylicSession && (
         <AYLIComboModal
           combo={aylicSession}
+          cashRoundingConfig={getCashRoundingConfig((currentBusiness ?? {}) as any)}
           onCancel={() => {
             aylicInProgressRef.current = null
             setAylicSession(null)
@@ -5291,7 +5301,8 @@ export default function RestaurantPOS() {
               {(mealProgramCashDue !== null || (paymentMethod === 'CASH' && total > 0)) && (() => {
                 const _creditAppliedForCash = (applyCredit && deliveryAccount && !deliveryAccount.isBlacklisted)
                   ? Math.min(deliveryAccount.balance, total) : 0
-                const cashRef = mealProgramCashDue ?? Math.max(0, total - _creditAppliedForCash)
+                const cashRefBase = mealProgramCashDue ?? Math.max(0, total - _creditAppliedForCash)
+                const cashRef = cashRoundedTotal !== null ? cashRoundedTotal : cashRefBase
                 return (
                   <div>
                     <label className="block text-sm font-medium text-primary mb-2">Amount Received</label>
@@ -5339,6 +5350,95 @@ export default function RestaurantPOS() {
                         ⚠️ Amount received is less than total (${cashRef.toFixed(2)})
                       </div>
                     )}
+                  </div>
+                )
+              })()}
+
+              {/* Cash Rounding — shown for cash payments when rounding is enabled and not yet applied */}
+              {mealProgramCashDue === null && paymentMethod === 'CASH' && total > 0 && !cashRoundingApplied && (() => {
+                const _creditApplied = (applyCredit && deliveryAccount && !deliveryAccount.isBlacklisted)
+                  ? Math.min(deliveryAccount.balance, total) : 0
+                const cashRef = Math.max(0, total - _creditApplied)
+                const roundingConfig = getCashRoundingConfig((currentBusiness ?? {}) as any)
+                const rounding = calcCashRounding(cashRef, roundingConfig)
+                if (!roundingConfig.enabled || rounding.direction === 'EXACT') return null
+
+                const aylicItem = cart.find((item: any) => (item as any).isAYLICombo && (item as any).aylicData) as any
+
+                const applyRounding = () => {
+                  setCashRoundingApplied(true)
+                  setCashRoundedTotal(rounding.roundedAmount)
+                  sendToDisplay('PAYMENT_STARTED', { subtotal: total, tax: 0, total: rounding.roundedAmount, ecocashFee: 0, paymentMethod: 'CASH' })
+                  fetch('/api/universal/cash-rounding-log', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      businessId: currentBusiness?.businessId,
+                      direction: rounding.direction,
+                      originalAmount: rounding.originalAmount,
+                      roundedAmount: rounding.roundedAmount,
+                      adjustment: rounding.adjustment,
+                    }),
+                  }).catch(() => {})
+                }
+
+                const distributeToItems = () => {
+                  if (!aylicItem) return
+                  const result = distributeRoundingAdjustment(aylicItem.aylicData.lines as AYLILine[], rounding.adjustment)
+                  const basePrice = Number(aylicItem.aylicData.basePrice) || 0
+                  const newItemTotal = Math.round((result.totalPrice + basePrice) * 100) / 100
+                  setCart((prev: any[]) => prev.map((item: any) =>
+                    item.id === aylicItem.id
+                      ? { ...item, price: newItemTotal, aylicData: { ...item.aylicData, lines: result.lines, totalPrice: newItemTotal } }
+                      : item
+                  ))
+                  setCashRoundingApplied(true)
+                  sendToDisplay('PAYMENT_STARTED', { subtotal: total, tax: 0, total: rounding.roundedAmount, ecocashFee: 0, paymentMethod: 'CASH' })
+                  fetch('/api/universal/cash-rounding-log', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      businessId: currentBusiness?.businessId,
+                      direction: 'UP',
+                      originalAmount: rounding.originalAmount,
+                      roundedAmount: rounding.roundedAmount,
+                      adjustment: rounding.adjustment,
+                      staffNote: 'Distributed across AYLI items',
+                    }),
+                  }).catch(() => {})
+                }
+
+                return (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg space-y-2">
+                    <div className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                      {rounding.isAutoApply ? '🪙 Cash Rounding' : '🪙 Cash Rounding Needed'}
+                    </div>
+                    <div className="text-xs text-amber-700 dark:text-amber-300 space-y-0.5">
+                      <div className="flex justify-between"><span>Sub-total:</span><span>${cashRef.toFixed(2)}</span></div>
+                      <div className="flex justify-between"><span>Round up (+${rounding.adjustment.toFixed(2)}):</span><span>${rounding.roundedAmount.toFixed(2)}</span></div>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      {aylicItem && (
+                        <button
+                          onClick={distributeToItems}
+                          className="flex-1 py-1.5 px-3 text-xs font-medium bg-amber-600 hover:bg-amber-700 text-white rounded-md"
+                        >
+                          Distribute to Items (+${rounding.adjustment.toFixed(2)})
+                        </button>
+                      )}
+                      <button
+                        onClick={applyRounding}
+                        className="flex-1 py-1.5 px-3 text-xs font-medium bg-amber-500 hover:bg-amber-600 text-white rounded-md"
+                      >
+                        Apply ${rounding.roundedAmount.toFixed(2)} Rounding
+                      </button>
+                      <button
+                        onClick={() => setCashRoundingApplied(true)}
+                        className="flex-1 py-1.5 px-3 text-xs font-medium bg-gray-400 hover:bg-gray-500 text-white rounded-md"
+                      >
+                        Keep ${cashRef.toFixed(2)}
+                      </button>
+                    </div>
                   </div>
                 )
               })()}
@@ -5403,6 +5503,8 @@ export default function RestaurantPOS() {
                     setAmountReceived('')
                     setEcocashTxCode('')
                     setSaveChangeToCredit(false)
+                    setCashRoundingApplied(false)
+                    setCashRoundedTotal(null)
                     setMealPanelKey(k => k + 1)
                   }}
                   disabled={orderSubmitting}

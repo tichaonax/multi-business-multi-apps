@@ -1518,6 +1518,11 @@ export async function createCleanBackup(
     where: { businessId: { in: businessIds } }
   })
 
+  // 61. Cash Rounding Logs (MBM-239)
+  businessData.cashRoundingLogs = await (prisma as any).cashRoundingLogs.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
   // Extend image backup: warehouse images + product_images + inventory display images + ad images
   const warehouseImageIds = businessData.warehouseItems
     .map((i: any) => i.imageId)
@@ -1610,7 +1615,7 @@ export async function createCleanBackup(
       deviceRecords,
       uncompressedSize
     },
-    schemaVersion: '6.35.0',
+    schemaVersion: '6.36.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

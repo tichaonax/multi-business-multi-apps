@@ -452,6 +452,9 @@ model Businesses {
   ecocashFeeType                                                           String?                       @default("FIXED") @map("ecocash_fee_type")
   ecocashFeeValue                                                          Decimal?                      @default(0) @map("ecocash_fee_value") @db.Decimal(10, 2)
   ecocashMinimumFee                                                        Decimal?                      @default(0) @map("ecocash_minimum_fee") @db.Decimal(10, 2)
+  cashRoundingEnabled                                                      Boolean                       @default(true) @map("cash_rounding_enabled")
+  cashRoundingStep                                                         Decimal                       @default(0.50) @map("cash_rounding_step") @db.Decimal(10, 2)
+  cashRoundingUpThreshold                                                  Decimal                       @default(0.05) @map("cash_rounding_up_threshold") @db.Decimal(10, 2)
   transportCostEnabled                                                     Boolean                       @default(false)
   transportDistanceKm                                                      Decimal?                      @db.Decimal(8, 2)
   transportCostPerKm                                                       Decimal                       @default(0.30) @db.Decimal(6, 3)
@@ -602,6 +605,7 @@ model Businesses {
   daily_specials                                                           DailySpecial[]
   daily_special_schedules                                                  DailySpecialSchedule[]
   daily_special_day_overrides                                              DailySpecialDayOverride[]
+  cash_rounding_logs                                                       CashRoundingLogs[]
 
   @@map("businesses")
 }
@@ -7636,4 +7640,21 @@ model DailySpecialDayOverride {
 
   @@unique([businessId, date])
   @@map("daily_special_day_overrides")
+}
+
+
+model CashRoundingLogs {
+  id             String     @id @default(cuid())
+  businessId     String     @map("business_id")
+  orderId        String?    @map("order_id")
+  direction      String
+  originalAmount Decimal    @map("original_amount") @db.Decimal(10, 2)
+  roundedAmount  Decimal    @map("rounded_amount") @db.Decimal(10, 2)
+  adjustment     Decimal    @db.Decimal(10, 2)
+  staffNote      String?    @map("staff_note")
+  createdAt      DateTime   @default(now()) @map("created_at")
+
+  business       Businesses @relation(fields: [businessId], references: [id])
+
+  @@map("cash_rounding_logs")
 }

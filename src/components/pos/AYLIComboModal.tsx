@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useScale } from '@/contexts/ScaleContext'
+import { calcCashRounding, type CashRoundingConfig } from '@/lib/cash-rounding-utils'
 
 const STABLE_HOLD_MS = 2000
 const SIZE_ORDER = ['small', 'medium', 'large']
@@ -32,6 +33,7 @@ interface Props {
   onCancel: () => void
   onProgress?: (snapshot: Omit<AYLIComboData, 'totalPrice'>) => void
   calibrationMode?: boolean  // skips size picker, changes Done label
+  cashRoundingConfig?: CashRoundingConfig
 }
 
 function getPriceForSize(item: ComboItem, size: string): number {
@@ -40,7 +42,7 @@ function getPriceForSize(item: ComboItem, size: string): number {
   return Number(item.pricePerKgLarge)
 }
 
-export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibrationMode = false }: Props) {
+export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibrationMode = false, cashRoundingConfig }: Props) {
   const { weight, status, tare } = useScale()
 
   // Step 0 = container placement + auto-tare, Step 1 = size picker, Step 2 = fill panel
@@ -73,7 +75,7 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
   const maxItems = combo.maxItems
   const totalWeightKg = lines.reduce((s, l) => s + l.weightKg, 0)
   const distinctCount = lines.length
-  const delta = Math.max(0, liveWeight - previousWeight)
+  const delta = Math.round((liveWeight - previousWeight) * 1000) / 1000  // positive = add, negative = remove
 
   // Step 0: auto-tare when container is stable on the scale
   useEffect(() => {
@@ -113,7 +115,7 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
       setReadyToCapture(false)
       setCountdown(0)
     }
-    if (!isStable || liveWeight <= previousWeight) { clearTimers(); return }
+    if (!isStable || Math.abs(liveWeight - previousWeight) < 0.001) { clearTimers(); return }
 
     stableStartRef.current = Date.now()
     setCountdown(Math.ceil(STABLE_HOLD_MS / 1000))
@@ -142,17 +144,47 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
   }
 
   function handleCapture() {
-    if (!readyToCapture || !selectedItemId || delta <= 0) return
+    if (!readyToCapture || !selectedItemId || Math.abs(delta) < 0.001) return
     setError(null)
 
+    const comboItem = combo.items.find(it => it.poolItemId === selectedItemId)
+    if (!comboItem) return
+
+    const pricePerKg = getPriceForSize(comboItem, selectedSize)
+
+    // ── Removal ─────────────────────────────────────────────────────────────
+    if (delta < 0) {
+      const absRemoval = Math.abs(delta)
+      const existingLine = lines.find(l => l.poolItemId === selectedItemId)
+      if (!existingLine) {
+        setError(`${comboItem.pool_item.name} hasn't been captured yet — nothing to remove.`)
+        return
+      }
+      if (absRemoval > existingLine.weightKg + 0.001) {
+        setError(`Cannot remove ${absRemoval.toFixed(3)} kg — only ${existingLine.weightKg.toFixed(3)} kg of ${existingLine.productName} captured.`)
+        return
+      }
+      const newWeightKg = Math.max(0, Math.round((existingLine.weightKg - absRemoval) * 1000) / 1000)
+      const newLinePrice = Math.round(newWeightKg * pricePerKg * 100) / 100
+      const newLines: AYLIComboData['lines'] = newWeightKg < 0.001
+        ? lines.filter(l => l.poolItemId !== selectedItemId)
+        : lines.map(l => l.poolItemId === selectedItemId ? { ...l, weightKg: newWeightKg, linePrice: newLinePrice } : l)
+
+      setLines(newLines)
+      onProgress?.({ comboId: combo.id, comboName: combo.name, size: selectedSize, basePrice, lines: newLines })
+      if (newWeightKg < 0.001 && selectedItemId === firstMeatPoolItemId) setFirstMeatPoolItemId(null)
+      setPreviousWeight(liveWeight)
+      setReadyToCapture(false)
+      setSelectedItemId('')
+      return
+    }
+
+    // ── Addition (existing logic) ────────────────────────────────────────────
     const newTotal = totalWeightKg + delta
     if (newTotal > maxWeightKg) {
       setError(`Adding ${delta.toFixed(3)} kg would exceed the ${maxWeightKg} kg limit (currently ${totalWeightKg.toFixed(3)} kg).`)
       return
     }
-
-    const comboItem = combo.items.find(it => it.poolItemId === selectedItemId)
-    if (!comboItem) return
 
     const existingLine = lines.find(l => l.poolItemId === selectedItemId)
     const isNewItem = !existingLine
@@ -162,7 +194,6 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
       return
     }
 
-    const pricePerKg = getPriceForSize(comboItem, selectedSize)
     const addedPrice = delta * pricePerKg
 
     const newLines: AYLIComboData['lines'] = existingLine
@@ -181,15 +212,12 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
     setLines(newLines)
     onProgress?.({ comboId: combo.id, comboName: combo.name, size: selectedSize, basePrice, lines: newLines })
 
-    // Lock size after first capture
     if (!sizeLocked) setSizeLocked(true)
 
-    // Track first meat item
     if (!firstMeatPoolItemId && comboItem.pool_item.itemCategory === 'MEAT') {
       setFirstMeatPoolItemId(selectedItemId)
     }
 
-    // Advance the tracking weight
     setPreviousWeight(liveWeight)
     setReadyToCapture(false)
     setSelectedItemId('')
@@ -210,9 +238,25 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
 
   const itemsTotal = lines.reduce((s, l) => s + l.linePrice, 0)
   const comboTotal = basePrice + itemsTotal
+
+  // Pending capture cost — what adding/removing the current delta will cost
+  const isRemoving = delta < -0.001
+  const pendingComboItem = selectedItemId ? combo.items.find(it => it.poolItemId === selectedItemId) : null
+  const pendingPricePerKg = pendingComboItem ? getPriceForSize(pendingComboItem, selectedSize) : 0
+  const pendingCost = Math.abs(delta) > 0.001 && pendingPricePerKg > 0
+    ? Math.round(Math.abs(delta) * pendingPricePerKg * 100) / 100 : 0
+  const pendingSign = isRemoving ? -1 : 1
+  const newComboTotalAfterCapture = Math.round((comboTotal + pendingSign * pendingCost) * 100) / 100
   const weightPct = Math.min(100, (totalWeightKg / maxWeightKg) * 100)
 
-  const captureDisabled = !readyToCapture || !selectedItemId || delta <= 0 || liveWeight > maxWeightKg
+  // Removal validation: can't remove more than what's in the line
+  const removalLine = isRemoving && selectedItemId ? lines.find(l => l.poolItemId === selectedItemId) : null
+  const removalExceedsLine = removalLine ? Math.abs(delta) > removalLine.weightKg + 0.001 : false
+  const removalNoLine = isRemoving && selectedItemId && !lines.find(l => l.poolItemId === selectedItemId)
+
+  const captureDisabled = !readyToCapture || !selectedItemId || Math.abs(delta) < 0.001
+    || (delta > 0 && liveWeight > maxWeightKg)
+    || removalExceedsLine || !!removalNoLine
 
   // Meat threshold
   const selectedSizeData = combo.sizes.find(s => s.sizeName === selectedSize)
@@ -355,8 +399,10 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
                   <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-400'}`} />
                   <span className="text-xs text-secondary">{connected ? `Scale — ${status.comPort}` : 'Scale not connected'}</span>
                 </div>
-                {isStable && liveWeight > previousWeight && !readyToCapture && (
-                  <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold">Holding… {countdown}s</span>
+                {isStable && Math.abs(liveWeight - previousWeight) >= 0.001 && !readyToCapture && (
+                  <span className={`text-xs font-semibold ${isRemoving ? 'text-red-500 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                    {isRemoving ? 'Removing… ' : 'Holding… '}{countdown}s
+                  </span>
                 )}
                 {readyToCapture && (
                   <span className="text-xs text-green-600 dark:text-green-400 font-semibold">● Ready</span>
@@ -368,11 +414,48 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
                 ) : (
                   <>
                     <div className="text-4xl font-mono font-bold text-gray-900 dark:text-gray-100">{liveWeight.toFixed(3)} kg</div>
-                    {liveWeight > previousWeight && (
-                      <div className="text-sm text-blue-600 dark:text-blue-400 mt-0.5">
-                        +{delta.toFixed(3)} kg {selectedItemId ? `→ ${combo.items.find(it => it.poolItemId === selectedItemId)?.pool_item?.name}` : '(select item first)'}
-                      </div>
-                    )}
+                    {Math.abs(liveWeight - previousWeight) >= 0.001 && (() => {
+                      const itemName = combo.items.find(it => it.poolItemId === selectedItemId)?.pool_item?.name
+                      const roundingAfter = !calibrationMode && cashRoundingConfig && pendingCost > 0
+                        ? calcCashRounding(newComboTotalAfterCapture, cashRoundingConfig)
+                        : null
+                      const gapAfter = roundingAfter && roundingAfter.direction !== 'EXACT' ? roundingAfter.adjustment : 0
+                      const deltaColor = isRemoving ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
+                      return (
+                        <div className="mt-0.5 space-y-0.5">
+                          <div className={`text-sm ${deltaColor}`}>
+                            {isRemoving ? '−' : '+'}{Math.abs(delta).toFixed(3)} kg
+                            {selectedItemId ? ` → ${itemName}` : ' (select item first)'}
+                            {pendingCost > 0 && (
+                              <span className="ml-2 font-semibold">
+                                ({isRemoving ? '−' : '+'}${pendingCost.toFixed(2)})
+                              </span>
+                            )}
+                          </div>
+                          {pendingCost > 0 && !removalExceedsLine && !removalNoLine && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              New total: <span className="font-semibold text-primary">${newComboTotalAfterCapture.toFixed(2)}</span>
+                              {gapAfter > 0
+                                ? <span className="ml-2 text-amber-600 dark:text-amber-400">· +${gapAfter.toFixed(2)} to reach ${roundingAfter!.roundedAmount.toFixed(2)}</span>
+                                : roundingAfter?.direction === 'EXACT' && comboTotal !== newComboTotalAfterCapture
+                                  ? <span className="ml-2 text-green-600 dark:text-green-400">· exact — no rounding needed ✓</span>
+                                  : null
+                              }
+                            </div>
+                          )}
+                          {removalExceedsLine && removalLine && (
+                            <div className="text-xs text-red-500 dark:text-red-400">
+                              Only {removalLine.weightKg.toFixed(3)} kg of {itemName} captured — reduce less
+                            </div>
+                          )}
+                          {removalNoLine && selectedItemId && (
+                            <div className="text-xs text-red-500 dark:text-red-400">
+                              {itemName} hasn't been captured yet
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </>
                 )}
               </div>
@@ -451,17 +534,21 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
               </div>
             )}
 
-            {/* Capture button */}
+            {/* Capture / Remove button */}
             <button type="button" onClick={handleCapture} disabled={captureDisabled}
               className={`w-full py-3 rounded-xl font-semibold text-sm transition-colors ${
                 captureDisabled
                   ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                  : isRemoving
+                  ? 'bg-red-600 hover:bg-red-700 text-white'
                   : 'bg-green-600 hover:bg-green-700 text-white'
               }`}>
               {!selectedItemId
                 ? 'Select an item above first'
                 : !readyToCapture
                 ? `Waiting for stable weight…`
+                : isRemoving
+                ? `✕ Remove ${Math.abs(delta).toFixed(3)} kg from ${combo.items.find(it => it.poolItemId === selectedItemId)?.pool_item?.name}`
                 : `✓ Capture +${delta.toFixed(3)} kg of ${combo.items.find(it => it.poolItemId === selectedItemId)?.pool_item?.name}`
               }
             </button>
@@ -489,20 +576,34 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
             )}
 
             {/* Totals */}
-            <div className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
-              <div className="flex justify-between px-3 py-2 text-sm text-secondary">
-                <span className="capitalize">Base ({selectedSize})</span>
-                <span>${basePrice.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between px-3 py-2 text-sm text-secondary border-t border-gray-100 dark:border-gray-700">
-                <span>Items total</span>
-                <span>${itemsTotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between px-3 py-2.5 text-base font-bold text-primary border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50">
-                <span>Combo Total</span>
-                <span>${comboTotal.toFixed(2)}</span>
-              </div>
-            </div>
+            {(() => {
+              const rounding = !calibrationMode && cashRoundingConfig && lines.length > 0
+                ? calcCashRounding(comboTotal, cashRoundingConfig)
+                : null
+              const showRounding = rounding && rounding.direction !== 'EXACT'
+              return (
+                <div className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+                  <div className="flex justify-between px-3 py-2 text-sm text-secondary">
+                    <span className="capitalize">Base ({selectedSize})</span>
+                    <span>${basePrice.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between px-3 py-2 text-sm text-secondary border-t border-gray-100 dark:border-gray-700">
+                    <span>Items total</span>
+                    <span>${itemsTotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between px-3 py-2.5 text-base font-bold text-primary border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50">
+                    <span>Combo Total</span>
+                    <span>${comboTotal.toFixed(2)}</span>
+                  </div>
+                  {showRounding && (
+                    <div className="flex justify-between items-center px-3 py-2 text-xs border-t border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300">
+                      <span>🪙 Cash rounding (+${rounding!.adjustment.toFixed(2)})</span>
+                      <span className="font-semibold">${rounding!.roundedAmount.toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* Footer actions */}
             <div className="flex gap-3 pt-1">

@@ -3507,6 +3507,9 @@ export interface BusinessMembership {
   ecocashFeeType?: string; // 'FIXED' | 'PERCENTAGE'
   ecocashFeeValue?: number; // Fee amount or percentage
   ecocashMinimumFee?: number; // Minimum fee floor for PERCENTAGE type
+  cashRoundingEnabled?: boolean;
+  cashRoundingStep?: number;
+  cashRoundingUpThreshold?: number;
   defaultPage?: string | null; // Default landing page for business
   expenseAccounts?: { id: string; accountName: string }[]; // Linked expense accounts for quick navigation
   joinedAt: Date;

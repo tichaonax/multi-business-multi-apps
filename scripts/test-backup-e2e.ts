@@ -86,6 +86,10 @@ const NEW_TABLE_KEYS = [
   'weightPricingRules', 'livestockPurchaseSessions', 'livestockPurchaseLines',
   // Vendor Profiles (MBM-227)
   'livestockVendorProfiles',
+  // AYLI Pricing Calibrations (MBM-238)
+  'ayliPricingCalibrations',
+  // Cash Rounding Logs (MBM-239)
+  'cashRoundingLogs',
 ]
 
 async function main() {

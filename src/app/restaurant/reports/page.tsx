@@ -89,6 +89,13 @@ export default function RestaurantReportsPage() {
       href: `/${businessType}/delivery/reports`,
       icon: '🛵',
       color: 'bg-sky-600 hover:bg-sky-700'
+    },
+    {
+      title: '🪙 Cash Rounding Report',
+      description: 'Review all cash rounding events — totals rounded up or down, trends over time, and AYLI distributions',
+      href: `/${businessType}/reports/cash-rounding`,
+      icon: '🪙',
+      color: 'bg-yellow-600 hover:bg-yellow-700'
     }
   ]
 

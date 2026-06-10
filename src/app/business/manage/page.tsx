@@ -65,6 +65,9 @@ function BusinessManagePageContent() {
     transportCostEnabled?: boolean
     transportDistanceKm?: string
     transportCostPerKm?: string
+    cashRoundingEnabled?: boolean
+    cashRoundingStep?: string
+    cashRoundingUpThreshold?: string
   } | null>(null)
   const [editBusinessId, setEditBusinessId] = useState<string | null>(null)
   const { format: globalDateFormat } = useDateFormat();
@@ -420,6 +423,9 @@ function BusinessManagePageContent() {
                               transportCostEnabled: biz?.transportCostEnabled !== undefined ? biz.transportCostEnabled : false,
                               transportDistanceKm: biz?.transportDistanceKm !== undefined && biz.transportDistanceKm !== null ? String(biz.transportDistanceKm) : '',
                               transportCostPerKm: biz?.transportCostPerKm !== undefined ? String(biz.transportCostPerKm) : '0.30',
+                              cashRoundingEnabled: biz?.cashRoundingEnabled !== undefined ? biz.cashRoundingEnabled : true,
+                              cashRoundingStep: biz?.cashRoundingStep !== undefined ? String(biz.cashRoundingStep) : '0.50',
+                              cashRoundingUpThreshold: biz?.cashRoundingUpThreshold !== undefined ? String(biz.cashRoundingUpThreshold) : '0.05',
                             })
                             setEditBusinessId(id)
                             setShowEditBusiness(true)

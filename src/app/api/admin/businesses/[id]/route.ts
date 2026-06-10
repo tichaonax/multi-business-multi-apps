@@ -61,6 +61,15 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (payload.hasOwnProperty('ecocashMinimumFee')) {
       updateData.ecocashMinimumFee = payload.ecocashMinimumFee !== undefined && payload.ecocashMinimumFee !== '' ? parseFloat(payload.ecocashMinimumFee) : 0
     }
+    if (payload.hasOwnProperty('cashRoundingEnabled')) {
+      updateData.cashRoundingEnabled = !!payload.cashRoundingEnabled
+    }
+    if (payload.hasOwnProperty('cashRoundingStep')) {
+      updateData.cashRoundingStep = payload.cashRoundingStep !== undefined && payload.cashRoundingStep !== '' ? parseFloat(payload.cashRoundingStep) : 0.50
+    }
+    if (payload.hasOwnProperty('cashRoundingUpThreshold')) {
+      updateData.cashRoundingUpThreshold = payload.cashRoundingUpThreshold !== undefined && payload.cashRoundingUpThreshold !== '' ? parseFloat(payload.cashRoundingUpThreshold) : 0.05
+    }
     if (payload.hasOwnProperty('transportCostEnabled')) {
       updateData.transportCostEnabled = !!payload.transportCostEnabled
     }

@@ -39,6 +39,9 @@ interface BusinessCreationModalProps {
     transportCostEnabled?: boolean
     transportDistanceKm?: string
     transportCostPerKm?: string
+    cashRoundingEnabled?: boolean
+    cashRoundingStep?: string
+    cashRoundingUpThreshold?: string
   }
   // Optional: HTTP method override for the form (default POST). Use 'PUT' for edit.
   method?: 'POST' | 'PUT'
@@ -92,6 +95,9 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
     transportCostEnabled: initial?.transportCostEnabled !== undefined ? initial.transportCostEnabled : false,
     transportDistanceKm: initial?.transportDistanceKm || '',
     transportCostPerKm: initial?.transportCostPerKm || '0.30',
+    cashRoundingEnabled: initial?.cashRoundingEnabled !== undefined ? initial.cashRoundingEnabled : true,
+    cashRoundingStep: initial?.cashRoundingStep || '0.50',
+    cashRoundingUpThreshold: initial?.cashRoundingUpThreshold || '0.05',
   })
   const [loading, setLoading] = useState(false)
   const [hasRentAccount, setHasRentAccount] = useState(false)
@@ -116,6 +122,9 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
             transportCostEnabled: cfg.transportCostEnabled !== undefined ? cfg.transportCostEnabled : prev.transportCostEnabled,
             transportDistanceKm: cfg.transportDistanceKm !== undefined && cfg.transportDistanceKm !== null ? String(cfg.transportDistanceKm) : prev.transportDistanceKm,
             transportCostPerKm: cfg.transportCostPerKm !== undefined ? String(cfg.transportCostPerKm) : prev.transportCostPerKm,
+            cashRoundingEnabled: cfg.cashRoundingEnabled !== undefined ? cfg.cashRoundingEnabled : prev.cashRoundingEnabled,
+            cashRoundingStep: cfg.cashRoundingStep !== undefined ? String(cfg.cashRoundingStep) : prev.cashRoundingStep,
+            cashRoundingUpThreshold: cfg.cashRoundingUpThreshold !== undefined ? String(cfg.cashRoundingUpThreshold) : prev.cashRoundingUpThreshold,
           }))
         })
         .catch(() => {/* silently ignore, initial values remain */})
@@ -583,6 +592,62 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
                             Est. round-trip cost: ${(parseFloat(formData.transportDistanceKm || '0') * 2 * parseFloat(formData.transportCostPerKm || '0')).toFixed(2)}
                           </p>
                         )}
+                      </div>
+                    )}
+
+                    {/* Cash Rounding */}
+                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-neutral-700/50 rounded-md border border-gray-200 dark:border-neutral-700">
+                      <div className="flex-1">
+                        <label htmlFor="cashRoundingEnabled" className="block text-sm font-medium text-gray-900 dark:text-neutral-100">
+                          🪙 Cash Rounding
+                        </label>
+                        <span className="block text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                          Round cash totals to the nearest step when coins are unavailable
+                        </span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        id="cashRoundingEnabled"
+                        checked={formData.cashRoundingEnabled}
+                        onChange={(e) => setFormData({ ...formData, cashRoundingEnabled: e.target.checked })}
+                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:bg-neutral-700 dark:border-neutral-600 ml-3"
+                      />
+                    </div>
+
+                    {formData.cashRoundingEnabled && (
+                      <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-md border border-amber-200 dark:border-amber-800 ml-4">
+                        <p className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-2">Cash Rounding Configuration</p>
+                        <div className="flex gap-3 items-end">
+                          <div>
+                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Round to nearest</label>
+                            <select
+                              value={formData.cashRoundingStep}
+                              onChange={(e) => setFormData({ ...formData, cashRoundingStep: e.target.value })}
+                              className="px-2 py-1.5 text-sm border rounded bg-white dark:bg-neutral-700 border-amber-300 dark:border-amber-700 text-primary"
+                            >
+                              <option value="0.01">$0.01 (1c)</option>
+                              <option value="0.10">$0.10 (10c)</option>
+                              <option value="0.50">$0.50 (50c)</option>
+                              <option value="1.00">$1.00</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Auto round-up threshold</label>
+                            <select
+                              value={formData.cashRoundingUpThreshold}
+                              onChange={(e) => setFormData({ ...formData, cashRoundingUpThreshold: e.target.value })}
+                              className="px-2 py-1.5 text-sm border rounded bg-white dark:bg-neutral-700 border-amber-300 dark:border-amber-700 text-primary"
+                            >
+                              <option value="0.01">$0.01 (1c)</option>
+                              <option value="0.05">$0.05 (5c)</option>
+                              <option value="0.10">$0.10 (10c)</option>
+                              <option value="0.20">$0.20 (20c)</option>
+                            </select>
+                          </div>
+                        </div>
+                        <p className="text-xs text-amber-700 dark:text-amber-400 mt-1.5">
+                          Totals within ${formData.cashRoundingUpThreshold || '0.05'} of the next ${formData.cashRoundingStep || '0.50'} step auto-apply. Larger differences show a confirm button.
+                        </p>
                       </div>
                     )}
 
