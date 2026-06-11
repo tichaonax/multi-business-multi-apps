@@ -77,7 +77,7 @@ AYLI combos have a green **⚖️ AYLI** badge and are sold by weight. When a cu
    | Button | What it means |
    |--------|--------------|
    | **↑ $X.XX (+$Y.YY)** (green) | Round the price up. The small difference is spread across ingredient prices. The customer pays the higher round number. |
-   | **↓ $X.XX (−$Y.YY)** (orange) | Round the price down. The exact weighed price stays on the combo. A separate "Cash Rounding −$Y.YY" discount line is added to the cart — the customer gets a small courtesy discount. |
+   | **↓ $X.XX (−$Y.YY)** (orange) | Round the price down. The exact weighed price stays on the combo. A separate "Promotional Discount −$Y.YY" line is added to the cart — the customer gets a small courtesy discount. |
    | **Keep $X.XX** (grey) | No rounding. Use the exact calculated price. |
 
    > **Tip:** During filling, watch the rounding gap shown under the scale readout. If you are $0.04 away from a round number, a tiny bit more food can bring you to zero rounding needed.
@@ -111,14 +111,16 @@ Click **Charge** or **Pay Now**.
 | **EcoCash** | Select EcoCash. Enter the amount sent. Record the EcoCash transaction code when prompted. |
 | **Split** | Click both methods and enter the amount for each. |
 
-### Cash Rounding (non-AYLI orders)
+### Cash Rounding (non-AYLI orders only)
 
-If the total doesn't land on a round number (e.g., $2.62) and you didn't handle rounding in the AYLI modal, an amber panel appears:
+For orders with no AYLI combo, an amber rounding panel may appear if the total doesn't land on a round number (e.g., $2.62):
 - **Apply Rounding** — round up to the next boundary (e.g., $3.00).
 - **Round down** — give the customer the lower amount (e.g., $2.50).
 - **Keep** — charge the exact amount.
 
-Small gaps (e.g., $0.03) round automatically without you needing to tap anything.
+Small gaps (e.g., $0.03) round automatically without any button press.
+
+> **AYLI orders:** If the cart has an AYLI combo, the rounding decision was already made in the AYLI modal (Step 6 above). No rounding panel appears in the payment screen for AYLI orders.
 
 Click **Complete Sale** when ready.
 
