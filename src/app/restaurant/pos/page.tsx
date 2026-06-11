@@ -2371,10 +2371,10 @@ export default function RestaurantPOS() {
     })
   }
 
-  const subtotal = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0)
+  const subtotal = Math.round(cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0) * 100) / 100
   const rewardCredit = (appliedReward && !skipRewardThisTime) ? Math.min(Number(appliedReward.rewardAmount), subtotal) : 0
   const couponDiscount = appliedCoupon ? Math.min(appliedCoupon.discountAmount, Math.max(0, subtotal - rewardCredit)) : 0
-  const total = Math.max(0, subtotal - rewardCredit - couponDiscount)
+  const total = Math.round(Math.max(0, subtotal - rewardCredit - couponDiscount) * 100) / 100
 
   // Manual cart helpers
   const addToManualCart = (item: ManualCartItem) => {
@@ -5359,7 +5359,7 @@ export default function RestaurantPOS() {
                         )}
                       </>
                     )}
-                    {amountReceived && parseFloat(amountReceived) < cashRef && (
+                    {amountReceived && Math.round(parseFloat(amountReceived) * 100) / 100 < Math.round(cashRef * 100) / 100 && (
                       <div className="mt-2 p-2 bg-red-100 dark:bg-red-900 rounded text-red-800 dark:text-red-200 text-sm">
                         ⚠️ Amount received is less than total (${cashRef.toFixed(2)})
                       </div>
@@ -5553,7 +5553,7 @@ export default function RestaurantPOS() {
                       ? (mealProgramCashDue > 0 && (!amountReceived || parseFloat(amountReceived) < mealProgramCashDue))
                       : paymentMethod === 'ECOCASH' ? !ecocashTxCode.trim()
                       : paymentMethod === 'ON_DELIVERY' || paymentMethod === 'ON_PICKUP' || paymentMethod === 'CREDIT' ? false
-                      : (paymentMethod === 'CASH' && total > 0 && (!amountReceived || parseFloat(amountReceived) < total))
+                      : (paymentMethod === 'CASH' && total > 0 && (!amountReceived || Math.round(parseFloat(amountReceived) * 100) / 100 < Math.round(total * 100) / 100))
                   ))}
                   className="flex-1 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
