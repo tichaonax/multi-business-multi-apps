@@ -451,27 +451,68 @@ After selecting the method and entering amounts, click **Complete Sale**.
 
 #### Cash Rounding
 
-When **Cash** is selected and the order total does not fall on a round step boundary (e.g. $2.62 with a $0.50 step), an amber **Cash Rounding** panel appears automatically below the Amount Received field.
+Cash rounding avoids impractical change by adjusting the payment total to the nearest step boundary (default $0.50). The system supports two directions: **round up** (customer pays a small amount more) and **round down** (customer receives a small discount). Both are fully logged. The right place to apply rounding depends on whether the order contains an AYLI combo.
+
+---
+
+##### AYLI Combo Orders — Round or Confirm in the Modal (recommended)
+
+When filling an AYLI combo, the rounding decision is made **inside the AYLI modal, before the item enters the cart**. Once all ingredients are captured, the modal footer shows up to four options:
+
+| Button | Colour | What it does |
+|--------|--------|-------------|
+| **↑ $X.XX (+$Y.YY)** | Green | **Round up.** Distributes the extra amount proportionally across the ingredient prices for this sale only. The combo enters the cart at the rounded-up total. Calibration prices in the database are never touched. |
+| **↓ $X.XX (−$Y.YY)** | Orange | **Round down.** Keeps every ingredient price exactly as weighed. A separate **Cash Rounding −$Y.YY** discount line is injected into the cart below the combo — the customer sees it as a good-gesture discount. |
+| **Keep $X.XX** | Grey | Add the combo at its exact calculated price. No rounding applied. |
+| **Cancel** | — | Cancel the entire combo and return to the POS. |
+
+**Round up — how the adjustment is spread:**
+The extra cents are distributed across ingredients using a largest-remainder algorithm so the line prices always sum precisely to the rounded total. Heavier or more expensive lines absorb slightly more. Only this one sale is affected.
+
+**Round down — what the customer sees on the receipt:**
+The AYLI combo line prints at its exact weighed price. Directly below it, a separate line reads:
+
+```
+Cash Rounding                        −$0.41
+```
+
+This signals to the customer that they received a courtesy discount, not that the food was mis-weighed.
+
+**Strategy tip — aim for a round number during filling:**
+The scale readout in Step 3 shows a pending cost line and a live rounding gap:
+
+```
++0.133 kg → Beef dishes  (+$0.83)
+New total: $1.89  ·  +$0.11 to reach $2.00
+```
+
+Add or remove a tiny amount of food to land within a few cents of a boundary before tapping Capture — this makes the rounding adjustment negligible and the choice between round up/down easier.
+
+---
+
+##### Non-AYLI Orders — Amber Rounding Panel in Payment
+
+For orders without an AYLI combo (or when "Keep" was chosen in the AYLI modal), an amber **Cash Rounding** panel appears automatically in the payment screen when the cart total does not land on a step boundary.
 
 | Element | What it shows |
 |---------|---------------|
 | **Sub-total** | The exact cart total before rounding |
-| **Round up (+$X.XX)** | The adjustment needed to reach the next step boundary |
-| **Rounded Total** | The amount the customer pays |
-
-**Three actions are available:**
+| **Round up (+$X.XX)** | The gap to the next step boundary |
+| **Rounded Total** | What the customer will pay after rounding |
 
 | Button | What it does |
 |--------|-------------|
-| **Distribute to Items (+$X.XX)** | Spreads the rounding adjustment proportionally across the AYLI combo's ingredients. Each ingredient's line price and price/kg updates for this sale only — calibration prices in the database are never changed. Only shown when the cart contains an AYLI combo. |
-| **Apply $X.XX Rounding** | Sets the rounded amount as the final total. The original amount is logged for audit. |
-| **Keep $X.XX** | Dismisses the rounding panel without changing the total. |
+| **Apply $X.XX Rounding** | Sets the rounded-up amount as the final total and logs the event. |
+| **Round down to $X.XX (−$Y.YY)** | Sets the rounded-down amount as the final total (customer pays less). |
+| **Keep $X.XX** | Dismisses the panel and charges the exact total. |
 
-When the difference is small (≤ the configured auto-apply threshold, default $0.05), the panel auto-applies the rounding immediately — no button press needed.
+When the rounding gap is ≤ the configured auto-apply threshold (default $0.05), rounding is applied automatically without any button press.
 
-Every rounding event (up or down) is logged to the **Cash Rounding Report** (Reports → Cash Rounding). The log includes the original amount, rounded amount, adjustment, direction, and staff note where applicable.
+---
 
-> **Configuration:** Cash rounding is enabled by default with a $0.50 step. Managers can adjust the step and threshold in **Business Settings → Cash Rounding Configuration**. See [Section 49 — Edit Business Settings](#49-edit-business-settings).
+Every rounding event — whether from the AYLI modal or the payment panel — is logged to the **Cash Rounding Report** (Reports → Cash Rounding). The log records the original amount, rounded amount, adjustment, direction (UP/DOWN), and the cashier's name.
+
+> **Configuration:** Cash rounding is enabled by default with a $0.50 step. Managers can adjust the step and auto-apply threshold in **Business Settings → Cash Rounding Configuration**. See [Section 49 — Edit Business Settings](#49-edit-business-settings).
 
 ### Step 5 — The Receipt
 
@@ -9896,13 +9937,23 @@ Shown when **Enable Cash Rounding** is ticked (on by default). Controls how cash
 
 | Field | Options | Default | Description |
 |-------|---------|---------|-------------|
-| **Rounding Step** | $0.01 / $0.10 / $0.50 / $1.00 | $0.50 | The step boundary totals are rounded up to |
-| **Auto-apply Threshold** | $0.01 / $0.05 / $0.10 / $0.20 | $0.05 | When the rounding gap is ≤ this amount, rounding is applied automatically at the POS without a button press |
+| **Rounding Step** | $0.01 / $0.10 / $0.50 / $1.00 | $0.50 | The boundary interval totals are rounded to. A $0.50 step means totals land on $0.50 or $1.00 multiples. |
+| **Auto-apply Threshold** | $0.01 / $0.05 / $0.10 / $0.20 | $0.05 | When the rounding gap is ≤ this amount, rounding is applied automatically at the POS without a button press. |
 
 **How it works at the POS:**
-- If the cart total is $2.62 with a $0.50 step, the cashier sees an amber panel suggesting rounding to $3.00 (+$0.38).
-- Since $0.38 > the $0.05 threshold, the cashier must manually confirm. If the gap were $0.03, it would auto-apply.
-- For AYLI combo orders, the cashier can choose to distribute the rounding adjustment proportionally across the combo's ingredients (e.g. give slightly more chicken) instead of applying a lump rounding charge.
+
+*Non-AYLI orders (regular menu items):*
+- If the cart total is $2.62 with a $0.50 step, an amber rounding panel appears in the payment screen.
+- The cashier can round up to $3.00 (+$0.38), round down to $2.50 (−$0.12), or keep $2.62 exact.
+- Since $0.38 > the $0.05 threshold in this example, the cashier must choose manually. A $0.03 gap would auto-apply.
+
+*AYLI combo orders:*
+- Rounding is decided **inside the AYLI modal** before the combo enters the cart — not in the payment screen.
+- **Round up:** The $0.38 gap is distributed proportionally across ingredient prices. The combo enters the cart at the rounded-up total. No separate line is added.
+- **Round down:** Ingredient prices stay exact. A separate **Cash Rounding −$0.12** discount line is injected into the cart below the combo, giving the customer a visible courtesy discount on their receipt.
+- The cashier can also choose **Keep** to skip rounding in the modal; the payment panel may then offer rounding for the overall cart total.
+
+*All rounding events* (direction, original amount, rounded amount, cashier) are permanently logged in **Reports → Cash Rounding** for audit and end-of-day reconciliation.
 
 ### Transport Cost Configuration
 
@@ -11086,22 +11137,36 @@ If you have already captured a portion and the customer wants less of a particul
 - If the removal brings an ingredient to zero, its line is removed from Contents entirely.
 - If the removed ingredient was the first meat item and its line is cleared, the meat threshold resets.
 
-#### Cash Rounding Preview (bottom of totals)
+#### Cash Rounding Preview and Decision (bottom of totals)
 
 While filling the combo, the totals section shows a live rounding preview beneath **Combo Total** (only when cash rounding is enabled for the business):
 
 ```
 Combo Total          $1.89
-🪙 Cash rounding (+$0.11)   $2.00
+🪙 Cash rounding (+$0.11)   $2.00   ↓ $1.50 (−$0.39)
 ```
 
-This lets you see — before adding items to the cart — exactly how much rounding will be needed and what the final cash amount will be. Use the pending cost line in the scale readout (above) to decide whether to add or remove a little food to land closer to a round number.
+This tells you at a glance: to round up you need $0.11 more; to round down the customer saves $0.39. Use the pending cost readout on the scale to decide whether to add or remove a small amount of food to get closer to a boundary before tapping Capture.
 
-#### Step 5 — Confirm
+#### Step 5 — Choose Rounding, Then Add to Cart
 
-14. Tap **Done — Add to Cart ($X.XX)**.
-15. The combo is added to the cart as a single line item.
-16. The receipt prints a breakdown: base price, each ingredient with weight and per-kg rate, and the total.
+Once at least one ingredient has been captured, the footer shows the rounding options and the add-to-cart button. **This is where you finalise the price — make the rounding decision here, before the item enters the cart.**
+
+```
+[ ↑ $2.00 (+$0.11) ]  [ ↓ $1.50 (−$0.39) ]  [ Keep $1.89 ]  [ Cancel ]
+```
+
+14. Choose one of the four actions:
+
+| Choice | Effect on cart |
+|--------|---------------|
+| **↑ $2.00 (+$0.11)** (green) | Combo enters the cart at **$2.00**. The $0.11 is distributed across ingredient line prices proportionally. The receipt shows the adjusted prices. |
+| **↓ $1.50 (−$0.39)** (orange) | Combo enters the cart at its exact price **$1.89**. A separate blue **Cash Rounding −$0.39** discount line is added immediately below it in the cart. The customer's receipt shows both lines — the exact combo price and the courtesy discount. |
+| **Keep $1.89** (grey) | Combo enters the cart at its exact calculated price. No rounding is applied now. The payment panel may still offer rounding later. |
+| **Cancel** | Discards the combo entirely and returns to the POS. |
+
+15. After tapping a rounding option or **Keep**, the combo (and discount line if applicable) is added to the cart.
+16. The receipt prints a full breakdown: size tier, base price, each ingredient with weight and per-kg rate, the combo total, and the discount line if round-down was chosen.
 
 ---
 
@@ -11147,6 +11212,10 @@ The Large combo has a higher base but cheaper per-kg rates — a "buy more, save
 | **Removing weight** | Remove food from the container, tap the ingredient card — system detects the negative delta and shows a red Remove button. Cannot remove more than was captured for that ingredient. |
 | **Scale required** | Capture button is disabled if scale is not connected |
 | **Tare** | Container is auto-tared so container weight is excluded from the total |
+| **Round up** | Rounding adjustment is distributed proportionally across ingredient prices; calibration data in the database is never modified |
+| **Round down** | Ingredient prices remain unchanged; a separate "Cash Rounding" discount cart item (negative price) is injected below the combo and printed on the receipt |
+| **No rounding buttons without lines** | Round-up/down buttons only appear once at least one ingredient has been captured |
+| **Rounding is optional** | "Keep" exits the modal at the exact price; the payment panel may still offer rounding for the overall cart total |
 
 ---
 
