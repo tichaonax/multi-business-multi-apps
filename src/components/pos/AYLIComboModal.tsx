@@ -318,10 +318,10 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
   return (
     /* Full-screen blocking overlay — nothing behind is clickable */
     <div className="fixed inset-0 bg-black/70 z-50 flex items-start justify-center overflow-y-auto py-4 px-4">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-xl">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-xl flex flex-col max-h-[calc(100vh-2rem)]">
 
         {/* Header */}
-        <div className="px-5 pt-5 pb-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="px-5 pt-5 pb-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">🥗 {combo.name}</h2>
@@ -429,7 +429,9 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
 
         {/* Step 2: Fill Panel */}
         {step === 2 && (
-          <div className="p-5 space-y-4">
+          <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+            {/* Fixed top: scale + capacity bars always visible */}
+            <div className="flex-shrink-0 px-5 pt-5 pb-3 space-y-4">
 
             {/* Scale display */}
             <div className={`rounded-xl border-2 p-4 transition-colors ${borderClass}`}>
@@ -523,6 +525,10 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
                 </div>
               </div>
             </div>
+            </div>{/* end fixed-top */}
+
+            {/* Scrollable middle: ingredient grid, capture button, contents, totals */}
+            <div className="flex-1 overflow-y-auto px-5 pb-4 space-y-4 min-h-0">
 
             {/* Item selector */}
             <div>
@@ -645,6 +651,10 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
               )
             })()}
 
+            </div>{/* end scrollable middle */}
+
+            {/* Pinned footer: always visible */}
+            <div className="flex-shrink-0 px-5 pb-5 pt-3 border-t border-gray-100 dark:border-gray-700">
             {/* Footer actions */}
             {!calibrationMode && (canRoundUp || canRoundDown) && lines.length > 0 && meatThresholdMet ? (
               <div className="space-y-2 pt-1">
@@ -683,6 +693,7 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
                 </button>
               </div>
             )}
+            </div>{/* end pinned footer */}
           </div>
         )}
       </div>
