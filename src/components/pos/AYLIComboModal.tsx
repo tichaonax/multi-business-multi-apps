@@ -527,7 +527,7 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
             {/* Item selector */}
             <div>
               <p className="text-xs font-medium text-secondary mb-2">SELECT NEXT ITEM TO ADD:</p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 {combo.items.map(it => {
                   const price = getPriceForSize(it, selectedSize)
                   const isSelected = selectedItemId === it.poolItemId

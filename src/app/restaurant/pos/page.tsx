@@ -2987,7 +2987,7 @@ export default function RestaurantPOS() {
             if (data.roundingDiscount && data.roundingDiscount > 0) {
               const discountItem: CartItem = {
                 id: `rounding-discount-${Date.now()}`,
-                name: 'Cash Rounding',
+                name: 'Promotional Discount (CR)',
                 price: -data.roundingDiscount,
                 quantity: 1,
                 category: 'discount',
@@ -5368,8 +5368,8 @@ export default function RestaurantPOS() {
                 )
               })()}
 
-              {/* Cash Rounding — shown for cash payments when rounding is enabled and not yet applied */}
-              {mealProgramCashDue === null && paymentMethod === 'CASH' && total > 0 && !cashRoundingApplied && (() => {
+              {/* Cash Rounding — shown for cash payments when rounding is enabled, not yet applied, and no AYLI combo in cart (AYLI handles rounding before add-to-cart) */}
+              {mealProgramCashDue === null && paymentMethod === 'CASH' && total > 0 && !cashRoundingApplied && !cart.some((item: any) => item.isAYLICombo) && (() => {
                 const _creditApplied = (applyCredit && deliveryAccount && !deliveryAccount.isBlacklisted)
                   ? Math.min(deliveryAccount.balance, total) : 0
                 const cashRef = Math.max(0, total - _creditApplied)
