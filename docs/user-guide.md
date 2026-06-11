@@ -473,10 +473,10 @@ The extra cents are distributed across ingredients using a largest-remainder alg
 The AYLI combo line prints at its exact weighed price. Directly below it, a separate line reads:
 
 ```
-Cash Rounding                        −$0.41
+Promotional Discount (CR)            −$0.41
 ```
 
-This signals to the customer that they received a courtesy discount, not that the food was mis-weighed.
+This signals to the customer that they received a courtesy discount, not that the food was mis-weighed. The "(CR)" suffix is internal shorthand for cash rounding — the customer simply sees a promotional discount on their receipt.
 
 **Strategy tip — aim for a round number during filling:**
 The scale readout in Step 3 shows a pending cost line and a live rounding gap:
