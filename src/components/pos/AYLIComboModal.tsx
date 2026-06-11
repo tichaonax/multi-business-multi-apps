@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useScale } from '@/contexts/ScaleContext'
-import { calcCashRounding, type CashRoundingConfig } from '@/lib/cash-rounding-utils'
+import { calcCashRounding, distributeRoundingAdjustment, type CashRoundingConfig } from '@/lib/cash-rounding-utils'
 
 const STABLE_HOLD_MS = 2000
 const SIZE_ORDER = ['small', 'medium', 'large']
@@ -14,6 +14,7 @@ export interface AYLIComboData {
   basePrice: number
   lines: Array<{ poolItemId: string; productName: string; emoji: string; weightKg: number; pricePerKg: number; linePrice: number }>
   totalPrice: number
+  roundingDiscount?: number  // set only on round-down: adds a discount line to the cart instead of changing prices
 }
 
 interface ComboSize { sizeName: string; basePrice: number; meatThresholdKg?: number | null }
@@ -239,6 +240,44 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
   const itemsTotal = lines.reduce((s, l) => s + l.linePrice, 0)
   const comboTotal = basePrice + itemsTotal
 
+  // Rounding options for the Done footer (only when cashRoundingConfig provided + not calibration)
+  const roundingStep = (!calibrationMode && cashRoundingConfig?.enabled) ? cashRoundingConfig.step : 0
+  const roundUpTarget = roundingStep > 0 && lines.length > 0
+    ? Math.round(Math.ceil(comboTotal / roundingStep) * roundingStep * 100) / 100 : comboTotal
+  const roundDownTarget = roundingStep > 0 && lines.length > 0
+    ? Math.round(Math.floor(comboTotal / roundingStep) * roundingStep * 100) / 100 : comboTotal
+  const upAdj   = Math.round((roundUpTarget   - comboTotal) * 100) / 100
+  const downAdj = Math.round((roundDownTarget - comboTotal) * 100) / 100  // negative
+  const canRoundUp   = upAdj > 0
+  const canRoundDown = downAdj < 0 && roundDownTarget > 0
+
+  function handleDoneWithRounding(adjustment: number) {
+    if (lines.length === 0) return
+    if (adjustment < 0) {
+      // Round DOWN — keep original prices; signal a discount line via roundingDiscount
+      onConfirm({
+        comboId: combo.id,
+        comboName: combo.name,
+        size: selectedSize,
+        basePrice,
+        lines,
+        totalPrice: comboTotal,
+        roundingDiscount: Math.round(Math.abs(adjustment) * 100) / 100,
+      })
+    } else {
+      // Round UP — distribute adjustment into line prices
+      const result = distributeRoundingAdjustment(lines, adjustment)
+      onConfirm({
+        comboId: combo.id,
+        comboName: combo.name,
+        size: selectedSize,
+        basePrice,
+        lines: result.lines,
+        totalPrice: Math.round((basePrice + result.totalPrice) * 100) / 100,
+      })
+    }
+  }
+
   // Pending capture cost — what adding/removing the current delta will cost
   const isRemoving = delta < -0.001
   const pendingComboItem = selectedItemId ? combo.items.find(it => it.poolItemId === selectedItemId) : null
@@ -423,17 +462,17 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
                       const deltaColor = isRemoving ? 'text-red-500 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
                       return (
                         <div className="mt-0.5 space-y-0.5">
-                          <div className={`text-sm ${deltaColor}`}>
+                          <div className={`text-base font-medium ${deltaColor}`}>
                             {isRemoving ? '−' : '+'}{Math.abs(delta).toFixed(3)} kg
                             {selectedItemId ? ` → ${itemName}` : ' (select item first)'}
                             {pendingCost > 0 && (
-                              <span className="ml-2 font-semibold">
+                              <span className="ml-2 font-bold">
                                 ({isRemoving ? '−' : '+'}${pendingCost.toFixed(2)})
                               </span>
                             )}
                           </div>
                           {pendingCost > 0 && !removalExceedsLine && !removalNoLine && (
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                            <div className="text-sm text-gray-400 dark:text-gray-300">
                               New total: <span className="font-semibold text-primary">${newComboTotalAfterCapture.toFixed(2)}</span>
                               {gapAfter > 0
                                 ? <span className="ml-2 text-amber-600 dark:text-amber-400">· +${gapAfter.toFixed(2)} to reach ${roundingAfter!.roundedAmount.toFixed(2)}</span>
@@ -595,10 +634,11 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
                     <span>Combo Total</span>
                     <span>${comboTotal.toFixed(2)}</span>
                   </div>
-                  {showRounding && (
-                    <div className="flex justify-between items-center px-3 py-2 text-xs border-t border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300">
-                      <span>🪙 Cash rounding (+${rounding!.adjustment.toFixed(2)})</span>
-                      <span className="font-semibold">${rounding!.roundedAmount.toFixed(2)}</span>
+                  {(canRoundUp || canRoundDown) && (
+                    <div className="border-t border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 space-y-0.5 text-xs text-amber-700 dark:text-amber-300">
+                      <div className="font-semibold mb-1">🪙 Cash rounding options</div>
+                      {canRoundUp   && <div className="flex justify-between"><span>↑ Round up</span><span>+${upAdj.toFixed(2)} → <b>${roundUpTarget.toFixed(2)}</b></span></div>}
+                      {canRoundDown && <div className="flex justify-between"><span>↓ Round down</span><span>−${Math.abs(downAdj).toFixed(2)} → <b>${roundDownTarget.toFixed(2)}</b></span></div>}
                     </div>
                   )}
                 </div>
@@ -606,17 +646,43 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
             })()}
 
             {/* Footer actions */}
-            <div className="flex gap-3 pt-1">
-              <button type="button" onClick={onCancel} className="flex-1 btn-secondary">Cancel</button>
-              <button type="button" onClick={handleDone} disabled={lines.length === 0 || !meatThresholdMet}
-                className={`flex-1 py-2 px-4 rounded-lg font-semibold text-sm transition-colors ${
-                  lines.length === 0 || !meatThresholdMet
-                    ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                }`}>
-                {calibrationMode ? `Done — Save Weights (${lines.length} items, ${totalWeightKg.toFixed(3)} kg)` : `Done — Add to Cart ($${comboTotal.toFixed(2)})`}
-              </button>
-            </div>
+            {!calibrationMode && (canRoundUp || canRoundDown) && lines.length > 0 && meatThresholdMet ? (
+              <div className="space-y-2 pt-1">
+                <div className={`grid gap-2 ${canRoundUp && canRoundDown ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {canRoundUp && (
+                    <button type="button" onClick={() => handleDoneWithRounding(upAdj)}
+                      className="py-2.5 px-3 rounded-lg font-semibold text-sm bg-green-600 hover:bg-green-700 text-white">
+                      ↑ ${roundUpTarget.toFixed(2)} (+${upAdj.toFixed(2)})
+                    </button>
+                  )}
+                  {canRoundDown && (
+                    <button type="button" onClick={() => handleDoneWithRounding(downAdj)}
+                      className="py-2.5 px-3 rounded-lg font-semibold text-sm bg-orange-500 hover:bg-orange-600 text-white">
+                      ↓ ${roundDownTarget.toFixed(2)} (−${Math.abs(downAdj).toFixed(2)})
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={onCancel} className="flex-1 btn-secondary text-sm">Cancel</button>
+                  <button type="button" onClick={handleDone}
+                    className="flex-1 py-2 px-3 rounded-lg font-semibold text-sm bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200">
+                    Keep ${comboTotal.toFixed(2)}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={onCancel} className="flex-1 btn-secondary">Cancel</button>
+                <button type="button" onClick={handleDone} disabled={lines.length === 0 || !meatThresholdMet}
+                  className={`flex-1 py-2 px-4 rounded-lg font-semibold text-sm transition-colors ${
+                    lines.length === 0 || !meatThresholdMet
+                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}>
+                  {calibrationMode ? `Done — Save Weights (${lines.length} items, ${totalWeightKg.toFixed(3)} kg)` : `Done — Add to Cart ($${comboTotal.toFixed(2)})`}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

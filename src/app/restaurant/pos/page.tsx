@@ -2984,7 +2984,19 @@ export default function RestaurantPOS() {
               isAYLICombo: true,
               aylicData: data,
             } as any
-            setCart(prev => [...prev, comboCartItem])
+            if (data.roundingDiscount && data.roundingDiscount > 0) {
+              const discountItem: CartItem = {
+                id: `rounding-discount-${Date.now()}`,
+                name: 'Cash Rounding',
+                price: -data.roundingDiscount,
+                quantity: 1,
+                category: 'discount',
+                isRoundingDiscount: true,
+              } as any
+              setCart(prev => [...prev, comboCartItem, discountItem])
+            } else {
+              setCart(prev => [...prev, comboCartItem])
+            }
             setAylicSession(null)
           }}
         />
@@ -4929,19 +4941,20 @@ export default function RestaurantPOS() {
                 <div key={`${item.id}_${item.name}`} className={`border-b border-gray-100 dark:border-gray-700 pb-2 last:border-b-0 ${(item as any).isTodaysSpecialCredit ? 'ml-4' : ''}`}>
                   <div className="flex justify-between items-center">
                     <div className="flex-1">
-                      <div className={`font-medium text-sm flex items-center gap-1.5 ${(item as any).isTodaysSpecialCredit ? 'text-green-600 dark:text-green-400' : ''}`}>
+                      <div className={`font-medium text-sm flex items-center gap-1.5 ${(item as any).isTodaysSpecialCredit ? 'text-green-600 dark:text-green-400' : (item as any).isRoundingDiscount ? 'text-blue-600 dark:text-blue-400' : ''}`}>
                         {(item as any).isCombo && <span className="text-[9px] font-bold bg-purple-600 text-white px-1 py-0.5 rounded leading-none flex-shrink-0">✦</span>}
                         {(item as any).isTodaysSpecial && <span className="text-[9px] font-bold bg-amber-500 text-white px-1 py-0.5 rounded leading-none flex-shrink-0">⭐</span>}
                         {(item as any).isTodaysSpecialAddOn && <span className="text-[9px] text-amber-600 dark:text-amber-400 flex-shrink-0">+</span>}
                         {(item as any).isTodaysSpecialCredit && <span className="text-[9px] flex-shrink-0">↳</span>}
+                        {(item as any).isRoundingDiscount && <span className="text-[9px] font-bold bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 px-1 py-0.5 rounded leading-none flex-shrink-0">↓</span>}
                         {item.name}
                       </div>
-                      <div className={`${(item as any).isTodaysSpecialCredit ? 'text-green-600 dark:text-green-400' : 'text-green-600'}`}>
-                        {(item as any).isTodaysSpecialCredit ? '-' : ''}${Math.abs(Number(item.price)).toFixed(2)}
+                      <div className={`${(item as any).isTodaysSpecialCredit || (item as any).isRoundingDiscount ? 'text-blue-600 dark:text-blue-400' : 'text-green-600'}`}>
+                        {(item as any).isTodaysSpecialCredit || (item as any).isRoundingDiscount ? '-' : ''}${Math.abs(Number(item.price)).toFixed(2)}
                       </div>
                     </div>
-                    {/* No +/- controls for add-on or credit lines — they follow the special */}
-                    {!(item as any).isTodaysSpecialAddOn && !(item as any).isTodaysSpecialCredit && (
+                    {/* No +/- controls for add-on, credit, or rounding discount lines */}
+                    {!(item as any).isTodaysSpecialAddOn && !(item as any).isTodaysSpecialCredit && !(item as any).isRoundingDiscount && (
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={() => updateQuantity(item.id, item.quantity - 1)}
@@ -5149,7 +5162,8 @@ export default function RestaurantPOS() {
                       const _isEcocash = paymentMethod === 'ECOCASH'
                       const _creditApplied = (applyCredit && deliveryAccount && !deliveryAccount.isBlacklisted)
                         ? Math.min(deliveryAccount.balance, total) : 0
-                      const _amountDue = Math.max(0, total - _creditApplied)
+                      const _effectiveBase = (paymentMethod === 'CASH' && cashRoundedTotal !== null) ? cashRoundedTotal : total
+                      const _amountDue = Math.max(0, _effectiveBase - _creditApplied)
                       const _displayTotal = _isEcocash ? _amountDue + _fee : _amountDue
                       return (
                         <>
@@ -5408,30 +5422,50 @@ export default function RestaurantPOS() {
                   }).catch(() => {})
                 }
 
+                const roundDownAmount = Math.round(Math.floor(cashRef / roundingConfig.step) * roundingConfig.step * 100) / 100
+                const downDiff = Math.round((cashRef - roundDownAmount) * 100) / 100
+                const hasRoundDown = downDiff > 0 && roundDownAmount > 0
+
+                const applyRoundDown = () => {
+                  setCashRoundingApplied(true)
+                  setCashRoundedTotal(roundDownAmount)
+                  sendToDisplay('PAYMENT_STARTED', { subtotal: total, tax: 0, total: roundDownAmount, ecocashFee: 0, paymentMethod: 'CASH' })
+                  fetch('/api/universal/cash-rounding-log', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      businessId: currentBusiness?.businessId,
+                      direction: 'DOWN',
+                      originalAmount: cashRef,
+                      roundedAmount: roundDownAmount,
+                      adjustment: downDiff,
+                    }),
+                  }).catch(() => {})
+                }
+
                 return (
                   <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg space-y-2">
-                    <div className="text-sm font-semibold text-amber-800 dark:text-amber-200">
-                      {rounding.isAutoApply ? '🪙 Cash Rounding' : '🪙 Cash Rounding Needed'}
-                    </div>
+                    <div className="text-sm font-semibold text-amber-800 dark:text-amber-200">🪙 Cash Rounding</div>
                     <div className="text-xs text-amber-700 dark:text-amber-300 space-y-0.5">
                       <div className="flex justify-between"><span>Sub-total:</span><span>${cashRef.toFixed(2)}</span></div>
-                      <div className="flex justify-between"><span>Round up (+${rounding.adjustment.toFixed(2)}):</span><span>${rounding.roundedAmount.toFixed(2)}</span></div>
+                      <div className="flex justify-between"><span>↑ Round up (+${rounding.adjustment.toFixed(2)}):</span><span>${rounding.roundedAmount.toFixed(2)}</span></div>
+                      {hasRoundDown && <div className="flex justify-between"><span>↓ Round down (−${downDiff.toFixed(2)}):</span><span>${roundDownAmount.toFixed(2)}</span></div>}
                     </div>
                     <div className="flex gap-2 flex-wrap">
-                      {aylicItem && (
-                        <button
-                          onClick={distributeToItems}
-                          className="flex-1 py-1.5 px-3 text-xs font-medium bg-amber-600 hover:bg-amber-700 text-white rounded-md"
-                        >
-                          Distribute to Items (+${rounding.adjustment.toFixed(2)})
-                        </button>
-                      )}
                       <button
                         onClick={applyRounding}
-                        className="flex-1 py-1.5 px-3 text-xs font-medium bg-amber-500 hover:bg-amber-600 text-white rounded-md"
+                        className="flex-1 py-1.5 px-3 text-xs font-medium bg-green-600 hover:bg-green-700 text-white rounded-md"
                       >
-                        Apply ${rounding.roundedAmount.toFixed(2)} Rounding
+                        ↑ ${rounding.roundedAmount.toFixed(2)}
                       </button>
+                      {hasRoundDown && (
+                        <button
+                          onClick={applyRoundDown}
+                          className="flex-1 py-1.5 px-3 text-xs font-medium bg-orange-500 hover:bg-orange-600 text-white rounded-md"
+                        >
+                          ↓ ${roundDownAmount.toFixed(2)}
+                        </button>
+                      )}
                       <button
                         onClick={() => setCashRoundingApplied(true)}
                         className="flex-1 py-1.5 px-3 text-xs font-medium bg-gray-400 hover:bg-gray-500 text-white rounded-md"
