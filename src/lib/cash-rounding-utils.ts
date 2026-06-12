@@ -4,6 +4,7 @@ export interface CashRoundingConfig {
   enabled: boolean
   step: number
   upThreshold: number
+  maxDownDiscount: number
 }
 
 export interface CashRoundingResult {
@@ -32,11 +33,13 @@ export function getCashRoundingConfig(business: {
   cashRoundingEnabled?: boolean | null
   cashRoundingStep?: number | string | null
   cashRoundingUpThreshold?: number | string | null
+  cashRoundingMaxDownDiscount?: number | string | null
 }): CashRoundingConfig {
   return {
     enabled: business.cashRoundingEnabled ?? true,
     step: business.cashRoundingStep != null ? Number(business.cashRoundingStep) : 0.50,
     upThreshold: business.cashRoundingUpThreshold != null ? Number(business.cashRoundingUpThreshold) : 0.05,
+    maxDownDiscount: business.cashRoundingMaxDownDiscount != null ? Number(business.cashRoundingMaxDownDiscount) : 0.10,
   }
 }
 

@@ -70,6 +70,9 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (payload.hasOwnProperty('cashRoundingUpThreshold')) {
       updateData.cashRoundingUpThreshold = payload.cashRoundingUpThreshold !== undefined && payload.cashRoundingUpThreshold !== '' ? parseFloat(payload.cashRoundingUpThreshold) : 0.05
     }
+    if (payload.hasOwnProperty('cashRoundingMaxDownDiscount')) {
+      updateData.cashRoundingMaxDownDiscount = payload.cashRoundingMaxDownDiscount !== undefined && payload.cashRoundingMaxDownDiscount !== '' ? parseFloat(payload.cashRoundingMaxDownDiscount) : 0.10
+    }
     if (payload.hasOwnProperty('transportCostEnabled')) {
       updateData.transportCostEnabled = !!payload.transportCostEnabled
     }

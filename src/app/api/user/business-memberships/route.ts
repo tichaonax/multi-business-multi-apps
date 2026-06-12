@@ -41,6 +41,7 @@ export async function GET() {
           cashRoundingEnabled: true,
           cashRoundingStep: true,
           cashRoundingUpThreshold: true,
+          cashRoundingMaxDownDiscount: true,
           requireSalespersonEod: true,
           eodDeadlineTime: true,
           expense_accounts: {
@@ -68,6 +69,7 @@ export async function GET() {
         cashRoundingEnabled: (business as any).cashRoundingEnabled ?? true,
         cashRoundingStep: (business as any).cashRoundingStep != null ? Number((business as any).cashRoundingStep) : 0.50,
         cashRoundingUpThreshold: (business as any).cashRoundingUpThreshold != null ? Number((business as any).cashRoundingUpThreshold) : 0.05,
+        cashRoundingMaxDownDiscount: (business as any).cashRoundingMaxDownDiscount != null ? Number((business as any).cashRoundingMaxDownDiscount) : 0.10,
         requireSalespersonEod: (business as any).requireSalespersonEod ?? false,
         eodDeadlineTime: (business as any).eodDeadlineTime ?? '20:00',
         role: 'admin' as any,
@@ -132,6 +134,7 @@ export async function GET() {
             cashRoundingEnabled: true,
             cashRoundingStep: true,
             cashRoundingUpThreshold: true,
+            cashRoundingMaxDownDiscount: true,
             requireSalespersonEod: true,
             eodDeadlineTime: true,
             expense_accounts: {
@@ -171,6 +174,7 @@ export async function GET() {
       cashRoundingEnabled: (membership.businesses as any).cashRoundingEnabled ?? true,
       cashRoundingStep: (membership.businesses as any).cashRoundingStep != null ? Number((membership.businesses as any).cashRoundingStep) : 0.50,
       cashRoundingUpThreshold: (membership.businesses as any).cashRoundingUpThreshold != null ? Number((membership.businesses as any).cashRoundingUpThreshold) : 0.05,
+      cashRoundingMaxDownDiscount: (membership.businesses as any).cashRoundingMaxDownDiscount != null ? Number((membership.businesses as any).cashRoundingMaxDownDiscount) : 0.10,
       requireSalespersonEod: (membership.businesses as any).requireSalespersonEod ?? false,
       eodDeadlineTime: (membership.businesses as any).eodDeadlineTime ?? '20:00',
       role: membership.role as any,

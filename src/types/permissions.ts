@@ -3510,6 +3510,7 @@ export interface BusinessMembership {
   cashRoundingEnabled?: boolean;
   cashRoundingStep?: number;
   cashRoundingUpThreshold?: number;
+  cashRoundingMaxDownDiscount?: number;
   defaultPage?: string | null; // Default landing page for business
   expenseAccounts?: { id: string; accountName: string }[]; // Linked expense accounts for quick navigation
   joinedAt: Date;

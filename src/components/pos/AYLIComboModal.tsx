@@ -52,6 +52,8 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
   const [selectedSize, setSelectedSize] = useState<string>('')
   const [basePrice, setBasePrice] = useState(0)
   const [sizeLocked, setSizeLocked] = useState(false)
+  const [roundingChosen, setRoundingChosen] = useState(false)
+  const [sizeChangeMessage, setSizeChangeMessage] = useState<string | null>(null)
 
   // Fill panel state
   const [selectedItemId, setSelectedItemId] = useState<string>('')  // poolItemId
@@ -144,9 +146,30 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
     setStep(2)
   }
 
+  function handleSizeChange(newSizeName: string) {
+    if (newSizeName === selectedSize || roundingChosen) return
+    const sizeData = combo.sizes.find(s => s.sizeName === newSizeName)
+    if (!sizeData) return
+    const newBase = Number(sizeData.basePrice)
+    const newLines = lines.map(line => {
+      const poolItem = combo.items.find(it => it.poolItemId === line.poolItemId)
+      const newPricePerKg = poolItem ? getPriceForSize(poolItem, newSizeName) : line.pricePerKg
+      const newLinePrice = Math.round(line.weightKg * newPricePerKg * 100) / 100
+      return { ...line, pricePerKg: newPricePerKg, linePrice: newLinePrice }
+    })
+    const isUpgrade = SIZE_ORDER.indexOf(newSizeName) > SIZE_ORDER.indexOf(selectedSize)
+    setSelectedSize(newSizeName)
+    setBasePrice(newBase)
+    setLines(newLines)
+    setSizeChangeMessage(isUpgrade
+      ? `↑ Upgraded to ${newSizeName} — prices updated`
+      : `↓ Downgraded to ${newSizeName} — portions kept, prices adjusted`)
+  }
+
   function handleCapture() {
     if (!readyToCapture || !selectedItemId || Math.abs(delta) < 0.001) return
     setError(null)
+    setSizeChangeMessage(null)
 
     const comboItem = combo.items.find(it => it.poolItemId === selectedItemId)
     if (!comboItem) return
@@ -248,11 +271,13 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
     ? Math.round(Math.floor(comboTotal / roundingStep) * roundingStep * 100) / 100 : comboTotal
   const upAdj   = Math.round((roundUpTarget   - comboTotal) * 100) / 100
   const downAdj = Math.round((roundDownTarget - comboTotal) * 100) / 100  // negative
+  const maxDownDiscount = cashRoundingConfig?.maxDownDiscount ?? 0.10
   const canRoundUp   = upAdj > 0
-  const canRoundDown = downAdj < 0 && roundDownTarget > 0
+  const canRoundDown = downAdj < 0 && roundDownTarget > 0 && Math.abs(downAdj) <= maxDownDiscount
 
   function handleDoneWithRounding(adjustment: number) {
     if (lines.length === 0) return
+    setRoundingChosen(true)
     if (adjustment < 0) {
       // Round DOWN — keep original prices; signal a discount line via roundingDiscount
       onConfirm({
@@ -332,12 +357,42 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Step 2 of 3 — Select size</p>
             )}
             {step === 2 && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 capitalize">
-                  {calibrationMode
-                    ? 'Pricing calibration — capturing weights'
-                    : <>{selectedSize} — Base: ${basePrice.toFixed(2)}{sizeLocked && <span className="ml-2 text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-1.5 py-0.5 rounded">size locked</span>}</>
-                  }
-                </p>
+                <div className="mt-0.5">
+                  {calibrationMode ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">Pricing calibration — capturing weights</p>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {[...combo.sizes]
+                          .sort((a, b) => SIZE_ORDER.indexOf(a.sizeName) - SIZE_ORDER.indexOf(b.sizeName))
+                          .map(s => {
+                            const isActive = s.sizeName === selectedSize
+                            return (
+                              <button key={s.sizeName} type="button"
+                                disabled={roundingChosen}
+                                onClick={() => handleSizeChange(s.sizeName)}
+                                className={`px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize transition-colors ${
+                                  isActive
+                                    ? 'bg-blue-600 text-white'
+                                    : roundingChosen
+                                    ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300'
+                                }`}>
+                                {s.sizeName}
+                              </button>
+                            )
+                          })}
+                        <span className="text-xs text-gray-500 dark:text-gray-400 ml-0.5">Base: ${basePrice.toFixed(2)}</span>
+                        {roundingChosen && <span className="text-xs text-gray-400 dark:text-gray-500 italic">price finalised</span>}
+                      </div>
+                      {sizeChangeMessage && (
+                        <p className={`text-xs mt-0.5 font-medium ${sizeChangeMessage.startsWith('↑') ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                          {sizeChangeMessage}
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
             </div>
             {step === 2 && (

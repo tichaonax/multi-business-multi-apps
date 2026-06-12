@@ -42,6 +42,7 @@ interface BusinessCreationModalProps {
     cashRoundingEnabled?: boolean
     cashRoundingStep?: string
     cashRoundingUpThreshold?: string
+    cashRoundingMaxDownDiscount?: string
   }
   // Optional: HTTP method override for the form (default POST). Use 'PUT' for edit.
   method?: 'POST' | 'PUT'
@@ -98,6 +99,7 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
     cashRoundingEnabled: initial?.cashRoundingEnabled !== undefined ? initial.cashRoundingEnabled : true,
     cashRoundingStep: initial?.cashRoundingStep || '0.50',
     cashRoundingUpThreshold: initial?.cashRoundingUpThreshold || '0.05',
+    cashRoundingMaxDownDiscount: initial?.cashRoundingMaxDownDiscount || '0.10',
   })
   const [loading, setLoading] = useState(false)
   const [hasRentAccount, setHasRentAccount] = useState(false)
@@ -125,6 +127,7 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
             cashRoundingEnabled: cfg.cashRoundingEnabled !== undefined ? cfg.cashRoundingEnabled : prev.cashRoundingEnabled,
             cashRoundingStep: cfg.cashRoundingStep !== undefined ? String(cfg.cashRoundingStep) : prev.cashRoundingStep,
             cashRoundingUpThreshold: cfg.cashRoundingUpThreshold !== undefined ? String(cfg.cashRoundingUpThreshold) : prev.cashRoundingUpThreshold,
+            cashRoundingMaxDownDiscount: cfg.cashRoundingMaxDownDiscount !== undefined ? String(cfg.cashRoundingMaxDownDiscount) : prev.cashRoundingMaxDownDiscount,
           }))
         })
         .catch(() => {/* silently ignore, initial values remain */})
@@ -644,9 +647,22 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
                               <option value="0.20">$0.20 (20c)</option>
                             </select>
                           </div>
+                          <div>
+                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Max round-down discount</label>
+                            <select
+                              value={formData.cashRoundingMaxDownDiscount}
+                              onChange={(e) => setFormData({ ...formData, cashRoundingMaxDownDiscount: e.target.value })}
+                              className="px-2 py-1.5 text-sm border rounded bg-white dark:bg-neutral-700 border-amber-300 dark:border-amber-700 text-primary"
+                            >
+                              <option value="0.05">$0.05 (5c)</option>
+                              <option value="0.10">$0.10 (10c)</option>
+                              <option value="0.20">$0.20 (20c)</option>
+                              <option value="0.50">$0.50 (50c)</option>
+                            </select>
+                          </div>
                         </div>
                         <p className="text-xs text-amber-700 dark:text-amber-400 mt-1.5">
-                          Totals within ${formData.cashRoundingUpThreshold || '0.05'} of the next ${formData.cashRoundingStep || '0.50'} step auto-apply. Larger differences show a confirm button.
+                          Totals within ${formData.cashRoundingUpThreshold || '0.05'} of the next ${formData.cashRoundingStep || '0.50'} step auto-apply. Round-down hidden if discount exceeds ${formData.cashRoundingMaxDownDiscount || '0.10'}.
                         </p>
                       </div>
                     )}

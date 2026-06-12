@@ -462,7 +462,7 @@ When filling an AYLI combo, the rounding decision is made **inside the AYLI moda
 | Button | Colour | What it does |
 |--------|--------|-------------|
 | **↑ $X.XX (+$Y.YY)** | Green | **Round up.** Distributes the extra amount proportionally across the ingredient prices for this sale only. The combo enters the cart at the rounded-up total. Calibration prices in the database are never touched. |
-| **↓ $X.XX (−$Y.YY)** | Orange | **Round down.** Keeps every ingredient price exactly as weighed. A separate **Promotional Discount (CR) −$Y.YY** line is injected into the cart below the combo — the customer sees it as a good-gesture discount. |
+| **↓ $X.XX (−$Y.YY)** | Orange | **Round down.** Keeps every ingredient price exactly as weighed. A separate **Promotional Discount (CR) −$Y.YY** line is injected into the cart below the combo — the customer sees it as a good-gesture discount. Only shown when the discount does not exceed the configured **Max Round-Down Discount** (default $0.10). |
 | **Keep $X.XX** | Grey | Add the combo at its exact calculated price. No rounding applied. |
 | **Cancel** | — | Cancel the entire combo and return to the POS. |
 
@@ -505,7 +505,7 @@ For orders containing only regular menu items (no AYLI combo), an amber rounding
 | Button | What it does |
 |--------|-------------|
 | **Apply $X.XX Rounding** | Sets the rounded-up amount as the final total and logs the event. |
-| **Round down to $X.XX (−$Y.YY)** | Sets the rounded-down amount as the final total (customer pays less). |
+| **Round down to $X.XX (−$Y.YY)** | Sets the rounded-down amount as the final total (customer pays less). Only shown when the discount does not exceed the configured **Max Round-Down Discount** (default $0.10). |
 | **Keep $X.XX** | Dismisses the panel and charges the exact total. |
 
 When the rounding gap is ≤ the configured auto-apply threshold (default $0.05), rounding is applied automatically without any button press.
@@ -514,7 +514,7 @@ When the rounding gap is ≤ the configured auto-apply threshold (default $0.05)
 
 Every rounding event — whether from the AYLI modal or the payment panel — is logged to the **Cash Rounding Report** (Reports → Cash Rounding). The log records the original amount, rounded amount, adjustment, direction (UP/DOWN), and the cashier's name.
 
-> **Configuration:** Cash rounding is enabled by default with a $0.50 step. Managers can adjust the step and auto-apply threshold in **Business Settings → Cash Rounding Configuration**. See [Section 49 — Edit Business Settings](#49-edit-business-settings).
+> **Configuration:** Cash rounding is enabled by default with a $0.50 step. Managers can adjust the step, auto-apply threshold, and maximum round-down discount in **Business Settings → Cash Rounding Configuration**. See [Section 49 — Edit Business Settings](#49-edit-business-settings).
 
 ### Step 5 — The Receipt
 
@@ -9941,19 +9941,22 @@ Shown when **Enable Cash Rounding** is ticked (on by default). Controls how cash
 |-------|---------|---------|-------------|
 | **Rounding Step** | $0.01 / $0.10 / $0.50 / $1.00 | $0.50 | The boundary interval totals are rounded to. A $0.50 step means totals land on $0.50 or $1.00 multiples. |
 | **Auto-apply Threshold** | $0.01 / $0.05 / $0.10 / $0.20 | $0.05 | When the rounding gap is ≤ this amount, rounding is applied automatically at the POS without a button press. |
+| **Max Round-Down Discount** | $0.05 / $0.10 / $0.20 / $0.50 | $0.10 | The largest courtesy discount the system will offer via the round-down button. If rounding down to the next step boundary would give the customer a discount larger than this amount, the round-down option is hidden entirely and the cashier can only round up or keep the exact price. |
 
 **How it works at the POS:**
 
 *Non-AYLI orders (regular menu items):*
 - If the cart total is $2.62 with a $0.50 step, an amber rounding panel appears in the payment screen.
-- The cashier can round up to $3.00 (+$0.38), round down to $2.50 (−$0.12), or keep $2.62 exact.
+- The cashier can round up to $3.00 (+$0.38), or keep $2.62 exact. The round-down option (to $2.50, −$0.12) is only shown if $0.12 ≤ the Max Round-Down Discount setting.
 - Since $0.38 > the $0.05 threshold in this example, the cashier must choose manually. A $0.03 gap would auto-apply.
 
 *AYLI combo orders:*
 - Rounding is decided **inside the AYLI modal** before the combo enters the cart — not in the payment screen.
-- **Round up:** The $0.38 gap is distributed proportionally across ingredient prices. The combo enters the cart at the rounded-up total. No separate line is added.
-- **Round down:** Ingredient prices stay exact. A separate **Promotional Discount (CR) −$0.12** line is injected into the cart below the combo, giving the customer a visible courtesy discount on their receipt. The "(CR)" label is internal shorthand — the customer simply reads "Promotional Discount" on their receipt.
+- **Round up:** The gap is distributed proportionally across ingredient prices. The combo enters the cart at the rounded-up total. No separate line is added.
+- **Round down:** Only shown when the discount does not exceed the Max Round-Down Discount. Ingredient prices stay exact. A separate **Promotional Discount (CR)** line is injected into the cart below the combo, giving the customer a visible courtesy discount on their receipt. The "(CR)" label is internal shorthand — the customer simply reads "Promotional Discount" on their receipt.
 - **Keep:** The combo enters at its exact price. Since the cart contains an AYLI item, the payment screen will **not** show a rounding panel — what the customer pays is the exact total.
+
+> **Example:** Total is $2.94 with a $0.50 step. Round-down target is $2.50 — a $0.44 discount. With the default limit of $0.10, the round-down button is hidden because $0.44 > $0.10. Only round up to $3.00 (+$0.06) or Keep $2.94 are offered.
 
 *All rounding events* (direction, original amount, rounded amount, cashier) are permanently logged in **Reports → Cash Rounding** for audit and end-of-day reconciliation.
 
@@ -11150,6 +11153,8 @@ Combo Total          $1.89
 
 This tells you at a glance: to round up you need $0.11 more; to round down the customer saves $0.39. Use the pending cost readout on the scale to decide whether to add or remove a small amount of food to get closer to a boundary before tapping Capture.
 
+> If the round-down discount shown in the preview exceeds the configured **Max Round-Down Discount** (default $0.10), the ↓ round-down button will not appear in the footer — only round up and Keep will be available. In that case, add a small amount of food to close the gap, or proceed with round up or Keep.
+
 #### Step 5 — Choose Rounding, Then Add to Cart
 
 Once at least one ingredient has been captured, the footer shows the rounding options and the add-to-cart button. **This is where you finalise the price — make the rounding decision here, before the item enters the cart.**
@@ -11158,12 +11163,12 @@ Once at least one ingredient has been captured, the footer shows the rounding op
 [ ↑ $2.00 (+$0.11) ]  [ ↓ $1.50 (−$0.39) ]  [ Keep $1.89 ]  [ Cancel ]
 ```
 
-14. Choose one of the four actions:
+14. Choose one of the available actions:
 
 | Choice | Effect on cart |
 |--------|---------------|
 | **↑ $2.00 (+$0.11)** (green) | Combo enters the cart at **$2.00**. The $0.11 is distributed across ingredient line prices proportionally. The receipt shows the adjusted prices. |
-| **↓ $1.50 (−$0.39)** (orange) | Combo enters the cart at its exact price **$1.89**. A separate **Promotional Discount (CR) −$0.39** line is added immediately below it in the cart. The customer's receipt shows both lines — the exact combo price and the courtesy discount. |
+| **↓ $1.50 (−$0.39)** (orange) | Combo enters the cart at its exact price **$1.89**. A separate **Promotional Discount (CR) −$0.39** line is added immediately below it in the cart. The customer's receipt shows both lines — the exact combo price and the courtesy discount. **Only appears when the discount (here $0.39) does not exceed the configured Max Round-Down Discount.** |
 | **Keep $1.89** (grey) | Combo enters the cart at its exact calculated price with no adjustment. The payment screen will not offer rounding when an AYLI combo is present — the total charged is exactly as shown. |
 | **Cancel** | Discards the combo entirely and returns to the POS. |
 
@@ -11216,6 +11221,7 @@ The Large combo has a higher base but cheaper per-kg rates — a "buy more, save
 | **Tare** | Container is auto-tared so container weight is excluded from the total |
 | **Round up** | Rounding adjustment is distributed proportionally across ingredient prices; calibration data in the database is never modified |
 | **Round down** | Ingredient prices remain unchanged; a separate "Promotional Discount (CR)" cart item (negative price) is injected below the combo and printed on the receipt |
+| **Round-down limit** | The ↓ button is hidden when the round-down discount exceeds the configured Max Round-Down Discount (default $0.10). Only round up or Keep are offered in that case. |
 | **No rounding buttons without lines** | Round-up/down buttons only appear once at least one ingredient has been captured |
 | **Rounding is final at AYLI modal** | "Keep" exits the modal at the exact price. The payment screen does not show a rounding panel for AYLI orders — the decision is made in the modal, not at payment time. |
 

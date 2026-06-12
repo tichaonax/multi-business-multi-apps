@@ -5424,7 +5424,7 @@ export default function RestaurantPOS() {
 
                 const roundDownAmount = Math.round(Math.floor(cashRef / roundingConfig.step) * roundingConfig.step * 100) / 100
                 const downDiff = Math.round((cashRef - roundDownAmount) * 100) / 100
-                const hasRoundDown = downDiff > 0 && roundDownAmount > 0
+                const hasRoundDown = downDiff > 0 && roundDownAmount > 0 && downDiff <= (roundingConfig.maxDownDiscount ?? 0.10)
 
                 const applyRoundDown = () => {
                   setCashRoundingApplied(true)

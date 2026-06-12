@@ -68,6 +68,7 @@ function BusinessManagePageContent() {
     cashRoundingEnabled?: boolean
     cashRoundingStep?: string
     cashRoundingUpThreshold?: string
+    cashRoundingMaxDownDiscount?: string
   } | null>(null)
   const [editBusinessId, setEditBusinessId] = useState<string | null>(null)
   const { format: globalDateFormat } = useDateFormat();
@@ -426,6 +427,7 @@ function BusinessManagePageContent() {
                               cashRoundingEnabled: biz?.cashRoundingEnabled !== undefined ? biz.cashRoundingEnabled : true,
                               cashRoundingStep: biz?.cashRoundingStep !== undefined ? String(biz.cashRoundingStep) : '0.50',
                               cashRoundingUpThreshold: biz?.cashRoundingUpThreshold !== undefined ? String(biz.cashRoundingUpThreshold) : '0.05',
+                              cashRoundingMaxDownDiscount: biz?.cashRoundingMaxDownDiscount !== undefined ? String(biz.cashRoundingMaxDownDiscount) : '0.10',
                             })
                             setEditBusinessId(id)
                             setShowEditBusiness(true)

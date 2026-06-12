@@ -455,6 +455,7 @@ model Businesses {
   cashRoundingEnabled                                                      Boolean                       @default(true) @map("cash_rounding_enabled")
   cashRoundingStep                                                         Decimal                       @default(0.50) @map("cash_rounding_step") @db.Decimal(10, 2)
   cashRoundingUpThreshold                                                  Decimal                       @default(0.05) @map("cash_rounding_up_threshold") @db.Decimal(10, 2)
+  cashRoundingMaxDownDiscount                                              Decimal                       @default(0.10) @map("cash_rounding_max_down_discount") @db.Decimal(10, 2)
   transportCostEnabled                                                     Boolean                       @default(false)
   transportDistanceKm                                                      Decimal?                      @db.Decimal(8, 2)
   transportCostPerKm                                                       Decimal                       @default(0.30) @db.Decimal(6, 3)
