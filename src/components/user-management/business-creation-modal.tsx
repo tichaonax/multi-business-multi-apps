@@ -125,9 +125,9 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
             transportDistanceKm: cfg.transportDistanceKm !== undefined && cfg.transportDistanceKm !== null ? String(cfg.transportDistanceKm) : prev.transportDistanceKm,
             transportCostPerKm: cfg.transportCostPerKm !== undefined ? String(cfg.transportCostPerKm) : prev.transportCostPerKm,
             cashRoundingEnabled: cfg.cashRoundingEnabled !== undefined ? cfg.cashRoundingEnabled : prev.cashRoundingEnabled,
-            cashRoundingStep: cfg.cashRoundingStep !== undefined ? String(cfg.cashRoundingStep) : prev.cashRoundingStep,
-            cashRoundingUpThreshold: cfg.cashRoundingUpThreshold !== undefined ? String(cfg.cashRoundingUpThreshold) : prev.cashRoundingUpThreshold,
-            cashRoundingMaxDownDiscount: cfg.cashRoundingMaxDownDiscount !== undefined ? String(cfg.cashRoundingMaxDownDiscount) : prev.cashRoundingMaxDownDiscount,
+            cashRoundingStep: cfg.cashRoundingStep !== undefined ? Number(cfg.cashRoundingStep).toFixed(2) : prev.cashRoundingStep,
+            cashRoundingUpThreshold: cfg.cashRoundingUpThreshold !== undefined ? Number(cfg.cashRoundingUpThreshold).toFixed(2) : prev.cashRoundingUpThreshold,
+            cashRoundingMaxDownDiscount: cfg.cashRoundingMaxDownDiscount !== undefined ? Number(cfg.cashRoundingMaxDownDiscount).toFixed(2) : prev.cashRoundingMaxDownDiscount,
           }))
         })
         .catch(() => {/* silently ignore, initial values remain */})

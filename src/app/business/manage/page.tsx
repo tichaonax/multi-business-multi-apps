@@ -425,9 +425,9 @@ function BusinessManagePageContent() {
                               transportDistanceKm: biz?.transportDistanceKm !== undefined && biz.transportDistanceKm !== null ? String(biz.transportDistanceKm) : '',
                               transportCostPerKm: biz?.transportCostPerKm !== undefined ? String(biz.transportCostPerKm) : '0.30',
                               cashRoundingEnabled: biz?.cashRoundingEnabled !== undefined ? biz.cashRoundingEnabled : true,
-                              cashRoundingStep: biz?.cashRoundingStep !== undefined ? String(biz.cashRoundingStep) : '0.50',
-                              cashRoundingUpThreshold: biz?.cashRoundingUpThreshold !== undefined ? String(biz.cashRoundingUpThreshold) : '0.05',
-                              cashRoundingMaxDownDiscount: biz?.cashRoundingMaxDownDiscount !== undefined ? String(biz.cashRoundingMaxDownDiscount) : '0.10',
+                              cashRoundingStep: biz?.cashRoundingStep !== undefined ? Number(biz.cashRoundingStep).toFixed(2) : '0.50',
+                              cashRoundingUpThreshold: biz?.cashRoundingUpThreshold !== undefined ? Number(biz.cashRoundingUpThreshold).toFixed(2) : '0.05',
+                              cashRoundingMaxDownDiscount: biz?.cashRoundingMaxDownDiscount !== undefined ? Number(biz.cashRoundingMaxDownDiscount).toFixed(2) : '0.10',
                             })
                             setEditBusinessId(id)
                             setShowEditBusiness(true)
