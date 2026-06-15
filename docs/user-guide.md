@@ -6668,10 +6668,13 @@ Payments in the queue are grouped by status, each with a colour-coded badge:
 - **📱 Mark as Sent** (EcoCash only) — enter the EcoCash transaction code to confirm mobile transfer. Balance also updates instantly.
 
 **AWAITING CASHIER payments** (personal accounts) — requests pending cashier approval:
+- **✎ Edit** — change the amount or description before the cashier acts on it. An inline editor expands in-place. Click **Full Edit** within the inline editor to open the full Quick Payment modal with all fields (category, payee, line items, etc.) pre-filled for editing.
 - **✕ Cancel** — withdraw the request before the cashier acts on it. A confirmation modal appears requiring you to enter a reason for cancellation (required for audit trail).
 
+> **Who can edit:** The payment creator can always edit their own AWAITING CASHIER requests. Users with the "can edit payments" permission on this account can also edit requests made by others.
+
 **IN QUEUE payments** (business accounts) — payments awaiting the next batch submission:
-- **✎ Edit** — change the amount or notes before the batch is submitted.
+- **✎ Edit** — change the amount or description before the batch is submitted. An inline editor expands in-place. Click **Full Edit** within the inline editor to open the full Quick Payment modal with all fields (category, payee, line items, etc.) pre-filled for editing.
 - **✕ Cancel Request** — withdraw the payment request entirely. A confirmation modal appears requiring a cancellation reason. The reason is stored in the payment notes for audit purposes.
 
 > **Activity banner:** The queue polls for changes every 10 seconds when you have payments awaiting cashier approval. If a payment is approved or rejected while you have the page open, an amber banner appears at the top of the queue:
@@ -9113,7 +9116,23 @@ When your request is complete:
 
 The request is sent to the cashier queue. You will receive a notification when it has been approved or returned.
 
-> **Note:** Once submitted you cannot edit the request. If changes are needed, the cashier must return it to you first.
+> **Note:** After submitting you can still edit the request while it is **SUBMITTED** (before the cashier approves or returns it). See [Editing a Submitted Request](#requester--admin--editing-a-submitted-request) below.
+
+---
+
+### Requester / Admin — Editing a Submitted Request
+
+If you need to make changes after submitting but before the cashier acts:
+
+1. Open the **Combo Requests** list from the account page.
+2. Find the **SUBMITTED** request. A **✎ Edit** link appears directly on the row — click it (or open the request and click **✎ Edit** in the detail view).
+3. The request form opens pre-filled with all your current items and sections.
+4. Make your changes. The **Save Changes** button replaces the usual **Save Draft** button when editing a submitted request.
+5. Click **Save Changes**. The request remains **SUBMITTED** — the cashier will see your latest version.
+
+> **Submit button is hidden while editing a submitted request** — you cannot re-submit because the request is already in the cashier's queue. Save Changes is sufficient.
+
+> **Admin note:** Admins can edit **any** SUBMITTED request, not just their own. This is useful when the original requester is unavailable.
 
 ---
 
@@ -9226,7 +9245,7 @@ The request is marked **CANCELLED**. All cashiers and admins are notified, and i
 | Status | What it means |
 |---|---|
 | **DRAFT** | Being built by the requester. Can be edited and re-submitted. |
-| **SUBMITTED** | Waiting for cashier review. Cannot be edited by requester. |
+| **SUBMITTED** | Waiting for cashier review. Creator and admin can still edit before approval. |
 | **APPROVED** | All items funded. Requester can start spending. |
 | **PARTIALLY APPROVED** | Some items funded; others marked Not Funded. |
 | **PARTIALLY PAID** | Some items marked paid; others still outstanding. |
@@ -9241,7 +9260,7 @@ The request is marked **CANCELLED**. All cashiers and admins are notified, and i
 
 | Action | Who can do it |
 |---|---|
-| Create & edit requests | Request creator (DRAFT status only); Admin |
+| Create & edit requests | Request creator (DRAFT and SUBMITTED status); Admin |
 | Submit | Request creator; Admin |
 | Approve / Return for Edits | Cashiers with expense payment permissions; Admin |
 | Mark items as paid | Request creator; Admin |

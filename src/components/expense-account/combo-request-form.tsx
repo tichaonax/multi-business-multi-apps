@@ -121,6 +121,7 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
   const [saving, setSaving] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [draftId, setDraftId] = useState<string | null>(requestId ?? null)
+  const [draftStatus, setDraftStatus] = useState<string>('DRAFT')
   const [showConfirmPanel, setShowConfirmPanel] = useState(false)
   const [confirmOverride, setConfirmOverride] = useState('')
   const [confirming, setConfirming] = useState(false)
@@ -158,6 +159,7 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
       .then(data => {
         const req = data?.data
         if (!req) return
+        setDraftStatus(req.status || 'DRAFT')
         setTitle(req.title || '')
         setNotes(req.notes || '')
         setSections(req.sections.map((s: any) => {
@@ -221,7 +223,7 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
         title: title.trim(),
         notes: notes.trim() || null,
         sections: serializeSections(sections),
-        status: 'DRAFT',
+        ...(draftStatus !== 'SUBMITTED' ? { status: 'DRAFT' } : {}),
       }
 
       let res: Response
@@ -242,12 +244,15 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
       }
 
       const data = await res.json()
-      if (!res.ok) { toast.error(data.error || 'Failed to save draft'); return }
+      if (!res.ok) { toast.error(data.error || 'Failed to save'); return }
 
       setDraftId(data.data.id)
-      toast.push('Draft saved')
+      toast.push(draftStatus === 'SUBMITTED' ? 'Changes saved' : 'Draft saved')
+      if (draftStatus === 'SUBMITTED') {
+        router.push(`/expense-accounts/${accountId}/combo-requests/${data.data.id}`)
+      }
     } catch {
-      toast.error('Failed to save draft')
+      toast.error('Failed to save')
     } finally {
       setSaving(false)
     }
@@ -440,17 +445,19 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
               disabled={saving || submitting || loadingDomains || loadingPayees}
               className="px-4 py-2 text-sm text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-50 transition-colors"
             >
-              {saving ? 'Saving...' : draftId ? 'Update Draft' : 'Save Draft'}
+              {saving ? 'Saving...' : draftStatus === 'SUBMITTED' ? 'Save Changes' : draftId ? 'Update Draft' : 'Save Draft'}
             </button>
-            <button
-              type="button"
-              onClick={handleSaveAndShowConfirm}
-              disabled={saving || submitting || confirming || loadingDomains || loadingPayees}
-              title={(loadingDomains || loadingPayees) ? 'Waiting for data to load...' : undefined}
-              className="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {submitting ? 'Saving...' : (loadingDomains || loadingPayees) ? 'Loading...' : 'Submit Request'}
-            </button>
+            {draftStatus !== 'SUBMITTED' && (
+              <button
+                type="button"
+                onClick={handleSaveAndShowConfirm}
+                disabled={saving || submitting || confirming || loadingDomains || loadingPayees}
+                title={(loadingDomains || loadingPayees) ? 'Waiting for data to load...' : undefined}
+                className="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {submitting ? 'Saving...' : (loadingDomains || loadingPayees) ? 'Loading...' : 'Submit Request'}
+              </button>
+            )}
           </div>
         </div>
 

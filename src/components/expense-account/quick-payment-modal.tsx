@@ -307,6 +307,8 @@ interface QuickPaymentModalProps {
   presetPayee?: { type: string; id: string; name: string } | null
   /** When set, the modal opens pre-filled from this payment ID */
   repeatPaymentId?: string | null
+  /** When set, the modal opens in edit mode — pre-fills ALL fields and PATCHes on submit */
+  editPaymentId?: string | null
 }
 
 export function QuickPaymentModal({
@@ -327,6 +329,7 @@ export function QuickPaymentModal({
   businesses,
   presetPayee = null,
   repeatPaymentId = null,
+  editPaymentId = null,
 }: QuickPaymentModalProps) {
   const isPersonalAccount = accountType === 'PERSONAL' || !businessId
   const isRentAccount = accountType === 'RENT'
@@ -415,6 +418,8 @@ export function QuickPaymentModal({
   const pendingRepeatRef = useRef<{ domainId: string; categoryId: string; subcategoryId: string } | null>(null)
   // Ref mirror of categories — allows async callbacks to see the latest value without stale closure
   const categoriesRef = useRef<ExpenseCategory[]>([])
+  // Tracks original payee when in edit mode — payee fields are only sent in PATCH when changed
+  const editOriginalPayeeRef = useRef<{ type: string; id: string } | null>(null)
   const customAlert = useAlert()
   const customConfirm = useConfirm()
 
@@ -596,6 +601,7 @@ export function QuickPaymentModal({
           domainId: p.category?.domainId ?? '',
           categoryId: p.category?.id ?? '',
           subcategoryId: p.subcategory?.id ?? '',
+          subSubcategoryId: p.subSubcategory?.id ?? '',
         }
 
         if (categoriesRef.current.length > 0) {
@@ -635,6 +641,9 @@ export function QuickPaymentModal({
                 const r = await fetch(`/api/expense-categories/sub-subcategories/${repeatPending.subcategoryId}/items`, { credentials: 'include' })
                 if (r.ok) { const d = await r.json(); setDomainOverrideSubItems(d.items || []) }
               }
+              if (repeatPending.subSubcategoryId) {
+                setFormData(prev => ({ ...prev, subSubcategoryId: repeatPending.subSubcategoryId }))
+              }
               requestAnimationFrame(() => { skipCascadeRef.current = false })
             })()
           } else {
@@ -661,6 +670,108 @@ export function QuickPaymentModal({
       })
       .catch(() => {})
   }, [isOpen, repeatPaymentId])
+
+  // Pre-fill ALL fields from the payment being edited (editPaymentId mode)
+  useEffect(() => {
+    if (!isOpen || !editPaymentId) return
+    fetch(`/api/expense-account/${accountId}/payments/${editPaymentId}`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        const p = data.data?.payment
+        if (!p) return
+        let payee: { type: string; id: string; name: string } | null = null
+        if (p.payeeType === 'USER' && p.payeeUser) payee = { type: 'USER', id: p.payeeUser.id, name: p.payeeUser.name }
+        else if (p.payeeType === 'PERSON' && p.payeePerson) payee = { type: 'PERSON', id: p.payeePerson.id, name: p.payeePerson.fullName }
+        else if (p.payeeType === 'EMPLOYEE' && p.payeeEmployee) payee = { type: 'EMPLOYEE', id: p.payeeEmployee.id, name: p.payeeEmployee.fullName ?? p.payeeEmployee.name }
+        else if (p.payeeType === 'SUPPLIER' && p.payeeSupplier) payee = { type: 'SUPPLIER', id: p.payeeSupplier.id, name: p.payeeSupplier.name }
+        else if (p.payeeType === 'BUSINESS' && p.payeeBusiness) payee = { type: 'BUSINESS', id: p.payeeBusiness.id, name: p.payeeBusiness.name }
+
+        // Record the original payee so PATCH only sends payee fields when they actually change
+        editOriginalPayeeRef.current = { type: p.payeeType || 'NONE', id: payee?.id ?? '' }
+
+        setFormData(prev => ({
+          ...prev,
+          payee: presetPayee ?? payee,
+          notes: p.notes ?? '',
+          paymentChannel: p.paymentChannel === 'ECOCASH' ? 'ECOCASH' : 'CASH',
+          priority: p.priority === 'URGENT' ? 'URGENT' : 'NORMAL',
+          amount: p.amount != null ? String(Number(p.amount)) : '',
+          paymentDate: p.paymentDate ? p.paymentDate.split('T')[0] : getTodayLocalDateString(),
+        }))
+
+        const editPending = {
+          domainId: p.category?.domainId ?? '',
+          categoryId: p.category?.id ?? '',
+          subcategoryId: p.subcategory?.id ?? '',
+          subSubcategoryId: p.subSubcategory?.id ?? '',
+        }
+        if (categoriesRef.current.length > 0) {
+          const isOverride = !!activeDomainOverrideRef.current
+          if (isOverride) {
+            skipCascadeRef.current = true
+            ;(async () => {
+              if (editPending.domainId && editPending.domainId !== activeDomainOverrideIdRef.current) {
+                // Cross-domain switch needed
+                const domainOpts = categoriesRef.current.filter((c: any) => c.isDomainCategory && !INCOME_DOMAIN_NAMES.has(c.name))
+                const targetDomain = domainOpts.find((d: any) => d.id === editPending.domainId)
+                if (targetDomain) {
+                  setSelectedDropdownValue(`domain:${targetDomain.id}`)
+                  setActiveDomainOverride(targetDomain.name)
+                  setActiveDomainOverrideId(targetDomain.id)
+                  setFormData(prev => ({ ...prev, categoryId: '', subcategoryId: '', subSubcategoryId: '' }))
+                  setSubcategories([])
+                  setSubSubcategories([])
+                  setDomainOverrideItems([])
+                  setLoadingDomainOverrideItems(true)
+                  try {
+                    const r = await fetch(`/api/expense-categories/${targetDomain.id}/subcategories`, { credentials: 'include' })
+                    if (r.ok) { const d = await r.json(); setDomainOverrideItems(d.subcategories || []) }
+                  } catch {} finally { setLoadingDomainOverrideItems(false) }
+                }
+              } else if (editPending.domainId) {
+                // Same domain — always reload domainOverrideItems to ensure the picker has options
+                setLoadingDomainOverrideItems(true)
+                try {
+                  const r = await fetch(`/api/expense-categories/${editPending.domainId}/subcategories`, { credentials: 'include' })
+                  if (r.ok) { const d = await r.json(); setDomainOverrideItems(d.subcategories || []) }
+                } catch {} finally { setLoadingDomainOverrideItems(false) }
+              }
+              setFormData(prev => ({
+                ...prev,
+                categoryId: editPending.categoryId,
+                subcategoryId: editPending.subcategoryId,
+                subSubcategoryId: '',
+              }))
+              if (editPending.categoryId) await loadSubcategories(editPending.categoryId)
+              if (editPending.subcategoryId) {
+                const r = await fetch(`/api/expense-categories/sub-subcategories/${editPending.subcategoryId}/items`, { credentials: 'include' })
+                if (r.ok) { const d = await r.json(); setDomainOverrideSubItems(d.items || []) }
+              }
+              if (editPending.subSubcategoryId) {
+                setFormData(prev => ({ ...prev, subSubcategoryId: editPending.subSubcategoryId }))
+              }
+              requestAnimationFrame(() => { skipCascadeRef.current = false })
+            })()
+          } else if (isPersonalAccount || isHomeAccount) {
+            // Domain override not yet activated for personal/home accounts — let Phase 2 handle it
+            // once the auto-activate effect sets activeDomainOverride
+            pendingRepeatRef.current = editPending
+          } else {
+            // Normal-mode account — apply inline
+            skipCascadeRef.current = true
+            setFormData(prev => ({ ...prev, categoryId: editPending.domainId, subcategoryId: editPending.categoryId, subSubcategoryId: editPending.subcategoryId }))
+            ;(async () => {
+              if (editPending.domainId) await loadSubcategories(editPending.domainId)
+              if (editPending.categoryId) await loadSubSubcategories(editPending.categoryId)
+              requestAnimationFrame(() => { skipCascadeRef.current = false })
+            })()
+          }
+        } else {
+          pendingRepeatRef.current = editPending
+        }
+      })
+      .catch(() => {})
+  }, [isOpen, editPaymentId])
 
   // Phase 2: apply category pre-fill once categories and domain-override mode are ready.
   // Depends on activeDomainOverride so it re-fires after the auto-domain-activate effect sets it
@@ -708,6 +819,9 @@ export function QuickPaymentModal({
         if (pending.subcategoryId) {
           const r = await fetch(`/api/expense-categories/sub-subcategories/${pending.subcategoryId}/items`, { credentials: 'include' })
           if (r.ok) { const d = await r.json(); setDomainOverrideSubItems(d.items || []) }
+        }
+        if (pending.subSubcategoryId) {
+          setFormData(prev => ({ ...prev, subSubcategoryId: pending.subSubcategoryId }))
         }
         requestAnimationFrame(() => { skipCascadeRef.current = false })
       })()
@@ -1134,6 +1248,45 @@ export function QuickPaymentModal({
         isFullPayment: true,
         status: 'SUBMITTED',
         lineItems: lineItems.length > 0 ? lineItems : null,
+      }
+
+      // Edit mode — PATCH the existing payment instead of creating a new one
+      if (editPaymentId) {
+        const currentPayeeType = payment.payeeType
+        const currentPayeeId = payment.payeeUserId || payment.payeeEmployeeId || payment.payeePersonId || payment.payeeBusinessId || payment.payeeSupplierId || ''
+        const orig = editOriginalPayeeRef.current
+        const payeeChanged = !orig || orig.type !== currentPayeeType || orig.id !== currentPayeeId
+        const res = await fetch(`/api/expense-account/${activeAccountId}/payments/${editPaymentId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            amount: payment.amount,
+            notes: payment.notes,
+            categoryId: resolvedCategoryId,
+            subcategoryId: resolvedSubcategoryId,
+            subSubcategoryId: payment.subSubcategoryId,
+            paymentDate: payment.paymentDate,
+            paymentChannel: payment.paymentChannel,
+            priority: payment.priority,
+            projectId: payment.projectId,
+            lineItems: payment.lineItems,
+            ...(payeeChanged ? {
+              payeeType: payment.payeeType,
+              payeeUserId: payment.payeeUserId,
+              payeeEmployeeId: payment.payeeEmployeeId,
+              payeePersonId: payment.payeePersonId,
+              payeeBusinessId: payment.payeeBusinessId,
+              payeeSupplierId: payment.payeeSupplierId,
+            } : {}),
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Failed to update payment')
+        setPayeeErrorMessage(null)
+        toast.push('Payment updated successfully')
+        onSuccess({ isRequest: false } as any)
+        return
       }
 
       const result = await fetchWithValidation(`/api/expense-account/${activeAccountId}/payments`, {
@@ -2358,7 +2511,7 @@ export function QuickPaymentModal({
               className="px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-md hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading}
             >
-              {loading ? 'Creating...' : 'Create Payment'}
+              {loading ? (editPaymentId ? 'Saving...' : 'Creating...') : (editPaymentId ? 'Save Changes' : 'Create Payment')}
             </button>
           </div>
         </form>

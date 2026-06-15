@@ -155,6 +155,16 @@ export function ComboRequestsTab({ accountId }: ComboRequestsTabProps) {
                 <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${badge.className}`}>
                   {badge.label}
                 </span>
+                {['DRAFT', 'SUBMITTED'].includes(req.status) && (
+                  <a
+                    href={`/expense-accounts/${accountId}/combo-requests/${req.id}/edit`}
+                    onClick={e => e.stopPropagation()}
+                    className="shrink-0 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-700 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                    title="Edit this request"
+                  >
+                    ✎ Edit
+                  </a>
+                )}
                 <svg className="w-4 h-4 text-gray-400 dark:text-gray-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>

@@ -82,7 +82,11 @@ export async function GET(
       && remainingBalance > 0
     const canConfirmSettle = isCashier && comboRequest.status === 'SETTLE_REQUESTED'
 
-    return NextResponse.json({ success: true, data: { ...comboRequest, canApprove, canReturn, canRequestSettle, canConfirmSettle, remainingBalance } })
+    // Creator or admin can edit DRAFT or SUBMITTED (before approval)
+    const canEditRequest = (comboRequest.createdBy === user.id || user.role === 'admin') &&
+      ['DRAFT', 'SUBMITTED'].includes(comboRequest.status)
+
+    return NextResponse.json({ success: true, data: { ...comboRequest, canApprove, canReturn, canRequestSettle, canConfirmSettle, remainingBalance, canEditRequest } })
   } catch (error) {
     console.error('Error fetching combo request:', error)
     return NextResponse.json({ error: 'Failed to fetch combo request' }, { status: 500 })
@@ -103,8 +107,8 @@ export async function PATCH(
       where: { id: requestId, accountId },
     })
     if (!existing) return NextResponse.json({ error: 'Combo request not found' }, { status: 404 })
-    if (existing.status !== 'DRAFT') {
-      return NextResponse.json({ error: 'Only DRAFT requests can be edited' }, { status: 400 })
+    if (!['DRAFT', 'SUBMITTED'].includes(existing.status)) {
+      return NextResponse.json({ error: 'Only DRAFT or SUBMITTED requests can be edited' }, { status: 400 })
     }
     if (existing.createdBy !== user.id && user.role !== 'admin') {
       return NextResponse.json({ error: 'Only the creator can edit this request' }, { status: 403 })

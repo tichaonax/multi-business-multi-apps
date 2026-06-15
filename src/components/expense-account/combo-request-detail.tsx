@@ -61,6 +61,7 @@ interface ComboRequest {
   canReturn: boolean
   canRequestSettle: boolean
   canConfirmSettle: boolean
+  canEditRequest: boolean
   remainingBalance: number
   // Settle fields
   settleRequestedAt: string | null
@@ -159,6 +160,7 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
           settleNote: req.settleNote ?? null,
           canRequestSettle: req.canRequestSettle ?? false,
           canConfirmSettle: req.canConfirmSettle ?? false,
+          canEditRequest: req.canEditRequest ?? false,
           remainingBalance: Number(req.remainingBalance ?? 0),
           sections: req.sections.map((s: any) => ({
             ...s,
@@ -336,7 +338,7 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
 
   const dataReady = !loading && !loadingBalance && !loadingAccountInfo
   const effectiveRequested = request.overrideAmount ?? request.requestedAmount
-  const canEdit = isCreator && request.status === 'DRAFT'
+  const canEdit = request.canEditRequest
   const canSubmit = isCreator && request.status === 'DRAFT'
   const canApprove = request.canApprove
   const canCancel = isCreator && ['DRAFT', 'SUBMITTED'].includes(request.status)
