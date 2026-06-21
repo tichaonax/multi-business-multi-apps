@@ -278,6 +278,7 @@ function MyQueuePanel({
   businessName,
   canEditPayments,
   onFullEditPayment,
+  currentBalance,
 }: {
   accountId: string
   refreshKey: number
@@ -287,6 +288,7 @@ function MyQueuePanel({
   businessName?: string
   canEditPayments?: boolean
   onFullEditPayment?: (paymentId: string) => void
+  currentBalance?: number
 }) {
   const confirm = useConfirm()
   const alert = useAlert()
@@ -576,6 +578,9 @@ function MyQueuePanel({
   if (queued.length === 0 && pendingApproval.length === 0 && approved.length === 0 && pettyRequests.length === 0 && eodSubmissions.length === 0) return null
 
   const totalCount = queued.length + pendingApproval.length + approved.length + pettyRequests.length + eodSubmissions.length
+  const pendingTotal = [...queued, ...pendingApproval].reduce((sum, p) => sum + Number(p.amount), 0)
+  const projectedBalance = currentBalance !== undefined ? currentBalance - pendingTotal : undefined
+  const fmtAmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n)
   const searchLower = queueSearch.toLowerCase()
   const matchesSearch = (p: QueuedPayment) =>
     !queueSearch ||
@@ -620,6 +625,24 @@ function MyQueuePanel({
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
+      {queueOpen && pendingTotal > 0 && (
+        <div className="flex items-center gap-3 px-3 py-1.5 border-b border-border bg-amber-50/60 dark:bg-amber-900/10 text-[11px]">
+          <span className="text-gray-500 dark:text-gray-400">
+            Pending requests: <span className="font-semibold text-amber-700 dark:text-amber-400">{fmtAmt(pendingTotal)}</span>
+          </span>
+          {canEditPayments && projectedBalance !== undefined && (
+            <>
+              <span className="text-gray-300 dark:text-gray-600">·</span>
+              <span className="text-gray-500 dark:text-gray-400">
+                Projected balance:{' '}
+                <span className={`font-semibold ${projectedBalance < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'}`}>
+                  {fmtAmt(projectedBalance)}
+                </span>
+              </span>
+            </>
+          )}
+        </div>
+      )}
       {queueOpen && (
         <div className="px-3 py-2 border-b border-border bg-white dark:bg-gray-800">
           <input
@@ -1990,6 +2013,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                     setPaymentRefreshKey(k => k + 1)
                   }}
                   onBalanceRefresh={refreshBalanceSilent}
+                  currentBalance={Number(account.balance)}
                 />
 
                 <TransactionHistory accountId={accountId} canEditPayments={canEditPayments} isAdmin={isSystemAdmin} refreshKey={paymentRefreshKey} businessId={account.businessId || currentBusiness?.businessId} businessName={currentBusiness?.businessName ?? ''} onRepeatPayment={!isRestrictedUser ? (id) => { setRepeatPaymentId(id); setShowQuickPaymentModal(true) } : undefined} />

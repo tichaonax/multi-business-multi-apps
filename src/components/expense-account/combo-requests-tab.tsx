@@ -67,6 +67,9 @@ export function ComboRequestsTab({ accountId }: ComboRequestsTabProps) {
   const pendingCount = requests.filter(r => r.status === 'SUBMITTED').length
   const returnedCount = requests.filter(r => r.status === 'DRAFT' && r.returnNote).length
   const settleRequestedCount = requests.filter(r => r.status === 'SETTLE_REQUESTED').length
+  const pendingTotal = requests
+    .filter(r => r.status === 'SUBMITTED')
+    .reduce((sum, r) => sum + r.requestedAmount, 0)
 
   return (
     <div className="space-y-3">
@@ -97,6 +100,13 @@ export function ComboRequestsTab({ accountId }: ComboRequestsTabProps) {
           + New Combo Request
         </button>
       </div>
+
+      {!loading && pendingTotal > 0 && (
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/10 text-[11px] text-gray-500 dark:text-gray-400">
+          <span>Your submitted total:</span>
+          <span className="font-semibold text-amber-700 dark:text-amber-400">{fmt(pendingTotal)}</span>
+        </div>
+      )}
 
       {loading && (
         <div className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">Loading...</div>

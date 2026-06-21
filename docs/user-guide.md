@@ -6646,9 +6646,26 @@ My Payment Queue   [12]   ▼
 - The **count badge** (blue pill) shows the total number of items across all statuses.
 - Click the header to **collapse or expand** the panel. It defaults to open.
 
+#### Pending Summary Strip
+
+When the panel is open and you have at least one IN QUEUE or AWAITING CASHIER payment, a summary strip appears directly below the header:
+
+```
+Pending requests: $1,275.00  ·  Projected balance: $5,496.00
+```
+
+| Field | Who sees it | What it shows |
+|-------|-------------|---------------|
+| **Pending requests** | Everyone | Total amount across all your IN QUEUE and AWAITING CASHIER payments — how much is currently outstanding |
+| **Projected balance** | Users with cashier / edit-payments permission | What the account balance would be if every pending request were approved and paid in full |
+
+The projected balance turns **red** if honoring all pending requests would take the account into a negative balance.
+
+> **Tip:** Use the projected balance to check whether the account has enough funds before approving a batch. If it shows red, there is not enough balance to cover all queued requests at once.
+
 #### Search
 
-When the panel is open, a **search box** appears below the header. Type any part of a payee name, category name, or payment description to filter the list in real time.
+When the panel is open, a **search box** appears below the pending summary strip (or directly below the header if there are no pending amounts). Type any part of a payee name, category name, or payment description to filter the list in real time.
 
 #### Payment Statuses
 
