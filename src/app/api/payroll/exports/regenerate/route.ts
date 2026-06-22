@@ -132,9 +132,11 @@ export async function POST(req: NextRequest) {
       )
       const perDiemForEntry = entry.employeeId ? (perDiemByEmployee[entry.employeeId] || 0) : 0
       // PAYE is on taxable gross only (per diem is non-taxable)
-      const payeAmt = calculatePaye(grossFromTotals, monthlyBrackets)
-      const aidsLevyAmt = calculateAidsLevy(payeAmt, taxConstants.aidsLevyRate)
-      const nssaEmployeeAmt = calculateNssa(contractualBasicSalary, taxConstants.nssaEmployeeRate)
+      // Use ZIMRA override values when present; fall back to system calculation otherwise
+      const calcPaye = calculatePaye(grossFromTotals, monthlyBrackets)
+      const payeAmt      = (entry as any).zimraPaye      != null ? Number((entry as any).zimraPaye)      : calcPaye
+      const nssaEmployeeAmt = (entry as any).zimraNssa   != null ? Number((entry as any).zimraNssa)      : calculateNssa(contractualBasicSalary, taxConstants.nssaEmployeeRate)
+      const aidsLevyAmt  = (entry as any).zimraAidsLevy  != null ? Number((entry as any).zimraAidsLevy)  : calculateAidsLevy(payeAmt, taxConstants.aidsLevyRate)
       const nssaEmployerAmt = calculateNssa(contractualBasicSalary, taxConstants.nssaEmployerRate)
 
       enrichedEntries.push({

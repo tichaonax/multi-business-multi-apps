@@ -57,6 +57,9 @@ interface PayrollEntry {
   payrollAdjustments?: PayrollAdjustment[]
   benefitsTotal?: number
   totalBenefitsAmount?: number
+  zimraPaye?: number | null
+  zimraNssa?: number | null
+  zimraAidsLevy?: number | null
 }
 
 interface PayrollEntryDetailModalProps {
@@ -213,6 +216,11 @@ export function PayrollEntryDetailModal({
   })
   const [approvingAdjId, setApprovingAdjId] = useState<string | null>(null)
   const [overrideAmounts, setOverrideAmounts] = useState<Record<string, string>>({})
+  const [zimraOpen, setZimraOpen] = useState(false)
+  const [zimraPaye, setZimraPaye] = useState('')
+  const [zimraNssa, setZimraNssa] = useState('')
+  const [zimraAidsLevy, setZimraAidsLevy] = useState('')
+  const [zimraSaving, setZimraSaving] = useState(false)
   const [vacationBalance, setVacationBalance] = useState<{
     annualDays: number
     usedDays: number
@@ -309,6 +317,11 @@ export function PayrollEntryDetailModal({
       setPerDiemApprovedCount(null)
       setPerDiemTotalCount(null)
       setProcessedPerDiemAmount(null)
+      // Reset ZIMRA override state so stale values don't show when a different entry opens
+      setZimraOpen(false)
+      setZimraPaye('')
+      setZimraNssa('')
+      setZimraAidsLevy('')
     }
   }, [isOpen])
 
@@ -613,6 +626,11 @@ export function PayrollEntryDetailModal({
             miscDeductions: Number(data.miscDeductions || 0),
             notes: data.notes || ''
           })
+          // Pre-populate ZIMRA override inputs if values are already saved
+          if (data.zimraPaye != null) setZimraPaye(String(Number(data.zimraPaye).toFixed(2)))
+          if (data.zimraNssa != null) setZimraNssa(String(Number(data.zimraNssa).toFixed(2)))
+          if (data.zimraAidsLevy != null) setZimraAidsLevy(String(Number(data.zimraAidsLevy).toFixed(2)))
+          if (data.zimraPaye != null || data.zimraNssa != null || data.zimraAidsLevy != null) setZimraOpen(true)
           // If we derived implied overtime hours (i.e. server had overtimePay but no hours),
           // persist the inferred hours so the authoritative entry stores them too.
           if (impliedOvertimeHours !== null) {
@@ -637,6 +655,10 @@ export function PayrollEntryDetailModal({
             miscDeductions: Number(data.miscDeductions || 0),
             notes: data.notes || ''
           })
+          if (data.zimraPaye != null) setZimraPaye(String(Number(data.zimraPaye).toFixed(2)))
+          if (data.zimraNssa != null) setZimraNssa(String(Number(data.zimraNssa).toFixed(2)))
+          if (data.zimraAidsLevy != null) setZimraAidsLevy(String(Number(data.zimraAidsLevy).toFixed(2)))
+          if (data.zimraPaye != null || data.zimraNssa != null || data.zimraAidsLevy != null) setZimraOpen(true)
         }
         setBenefits(benefitsList)
 
@@ -1246,6 +1268,63 @@ export function PayrollEntryDetailModal({
   const exactTypedMatchIsAvailable = hasMatchesInDropdown || benefitTypeIsSelected
   const typedMatchesGlobalBenefit = hasMatchesInDropdown || benefitTypeIsSelected
 
+
+  const handleZimraSave = async () => {
+    setZimraSaving(true)
+    try {
+      const parsedPaye     = zimraPaye     !== '' ? parseFloat(zimraPaye)     : null
+      const parsedNssa     = zimraNssa     !== '' ? parseFloat(zimraNssa)     : null
+      const parsedAidsLevy = zimraAidsLevy !== '' ? parseFloat(zimraAidsLevy) : null
+      const body = { zimraPaye: parsedPaye, zimraNssa: parsedNssa, zimraAidsLevy: parsedAidsLevy }
+      const res = await fetch(`/api/payroll/entries/${entryId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        const d = await res.json()
+        // Update local entry state so hasOverride badge reflects immediately
+        setEntry((prev: any) => prev ? { ...prev, zimraPaye: parsedPaye, zimraNssa: parsedNssa, zimraAidsLevy: parsedAidsLevy } : prev)
+        setZimraOpen(false)
+        onSuccess({ message: 'ZIMRA overrides saved', refresh: false, updatedEntry: d.data ?? d })
+      } else {
+        const d = await res.json()
+        onError(d.error || 'Failed to save ZIMRA overrides')
+      }
+    } catch {
+      onError('Failed to save ZIMRA overrides')
+    } finally {
+      setZimraSaving(false)
+    }
+  }
+
+  const handleZimraClear = async () => {
+    setZimraSaving(true)
+    try {
+      const res = await fetch(`/api/payroll/entries/${entryId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zimraPaye: null, zimraNssa: null, zimraAidsLevy: null }),
+      })
+      if (res.ok) {
+        setZimraPaye('')
+        setZimraNssa('')
+        setZimraAidsLevy('')
+        // Update local entry state so badge clears immediately
+        setEntry((prev: any) => prev ? { ...prev, zimraPaye: null, zimraNssa: null, zimraAidsLevy: null } : prev)
+        setZimraOpen(false)
+        const d = await res.json()
+        onSuccess({ message: 'ZIMRA overrides cleared', refresh: false, updatedEntry: d.data ?? d })
+      } else {
+        const d = await res.json()
+        onError(d.error || 'Failed to clear ZIMRA overrides')
+      }
+    } catch {
+      onError('Failed to clear ZIMRA overrides')
+    } finally {
+      setZimraSaving(false)
+    }
+  }
 
   const handleSave = async () => {
     try {
@@ -3391,6 +3470,122 @@ export function PayrollEntryDetailModal({
                     <span className="text-lg font-semibold text-primary">Net Gross (taxable base):</span>
                     <span className="text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(totals.gross)}</span>
                   </div>
+                </div>
+              )
+            })()}
+
+            {/* ZIMRA Override Section */}
+            {(() => {
+              const hasOverride = entry.zimraPaye != null || entry.zimraNssa != null || entry.zimraAidsLevy != null
+              return (
+                <div className={`rounded-lg border ${hasOverride ? 'border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/10' : 'border-border bg-muted/30'}`}>
+                  <button
+                    type="button"
+                    onClick={() => setZimraOpen(o => !o)}
+                    className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-left"
+                  >
+                    <span className="flex items-center gap-2 flex-wrap">
+                      <span className="text-gray-700 dark:text-gray-300">ZIMRA Tax Override</span>
+                      {hasOverride && !zimraOpen && (
+                        <>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white">active</span>
+                          <span className="text-[11px] flex items-center gap-1.5">
+                            {entry.zimraPaye != null && <>
+                              <span className="text-gray-400 dark:text-gray-500">PAYE</span>
+                              <span className="font-semibold text-amber-600 dark:text-amber-300">${Number(entry.zimraPaye).toFixed(2)}</span>
+                            </>}
+                            {entry.zimraNssa != null && <>
+                              <span className="text-gray-400 dark:text-gray-500">·</span>
+                              <span className="text-gray-400 dark:text-gray-500">NSSA</span>
+                              <span className="font-semibold text-amber-600 dark:text-amber-300">${Number(entry.zimraNssa).toFixed(2)}</span>
+                            </>}
+                            {entry.zimraAidsLevy != null && <>
+                              <span className="text-gray-400 dark:text-gray-500">·</span>
+                              <span className="text-gray-400 dark:text-gray-500">AIDS Levy</span>
+                              <span className="font-semibold text-amber-600 dark:text-amber-300">${Number(entry.zimraAidsLevy).toFixed(2)}</span>
+                            </>}
+                          </span>
+                        </>
+                      )}
+                    </span>
+                    <svg className={`w-4 h-4 text-secondary transition-transform ${zimraOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {zimraOpen && (
+                    <div className="px-4 pb-4 space-y-3">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Enter the values from the ZIMRA calculator to override system-calculated amounts. Leave a field blank to keep the system calculation for that item.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-secondary mb-1">PAYE Payable (USD)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={zimraPaye}
+                            onChange={e => {
+                              setZimraPaye(e.target.value)
+                              // Auto-suggest AIDS Levy when PAYE changes and AIDS Levy is empty
+                              if (zimraAidsLevy === '' && e.target.value !== '') {
+                                const p = parseFloat(e.target.value)
+                                if (!isNaN(p)) setZimraAidsLevy(String((Math.round(p * 0.03 * 100) / 100).toFixed(2)))
+                              }
+                            }}
+                            placeholder="e.g. 4.50"
+                            className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-secondary mb-1">NSSA Contributions (USD)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={zimraNssa}
+                            onChange={e => setZimraNssa(e.target.value)}
+                            placeholder="e.g. 4.50"
+                            className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-secondary mb-1">AIDS Levy (USD)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={zimraAidsLevy}
+                            onChange={e => setZimraAidsLevy(e.target.value)}
+                            placeholder="e.g. 0.14"
+                            className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between pt-1">
+                        {hasOverride ? (
+                          <button
+                            type="button"
+                            onClick={handleZimraClear}
+                            disabled={zimraSaving || isLocked}
+                            className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50"
+                          >
+                            {zimraSaving ? 'Clearing…' : 'Clear overrides'}
+                          </button>
+                        ) : <span />}
+                        <button
+                          type="button"
+                          onClick={handleZimraSave}
+                          disabled={zimraSaving || isLocked}
+                          className="px-4 py-1.5 text-xs font-medium text-white bg-amber-600 rounded-md hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={isLocked ? 'Cannot edit approved, closed, or exported payroll period' : ''}
+                        >
+                          {zimraSaving ? 'Saving…' : 'Save ZIMRA Values'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })()}

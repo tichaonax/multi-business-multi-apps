@@ -93,6 +93,9 @@ interface PayrollEntry {
   employeeLastName?: string | null
   employeeDateOfBirth?: string | null
   employeeHireDate?: string | null
+  zimraPaye?: number | null
+  zimraNssa?: number | null
+  zimraAidsLevy?: number | null
 }
 
 export default function PayrollPeriodDetailPage() {
@@ -1695,12 +1698,19 @@ export default function PayrollPeriodDetailPage() {
                             const perDiem = Number((entry as any).perDiem || 0)
                             const taxableGross = Math.max(0, totals.grossInclBenefits - perDiem)
                             const statutory = previewPaye(taxableGross, contractualBasicSalary)
-                            const netTakeHome = Math.max(0, totals.grossInclBenefits - statutory.nssa - statutory.paye - statutory.aidsLevy - totals.totalDeductions)
+                            const displayNssa = (entry as any).zimraNssa != null ? Number((entry as any).zimraNssa) : statutory.nssa
+                            const displayPaye = (entry as any).zimraPaye != null ? Number((entry as any).zimraPaye) : statutory.paye
+                            const displayAidsLevy = (entry as any).zimraAidsLevy != null ? Number((entry as any).zimraAidsLevy) : statutory.aidsLevy
+                            const hasZimra = (entry as any).zimraPaye != null || (entry as any).zimraNssa != null || (entry as any).zimraAidsLevy != null
+                            const netTakeHome = Math.max(0, totals.grossInclBenefits - displayNssa - displayPaye - displayAidsLevy - totals.totalDeductions)
                             return (
                               <>
-                                <td className="px-3 py-2 text-sm text-right text-amber-600 dark:text-amber-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(statutory.nssa)}</td>
-                                <td className="px-3 py-2 text-sm text-right text-amber-600 dark:text-amber-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(statutory.paye)}</td>
-                                <td className="px-3 py-2 text-sm text-right text-amber-600 dark:text-amber-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(statutory.aidsLevy)}</td>
+                                <td className="px-3 py-2 text-sm text-right text-amber-600 dark:text-amber-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(displayNssa)}</td>
+                                <td className="px-3 py-2 text-sm text-right text-amber-600 dark:text-amber-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>
+                                  {formatCurrency(displayPaye)}
+                                  {hasZimra && <span className="ml-1 text-[9px] font-bold text-white bg-amber-500 rounded px-1">Z</span>}
+                                </td>
+                                <td className="px-3 py-2 text-sm text-right text-amber-600 dark:text-amber-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(displayAidsLevy)}</td>
                                 <td className="px-3 py-2 text-sm text-right text-green-700 dark:text-green-300 font-bold cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(netTakeHome)}</td>
                               </>
                             )

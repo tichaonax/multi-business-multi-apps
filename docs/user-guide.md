@@ -1129,6 +1129,21 @@ Click any employee row to open their **Entry Detail**. Here the manager can:
 **Per diem:**
 - The total per diem entered separately (via Employees → Per Diem) is shown here as a read-only figure. It cannot be edited from this modal — edit it in the Per Diem module.
 
+**ZIMRA Tax Override:**
+- At the bottom of the Entry Detail (below the Net Gross card) is a collapsible **ZIMRA Tax Override** section.
+- Use this when the ZIMRA online calculator produces different figures from the system's calculated PAYE, NSSA, or AIDS Levy — enter the exact ZIMRA values here.
+- When saved, an amber **"ZIMRA values active"** badge appears on the section header and a small **Z** badge appears on the PAYE column in the main payroll table.
+- These override values flow through to the exported spreadsheet, payslip records, and the payslip capture modal automatically.
+- Click **Clear overrides** to remove all three values and revert to system calculations.
+
+| Field | What to enter |
+|-------|---------------|
+| **PAYE Payable** | The PAYE amount from the ZIMRA calculator |
+| **NSSA Contributions** | The employee NSSA contribution from ZIMRA |
+| **AIDS Levy** | Auto-suggested as 3% of PAYE when you type PAYE; edit if ZIMRA shows a different figure |
+
+> **When to use:** If the system's calculated PAYE does not match what ZIMRA's website calculator shows for the same gross, enter the ZIMRA values here before exporting. This ensures the spreadsheet and payslips carry the correct statutory amounts.
+
 The entry shows a running breakdown:
 ```
 Basic Salary:                  $500.00
@@ -1253,16 +1268,19 @@ The exported spreadsheet contains all gross pay, OT, per diem, and benefit figur
 
 **Payslips are auto-populated on export.** When you export (or regenerate) the payroll spreadsheet, the system automatically calculates PAYE, AIDS Levy, and NSSA Employee contributions for every employee and creates a payslip record for each one with status `CAPTURED`. You do not need to enter these figures manually.
 
+If an employee's entry has a **ZIMRA override** set (see Step 3 — ZIMRA Tax Override), those override values are used instead of the system calculation in both the exported spreadsheet and the payslip record.
+
 **Reviewing and adjusting captured payslips:**
 1. Return to the exported period in **Payroll**.
 2. Click **📋 Capture Payslips**.
 3. The table shows all employees with their auto-populated values:
-   - **Total Earnings**, **PAYE Tax**, **AIDS Levy**, **NSSA Emp**, and **Nett Pay** are read-only — calculated by the system.
+   - **Total Earnings**, **PAYE Tax**, **AIDS Levy**, **NSSA Emp**, and **Nett Pay** are read-only — populated from the system calculation or the ZIMRA override (whichever applies).
+   - A small amber **Z** badge next to a tax value means it came from a ZIMRA override, not the system calculation.
    - **NEC Emp**, **Net Round**, **WCIF**, **NEC Co.**, **Loan Recovery**, **Advance**, **Other Ded.**, **Leave Days**, and **Pay Point** are editable — fill these in as needed.
 4. Click **Save All** to save any edits.
 5. Click **Mark Distributed** once physical payslips have been handed to employees (status → `DISTRIBUTED`).
 
-> Statutory deductions displayed in the capture modal are calculated using the Zimbabwe tax brackets, NSSA rate, and AIDS Levy rate configured in **Settings → Tax Constants**. Verify these are up to date before each payroll run.
+> Statutory deductions displayed in the capture modal use the Zimbabwe tax brackets, NSSA rate, and AIDS Levy rate configured in **Settings → Tax Constants** — unless a ZIMRA override has been entered for that employee, in which case the override takes precedence. Verify tax constants are up to date before each payroll run.
 
 **ZIMRA P2 Remittance Voucher:**
 - Click **Print ZIMRA Voucher** on the period page to generate a two-page PDF:
@@ -1275,7 +1293,7 @@ The exported spreadsheet contains all gross pay, OT, per diem, and benefit figur
 - Use the **Export YTD** button to download all months January to December in a single multi-tab file.
 - This is used by your accountant or tax agent to prepare annual employee tax certificates (ITF16 / P14).
 
-> **Tax calculations:** PAYE is computed using the configured monthly tax brackets on the employee's taxable gross (excluding non-taxable per diem). AIDS Levy is a percentage of PAYE. NSSA Employee is a percentage of the employee's contractual basic salary (capped at the NSSA ceiling). All rates are set in **Settings → Tax Constants**.
+> **Tax calculations:** PAYE is computed using the configured monthly tax brackets on the employee's taxable gross (excluding non-taxable per diem). AIDS Levy is a percentage of PAYE. NSSA Employee is a percentage of the employee's contractual basic salary (capped at the NSSA ceiling). All rates are set in **Settings → Tax Constants**. If a **ZIMRA override** has been entered for an employee in their Entry Detail, those values replace the system calculation for that employee only — all others continue to use the system calculation.
 
 ---
 

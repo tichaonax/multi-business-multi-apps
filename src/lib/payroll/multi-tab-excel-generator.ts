@@ -191,10 +191,10 @@ async function populateWorksheet(
     const loans = Number(entry.loanDeductions || 0)
     const misc = Number(entry.miscDeductions || 0)
     const deductions = Number(entry.totalDeductions || 0)
-    const nssaEmployee = Number(entry.nssaEmployee || 0)
+    const nssaEmployee = Number((entry as any).zimraNssa      ?? entry.nssaEmployee ?? 0)
     const nssaEmployer = Number(entry.nssaEmployer || 0)
-    const paye = Number(entry.payeAmount || 0)
-    const aidsLevy = Number(entry.aidsLevy || 0)
+    const paye         = Number((entry as any).zimraPaye      ?? entry.payeAmount   ?? 0)
+    const aidsLevy     = Number((entry as any).zimraAidsLevy  ?? entry.aidsLevy     ?? 0)
     // Net = Gross minus statutory deductions AND personal deductions (loans, advances, misc)
     const netTakeHome = Math.round(Math.max(0, grossPay - nssaEmployee - paye - aidsLevy - deductions))
 

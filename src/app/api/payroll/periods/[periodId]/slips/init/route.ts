@@ -42,6 +42,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         loanDeductions: true,
         advanceDeductions: true,
         miscDeductions: true,
+        zimraPaye: true,
+        zimraNssa: true,
+        zimraAidsLevy: true,
         payroll_slip: { select: { id: true, status: true } },
       },
     })
@@ -83,6 +86,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       const perDiem = entry.employeeId ? (perDiemByEmployee[entry.employeeId] || 0) : 0
       const grossPay = grossFromEntry + perDiem
 
+      // Build ZIMRA override pre-fills for the slip (only when overrides exist)
+      const zimraPreFill: Record<string, any> = {}
+      if (entry.zimraPaye     != null) zimraPreFill.payeTax      = Number(entry.zimraPaye)
+      if (entry.zimraNssa     != null) zimraPreFill.nssaEmployee = Number(entry.zimraNssa)
+      if (entry.zimraAidsLevy != null) zimraPreFill.aidsLevy     = Number(entry.zimraAidsLevy)
+
       if (slip) {
         // Refresh existing PENDING slip with correct totalEarnings
         await prisma.payrollSlips.update({
@@ -92,6 +101,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             loanDeductions: entry.loanDeductions,
             advanceDeductions: entry.advanceDeductions,
             miscDeductions: entry.miscDeductions,
+            ...zimraPreFill,
             updatedAt: new Date(),
           },
         })
@@ -106,6 +116,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             loanDeductions: entry.loanDeductions,
             advanceDeductions: entry.advanceDeductions,
             miscDeductions: entry.miscDeductions,
+            ...zimraPreFill,
             status: 'PENDING',
           },
         })

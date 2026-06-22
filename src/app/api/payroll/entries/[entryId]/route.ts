@@ -333,7 +333,10 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       commission,
       miscDeductions,
       cashInLieu,
-      notes
+      notes,
+      zimraPaye,
+      zimraNssa,
+      zimraAidsLevy,
     } = data
 
     // Verify entry exists
@@ -373,6 +376,10 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       miscDeductions: miscDeductions !== undefined ? miscDeductions : existingEntry.miscDeductions,
       cashInLieu: cashInLieu !== undefined ? cashInLieu : existingEntry.cashInLieu,
       notes: notes !== undefined ? notes : existingEntry.notes,
+      // ZIMRA override fields: null clears the override; undefined means unchanged
+      ...(zimraPaye     !== undefined ? { zimraPaye:     zimraPaye     !== null ? new Decimal(zimraPaye)     : null } : {}),
+      ...(zimraNssa     !== undefined ? { zimraNssa:     zimraNssa     !== null ? new Decimal(zimraNssa)     : null } : {}),
+      ...(zimraAidsLevy !== undefined ? { zimraAidsLevy: zimraAidsLevy !== null ? new Decimal(zimraAidsLevy) : null } : {}),
       updatedAt: new Date()
     }
 

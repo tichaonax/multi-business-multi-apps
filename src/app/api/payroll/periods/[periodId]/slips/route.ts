@@ -45,6 +45,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             payeAmount: true,
             aidsLevy: true,
             nssaEmployee: true,
+            zimraPaye: true,
+            zimraNssa: true,
+            zimraAidsLevy: true,
           },
         },
         employees: {
@@ -105,6 +108,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         entryPayeTax: s.payroll_entries ? Number(s.payroll_entries.payeAmount || 0) : null,
         entryAidsLevy: s.payroll_entries ? Number(s.payroll_entries.aidsLevy || 0) : null,
         entryNssaEmployee: s.payroll_entries ? Number(s.payroll_entries.nssaEmployee || 0) : null,
+        zimraPaye: s.payroll_entries?.zimraPaye != null ? Number(s.payroll_entries.zimraPaye) : null,
+        zimraNssa: s.payroll_entries?.zimraNssa != null ? Number(s.payroll_entries.zimraNssa) : null,
+        zimraAidsLevy: s.payroll_entries?.zimraAidsLevy != null ? Number(s.payroll_entries.zimraAidsLevy) : null,
         necEmployee: s.necEmployee ? Number(s.necEmployee) : null,
         netPayRound: s.netPayRound ? Number(s.netPayRound) : null,
         // Employee deductions (pre-filled from entry)

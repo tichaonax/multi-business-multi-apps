@@ -21,6 +21,9 @@ interface PayslipRow {
   entryPayeTax: number | null
   entryAidsLevy: number | null
   entryNssaEmployee: number | null
+  zimraPaye: number | null
+  zimraNssa: number | null
+  zimraAidsLevy: number | null
   necEmployee: number | null
   netPayRound: number | null
   // Employee deductions (pre-filled)
@@ -396,15 +399,18 @@ export function PayslipCaptureModal({
                       <td className="px-2 py-1 text-right font-medium text-gray-900 dark:text-gray-100">
                         {row.totalEarnings}
                       </td>
-                      {/* Statutory deductions — auto from system */}
+                      {/* Statutory deductions — auto from system (or ZIMRA override if active) */}
                       <td className="px-2 py-1 bg-orange-50 dark:bg-orange-900/20 text-right text-gray-700 dark:text-gray-300">
-                        {row.payeTax || '0.00'}
+                        <span>{row.payeTax || '0.00'}</span>
+                        {slip.zimraPaye != null && <span className="ml-1 text-[9px] font-bold text-white bg-amber-500 rounded px-1">Z</span>}
                       </td>
                       <td className="px-2 py-1 bg-orange-50 dark:bg-orange-900/20 text-right text-gray-700 dark:text-gray-300">
-                        {row.aidsLevy || '0.00'}
+                        <span>{row.aidsLevy || '0.00'}</span>
+                        {slip.zimraAidsLevy != null && <span className="ml-1 text-[9px] font-bold text-white bg-amber-500 rounded px-1">Z</span>}
                       </td>
                       <td className="px-2 py-1 bg-orange-50 dark:bg-orange-900/20 text-right text-gray-700 dark:text-gray-300">
-                        {row.nssaEmployee || '0.00'}
+                        <span>{row.nssaEmployee || '0.00'}</span>
+                        {slip.zimraNssa != null && <span className="ml-1 text-[9px] font-bold text-white bg-amber-500 rounded px-1">Z</span>}
                       </td>
                       <td className="px-2 py-1 bg-orange-50 dark:bg-orange-900/20">
                         <input type="text" inputMode="decimal" value={row.necEmployee}
