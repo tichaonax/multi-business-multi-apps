@@ -1467,6 +1467,7 @@ export default function PayrollPeriodDetailPage() {
             <table className="min-w-full divide-y divide-border">
               <thead className="bg-muted">
                 <tr>
+                  <th className="sticky left-0 z-20 bg-muted px-3 py-2 text-left text-xs font-medium text-secondary uppercase border-r border-border whitespace-nowrap shadow-[2px_0_4px_rgba(0,0,0,0.06)]">Name ↔</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Company</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Employee ID</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">ID Number</th>
@@ -1529,6 +1530,9 @@ export default function PayrollPeriodDetailPage() {
                     key={entry.id}
                     className={rowClass}
                   >
+                    <td className="sticky left-0 z-10 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-medium text-primary border-r border-border whitespace-nowrap shadow-[2px_0_4px_rgba(0,0,0,0.06)] cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>
+                      {entry.employeeName || `${(entry as any).employeeLastName || ''} ${(entry as any).employeeFirstName || ''}`.trim()}
+                    </td>
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{makeShortCompanyLabel((entry as any).primaryBusiness?.name || (entry as any).employee?.primaryBusiness?.name)}</td>
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeNumber || ''}</td>
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{entry.nationalId}</td>

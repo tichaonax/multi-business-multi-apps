@@ -352,12 +352,19 @@ export async function POST(req: NextRequest) {
         // Create entries for all employees in the selected business
         // If business is umbrella, get ALL employees across all businesses
         // If business is specific, get only employees for that business
-        const employeeWhere: any = { isActive: true }
+        // Exclude employees terminated before this period starts — even if isActive is still true.
+        const pStart = new Date(yr, mo - 1, 1)
+        const employeeWhere: any = {
+          OR: [
+            { isActive: true, terminationDate: null },
+            { terminationDate: { gte: pStart } }
+          ]
+        }
         if (!business.isUmbrellaBusiness) {
           // Regular business: only get employees assigned to this business
           employeeWhere.primaryBusinessId = businessId
         }
-        // Umbrella business: no filter, get everyone!
+        // Umbrella business: no primaryBusinessId filter, get everyone!
 
         const employees = await tx.employees.findMany({
           where: employeeWhere,

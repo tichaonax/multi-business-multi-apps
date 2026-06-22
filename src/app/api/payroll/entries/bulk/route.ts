@@ -42,19 +42,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Get all active employees for this business (minimal fields).
-    // Also include employees who were terminated within the payroll period
-    // because they should receive a final paycheck for that period.
+    // Also include employees terminated on/after the period start (final paycheck).
+    // Employees terminated BEFORE the period starts are excluded entirely — even if isActive is still true.
+    const periodStart = new Date(period.year, period.month - 1, 1)
     const employees = await prisma.employees.findMany({
       where: {
         primaryBusinessId: { in: allBusinessIds },
         OR: [
-          { isActive: true },
-          {
-            terminationDate: {
-              gte: (period as any).startDate,
-              lte: (period as any).endDate
-            }
-          }
+          // Active employees with no termination date
+          { isActive: true, terminationDate: null },
+          // Any employee terminated on/after period start (gets final paycheck)
+          { terminationDate: { gte: periodStart } }
         ]
       },
       select: {
