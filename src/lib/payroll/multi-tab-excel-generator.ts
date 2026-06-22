@@ -350,7 +350,13 @@ export async function regeneratePeriodEntries(periodId: string): Promise<any[]> 
     loadTaxConstants(period.year),
   ])
 
+  const periodStart = new Date(period.year, period.month - 1, 1)
+
   for (const entry of period.payrollEntries) {
+    // Skip employees whose termination date is before this payroll period
+    const entryTermDate = (entry as any).terminationDate ?? (entry as any).employee?.terminationDate ?? null
+    if (entryTermDate && new Date(entryTermDate) < periodStart) continue
+
     // Try to restore contract from snapshot
     let contract = null
     if (entry.contractSnapshot) {

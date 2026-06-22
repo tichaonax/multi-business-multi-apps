@@ -458,6 +458,9 @@ const perDiemByEmployee: Record<string, number> = {}
       const periodStart = new Date(period.year, period.month - 1, 1)
       const periodEnd = new Date(period.year, period.month, 0, 23, 59, 59)
 
+      // Skip employees whose termination date is before this payroll period — they have no earnings here
+      if (entryTermDate && new Date(entryTermDate) < periodStart) continue
+
       // Prorate workDays when employee was terminated mid-period and no manual workDays set
       let derivedWorkDays: number
       if (!entry.workDays && entryTermDate) {

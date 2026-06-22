@@ -98,6 +98,9 @@ export async function POST(req: NextRequest) {
       const employeeTermDate = (entry as any).employees?.terminationDate ?? null
       const resolvedTermDate = (entry as any).terminationDate ?? employeeTermDate ?? null
       const resolvedHireDate = (entry as any).hireDate ?? (entry as any).employees?.hireDate ?? null
+
+      // Skip employees whose termination date is before this payroll period — they have no earnings here
+      if (resolvedTermDate && new Date(resolvedTermDate) < new Date(period.year, period.month - 1, 1)) continue
       const resolvedDob = (entry as any).dateOfBirth ?? (entry as any).employees?.dateOfBirth ?? null
       let totals: any = { combined: [], benefitsTotal: 0, grossPay: entry.grossPay || 0, netPay: entry.netPay || 0 }
       try {
