@@ -5,7 +5,13 @@
  * All communication with the renderer goes through IPC (ipcMain.handle / webContents.send).
  */
 
-const { SerialPort } = require('serialport')
+let SerialPort
+try {
+  SerialPort = require('serialport').SerialPort
+} catch (e) {
+  console.warn('[Scale] serialport module not available — scale features disabled:', e.message)
+}
+
 const Store = require('electron-store')
 
 const store = new Store({ name: 'scale-config' })
@@ -106,6 +112,7 @@ function clearReconnect() {
 // ─── Baud Rate Detection ──────────────────────────────────────────────────────
 
 function tryBaudRate(comPort, baudRate) {
+  if (!SerialPort) return Promise.resolve(false)
   return new Promise((resolve) => {
     const testPort = new SerialPort({
       path: comPort, baudRate,
@@ -185,6 +192,7 @@ function init(mainWindow) {
 }
 
 async function listPorts() {
+  if (!SerialPort) return []
   const ports = await SerialPort.list()
   return ports.map(p => ({
     path: p.path,
@@ -205,6 +213,10 @@ function getSavedBaudRate() {
 }
 
 function connect(comPort, baudRateOverride) {
+  if (!SerialPort) {
+    emit('scale:status', { status: 'error', error: 'serialport module not installed — run electron-rebuild', comPort })
+    return
+  }
   // Deduplicate: if a connect is already in flight, ignore this call.
   // This prevents ScaleContext + ScaleSettings both calling connect simultaneously.
   if (connectPending) {
