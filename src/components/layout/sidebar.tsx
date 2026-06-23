@@ -91,6 +91,7 @@ export function Sidebar() {
   const [canApprovePettyCashSys, setCanApprovePettyCashSys] = useState(false)
   const [canRequestPettyCashSys, setCanRequestPettyCashSys] = useState(false)
   const [canApproveCashAllocSys, setCanApproveCashAllocSys] = useState(false)
+  const [scaleEnabled, setScaleEnabled] = useState(false)
 
   // Get business context
   const {
@@ -167,6 +168,15 @@ export function Sidebar() {
       .then(data => { if (data?.success) setGrantedAccounts(data.data || []) })
       .catch(() => {})
   }, [currentUser])
+
+  // Fetch scale integration toggle for current business (gates AYLI links)
+  useEffect(() => {
+    if (!currentBusinessId) { setScaleEnabled(false); return }
+    fetch(`/api/scale-config?businessId=${currentBusinessId}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setScaleEnabled(data?.scaleEnabled === true))
+      .catch(() => setScaleEnabled(false))
+  }, [currentBusinessId])
 
   // Fetch pending supplier payment request count for badge
   useEffect(() => {
@@ -737,14 +747,18 @@ export function Sidebar() {
                     <span className="text-lg">📋</span>
                     <span>Menu Management</span>
                   </Link>
-                  <Link href="/restaurant/ayc-combos" className={getLinkClasses('/restaurant/ayc-combos')}>
-                    <span className="text-lg">🥗</span>
-                    <span>AYLI Combos</span>
-                  </Link>
-                  <Link href="/restaurant/ayli-pricing" className={getLinkClasses('/restaurant/ayli-pricing')}>
-                    <span className="text-lg">💰</span>
-                    <span>AYLI Pricing</span>
-                  </Link>
+                  {scaleEnabled && (
+                    <Link href="/restaurant/ayc-combos" className={getLinkClasses('/restaurant/ayc-combos')}>
+                      <span className="text-lg">🥗</span>
+                      <span>AYLI Combos</span>
+                    </Link>
+                  )}
+                  {scaleEnabled && (
+                    <Link href="/restaurant/ayli-pricing" className={getLinkClasses('/restaurant/ayli-pricing')}>
+                      <span className="text-lg">💰</span>
+                      <span>AYLI Pricing</span>
+                    </Link>
+                  )}
                   {(isSystemAdmin(currentUser) || hasPermission('canManageDailySpecial') || hasPermission('canOverrideDailySpecial')) && (
                     <Link href="/restaurant/daily-special" className={getLinkClasses('/restaurant/daily-special')}>
                       <span className="text-lg">⭐</span>
