@@ -13,17 +13,17 @@
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
     "build:linux": "electron-builder --linux",
-    "rebuild": "electron-rebuild -f -w serialport"
+    "rebuild": "echo serialport uses pre-built binaries — no rebuild needed"
   },
   "dependencies": {
     "electron": "^28.1.0",
-    "serialport": "^12.0.0",
-    "electron-store": "^7.0.3"
+    "electron-store": "^7.0.3",
+    "multi-business-multi-apps": "file:..",
+    "serialport": "^12.0.0"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
-    "electron-builder": "^24.9.1",
-    "electron-rebuild": "^3.2.9"
+    "electron-builder": "^24.9.1"
   },
   "build": {
     "appId": "com.multibusiness.pos",
