@@ -134,7 +134,10 @@ export async function POST(req: NextRequest) {
         // Prisma model does not have `description` — map client `description` into `reason` if provided
         reason: reason ?? description ?? null,
         createdBy: user.id,
-        createdAt: new Date()
+        createdAt: new Date(),
+        // Manual adjustments added by payroll managers are immediately approved.
+        // Clock-in and vacation-payout auto-detected adjustments use their own routes and set status='pending'.
+        status: 'approved',
       }
 
       // Log payload just before creation for debugging (will show in server logs)

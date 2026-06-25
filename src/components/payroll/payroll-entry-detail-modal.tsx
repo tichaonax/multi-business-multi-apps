@@ -2968,9 +2968,9 @@ export function PayrollEntryDetailModal({
                 )
               })()}
 
-              {entry.payrollAdjustments && entry.payrollAdjustments.filter((a: any) => a.isAddition && (a as any).status !== 'pending').length > 0 ? (
+              {entry.payrollAdjustments && entry.payrollAdjustments.filter((a: any) => a.isAddition && ((a as any).status !== 'pending' || !(a as any).isClockInAdjustment)).length > 0 ? (
                 <div className="space-y-2">
-                  {entry.payrollAdjustments.filter((a: any) => a.isAddition && (a as any).status !== 'pending').map((adj: any) => (
+                  {entry.payrollAdjustments.filter((a: any) => a.isAddition && ((a as any).status !== 'pending' || !(a as any).isClockInAdjustment)).map((adj: any) => (
                     <div key={adj.id} className="bg-muted p-3 rounded border border-border flex items-center justify-between">
                       <div>
                         {/* Prefer description, then reason, then type */}
