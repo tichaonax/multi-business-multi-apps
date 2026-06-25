@@ -1122,6 +1122,24 @@ Click any employee row to open their **Entry Detail**. Here the manager can:
 - Loan repayments (auto-calculated from active loans but can be overridden)
 - Miscellaneous deductions
 
+**Add a one-off deduction (penalty, damage recovery, etc.):**
+
+Use the dedicated **Deductions** section at the bottom right of the Entry Detail — do **not** use "Add Benefit" for this purpose.
+
+A deduction is money taken from an employee's net pay after ZIMRA calculations — it does **not** affect gross pay or the tax base. Examples: an employee broke company property, a penalty was agreed, or a recovery for a company expense.
+
+1. Click **+ Add Deduction**.
+2. Enter a **Deduction Name** — e.g. "Furniture Damage". If you have saved names from before, the browser will show them as suggestions.
+3. Enter a **Reason** (mandatory — this text appears on the employee's payslip so they can see exactly why the deduction was made). Keep it concise, max 80 characters.
+   - Click **Copy from name** to pre-fill the Reason with the Deduction Name if the name already says enough.
+4. Enter the **Amount**.
+5. Tick **Save deduction name for future use** if you want this deduction name to appear as a suggestion for all payroll managers next time.
+6. Click **Add Deduction**.
+
+The deduction appears under the **Deductions** section, with its reason shown in italics beneath the name. The Compensation Breakdown (gross pay) is unchanged — only the post-tax net pay is reduced.
+
+> **Important:** Deductions are distinct from Benefits. Adding a penalty or recovery as a Benefit would incorrectly inflate the employee's gross pay and ZIMRA tax base. Always use the Deductions section for money being taken from the employee.
+
 **Review benefits:**
 - All active benefits (housing allowance, medical aid, transport) are listed.
 - Toggle benefits on or off for this period if needed.
@@ -1149,7 +1167,7 @@ The entry shows a running breakdown:
 Basic Salary:                  $500.00
 Commission:                    $  0.00
 Overtime:                      $ 12.50
-Benefits:                      $ 30.00
+Benefits:                      $ 30.00   ← housing allowance, medical aid, etc.
 ──────────────────────────────────────
 Gross Pay (excl. Per Diem):    $542.50
 Per Diem (approved):           $ 45.00
@@ -1157,9 +1175,21 @@ Per Diem (approved):           $ 45.00
 Gross Pay (incl. Per Diem):    $587.50
 Advances/Loans:              - $ 50.00
 Stock Shortfall Deductions:  - $  8.25
+Furniture Damage:            - $ 25.00   ← one-off deduction (post-ZIMRA)
 ──────────────────────────────────────
-Net Pay:                       $529.25
+Net Pay:                       $504.25
 ```
+
+**What affects Gross Pay vs Net Pay:**
+
+| Item | Affects Gross | Affects Net |
+|------|:---:|:---:|
+| Base salary, commission, overtime | ✓ | ✓ |
+| Benefits (housing, medical, transport) | ✓ | ✓ |
+| Per diem allowance | ✓ | ✓ |
+| ZIMRA (PAYE, NSSA, AIDS Levy) | — | ✓ |
+| Salary advances, loans, misc | — | ✓ |
+| **One-off deductions (damage, penalty)** | **—** | **✓** |
 
 > **Per diem is included in gross and net pay.** The totals shown on the period page, the spreadsheet export, and the payslip capture all include approved per diem. Only **approved** per diem entries count — pending and rejected entries are excluded.
 
@@ -1267,6 +1297,8 @@ The exported spreadsheet contains all gross pay, OT, per diem, and benefit figur
 #### Step 8 — Post-Export: Payslips, ZIMRA, and Statutory Returns
 
 **Payslips are auto-populated on export.** When you export (or regenerate) the payroll spreadsheet, the system automatically calculates PAYE, AIDS Levy, and NSSA Employee contributions for every employee and creates a payslip record for each one with status `CAPTURED`. You do not need to enter these figures manually.
+
+**One-off deductions on payslips:** Any deductions added via the **Add Deduction** form in Step 3 appear on the printed payslip as individually named line items in the **Other Deductions** section — each shows the deduction name and the manager-entered reason beneath it in italics. This lets the employee see exactly what was deducted and why. These deductions are post-ZIMRA and do not affect the gross pay or tax figures on the payslip.
 
 If an employee's entry has a **ZIMRA override** set (see Step 3 — ZIMRA Tax Override), those override values are used instead of the system calculation in both the exported spreadsheet and the payslip record.
 

@@ -1615,7 +1615,7 @@ export async function createCleanBackup(
       deviceRecords,
       uncompressedSize
     },
-    schemaVersion: '6.36.0',
+    schemaVersion: '6.37.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum
