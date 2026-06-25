@@ -89,6 +89,7 @@ export interface PayslipEntry {
   advanceDeductions?: number
   loanDeductions?: number
   miscDeductions?: number
+  contractDeductions?: Array<{ name: string; description?: string | null; amount: number }>
   totalDeductions?: number
 
   // Net
@@ -113,6 +114,8 @@ export function generatePayslipHTML(entry: PayslipEntry, index: number, total: n
   const hasAdvance = (entry.advanceDeductions || 0) > 0
   const hasLoans = (entry.loanDeductions || 0) > 0
   const hasMisc = (entry.miscDeductions || 0) > 0
+  const contractDeductions = entry.contractDeductions || []
+  const hasContractDeductions = contractDeductions.length > 0
 
   // Umbrella is the primary entity — shown at top with all contact details
   const hasUmbrella = !!entry.umbrellaBusinessName
@@ -182,10 +185,14 @@ export function generatePayslipHTML(entry: PayslipEntry, index: number, total: n
           ${(entry.payeAmount || 0) > 0 ? row('PAYE Tax', fmt(entry.payeAmount || 0), false, true) : ''}
           ${(entry.aidsLevy || 0) > 0 ? row('AIDS Levy', fmt(entry.aidsLevy || 0), false, true) : ''}
           ${hasAbsence ? row('Absence Deduction', fmt(entry.absenceDeduction || 0), false, true) : ''}
-          ${(hasAdvance || hasLoans || hasMisc) ? sectionHeader('Other Deductions') : ''}
+          ${(hasAdvance || hasLoans || hasMisc || hasContractDeductions) ? sectionHeader('Other Deductions') : ''}
           ${hasAdvance ? row('Salary Advance', fmt(entry.advanceDeductions || 0), false, true) : ''}
           ${hasLoans ? row('Loan Repayment', fmt(entry.loanDeductions || 0), false, true) : ''}
           ${hasMisc ? row('Other Deductions', fmt(entry.miscDeductions || 0), false, true) : ''}
+          ${contractDeductions.map(d => `
+    ${row(d.name, fmt(d.amount), false, true)}
+    ${d.description ? `<tr><td colspan="2" style="padding:0 6px 3px 0;font-size:9px;color:#666;font-style:italic;">${String(d.description).slice(0, 60)}${d.description.length > 60 ? '…' : ''}</td></tr>` : ''}
+  `).join('')}
           <tr><td colspan="2"><div style="border-top:1px solid #e5e7eb;margin:4px 0;"></div></td></tr>
           ${row('Total Deductions', fmt(entry.totalDeductions || 0), true, true)}
         </tbody>

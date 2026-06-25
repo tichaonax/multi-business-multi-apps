@@ -73,7 +73,10 @@ export async function computeCombinedBenefitsForEntry(entry: any) {
                 amount: amount,
                 isActive: pb.isActive,
                 source: 'override',
-                deactivatedReason: pb.deactivatedReason || null
+                deactivatedReason: pb.deactivatedReason || null,
+                type: (pb as any).benefit_types?.type || existing.type || 'benefit',
+                description: (pb as any).description || existing.description || null,
+                entryType: (pb as any).entryType || existing.entryType || 'benefit',
             })
         } else {
             // New manual benefit: include only if active (but still return persisted list separately)
@@ -83,7 +86,10 @@ export async function computeCombinedBenefitsForEntry(entry: any) {
                 amount: amount,
                 isActive: pb.isActive,
                 source: 'manual',
-                deactivatedReason: pb.deactivatedReason || null
+                deactivatedReason: pb.deactivatedReason || null,
+                type: (pb as any).benefit_types?.type || 'benefit',
+                description: (pb as any).description || null,
+                entryType: (pb as any).entryType || 'benefit',
             })
         }
     }
@@ -188,7 +194,8 @@ export async function computeTotalsForEntry(entryId: string, periodMonth?: numbe
                 benefitName: b.name || 'Unknown Benefit',
                 amount,
                 isActive: true,
-                source: 'contract'
+                source: 'contract',
+                type: b.type || 'benefit'
             })
         }
     }
@@ -220,7 +227,8 @@ export async function computeTotalsForEntry(entryId: string, periodMonth?: numbe
         }
     }
 
-    const benefitsTotal = mergedBenefits.filter(b => b.isActive !== false).reduce((s, b) => s + Number(b.amount || 0), 0)
+    const benefitsTotal = mergedBenefits.filter(b => b.isActive !== false && b.type !== 'deduction' && b.entryType !== 'deduction').reduce((s, b) => s + Number(b.amount || 0), 0)
+    const manualDeductionsTotal = mergedBenefits.filter(b => b.isActive !== false && (b.type === 'deduction' || b.entryType === 'deduction')).reduce((s, b) => s + Number(b.amount || 0), 0)
 
     // Determine base salary to use: prefer entry.baseSalary, then contract.baseSalary, then pdfGenerationData.basicSalary
     let baseSalary = Number(entry.baseSalary ?? 0)
@@ -335,9 +343,9 @@ export async function computeTotalsForEntry(entryId: string, periodMonth?: numbe
     const advances = Number(entry.advanceDeductions || 0)
     const loans = Number(entry.loanDeductions || 0)
     const misc = Number(entry.miscDeductions || 0)
-    const derivedTotalDeductions = advances + loans + misc + adjustmentsAsDeductions
+    const derivedTotalDeductions = advances + loans + misc + adjustmentsAsDeductions + manualDeductionsTotal
     const serverTotalDeductions = Number(entry.totalDeductions ?? 0)
-    const totalDeductions = serverTotalDeductions === derivedTotalDeductions ? serverTotalDeductions : derivedTotalDeductions
+    const totalDeductions = derivedTotalDeductions > 0 ? derivedTotalDeductions : serverTotalDeductions
 
     // Canonical payroll semantics (server authoritative):
     // - grossPay includes all earnings and is reduced for unearned absence amounts.
@@ -348,5 +356,5 @@ export async function computeTotalsForEntry(entryId: string, periodMonth?: numbe
     // Net = Gross (deductions shown separately, NOT subtracted)
     const netPay = grossPay
 
-    return { grossPay, netPay, totalDeductions, benefitsTotal, mergedBenefits, combined, additionsTotal, adjustmentsAsDeductions, clockInDeductionAmount, overtimePay, standardOvertimePay, doubleOvertimePay, hourlyRate, absenceDeduction }
+    return { grossPay, netPay, totalDeductions, benefitsTotal, manualDeductionsTotal, mergedBenefits, combined, additionsTotal, adjustmentsAsDeductions, clockInDeductionAmount, overtimePay, standardOvertimePay, doubleOvertimePay, hourlyRate, absenceDeduction }
 }

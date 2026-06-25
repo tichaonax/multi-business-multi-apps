@@ -58,6 +58,7 @@ model BenefitTypes {
   /// If set (1-12), this benefit is only paid in that specific calendar month.
   /// e.g. 11 = November only (Annual Bonus). Null = paid every month.
   paymentMonth           Int?
+  isSavedForReuse        Boolean                @default(false)
   contract_benefits      ContractBenefits[]
   employee_benefits      EmployeeBenefits[]
   payroll_entry_benefits PayrollEntryBenefits[]
@@ -2596,6 +2597,8 @@ model PayrollEntryBenefits {
   isActive          Boolean        @default(true)
   deactivatedReason String?
   source            String         @default("contract")
+  description       String?
+  entryType         String         @default("benefit")
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @default(now())
   benefit_types     BenefitTypes   @relation(fields: [benefitTypeId], references: [id], onDelete: Cascade)

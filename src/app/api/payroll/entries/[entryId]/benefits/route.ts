@@ -153,7 +153,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     const data = await req.json()
-    const { benefitTypeId, benefitName, amount, isActive, deactivatedReason } = data
+    const { benefitTypeId, benefitName, amount, isActive, deactivatedReason, description, entryType, saveNameForFuture } = data
+    const isDeduction = entryType === 'deduction'
 
     // Treat empty string as missing
     const bTypeId = benefitTypeId && String(benefitTypeId).trim() !== '' ? String(benefitTypeId) : null
@@ -204,19 +205,21 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       let finalBenefitType = benefitType
 
       if (!finalBenefitType) {
-        // Try to find an existing BenefitType by name (case-insensitive)
         const found = await tx.benefitTypes.findFirst({ where: { name: { equals: String(benefitName), mode: 'insensitive' } } })
         if (found) {
           finalBenefitType = found
+          if (saveNameForFuture && !found.isSavedForReuse) {
+            await tx.benefitTypes.update({ where: { id: found.id }, data: { isSavedForReuse: true } })
+          }
         } else {
-          // Create a lightweight BenefitType to reference
           finalBenefitType = await tx.benefitTypes.create({
             data: {
               id: `BT-${nanoid(8)}`,
               name: String(benefitName),
-              type: 'benefit',
+              type: isDeduction ? 'deduction' : 'benefit',
               defaultAmount: amount !== undefined ? new Decimal(parseFloat(amount)) : undefined,
               isActive: true,
+              isSavedForReuse: saveNameForFuture === true,
               createdAt: new Date(),
               updatedAt: new Date()
             }
@@ -253,10 +256,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           benefitTypeId: finalBenefitType!.id,
           benefitName: finalBenefitType!.name,
           amount: parseFloat(amount),
-          // Allow caller to create an inactive override (deactivation) by passing isActive=false
           isActive: typeof isActive === 'boolean' ? Boolean(isActive) : true,
           deactivatedReason: deactivatedReason ?? null,
           source: 'manual',
+          description: description ? String(description).slice(0, 200) : null,
+          entryType: isDeduction ? 'deduction' : 'benefit',
           createdAt: new Date(),
           updatedAt: new Date()
         },
@@ -381,18 +385,22 @@ async function recalculateEntryTotals(tx: any, entryId: string) {
   const entry = await tx.payrollEntries.findUnique({
     where: { id: entryId },
     include: {
-      payroll_entry_benefits: true
+      payroll_entry_benefits: { include: { benefit_types: true } }
     }
   })
 
   if (!entry) return
 
-  // Calculate benefits total (only active benefits)
-  const benefitsTotal = entry.payroll_entry_benefits
-    .filter((b: any) => b.isActive)
+  // Active benefits only — split by entryType so deductions don't inflate gross pay
+  const activeBenefits = entry.payroll_entry_benefits.filter((b: any) => b.isActive)
+  const benefitsTotal = activeBenefits
+    .filter((b: any) => b.entryType !== 'deduction' && b.benefit_types?.type !== 'deduction')
+    .reduce((sum: number, b: any) => sum + Number(b.amount), 0)
+  const deductionsFromBenefitRows = activeBenefits
+    .filter((b: any) => b.entryType === 'deduction' || b.benefit_types?.type === 'deduction')
     .reduce((sum: number, b: any) => sum + Number(b.amount), 0)
 
-  // Calculate gross pay
+  // Calculate gross pay (deductions do NOT contribute)
   const baseSalary = Number(entry.baseSalary)
   const commission = Number(entry.commission)
   const overtimePay = Number(entry.overtimePay)
@@ -400,8 +408,9 @@ async function recalculateEntryTotals(tx: any, entryId: string) {
 
   const grossPay = baseSalary + commission + overtimePay + benefitsTotal + adjustmentsTotal
 
-  // Calculate net pay
-  const totalDeductions = Number(entry.totalDeductions)
+  // Calculate net pay (deductions from benefit rows added to stored deductions)
+  const storedDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0)
+  const totalDeductions = storedDeductions + deductionsFromBenefitRows
   const netPay = grossPay - totalDeductions
 
   // Update entry
@@ -410,6 +419,7 @@ async function recalculateEntryTotals(tx: any, entryId: string) {
     data: {
       benefitsTotal,
       grossPay,
+      totalDeductions,
       netPay,
       updatedAt: new Date()
     }

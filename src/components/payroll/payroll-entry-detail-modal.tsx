@@ -308,8 +308,23 @@ export function PayrollEntryDetailModal({
   const [benefitSearch, setBenefitSearch] = useState('')
   const [addingBenefit, setAddingBenefit] = useState(false)
 
+  const [showAddDeduction, setShowAddDeduction] = useState(false)
+  const [deductionForm, setDeductionForm] = useState({ name: '', description: '', amount: 0, saveNameForFuture: false })
+  const [addingDeduction, setAddingDeduction] = useState(false)
+  const [savedDeductionNames, setSavedDeductionNames] = useState<string[]>([])
+
   const [deactivationReason, setDeactivationReason] = useState('')
   const confirm = useConfirm()
+
+  useEffect(() => {
+    if (!showAddDeduction) return
+    fetch('/api/benefit-types?type=deduction&savedForReuse=true')
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => {
+        if (Array.isArray(data)) setSavedDeductionNames(data.map((bt: any) => bt.name))
+      })
+      .catch(() => {})
+  }, [showAddDeduction])
 
   useEffect(() => {
     if (!isOpen) {
@@ -424,7 +439,9 @@ export function PayrollEntryDetailModal({
               isActive: mb.isActive !== false,
               deactivatedReason: mb.deactivatedReason || undefined,
               source: mb.source || 'merged',
-              benefitType: mb.benefitType || undefined
+              benefitType: mb.benefitType || undefined,
+              entryType: mb.entryType || mb.type || 'benefit',
+              type: mb.type || mb.entryType || 'benefit',
             })
           }
         }
@@ -443,7 +460,9 @@ export function PayrollEntryDetailModal({
               isActive: b.isActive !== false,
               deactivatedReason: b.deactivatedReason || existing?.deactivatedReason,
               source: b.source || 'manual',
-              benefitType: b.benefitType || existing?.benefitType
+              benefitType: b.benefitType || existing?.benefitType,
+              entryType: b.entryType || (b.benefitType && b.benefitType.type) || existing?.entryType || 'benefit',
+              type: (b.benefitType && b.benefitType.type) || b.entryType || existing?.type || 'benefit',
             }
             benefitsMap.set(k, payload)
           }
@@ -468,12 +487,17 @@ export function PayrollEntryDetailModal({
           }
         }
 
-        let benefitsList: any[] = Array.from(benefitsMap.values())
+        // Exclude deductions from the benefits list — deductions are post-ZIMRA and must not affect gross pay
+        let benefitsList: any[] = Array.from(benefitsMap.values()).filter(
+          (b: any) => b.entryType !== 'deduction' && b.type !== 'deduction'
+        )
 
         // Ensure contract-inferred benefits are included as separate line items under Compensation Breakdown
+        // Skip contract items flagged as deductions — they belong in the deductions section only
         if (data.contract && data.contract.pdfGenerationData && Array.isArray(data.contract.pdfGenerationData.benefits)) {
           for (const cb of data.contract.pdfGenerationData.benefits) {
             try {
+              if (cb.type === 'deduction') continue
               const name = cb.name || (cb.benefitType && cb.benefitType.name) || ''
               const id = cb.benefitTypeId || name || `contract-${Math.random().toString(36).slice(2, 9)}`
               const key = String(id)
@@ -487,7 +511,9 @@ export function PayrollEntryDetailModal({
                   amount: Number(cb.amount || 0),
                   isActive: true,
                   source: 'contract-inferred',
-                  benefitType: cb.benefitType || undefined
+                  benefitType: cb.benefitType || undefined,
+                  entryType: 'benefit',
+                  type: 'benefit',
                 })
               }
             } catch (e) {
@@ -802,7 +828,7 @@ export function PayrollEntryDetailModal({
     // Always compute from live benefitsList — server entry.benefitsTotal may be stale
     // (e.g. only reflects newly-persisted manual benefit, misses contract benefits)
     const computedFromList = Array.isArray(benefitsList)
-      ? benefitsList.filter(b => b.isActive !== false).reduce((s, b) => s + Number(b.amount || 0), 0)
+      ? benefitsList.filter(b => b.isActive !== false && b.entryType !== 'deduction' && b.type !== 'deduction').reduce((s, b) => s + Number(b.amount || 0), 0)
       : 0
     const benefitsTotal = computedFromList > 0
       ? computedFromList
@@ -849,8 +875,13 @@ export function PayrollEntryDetailModal({
     // Prefer live misc value from the form while editing so UI shows immediate effect
     const miscVal = typeof formData.miscDeductions === 'number' ? Number(formData.miscDeductions) : Number(entry.miscDeductions || 0)
 
-    // Post-tax deductions: advances, loans, misc, and other (non-clock-in) negative adjustments
-    const totalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + miscVal + adjAsDeductions
+    // Manual deductions from payrollEntryBenefits (post-ZIMRA, entered via Add Deduction form)
+    const manualDeductionsTotal = Array.isArray(entry.payrollEntryBenefits)
+      ? entry.payrollEntryBenefits.filter((b: any) => b.isActive !== false && b.entryType === 'deduction').reduce((s: number, b: any) => s + Number(b.amount || 0), 0)
+      : 0
+
+    // Post-tax deductions: advances, loans, misc, negative adjustments, and manual deductions
+    const totalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + miscVal + adjAsDeductions + manualDeductionsTotal
 
     const net = gross - totalDeductions
     return { benefitsTotal, gross, totalDeductions, net, absenceDeduction, clockInDeduction, overtimePay: overtime }
@@ -1762,6 +1793,48 @@ export function PayrollEntryDetailModal({
     }
   }
 
+  const handleAddDeduction = async () => {
+    if (!deductionForm.name.trim() || deductionForm.amount <= 0) {
+      onError('Please enter a deduction name and a valid amount')
+      return
+    }
+    if (!deductionForm.description.trim()) {
+      onError('Reason is required — it will appear on the payslip')
+      return
+    }
+    try {
+      setAddingDeduction(true)
+      const response = await fetch(`/api/payroll/entries/${entryId}/benefits`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          benefitName: deductionForm.name.trim(),
+          description: deductionForm.description.trim(),
+          amount: deductionForm.amount,
+          entryType: 'deduction',
+          saveNameForFuture: deductionForm.saveNameForFuture,
+        })
+      })
+      const parsed = await parseJsonSafe(response)
+      if (response.ok) {
+        if (deductionForm.saveNameForFuture) {
+          const name = deductionForm.name.trim()
+          setSavedDeductionNames((prev) => [...new Set([...prev, name])])
+        }
+        setDeductionForm({ name: '', description: '', amount: 0, saveNameForFuture: false })
+        setShowAddDeduction(false)
+        onSuccess({ message: 'Deduction added', refresh: false, updatedEntry: parsed || null })
+        await loadBenefits()
+      } else {
+        onError(parsed?.error || parsed?.message || `Failed to add deduction (${response.status})`)
+      }
+    } catch {
+      onError('Failed to add deduction')
+    } finally {
+      setAddingDeduction(false)
+    }
+  }
+
   const handleToggleBenefit = async (benefit: any) => {
     try {
       if (benefit.isActive) {
@@ -2309,7 +2382,7 @@ export function PayrollEntryDetailModal({
                     {(() => {
                       // Exclude zero-amount benefits from the Compensation Breakdown display
                       // Ensure contract-inferred benefits are included individually as line items
-                      const contractInferred = (entry?.contract?.pdfGenerationData?.benefits || []).filter((cb: any) => Number(cb.amount || 0) !== 0 && cb.name).map((cb: any) => ({ benefitName: cb.name, amount: Number(cb.amount || 0), source: 'contract-inferred', benefitTypeId: cb.benefitTypeId || null }))
+                      const contractInferred = (entry?.contract?.pdfGenerationData?.benefits || []).filter((cb: any) => Number(cb.amount || 0) !== 0 && cb.name && cb.type !== 'deduction').map((cb: any) => ({ benefitName: cb.name, amount: Number(cb.amount || 0), source: 'contract-inferred', benefitTypeId: cb.benefitTypeId || null }))
                       // Merge persisted/manual benefits (from `benefits`) with contract-inferred, avoiding duplicates by benefitTypeId or name
                       const displayedMap = new Map<string, any>()
                       for (const b of (benefits || [])) {
@@ -2433,6 +2506,20 @@ export function PayrollEntryDetailModal({
                           })()}
                         </div>
                       )}
+                      {(() => {
+                        const contractDeds = (entry?.contract?.pdfGenerationData?.benefits || []).filter((cb: any) => cb.type === 'deduction' && Number(cb.amount || 0) !== 0 && cb.name)
+                        if (contractDeds.length === 0) return null
+                        return (
+                          <div className="ml-4 space-y-0.5">
+                            {contractDeds.map((cb: any) => (
+                              <div key={cb.benefitTypeId || cb.name} className="flex justify-between text-xs">
+                                <span className="text-secondary">{cb.name} <span className="text-red-500">(contract deduction)</span>:</span>
+                                <span className="text-red-600">-{formatCurrency(Number(cb.amount || 0))}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      })()}
                       <div className="flex justify-between font-medium text-sm pt-1 border-t border-border mt-1">
                         <span className="text-primary">Net Gross (pre-tax):</span>
                         <span className="text-primary">{formatCurrency(totals.gross)}</span>
@@ -3148,7 +3235,8 @@ export function PayrollEntryDetailModal({
                       }
 
                       // Include zero-amount persisted benefits here so users can edit or remove them.
-                      return entry!.payrollEntryBenefits.filter((b: any) => !isContractOverride(b)).map((b: any) => (
+                      // Exclude manual deductions — they appear in the Deductions section below.
+                      return entry!.payrollEntryBenefits.filter((b: any) => !isContractOverride(b) && b.entryType !== 'deduction').map((b: any) => (
                         <div key={b.id} className="p-3 rounded bg-muted border border-border flex items-center justify-between">
                           <div>
                             <div className="font-medium text-sm text-primary">
@@ -3241,9 +3329,9 @@ export function PayrollEntryDetailModal({
               {/* Contract-inferred benefits section */}
               <div>
                 <div className="font-medium text-secondary mb-2">Contract Benefits (from contract PDF)</div>
-                {entry?.contract?.pdfGenerationData?.benefits && entry.contract.pdfGenerationData.benefits.filter((cb: any) => Number(cb.amount || 0) !== 0 && cb.name).length > 0 ? (
+                {entry?.contract?.pdfGenerationData?.benefits && entry.contract.pdfGenerationData.benefits.filter((cb: any) => Number(cb.amount || 0) !== 0 && cb.name && cb.type !== 'deduction').length > 0 ? (
                   <div className="space-y-2">
-                    {entry!.contract.pdfGenerationData.benefits.filter((cb: any) => Number(cb.amount || 0) !== 0 && cb.name).map((cb: any) => {
+                    {entry!.contract.pdfGenerationData.benefits.filter((cb: any) => Number(cb.amount || 0) !== 0 && cb.name && cb.type !== 'deduction').map((cb: any) => {
                       // Find any persisted override matching this contract benefit by type or name
                       const override = entry!.payrollEntryBenefits?.find((pb: any) => (pb.benefitTypeId && cb.benefitTypeId && String(pb.benefitTypeId) === String(cb.benefitTypeId)) || (pb.benefitName && String(pb.benefitName).toLowerCase() === String(cb.name).toLowerCase()))
                       if (override) {
@@ -3312,6 +3400,168 @@ export function PayrollEntryDetailModal({
                   <div className="text-sm text-secondary">No contract benefits</div>
                 )}
               </div>
+
+              {/* Contract Deductions — items in pdfGenerationData.benefits with type='deduction' */}
+              {(() => {
+                const contractDeds = (entry?.contract?.pdfGenerationData?.benefits || []).filter((cb: any) => cb.type === 'deduction' && Number(cb.amount || 0) !== 0 && cb.name)
+                if (contractDeds.length === 0) return null
+                return (
+                  <div>
+                    <div className="font-medium text-secondary mb-2">Contract Deductions</div>
+                    <div className="space-y-2">
+                      {contractDeds.map((cb: any) => {
+                        const override = entry!.payrollEntryBenefits?.find((pb: any) =>
+                          (pb.benefitTypeId && cb.benefitTypeId && String(pb.benefitTypeId) === String(cb.benefitTypeId)) ||
+                          (pb.benefitName && String(pb.benefitName).toLowerCase() === String(cb.name).toLowerCase())
+                        )
+                        return (
+                          <div key={cb.benefitTypeId || cb.name} className="p-3 rounded border bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800 flex items-center justify-between">
+                            <div>
+                              <div className="font-medium text-sm text-primary">
+                                {cb.name} <span className="ml-2 text-xs text-red-600">(From Contract — Deduction)</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-red-600 font-medium">-{formatCurrency(Number(override?.amount ?? cb.amount ?? 0))}</span>
+                              {!isLocked && (
+                                <button type="button" onClick={() => { setDeactivatingBenefit({ id: override?.id || cb.benefitTypeId || `contract-${cb.name}`, benefitTypeId: cb.benefitTypeId || '', benefitName: cb.name, amount: Number(cb.amount || 0), isActive: false, source: 'contract-inferred' } as PayrollEntryBenefit); setDeactivationReason('') }} className="text-sm text-red-600">Remove</button>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
+
+            {/* ── Manual Deductions Section ── */}
+            <div className="mt-6 border-t border-border pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-red-600 dark:text-red-400">Deductions</h3>
+                {!isLocked && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddDeduction(!showAddDeduction)}
+                    className="px-3 py-1 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded border border-red-300 dark:border-red-700"
+                  >
+                    {showAddDeduction ? 'Cancel' : '+ Add Deduction'}
+                  </button>
+                )}
+              </div>
+
+              {showAddDeduction && (
+                <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg mb-4 border border-red-200 dark:border-red-800">
+                  <div className="grid grid-cols-2 gap-4 mb-3">
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-1">Deduction Name</label>
+                      <input
+                        type="text"
+                        list="deduction-names-list"
+                        value={deductionForm.name}
+                        onChange={(e) => setDeductionForm({ ...deductionForm, name: e.target.value })}
+                        placeholder="e.g. Furniture Damage"
+                        className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      />
+                      <datalist id="deduction-names-list">
+                        {savedDeductionNames.map((n) => <option key={n} value={n} />)}
+                      </datalist>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-1">Amount</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={deductionForm.amount || ''}
+                        onChange={(e) => setDeductionForm({ ...deductionForm, amount: parseFloat(e.target.value) || 0 })}
+                        placeholder="0.00"
+                        className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-sm font-medium text-secondary">
+                        Reason <span className="text-red-500">*</span> <span className="text-xs text-secondary font-normal">(shown on payslip, max 80 chars)</span>
+                      </label>
+                      {deductionForm.name.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => setDeductionForm({ ...deductionForm, description: deductionForm.name.trim().slice(0, 80) })}
+                          className="text-xs text-red-600 dark:text-red-400 hover:underline"
+                        >
+                          Copy from name
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      maxLength={80}
+                      value={deductionForm.description}
+                      onChange={(e) => setDeductionForm({ ...deductionForm, description: e.target.value })}
+                      placeholder="e.g. Broke office chair on 15 June 2026"
+                      className={`w-full px-3 py-2 border rounded-md bg-background text-primary focus:ring-2 focus:ring-red-500 focus:border-transparent ${!deductionForm.description.trim() ? 'border-red-400' : 'border-border'}`}
+                    />
+                    <div className="text-xs text-secondary mt-1 text-right">{deductionForm.description.length}/80</div>
+                  </div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <input
+                      type="checkbox"
+                      id="save-deduction-name"
+                      checked={deductionForm.saveNameForFuture}
+                      onChange={(e) => setDeductionForm({ ...deductionForm, saveNameForFuture: e.target.checked })}
+                      className="w-4 h-4 accent-red-600"
+                    />
+                    <label htmlFor="save-deduction-name" className="text-sm text-secondary cursor-pointer">
+                      Save deduction name for future use
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddDeduction}
+                    disabled={addingDeduction || !deductionForm.name.trim() || deductionForm.amount <= 0 || !deductionForm.description.trim()}
+                    className={`w-full px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 ${addingDeduction || !deductionForm.name.trim() || deductionForm.amount <= 0 || !deductionForm.description.trim() ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {addingDeduction ? 'Adding...' : 'Add Deduction'}
+                  </button>
+                </div>
+              )}
+
+              {/* Existing manual deductions list */}
+              {(() => {
+                const manualDeductions = (entry?.payrollEntryBenefits || []).filter((b: any) => b.entryType === 'deduction')
+                if (manualDeductions.length === 0 && !showAddDeduction) {
+                  return <div className="text-sm text-secondary">No deductions for this period</div>
+                }
+                return (
+                  <div className="space-y-2">
+                    {manualDeductions.map((d: any) => (
+                      <div key={d.id} className="p-3 rounded border bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium text-sm text-primary">{d.benefitName}</div>
+                            {d.description && <div className="text-xs text-secondary mt-0.5 italic">{d.description}</div>}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-red-600 font-medium">-{formatCurrency(Number(d.amount || 0))}</span>
+                            {!isLocked && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteBenefit(d.id)}
+                                className="text-sm text-red-600 hover:text-red-700"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
             </div>
 
             </div>{/* end Adjustments & Benefits flex row */}

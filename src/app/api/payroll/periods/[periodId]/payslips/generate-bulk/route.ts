@@ -204,11 +204,20 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         - (totals.totalDeductions || 0)
       ))
 
-      // Benefits from merged list (includes contract PDF benefits like Living Allowance)
+      // Benefits from merged list — exclude items that are contract deductions (type === 'deduction')
       const benefits = (totals.mergedBenefits || [])
-        .filter((b: any) => b.isActive !== false)
+        .filter((b: any) => b.isActive !== false && b.type !== 'deduction')
         .map((b: any) => ({
           name: b.benefitName || b.name || 'Benefit',
+          amount: Number(b.amount || 0),
+        }))
+
+      // All deductions (contract + manual) — shown as named line items in the payslip deductions section
+      const contractDeductions = (totals.mergedBenefits || [])
+        .filter((b: any) => b.isActive !== false && (b.type === 'deduction' || b.entryType === 'deduction'))
+        .map((b: any) => ({
+          name: b.benefitName || b.name || 'Deduction',
+          description: b.description || null,
           amount: Number(b.amount || 0),
         }))
 
@@ -260,6 +269,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         cashInLieu: Number(e.cashInLieu),
         adjustmentsAdditions,
         benefits,
+        contractDeductions,
         grossPay,
 
         absenceDeduction: totals.absenceDeduction || 0,

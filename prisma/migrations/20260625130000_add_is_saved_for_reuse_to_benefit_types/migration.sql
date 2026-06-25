@@ -1,0 +1,1 @@
+ALTER TABLE "benefit_types" ADD COLUMN IF NOT EXISTS "isSavedForReuse" BOOLEAN NOT NULL DEFAULT false;

@@ -13,16 +13,21 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const includeInactive = searchParams.get('includeInactive') === 'true'
-    const type = searchParams.get('type') // Filter by type: allowance, insurance, time_off, bonus
+    const type = searchParams.get('type')
+    const savedForReuse = searchParams.get('savedForReuse') === 'true'
 
     const whereClause: any = {}
-    
+
     if (!includeInactive) {
       whereClause.isActive = true
     }
 
     if (type) {
       whereClause.type = type
+    }
+
+    if (savedForReuse) {
+      whereClause.isSavedForReuse = true
     }
 
     const benefitTypes = await prisma.benefitTypes.findMany({
