@@ -1100,7 +1100,7 @@ If your business runs stock takes, click this button to pull in any stock shortf
 
 **Per Diem column**
 
-The payroll table includes a **Per Diem** column showing the total **approved** per diem for each employee in the period. Only entries with status **Approved** are counted — pending or rejected entries are excluded. This figure is fetched live from the Per Diem module and is read-only in the payroll table — to add or correct per diem entries, go to **Employees → Per Diem**.
+The payroll table includes a **Per Diem** column showing the total per diem for each employee in the period. Both **Approved** and **Pending** entries are counted and displayed — pending entries show with a **⚠ Pending** badge. Rejected entries are excluded. This figure is fetched live from the Per Diem module and is read-only in the payroll table — to approve or correct per diem entries, go to **Employees → Per Diem**.
 
 ---
 
@@ -1143,6 +1143,7 @@ The deduction appears under the **Deductions** section, with its reason shown in
 **Review benefits:**
 - All active benefits (housing allowance, medical aid, transport) are listed.
 - Toggle benefits on or off for this period if needed.
+- **Annual-only benefits (e.g. Annual Bonus):** Benefits that are only paid in a specific month (such as December) appear greyed out with the label **"Annual benefit — not paid this month"** in every other month — no action needed. In the correct payment month they revert to the normal active state automatically and are included in gross pay.
 
 **Per diem:**
 - The total per diem entered separately (via Employees → Per Diem) is shown here as a read-only figure. It cannot be edited from this modal — edit it in the Per Diem module.
@@ -1170,7 +1171,7 @@ Overtime:                      $ 12.50
 Benefits:                      $ 30.00   ← housing allowance, medical aid, etc.
 ──────────────────────────────────────
 Gross Pay (excl. Per Diem):    $542.50
-Per Diem (approved):           $ 45.00
+Per Diem:                      $ 45.00   ← approved + pending entries
 ──────────────────────────────────────
 Gross Pay (incl. Per Diem):    $587.50
 Advances/Loans:              - $ 50.00
@@ -1186,12 +1187,12 @@ Net Pay:                       $504.25
 |------|:---:|:---:|
 | Base salary, commission, overtime | ✓ | ✓ |
 | Benefits (housing, medical, transport) | ✓ | ✓ |
-| Per diem allowance | ✓ | ✓ |
+| Per diem allowance (approved or pending) | ✓ | ✓ |
 | ZIMRA (PAYE, NSSA, AIDS Levy) | — | ✓ |
 | Salary advances, loans, misc | — | ✓ |
 | **One-off deductions (damage, penalty)** | **—** | **✓** |
 
-> **Per diem is included in gross and net pay.** The totals shown on the period page, the spreadsheet export, and the payslip capture all include approved per diem. Only **approved** per diem entries count — pending and rejected entries are excluded.
+> **Per diem is included in gross and net pay and is non-taxable** — PAYE and NSSA are calculated on the gross amount after per diem is excluded. Both **Approved** and **Pending** per diem entries are counted. Rejected entries are excluded. Approve entries before exporting so that payslips show the confirmed figure.
 
 > **Stock Shortfall Deductions** appear only if the employee was listed as a responsible party on one or more signed-off stock take reports in this period. The amount is calculated automatically when the manager clicks **Sync Stock Shortfall**.
 
@@ -1275,20 +1276,23 @@ With the period approved, the manager exports the payroll spreadsheet:
 | Last Name | Employee profile |
 | Work Days | Entry (from sync or manual) |
 | Basic Salary | Employment contract |
+| Earned Salary | Basic Salary minus any absence deduction — the actual amount earned (used for ZIMRA entry) |
 | Commission | Contract / manual override |
 | Living Allowance | Contract allowances |
 | Vehicle Reimbursement | Contract allowances |
 | Travel Allowance | Contract allowances |
 | Overtime | Approved overtime adjustments |
-| **Per Diem** | Approved per diem entries for the month (from Per Diem module — pending and rejected entries excluded) |
-| Benefits | Total of all active benefits |
+| **Per Diem** | Per diem entries for the month — approved and pending entries included; rejected excluded |
+| Benefits | Dynamic columns — one column per active benefit type (housing allowance, medical aid, etc.) shown in normal text |
+| **Deductions** | Dynamic columns — one per manual deduction added via **Add Deduction** (e.g. penalty, damage recovery), shown in **red** in the on-screen table. These reduce Net Pay but do not affect Gross Pay or the ZIMRA tax base |
 | Advances | Salary advances deducted |
 | Loans | Loan repayments deducted |
-| Gross Pay | Sum of all earnings |
-| Deductions | Advances + loans |
-| Net Gross | Gross Pay − Deductions |
+| Gross Pay | Sum of all earnings (base + benefits + per diem + overtime + adjustments − absences) |
+| Net Pay | Gross Pay − ZIMRA − Deductions − Advances − Loans |
 
-> **Per Diem in the export:** Only **approved** per diem entries are included in the exported spreadsheet. Pending or rejected entries are excluded. Per diem is included in both the **single-month export** and the **Year-to-Date multi-tab export**, and in the Gross Pay total. Use the **Regenerate Export** button to re-download an already-exported period — the per diem values are included in regenerated files too.
+> **Deduction columns (red):** Any manual deduction added via the **Add Deduction** form appears as its own column in the payroll table, shown in red to distinguish it from benefit columns (which are shown in normal text). These amounts reduce the employee's **Net Pay** — they do not change the gross pay or ZIMRA calculations. The net pay figure on the payslip reflects these deductions.
+
+> **Per Diem in the export:** Approved and pending per diem entries are both included in the exported spreadsheet. Rejected entries are excluded. Per diem is included in both the **single-month export** and the **Year-to-Date multi-tab export**. Use the **Regenerate Export** button to re-download an already-exported period — per diem values are included in regenerated files too.
 
 The exported spreadsheet contains all gross pay, OT, per diem, and benefit figures. It can be handed to an external payroll bureau or accountant if required, or used to verify figures before filing.
 
@@ -2520,22 +2524,21 @@ To print the **Claim Form** (a filled-in summary for the file):
 
 ---
 
-#### Step 5 — Manager Approves or Rejects Per Diem Entries
+#### Step 5 — Manager or Admin Approves or Rejects Per Diem Entries
 
-Per diem entries start in **Pending** status. A manager must approve them before they count towards payroll.
+Per diem entries start in **Pending** status. A manager or admin should approve them before the payroll period is exported.
 
 1. Go to **Employees → Per Diem**.
 2. Select the month and year.
-3. Click **Process Per Diem** (or the approval icon next to the employee).
-4. The approval modal shows all pending entries for the period.
-5. For each entry, click **Approve** or **Reject**:
-   - **Approved** entries are included in the payroll gross/net pay totals for that month.
-   - **Rejected** entries are excluded from payroll totals entirely.
-6. Click **Process** to finalise your decisions.
+3. The list shows all entries grouped by employee, with a **Status** badge on each row: **Pending** (amber), **Approved** (green), or **Rejected** (red).
+4. The summary bar at the top shows a **Pending Approval** count so you can see at a glance how many entries still need action.
+5. For each pending entry, click:
+   - **Approve** — marks the entry as approved; it is counted in the payroll Per Diem column with a ✓ Approved badge.
+   - **Reject** — marks the entry as rejected; it is excluded from all payroll totals. A rejected entry can still be approved later if needed.
 
-> **You can click Process even if all entries are rejected** — this closes the review and records the rejections. Rejected entries do not count as pending for subsequent payroll runs.
+> **Who can approve:** Managers with `canAccessPayroll` or `canManageEmployees` permissions, and all system admins. Delete is restricted to admins only.
 
-> **Tip:** Approve per diem entries before submitting payroll for review. Only approved entries are included in the payroll spreadsheet and totals.
+> **Payroll picks up pending and approved entries.** The payroll table Per Diem column shows both approved and pending entries — pending ones display with a ⚠ Pending badge. Approve before exporting so payslips show the confirmed, finalised figure.
 
 ---
 
@@ -2548,7 +2551,7 @@ Per diem entries do not need to be transferred or manually added to payroll. Whe
 - It is included in the employee's **gross pay** for that period.
 - The payroll processor handles any applicable tax treatment on the per diem amount.
 
-> Only **approved** per diem entries are included in payroll — pending or rejected entries are excluded. Approve all entries in the Per Diem module before submitting payroll for review to ensure the correct totals are captured.
+> Both **approved** and **pending** per diem entries are included in payroll totals — rejected entries are excluded. Approve all entries before exporting payroll so that payslips show the confirmed figures rather than provisional ones.
 
 ---
 

@@ -208,7 +208,9 @@ export async function computeTotalsForEntry(entryId: string, periodMonth?: numbe
             benefitName: pb.benefitName || pb.name || '',
             amount: Number(pb.amount || 0),
             isActive: pb.isActive !== false,
-            source: pb.source || 'manual'
+            source: pb.source || 'manual',
+            entryType: (pb as any).entryType || 'benefit',
+            type: (pb as any).type || 'benefit',
         }))
         // Also include any contract pdfGenerationData benefits not already covered
         const pdfBenefits: any[] = (contract as any)?.pdfGenerationData?.benefits || []

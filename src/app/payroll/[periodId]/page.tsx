@@ -245,7 +245,7 @@ export default function PayrollPeriodDetailPage() {
       const map: Record<string, number> = {}
       const pendingMap: Record<string, number> = {}
       entries.forEach(e => {
-        if (e.approvalStatus === 'approved') {
+        if (e.approvalStatus === 'approved' || e.approvalStatus === 'pending') {
           map[e.employeeId] = (map[e.employeeId] ?? 0) + Number(e.amount)
         }
         if (e.approvalStatus === 'pending') {
@@ -583,33 +583,33 @@ export default function PayrollPeriodDetailPage() {
   // Does NOT read raw contract pdfGenerationData — the server handles month filtering there.
   const getUniqueBenefits = () => {
     if (!period) return []
-    const uniqueBenefitsMap = new Map<string, { id: string, name: string }>()
+    const uniqueBenefitsMap = new Map<string, { id: string, name: string, isDeduction: boolean }>()
 
     period.payroll_entries.forEach(entry => {
       const merged: any[] = (entry as any).mergedBenefits || []
       const entryBenefits: any[] = entry.payroll_entry_benefits || []
 
-      // Primary source: server-computed mergedBenefits (already month-filtered, percentage-resolved)
       merged.forEach((mb: any) => {
         if (!mb || mb.isActive === false) return
         const name = mb.benefitType?.name || mb.benefitName || mb.key || mb.name || ''
         if (!name) return
         const benefitId = String(mb.benefitType?.id || mb.benefitTypeId || name)
-        if (!uniqueBenefitsMap.has(benefitId)) uniqueBenefitsMap.set(benefitId, { id: benefitId, name })
+        const isDeduction = mb.entryType === 'deduction' || mb.type === 'deduction'
+        if (!uniqueBenefitsMap.has(benefitId)) uniqueBenefitsMap.set(benefitId, { id: benefitId, name, isDeduction })
       })
 
-      // Secondary: persisted entry benefits (manually added via UI)
       entryBenefits.forEach((benefit: any) => {
         if (!benefit.isActive) return
         if (Number(benefit.amount || 0) <= 0) return
         const benefitId = String(benefit.benefitTypeId || benefit.benefitName)
-        if (!uniqueBenefitsMap.has(benefitId)) uniqueBenefitsMap.set(benefitId, { id: benefitId, name: benefit.benefitName })
+        const isDeduction = benefit.entryType === 'deduction'
+        if (!uniqueBenefitsMap.has(benefitId)) uniqueBenefitsMap.set(benefitId, { id: benefitId, name: benefit.benefitName, isDeduction })
       })
     })
 
     return Array.from(uniqueBenefitsMap.values())
       .sort((a, b) => a.name.localeCompare(b.name))
-      .map(b => ({ benefitTypeId: b.id, benefitName: b.name }))
+      .map(b => ({ benefitTypeId: b.id, benefitName: b.name, isDeduction: b.isDeduction }))
   }
 
   // Memoize unique benefits so we don't recalculate on every render
@@ -812,11 +812,15 @@ export default function PayrollPeriodDetailPage() {
 
     const absenceDeduction = resolveAbsenceDeduction(entry)
     const clockInDeduction = Number((entry as any).clockInDeductionAmount || 0)
-    const perDiem = Number((entry as any).perDiem || 0)
+    const empId = (entry as any).employeeId || ''
+    const perDiem = perDiemMap[empId] ?? Number((entry as any).perDiem || 0)
     // Net Gross: true gross minus pre-tax deductions (absence + clock-in tardiness)
     const grossInclBenefits = baseSalary + commission + overtime + benefitsTotal + additions + perDiem - absenceDeduction - clockInDeduction
 
-    const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions
+    const manualDeductionsFromBenefits = (entry.payroll_entry_benefits || [])
+      .filter((b: any) => b.isActive !== false && b.entryType === 'deduction')
+      .reduce((s: number, b: any) => s + Number(b.amount || 0), 0)
+    const derivedTotalDeductions = Number(entry.advanceDeductions || 0) + Number(entry.loanDeductions || 0) + Number(entry.miscDeductions || 0) + adjAsDeductions + manualDeductionsFromBenefits
     const totalDeductions = derivedTotalDeductions
     // Deductions are shown separately — applied by third-party payroll processor after gross
     const netInclBenefits = grossInclBenefits
@@ -1488,7 +1492,7 @@ export default function PayrollPeriodDetailPage() {
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">OT (2.0x)</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Adjustments</th>
                   {getUniqueBenefits().map(benefit => (
-                    <th key={benefit.benefitTypeId} className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">
+                    <th key={benefit.benefitTypeId} className={`px-3 py-2 text-right text-xs font-medium uppercase ${benefit.isDeduction ? 'text-red-600 dark:text-red-400' : 'text-secondary'}`}>
                       {benefit.benefitName}
                     </th>
                   ))}
@@ -1583,7 +1587,7 @@ export default function PayrollPeriodDetailPage() {
                         ?? (entry as any).contract?.baseSalary
                         ?? Number(entry.baseSalary || 0))
                     )}</td>
-                    <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(Number(entry.baseSalary || 0))}</td>
+                    <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(Math.max(0, Number(entry.baseSalary || 0) - resolveAbsenceDeduction(entry)))}</td>
                     <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(Number(entry.commission || 0))}</td>
                     <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency((() => {
                       const stored = Number((entry as any).standardOvertimePay || 0)
@@ -1661,10 +1665,10 @@ export default function PayrollPeriodDetailPage() {
                       return (
                         <td
                           key={uniqueBenefit.benefitTypeId}
-                          className="px-3 py-2 text-sm text-right text-primary cursor-pointer"
+                          className={`px-3 py-2 text-sm text-right cursor-pointer ${uniqueBenefit.isDeduction ? 'text-red-600 dark:text-red-400 font-medium' : 'text-primary'}`}
                           onClick={() => setSelectedEntryId(entry.id)}
                         >
-                          {typeof amount === 'number' ? formatCurrency(amount) : ''}
+                          {typeof amount === 'number' ? (uniqueBenefit.isDeduction ? `-${formatCurrency(amount)}` : formatCurrency(amount)) : ''}
                         </td>
                       )
                     })}
@@ -1696,7 +1700,7 @@ export default function PayrollPeriodDetailPage() {
                           {(() => {
                             const contractualBasicSalary = Number((entry as any).contractSnapshot?.basicSalary ?? (entry as any).contract?.pdfGenerationData?.basicSalary ?? Number(entry.baseSalary || 0))
                             // Per diem is non-taxable — exclude from PAYE taxable base
-                            const perDiem = Number((entry as any).perDiem || 0)
+                            const perDiem = perDiemMap[empId] ?? Number((entry as any).perDiem || 0)
                             const taxableGross = Math.max(0, totals.grossInclBenefits - perDiem)
                             const statutory = previewPaye(taxableGross, contractualBasicSalary)
                             const displayNssa = (entry as any).zimraNssa != null ? Number((entry as any).zimraNssa) : statutory.nssa

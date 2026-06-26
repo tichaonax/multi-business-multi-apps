@@ -28,7 +28,7 @@ export default function PerDiemListPage() {
   const router = useRouter()
   const toast = useToastContext()
   const confirm = useConfirm()
-  const { currentBusinessId, currentBusiness, isAuthenticated } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness, isAuthenticated, hasPermission } = useBusinessPermissionsContext()
 
   const searchParams = useSearchParams()
   const now = new Date()
@@ -85,6 +85,23 @@ export default function PerDiemListPage() {
     }
   }
 
+  async function handleApprove(entryId: string, status: 'approved' | 'rejected') {
+    try {
+      const res = await fetch(`/api/per-diem/entries/${entryId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ approvalStatus: status }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to update')
+      toast.push(status === 'approved' ? 'Entry approved' : 'Entry rejected', { type: 'success' })
+      setEntries(prev => prev.map(e => e.id === entryId ? { ...e, approvalStatus: status } : e))
+    } catch (e: any) {
+      toast.error(e.message)
+    }
+  }
+
   if (status === 'loading') {
     return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-16 w-16 border-b-2 border-gray-900 dark:border-gray-100" /></div>
   }
@@ -100,6 +117,8 @@ export default function PerDiemListPage() {
   })
   const groups = Object.values(byEmployee)
   const grandTotal = entries.reduce((s, e) => s + e.amount, 0)
+  const pendingCount = entries.filter(e => e.approvalStatus === 'pending').length
+  const canApprove = isAdmin || hasPermission('canAccessPayroll') || hasPermission('canManageEmployees')
 
   return (
     <ContentLayout title="Per Diem">
@@ -138,10 +157,11 @@ export default function PerDiemListPage() {
 
         {/* Summary bar */}
         {!loading && entries.length > 0 && (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             {[
               { label: 'Employees', value: groups.length, color: 'text-blue-700 dark:text-blue-400' },
               { label: 'Total Entries', value: entries.length, color: 'text-gray-900 dark:text-gray-100' },
+              { label: 'Pending Approval', value: pendingCount, color: pendingCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400' },
               { label: 'Total Amount', value: fmt(grandTotal), color: 'text-green-600 dark:text-green-400' },
             ].map(c => (
               <div key={c.label} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
@@ -187,8 +207,9 @@ export default function PerDiemListPage() {
                   <th className="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Purpose</th>
                   <th className="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Notes</th>
                   <th className="px-4 py-2.5 text-right font-medium text-gray-600 dark:text-gray-400">Amount</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Status</th>
                   <th className="px-4 py-2.5 text-left font-medium text-gray-600 dark:text-gray-400">Entered by</th>
-                  {isAdmin && <th className="px-4 py-2.5" />}
+                  {canApprove && <th className="px-4 py-2.5" />}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
@@ -200,10 +221,30 @@ export default function PerDiemListPage() {
                     </td>
                     <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400 max-w-xs truncate">{e.notes || '—'}</td>
                     <td className="px-4 py-2.5 text-right font-medium tabular-nums text-gray-900 dark:text-gray-100">{fmt(e.amount)}</td>
+                    <td className="px-4 py-2.5">
+                      {e.approvalStatus === 'approved' ? (
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300">Approved</span>
+                      ) : e.approvalStatus === 'rejected' ? (
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400">Rejected</span>
+                      ) : (
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">Pending</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400 text-xs">{e.cashier?.name || '—'}</td>
-                    {isAdmin && (
+                    {canApprove && (
                       <td className="px-4 py-2.5 text-right">
-                        <button onClick={() => handleDelete(e.id)} className="text-xs text-red-500 dark:text-red-400 hover:underline">Delete</button>
+                        <div className="flex items-center justify-end gap-2">
+                          {e.approvalStatus === 'pending' && (
+                            <>
+                              <button onClick={() => handleApprove(e.id, 'approved')} className="text-xs text-green-600 dark:text-green-400 hover:underline font-medium">Approve</button>
+                              <button onClick={() => handleApprove(e.id, 'rejected')} className="text-xs text-red-500 dark:text-red-400 hover:underline">Reject</button>
+                            </>
+                          )}
+                          {e.approvalStatus === 'rejected' && (
+                            <button onClick={() => handleApprove(e.id, 'approved')} className="text-xs text-green-600 dark:text-green-400 hover:underline">Approve</button>
+                          )}
+                          {isAdmin && <button onClick={() => handleDelete(e.id)} className="text-xs text-gray-400 dark:text-gray-500 hover:underline">Delete</button>}
+                        </div>
                       </td>
                     )}
                   </tr>

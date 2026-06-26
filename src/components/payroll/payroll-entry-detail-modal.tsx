@@ -3379,7 +3379,27 @@ export function PayrollEntryDetailModal({
                         )
                       }
 
-                      // No override: show inferred contract benefit with Persist and Remove
+                      // No override: check if server excluded this benefit this month (e.g. paymentMonth restriction)
+                      const mergedBenefitsArr = (entry as any).mergedBenefits || []
+                      const isInMerged = mergedBenefitsArr.some((mb: any) =>
+                        (mb.benefitTypeId && cb.benefitTypeId && String(mb.benefitTypeId) === String(cb.benefitTypeId)) ||
+                        String(mb.benefitName || mb.name || '').toLowerCase() === String(cb.name || '').toLowerCase()
+                      )
+                      if (!isInMerged) {
+                        return (
+                          <div key={cb.benefitTypeId || cb.name} className="p-3 rounded border bg-gray-50 dark:bg-gray-800/30 border-gray-200 dark:border-gray-700 flex items-center justify-between opacity-60">
+                            <div>
+                              <div className="font-medium text-sm text-secondary">
+                                <span>{cb.name} <span className="ml-2 text-xs text-blue-600">(From Contract)</span></span>
+                              </div>
+                              <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">Annual benefit — not paid this month</div>
+                            </div>
+                            <span className="text-secondary font-medium line-through">{formatCurrency(Number(cb.amount || 0))}</span>
+                          </div>
+                        )
+                      }
+
+                      // In merged — show with Persist and Remove
                       return (
                         <div key={cb.benefitTypeId || cb.name} className="p-3 rounded border bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800 flex items-center justify-between">
                           <div>
