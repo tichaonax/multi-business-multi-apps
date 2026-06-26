@@ -1587,7 +1587,7 @@ export default function PayrollPeriodDetailPage() {
                         ?? (entry as any).contract?.baseSalary
                         ?? Number(entry.baseSalary || 0))
                     )}</td>
-                    <td className="px-3 py-2 text-sm text-right font-semibold text-amber-600 dark:text-amber-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(Math.max(0, Number(entry.baseSalary || 0) - resolveAbsenceDeduction(entry)))}</td>
+                    <td className="px-3 py-2 text-sm text-right font-semibold text-amber-600 dark:text-amber-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(Math.max(0, Number(entry.baseSalary || 0) - resolveAbsenceDeduction(entry) - Number((entry as any).clockInDeductionAmount || 0)))}</td>
                     <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(Number(entry.commission || 0))}</td>
                     <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency((() => {
                       const stored = Number((entry as any).standardOvertimePay || 0)
