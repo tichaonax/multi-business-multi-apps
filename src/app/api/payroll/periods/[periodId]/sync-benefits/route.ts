@@ -94,7 +94,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         })
         if (!entry) continue
 
-        const benefitsTotal = entry.payroll_entry_benefits.filter((b: any) => b.isActive).reduce((s: number, b: any) => s + Number(b.amount), 0)
+        const benefitsTotal = entry.payroll_entry_benefits.filter((b: any) => b.isActive && (b as any).entryType !== 'deduction').reduce((s: number, b: any) => s + Number(b.amount), 0)
         const baseSalary = Number(entry.baseSalary || 0)
         const commission = Number(entry.commission || 0)
         const overtimePay = Number(entry.overtimePay || 0)

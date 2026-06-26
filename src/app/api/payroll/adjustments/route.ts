@@ -275,7 +275,7 @@ async function recalcEntryAndPeriod(tx: any, entryId: string) {
   if (!entry) return
 
   const benefitsTotal = (entry.payroll_entry_benefits || [])
-    .filter((b: any) => b.isActive)
+    .filter((b: any) => b.isActive && (b as any).entryType !== 'deduction')
     .reduce((s: number, b: any) => s + Number(b.amount), 0)
 
   // Split adjustments: pending clock-in additions excluded from gross; clock-in deductions are pre-tax; others are post-tax

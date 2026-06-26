@@ -20,6 +20,22 @@ interface AbsenceEmployee {
   businessName: string
 }
 
+interface EmpOption { id: string; fullName: string; employeeNumber: string }
+
+const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+function buildCalendar(year: number, month: number) {
+  const firstDay = new Date(year, month - 1, 1).getDay()
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const cells: (number | null)[] = Array(firstDay).fill(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+  while (cells.length % 7 !== 0) cells.push(null)
+  return cells
+}
+
+function pad2(n: number) { return String(n).padStart(2, '0') }
+
 function todayISO() {
   return new Date().toISOString().split('T')[0]
 }
@@ -41,6 +57,17 @@ export default function AbsencesPage() {
   const [saving, setSaving] = useState(false)
   const [isLocked, setIsLocked] = useState(false)
   const [lockedMessage, setLockedMessage] = useState('')
+
+  // Employee-month modal state
+  const [empModalOpen, setEmpModalOpen] = useState(false)
+  const [empOptions, setEmpOptions] = useState<EmpOption[]>([])
+  const [empModalBizId, setEmpModalBizId] = useState<string>('')
+  const [selectedEmpId, setSelectedEmpId] = useState<string>('')
+  const [empModalMonth, setEmpModalMonth] = useState(() => new Date().getMonth() + 1)
+  const [empModalYear, setEmpModalYear] = useState(() => new Date().getFullYear())
+  const [absentDays, setAbsentDays] = useState<Set<number>>(new Set())
+  const [empModalLoading, setEmpModalLoading] = useState(false)
+  const [empModalSaving, setEmpModalSaving] = useState(false)
 
   useEffect(() => {
     if (status === 'loading') return
@@ -187,6 +214,53 @@ export default function AbsencesPage() {
     [...checkedIds].some(id => !originalIds.has(id)) ||
     [...originalIds].some(id => !checkedIds.has(id))
 
+  async function openEmpModal() {
+    const bizId = selectedBusinessId === ALL_KEY ? (subBusinesses[0]?.businessId ?? '') : (selectedBusinessId ?? '')
+    setEmpModalBizId(bizId)
+    setSelectedEmpId('')
+    setAbsentDays(new Set())
+    setEmpModalOpen(true)
+    try {
+      const res = await fetch(`/api/employees?businessId=${bizId}&status=active`, { credentials: 'include' })
+      const json = await res.json()
+      const list: EmpOption[] = (json.employees || json.data || []).map((e: any) => ({ id: e.id, fullName: e.fullName, employeeNumber: e.employeeNumber }))
+      setEmpOptions(list.sort((a, b) => a.fullName.localeCompare(b.fullName)))
+    } catch { toast.error('Failed to load employees') }
+  }
+
+  async function loadEmpAbsences(empId: string, month: number, year: number, bizId: string) {
+    if (!empId || !bizId) return
+    setEmpModalLoading(true)
+    try {
+      const res = await fetch(`/api/employees/absences?employeeId=${empId}&month=${month}&year=${year}&businessId=${bizId}`, { credentials: 'include' })
+      const json = await res.json()
+      const days = new Set<number>((json.absentDates || []).map((d: string) => parseInt(d.split('-')[2])))
+      setAbsentDays(days)
+    } catch { toast.error('Failed to load absences') } finally { setEmpModalLoading(false) }
+  }
+
+  function toggleDay(day: number) {
+    setAbsentDays(prev => { const next = new Set(prev); next.has(day) ? next.delete(day) : next.add(day); return next })
+  }
+
+  async function saveEmpAbsences() {
+    if (!selectedEmpId || !empModalBizId) return
+    setEmpModalSaving(true)
+    try {
+      const absentDates = [...absentDays].map(d => `${empModalYear}-${pad2(empModalMonth)}-${pad2(d)}`)
+      const res = await fetch('/api/employees/absences/by-employee', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeId: selectedEmpId, businessId: empModalBizId, month: empModalMonth, year: empModalYear, absentDates }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to save')
+      toast.push(`Saved ${json.saved} absence${json.saved !== 1 ? 's' : ''}, removed ${json.removed}`, { type: 'success' })
+      setEmpModalOpen(false)
+      fetchAbsences()
+    } catch (e: any) { toast.error(e.message) } finally { setEmpModalSaving(false) }
+  }
+
   async function handleSave() {
     if (!selectedBusinessId || selectedBusinessId === ALL_KEY && subBusinesses.length === 0) return
     setSaving(true)
@@ -272,6 +346,12 @@ export default function AbsencesPage() {
             <h1 className="text-2xl font-bold text-primary">Absence Tracker</h1>
             <p className="text-sm text-secondary mt-1">Mark employees who did not show up for work</p>
           </div>
+          <button
+            onClick={openEmpModal}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-md transition-colors"
+          >
+            By Employee
+          </button>
           <div className="flex flex-col items-end gap-1">
             <input
               type="date"
@@ -452,6 +532,115 @@ export default function AbsencesPage() {
           </div>
         )}
       </div>
+      {/* Employee-Month Modal */}
+      {empModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl w-full max-w-lg">
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Mark Absences by Employee</h2>
+              <button onClick={() => setEmpModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl leading-none">✕</button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Controls row */}
+              <div className="flex flex-wrap gap-3">
+                {/* Employee picker */}
+                <div className="flex-1 min-w-48">
+                  <label className="block text-xs font-medium text-secondary mb-1">Employee</label>
+                  <select
+                    value={selectedEmpId}
+                    onChange={e => { setSelectedEmpId(e.target.value); if (e.target.value) loadEmpAbsences(e.target.value, empModalMonth, empModalYear, empModalBizId) }}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="">Select employee…</option>
+                    {empOptions.map(e => <option key={e.id} value={e.id}>{e.fullName} ({e.employeeNumber})</option>)}
+                  </select>
+                </div>
+
+                {/* Month picker */}
+                <div>
+                  <label className="block text-xs font-medium text-secondary mb-1">Month</label>
+                  <select
+                    value={empModalMonth}
+                    onChange={e => { const m = Number(e.target.value); setEmpModalMonth(m); setAbsentDays(new Set()); if (selectedEmpId) loadEmpAbsences(selectedEmpId, m, empModalYear, empModalBizId) }}
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-purple-500"
+                  >
+                    {MONTH_NAMES.map((name, i) => <option key={i} value={i + 1}>{name}</option>)}
+                  </select>
+                </div>
+
+                {/* Year picker */}
+                <div>
+                  <label className="block text-xs font-medium text-secondary mb-1">Year</label>
+                  <select
+                    value={empModalYear}
+                    onChange={e => { const y = Number(e.target.value); setEmpModalYear(y); setAbsentDays(new Set()); if (selectedEmpId) loadEmpAbsences(selectedEmpId, empModalMonth, y, empModalBizId) }}
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-purple-500"
+                  >
+                    {[new Date().getFullYear() - 1, new Date().getFullYear()].map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Calendar */}
+              {!selectedEmpId ? (
+                <p className="text-center text-gray-400 dark:text-gray-500 py-8 text-sm">Select an employee to mark absences</p>
+              ) : empModalLoading ? (
+                <div className="flex items-center justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600" /></div>
+              ) : (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{MONTH_NAMES[empModalMonth - 1]} {empModalYear}</p>
+                    <span className="text-xs text-red-600 dark:text-red-400 font-medium">{absentDays.size} day{absentDays.size !== 1 ? 's' : ''} marked absent</span>
+                  </div>
+
+                  {/* Day headers */}
+                  <div className="grid grid-cols-7 mb-1">
+                    {DAYS.map(d => <div key={d} className="text-center text-xs font-medium text-gray-500 dark:text-gray-400 py-1">{d}</div>)}
+                  </div>
+
+                  {/* Calendar cells */}
+                  <div className="grid grid-cols-7 gap-1">
+                    {buildCalendar(empModalYear, empModalMonth).map((day, idx) => {
+                      if (!day) return <div key={idx} />
+                      const isAbsent = absentDays.has(day)
+                      const isFuture = new Date(`${empModalYear}-${pad2(empModalMonth)}-${pad2(day)}`) > new Date()
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          disabled={isFuture}
+                          onClick={() => toggleDay(day)}
+                          className={`aspect-square flex items-center justify-center rounded-md text-sm font-medium transition-colors
+                            ${isFuture ? 'opacity-30 cursor-not-allowed text-gray-400 dark:text-gray-600' :
+                              isAbsent ? 'bg-red-500 text-white hover:bg-red-600' :
+                              'bg-gray-100 dark:bg-gray-800 hover:bg-red-100 dark:hover:bg-red-900/40 text-gray-800 dark:text-gray-200'}`}
+                        >
+                          {day}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">Click a day to toggle absent (red). Future days are disabled.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal footer */}
+            <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-gray-200 dark:border-gray-700">
+              <button onClick={() => setEmpModalOpen(false)} className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-100">Cancel</button>
+              <button
+                onClick={saveEmpAbsences}
+                disabled={!selectedEmpId || empModalSaving}
+                className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {empModalSaving ? 'Saving…' : 'Save Absences'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </ContentLayout>
   )
 }

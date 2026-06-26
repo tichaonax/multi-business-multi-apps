@@ -485,12 +485,14 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
               benefitName: pbName,
               amount: Number(pb.amount || 0),
               isActive: pb.isActive !== false,
-              source: 'manual'
+              source: 'manual',
+              entryType: (pb as any).entryType || 'benefit',
+              type: (pb as any).entryType || 'benefit',
             })
           }
 
           const mergedBenefits = Array.from(mergedByKey.values())
-          const totalBenefitsAmount = mergedBenefits.filter(b => b.isActive !== false).reduce((s, b) => s + Number(b.amount || 0), 0)
+          const totalBenefitsAmount = mergedBenefits.filter(b => b.isActive !== false && b.entryType !== 'deduction' && b.type !== 'deduction').reduce((s, b) => s + Number(b.amount || 0), 0)
 
 
           // If workDays is not provided or zero, try to fall back to employee time tracking for the period

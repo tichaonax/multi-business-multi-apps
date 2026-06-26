@@ -1578,7 +1578,7 @@ export default function PayrollPeriodDetailPage() {
                     <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{entry.workDays}</td>
                     <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).cumulativeSickDays ?? (entry as any).sickDays ?? 0}</td>
                     <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).cumulativeLeaveDays ?? (entry as any).leaveDays ?? 0}</td>
-                    <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).cumulativeAbsenceDays ?? (entry as any).absenceDays ?? 0}</td>
+                    <td className="px-3 py-2 text-sm text-right text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{Number((entry as any).absenceDaysFromRecords ?? (entry as any).absenceDays ?? 0)}</td>
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{(entry as any).employeeHireDate ? new Date((entry as any).employeeHireDate).toLocaleDateString() : (entry.hireDate ? new Date(entry.hireDate).toLocaleDateString() : '')}</td>
                     <td className="px-3 py-2 text-sm text-secondary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{entry.terminationDate ? new Date(entry.terminationDate).toLocaleDateString() : ''}</td>
                     <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(

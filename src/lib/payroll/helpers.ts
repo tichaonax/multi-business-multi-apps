@@ -336,6 +336,28 @@ export async function computeTotalsForEntry(entryId: string, periodMonth?: numbe
         adjustmentsAsDeductions = 0
     }
 
+    // If no explicit 'absence' type adjustment exists, derive from entry.absenceDays using hourly rate.
+    // sync-absences writes absenceDays to the entry but doesn't create a PayrollAdjustments record.
+    if (absenceDeduction === 0 && hourlyRate > 0) {
+        const parseHHMM = (str: string | null | undefined) => {
+            if (!str) return null
+            const parts = String(str).split(':').map(Number)
+            if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return null
+            return { h: parts[0], m: parts[1] }
+        }
+        const emp = (entry as any).employees
+        const schedStart = parseHHMM(emp?.scheduledStartTime)
+        const schedEnd = parseHHMM(emp?.scheduledEndTime)
+        let dailyHours = 9
+        if (schedStart && schedEnd) {
+            dailyHours = ((schedEnd.h * 60 + schedEnd.m) - (schedStart.h * 60 + schedStart.m)) / 60
+        }
+        const rawAbsenceDays = Number((entry as any).absenceDays || 0) + Number((entry as any).absenceFraction || 0)
+        if (rawAbsenceDays > 0) {
+            absenceDeduction = Math.round(rawAbsenceDays * dailyHours * hourlyRate * 100) / 100
+        }
+    }
+
     // Exclude explicit absence adjustments from totalDeductions. Absence is returned separately
     // as `absenceDeduction` so callers can display it under Compensation Breakdown and subtract
     // it from gross for presentation without double-counting under Total Deductions.

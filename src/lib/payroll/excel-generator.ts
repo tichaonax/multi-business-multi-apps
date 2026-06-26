@@ -431,7 +431,7 @@ export async function generatePayrollExcel(
   (entry as any).cumulativeLeaveDays ?? (entry as any).leaveDays ?? 0,
   // Show fractional absence days when an absenceFraction is provided. Store numeric decimal so it can be summed.
   (() => {
-    const baseAbs = Number((entry as any).cumulativeAbsenceDays ?? (entry as any).absenceDays ?? 0)
+    const baseAbs = Number((entry as any).absenceDaysFromRecords ?? (entry as any).absenceDays ?? 0)
     const frac = parseFraction((entry as any).absenceFraction ?? (entry as any).absenceFractionDays ?? 0)
     const total = (baseAbs || 0) + (frac || 0)
     // If the value is whole number, return integer, otherwise return decimal with up to 2 decimals

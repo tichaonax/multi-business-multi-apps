@@ -375,6 +375,15 @@ export function PayrollEntryDetailModal({
             } catch { /* non-critical */ }
           }
         }
+        // Auto-sync absences and leave on open so day counts are always current
+        try {
+          await Promise.all([
+            fetch(`/api/payroll/entries/${entryId}/sync-absences`, { method: 'POST' }),
+            fetch(`/api/payroll/entries/${entryId}/sync-leave`, { method: 'POST' }),
+          ])
+          await loadEntry()
+        } catch { /* best-effort */ }
+
         // Auto-sync clock-in on open so deduction info is always fresh
         // Does NOT override an already-locked (approved) adjustment — force=false by default
         try {

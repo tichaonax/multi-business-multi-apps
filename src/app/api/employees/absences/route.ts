@@ -20,6 +20,24 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('businessId')
     const dateParam = searchParams.get('date')
+    const employeeId = searchParams.get('employeeId')
+    const monthParam = searchParams.get('month')
+    const yearParam = searchParams.get('year')
+
+    // Employee-month mode: return which days one employee was absent in a given month
+    if (employeeId && monthParam && yearParam && businessId) {
+      const month = parseInt(monthParam)
+      const year = parseInt(yearParam)
+      const startDate = new Date(`${year}-${String(month).padStart(2, '0')}-01T00:00:00.000Z`)
+      const endDate = new Date(year, month, 0) // last day of month
+      endDate.setUTCHours(23, 59, 59, 999)
+      const records = await prisma.employeeAbsences.findMany({
+        where: { employeeId, businessId, date: { gte: startDate, lte: endDate } },
+        select: { id: true, date: true },
+      })
+      const absentDates = records.map(r => r.date.toISOString().split('T')[0])
+      return NextResponse.json({ absentDates })
+    }
 
     if (!businessId || !dateParam) {
       return NextResponse.json({ error: 'businessId and date are required' }, { status: 400 })
@@ -38,11 +56,12 @@ export async function GET(request: NextRequest) {
     })
     const isUmbrella = business?.isUmbrellaBusiness ?? false
 
-    // Fetch active employees — no business filter for umbrella (all businesses)
+    // Fetch active, non-terminated employees — no business filter for umbrella (all businesses)
     const employees = await prisma.employees.findMany({
       where: {
         ...(isUmbrella ? {} : { primaryBusinessId: businessId }),
         isActive: true,
+        employmentStatus: { not: 'terminated' },
       },
       select: {
         id: true,
