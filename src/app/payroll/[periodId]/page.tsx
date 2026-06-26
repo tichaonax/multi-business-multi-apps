@@ -1486,7 +1486,7 @@ export default function PayrollPeriodDetailPage() {
                   <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Date Engaged</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-secondary uppercase">Date Dismissed</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase" title="Contract basic salary — used for NSSA calculation">Basic Salary</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase" title="Computed/prorated earned salary">Earned Salary</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-amber-600 dark:text-amber-400 uppercase" title="Enter this value in ZIMRA tax calculation software">Earned Salary ★</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Commission</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">OT (1.5x)</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">OT (2.0x)</th>
@@ -1587,7 +1587,7 @@ export default function PayrollPeriodDetailPage() {
                         ?? (entry as any).contract?.baseSalary
                         ?? Number(entry.baseSalary || 0))
                     )}</td>
-                    <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(Math.max(0, Number(entry.baseSalary || 0) - resolveAbsenceDeduction(entry)))}</td>
+                    <td className="px-3 py-2 text-sm text-right font-semibold text-amber-600 dark:text-amber-400 cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(Math.max(0, Number(entry.baseSalary || 0) - resolveAbsenceDeduction(entry)))}</td>
                     <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency(Number(entry.commission || 0))}</td>
                     <td className="px-3 py-2 text-sm text-right text-primary cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>{formatCurrency((() => {
                       const stored = Number((entry as any).standardOvertimePay || 0)
