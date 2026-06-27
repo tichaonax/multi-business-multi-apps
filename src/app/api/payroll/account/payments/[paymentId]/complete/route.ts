@@ -119,13 +119,11 @@ export async function POST(
       data: {
         id: completedPayment.id,
         employeeId: completedPayment.employeeId,
-        employee: {
+        employee: completedPayment.employees ? {
           id: completedPayment.employees.id,
           employeeNumber: completedPayment.employees.employeeNumber,
-          name:
-            completedPayment.employees.fullName ||
-            `${completedPayment.employees.firstName} ${completedPayment.employees.lastName}`,
-        },
+          name: completedPayment.employees.fullName || `${completedPayment.employees.firstName} ${completedPayment.employees.lastName}`,
+        } : null,
         amount: Number(completedPayment.amount),
         paymentType: completedPayment.paymentType,
         status: completedPayment.status,

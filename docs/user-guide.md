@@ -12,6 +12,7 @@
 3. [Cash Office — Cash Handling & End of Day](#3-cash-office--cash-handling--end-of-day)
     - [Payroll Account Auto-Contribution (EOD)](#step-3b--payroll-account-auto-contribution-automatic)
     - [Setting Up EOD Payroll Auto-Contribution for a Business](#setting-up-eod-payroll-auto-contribution-for-a-business)
+    - [Payroll Account — Transaction History & Breakdown](#payroll-account--transaction-history--breakdown)
 4. [Manager — Approvals, Payroll & Reports](#4-manager--approvals-payroll--reports)
 5. [HR & Employee Management](#5-hr--employee-management)
     - [Leave Management — HR Direct Actions](#leave-management--hr-direct-actions)
@@ -1023,6 +1024,43 @@ If the row still shows "Skipped", hover over the reason text or check the exact 
 
 ---
 
+### Payroll Account — Transaction History & Breakdown
+
+Go to **Payroll → Payroll Account** to see the account balance and the **Recent Transactions** list. This list combines all deposits (green, marked +) and payments (amber, marked −) in reverse chronological order.
+
+#### Transaction Types
+
+| Type | What it represents |
+|------|--------------------|
+| **Funded from [Business] cash box** | EOD auto-contribution or manual funding deposit |
+| **Salary — [Employee Name]** | Net pay + approved per diem paid to that employee on payroll approval |
+| **ZIMRA PAYE** | Aggregate PAYE tax for all employees in that payroll period |
+| **NSSA Contribution** | Aggregate NSSA employee contributions for the period |
+| **AIDS Levy** | Aggregate AIDS Levy for the period |
+
+#### Clicking a Transaction for Full Breakdown
+
+Salary, ZIMRA PAYE, NSSA, and AIDS Levy rows are **clickable**. Click any of these rows to open a detail modal.
+
+**Salary row → Payslip Breakdown**
+
+Shows the full payslip detail for that employee:
+
+| Section | Fields shown |
+|---------|-------------|
+| **Earnings** | Basic Salary, Commission, Living Allowance, Vehicle Allowance, Travel Allowance, Overtime Pay, Benefits (zero-value lines are hidden) |
+| **Gross Pay** | Total of all earnings |
+| **Deductions** | PAYE Tax, AIDS Levy, NSSA (Employee), Loan Repayments, Advance Recovery, Misc Deductions (zero-value lines are hidden) |
+| **Net Pay** | Gross Pay minus Total Deductions |
+
+> **Why does the transaction list amount differ from the payslip Net Pay?** The payroll account payment includes **per diem** on top of the payslip net pay. Per diem is a non-taxable allowance paid from the payroll account alongside salary but does not appear on the formal payslip. Example: Payslip Net Pay $111.00 + Per Diem $7.47 = Payment $118.47.
+
+**ZIMRA PAYE / NSSA / AIDS Levy row → Per-Employee Breakdown**
+
+Shows a table of every employee's individual contribution for that payroll period, with a running total at the bottom. This is useful for verifying figures before filing with ZIMRA or making NSSA payments.
+
+---
+
 ### Payroll — Complete Workflow
 
 Payroll involves several roles and a defined sequence of steps. No step can be skipped — the system enforces the order.
@@ -1255,6 +1293,12 @@ The owner opens the payroll period (from the notification or from **Payroll** in
 - Approval timestamp and owner name are recorded.
 - Any **Payroll Funding** earmarks in each business's cash box are automatically cleared — the cash is now fully transferred and the earmark display resolves.
 - Any loan deductions in the payroll entries are automatically reconciled — the loan balances decrease and repayment records are created.
+- The **Payroll Account balance is debited** and a full set of payment records is created automatically:
+  - One **SALARY** debit per employee (their net pay + approved per diem for the period)
+  - One **ZIMRA PAYE** aggregate debit for the period (sum of all employees' PAYE)
+  - One **NSSA** aggregate debit for the period (sum of all employees' NSSA employee contributions)
+  - One **AIDS LEVY** aggregate debit for the period (sum of all employees' AIDS Levy)
+- All four record types are visible as individual line items in **Payroll → Payroll Account → Recent Transactions**.
 
 ---
 

@@ -6,6 +6,9 @@ import { getServerUser } from '@/lib/get-server-user'
 function paymentTypeLabel(type: string): string {
   switch (type) {
     case 'SALARY': return 'Salary Payment'
+    case 'ZIMRA_PAYE': return 'ZIMRA PAYE'
+    case 'NSSA': return 'NSSA Contribution'
+    case 'AIDS_LEVY': return 'AIDS Levy'
     case 'LOAN_DISBURSEMENT': return 'Loan Disbursement'
     case 'ADVANCE': return 'Salary Advance'
     case 'BONUS': return 'Bonus Payment'
@@ -127,19 +130,24 @@ export async function GET(request: NextRequest) {
     })
 
     payments.forEach((payment) => {
+      const empName = payment.employees
+        ? (payment.employees.fullName || `${payment.employees.firstName} ${payment.employees.lastName}`)
+        : null
+      const description = payment.notes
+        || (empName ? `${paymentTypeLabel(payment.paymentType)} — ${empName}` : paymentTypeLabel(payment.paymentType))
       transactions.push({
         id: payment.id,
         type: 'PAYMENT',
-        amount: -Number(payment.amount), // Negative for payments (debit)
+        amount: -Number(payment.amount),
         date: payment.paymentDate,
-        description: `${paymentTypeLabel(payment.paymentType)} — ${payment.employees.fullName || `${payment.employees.firstName} ${payment.employees.lastName}`}`,
+        description,
         paymentType: payment.paymentType,
         status: payment.status,
-        employee: {
+        employee: payment.employees ? {
           id: payment.employees.id,
           employeeNumber: payment.employees.employeeNumber,
-          name: payment.employees.fullName || `${payment.employees.firstName} ${payment.employees.lastName}`,
-        },
+          name: empName,
+        } : null,
         isAdvance: payment.isAdvance,
         isLocked: payment.isLocked,
         createdBy: payment.users_created,

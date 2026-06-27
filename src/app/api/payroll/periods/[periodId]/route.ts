@@ -409,6 +409,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             select: { recipientEmployeeId: true, monthlyInstallment: true, remainingBalance: true },
           })
           for (const l of activeLoans) {
+            if (!l.recipientEmployeeId) continue
             const installment = Math.min(Number(l.monthlyInstallment ?? 0), Number(l.remainingBalance ?? 0))
             activeLoanAmountByEmployee.set(l.recipientEmployeeId, installment)
           }
@@ -930,18 +931,28 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       )
     }
 
-    // If approving for the first time, check payroll account balance
+    // If approving for the first time, check payroll account balance and create debit records
     const isFirstApproval = status === 'approved' && !existingPeriod.approvedAt
     if (isFirstApproval) {
-      // Compute total net pay using live DB values + approved per diem
-      // (stored netPay may be stale if benefits were added after entry creation)
       const periodEntries = await prisma.payrollEntries.findMany({
         where: { payrollPeriodId: periodId },
-        select: { netPay: true, employeeId: true }
+        select: {
+          id: true,
+          employeeId: true,
+          employeeName: true,
+          netPay: true,
+          payeAmount: true,
+          zimraPaye: true,
+          nssaEmployee: true,
+          zimraNssa: true,
+          aidsLevy: true,
+          zimraAidsLevy: true,
+          employees: { select: { fullName: true } },
+        }
       })
       const periodEmployeeIds = periodEntries.map((e: any) => e.employeeId).filter(Boolean) as string[]
 
-      // Fetch approved per diem for this period
+      // Approved per diem per employee for this period
       let perDiemByEmployee: Record<string, number> = {}
       try {
         const perDiemRows = await prisma.perDiemEntries.groupBy({
@@ -959,36 +970,136 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         }
       } catch { /* non-fatal */ }
 
-      const totalNetPay = periodEntries.reduce((sum: number, e: any) => {
-        const pd = e.employeeId ? (perDiemByEmployee[e.employeeId] || 0) : 0
-        return sum + Number(e.netPay || 0) + pd
-      }, 0)
+      // Build per-employee amounts (net take-home + per diem)
+      const employeePayments = periodEntries
+        .filter((e: any) => e.employeeId && Number(e.netPay) > 0)
+        .map((e: any) => ({
+          employeeId: e.employeeId as string,
+          entryId: e.id,
+          amount: Number(e.netPay) + (perDiemByEmployee[e.employeeId] || 0),
+          name: e.employees?.fullName || e.employeeName || 'Employee',
+        }))
 
-      // Check global payroll account has sufficient balance
+      // Aggregate tax totals across all entries
+      const totalPAYE = periodEntries.reduce((s: number, e: any) =>
+        s + Number(e.zimraPaye ?? e.payeAmount ?? 0), 0)
+      const totalNSSA = periodEntries.reduce((s: number, e: any) =>
+        s + Number(e.zimraNssa ?? e.nssaEmployee ?? 0), 0)
+      const totalAIDS = periodEntries.reduce((s: number, e: any) =>
+        s + Number(e.zimraAidsLevy ?? e.aidsLevy ?? 0), 0)
+
+      // Total cost = employee net pays + tax remittances
+      const totalPayrollCost = employeePayments.reduce((s: number, p: any) => s + p.amount, 0)
+        + totalPAYE + totalNSSA + totalAIDS
+
+      // Check payroll account has sufficient balance
       const payrollAccount = await prisma.payrollAccounts.findFirst({
         where: { businessId: null, isActive: true },
         select: { id: true, balance: true },
       })
 
-      if (payrollAccount && totalNetPay > 0) {
+      if (payrollAccount && totalPayrollCost > 0) {
         const payrollBalance = Number(payrollAccount.balance)
-        if (payrollBalance < totalNetPay) {
-          const shortBy = (totalNetPay - payrollBalance).toFixed(2)
+        if (payrollBalance < totalPayrollCost) {
+          const shortBy = (totalPayrollCost - payrollBalance).toFixed(2)
           return NextResponse.json({
             error: `Insufficient payroll account balance. Fund payroll account first (short by $${shortBy})`,
-            totalNetPay,
+            totalPayrollCost,
             payrollBalance,
           }, { status: 400 })
         }
 
-        // Debit payroll account for the total net pay
-        await prisma.payrollAccounts.update({
-          where: { id: payrollAccount.id },
-          data: { balance: { decrement: totalNetPay }, updatedAt: new Date() },
+        const periodLabel = new Date(existingPeriod.year, existingPeriod.month - 1, 1)
+          .toLocaleString('en', { month: 'short', year: 'numeric' })
+
+        // Create individual SALARY records per employee + aggregate tax records in one transaction
+        await prisma.$transaction(async (tx: any) => {
+          // Per-employee salary payments
+          for (const ep of employeePayments) {
+            await tx.payrollAccountPayments.create({
+              data: {
+                payrollAccountId: payrollAccount.id,
+                employeeId: ep.employeeId,
+                payrollEntryId: ep.entryId,
+                payrollPeriodId: periodId,
+                amount: ep.amount,
+                paymentType: 'SALARY',
+                status: 'COMPLETED',
+                isLocked: true,
+                notes: `Salary — ${ep.name} (${periodLabel})`,
+                createdBy: user.id,
+              },
+            })
+          }
+
+          // ZIMRA PAYE aggregate
+          if (totalPAYE > 0) {
+            await tx.payrollAccountPayments.create({
+              data: {
+                payrollAccountId: payrollAccount.id,
+                employeeId: null,
+                payrollPeriodId: periodId,
+                amount: totalPAYE,
+                paymentType: 'ZIMRA_PAYE',
+                status: 'COMPLETED',
+                isLocked: true,
+                notes: `ZIMRA PAYE — ${periodLabel}`,
+                createdBy: user.id,
+              },
+            })
+          }
+
+          // NSSA aggregate
+          if (totalNSSA > 0) {
+            await tx.payrollAccountPayments.create({
+              data: {
+                payrollAccountId: payrollAccount.id,
+                employeeId: null,
+                payrollPeriodId: periodId,
+                amount: totalNSSA,
+                paymentType: 'NSSA',
+                status: 'COMPLETED',
+                isLocked: true,
+                notes: `NSSA Employee Contribution — ${periodLabel}`,
+                createdBy: user.id,
+              },
+            })
+          }
+
+          // AIDS Levy aggregate
+          if (totalAIDS > 0) {
+            await tx.payrollAccountPayments.create({
+              data: {
+                payrollAccountId: payrollAccount.id,
+                employeeId: null,
+                payrollPeriodId: periodId,
+                amount: totalAIDS,
+                paymentType: 'AIDS_LEVY',
+                status: 'COMPLETED',
+                isLocked: true,
+                notes: `AIDS Levy — ${periodLabel}`,
+                createdBy: user.id,
+              },
+            })
+          }
+
+          // Recalculate balance from deposits - payments (replaces direct decrement)
+          const depositsAgg = await tx.payrollAccountDeposits.aggregate({
+            where: { payrollAccountId: payrollAccount.id },
+            _sum: { amount: true },
+          })
+          const paymentsAgg = await tx.payrollAccountPayments.aggregate({
+            where: { payrollAccountId: payrollAccount.id },
+            _sum: { amount: true },
+          })
+          const newBalance = Number(depositsAgg._sum.amount ?? 0) - Number(paymentsAgg._sum.amount ?? 0)
+          await tx.payrollAccounts.update({
+            where: { id: payrollAccount.id },
+            data: { balance: newBalance, updatedAt: new Date() },
+          })
         })
 
         // Clear PAYROLL_FUNDING earmarks for this period from cash bucket display
-        // (soft-delete so balance stays correct but allocations display clears)
         await prisma.cashBucketEntry.updateMany({
           where: {
             entryType: 'PAYROLL_FUNDING',

@@ -50,6 +50,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
   const [resolvedBusinessName, setResolvedBusinessName] = useState<string | null>(propBusinessName ?? null)
 
   const today = new Date().toISOString().split('T')[0]
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0]
   const [date, setDate] = useState(lockedDate ?? today)
   const [report, setReport] = useState<Report | null>(null)
   const [lineItems, setLineItems] = useState<LineItem[]>([])
@@ -415,38 +416,61 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
         {weekLoading ? (
           <div className="px-4 py-4 text-sm text-gray-400 dark:text-gray-500">Loading overview…</div>
         ) : (
-          <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
-            <thead className="bg-white dark:bg-gray-900">
-              <tr>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
-                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reported</th>
-                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actual</th>
-                <th className="px-4 py-2 text-right text-xs font-medium text-teal-600 dark:text-teal-400 uppercase">📱 EcoCash</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-700">
+          <>
+            {/* Mobile card list */}
+            <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-900">
               {weekSummary.map(row => (
-                <tr
+                <div
                   key={row.date}
                   onClick={lockedDate ? undefined : () => { setDate(row.date); setReport(null); setLineItems([]); setError(null); loadReport(row.date) }}
-                  className={`transition-colors ${!lockedDate ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/10' : 'cursor-default'} ${date === row.date ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
+                  className={`px-4 py-3 transition-colors ${!lockedDate ? 'cursor-pointer active:bg-blue-100 dark:active:bg-blue-900/30' : ''} ${date === row.date ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
                 >
-                  <td className="px-4 py-2 text-sm font-medium text-gray-800 dark:text-gray-200">{row.date}</td>
-                  <td className="px-4 py-2">{statusBadge(row.status)}</td>
-                  <td className="px-4 py-2 text-right text-sm font-mono text-gray-700 dark:text-gray-300">
-                    {row.totalReported > 0 ? `$${row.totalReported.toFixed(2)}` : '—'}
-                  </td>
-                  <td className="px-4 py-2 text-right text-sm font-mono text-gray-700 dark:text-gray-300">
-                    {row.totalActual > 0 ? `$${row.totalActual.toFixed(2)}` : '—'}
-                  </td>
-                  <td className="px-4 py-2 text-right text-sm font-mono text-teal-600 dark:text-teal-400">
-                    {row.ecocashBucket > 0 ? `$${row.ecocashBucket.toFixed(2)}` : '—'}
-                  </td>
-                </tr>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{row.date}</span>
+                    {statusBadge(row.status)}
+                  </div>
+                  <div className="flex items-center gap-4 mt-1 text-xs font-mono">
+                    <span className="text-gray-500 dark:text-gray-400">Rep: <span className="text-gray-800 dark:text-gray-200">{row.totalReported > 0 ? `$${row.totalReported.toFixed(2)}` : '—'}</span></span>
+                    <span className="text-gray-500 dark:text-gray-400">Actual: <span className="text-gray-800 dark:text-gray-200">{row.totalActual > 0 ? `$${row.totalActual.toFixed(2)}` : '—'}</span></span>
+                    {row.ecocashBucket > 0 && <span className="text-teal-600 dark:text-teal-400">📱 ${row.ecocashBucket.toFixed(2)}</span>}
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+            {/* Desktop table */}
+            <table className="hidden sm:table min-w-full divide-y divide-gray-100 dark:divide-gray-700">
+              <thead className="bg-white dark:bg-gray-900">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reported</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actual</th>
+                  <th className="px-4 py-2 text-right text-xs font-medium text-teal-600 dark:text-teal-400 uppercase">📱 EcoCash</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-700">
+                {weekSummary.map(row => (
+                  <tr
+                    key={row.date}
+                    onClick={lockedDate ? undefined : () => { setDate(row.date); setReport(null); setLineItems([]); setError(null); loadReport(row.date) }}
+                    className={`transition-colors ${!lockedDate ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/10' : 'cursor-default'} ${date === row.date ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
+                  >
+                    <td className="px-4 py-2 text-sm font-medium text-gray-800 dark:text-gray-200">{row.date}</td>
+                    <td className="px-4 py-2">{statusBadge(row.status)}</td>
+                    <td className="px-4 py-2 text-right text-sm font-mono text-gray-700 dark:text-gray-300">
+                      {row.totalReported > 0 ? `$${row.totalReported.toFixed(2)}` : '—'}
+                    </td>
+                    <td className="px-4 py-2 text-right text-sm font-mono text-gray-700 dark:text-gray-300">
+                      {row.totalActual > 0 ? `$${row.totalActual.toFixed(2)}` : '—'}
+                    </td>
+                    <td className="px-4 py-2 text-right text-sm font-mono text-teal-600 dark:text-teal-400">
+                      {row.ecocashBucket > 0 ? `$${row.ecocashBucket.toFixed(2)}` : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
         )}
       </div>
 

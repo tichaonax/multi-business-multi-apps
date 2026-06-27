@@ -29,6 +29,9 @@ function PayrollAccountContent() {
   const [recentTransactions, setRecentTransactions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [transactionsLoading, setTransactionsLoading] = useState(true)
+  const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null)
+  const [breakdownData, setBreakdownData] = useState<any | null>(null)
+  const [breakdownLoading, setBreakdownLoading] = useState(false)
 
   useEffect(() => {
     fetchAccountData()
@@ -94,6 +97,31 @@ function PayrollAccountContent() {
       currency: 'USD',
       minimumFractionDigits: 2,
     }).format(amount)
+  }
+
+  const DETAIL_TYPES = ['SALARY', 'ZIMRA_PAYE', 'NSSA', 'AIDS_LEVY']
+
+  const handleTransactionClick = async (transaction: any) => {
+    if (transaction.type !== 'PAYMENT' || !DETAIL_TYPES.includes(transaction.paymentType)) return
+    setSelectedTransaction(transaction)
+    setBreakdownData(null)
+    setBreakdownLoading(true)
+    try {
+      const res = await fetch(`/api/payroll/account/payments/${transaction.id}/breakdown`, { credentials: 'include' })
+      if (res.ok) {
+        const json = await res.json()
+        setBreakdownData(json.data)
+      }
+    } catch (e) {
+      console.error('Error fetching breakdown:', e)
+    } finally {
+      setBreakdownLoading(false)
+    }
+  }
+
+  const closeModal = () => {
+    setSelectedTransaction(null)
+    setBreakdownData(null)
   }
 
   const formatDate = (date: string | Date) => {
@@ -212,7 +240,12 @@ function PayrollAccountContent() {
                   {recentTransactions.map((transaction) => (
                     <div
                       key={transaction.id}
-                      className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-700 rounded-lg transition-colors"
+                      onClick={() => handleTransactionClick(transaction)}
+                      className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
+                        transaction.type === 'PAYMENT' && DETAIL_TYPES.includes(transaction.paymentType)
+                          ? 'hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer active:bg-blue-100'
+                          : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                      } dark:bg-gray-700`}
                     >
                       <div className="flex items-center space-x-4">
                         <div className="w-10 h-10 flex items-center justify-center bg-gray-100 dark:bg-gray-600 rounded-full text-xl">
@@ -281,6 +314,173 @@ function PayrollAccountContent() {
             </div>
           </div>
         </ContentLayout>
+
+        {/* Transaction Detail Modal */}
+        {selectedTransaction && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={closeModal}
+          >
+            <div
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-gray-700">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                    {selectedTransaction.paymentType === 'SALARY' && 'Payslip Breakdown'}
+                    {selectedTransaction.paymentType === 'ZIMRA_PAYE' && 'ZIMRA PAYE Breakdown'}
+                    {selectedTransaction.paymentType === 'NSSA' && 'NSSA Contribution Breakdown'}
+                    {selectedTransaction.paymentType === 'AIDS_LEVY' && 'AIDS Levy Breakdown'}
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                    {selectedTransaction.description}
+                  </p>
+                </div>
+                <button
+                  onClick={closeModal}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl leading-none"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-5">
+                {breakdownLoading && (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  </div>
+                )}
+
+                {!breakdownLoading && !breakdownData && (
+                  <p className="text-center text-gray-500 py-8">Unable to load breakdown details.</p>
+                )}
+
+                {!breakdownLoading && breakdownData?.type === 'SALARY' && (
+                  <div className="space-y-5">
+                    {/* Employee info */}
+                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                      <p className="font-semibold text-gray-900 dark:text-gray-100 text-base">
+                        {breakdownData.employee.name}
+                      </p>
+                      {breakdownData.employee.employeeNumber && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {breakdownData.employee.employeeNumber}
+                          {breakdownData.employee.nationalId && ` · ${breakdownData.employee.nationalId}`}
+                        </p>
+                      )}
+                      {breakdownData.period && (
+                        <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                          {breakdownData.period.label}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Earnings */}
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                        Earnings
+                      </p>
+                      <div className="space-y-1.5">
+                        {[
+                          { label: 'Basic Salary', val: breakdownData.earnings.baseSalary },
+                          { label: 'Commission', val: breakdownData.earnings.commission },
+                          { label: 'Living Allowance', val: breakdownData.earnings.livingAllowance },
+                          { label: 'Vehicle Allowance', val: breakdownData.earnings.vehicleAllowance },
+                          { label: 'Travel Allowance', val: breakdownData.earnings.travelAllowance },
+                          { label: 'Overtime Pay', val: breakdownData.earnings.overtimePay },
+                          { label: 'Benefits', val: breakdownData.earnings.benefitsTotal },
+                        ].filter((r) => r.val > 0).map((row) => (
+                          <div key={row.label} className="flex justify-between text-sm">
+                            <span className="text-gray-600 dark:text-gray-400">{row.label}</span>
+                            <span className="text-gray-900 dark:text-gray-100">{formatCurrency(row.val)}</span>
+                          </div>
+                        ))}
+                        <div className="flex justify-between text-sm font-semibold border-t border-gray-200 dark:border-gray-600 pt-1.5 mt-1">
+                          <span className="text-gray-800 dark:text-gray-200">Gross Pay</span>
+                          <span className="text-gray-900 dark:text-gray-100">{formatCurrency(breakdownData.earnings.grossPay)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Deductions */}
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                        Deductions
+                      </p>
+                      <div className="space-y-1.5">
+                        {[
+                          { label: 'PAYE Tax', val: breakdownData.deductions.payeTax },
+                          { label: 'AIDS Levy', val: breakdownData.deductions.aidsLevy },
+                          { label: 'NSSA (Employee)', val: breakdownData.deductions.nssaEmployee },
+                          { label: 'Loan Repayments', val: breakdownData.deductions.loanDeductions },
+                          { label: 'Advance Recovery', val: breakdownData.deductions.advanceDeductions },
+                          { label: 'Misc Deductions', val: breakdownData.deductions.miscDeductions },
+                        ].filter((r) => r.val > 0).map((row) => (
+                          <div key={row.label} className="flex justify-between text-sm">
+                            <span className="text-gray-600 dark:text-gray-400">{row.label}</span>
+                            <span className="text-red-600 dark:text-red-400">-{formatCurrency(row.val)}</span>
+                          </div>
+                        ))}
+                        <div className="flex justify-between text-sm font-semibold border-t border-gray-200 dark:border-gray-600 pt-1.5 mt-1">
+                          <span className="text-gray-800 dark:text-gray-200">Total Deductions</span>
+                          <span className="text-red-600 dark:text-red-400">-{formatCurrency(breakdownData.deductions.totalDeductions)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Net Pay */}
+                    <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-gray-900 dark:text-gray-100">Net Pay</span>
+                        <span className="text-xl font-bold text-green-700 dark:text-green-400">
+                          {formatCurrency(breakdownData.netPay)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!breakdownLoading && breakdownData && ['ZIMRA_PAYE', 'NSSA', 'AIDS_LEVY'].includes(breakdownData.type) && (
+                  <div className="space-y-4">
+                    {breakdownData.period && (
+                      <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                        Period: {breakdownData.period.label}
+                      </p>
+                    )}
+                    <div>
+                      <div className="grid grid-cols-[1fr_auto] gap-x-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-600 pb-2 mb-2">
+                        <span>Employee</span>
+                        <span className="text-right">Amount</span>
+                      </div>
+                      <div className="space-y-2">
+                        {breakdownData.rows.map((row: any, i: number) => (
+                          <div key={i} className="grid grid-cols-[1fr_auto] gap-x-4 text-sm">
+                            <div>
+                              <p className="text-gray-900 dark:text-gray-100">{row.employeeName}</p>
+                              {row.employeeNumber && (
+                                <p className="text-xs text-gray-400">{row.employeeNumber}</p>
+                              )}
+                            </div>
+                            <span className="text-gray-900 dark:text-gray-100 text-right font-medium">
+                              {formatCurrency(row.amount)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center border-t border-gray-200 dark:border-gray-600 pt-3 font-semibold">
+                      <span className="text-gray-900 dark:text-gray-100">Total</span>
+                      <span className="text-lg text-gray-900 dark:text-gray-100">{formatCurrency(breakdownData.total)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
     </ProtectedRoute>
   )
 }

@@ -104,13 +104,11 @@ export async function POST(
       data: {
         id: signedPayment.id,
         employeeId: signedPayment.employeeId,
-        employee: {
+        employee: signedPayment.employees ? {
           id: signedPayment.employees.id,
           employeeNumber: signedPayment.employees.employeeNumber,
-          name:
-            signedPayment.employees.fullName ||
-            `${signedPayment.employees.firstName} ${signedPayment.employees.lastName}`,
-        },
+          name: signedPayment.employees.fullName || `${signedPayment.employees.firstName} ${signedPayment.employees.lastName}`,
+        } : null,
         amount: Number(signedPayment.amount),
         paymentType: signedPayment.paymentType,
         status: signedPayment.status,

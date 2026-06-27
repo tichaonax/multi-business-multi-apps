@@ -116,14 +116,14 @@ export async function GET(request: NextRequest) {
         payments: payments.map((p) => ({
           id: p.id,
           employeeId: p.employeeId,
-          employee: {
+          employee: p.employees ? {
             id: p.employees.id,
             employeeNumber: p.employees.employeeNumber,
             firstName: p.employees.firstName,
             lastName: p.employees.lastName,
             fullName: p.employees.fullName,
             nationalId: p.employees.nationalId,
-          },
+          } : null,
           amount: Number(p.amount),
           netAmount: p.netAmount != null ? Number(p.netAmount) : null,
           notes: p.notes,
@@ -196,10 +196,11 @@ export async function POST(request: NextRequest) {
     const paymentsToCreate = isBatch ? body.payments : [body]
 
     // Validate all payments
+    const AGGREGATE_TYPES = ['ZIMRA_PAYE', 'NSSA', 'AIDS_LEVY']
     for (const payment of paymentsToCreate) {
-      if (!payment.employeeId) {
+      if (!payment.employeeId && !AGGREGATE_TYPES.includes(payment.paymentType)) {
         return NextResponse.json(
-          { error: 'Employee ID is required for each payment' },
+          { error: 'Employee ID is required for non-aggregate payments' },
           { status: 400 }
         )
       }
@@ -231,7 +232,7 @@ export async function POST(request: NextRequest) {
 
     // Calculate total payment amount
     const totalAmount = paymentsToCreate.reduce(
-      (sum, p) => sum + Number(p.amount),
+      (sum: number, p: any) => sum + Number(p.amount),
       0
     )
 
@@ -312,11 +313,11 @@ export async function POST(request: NextRequest) {
           payments: result.payments.map((p) => ({
             id: p.id,
             employeeId: p.employeeId,
-            employee: {
+            employee: p.employees ? {
               id: p.employees.id,
               employeeNumber: p.employees.employeeNumber,
               name: p.employees.fullName || `${p.employees.firstName} ${p.employees.lastName}`,
-            },
+            } : null,
             amount: Number(p.amount),
             paymentType: p.paymentType,
             paymentDate: p.paymentDate,

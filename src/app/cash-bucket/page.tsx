@@ -930,7 +930,7 @@ export default function CashBucketPage() {
           ) : entries.length === 0 ? (
             <p className="text-sm text-secondary">No entries yet.</p>
           ) : (
-            <div className="rounded-lg border border-border overflow-hidden">
+            <div className="rounded-lg border border-border overflow-hidden overflow-x-auto">
               {(() => {
                 // Colour palette — one slot per unique business that has PETTY_CASH entries
                 const PETTY_CASH_COLORS = [
@@ -979,7 +979,64 @@ export default function CashBucketPage() {
                     )
                   : entries
                 return (
-              <table className="w-full text-sm">
+              <>
+                {/* ── Mobile card list (hidden on sm+) ── */}
+                <div className="sm:hidden divide-y divide-border">
+                  {visibleEntries.length === 0 ? (
+                    <p className="px-3 py-6 text-center text-sm text-secondary">{q ? 'No entries match your search.' : 'No entries yet.'}</p>
+                  ) : visibleEntries.map(e => {
+                    const isDeleted = !!e.deletedAt
+                    const isEdited = !!e.editedAt && !isDeleted
+                    const isEodReceipt = e.entryType === 'EOD_RECEIPT'
+                    const isCreator = e.createdBy?.id === currentUserId
+                    const hasDetails = e.entryType === 'PAYMENT_APPROVAL' || e.entryType === 'PETTY_CASH' || e.entryType === 'PETTY_CASH_RETURN' || (e.entryType === 'EOD_RECEIPT' && e.referenceType === 'CASH_ALLOCATION')
+                    const isPettyCash = e.entryType === 'PETTY_CASH'
+                    const isPettyCashReturn = e.entryType === 'PETTY_CASH_RETURN'
+                    const pcColor = PETTY_CASH_COLORS[bizColorIndex[e.businessId] ?? 0]
+                    const pcGroupKey = `${new Date((isPettyCash || isPettyCashReturn) ? (e.pettyCashRequestedAt ?? e.entryDate) : e.entryDate).toDateString()}|${e.businessId}`
+                    const pcGroupSize = pettyCashGroupCount[pcGroupKey] ?? 1
+                    const isSettled = e.pettyCashStatus === 'SETTLED'
+                    const isCancelled = e.pettyCashStatus === 'CANCELLED'
+                    const amountColor = isDeleted ? 'line-through text-secondary' : e.paymentChannel === 'ECOCASH' ? 'text-teal-600 dark:text-teal-400' : e.direction === 'INFLOW' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                    return (
+                      <div
+                        key={e.id}
+                        onClick={hasDetails ? () => openDetailModal(e) : undefined}
+                        className={`px-3 py-3 ${isDeleted ? 'opacity-50' : ''} ${hasDetails ? 'cursor-pointer active:bg-gray-100 dark:active:bg-gray-700/40' : ''} ${(isPettyCash || isPettyCashReturn) && pcGroupSize > 1 ? `border-l-2 ${pcColor.border}` : ''}`}
+                      >
+                        {/* Row 1: date + amount */}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-secondary">{new Date(e.entryDate).toLocaleDateString()}</span>
+                          <span className={`text-base font-bold ${amountColor}`}>{e.direction === 'INFLOW' ? '+' : '−'}{fmt(e.amount)}</span>
+                        </div>
+                        {/* Row 2: business · type · channel */}
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <span className="text-sm font-medium text-primary">{e.business?.name ?? '—'}</span>
+                          <span className="text-secondary text-xs">·</span>
+                          <span className="text-sm text-secondary">{ENTRY_TYPE_LABEL[e.entryType] ?? e.entryType}</span>
+                          {e.paymentChannel === 'ECOCASH' ? (
+                            <span className="text-xs font-medium text-teal-600 dark:text-teal-400">📱 EcoCash</span>
+                          ) : (
+                            <span className="text-xs text-gray-400 dark:text-gray-500">💵 Cash</span>
+                          )}
+                          {(isPettyCash || isPettyCashReturn) && isSettled && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">✓ Settled</span>
+                          )}
+                          {(isPettyCash || isPettyCashReturn) && isCancelled && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">✕ Cancelled</span>
+                          )}
+                        </div>
+                        {/* Row 3: notes (if any) */}
+                        {e.notes && <div className="text-xs text-secondary mt-0.5 truncate">{e.notes}</div>}
+                        {isEdited && <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">✏️ Edited</span>}
+                        {isDeleted && <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">🗑️ Deleted</span>}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* ── Desktop table (hidden on mobile) ── */}
+                <table className="hidden sm:table w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-700/50 text-xs text-secondary uppercase">
                   <tr>
                     <th className="px-3 py-2 text-left">Date</th>
@@ -1026,7 +1083,6 @@ export default function CashBucketPage() {
                         <td className="px-3 py-2 whitespace-nowrap">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span>{ENTRY_TYPE_LABEL[e.entryType] ?? e.entryType}</span>
-                            {/* Settled / Cancelled badge for petty cash */}
                             {(isPettyCash || isPettyCashReturn) && isSettled && (
                               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
                                 ✓ Settled
@@ -1037,7 +1093,6 @@ export default function CashBucketPage() {
                                 ✕ Cancelled
                               </span>
                             )}
-                            {/* Position indicator — colour per business so groups are visually distinct */}
                             {isPettyCash && pcGroupSize > 1 && (
                               <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-bold ${pcColor.pill}`} title={`${e.business?.name} — request ${pcPosition} of ${pcGroupSize} on this date`}>
                                 {pcPosition}/{pcGroupSize}
@@ -1108,6 +1163,7 @@ export default function CashBucketPage() {
                   })}
                 </tbody>
               </table>
+              </>
                 )
               })()}
             </div>
@@ -1183,8 +1239,31 @@ export default function CashBucketPage() {
             {detailLoading ? (
               <p className="text-sm text-secondary py-4 text-center">Loading…</p>
             ) : detailData?.payments && detailData.payments.length > 0 ? (
-              <div className="overflow-y-auto overflow-x-hidden flex-1">
-                <table className="w-full text-xs table-fixed">
+              <div className="overflow-y-auto flex-1">
+                {/* Mobile card list */}
+                <div className="sm:hidden divide-y divide-border">
+                  {detailData.payments.map((p: any) => (
+                    <div key={p.id} className="px-1 py-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-primary text-sm truncate">{p.payeeName}</span>
+                        <span className="font-semibold text-red-600 dark:text-red-400 whitespace-nowrap text-sm">
+                          {p.paymentChannel === 'ECOCASH' ? '📱' : '💵'} {fmt(p.amount)}
+                        </span>
+                      </div>
+                      <div className="text-xs text-secondary mt-0.5 truncate">
+                        {p.category ?? '—'}{p.notes ? ` · ${p.notes}` : ''}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="flex justify-between px-1 py-2 bg-gray-50 dark:bg-gray-700/50">
+                    <span className="text-xs font-semibold text-secondary">Total</span>
+                    <span className="font-bold text-red-600 dark:text-red-400 text-sm">
+                      {fmt(detailData.payments.reduce((s: number, p: any) => s + p.amount, 0))}
+                    </span>
+                  </div>
+                </div>
+                {/* Desktop table */}
+                <table className="hidden sm:table w-full text-xs table-fixed">
                   <colgroup>
                     <col className="w-[28%]" />
                     <col className="w-[25%]" />
@@ -1250,7 +1329,29 @@ export default function CashBucketPage() {
                 {detailData.pettyCash.transactions?.length > 0 && (
                   <div className="flex-1 overflow-y-auto mt-2">
                     <div className="text-xs font-semibold text-secondary uppercase mb-1">{detailData.pettyCash.transactions.length} expense(s)</div>
-                    <table className="w-full text-xs">
+                    {/* Mobile card list */}
+                    <div className="sm:hidden divide-y divide-border">
+                      {detailData.pettyCash.transactions.map((t: any) => (
+                        <div key={t.id} className="py-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="font-medium text-primary text-sm">{t.payeeName}</div>
+                              {t.payeePhone && <div className="text-xs text-secondary">{t.payeePhone}</div>}
+                              <div className="text-xs text-secondary mt-0.5">{t.category ?? '—'}{t.description ? ` · ${t.description}` : ''}</div>
+                            </div>
+                            <span className="font-semibold text-red-600 dark:text-red-400 whitespace-nowrap text-sm">💵 {fmt(t.amount)}</span>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="flex justify-between py-2 bg-gray-50 dark:bg-gray-700/50">
+                        <span className="text-xs font-semibold text-secondary">Total spent</span>
+                        <span className="font-bold text-red-600 dark:text-red-400 text-sm">
+                          {fmt(detailData.pettyCash.transactions.reduce((s: number, t: any) => s + t.amount, 0))}
+                        </span>
+                      </div>
+                    </div>
+                    {/* Desktop table */}
+                    <table className="hidden sm:table w-full text-xs">
                       <thead className="bg-gray-50 dark:bg-gray-700 text-secondary uppercase sticky top-0 z-10">
                         <tr>
                           <th className="px-2 py-2 text-left">Payee</th>

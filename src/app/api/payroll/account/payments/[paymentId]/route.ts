@@ -51,14 +51,12 @@ export async function GET(
       data: {
         id: payment.id,
         employeeId: payment.employeeId,
-        employee: {
+        employee: payment.employees ? {
           id: payment.employees.id,
           employeeNumber: payment.employees.employeeNumber,
-          name:
-            payment.employees.fullName ||
-            `${payment.employees.firstName} ${payment.employees.lastName}`,
+          name: payment.employees.fullName || `${payment.employees.firstName} ${payment.employees.lastName}`,
           nationalId: payment.employees.nationalId,
-        },
+        } : null,
         amount: Number(payment.amount),
         notes: payment.notes,
         paymentType: payment.paymentType,
