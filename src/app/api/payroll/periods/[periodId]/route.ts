@@ -958,7 +958,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         const perDiemRows = await prisma.perDiemEntries.groupBy({
           by: ['employeeId'],
           where: {
-            approvalStatus: 'approved',
+            approvalStatus: { in: ['approved', 'pending'] },
             payrollYear: existingPeriod.year,
             payrollMonth: existingPeriod.month,
             ...(periodEmployeeIds.length > 0 ? { employeeId: { in: periodEmployeeIds } } : {}),
@@ -981,7 +981,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         const nssa = Number((e as any).zimraNssa ?? e.nssaEmployee ?? 0)
         const paye = Number((e as any).zimraPaye ?? e.payeAmount ?? 0)
         const aids = Number((e as any).zimraAidsLevy ?? e.aidsLevy ?? 0)
-        const netTakeHome = Math.max(0, totals.grossPay - nssa - paye - aids - totals.totalDeductions)
+        const grossInclBenefits = totals.grossPay - (totals.clockInDeductionAmount || 0)
+        const netTakeHome = Math.max(0, grossInclBenefits - nssa - paye - aids - totals.totalDeductions)
         const amount = Math.round((netTakeHome + perDiem) * 100) / 100
         if (amount > 0) {
           employeePayments.push({
