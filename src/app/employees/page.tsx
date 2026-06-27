@@ -24,6 +24,7 @@ interface Employee {
   phone?: string
   businessContactPhone?: string | null
   nationalId?: string
+  tin?: string | null
   driverLicense?: string | null
   hireDate?: string
   employmentStatus?: string
@@ -545,9 +546,11 @@ export default function EmployeesPage() {
                   <option value="all">All Employees</option>
                   <option value="active">Active Only</option>
                   <option value="inactive">Inactive</option>
+                  <option value="pending_contract">Pending Contract</option>
                   <option value="on_leave">On Leave</option>
-                  <option value="terminated">Terminated</option>
                   <option value="suspended">Suspended</option>
+                  <option value="terminated">Terminated</option>
+                  <option value="no_tin">No TIN (ZIMRA)</option>
                 </select>
               </div>
 
@@ -701,6 +704,11 @@ export default function EmployeesPage() {
                           <p className="text-xs text-sky-500 dark:text-sky-400 font-medium">{employee.employeeNumber}</p>
                           {employee.nationalId && (
                             <p className="text-xs text-slate-400 dark:text-slate-500">ID: {employee.nationalId}</p>
+                          )}
+                          {employee.tin ? (
+                            <p className="text-xs text-violet-600 dark:text-violet-400 font-mono">TIN: {employee.tin}</p>
+                          ) : (
+                            <p className="text-xs text-amber-500 dark:text-amber-400">TIN: not set</p>
                           )}
                           {employee.phone && (
                             <p className="text-xs text-emerald-600 dark:text-emerald-400">{formatPhoneNumberForDisplay(employee.phone)}</p>
@@ -942,6 +950,11 @@ export default function EmployeesPage() {
                                 <div className="text-sm text-sky-500 dark:text-sky-400 font-medium">{employee.employeeNumber}</div>
                                 {employee.nationalId && (
                                   <div className="text-xs text-slate-400 dark:text-slate-500">ID: {employee.nationalId}</div>
+                                )}
+                                {employee.tin ? (
+                                  <div className="text-xs text-violet-600 dark:text-violet-400 font-mono">TIN: {employee.tin}</div>
+                                ) : (
+                                  <div className="text-xs text-amber-500 dark:text-amber-400">TIN: not set</div>
                                 )}
                                 {employee.phone && (
                                   <div className="text-xs text-emerald-600 dark:text-emerald-400">{formatPhoneNumberForDisplay(employee.phone)}</div>

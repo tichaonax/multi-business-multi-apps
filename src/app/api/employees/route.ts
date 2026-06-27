@@ -31,6 +31,10 @@ export async function GET(req: NextRequest) {
       ...(status === 'active' ? { isActive: true, employmentStatus: 'active' } : {}),
       ...(status === 'inactive' ? { isActive: false } : {}),
       ...(status === 'terminated' ? { employmentStatus: 'terminated' } : {}),
+      ...(status === 'on_leave' ? { employmentStatus: 'onLeave' } : {}),
+      ...(status === 'suspended' ? { employmentStatus: 'suspended' } : {}),
+      ...(status === 'pending_contract' ? { employmentStatus: 'pendingContract' } : {}),
+      ...(status === 'no_tin' ? { tin: null } : {}),
       ...(businessId && { primaryBusinessId: businessId }),
       ...(businessType && {
         businesses: {
@@ -112,6 +116,7 @@ export async function GET(req: NextRequest) {
           scheduledStartTime: true,
           scheduledEndTime: true,
           nationalId: true,
+          tin: true,
           hireDate: true,
           employmentStatus: true,
           terminationDate: true,
