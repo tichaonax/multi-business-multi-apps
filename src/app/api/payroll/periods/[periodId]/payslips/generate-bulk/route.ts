@@ -50,6 +50,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                 fullName: true,
                 employeeNumber: true,
                 nationalId: true,
+                tin: true,
                 hireDate: true,
                 primaryBusinessId: true,
                 job_titles: { select: { title: true } },
@@ -232,6 +233,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         employeeName,
         employeeNumber: emp?.employeeNumber || e.employeeNumber || '',
         nationalId: emp?.nationalId || e.nationalId || null,
+        tin: (emp as any)?.tin || null,
         jobTitle: (emp as any)?.job_titles?.title ?? null,
         hireDate: emp?.hireDate ?? e.hireDate,
 

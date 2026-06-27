@@ -46,6 +46,7 @@ export interface PayslipEntry {
   employeeName: string
   employeeNumber: string
   nationalId: string | null
+  tin?: string | null
   jobTitle?: string | null
   hireDate?: Date | string | null
 
@@ -147,6 +148,7 @@ export function generatePayslipHTML(entry: PayslipEntry, index: number, total: n
     <div style="font-size:11px;"><span style="color:#333;">Name:</span> <strong>${entry.employeeName}</strong></div>
     <div style="font-size:11px;"><span style="color:#333;">Employee #:</span> ${entry.employeeNumber}</div>
     ${entry.nationalId ? `<div style="font-size:11px;"><span style="color:#333;">National ID:</span> ${entry.nationalId}</div>` : '<div></div>'}
+    ${entry.tin ? `<div style="font-size:11px;"><span style="color:#333;">TIN:</span> ${entry.tin}</div>` : '<div></div>'}
     ${entry.jobTitle ? `<div style="font-size:11px;"><span style="color:#333;">Job Title:</span> ${entry.jobTitle}</div>` : '<div></div>'}
     <div style="font-size:11px;"><span style="color:#333;">Work Days:</span> ${entry.workDays}</div>
     <div style="font-size:11px;"><span style="color:#333;">Leave:</span> ${entry.leaveDays || 0}d &nbsp; <span style="color:#333;">Sick:</span> ${entry.sickDays || 0}d &nbsp; <span style="color:#333;">Absent:</span> ${entry.absenceDays || 0}d</div>

@@ -114,6 +114,7 @@ export default function PayrollPeriodDetailPage() {
   const [resetting, setResetting] = useState(false)
   const [generatingPayslips, setGeneratingPayslips] = useState(false)
   const [generatingZimra, setGeneratingZimra] = useState(false)
+  const [exportingZimraFile, setExportingZimraFile] = useState(false)
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
   const [includePastPeriods, setIncludePastPeriods] = useState(false)
@@ -1290,6 +1291,39 @@ export default function PayrollPeriodDetailPage() {
                 className="px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-md hover:bg-violet-700 disabled:opacity-50"
               >
                 {generatingZimra ? '⏳ Generating...' : '🏛️ ZIMRA Voucher'}
+              </button>
+              <button
+                disabled={exportingZimraFile}
+                onClick={async () => {
+                  setExportingZimraFile(true)
+                  try {
+                    const res = await fetch(`/api/payroll/periods/${period.id}/export-zimra`)
+                    if (res.ok) {
+                      const blob = await res.blob()
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = res.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1] || 'ZIMRA-Earnings.xlsx'
+                      a.click()
+                      URL.revokeObjectURL(url)
+                    } else {
+                      const err = await res.json().catch(() => null)
+                      if (err?.employees?.length) {
+                        const names = err.employees.map((e: any) => `${e.name} (${e.number})`).join(', ')
+                        showNotification('error', `Missing TIN: ${names}`)
+                      } else {
+                        showNotification('error', err?.error || 'Failed to generate ZIMRA export')
+                      }
+                    }
+                  } catch {
+                    showNotification('error', 'Failed to generate ZIMRA export')
+                  } finally {
+                    setExportingZimraFile(false)
+                  }
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-md hover:bg-amber-700 disabled:opacity-50"
+              >
+                {exportingZimraFile ? '⏳ Exporting...' : '📊 Export ZIMRA File'}
               </button>
 
               {/* Payroll Account Actions */}

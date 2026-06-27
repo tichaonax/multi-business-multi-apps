@@ -688,6 +688,12 @@ export default function EmployeeDetailPage() {
                       setEmployee(prev => prev ? { ...prev, nationalIdDocUrl: null, nationalIdDocName: null } : prev)
                     }}
                   />
+                  {(employee as any).tin && (
+                    <div>
+                      <label className="block text-sm font-medium text-secondary">TIN (ZIMRA)</label>
+                      <p className="mt-1 text-sm text-primary font-mono">{(employee as any).tin}</p>
+                    </div>
+                  )}
                   {employee.driverLicense && (
                     <div>
                       <label className="block text-sm font-medium text-secondary">Driver's License</label>

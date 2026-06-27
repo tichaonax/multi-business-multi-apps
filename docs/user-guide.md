@@ -1362,6 +1362,12 @@ If an employee's entry has a **ZIMRA override** set (see Step 3 — ZIMRA Tax Ov
 
 > Statutory deductions displayed in the capture modal use the Zimbabwe tax brackets, NSSA rate, and AIDS Levy rate configured in **Settings → Tax Constants** — unless a ZIMRA override has been entered for that employee, in which case the override takes precedence. Verify tax constants are up to date before each payroll run.
 
+**ZIMRA Employee Earnings Export (for online upload):**
+- Click **📊 Export ZIMRA File** on the period page to download an `.xlsx` file in ZIMRA's Employee Earnings upload format.
+- The file contains one row per employee (only employees in the payroll for that month) with all required fields: TIN, National ID, earned salary, overtime, commission, benefits categorised into ZIMRA columns, NSSA, NEC, per diem (as non-taxable earnings), and more.
+- **TIN is required** — if any employee is missing their TIN the export is blocked and a message shows which employees need to be updated. Go to **Employees → [Name] → Edit** to add the TIN, then retry.
+- This button is only available after the payroll has been exported to Excel (i.e. status is **Exported** or **Closed**).
+
 **ZIMRA P2 Remittance Voucher:**
 - Click **Print ZIMRA Voucher** on the period page to generate a two-page PDF:
   - **Page 1 — NSSA Voucher:** lists total NSSA employee and employer contributions.
@@ -1766,6 +1772,8 @@ Fixed-term contracts have an end date. When the end date approaches, the system 
    - Choose salary type (Fixed Monthly, Hourly, Commission)
    - Enter the amount
 5. Click **Save Employee**.
+
+**TIN (Tax Identification Number):** This field is optional when first creating an employee — TIN may not be known at the time of onboarding. Once known, add it via **Employees → [Name] → Edit → TIN field**. The TIN is displayed on the employee profile and on their payslips. It is required before the ZIMRA Employee Earnings file can be exported for a payroll period.
 
 The employee will receive a welcome email with login instructions if they need system access.
 

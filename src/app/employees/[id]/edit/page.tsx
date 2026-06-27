@@ -80,6 +80,7 @@ export default function EmployeeEditPage() {
     idFormatTemplateId: '',
     driverLicenseNumber: '',
     driverLicenseTemplateId: '',
+    tin: '',
     address: '',
     dateOfBirth: '',
     dateOfBirthCountryCode: 'ZW',
@@ -99,7 +100,7 @@ export default function EmployeeEditPage() {
   const canEditEmployees = hasPermission('canEditEmployees')
 
   const handleClose = async () => {
-    const editableKeys = ['firstName', 'lastName', 'email', 'phone', 'nationalId', 'idFormatTemplateId', 'driverLicenseNumber', 'driverLicenseTemplateId', 'address', 'dateOfBirth', 'hireDate', 'supervisorId', 'notes', 'profilePhotoUrl']
+    const editableKeys = ['firstName', 'lastName', 'email', 'phone', 'nationalId', 'idFormatTemplateId', 'driverLicenseNumber', 'driverLicenseTemplateId', 'tin', 'address', 'dateOfBirth', 'hireDate', 'supervisorId', 'notes', 'profilePhotoUrl']
     const isDirty = editableKeys.some(k => (formData as any)[k] !== (initialFormData as any)[k])
     if (isDirty) {
       const ok = await confirm({
@@ -137,6 +138,7 @@ export default function EmployeeEditPage() {
           idFormatTemplateId: data.idFormatTemplateId || '',
           driverLicenseNumber: data.driverLicenseNumber || '',
           driverLicenseTemplateId: data.driverLicenseTemplateId || '',
+          tin: data.tin || '',
           address: data.address || '',
           dateOfBirth: data.dateOfBirth ? data.dateOfBirth.split('T')[0] : '',
           dateOfBirthCountryCode: 'ZW',
@@ -640,7 +642,23 @@ export default function EmployeeEditPage() {
                     className="md:col-span-2 lg:col-span-2"
                   />
 
-                  {/* Row 5: Address — full width */}
+                  {/* Row 5: TIN — full width */}
+                  <div className="md:col-span-2 lg:col-span-3">
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      TIN (Tax Identification Number)
+                      <span className="ml-2 text-xs text-gray-400 font-normal">Used for ZIMRA payroll export</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="tin"
+                      value={formData.tin}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                      placeholder="e.g. 1007912139"
+                    />
+                  </div>
+
+                  {/* Row 6: Address — full width */}
                   <div className="md:col-span-2 lg:col-span-3">
                     <label className="block text-sm font-medium text-secondary mb-2">Address</label>
                     <textarea

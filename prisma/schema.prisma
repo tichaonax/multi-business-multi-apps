@@ -1367,6 +1367,7 @@ model Employees {
   scheduledDaysPerWeek                                                      Float?
   annualVacationDays                                                        Int?
   scanToken                                                                 String?                       @unique
+  tin                                                                       String?
   business_orders                                                           BusinessOrders[]
   business_stock_movements                                                  BusinessStockMovements[]
   contract_renewals                                                         ContractRenewals[]
