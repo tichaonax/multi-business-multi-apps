@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { computeTotalsForEntry } from '@/lib/payroll/helpers'
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -36,10 +37,48 @@ export async function GET(
         return NextResponse.json({ error: 'No payroll entry linked to this payment' }, { status: 400 })
       }
 
-      const [slip, entry] = await Promise.all([
+      const [entry, slip] = await Promise.all([
+        prisma.payrollEntries.findUnique({
+          where: { id: payment.payrollEntryId },
+          select: {
+            employeeName: true,
+            employeeNumber: true,
+            nationalId: true,
+            commission: true,
+            zimraPaye: true,
+            zimraNssa: true,
+            zimraAidsLevy: true,
+            payeAmount: true,
+            nssaEmployee: true,
+            aidsLevy: true,
+            loanDeductions: true,
+            advanceDeductions: true,
+            miscDeductions: true,
+            payroll_periods: {
+              select: { year: true, month: true },
+            },
+            employees: {
+              select: {
+                employeeNumber: true,
+                fullName: true,
+                firstName: true,
+                lastName: true,
+                nationalId: true,
+              },
+            },
+          },
+        }),
         prisma.payrollSlips.findUnique({
           where: { payrollEntryId: payment.payrollEntryId },
-          include: {
+          select: {
+            nettPay: true,
+            payeTax: true,
+            nssaEmployee: true,
+            aidsLevy: true,
+            loanDeductions: true,
+            advanceDeductions: true,
+            miscDeductions: true,
+            totalDeductions: true,
             employees: {
               select: {
                 employeeNumber: true,
@@ -54,43 +93,38 @@ export async function GET(
             },
           },
         }),
-        prisma.payrollEntries.findUnique({
-          where: { id: payment.payrollEntryId },
-          select: {
-            employeeName: true,
-            employeeNumber: true,
-            nationalId: true,
-            baseSalary: true,
-            commission: true,
-            livingAllowance: true,
-            vehicleAllowance: true,
-            travelAllowance: true,
-            overtimePay: true,
-            benefitsTotal: true,
-            grossPay: true,
-            payeAmount: true,
-            aidsLevy: true,
-            nssaEmployee: true,
-            zimraPaye: true,
-            zimraAidsLevy: true,
-            zimraNssa: true,
-            loanDeductions: true,
-            advanceDeductions: true,
-            miscDeductions: true,
-            totalDeductions: true,
-            netPay: true,
-          },
-        }),
       ])
 
-      const empFromSlip = slip?.employees
-      const empName = empFromSlip
-        ? (empFromSlip.fullName || `${empFromSlip.firstName} ${empFromSlip.lastName}`)
-        : (entry?.employeeName || 'Unknown')
+      // Compute live gross and deductions using the same helper as the payroll table
+      const totals = await computeTotalsForEntry(payment.payrollEntryId)
 
-      const period = slip?.payroll_periods
-        ? { year: slip.payroll_periods.year, month: slip.payroll_periods.month }
-        : null
+      const empFromSlip = slip?.employees
+      const empFromEntry = entry?.employees
+      const empName = empFromSlip?.fullName
+        || (empFromSlip ? `${empFromSlip.firstName} ${empFromSlip.lastName}` : null)
+        || empFromEntry?.fullName
+        || (empFromEntry ? `${empFromEntry.firstName} ${empFromEntry.lastName}` : null)
+        || entry?.employeeName
+        || 'Unknown'
+
+      const period = slip?.payroll_periods ?? entry?.payroll_periods ?? null
+
+      // Use stored statutory deductions (from ZIMRA export or payslip capture if available)
+      const payeTax = Number(slip?.payeTax ?? entry?.zimraPaye ?? entry?.payeAmount ?? 0)
+      const nssaAmt = Number(slip?.nssaEmployee ?? entry?.zimraNssa ?? entry?.nssaEmployee ?? 0)
+      const aidsLevyAmt = Number(slip?.aidsLevy ?? entry?.zimraAidsLevy ?? entry?.aidsLevy ?? 0)
+
+      // Live gross from computeTotalsForEntry (same as payroll table display)
+      const grossPay = totals.grossPay
+      // Live manual deductions (advances, loans, misc, benefit-type deductions)
+      const manualDeductions = totals.totalDeductions
+
+      // Net = gross - statutory - manual deductions (matches payroll table NET PAY column)
+      // If the payslip has a captured nettPay and it's plausible, prefer it as it went through the full calculation
+      const computedNet = Math.max(0, grossPay - payeTax - nssaAmt - aidsLevyAmt - manualDeductions)
+      const netPay = slip?.nettPay != null && Number(slip.nettPay) > 0
+        ? Number(slip.nettPay)
+        : computedNet
 
       return NextResponse.json({
         success: true,
@@ -98,32 +132,28 @@ export async function GET(
           type: 'SALARY',
           employee: {
             name: empName,
-            employeeNumber: empFromSlip?.employeeNumber || entry?.employeeNumber || '',
-            nationalId: empFromSlip?.nationalId || entry?.nationalId || '',
+            employeeNumber: empFromSlip?.employeeNumber || empFromEntry?.employeeNumber || entry?.employeeNumber || '',
+            nationalId: empFromSlip?.nationalId || empFromEntry?.nationalId || entry?.nationalId || '',
           },
           period: period
             ? { year: period.year, month: period.month, label: `${MONTHS[period.month - 1]} ${period.year}` }
             : null,
           earnings: {
-            baseSalary: Number(entry?.baseSalary ?? 0),
-            commission: Number(entry?.commission ?? 0),
-            livingAllowance: Number(entry?.livingAllowance ?? 0),
-            vehicleAllowance: Number(entry?.vehicleAllowance ?? 0),
-            travelAllowance: Number(entry?.travelAllowance ?? 0),
-            overtimePay: Number(entry?.overtimePay ?? 0),
-            benefitsTotal: Number(entry?.benefitsTotal ?? 0),
-            grossPay: Number(entry?.grossPay ?? 0),
+            baseSalary: totals.grossPay - totals.benefitsTotal - (totals.additionsTotal ?? 0) + (totals.absenceDeduction ?? 0),
+            overtimePay: totals.standardOvertimePay ?? totals.overtimePay ?? 0,
+            benefitsTotal: totals.benefitsTotal,
+            grossPay,
           },
           deductions: {
-            payeTax: Number(slip?.payeTax ?? entry?.zimraPaye ?? entry?.payeAmount ?? 0),
-            aidsLevy: Number(slip?.aidsLevy ?? entry?.zimraAidsLevy ?? entry?.aidsLevy ?? 0),
-            nssaEmployee: Number(slip?.nssaEmployee ?? entry?.zimraNssa ?? entry?.nssaEmployee ?? 0),
+            payeTax,
+            aidsLevy: aidsLevyAmt,
+            nssaEmployee: nssaAmt,
             loanDeductions: Number(slip?.loanDeductions ?? entry?.loanDeductions ?? 0),
             advanceDeductions: Number(slip?.advanceDeductions ?? entry?.advanceDeductions ?? 0),
             miscDeductions: Number(slip?.miscDeductions ?? entry?.miscDeductions ?? 0),
-            totalDeductions: Number(slip?.totalDeductions ?? entry?.totalDeductions ?? 0),
+            totalDeductions: payeTax + nssaAmt + aidsLevyAmt + manualDeductions,
           },
-          netPay: Number(slip?.nettPay ?? slip?.netPayRound ?? entry?.netPay ?? payment.amount),
+          netPay,
         },
       })
     }

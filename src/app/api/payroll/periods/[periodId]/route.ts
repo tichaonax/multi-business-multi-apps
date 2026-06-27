@@ -970,15 +970,28 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         }
       } catch { /* non-fatal */ }
 
-      // Build per-employee amounts (net take-home + per diem)
-      const employeePayments = periodEntries
-        .filter((e: any) => e.employeeId && Number(e.netPay) > 0)
-        .map((e: any) => ({
-          employeeId: e.employeeId as string,
-          entryId: e.id,
-          amount: Number(e.netPay) + (perDiemByEmployee[e.employeeId] || 0),
-          name: e.employees?.fullName || e.employeeName || 'Employee',
-        }))
+      // Build per-employee amounts using the same formula as the payroll table:
+      // netTakeHome = gross (from computeTotalsForEntry) - NSSA - PAYE - AidsLevy - manualDeductions
+      // perDiem is non-taxable and added on top as additional take-home
+      const employeePayments: Array<{ employeeId: string; entryId: string; amount: number; name: string }> = []
+      for (const e of periodEntries) {
+        if (!e.employeeId) continue
+        const totals = await computeTotalsForEntry(e.id, existingPeriod.month)
+        const perDiem = perDiemByEmployee[e.employeeId as string] || 0
+        const nssa = Number((e as any).zimraNssa ?? e.nssaEmployee ?? 0)
+        const paye = Number((e as any).zimraPaye ?? e.payeAmount ?? 0)
+        const aids = Number((e as any).zimraAidsLevy ?? e.aidsLevy ?? 0)
+        const netTakeHome = Math.max(0, totals.grossPay - nssa - paye - aids - totals.totalDeductions)
+        const amount = Math.round((netTakeHome + perDiem) * 100) / 100
+        if (amount > 0) {
+          employeePayments.push({
+            employeeId: e.employeeId as string,
+            entryId: e.id,
+            amount,
+            name: e.employees?.fullName || e.employeeName || 'Employee',
+          })
+        }
+      }
 
       // Aggregate tax totals across all entries
       const totalPAYE = periodEntries.reduce((s: number, e: any) =>

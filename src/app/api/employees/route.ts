@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
       ...(status === 'suspended' ? { employmentStatus: 'suspended' } : {}),
       ...(status === 'pending_contract' ? { employmentStatus: 'pendingContract' } : {}),
       ...(status === 'no_tin' ? { tin: null } : {}),
+      ...(status === 'has_tin' ? { tin: { not: null } } : {}),
       ...(businessId && { primaryBusinessId: businessId }),
       ...(businessType && {
         businesses: {
@@ -244,6 +245,7 @@ export async function GET(req: NextRequest) {
         scheduledEndTime: employee.scheduledEndTime ?? null,
         businessContactPhone,
         nationalId: employee.nationalId,
+        tin: employee.tin ?? null,
         hireDate: employee.hireDate,
         terminationDate: employee.terminationDate ?? null,
         employmentStatus: employee.employmentStatus,
@@ -371,6 +373,30 @@ export async function POST(req: NextRequest) {
       if (existingEmailEmployee) {
         return NextResponse.json(
           { error: 'An employee with this email already exists' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Check for duplicate TIN if provided
+    const tinValue = data.tin || null
+    if (tinValue) {
+      const duplicateTin = await prisma.employees.findFirst({ where: { tin: tinValue } })
+      if (duplicateTin) {
+        return NextResponse.json(
+          { error: 'An employee with this TIN already exists' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Check for duplicate driver's license if provided
+    const dlValue = driverLicense || driverLicenseNumberField || null
+    if (dlValue) {
+      const duplicateLicense = await prisma.employees.findFirst({ where: { driverLicenseNumber: dlValue } })
+      if (duplicateLicense) {
+        return NextResponse.json(
+          { error: 'An employee with this driver\'s license number already exists' },
           { status: 400 }
         )
       }

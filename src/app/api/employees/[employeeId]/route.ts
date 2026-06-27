@@ -383,6 +383,32 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       }
     }
 
+    // Check for duplicate TIN (excluding current employee)
+    if (tin && tin !== (existingEmployee as any).tin) {
+      const duplicateTin = await prisma.employees.findFirst({
+        where: { tin, NOT: { id: employeeId } }
+      })
+      if (duplicateTin) {
+        return NextResponse.json(
+          { error: 'An employee with this TIN already exists' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Check for duplicate driver's license (excluding current employee)
+    if (driverLicenseNumber && driverLicenseNumber !== (existingEmployee as any).driverLicenseNumber) {
+      const duplicateLicense = await prisma.employees.findFirst({
+        where: { driverLicenseNumber, NOT: { id: employeeId } }
+      })
+      if (duplicateLicense) {
+        return NextResponse.json(
+          { error: 'An employee with this driver\'s license number already exists' },
+          { status: 400 }
+        )
+      }
+    }
+
     // Validate foreign key references
     const [jobTitle, compensationType, business, supervisor, linkedUser, idTemplate] = await Promise.all([
       prisma.jobTitles.findUnique({ where: { id: jobTitleId } }),
@@ -437,10 +463,13 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const oldEmploymentStatus = existingEmployee.employmentStatus
     const oldIsActive = existingEmployee.isActive
     const newEmploymentStatus = employmentStatus || oldEmploymentStatus
-    const newIsActive = isActive !== undefined ? isActive : oldIsActive
+    // Terminated employees must always be inactive — force isActive=false regardless of what was sent
+    const newIsActive = newEmploymentStatus === 'terminated'
+      ? false
+      : (isActive !== undefined ? isActive : oldIsActive)
 
     const statusChanged = oldEmploymentStatus !== newEmploymentStatus || oldIsActive !== newIsActive
-    const shouldDeactivateUser = 
+    const shouldDeactivateUser =
       statusChanged && (newEmploymentStatus === 'terminated' || newEmploymentStatus === 'suspended' || newIsActive === false)
 
     // Update the employee with user synchronization

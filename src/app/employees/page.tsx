@@ -86,7 +86,7 @@ export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('active')
   const [departmentFilter, setDepartmentFilter] = useState('')
   const [businessFilter, setBusinessFilter] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -523,13 +523,24 @@ export default function EmployeesPage() {
               <label className="block text-sm font-medium text-secondary mb-2">
                 Search Employees
               </label>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="🔍 Search by name, ID, email, or job title..."
-                className="input-field w-full"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="🔍 Search by name, ID, email, or job title..."
+                  className="input-field w-full pr-8"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                    aria-label="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Filters in responsive grid */}
@@ -551,6 +562,7 @@ export default function EmployeesPage() {
                   <option value="suspended">Suspended</option>
                   <option value="terminated">Terminated</option>
                   <option value="no_tin">No TIN (ZIMRA)</option>
+                  <option value="has_tin">Has TIN</option>
                 </select>
               </div>
 
