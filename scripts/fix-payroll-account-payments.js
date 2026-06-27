@@ -31,13 +31,13 @@ const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 const APPLY = process.argv.includes('--apply')
 
+// Use require() (not import()) — ts-node hooks into CommonJS require() for .ts files
+const { computeTotalsForEntry } = require('../src/lib/payroll/helpers')
+
 async function main() {
   console.log(`\n🔍 Payroll Account Payment Recovery Script`)
   console.log(`   Mode: ${APPLY ? '⚠️  APPLY (writing to DB)' : '🟡 DRY-RUN (no writes)'}`)
   console.log(`   Add --apply flag to actually write changes.\n`)
-
-  // Import AFTER ts-node + tsconfig-paths are registered so @/ aliases resolve
-  const { computeTotalsForEntry } = await import('../src/lib/payroll/helpers')
 
   // 1. Find all approved/exported/closed periods
   const periods = await prisma.payrollPeriods.findMany({
