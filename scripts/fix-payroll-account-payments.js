@@ -174,7 +174,7 @@ async function main() {
           where: {
             payrollYear: period.year,
             payrollMonth: period.month,
-            approvalStatus: 'approved',
+            approvalStatus: { in: ['approved', 'pending'] },
             employeeId: { in: periodEmployeeIds },
           },
           _sum: { amount: true },
