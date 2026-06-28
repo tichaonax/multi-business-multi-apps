@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useScale } from '@/contexts/ScaleContext'
 import { calcCashRounding, distributeRoundingAdjustment, type CashRoundingConfig } from '@/lib/cash-rounding-utils'
+import { computePricingFromBase, type SimulationLine } from '@/lib/ayli-pricing-calculator'
 
 const STABLE_HOLD_MS = 2000
 const SIZE_ORDER = ['small', 'medium', 'large']
@@ -33,8 +34,9 @@ interface Props {
   onConfirm: (data: AYLIComboData) => void
   onCancel: () => void
   onProgress?: (snapshot: Omit<AYLIComboData, 'totalPrice'>) => void
-  calibrationMode?: boolean  // skips size picker, changes Done label
-  doneLabelOverride?: string  // custom label for the Done button in calibration mode
+  calibrationMode?: boolean       // skips size picker, changes Done label
+  calibTargetPrice?: number       // target selling price (small) — drives live pricing preview in calibration mode
+  doneLabelOverride?: string      // custom label for the Done button in calibration mode
   cashRoundingConfig?: CashRoundingConfig
 }
 
@@ -44,7 +46,7 @@ function getPriceForSize(item: ComboItem, size: string): number {
   return Number(item.pricePerKgLarge)
 }
 
-export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibrationMode = false, doneLabelOverride, cashRoundingConfig }: Props) {
+export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibrationMode = false, calibTargetPrice, doneLabelOverride, cashRoundingConfig }: Props) {
   const { weight, status, tare } = useScale()
 
   // Step 0 = container placement + auto-tare, Step 1 = size picker, Step 2 = fill panel
@@ -323,6 +325,55 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
     || (delta > 0 && liveWeight > maxWeightKg)
     || removalExceedsLine || !!removalNoLine
 
+  // Live pricing preview for calibration mode — recomputes every time a line is captured/removed
+  const calibPreview = useMemo(() => {
+    if (!calibrationMode || !calibTargetPrice || lines.length === 0) return null
+
+    const poolToComboId: Record<string, string> = {}
+    const simLines: SimulationLine[] = []
+    for (const l of lines) {
+      const ci = combo.items.find(it => it.poolItemId === l.poolItemId)
+      if (!ci) continue
+      poolToComboId[l.poolItemId] = ci.id
+      simLines.push({
+        comboItemId: ci.id,
+        poolItemId: l.poolItemId,
+        name: l.productName,
+        emoji: l.emoji,
+        weightKg: l.weightKg,
+        itemCategory: ci.pool_item.itemCategory,
+        buyingPricePerKg: ci.pool_item.buyingPricePerKg ?? null,
+      })
+    }
+    if (simLines.length === 0) return null
+
+    const basePrices = {
+      small:  Number(combo.sizes.find(s => s.sizeName === 'small')?.basePrice  ?? 0),
+      medium: Number(combo.sizes.find(s => s.sizeName === 'medium')?.basePrice ?? 0),
+      large:  Number(combo.sizes.find(s => s.sizeName === 'large')?.basePrice  ?? 0),
+    }
+    const minWeights = {
+      small:  Number(combo.sizes.find(s => s.sizeName === 'small')?.meatThresholdKg  ?? 0),
+      medium: Number(combo.sizes.find(s => s.sizeName === 'medium')?.meatThresholdKg ?? 0),
+      large:  Number(combo.sizes.find(s => s.sizeName === 'large')?.meatThresholdKg  ?? 0),
+    }
+
+    const result = computePricingFromBase(simLines, calibTargetPrice, basePrices, undefined, minWeights)
+
+    // Effective total per size at current captured weights
+    let totalS = basePrices.small, totalM = basePrices.medium, totalL = basePrices.large
+    for (const l of lines) {
+      const cid = poolToComboId[l.poolItemId]
+      if (!cid) continue
+      totalS += l.weightKg * (result.itemPricesSmall[cid]  ?? 0)
+      totalM += l.weightKg * (result.itemPricesMedium[cid] ?? 0)
+      totalL += l.weightKg * (result.itemPricesLarge[cid]  ?? 0)
+    }
+
+    return { result, poolToComboId, basePrices, totalS, totalM, totalL }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calibrationMode, calibTargetPrice, lines, combo.items, combo.sizes])
+
   // Meat threshold
   const selectedSizeData = combo.sizes.find(s => s.sizeName === selectedSize)
   const meatThresholdKg = selectedSizeData?.meatThresholdKg ? Number(selectedSizeData.meatThresholdKg) : null
@@ -344,7 +395,15 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
   return (
     /* Full-screen blocking overlay — nothing behind is clickable */
     <div className="fixed inset-0 bg-black/70 z-50 flex items-start justify-center overflow-y-auto py-4 px-4">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-xl flex flex-col max-h-[calc(100vh-2rem)]">
+      <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-xl flex flex-col max-h-[calc(100vh-2rem)] ${calibrationMode ? 'ring-2 ring-amber-400 dark:ring-amber-500' : ''}`}>
+
+        {/* Calibration mode banner */}
+        {calibrationMode && (
+          <div className="bg-amber-400 dark:bg-amber-600 rounded-t-2xl px-4 py-1.5 flex items-center gap-2">
+            <span className="text-amber-900 dark:text-amber-100 text-xs font-bold uppercase tracking-widest">⚙ Calibration Mode</span>
+            <span className="text-amber-800 dark:text-amber-200 text-xs">— weights captured here set your pricing</span>
+          </div>
+        )}
 
         {/* Header */}
         <div className="px-5 pt-5 pb-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
@@ -360,7 +419,7 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
             {step === 2 && (
                 <div className="mt-0.5">
                   {calibrationMode ? (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">Pricing calibration — capturing weights</p>
+                    <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">Capturing small portion weights</p>
                   ) : (
                     <>
                       <div className="flex items-center gap-1.5 flex-wrap">
@@ -657,22 +716,58 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
             {/* Lines */}
             {lines.length > 0 && (
               <div className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
-                <div className="bg-gray-50 dark:bg-gray-700/50 px-3 py-1.5 text-xs font-semibold text-secondary uppercase tracking-wide">Contents</div>
+                <div className={`px-3 py-1.5 text-xs font-semibold uppercase tracking-wide ${calibrationMode ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' : 'bg-gray-50 dark:bg-gray-700/50 text-secondary'}`}>
+                  {calibrationMode ? '⚙ Captured weights' : 'Contents'}
+                </div>
                 {lines.map(l => {
                   const poolItem = combo.items.find(it => it.poolItemId === l.poolItemId)
+                  // In calibration mode show the computed small rate; otherwise show the stored price
+                  const cid = calibPreview?.poolToComboId[l.poolItemId]
+                  const previewRate = cid != null ? (calibPreview?.result.itemPricesSmall[cid] ?? null) : null
+                  const displayRate = calibrationMode && previewRate != null ? previewRate : l.pricePerKg
+                  const displayPrice = Math.round(l.weightKg * displayRate * 100) / 100
                   return (
                   <div key={l.poolItemId} className="flex items-center justify-between px-3 py-2 border-t border-gray-100 dark:border-gray-700">
                     <div className="flex items-center gap-2">
                       <span className="text-base">{poolItem?.pool_item.emoji || '🍽️'}</span>
                       <div>
                         <span className="text-sm font-medium text-primary">{l.productName}</span>
-                        <span className="text-xs text-secondary ml-2">{l.weightKg.toFixed(3)} kg × ${l.pricePerKg.toFixed(2)}/kg</span>
+                        <span className={`text-xs ml-2 ${calibrationMode && previewRate != null ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-secondary'}`}>
+                          {l.weightKg.toFixed(3)} kg × ${displayRate.toFixed(2)}/kg
+                        </span>
                       </div>
                     </div>
-                    <span className="text-sm font-semibold text-primary">${l.linePrice.toFixed(2)}</span>
+                    <span className="text-sm font-semibold text-primary">${displayPrice.toFixed(2)}</span>
                   </div>
                   )
                 })}
+              </div>
+            )}
+
+            {/* Calibration pricing preview — 3-size summary, updates live as items are captured */}
+            {calibrationMode && calibPreview && (
+              <div className="border border-amber-300 dark:border-amber-700 rounded-lg overflow-hidden">
+                <div className="bg-amber-100 dark:bg-amber-900/40 px-3 py-1.5 text-xs font-semibold text-amber-800 dark:text-amber-300 uppercase tracking-wide">
+                  Projected prices at these weights
+                </div>
+                <div className="grid grid-cols-3 divide-x divide-amber-200 dark:divide-amber-700">
+                  {([
+                    { label: 'Small',  base: calibPreview.basePrices.small,  total: calibPreview.totalS },
+                    { label: 'Medium', base: calibPreview.basePrices.medium, total: calibPreview.totalM },
+                    { label: 'Large',  base: calibPreview.basePrices.large,  total: calibPreview.totalL },
+                  ] as const).map(({ label, base, total }) => (
+                    <div key={label} className="px-3 py-2 text-center">
+                      <div className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 uppercase mb-0.5">{label}</div>
+                      <div className="text-sm font-bold text-amber-900 dark:text-amber-100">${total.toFixed(2)}</div>
+                      <div className="text-[10px] text-amber-600 dark:text-amber-500">${base.toFixed(2)} base</div>
+                    </div>
+                  ))}
+                </div>
+                {calibTargetPrice && (
+                  <div className="border-t border-amber-200 dark:border-amber-700 px-3 py-1.5 text-[10px] text-amber-700 dark:text-amber-400 text-center">
+                    Target: ${calibTargetPrice.toFixed(2)} (small at min fill) · Add more items to refine
+                  </div>
+                )}
               </div>
             )}
 

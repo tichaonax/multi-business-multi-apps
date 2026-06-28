@@ -890,6 +890,7 @@ function CalibrationTab({
           onConfirm={handleComboConfirm}
           onCancel={() => setShowModal(false)}
           calibrationMode
+          calibTargetPrice={parseFloat(targetPrice) || 0}
           doneLabelOverride={`Done — Review Pricing →`}
         />
       )}
