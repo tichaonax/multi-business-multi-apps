@@ -419,10 +419,17 @@ function PayrollAccountContent() {
                           { label: 'Loan Repayments', val: breakdownData.deductions.loanDeductions },
                           { label: 'Advance Recovery', val: breakdownData.deductions.advanceDeductions },
                           { label: 'Misc Deductions', val: breakdownData.deductions.miscDeductions },
+                          { label: 'Other Adjustments', val: breakdownData.deductions.otherDeductions },
                         ].filter((r) => r.val > 0).map((row) => (
                           <div key={row.label} className="flex justify-between text-sm">
                             <span className="text-gray-600 dark:text-gray-400">{row.label}</span>
                             <span className="text-red-600 dark:text-red-400">-{formatCurrency(row.val)}</span>
+                          </div>
+                        ))}
+                        {(breakdownData.deductions.namedDeductions || []).filter((d: any) => d.amount > 0).map((d: any) => (
+                          <div key={d.label} className="flex justify-between text-sm">
+                            <span className="text-gray-600 dark:text-gray-400">{d.label}</span>
+                            <span className="text-red-600 dark:text-red-400">-{formatCurrency(d.amount)}</span>
                           </div>
                         ))}
                         <div className="flex justify-between text-sm font-semibold border-t border-gray-200 dark:border-gray-600 pt-1.5 mt-1">

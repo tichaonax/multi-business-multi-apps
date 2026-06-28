@@ -136,6 +136,12 @@ export async function GET(
             loanDeductions: Number(entry?.loanDeductions ?? 0),
             advanceDeductions: Number(entry?.advanceDeductions ?? 0),
             miscDeductions: Number(entry?.miscDeductions ?? 0),
+            // Negative adjustments (e.g. penalties applied via payrollAdjustments)
+            otherDeductions: totals.adjustmentsAsDeductions || 0,
+            // Named benefit-type deductions (e.g. GUTU Penalty stored as benefit with entryType='deduction')
+            namedDeductions: (totals.mergedBenefits || [])
+              .filter((b: any) => b.isActive !== false && (b.entryType === 'deduction' || b.type === 'deduction'))
+              .map((b: any) => ({ label: b.benefitName || b.name || 'Deduction', amount: Number(b.amount || 0) })),
             totalDeductions: payeTax + nssaAmt + aidsLevyAmt + totals.totalDeductions,
           },
           netPay,
