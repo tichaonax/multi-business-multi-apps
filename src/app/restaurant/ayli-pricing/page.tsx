@@ -726,6 +726,20 @@ function CalibrationTab({
       {wizardStep === 'review' && simLines.length > 0 && (
         <div className="space-y-4">
 
+          {/* Back to capture */}
+          <div className="flex items-center gap-3">
+            <button
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+              onClick={() => { setWizardStep('build'); setShowModal(true) }}>
+              ← Modify capture
+            </button>
+            {capturedLines && (
+              <span className="text-xs text-secondary">
+                {capturedLines.lines.length} items · {capturedLines.lines.reduce((s, l) => s + l.weightKg, 0).toFixed(3)} kg
+              </span>
+            )}
+          </div>
+
           {/* Editable target price */}
           <div className="flex items-center gap-3 flex-wrap">
             <span className="text-sm font-medium text-secondary">Target (small):</span>
@@ -891,6 +905,7 @@ function CalibrationTab({
           onCancel={() => setShowModal(false)}
           calibrationMode
           calibTargetPrice={parseFloat(targetPrice) || 0}
+          calibInitialLines={capturedLines?.lines}
           doneLabelOverride={`Done — Review Pricing →`}
         />
       )}

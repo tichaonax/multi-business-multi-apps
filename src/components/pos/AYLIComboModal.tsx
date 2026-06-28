@@ -34,9 +34,10 @@ interface Props {
   onConfirm: (data: AYLIComboData) => void
   onCancel: () => void
   onProgress?: (snapshot: Omit<AYLIComboData, 'totalPrice'>) => void
-  calibrationMode?: boolean       // skips size picker, changes Done label
-  calibTargetPrice?: number       // target selling price (small) — drives live pricing preview in calibration mode
-  doneLabelOverride?: string      // custom label for the Done button in calibration mode
+  calibrationMode?: boolean            // skips size picker, changes Done label
+  calibTargetPrice?: number            // target selling price (small) — drives live pricing preview
+  calibInitialLines?: AYLIComboData['lines']  // restore previous capture when navigating back
+  doneLabelOverride?: string           // custom label for the Done button in calibration mode
   cashRoundingConfig?: CashRoundingConfig
 }
 
@@ -46,14 +47,18 @@ function getPriceForSize(item: ComboItem, size: string): number {
   return Number(item.pricePerKgLarge)
 }
 
-export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibrationMode = false, calibTargetPrice, doneLabelOverride, cashRoundingConfig }: Props) {
+export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibrationMode = false, calibTargetPrice, calibInitialLines, doneLabelOverride, cashRoundingConfig }: Props) {
   const { weight, status, tare } = useScale()
 
+  // When restoring a previous calibration build, skip directly to step 2 (fill panel)
+  const hasRestoredLines = calibrationMode && (calibInitialLines?.length ?? 0) > 0
+  const restoredSmallSize = combo.sizes.find(s => s.sizeName === 'small') ?? combo.sizes[0]
+
   // Step 0 = container placement + auto-tare, Step 1 = size picker, Step 2 = fill panel
-  const [step, setStep] = useState<0 | 1 | 2>(0)
-  const [tared, setTared] = useState(false)
-  const [selectedSize, setSelectedSize] = useState<string>('')
-  const [basePrice, setBasePrice] = useState(0)
+  const [step, setStep] = useState<0 | 1 | 2>(hasRestoredLines ? 2 : 0)
+  const [tared, setTared] = useState(hasRestoredLines)
+  const [selectedSize, setSelectedSize] = useState<string>(hasRestoredLines ? (restoredSmallSize?.sizeName ?? '') : '')
+  const [basePrice, setBasePrice] = useState(hasRestoredLines ? Number(restoredSmallSize?.basePrice ?? 0) : 0)
   const [sizeLocked, setSizeLocked] = useState(false)
   const [roundingChosen, setRoundingChosen] = useState(false)
   const [sizeChangeMessage, setSizeChangeMessage] = useState<string | null>(null)
@@ -61,7 +66,7 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
   // Fill panel state
   const [selectedItemId, setSelectedItemId] = useState<string>('')  // poolItemId
   const [previousWeight, setPreviousWeight] = useState(0)
-  const [lines, setLines] = useState<AYLIComboData['lines']>([])
+  const [lines, setLines] = useState<AYLIComboData['lines']>(calibInitialLines ?? [])
   const [error, setError] = useState<string | null>(null)
   const [firstMeatPoolItemId, setFirstMeatPoolItemId] = useState<string | null>(null)
 
@@ -393,6 +398,26 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calibrationMode, effectiveCalibTarget, lines, combo.items, combo.sizes])
 
+  // Calibration-aware display totals — use computed rates for the active size tab (with $0.10 floor)
+  const calibDisplayBase = calibrationMode && calibPreview
+    ? calibPreview.basePrices[calibSizeTab]
+    : null
+  const calibDisplayItemsTotal = calibrationMode && calibPreview
+    ? lines.reduce((s, l) => {
+        const cid = calibPreview.poolToComboId[l.poolItemId]
+        const rawRate = cid != null ? (
+          calibSizeTab === 'small'  ? (calibPreview.result.itemPricesSmall[cid]  ?? 0) :
+          calibSizeTab === 'medium' ? (calibPreview.result.itemPricesMedium[cid] ?? 0) :
+                                      (calibPreview.result.itemPricesLarge[cid]  ?? 0)
+        ) : 0
+        const rawLine = l.weightKg * rawRate
+        return s + (rawLine > 0 && rawLine < 0.10 ? 0.10 : rawLine)
+      }, 0)
+    : null
+  const calibDisplayTotal = calibDisplayBase != null && calibDisplayItemsTotal != null
+    ? Math.round((calibDisplayBase + calibDisplayItemsTotal) * 100) / 100
+    : null
+
   // Meat threshold
   const selectedSizeData = combo.sizes.find(s => s.sizeName === selectedSize)
   const meatThresholdKg = selectedSizeData?.meatThresholdKg ? Number(selectedSizeData.meatThresholdKg) : null
@@ -690,7 +715,7 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
                   <span className="ml-2 text-amber-600 dark:text-amber-400 text-[10px] font-normal">rates shown for selected tab ↓</span>
                 )}
               </p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className={`grid gap-2 ${calibrationMode ? 'grid-cols-4' : 'grid-cols-3'}`}>
                 {combo.items.map(it => {
                   const isSelected = selectedItemId === it.poolItemId
                   const addedLine = lines.find(l => l.poolItemId === it.poolItemId)
@@ -706,7 +731,9 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
                   return (
                     <button key={it.poolItemId} type="button"
                       onClick={() => { setSelectedItemId(it.poolItemId); setError(null) }}
-                      className={`text-left p-2.5 rounded-lg border-2 transition-colors relative ${
+                      className={`text-left rounded-lg border-2 transition-colors relative ${
+                        calibrationMode ? 'p-1.5' : 'p-2.5'
+                      } ${
                         isSelected
                           ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
                           : addedLine
@@ -714,13 +741,13 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
                           : 'border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-600'
                       }`}>
                       {addedLine && (
-                        <span className={`absolute top-1 right-1 text-white text-[9px] font-bold rounded px-1 py-0.5 leading-none ${isPending ? 'bg-red-500' : 'bg-green-500'}`}>
+                        <span className={`absolute top-0.5 right-0.5 text-white text-[8px] font-bold rounded px-1 py-0.5 leading-none ${isPending ? 'bg-red-500' : 'bg-green-500'}`}>
                           {isPending ? `−${Math.abs(delta).toFixed(3)}` : `${addedLine.weightKg.toFixed(3)}`} kg
                         </span>
                       )}
-                      <div className="text-2xl mb-0.5">{it.pool_item.emoji || '🍽️'}</div>
-                      <div className="font-medium text-sm text-primary truncate">{it.pool_item.name}</div>
-                      <div className={`text-xs ${calibrationMode && previewRate != null ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-blue-600 dark:text-blue-400'}`}>
+                      <div className={calibrationMode ? 'text-xl mb-0' : 'text-2xl mb-0.5'}>{it.pool_item.emoji || '🍽️'}</div>
+                      <div className={`font-medium text-primary truncate ${calibrationMode ? 'text-xs' : 'text-sm'}`}>{it.pool_item.name}</div>
+                      <div className={`${calibrationMode ? 'text-[10px]' : 'text-xs'} ${calibrationMode && previewRate != null ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-blue-600 dark:text-blue-400'}`}>
                         ${displayPrice.toFixed(2)}/kg
                       </div>
                     </button>
@@ -870,16 +897,16 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
               return (
                 <div className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
                   <div className="flex justify-between px-3 py-2 text-sm text-secondary">
-                    <span className="capitalize">Base ({selectedSize})</span>
-                    <span>${basePrice.toFixed(2)}</span>
+                    <span className="capitalize">Base ({calibDisplayBase != null ? calibSizeTab : selectedSize})</span>
+                    <span>${(calibDisplayBase ?? basePrice).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between px-3 py-2 text-sm text-secondary border-t border-gray-100 dark:border-gray-700">
                     <span>Items total</span>
-                    <span>${itemsTotal.toFixed(2)}</span>
+                    <span>${(calibDisplayItemsTotal ?? itemsTotal).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between px-3 py-2.5 text-base font-bold text-primary border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50">
                     <span>Combo Total</span>
-                    <span>${comboTotal.toFixed(2)}</span>
+                    <span>${(calibDisplayTotal ?? comboTotal).toFixed(2)}</span>
                   </div>
                   {(canRoundUp || canRoundDown) && (
                     <div className="border-t border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 space-y-0.5 text-xs text-amber-700 dark:text-amber-300">
