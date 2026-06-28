@@ -8,7 +8,8 @@ import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useToastContext } from '@/components/ui/toast'
 import { AYLIComboModal, AYLIComboData } from '@/components/pos/AYLIComboModal'
-import type { AyliPricingOption } from '@/lib/ayli-pricing-calculator'
+import { AYLIPricingTable, type TablePrices } from '@/components/pos/AYLIPricingTable'
+import { computePricingOptions, type AyliPricingOption, type SimulationLine, type SizeMultipliers } from '@/lib/ayli-pricing-calculator'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,14 +29,14 @@ interface ComboItem {
 }
 
 interface AYLICombo {
-  id: string; name: string; maxWeightKg: number; maxItems: number
+  id: string; name: string; businessId: string; maxWeightKg: number; maxItems: number
   sizes: ComboSize[]; items: ComboItem[]
 }
 
 interface Calibration {
   id: string; comboId: string; version: number; status: string
   simulationLines: any[]; targetPrices: Record<string, number>
-  generatedOptions: AyliPricingOption[] | Record<string, any[]>  // new = flat array; old = per-size map
+  generatedOptions: AyliPricingOption[] | Record<string, any[]>
   selectedOptions: Record<string, number> | { optionIndex: number }
   appliedAt: string | null; createdAt: string
 }
@@ -154,13 +155,11 @@ function PoolSetupTab({
     }
     setLocalItems(map)
 
-    // Load thresholds from combo sizes; if small is missing, derive from latest calibration
     const threshMap: Record<string, string> = {}
     for (const sz of combo.sizes) {
       threshMap[sz.sizeName] = sz.meatThresholdKg != null ? String(sz.meatThresholdKg) : ''
     }
 
-    // If small has no threshold, try to back-fill from the most recent applied calibration
     if (!threshMap.small) {
       const latestApplied = calibrations.find(c => c.status === 'APPLIED')
       if (latestApplied) {
@@ -284,7 +283,6 @@ function PoolSetupTab({
           Auto-set from your last calibration (first meat weight captured). Medium and large scale by 2× and 3×. Adjust Small to recalculate, or override medium/large independently.
         </p>
         <div className="grid grid-cols-3 gap-3">
-          {/* Small — drives medium and large */}
           <div>
             <label className="block text-xs text-secondary mb-1">Small</label>
             <input type="number" step="0.001" min="0" value={localThresholds.small ?? ''}
@@ -292,7 +290,6 @@ function PoolSetupTab({
               className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
               placeholder="e.g. 0.150" />
           </div>
-          {/* Medium and Large — auto-calculated, overridable */}
           {(['medium', 'large'] as const).map((sz, i) => {
             const multiplier = i === 0 ? 2 : 3
             const isOverridden = thresholdOverrides[sz]
@@ -366,28 +363,177 @@ function CalibrationTab({
   onApplied: () => void
 }) {
   const toast = useToastContext()
-  const [wizardStep, setWizardStep] = useState<'build' | 'prices' | 'options'>('build')
-  const [capturedLines, setCapturedLines] = useState<AYLIComboData | null>(null)
-  const [targetPrice, setTargetPrice] = useState('')
-  const [generatedOptions, setGeneratedOptions] = useState<AyliPricingOption[] | null>(null)
-  const [selectedOptIndex, setSelectedOptIndex] = useState<number | null>(null)
-  const [calibrationId, setCalibrationId] = useState<string | null>(null)
-  const [sizeMultipliers, setSizeMultipliers] = useState({ medium: '2', large: '3' })
-  const [loadedFromHistory, setLoadedFromHistory] = useState(false)
-  const [simLines, setSimLines] = useState<any[]>([])
-  const [previousOptIndex, setPreviousOptIndex] = useState<number | null>(null)
-  const [recalibrating, setRecalibrating] = useState(false)
-  const [computing, setComputing] = useState(false)
-  const [applying, setApplying] = useState(false)
-  const [showModal, setShowModal] = useState(false)
 
+  // ─── Wizard step ────────────────────────────────────────────────────────────
+  const [wizardStep, setWizardStep] = useState<'target' | 'build' | 'review'>('target')
+  const [showModal, setShowModal] = useState(false)
+  const [capturedLines, setCapturedLines] = useState<AYLIComboData | null>(null)
+
+  // ─── Pricing inputs (set in 'target' step, editable in 'review') ──────────
+  const [targetPrice, setTargetPrice] = useState('')
+  const [sizeMultipliers, setSizeMultipliers] = useState({ medium: '2', large: '3' })
+
+  // ─── Review step state ───────────────────────────────────────────────────────
+  const [simLines, setSimLines] = useState<SimulationLine[]>([])
+  const [customPrices, setCustomPrices] = useState<TablePrices | null>(null)
+  const [generatedOptions, setGeneratedOptions] = useState<AyliPricingOption[] | null>(null)
+  const [advancedOptIdx, setAdvancedOptIdx] = useState<number>(0)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [calibrationId, setCalibrationId] = useState<string | null>(null)
+  const [loadedFromHistory, setLoadedFromHistory] = useState(false)
+  const [previousOptIndex, setPreviousOptIndex] = useState<number | null>(null)
+  const [applying, setApplying] = useState(false)
+  const [recalibrating, setRecalibrating] = useState(false)
+
+  // ─── Meat threshold (editable in review step) ────────────────────────────
   const smallSize = combo.sizes.find(s => s.sizeName === 'small') ?? combo.sizes[0]
   const [minMeatKg, setMinMeatKg] = useState(
     smallSize?.meatThresholdKg != null ? String(Number(smallSize.meatThresholdKg)) : ''
   )
   const [savingMinMeat, setSavingMinMeat] = useState(false)
 
-  const handleSaveMinMeat = async () => {
+  // Prefill target + multipliers from last applied calibration on first load
+  const prefilled = useRef(false)
+  useEffect(() => {
+    if (prefilled.current || calibrations.length === 0) return
+    const last = calibrations.find(c => c.status === 'APPLIED') ?? calibrations[0]
+    if (!last) return
+    const tp = last.targetPrices as any
+    if (tp?.target) setTargetPrice(String(tp.target))
+    if (tp?.multipliers) {
+      setSizeMultipliers({
+        medium: String(tp.multipliers.medium ?? 2),
+        large:  String(tp.multipliers.large  ?? 3),
+      })
+    }
+    prefilled.current = true
+  }, [calibrations])
+
+  const multipliers: SizeMultipliers = {
+    small: 1,
+    medium: parseFloat(sizeMultipliers.medium) || 2,
+    large:  parseFloat(sizeMultipliers.large)  || 3,
+  }
+
+  // ─── Handlers ────────────────────────────────────────────────────────────────
+
+  function handleComboConfirm(data: AYLIComboData) {
+    const lines: SimulationLine[] = data.lines.map(l => {
+      const comboItem = combo.items.find(ci => ci.poolItemId === l.poolItemId)
+      return {
+        comboItemId: comboItem?.id ?? l.poolItemId,
+        poolItemId:  l.poolItemId,
+        name:        l.productName,
+        emoji:       l.emoji,
+        weightKg:    l.weightKg,
+        itemCategory:     comboItem?.pool_item.itemCategory ?? 'OTHER',
+        buyingPricePerKg: comboItem?.pool_item.buyingPricePerKg ?? null,
+      }
+    })
+    setCapturedLines(data)
+    setSimLines(lines)
+    setShowModal(false)
+    setLoadedFromHistory(false)
+    setCalibrationId(null)
+    setAdvancedOptIdx(0)
+
+    const price = parseFloat(targetPrice)
+    if (price > 0 && lines.length > 0) {
+      setGeneratedOptions(computePricingOptions(lines, price, multipliers))
+    }
+
+    setWizardStep('review')
+  }
+
+  function handleLoadFromHistory(cal: Calibration) {
+    const tp  = cal.targetPrices as any
+    const sel = cal.selectedOptions as any
+    setSimLines(cal.simulationLines as SimulationLine[])
+    if (tp?.target)      setTargetPrice(String(tp.target))
+    if (tp?.multipliers) setSizeMultipliers({ medium: String(tp.multipliers.medium ?? 2), large: String(tp.multipliers.large ?? 3) })
+    setGeneratedOptions(normaliseGeneratedOptions(cal.generatedOptions))
+    const prevIdx = sel?.optionIndex ?? null
+    setPreviousOptIndex(typeof prevIdx === 'number' ? prevIdx : null)
+    setCalibrationId(cal.id)
+    setLoadedFromHistory(true)
+    setAdvancedOptIdx(0)
+    setWizardStep('review')
+  }
+
+  async function handleApplyPricing() {
+    if (!customPrices) { toast.error('Pricing table is not ready'); return }
+    const price = parseFloat(targetPrice)
+    if (!price || price <= 0) { toast.error('Enter a valid target price'); return }
+
+    setApplying(true)
+    try {
+      let calId = calibrationId
+
+      if (!loadedFromHistory) {
+        const res = await fetch('/api/restaurant/ayli-pricing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            comboId:    combo.id,
+            businessId: combo.businessId,
+            simulationLines: simLines,
+            targetPrice: price,
+            multipliers,
+          }),
+        })
+        if (!res.ok) { toast.error('Failed to save calibration'); return }
+        const record = await res.json()
+        calId = record.id
+        setCalibrationId(record.id)
+        if (record.generatedOptions) setGeneratedOptions(normaliseGeneratedOptions(record.generatedOptions))
+        onCalibrationSaved(record as Calibration)
+      }
+
+      const applyRes = await fetch('/api/restaurant/ayli-pricing/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          calibrationId: calId,
+          selectedOptions: { optionIndex: advancedOptIdx },
+          customPrices,
+        }),
+      })
+      if (!applyRes.ok) { toast.error('Failed to apply pricing'); return }
+
+      toast.push('Pricing applied!')
+      setWizardStep('target')
+      setCapturedLines(null)
+      setSimLines([])
+      setGeneratedOptions(null)
+      setCalibrationId(null)
+      setAdvancedOptIdx(0)
+      setShowAdvanced(false)
+      setLoadedFromHistory(false)
+      onApplied()
+    } finally {
+      setApplying(false)
+    }
+  }
+
+  async function handleRecalibrate() {
+    if (!calibrationId) return
+    setRecalibrating(true)
+    try {
+      const res = await fetch('/api/restaurant/ayli-pricing/recalibrate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ calibrationId, targetPrice: targetPrice ? parseFloat(targetPrice) : undefined }),
+      })
+      if (!res.ok) { toast.error('Failed to recalibrate'); return }
+      const record = await res.json()
+      if (record.generatedOptions) setGeneratedOptions(normaliseGeneratedOptions(record.generatedOptions))
+      if (record.simulationLines?.length) setSimLines(record.simulationLines as SimulationLine[])
+      setAdvancedOptIdx(0)
+      toast.push('Recalibrated — review the updated prices')
+    } finally { setRecalibrating(false) }
+  }
+
+  async function handleSaveMinMeat() {
     setSavingMinMeat(true)
     try {
       const res = await fetch(`/api/restaurant/ayc-combos/${combo.id}`, {
@@ -405,182 +551,128 @@ function CalibrationTab({
       })
       if (res.ok) toast.push('Minimum meat threshold saved')
       else toast.error('Failed to save threshold')
-    } finally {
-      setSavingMinMeat(false)
-    }
+    } finally { setSavingMinMeat(false) }
   }
 
-  const handleComboConfirm = (data: AYLIComboData) => {
-    setCapturedLines(data)
-    setShowModal(false)
-    setWizardStep('prices')
-  }
+  // ─── Derived ─────────────────────────────────────────────────────────────────
 
+  const totalWeightKg = simLines.reduce((s, l) => s + l.weightKg, 0)
+  const hasMeat = simLines.some(l => l.itemCategory === 'MEAT')
+  const calibMeatKg = simLines
+    .filter(l => l.itemCategory === 'MEAT')
+    .reduce((s, l) => s + l.weightKg, 0)
 
-  const handleGenerate = async () => {
-    if (!capturedLines) return
-    const price = parseFloat(targetPrice)
-    if (!price || price <= 0) { toast.error('Enter a target selling price'); return }
-    setComputing(true)
-    try {
-      const simulationLines = capturedLines.lines.map(l => {
-        const comboItem = combo.items.find(ci => ci.poolItemId === l.poolItemId)
-        return {
-          comboItemId: comboItem?.id ?? l.poolItemId,
-          poolItemId: l.poolItemId,
-          name: l.productName,
-          emoji: l.emoji,
-          weightKg: l.weightKg,
-          itemCategory: comboItem?.pool_item.itemCategory ?? 'OTHER',
-          buyingPricePerKg: comboItem?.pool_item.buyingPricePerKg ?? null,
-        }
-      })
-      const res = await fetch('/api/restaurant/ayli-pricing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          comboId: combo.id,
-          businessId: (combo as any).businessId,
-          simulationLines,
-          targetPrice: price,
-          multipliers: {
-            small: 1,
-            medium: parseFloat(sizeMultipliers.medium) || 2,
-            large: parseFloat(sizeMultipliers.large) || 3,
-          },
-        }),
-      })
-      if (!res.ok) { toast.error('Failed to generate options'); return }
-      const record = await res.json()
-      setGeneratedOptions(record.generatedOptions as AyliPricingOption[])
-      setSimLines(simulationLines)
-      setSelectedOptIndex(null)
-      setCalibrationId(record.id)
-      setLoadedFromHistory(false)
-      setWizardStep('options')
-    } finally { setComputing(false) }
-  }
+  // ─── Step indicator ──────────────────────────────────────────────────────────
 
-  const handleRecalibrate = async () => {
-    if (!calibrationId) return
-    setRecalibrating(true)
-    try {
-      const res = await fetch('/api/restaurant/ayli-pricing/recalibrate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ calibrationId, targetPrice: targetPrice ? parseFloat(targetPrice) : undefined }),
-      })
-      if (!res.ok) { toast.error('Failed to recalibrate'); return }
-      const record = await res.json()
-      setGeneratedOptions(record.generatedOptions as AyliPricingOption[])
-      if (record.simulationLines?.length) setSimLines(record.simulationLines)
-      setSelectedOptIndex(null)
-      setPreviousOptIndex(null)
-      toast.push('Recalibrated — select an option to apply')
-    } finally { setRecalibrating(false) }
-  }
-
-  const handleApply = async () => {
-    if (!calibrationId || selectedOptIndex == null) {
-      toast.error('Select an option before applying')
-      return
-    }
-    setApplying(true)
-    try {
-      const res = await fetch('/api/restaurant/ayli-pricing/apply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ calibrationId, selectedOptions: { optionIndex: selectedOptIndex } }),
-      })
-      if (res.ok) {
-        toast.push('Pricing applied!')
-        const histRes = await fetch(`/api/restaurant/ayli-pricing?comboId=${combo.id}`)
-        if (histRes.ok) {
-          const all: Calibration[] = await histRes.json()
-          const saved = all.find(c => c.id === calibrationId)
-          if (saved) onCalibrationSaved(saved)
-        }
-        // Reset wizard and switch parent to Adjust tab so user sees the new prices
-        setWizardStep('build')
-        setCapturedLines(null)
-        onApplied()
-        setGeneratedOptions(null)
-        setSelectedOptIndex(null)
-        setCalibrationId(null)
-      } else toast.error('Failed to apply')
-    } finally { setApplying(false) }
-  }
+  const steps = [
+    { key: 'target', label: 'Set Price' },
+    { key: 'build',  label: 'Build on Scale' },
+    { key: 'review', label: 'Review & Apply' },
+  ] as const
 
   return (
     <div className="space-y-4">
+
       {/* Step indicator */}
       <div className="flex items-center gap-2 text-xs">
-        {(['build', 'prices', 'options'] as const).map((s, i) => (
-          <div key={s} className="flex items-center gap-2">
-            <span className={`w-6 h-6 rounded-full flex items-center justify-center font-semibold ${wizardStep === s ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-secondary'}`}>{i + 1}</span>
-            <span className={wizardStep === s ? 'font-medium text-primary' : 'text-secondary'}>
-              {s === 'build' ? 'Build Combo' : s === 'prices' ? 'Target Prices' : 'Review Options'}
-            </span>
+        {steps.map((s, i) => (
+          <div key={s.key} className="flex items-center gap-2">
+            <span className={`w-6 h-6 rounded-full flex items-center justify-center font-semibold ${
+              wizardStep === s.key ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-secondary'
+            }`}>{i + 1}</span>
+            <span className={wizardStep === s.key ? 'font-medium text-primary' : 'text-secondary'}>{s.label}</span>
             {i < 2 && <span className="text-gray-300 dark:text-gray-600">→</span>}
           </div>
         ))}
       </div>
 
-      {/* Step 1: Build — show previous calibrations first, then new-build option */}
-      {wizardStep === 'build' && (
+      {/* ── Step 1: Set Target Price ──────────────────────────────────────────── */}
+      {wizardStep === 'target' && (
         <div className="space-y-4">
+          <div className="card p-5 space-y-4">
+            <div>
+              <h3 className="font-semibold text-primary mb-1">Set Your Target Selling Price</h3>
+              <p className="text-sm text-secondary">Enter what you want to sell the small size for. The system will calculate per-item prices to reach this target once you complete the scale build.</p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-secondary flex-shrink-0">Small price</label>
+              <div className="relative w-36">
+                <span className="absolute left-2 top-2 text-secondary text-sm">$</span>
+                <input type="number" step="0.01" min="0" value={targetPrice}
+                  onChange={e => setTargetPrice(e.target.value)}
+                  className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  placeholder="e.g. 2.00" autoFocus />
+              </div>
+            </div>
+
+            <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3 space-y-2">
+              <p className="text-xs font-semibold text-secondary">Container size ratios (relative to small)</p>
+              <div className="flex items-center gap-4">
+                <span className="text-xs text-secondary w-12">Small</span>
+                <span className="text-xs font-medium text-primary">1×</span>
+                <span className="text-xs text-secondary">(reference — build this size on the scale)</span>
+              </div>
+              {(['medium', 'large'] as const).map(sz => (
+                <div key={sz} className="flex items-center gap-4">
+                  <label className="text-xs text-secondary capitalize w-12">{sz}</label>
+                  <input type="number" step="0.1" min="1.1" max="10"
+                    value={sizeMultipliers[sz]}
+                    onChange={e => setSizeMultipliers(m => ({ ...m, [sz]: e.target.value }))}
+                    className="w-16 px-2 py-1 text-sm border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                  <span className="text-xs text-secondary">× small capacity</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end">
+              <button className="btn-primary"
+                onClick={() => setWizardStep('build')}
+                disabled={!targetPrice || parseFloat(targetPrice) <= 0}>
+                Next — Build on Scale →
+              </button>
+            </div>
+          </div>
 
           {/* Previous calibrations */}
           {calibrations.length > 0 && (
             <div className="card overflow-hidden">
               <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
                 <h3 className="text-sm font-semibold text-primary">Previous Calibrations</h3>
-                <p className="text-xs text-secondary mt-0.5">Load a previous calibration to review and adjust its options, or start a new build below.</p>
+                <p className="text-xs text-secondary mt-0.5">Load a previous calibration to review and re-apply, or adjust its pricing directly.</p>
               </div>
               <div className="divide-y divide-gray-100 dark:divide-gray-700">
                 {calibrations.map(cal => {
-                  const tp = cal.targetPrices as Record<string, number>
-                  const sel = cal.selectedOptions as Record<string, number>
+                  const tp = cal.targetPrices as any
                   const hasOptions = Object.keys(cal.generatedOptions ?? {}).length > 0
                   return (
                     <div key={cal.id} className="px-4 py-3 flex items-start justify-between gap-4">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-semibold text-primary">v{cal.version}</span>
-                          <span className="text-xs text-secondary">{new Date(cal.createdAt).toLocaleDateString()} {new Date(cal.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${cal.status === 'APPLIED' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-gray-100 dark:bg-gray-700 text-secondary'}`}>
-                            {cal.status}
+                          <span className="text-xs text-secondary">
+                            {new Date(cal.createdAt).toLocaleDateString()} {new Date(cal.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                            cal.status === 'APPLIED'
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                              : 'bg-gray-100 dark:bg-gray-700 text-secondary'
+                          }`}>{cal.status}</span>
                         </div>
-                        {Object.keys(tp).length > 0 && (
-                          <div className="mt-1 flex gap-3 text-xs text-secondary">
-                            {SIZE_LABELS.filter(s => tp[s]).map(s => (
-                              <span key={s} className="capitalize">
-                                {s}: <span className="font-medium text-primary">${tp[s]}</span>
-                                {sel[s] != null ? <span className="ml-1 text-blue-500">opt {(sel[s] as number) + 1}</span> : null}
-                              </span>
-                            ))}
+                        {tp?.target && (
+                          <div className="mt-0.5 text-xs text-secondary">
+                            Target: <span className="font-medium text-primary">${tp.target}</span>
+                            {tp.multipliers && <span className="ml-2">· Med {tp.multipliers.medium}× · Lg {tp.multipliers.large}×</span>}
                           </div>
                         )}
                         {(cal.simulationLines as any[]).length > 0 && (
-                          <div className="mt-1 text-xs text-secondary">
-                            {(cal.simulationLines as any[]).length} items · {(cal.simulationLines as any[]).reduce((s: number, l: any) => s + l.weightKg, 0).toFixed(3)} kg
+                          <div className="text-xs text-secondary mt-0.5">
+                            {(cal.simulationLines as any[]).length} items · {(cal.simulationLines as any[]).reduce((s: number, l: any) => s + Number(l.weightKg), 0).toFixed(3)} kg
                           </div>
                         )}
                       </div>
                       {hasOptions && (
-                        <button
-                          onClick={() => {
-                            setGeneratedOptions(normaliseGeneratedOptions(cal.generatedOptions))
-                            setTargetPrice(tp.target ? String(tp.target) : '')
-                            setSimLines((cal.simulationLines as any[]) ?? [])
-                            const prevIdx = (sel as any).optionIndex ?? (sel as any).small ?? null
-                            setPreviousOptIndex(typeof prevIdx === 'number' ? prevIdx : null)
-                            setSelectedOptIndex(null)
-                            setCalibrationId(cal.id)
-                            setLoadedFromHistory(true)
-                            setWizardStep('options')
-                          }}
+                        <button onClick={() => handleLoadFromHistory(cal)}
                           className="btn-secondary text-xs py-1 px-3 flex-shrink-0">
                           Load &amp; Review
                         </button>
@@ -591,256 +683,204 @@ function CalibrationTab({
               </div>
             </div>
           )}
+        </div>
+      )}
 
-          {/* New build */}
-          <div className="card p-5 text-center space-y-4">
-            <div className="text-4xl">⚖️</div>
-            <div>
-              <h3 className="font-semibold text-primary mb-1">
-                {calibrations.length > 0 ? 'Start a New Calibration Build' : 'Build a Small Portion on the Scale'}
-              </h3>
-              <p className="text-sm text-secondary">Fill the container as a <strong>small-size customer would</strong>. Medium and large pricing is extrapolated from this using size multipliers below.</p>
-            </div>
-            {/* Size multipliers */}
-            <div className="text-left bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3 space-y-2">
-              <p className="text-xs font-semibold text-secondary">Container size ratios (relative to small)</p>
-              <div className="flex items-center gap-4">
-                <span className="text-xs text-secondary w-10">Small</span>
-                <span className="text-xs font-medium text-primary">1×</span>
-                <span className="text-xs text-secondary ml-2">(reference — build this size)</span>
-              </div>
-              {(['medium', 'large'] as const).map(sz => (
-                <div key={sz} className="flex items-center gap-4">
-                  <label className="text-xs text-secondary capitalize w-10">{sz}</label>
-                  <input type="number" step="0.1" min="1.1" max="10" value={sizeMultipliers[sz]}
-                    onChange={e => setSizeMultipliers(m => ({ ...m, [sz]: e.target.value }))}
-                    className="w-16 px-2 py-1 text-sm border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
-                  <span className="text-xs text-secondary">× small capacity</span>
+      {/* ── Step 2: Build on Scale ────────────────────────────────────────────── */}
+      {wizardStep === 'build' && (
+        <div className="card p-5 text-center space-y-4">
+          <div className="text-4xl">⚖️</div>
+          <div>
+            <h3 className="font-semibold text-primary mb-1">Build a Small Portion on the Scale</h3>
+            <p className="text-sm text-secondary">
+              Fill the container as a customer would. Medium and large pricing will be extrapolated using your multipliers ({sizeMultipliers.medium}× and {sizeMultipliers.large}×).
+            </p>
+            <p className="text-xs mt-2 text-blue-600 dark:text-blue-400 font-medium">
+              Target: ${parseFloat(targetPrice || '0').toFixed(2)} for small
+            </p>
+          </div>
+          <div className="flex gap-3 justify-center">
+            <button className="btn-secondary" onClick={() => setWizardStep('target')}>← Change Price</button>
+            <button className="btn-primary" onClick={() => setShowModal(true)}>Start Calibration Build</button>
+          </div>
+          {capturedLines && (
+            <div className="text-left border border-gray-200 dark:border-gray-600 rounded-lg p-3">
+              <p className="text-xs font-semibold text-secondary mb-2">
+                Last build ({capturedLines.lines.length} items, {capturedLines.lines.reduce((s, l) => s + l.weightKg, 0).toFixed(3)} kg):
+              </p>
+              {capturedLines.lines.map(l => (
+                <div key={l.poolItemId} className="flex justify-between text-xs text-primary py-0.5">
+                  <span>{l.emoji} {l.productName}</span>
+                  <span>{l.weightKg.toFixed(3)} kg</span>
                 </div>
               ))}
+              <button className="btn-primary text-xs mt-3" onClick={() => setWizardStep('review')}>
+                Review Pricing →
+              </button>
             </div>
-            <button className="btn-primary" onClick={() => setShowModal(true)}>
-              Start Calibration Build
+          )}
+        </div>
+      )}
+
+      {/* ── Step 3: Review & Apply ────────────────────────────────────────────── */}
+      {wizardStep === 'review' && simLines.length > 0 && (
+        <div className="space-y-4">
+
+          {/* Editable target price */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-sm font-medium text-secondary">Target (small):</span>
+            <div className="relative">
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-secondary pointer-events-none">$</span>
+              <input type="number" step="0.01" min="0" value={targetPrice}
+                onChange={e => setTargetPrice(e.target.value)}
+                className="w-28 pl-5 pr-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono" />
+            </div>
+            <span className="text-xs text-secondary">· {totalWeightKg.toFixed(3)} kg simulation</span>
+          </div>
+
+          {/* Pricing table */}
+          <AYLIPricingTable
+            simLines={simLines}
+            targetPrice={parseFloat(targetPrice) || 0}
+            multipliers={multipliers}
+            defaultOptionIndex={advancedOptIdx}
+            onChange={setCustomPrices}
+          />
+
+          {/* Meat threshold */}
+          {hasMeat && (
+            <div className="card px-4 py-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-semibold text-secondary flex-1 whitespace-nowrap">Min. meat (small):</span>
+                {calibMeatKg > 0 && (
+                  <button type="button" onClick={() => setMinMeatKg(calibMeatKg.toFixed(3))}
+                    className="text-[10px] text-blue-500 hover:underline whitespace-nowrap">
+                    Use {calibMeatKg.toFixed(3)} kg
+                  </button>
+                )}
+                <input type="number" step="0.001" min="0" value={minMeatKg}
+                  onChange={e => setMinMeatKg(e.target.value)}
+                  placeholder="0.000"
+                  className="w-24 text-sm font-mono border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                <span className="text-xs text-secondary">kg</span>
+                <button onClick={handleSaveMinMeat} disabled={savingMinMeat}
+                  className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40">
+                  {savingMinMeat ? '…' : 'Save'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Advanced: all 5 options */}
+          <div className="border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+            <button type="button" onClick={() => setShowAdvanced(v => !v)}
+              className="w-full px-4 py-3 text-sm font-medium text-secondary text-left flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              <span>Advanced: Show all 5 pricing options</span>
+              <span className="text-xs">{showAdvanced ? '▲' : '▼'}</span>
             </button>
-            {capturedLines && (
-              <div className="text-left border border-gray-200 dark:border-gray-600 rounded-lg p-3">
-                <p className="text-xs font-semibold text-secondary mb-2">Last build ({capturedLines.lines.length} items, {capturedLines.lines.reduce((s, l) => s + l.weightKg, 0).toFixed(3)} kg total):</p>
-                {capturedLines.lines.map(l => (
-                  <div key={l.poolItemId} className="flex justify-between text-xs text-primary py-0.5">
-                    <span>{l.emoji} {l.productName}</span><span>{l.weightKg.toFixed(3)} kg</span>
+            {showAdvanced && generatedOptions && generatedOptions.length > 0 && (
+              <div className="px-4 pb-4 pt-3 space-y-3">
+                <p className="text-xs text-secondary">
+                  Each option has the same effective $/kg but splits revenue differently between a base price and per-item charges.
+                  Select one to seed the pricing table above.
+                </p>
+                <div className="grid grid-cols-5 gap-2">
+                  {generatedOptions.map((opt, idx) => {
+                    const isSelected = advancedOptIdx === idx
+                    const sizes = [
+                      { label: 'Small',  base: opt.basePriceSmall,  items: opt.itemPricesSmall },
+                      { label: 'Medium', base: opt.basePriceMedium, items: opt.itemPricesMedium },
+                      { label: 'Large',  base: opt.basePriceLarge,  items: opt.itemPricesLarge },
+                    ]
+                    return (
+                      <button key={idx} type="button" onClick={() => setAdvancedOptIdx(idx)}
+                        className={`rounded-xl border-2 p-2.5 text-left transition-colors ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                            : 'border-gray-200 dark:border-gray-700 hover:border-blue-300'
+                        }`}>
+                        <div className="text-xs font-semibold text-secondary mb-2">Option {idx + 1}</div>
+                        {sizes.map(sz => {
+                          const avgPerKg = totalWeightKg > 0
+                            ? Object.entries(sz.items).reduce((s, [cid, p]) => {
+                                const wt = simLines.find(l => l.comboItemId === cid)?.weightKg ?? 0
+                                return s + (p as number) * wt
+                              }, 0) / totalWeightKg
+                            : 0
+                          return (
+                            <div key={sz.label} className="mb-1.5">
+                              <div className="text-[10px] font-semibold text-secondary uppercase">{sz.label}</div>
+                              <div className="text-xs font-bold text-primary">Base ${sz.base.toFixed(2)}</div>
+                              <div className="text-[10px] text-secondary">${avgPerKg.toFixed(2)}/kg avg</div>
+                            </div>
+                          )
+                        })}
+                        <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                          {opt.estimatedMarginPct != null && opt.estimatedMarginPct > 0
+                            ? <div className="text-[10px] text-green-600 dark:text-green-400">{opt.estimatedMarginPct}% margin</div>
+                            : <div className="text-[10px] text-secondary italic">Set buying prices for margin</div>
+                          }
+                        </div>
+                        {isSelected && <div className="mt-1.5 text-[10px] font-bold text-blue-600 dark:text-blue-400 text-center">✓ SELECTED</div>}
+                        {!isSelected && previousOptIndex === idx && <div className="mt-1.5 text-[10px] text-amber-600 dark:text-amber-400 text-center">↩ last applied</div>}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* Recalibrate (history loads only) */}
+                {loadedFromHistory && calibrationId && (
+                  <div className="flex items-center gap-3 pt-1 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-xs text-secondary whitespace-nowrap">Target (small):</label>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-secondary pointer-events-none">$</span>
+                        <input type="number" step="0.01" min="0" value={targetPrice}
+                          onChange={e => setTargetPrice(e.target.value)}
+                          placeholder="e.g. 2.00"
+                          className="w-24 pl-5 pr-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono" />
+                      </div>
+                    </div>
+                    <button className="btn-secondary flex items-center gap-1.5"
+                      onClick={handleRecalibrate} disabled={recalibrating || !targetPrice}>
+                      {recalibrating ? 'Recalibrating…' : '🔄 Recalibrate with current costs'}
+                    </button>
                   </div>
-                ))}
-                <button className="btn-primary text-xs mt-3" onClick={() => setWizardStep('prices')}>Use This Build →</button>
+                )}
               </div>
             )}
           </div>
-        </div>
-      )}
 
-      {/* Step 2: Single target price */}
-      {wizardStep === 'prices' && capturedLines && (
-        <div className="card p-5 space-y-4">
-          <div>
-            <h3 className="font-semibold text-primary mb-1">Set Target Selling Price</h3>
-            <p className="text-xs text-secondary mb-2">
-              Simulation: {capturedLines.lines.reduce((s, l) => s + l.weightKg, 0).toFixed(3)} kg · {capturedLines.lines.length} items
-            </p>
-            <p className="text-xs bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2 text-blue-800 dark:text-blue-300">
-              Enter what this combo should sell for. The system will generate 5 options — each with a different base price structure. <strong>Larger sizes automatically get a higher base and lower per-kg rate</strong>, rewarding customers who go bigger.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-medium text-secondary flex-shrink-0">Target price</label>
-            <div className="relative w-40">
-              <span className="absolute left-2 top-2 text-secondary text-sm">$</span>
-              <input type="number" step="0.01" min="0" value={targetPrice}
-                onChange={e => setTargetPrice(e.target.value)}
-                className="w-full pl-6 pr-2 py-1.5 text-sm border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                placeholder="e.g. 4.50" autoFocus />
-            </div>
-            <span className="text-xs text-secondary">for {capturedLines.lines.reduce((s, l) => s + l.weightKg, 0).toFixed(3)} kg</span>
-          </div>
-          <div className="flex gap-3 pt-1">
-            <button className="btn-secondary" onClick={() => setWizardStep('build')}>← Back</button>
-            <button className="btn-primary" onClick={handleGenerate} disabled={computing}>
-              {computing ? 'Generating…' : 'Generate Pricing Options →'}
+          {/* Action bar */}
+          <div className="flex items-center justify-between pt-1">
+            <button className="btn-secondary"
+              onClick={() => {
+                if (loadedFromHistory) {
+                  setWizardStep('target')
+                  setSimLines([])
+                  setLoadedFromHistory(false)
+                } else {
+                  setWizardStep('build')
+                }
+              }}>
+              ← {loadedFromHistory ? 'Back to Calibrations' : 'Back to Build'}
+            </button>
+            <button className="btn-primary" onClick={handleApplyPricing}
+              disabled={applying || !customPrices || !targetPrice || parseFloat(targetPrice) <= 0}>
+              {applying ? 'Applying…' : 'Apply Pricing & Save'}
             </button>
           </div>
         </div>
       )}
 
-      {/* Step 3: Review 5 unified options (each covers all 3 sizes) */}
-      {wizardStep === 'options' && generatedOptions && Array.isArray(generatedOptions) && (
-        <div className="space-y-4">
-          <div>
-            <h3 className="text-sm font-semibold text-primary mb-1">Select a Pricing Option</h3>
-            <p className="text-xs text-secondary">Each option sets a different base price level. Higher base = lower per-kg for customers who fill more. Pick the one that suits your business.</p>
-          </div>
-          <div className="grid grid-cols-5 gap-2">
-            {(generatedOptions as AyliPricingOption[]).map((opt, idx) => {
-              const isSelected = selectedOptIndex === idx
-              const sizes: Array<{ label: string; base: number; items: Record<string, number> }> = [
-                { label: 'Small', base: opt.basePriceSmall, items: opt.itemPricesSmall },
-                { label: 'Medium', base: opt.basePriceMedium, items: opt.itemPricesMedium },
-                { label: 'Large', base: opt.basePriceLarge, items: opt.itemPricesLarge },
-              ]
-              return (
-                <button key={idx} type="button" onClick={() => setSelectedOptIndex(idx)}
-                  className={`rounded-xl border-2 p-2.5 text-left transition-colors ${isSelected ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-blue-300'}`}>
-                  <div className="text-xs font-semibold text-secondary mb-2">Option {idx + 1}</div>
-                  {sizes.map(sz => {
-                    const totalWt = simLines.length > 0
-                      ? simLines.reduce((s: number, l: any) => s + Number(l.weightKg), 0)
-                      : (capturedLines?.lines.reduce((s, l) => s + l.weightKg, 0) ?? 1)
-                    const avgPerKg = Object.values(sz.items).length && totalWt > 0
-                      ? Object.entries(sz.items).reduce((s, [cid, p]) => {
-                          const wt = simLines.find((l: any) => l.comboItemId === cid)?.weightKg
-                            ?? capturedLines?.lines.find(l => combo.items.find(ci => ci.id === cid && ci.poolItemId === l.poolItemId))?.weightKg
-                            ?? 0
-                          return s + (p as number) * Number(wt)
-                        }, 0) / totalWt
-                      : 0
-                    return (
-                      <div key={sz.label} className="mb-1.5">
-                        <div className="text-[10px] font-semibold text-secondary uppercase">{sz.label}</div>
-                        <div className="text-xs font-bold text-primary">Base ${sz.base.toFixed(2)}</div>
-                        <div className="text-[10px] text-secondary">${avgPerKg.toFixed(2)}/kg avg</div>
-                      </div>
-                    )
-                  })}
-                  <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
-                    {opt.estimatedMarginPct != null && opt.estimatedMarginPct > 0
-                      ? <div className="text-[10px] text-green-600 dark:text-green-400">{opt.estimatedMarginPct}% margin</div>
-                      : <div className="text-[10px] text-secondary italic">Set buying prices for margin</div>
-                    }
-                  </div>
-                  {isSelected && <div className="mt-1.5 text-[10px] font-bold text-blue-600 dark:text-blue-400 text-center">✓ SELECTED</div>}
-                  {!isSelected && previousOptIndex === idx && <div className="mt-1.5 text-[10px] text-amber-600 dark:text-amber-400 text-center">↩ last applied</div>}
-                </button>
-              )
-            })}
-          </div>
-          {/* Simulation weights breakdown */}
-          {simLines.length > 0 && (
-            <details className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-              <summary className="px-3 py-2 cursor-pointer bg-gray-50 dark:bg-gray-800 font-medium text-secondary select-none">
-                Combo weights used in calibration (small size)
-              </summary>
-              <div className="px-3 py-2 space-y-1">
-                {(() => {
-                  // Build a current-category map from combo items (overrides stale stored values)
-                  const categoryMap: Record<string, string> = {}
-                  for (const ci of combo.items) categoryMap[ci.poolItemId] = ci.pool_item.itemCategory
-                  const firstMeatPoolItemId = combo.items.find(ci => ci.pool_item.itemCategory === 'MEAT')?.poolItemId
-                  return simLines.map((l, i) => {
-                    const category = categoryMap[l.poolItemId] ?? l.itemCategory ?? 'OTHER'
-                    const isFirstMeat = l.poolItemId === firstMeatPoolItemId
-                    return (
-                      <div key={i} className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span>{l.emoji}</span>
-                          <span className="truncate text-primary">{l.name}</span>
-                          <span className="text-[10px] px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-secondary capitalize flex-shrink-0">
-                            {category.toLowerCase()}
-                          </span>
-                          {isFirstMeat && (
-                            <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium flex-shrink-0">
-                              ★ first meat
-                            </span>
-                          )}
-                        </div>
-                        <span className="font-mono text-primary flex-shrink-0">{Number(l.weightKg).toFixed(3)} kg</span>
-                      </div>
-                    )
-                  })
-                })()}
-                {(() => {
-                  const categoryMap: Record<string, string> = {}
-                  for (const ci of combo.items) categoryMap[ci.poolItemId] = ci.pool_item.itemCategory
-                  const calibMeatKg = simLines.filter(l => (categoryMap[l.poolItemId] ?? l.itemCategory) === 'MEAT').reduce((s: number, l: any) => s + Number(l.weightKg), 0)
-                  const totalKg = simLines.reduce((s: number, l: any) => s + Number(l.weightKg), 0)
-                  return (
-                    <>
-                      <div className="border-t border-gray-200 dark:border-gray-700 pt-1 mt-1 flex justify-between font-medium">
-                        <span className="text-secondary">
-                          Meat: {calibMeatKg.toFixed(3)} kg
-                        </span>
-                        <span className="text-primary">
-                          Total: {totalKg.toFixed(3)} kg
-                        </span>
-                      </div>
-                      <div className="border-t border-gray-200 dark:border-gray-700 pt-2 mt-1 flex items-center gap-2 flex-wrap">
-                        <span className="text-secondary flex-1 whitespace-nowrap">Min. meat (small):</span>
-                        <div className="flex items-center gap-1.5">
-                          {calibMeatKg > 0 && (
-                            <button type="button"
-                              onClick={() => setMinMeatKg(calibMeatKg.toFixed(3))}
-                              className="text-[10px] text-blue-500 hover:underline whitespace-nowrap">
-                              Use {calibMeatKg.toFixed(3)} kg
-                            </button>
-                          )}
-                          <input
-                            type="number" step="0.001" min="0"
-                            value={minMeatKg}
-                            onChange={e => setMinMeatKg(e.target.value)}
-                            placeholder="0.000"
-                            className="w-24 text-sm font-mono border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                          />
-                          <span className="text-secondary">kg</span>
-                          <button onClick={handleSaveMinMeat} disabled={savingMinMeat}
-                            className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40">
-                            {savingMinMeat ? '…' : 'Save'}
-                          </button>
-                        </div>
-                      </div>
-                    </>
-                  )
-                })()}
-              </div>
-            </details>
-          )}
-
-          <div className="flex items-center justify-between pt-2">
-            <div className="flex gap-3">
-              {!loadedFromHistory && (
-                <button className="btn-secondary" onClick={() => setWizardStep('prices')}>← Back</button>
-              )}
-              {loadedFromHistory && calibrationId && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <div className="flex items-center gap-1.5">
-                    <label className="text-xs text-secondary whitespace-nowrap">Target (small):</label>
-                    <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-secondary pointer-events-none">$</span>
-                      <input
-                        type="number" step="0.01" min="0"
-                        value={targetPrice}
-                        onChange={e => setTargetPrice(e.target.value)}
-                        placeholder="e.g. 5.00"
-                        className="w-24 pl-5 pr-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono"
-                      />
-                    </div>
-                  </div>
-                  <button className="btn-secondary flex items-center gap-1.5"
-                    onClick={handleRecalibrate} disabled={recalibrating || !targetPrice}>
-                    {recalibrating ? 'Recalibrating…' : '🔄 Recalibrate with current costs'}
-                  </button>
-                </div>
-              )}
-            </div>
-            <button className="btn-primary" onClick={handleApply} disabled={applying || selectedOptIndex == null}>
-              {applying ? 'Applying…' : 'Apply Pricing'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* AYLI combo modal for calibration build */}
+      {/* AYLI combo modal — calibration build */}
       {showModal && (
         <AYLIComboModal
           combo={combo}
           onConfirm={handleComboConfirm}
           onCancel={() => setShowModal(false)}
           calibrationMode
+          doneLabelOverride={`Done — Review Pricing →`}
         />
       )}
     </div>
@@ -1088,9 +1128,9 @@ export default function AYLIPricingPage() {
                 {/* Tab bar */}
                 <div className="flex border-b border-gray-200 dark:border-gray-700">
                   {([
-                    { key: 'setup', label: '1. Pool Setup' },
+                    { key: 'setup',     label: '1. Pool Setup' },
                     { key: 'calibrate', label: '2. Calibrate' },
-                    { key: 'adjust', label: '3. Adjust' },
+                    { key: 'adjust',    label: '3. Adjust' },
                   ] as const).map(tab => (
                     <button key={tab.key} onClick={() => setActiveTab(tab.key)}
                       className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.key ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-secondary hover:text-primary'}`}>

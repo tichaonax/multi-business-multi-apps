@@ -34,6 +34,7 @@ interface Props {
   onCancel: () => void
   onProgress?: (snapshot: Omit<AYLIComboData, 'totalPrice'>) => void
   calibrationMode?: boolean  // skips size picker, changes Done label
+  doneLabelOverride?: string  // custom label for the Done button in calibration mode
   cashRoundingConfig?: CashRoundingConfig
 }
 
@@ -43,7 +44,7 @@ function getPriceForSize(item: ComboItem, size: string): number {
   return Number(item.pricePerKgLarge)
 }
 
-export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibrationMode = false, cashRoundingConfig }: Props) {
+export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibrationMode = false, doneLabelOverride, cashRoundingConfig }: Props) {
   const { weight, status, tare } = useScale()
 
   // Step 0 = container placement + auto-tare, Step 1 = size picker, Step 2 = fill panel
@@ -744,7 +745,9 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
                       ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
                       : 'bg-blue-600 hover:bg-blue-700 text-white'
                   }`}>
-                  {calibrationMode ? `Done — Save Weights (${lines.length} items, ${totalWeightKg.toFixed(3)} kg)` : `Done — Add to Cart ($${comboTotal.toFixed(2)})`}
+                  {calibrationMode
+                    ? (doneLabelOverride ?? `Done — Save Weights (${lines.length} items, ${totalWeightKg.toFixed(3)} kg)`)
+                    : `Done — Add to Cart ($${comboTotal.toFixed(2)})`}
                 </button>
               </div>
             )}

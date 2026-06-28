@@ -11,8 +11,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
-    const { calibrationId, selectedOptions } = await req.json()
+    const { calibrationId, selectedOptions, customPrices } = await req.json()
     // selectedOptions: { optionIndex: number } — single index into flat options array
+    // customPrices (optional): { itemPrices: { [comboItemId]: { small, medium, large } }, basePrices: { small, medium, large } }
     if (!calibrationId || selectedOptions == null) {
       return NextResponse.json({ error: 'calibrationId and selectedOptions required' }, { status: 400 })
     }
@@ -25,7 +26,18 @@ export async function POST(req: NextRequest) {
     const raw = calibration.generatedOptions as any
     let option: any
 
-    if (Array.isArray(raw)) {
+    if (customPrices) {
+      // User-edited prices from the pricing table — use directly, skip option lookup
+      const ip = customPrices.itemPrices as Record<string, { small: number; medium: number; large: number }>
+      option = {
+        basePriceSmall:   customPrices.basePrices?.small  ?? 0,
+        basePriceMedium:  customPrices.basePrices?.medium ?? 0,
+        basePriceLarge:   customPrices.basePrices?.large  ?? 0,
+        itemPricesSmall:  Object.fromEntries(Object.entries(ip).map(([id, p]) => [id, (p as any).small])),
+        itemPricesMedium: Object.fromEntries(Object.entries(ip).map(([id, p]) => [id, (p as any).medium])),
+        itemPricesLarge:  Object.fromEntries(Object.entries(ip).map(([id, p]) => [id, (p as any).large])),
+      }
+    } else if (Array.isArray(raw)) {
       // New format: flat array, single optionIndex
       const idx = selectedOptions.optionIndex ?? 0
       option = raw[idx]

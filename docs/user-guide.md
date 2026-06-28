@@ -11231,6 +11231,34 @@ The combo appears as an AYLI card (green badge ⚖️ AYLI) in the restaurant PO
 
 ---
 
+### Cloning an Existing Combo
+
+Use **Clone** when you want to create a new combo that shares the same ingredients and pricing model as an existing one — for example, a "Chicken Deluxe" variant that uses the same pool items and per-kg rates as "Chicken Standard" but needs its own photos and menu number.
+
+**What gets cloned:**
+- All selected pool items
+- Size base prices (Small / Medium / Large)
+- Per-kg pricing rates for every item
+- Calibration data (so the pricing history carries over and the wizard can be loaded from history)
+
+**What does NOT get cloned:**
+- Images / advertising photos (set these up separately in Display Settings)
+- Menu number (assign separately in Menu Numbers)
+- The combo name (you must enter a new one)
+
+**Steps:**
+1. Go to **Restaurant → AYLI Combos**.
+2. Find the combo you want to copy and click **Clone** (next to Edit).
+3. The form opens pre-filled with the source combo's data. The name defaults to `Clone of [original name]` — change it to the new combo's name.
+4. Adjust pool items or base prices if needed, then click **Create AYLI Combo**.
+5. The system copies the pricing automatically:
+   - If the source had a calibration: a new calibration record is created for the clone and the exact same per-kg rates are applied immediately.
+   - If no calibration existed: prices are copied directly via the override API.
+6. A toast confirms: `"[New Name]" cloned from "[Source Name]" — pricing copied`.
+7. To make minor pricing adjustments, go to **AYLI Pricing → select the new combo → 3. Adjust** and apply a blanket percentage change or edit individual cells.
+
+---
+
 ### POS Workflow — Step by Step
 
 #### Step 1 — Open the Combo
@@ -11426,78 +11454,108 @@ Access to AYLI back-office management is controlled by fine-grained permissions.
 
 ### AYLI Pricing Calibration
 
-The **2. Calibrate** tab on the AYLI Pricing page lets you mathematically derive per-kg selling prices for each ingredient so that any combo — regardless of what the customer fills it with — hits a consistent target selling price for the small size.
+The **2. Calibrate** tab on the AYLI Pricing page lets you mathematically derive per-kg selling prices for each ingredient so that any combination a customer builds hits a consistent target selling price for the small size.
 
 **Where:** Restaurant → AYLI Pricing → select a combo → **2. Calibrate**
 
+The wizard has three steps shown at the top: **[1. Set Price] → [2. Build on Scale] → [3. Review & Apply]**
+
 ---
 
-#### How the Pricing Model Works
+#### Step 1 — Set Target Price
 
-The calibration algorithm generates **5 pricing options**. Each option represents a different split between a flat **base price** (charged upfront) and a **per-kg rate** (charged by weight):
-
-- **Option 1** — zero base, all revenue per-kg (pay only for what you fill)
-- **Option 5** — highest base, lowest per-kg (entry fee offsets weight cost)
-
-For medium and large sizes, the base price scales by the size multiplier (default: medium = 2×, large = 3×). Per-kg rates decrease accordingly so heavier fills cost proportionally less per kg.
-
-#### Step 1 — Build Combo
-
-1. Click **Build Combo** to open the AYLI Combo modal.
-2. Enter a weight for each ingredient (the typical small-size portion used in calibration).
-3. Confirm — the captured weights become the **simulation lines**.
-
-#### Step 2 — Target Prices
+Before touching the scale, decide what you want to charge.
 
 | Field | Description |
 |-------|-------------|
-| **Target price (small)** | What you want to charge for a full small combo ($) |
-| **Medium multiplier** | How many times heavier medium is vs small (default 2) |
-| **Large multiplier** | How many times heavier large is vs small (default 3) |
+| **Target selling price (small)** | What the customer pays for a full small container ($) |
+| **Medium multiplier** | Capacity of medium relative to small (default 2×) |
+| **Large multiplier** | Capacity of large relative to small (default 3×) |
 
-Click **Generate Pricing Options →** to compute the 5 options.
+If you have run a previous calibration, these fields are pre-filled from the last applied run — adjust only if the price is changing.
 
-#### Step 3 — Review Options
+Click **Next — Build on Scale →** when ready.
 
-Five option cards show each option's base prices and average per-kg rates across the three sizes. A **40% margin** label appears on each option when buying prices are set on the pool items.
+#### Step 2 — Build on Scale
 
-- **Select an option** by clicking its card — a **✓ SELECTED** badge appears. The Apply button is disabled until a selection is made.
-- A **↩ last applied** badge in amber shows which option was previously applied when loading from history — this is informational only; you must click to select before you can apply again.
-- Click **Apply Pricing** to write the calculated base prices and per-kg rates to the combo sizes and items.
+1. Click **Start Calibration Build** to open the AYLI Combo modal in calibration mode.
+2. Place the empty container on the scale when prompted, then capture the tare.
+3. Fill the container with a typical **small** portion — add each ingredient one at a time, tapping **Add to Menu** after each weight is captured.
+4. When all ingredients are in, click **Done — Review Pricing →**. The captured ingredient weights become the **simulation lines**.
 
-#### Combo Weights Breakdown
+> **Tip:** Build the small size. The system extrapolates medium and large using the multipliers set in Step 1.
 
-Below the option cards, expand **"Combo weights used in calibration (small size)"** to see:
+#### Step 3 — Review & Apply
+
+After the build, the system runs the pricing algorithm and shows a single **editable pricing table**:
 
 | Column | Description |
 |--------|-------------|
-| Emoji + Name | The pool item |
-| Category badge | Current category (e.g. Meat, Vegetable, Starch) |
-| **★ first meat** badge | Marks the first MEAT item — this is the item the minimum meat threshold applies to at the POS |
-| Weight (kg) | The weight entered during the Build Combo step |
+| **Item** | Each ingredient captured in the build, with weight |
+| **Small ($/kg)** | Price per kg charged for this item in the small container |
+| **Medium ($/kg)** | Auto-calculated as Small ÷ medium multiplier |
+| **Large ($/kg)** | Auto-calculated as Small ÷ large multiplier |
+| **Base price row** | A flat charge added to all sizes (can be $0) |
+| **Total row** | Live-calculated total = Σ(weight × $/kg) + base, per size |
 
-The footer shows the **total meat weight** and **total weight** for the small simulation. Below that is an editable **Min. meat (small)** field:
+**Editing the table:**
+- Click any cell to change it. Editing the **Small** value auto-updates Medium and Large unless those cells have been independently overridden.
+- Overridden cells show an **amber border** — click **Reset to Calculated** (top-right) to revert all cells to the algorithm's values.
+- The **Target price (small)** field above the table is also editable — changing it reseeds the table.
 
-- Pre-populated from the combo's existing small-size threshold.
-- **"Use X.XXX kg"** button appears when calibration has meat items — click to fill in the calibration's own meat weight.
-- Click **Save** to write the threshold to the combo immediately (medium and large thresholds are derived from the size multipliers).
+**Advanced options:**
+- Expand **Advanced: Show all 5 options** to see five different base-price / per-kg splits. Each option produces the same total at the simulation weight but distributes revenue differently between a flat base fee and per-kg charges. Selecting one reseeds the table from that option.
+- Option 1 = zero base (pure per-kg), Option 5 = highest base (lowest per-kg).
 
-#### Recalibrate with Current Costs
+**Minimum meat threshold:**
+If the simulation contains meat items, an editable **Min. meat (small)** field appears. Click **"Use X.XXX kg"** to fill in the build's own captured meat weight, then **Save**.
 
-After buying prices change (e.g. you updated a pool item's cost), click **🔄 Recalibrate with current costs** to re-run the algorithm with the same simulation weights and the same target price but the latest buying costs.
+Click **Apply Pricing & Save** to:
+1. Save the calibration record (simulation lines, target, all 5 generated options).
+2. Write the table's current prices directly to each combo item and the combo's base prices.
+3. Mark the calibration APPLIED and switch to the Adjust tab.
 
-- The **Target (small)** input must contain a price before the button is enabled.
-- After recalibrating, the previous selection is cleared — select an option to apply the refreshed prices.
+---
 
-#### Calibration History
+#### Recalibrate from History
 
-The history panel (at the top of the Calibrate tab) shows up to 5 past calibrations per combo. For each:
+At the top of Step 1 (Set Target Price), the **Previous Calibrations** list shows up to 5 past runs. Click **Load & Review** on any row to jump straight to the Review table pre-loaded with that calibration's weights, target price, and pricing — without repeating the physical scale build. From there you can recalibrate with updated costs or adjust prices manually before applying.
 
-- Version number, status (DRAFT / APPLIED), creation date
-- Simulation weight total
-- **Load & Review** button — loads the calibration's simulation lines, generated options, and target price back into the wizard so you can review or re-apply it.
+---
 
-Calibration records (including simulation lines, generated options, and applied state) are included in system backups and restores.
+#### Resetting AYLI Pricing
+
+To go through the full wizard again from scratch (new weights, new target price):
+
+1. Go to **AYLI Pricing → 2. Calibrate**.
+2. Change the **Target selling price** in Step 1 if needed (or keep it the same).
+3. Click **Next → Build on Scale →** then **Start Calibration Build** to rebuild the portion on the scale with fresh weights.
+4. Review and apply in Step 3.
+
+Each run creates a **new calibration version** and immediately overwrites the live prices. The old calibration stays in history (up to 5 versions) and can be restored at any time via **Load & Review** (Step 1 history list) or the **Restore** button in the Adjust tab's Calibration History panel.
+
+> **There is no "wipe to zero" button.** If you want to temporarily disable AYLI pricing, disable the combo from the AYLI Combos page instead.
+
+---
+
+#### Updating Pricing When a New Item Is Added
+
+If you add a new pool item to a combo that already has an APPLIED calibration, the system automatically prompts you:
+
+> *"[Item name] was added to [Combo]. Would you like to update pricing?"*
+
+Click **Update Pricing** in the modal that appears:
+1. Enter the typical portion weight for the new item (in kg).
+2. The pricing table recalculates live showing updated rates for all items.
+3. Edit any cells if needed, then click **Apply These Prices**.
+
+The result is a new calibration record with the merged composition — the new item is priced, and the rest of the combo's rates adjust proportionally. Click **Skip for Now** to close without changing prices (the new item will have $0 rates until you run the wizard).
+
+---
+
+#### Calibration History & Restore
+
+All calibration records (simulation lines, generated options, applied prices, target) are stored per combo and included in system backups. The **3. Adjust** tab's Calibration History panel shows previous versions with a **Restore** button — restoring a version re-applies its prices to the combo immediately.
 
 ---
 

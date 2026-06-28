@@ -10,6 +10,7 @@ import { useConfirm } from '@/components/ui/confirm-modal'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { AddVendorPurchasePresetModal } from '@/components/settings/AddVendorPurchasePresetModal'
+import { AYLIPricingNewItemModal, type AppliedCalibration } from '@/components/pos/AYLIPricingNewItemModal'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -278,25 +279,29 @@ function PoolItemModal({
 // ─── Combo Form Modal ──────────────────────────────────────────────────────────
 
 function ComboModal({
-  initial, businessId, poolItems, onSave, onClose, onCreatePoolItem
+  initial, businessId, poolItems, onSave, onClose, onCreatePoolItem, cloneFrom,
 }: {
   initial?: AYLICombo | null
   businessId: string
   poolItems: PoolItem[]
-  onSave: (combo: AYLICombo) => void
+  onSave: (combo: AYLICombo, newPoolItemIds: string[]) => void
   onClose: () => void
   onCreatePoolItem: (onCreate: (item: PoolItem) => void) => void
+  cloneFrom?: AYLICombo | null
 }) {
-  const [name, setName] = useState(initial?.name ?? '')
-  const [description, setDescription] = useState(initial?.description ?? '')
+  const src = initial ?? cloneFrom ?? null
+  const [name, setName] = useState(
+    initial?.name ?? (cloneFrom ? `Clone of ${cloneFrom.name}` : '')
+  )
+  const [description, setDescription] = useState(initial?.description ?? cloneFrom?.description ?? '')
   const [sizes, setSizes] = useState(() =>
-    initial ? SIZE_LABELS.map(s => {
-      const found = initial.sizes.find(sz => sz.sizeName === s)
+    src ? SIZE_LABELS.map(s => {
+      const found = src.sizes.find(sz => sz.sizeName === s)
       return { sizeName: s, basePrice: found ? String(found.basePrice) : '', meatThresholdKg: found?.meatThresholdKg != null ? String(found.meatThresholdKg) : '' }
     }) : SIZE_LABELS.map(s => ({ sizeName: s, basePrice: '', meatThresholdKg: '' }))
   )
   const [selectedIds, setSelectedIds] = useState<string[]>(
-    () => initial ? initial.items.map(it => it.poolItemId) : []
+    () => src?.items.map(it => it.poolItemId) ?? []
   )
   const [saving, setSaving] = useState(false)
   const toast = useToastContext()
@@ -328,7 +333,13 @@ function ComboModal({
           poolItemIds: selectedIds,
         })
       })
-      if (res.ok) { onSave(await res.json()); toast.push(initial ? 'Combo updated' : 'Combo created') }
+      if (res.ok) {
+        const saved = await res.json()
+        const priorIds = initial?.items.map(it => it.poolItemId) ?? []
+        const newPoolItemIds = selectedIds.filter(id => !priorIds.includes(id))
+        onSave(saved, newPoolItemIds)
+        toast.push(initial ? 'Combo updated' : 'Combo created')
+      }
       else { const err = await res.json(); toast.error(err.error || 'Failed to save') }
     } finally { setSaving(false) }
   }
@@ -458,6 +469,21 @@ export default function AYCCombosPage() {
   const [poolModal, setPoolModal] = useState<{ open: boolean; editing: PoolItem | null; onCreated?: (item: PoolItem) => void }>({ open: false, editing: null })
   const [comboModal, setComboModal] = useState<{ open: boolean; editing: AYLICombo | null }>({ open: false, editing: null })
   const [presetModal, setPresetModal] = useState<{ itemId: string; name: string; emoji: string } | null>(null)
+  const [pendingPricingUpdate, setPendingPricingUpdate] = useState<{
+    combo: AYLICombo; newPoolItemIds: string[]; lastCalibration: AppliedCalibration
+  } | null>(null)
+
+  const handleComboSave = async (combo: AYLICombo, newPoolItemIds: string[]) => {
+    setComboModal({ open: false, editing: null })
+    fetchCombos()
+    if (newPoolItemIds.length === 0) return
+    const res = await fetch(`/api/restaurant/ayli-pricing?comboId=${combo.id}`)
+    if (!res.ok) return
+    const calibrations = await res.json()
+    const lastApplied = (calibrations as any[]).find(c => c.status === 'APPLIED')
+    if (!lastApplied) return
+    setPendingPricingUpdate({ combo, newPoolItemIds, lastCalibration: lastApplied })
+  }
 
   useEffect(() => {
     if (currentBusinessId) { fetchPoolItems(); fetchCombos() }
@@ -670,7 +696,7 @@ export default function AYCCombosPage() {
             businessId={currentBusinessId || ''}
             poolItems={poolItems}
             onClose={() => setComboModal({ open: false, editing: null })}
-            onSave={() => { setComboModal({ open: false, editing: null }); fetchCombos() }}
+            onSave={handleComboSave}
             onCreatePoolItem={openCreatePoolItemInline}
           />
         )}
@@ -693,6 +719,17 @@ export default function AYCCombosPage() {
               setPresetModal(null)
             }}
             onClose={() => setPresetModal(null)}
+          />
+        )}
+        {/* Pricing update modal — shown when new item is added to a calibrated combo */}
+        {pendingPricingUpdate && (
+          <AYLIPricingNewItemModal
+            combo={pendingPricingUpdate.combo}
+            newPoolItemIds={pendingPricingUpdate.newPoolItemIds}
+            lastCalibration={pendingPricingUpdate.lastCalibration}
+            businessId={currentBusinessId || ''}
+            onApplied={() => { setPendingPricingUpdate(null); fetchCombos() }}
+            onSkip={() => setPendingPricingUpdate(null)}
           />
         )}
       </ContentLayout>
