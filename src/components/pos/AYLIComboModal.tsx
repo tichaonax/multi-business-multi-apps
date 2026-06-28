@@ -88,10 +88,10 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
     const timer = setTimeout(() => {
       tare()
       setTared(true)
-      // In calibration mode skip size picker — default to medium and go straight to fill
+      // In calibration mode skip size picker — always build the small portion
       if (calibrationMode) {
-        const mediumSize = combo.sizes.find(s => s.sizeName === 'medium') ?? combo.sizes[0]
-        if (mediumSize) { setSelectedSize(mediumSize.sizeName); setBasePrice(Number(mediumSize.basePrice)) }
+        const smallSize = combo.sizes.find(s => s.sizeName === 'small') ?? combo.sizes[0]
+        if (smallSize) { setSelectedSize(smallSize.sizeName); setBasePrice(Number(smallSize.basePrice)) }
         setTimeout(() => setStep(2), 600)
       } else {
         setTimeout(() => setStep(1), 600)
