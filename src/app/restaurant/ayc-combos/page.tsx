@@ -472,10 +472,91 @@ export default function AYCCombosPage() {
   const [pendingPricingUpdate, setPendingPricingUpdate] = useState<{
     combo: AYLICombo; newPoolItemIds: string[]; lastCalibration: AppliedCalibration
   } | null>(null)
+  const [cloneSource, setCloneSource] = useState<AYLICombo | null>(null)
+
+  const copySourcePricingToClone = async (source: AYLICombo, newCombo: AYLICombo) => {
+    const poolToNewCI = new Map(newCombo.items.map(ci => [ci.poolItemId, ci.id]))
+
+    // Build customPrices from source item prices, mapped to new combo item IDs
+    const itemPrices: Record<string, { small: number; medium: number; large: number }> = {}
+    for (const newCI of newCombo.items) {
+      const sourceCI = source.items.find(sCI => sCI.poolItemId === newCI.poolItemId)
+      if (sourceCI) {
+        itemPrices[newCI.id] = {
+          small:  Number(sourceCI.pricePerKgSmall),
+          medium: Number(sourceCI.pricePerKgMedium),
+          large:  Number(sourceCI.pricePerKgLarge),
+        }
+      }
+    }
+    const basePrices = {
+      small:  Number(source.sizes.find(s => s.sizeName === 'small')?.basePrice  ?? 0),
+      medium: Number(source.sizes.find(s => s.sizeName === 'medium')?.basePrice ?? 0),
+      large:  Number(source.sizes.find(s => s.sizeName === 'large')?.basePrice  ?? 0),
+    }
+    const customPrices = { itemPrices, basePrices }
+
+    // Try to copy calibration history from source
+    const calRes = await fetch(`/api/restaurant/ayli-pricing?comboId=${source.id}`)
+    if (calRes.ok) {
+      const calibrations = await calRes.json()
+      const lastApplied = (calibrations as any[]).find(c => c.status === 'APPLIED')
+      if (lastApplied) {
+        const tp = lastApplied.targetPrices as any
+        const mappedSimLines = (lastApplied.simulationLines as any[])
+          .filter((l: any) => poolToNewCI.has(l.poolItemId))
+          .map((l: any) => ({ ...l, comboItemId: poolToNewCI.get(l.poolItemId) ?? l.comboItemId }))
+
+        const createRes = await fetch('/api/restaurant/ayli-pricing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            comboId: newCombo.id, businessId: currentBusinessId,
+            simulationLines: mappedSimLines,
+            targetPrice: tp?.target ?? 2,
+            multipliers: tp?.multipliers ?? { small: 1, medium: 2, large: 3 },
+          }),
+        })
+        if (createRes.ok) {
+          const calRecord = await createRes.json()
+          await fetch('/api/restaurant/ayli-pricing/apply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ calibrationId: calRecord.id, selectedOptions: { optionIndex: 0 }, customPrices }),
+          })
+          fetchCombos()
+          toast.push(`"${newCombo.name}" cloned from "${source.name}" — pricing copied`)
+          return
+        }
+      }
+    }
+
+    // Fallback: copy prices via override API (no calibration history)
+    const overrides = Object.entries(itemPrices).map(([comboItemId, p]) => ({
+      comboItemId, small: p.small, medium: p.medium, large: p.large,
+    }))
+    if (overrides.length > 0) {
+      await fetch('/api/restaurant/ayli-pricing/override', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ overrides }),
+      })
+      fetchCombos()
+    }
+    toast.push(`"${newCombo.name}" cloned from "${source.name}" — run the pricing wizard to refine`)
+  }
 
   const handleComboSave = async (combo: AYLICombo, newPoolItemIds: string[]) => {
     setComboModal({ open: false, editing: null })
     fetchCombos()
+
+    if (cloneSource) {
+      const src = cloneSource
+      setCloneSource(null)
+      await copySourcePricingToClone(src, combo)
+      return
+    }
+
     if (newPoolItemIds.length === 0) return
     const res = await fetch(`/api/restaurant/ayli-pricing?comboId=${combo.id}`)
     if (!res.ok) return
@@ -642,9 +723,15 @@ export default function AYCCombosPage() {
                           <h3 className="font-semibold text-primary">{combo.name}</h3>
                           {combo.description && <p className="text-xs text-secondary mt-0.5">{combo.description}</p>}
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 items-center">
                           {hasPermission('canCreateAYLICombos') && (
                             <button className="btn-secondary text-xs py-1" onClick={() => setComboModal({ open: true, editing: combo })}>Edit</button>
+                          )}
+                          {hasPermission('canCreateAYLICombos') && (
+                            <button className="text-xs text-purple-600 dark:text-purple-400 hover:underline"
+                              onClick={() => { setCloneSource(combo); setComboModal({ open: true, editing: null }) }}>
+                              Clone
+                            </button>
                           )}
                           {hasPermission('canDeleteAYLICombos') && (
                             <button className="text-xs text-red-500 hover:underline" onClick={() => deleteCombo(combo)}>Delete</button>
@@ -693,9 +780,10 @@ export default function AYCCombosPage() {
         {comboModal.open && (
           <ComboModal
             initial={comboModal.editing}
+            cloneFrom={cloneSource}
             businessId={currentBusinessId || ''}
             poolItems={poolItems}
-            onClose={() => setComboModal({ open: false, editing: null })}
+            onClose={() => { setComboModal({ open: false, editing: null }); setCloneSource(null) }}
             onSave={handleComboSave}
             onCreatePoolItem={openCreatePoolItemInline}
           />
