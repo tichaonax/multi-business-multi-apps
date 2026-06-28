@@ -500,6 +500,32 @@ function CalibrationTab({
       })
       if (!applyRes.ok) { toast.error('Failed to apply pricing'); return }
 
+      // Update combo min meat weights to match the calibration simulation.
+      // Small = first meat item's captured weight; Medium/Large extrapolated by min-weight ratio.
+      const firstMeatSim = simLines.find(l => l.itemCategory === 'MEAT')
+      if (firstMeatSim && firstMeatSim.weightKg > 0) {
+        const newSmall = Math.round(firstMeatSim.weightKg * 1000) / 1000
+        const curSmall = Number(combo.sizes.find(s => s.sizeName === 'small')?.meatThresholdKg ?? 0)
+        const curMed   = Number(combo.sizes.find(s => s.sizeName === 'medium')?.meatThresholdKg ?? 0)
+        const curLarge = Number(combo.sizes.find(s => s.sizeName === 'large')?.meatThresholdKg ?? 0)
+        const ratioM = curSmall > 0 && curMed   > 0 ? curMed   / curSmall : multipliers.medium
+        const ratioL = curSmall > 0 && curLarge > 0 ? curLarge / curSmall : multipliers.large
+        const updatedSizes = combo.sizes.map(s => ({
+          sizeName:       s.sizeName,
+          basePrice:      s.basePrice,
+          meatThresholdKg:
+            s.sizeName === 'small'  ? newSmall :
+            s.sizeName === 'medium' ? Math.round(newSmall * ratioM * 1000) / 1000 :
+            s.sizeName === 'large'  ? Math.round(newSmall * ratioL * 1000) / 1000 :
+            s.meatThresholdKg,
+        }))
+        await fetch(`/api/restaurant/ayc-combos/${combo.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sizes: updatedSizes }),
+        })
+      }
+
       toast.push('Pricing applied!')
       setWizardStep('target')
       setCapturedLines(null)
@@ -701,7 +727,9 @@ function CalibrationTab({
           </div>
           <div className="flex gap-3 justify-center">
             <button className="btn-secondary" onClick={() => setWizardStep('target')}>← Change Price</button>
-            <button className="btn-primary" onClick={() => setShowModal(true)}>Start Calibration Build</button>
+            <button className="btn-primary" onClick={() => setShowModal(true)}>
+              {capturedLines ? 'Resume Calibration' : 'Start Calibration Build'}
+            </button>
           </div>
           {capturedLines && (
             <div className="text-left border border-gray-200 dark:border-gray-600 rounded-lg p-3">
@@ -753,23 +781,36 @@ function CalibrationTab({
           </div>
 
           {/* Pricing table — seeded from combo's base prices + min meat weights */}
-          <AYLIPricingTable
-            simLines={simLines}
-            targetPrice={parseFloat(targetPrice) || 0}
-            multipliers={multipliers}
-            defaultOptionIndex={advancedOptIdx}
-            seedBasePrices={{
-              small:  combo.sizes.find(s => s.sizeName === 'small')?.basePrice  ?? 0,
-              medium: combo.sizes.find(s => s.sizeName === 'medium')?.basePrice ?? 0,
-              large:  combo.sizes.find(s => s.sizeName === 'large')?.basePrice  ?? 0,
-            }}
-            seedMinWeights={{
+          {(() => {
+            const tp = parseFloat(targetPrice) || 0
+            const minW = {
               small:  Number(combo.sizes.find(s => s.sizeName === 'small')?.meatThresholdKg  ?? 0),
               medium: Number(combo.sizes.find(s => s.sizeName === 'medium')?.meatThresholdKg ?? 0),
               large:  Number(combo.sizes.find(s => s.sizeName === 'large')?.meatThresholdKg  ?? 0),
-            }}
-            onChange={setCustomPrices}
-          />
+            }
+            const allMinSet = minW.small > 0 && minW.medium > 0 && minW.large > 0
+            const minFillTargets = (tp > 0 && allMinSet) ? {
+              small:  tp,
+              medium: Math.round(tp * (minW.medium / minW.small) * 100) / 100,
+              large:  Math.round(tp * (minW.large  / minW.small) * 100) / 100,
+            } : undefined
+            return (
+              <AYLIPricingTable
+                simLines={simLines}
+                targetPrice={tp}
+                multipliers={multipliers}
+                defaultOptionIndex={advancedOptIdx}
+                seedBasePrices={{
+                  small:  combo.sizes.find(s => s.sizeName === 'small')?.basePrice  ?? 0,
+                  medium: combo.sizes.find(s => s.sizeName === 'medium')?.basePrice ?? 0,
+                  large:  combo.sizes.find(s => s.sizeName === 'large')?.basePrice  ?? 0,
+                }}
+                seedMinWeights={minW}
+                minFillTargets={minFillTargets}
+                onChange={setCustomPrices}
+              />
+            )
+          })()}
 
           {/* Meat threshold */}
           {hasMeat && (

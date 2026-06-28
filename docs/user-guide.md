@@ -11478,12 +11478,41 @@ Click **Next — Build on Scale →** when ready.
 
 #### Step 2 — Build on Scale
 
-1. Click **Start Calibration Build** to open the AYLI Combo modal in calibration mode.
-2. Place the empty container on the scale when prompted, then capture the tare.
-3. Fill the container with a typical **small** portion — add each ingredient one at a time, tapping **Add to Menu** after each weight is captured.
-4. When all ingredients are in, click **Done — Review Pricing →**. The captured ingredient weights become the **simulation lines**.
+If this is the first build, click **Start Calibration Build**. If you have already built a capture in this session, the button reads **Resume Calibration** and reopens the modal with all previously captured lines intact.
 
-> **Tip:** Build the small size. The system extrapolates medium and large using the multipliers set in Step 1.
+The modal is visually distinct — an **amber border and banner** ("⚙ CALIBRATION MODE") make it clear you are not in a normal sale.
+
+**Opening the modal:**
+1. Place the empty container on the scale. The scale auto-tares after 2 seconds of stability.
+2. The modal skips the size picker and goes directly to the fill panel set to the **Small** size — calibration always builds the small reference portion.
+
+**Capturing weights:**
+3. Tap an ingredient card to select it, then add it to the container. Once the scale stabilises, the **Capture** button turns green — tap it to record that ingredient's weight.
+4. Repeat for each ingredient you want to include in a typical small portion.
+5. To remove weight already captured, select the ingredient, physically remove some from the container, and wait for the scale to stabilise — the button switches to red "✕ Remove". Tap it to reduce that item's captured weight by the difference.
+
+**Live pricing feedback while you build:**
+
+As soon as the first item is captured the system computes projected per-kg rates in real time. You can see these immediately:
+
+- **Item cards** — each card's $/kg badge updates to show the computed rate for the active size tab. Cards with a pending removal show a red `−X.XXX kg` badge.
+- **⚙ Captured Weights section** — lists every captured item with weight × rate = line price for the active size tab. A **S / M / L** tab switcher lets you see how rates and costs differ across sizes. Items whose computed line price falls below $0.10 show a **MIN $0.10** badge — the minimum charge per item — and their cost is reserved before distributing the remaining budget to other items.
+- **Bottom totals** — always shows the target pricing for the active size tab: Base + Items = Combo Total. For S this is always exactly your target (e.g. $1.00 + $1.00 = **$2.00**). These are not the simulation-fill totals; they are the pricing targets the rates are set to hit.
+- **Pricing target per size panel** — confirms the revenue target for all three sizes at a glance.
+
+  | Size | Reference fill | Example target |
+  |------|---------------|----------------|
+  | Small | Simulation fill (e.g. 0.454 kg) | $1.00 base + $1.00 items = **$2.00** |
+  | Medium | Small × (minW_M / minW_S) | $1.50 base + $1.17 items = **$2.67** |
+  | Large | Small × (minW_L / minW_S) | $2.00 base + $1.33 items = **$3.33** |
+
+**Target price override:**
+A target field at the top of the scrollable area shows the original target from Step 1 (e.g. $2.00). Type an override value to experiment with a different price — all rates and projected totals recompute instantly.
+
+**When satisfied:**
+6. Click **Done — Review Pricing →**. The captured weights become the simulation lines and you advance to Step 3.
+
+> **Tip:** Build a realistic full small portion. The simulation weights are the direct reference — at exactly these captured weights the customer pays the target price ($2.00 for S). More realistic proportions produce more accurate per-kg rates.
 
 #### Step 3 — Review & Apply
 
@@ -11493,24 +11522,30 @@ After the build, the system runs the pricing algorithm and shows a single **edit
 |--------|-------------|
 | **Item** | Each ingredient captured in the build, with weight |
 | **Small ($/kg)** | Per-kg rate for this item in the small container |
-| **Medium ($/kg)** | Per-kg rate for the medium container — lower than Small when base prices and min meat weights are set |
+| **Medium ($/kg)** | Per-kg rate for the medium container — lower than Small |
 | **Large ($/kg)** | Per-kg rate for the large container — lowest of the three |
 | **Base price row** | Flat charge per size, seeded from the combo's defined base prices (editable) |
-| **Total row** | Live-calculated total = Σ(weight × $/kg) + base, per size |
+| **Total row** | Target price at reference fill per size (amber "at min fill" label) |
 
 **How rates are derived:**
 
-When the combo has **base prices** and **min meat weights** defined for all three sizes, the system uses them together to produce per-kg rates that decrease from Small → Medium → Large:
+The simulation capture IS the small reference fill. Per-kg rates are set so that at the captured weights, `Σ(weight × rate) = items budget` exactly:
 
-1. The revenue target for each size is scaled proportionally from the small target using the min meat weights as the reference fill: `rev[size] = targetPrice × (minWeight[size] / minWeight[small])`.
-2. The item budget per size = `rev[size] − base[size]`.
-3. Per-kg rates are derived so a customer filling exactly the minimum meat weight pays the item budget for that size.
+1. `itemsBudget[small] = targetPrice − base[small]` (e.g. $2.00 − $1.00 = **$1.00**)
+2. The $1.00 is distributed across items proportionally by (weight × pool buying price). Items whose share falls below $0.10 are floored to $0.10, and their reserved cost is excluded before the remainder is distributed to other items — ensuring the items total stays exactly $1.00.
+3. Each item's rate = its budget share ÷ its captured weight.
 
-**Result:** Larger sizes have a higher base price that absorbs a larger share of the cost, leaving a lower per-kg rate — customers see a real financial incentive to choose a bigger combo.
+For medium and large, the reference fill is scaled from the simulation using the min-meat-weight ratio:
+- `rev[size] = targetPrice × (minWeight[size] / minWeight[small])`
+- `itemsBudget[size] = rev[size] − base[size]`
+- Rates are proportionally lower than small, so larger sizes are priced more attractively per kg.
 
-> **Example:** target $2, bases $1/$1.50/$2, min weights 0.15/0.20/0.25 kg → rates ≈ $6.67 → $5.83 → $5.33/kg.
+> **Example:** target $2, bases $1/$1.50/$2, captured 0.454 kg, min weights 0.15/0.20/0.25 kg.
+> - Small rates: budget $1.00 ÷ 0.454 kg proportional → e.g. Mazondo ≈ $2.00/kg
+> - Medium rates: ≈ 87.7% of small rates (budget scales by 0.15/0.20)
+> - Large rates: ≈ 79.8% of small rates (budget scales by 0.15/0.25)
 
-When min meat weights are not yet set on the combo, the system falls back to the size multipliers to estimate reference fills — rates may increase across sizes in that scenario. Set min meat weights on the combo first for the best pricing output (see [Min Meat Weight with Scale](#combo-creation--editing)).
+When min meat weights are not yet set on the combo, the system falls back to the size multipliers (2×, 3×) for the ratio.
 
 **Editing the table:**
 - Click any cell to change it. When you manually edit the **Small** column, Medium and Large auto-update as `Small ÷ multiplier` unless those cells have already been independently changed.
@@ -11518,19 +11553,17 @@ When min meat weights are not yet set on the combo, the system falls back to the
 - The **Target price (small)** field above the table is also editable — changing it reseeds the entire table.
 
 **Advanced options:**
-- Expand **Advanced: Show all 5 options** to see five different base-price / per-kg splits generated by the built-in algorithm (ignores the combo's defined base prices — useful for starting from scratch or comparing approaches). Each option produces the same total at the simulation weight. Selecting one reseeds the table from that option.
+- Expand **Advanced: Show all 5 options** to see five different base-price / per-kg splits generated by the built-in algorithm (ignores the combo's defined base prices). Each option produces the same total at the simulation weight. Selecting one reseeds the table from that option.
 - Option 1 = zero base (pure per-kg), Option 5 = highest base (lowest per-kg).
-- Selecting any advanced option (1–5) switches back to the algorithm-derived values; to return to the combo-base-price path, click **Reset to Calculated** with no advanced option selected.
 
-**Minimum meat threshold:**
-If the simulation contains meat items, an editable **Min. meat (small)** field appears. Click **"Use X.XXX kg"** to fill in the build's own captured meat weight, then **Save**.
-
-> **Important:** The min meat weights set on each combo size (Small / Medium / Large) are the reference values the pricing algorithm uses when deriving per-kg rates. Accurate min weights produce rates that are profitable, close to your pool-item selling prices, and visibly cheaper for larger portions. Set them on the combo before running calibration — you can use the **Scale panel** in the combo editor to capture them directly from the scale.
+**Going back to adjust the capture:**
+If after reviewing the pricing table you decide the weights need changing, click **← Modify capture** (top of the review step). The calibration modal reopens with all previously captured lines already in place — the scale baseline is restored to the total captured weight so that physically removing food from the container immediately shows a negative delta on the item you select. Adjust the weights, then click **Done — Review Pricing →** again.
 
 Click **Apply Pricing & Save** to:
 1. Save the calibration record (simulation lines, target, all 5 generated options).
 2. Write the table's current prices directly to each combo item and the combo's base prices.
-3. Mark the calibration APPLIED and switch to the Adjust tab.
+3. **Automatically update the combo's min meat weights** — the first meat item's captured weight becomes the new Small min meat weight; Medium and Large are extrapolated using the existing ratio between sizes. This replaces whatever was set manually before and keeps the pricing reference in sync with the actual calibration build.
+4. Mark the calibration APPLIED and switch to the Adjust tab.
 
 ---
 

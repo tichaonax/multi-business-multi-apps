@@ -65,10 +65,18 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
 
   // Fill panel state
   const [selectedItemId, setSelectedItemId] = useState<string>('')  // poolItemId
-  const [previousWeight, setPreviousWeight] = useState(0)
+  const [previousWeight, setPreviousWeight] = useState(
+    hasRestoredLines ? (calibInitialLines?.reduce((s, l) => s + l.weightKg, 0) ?? 0) : 0
+  )
   const [lines, setLines] = useState<AYLIComboData['lines']>(calibInitialLines ?? [])
   const [error, setError] = useState<string | null>(null)
-  const [firstMeatPoolItemId, setFirstMeatPoolItemId] = useState<string | null>(null)
+  // When restoring, seed from calibInitialLines so the meat threshold check passes immediately
+  const [firstMeatPoolItemId, setFirstMeatPoolItemId] = useState<string | null>(() => {
+    if (!hasRestoredLines || !calibInitialLines) return null
+    return calibInitialLines.find(l =>
+      combo.items.find(ci => ci.poolItemId === l.poolItemId)?.pool_item.itemCategory === 'MEAT'
+    )?.poolItemId ?? null
+  })
 
   // Calibration-only: active size tab for rate preview, and optional target price override
   const [calibSizeTab, setCalibSizeTab] = useState<'small' | 'medium' | 'large'>('small')
@@ -398,24 +406,17 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calibrationMode, effectiveCalibTarget, lines, combo.items, combo.sizes])
 
-  // Calibration-aware display totals — use computed rates for the active size tab (with $0.10 floor)
+  // Bottom totals in calibration mode always show the minimum fill price (= target).
+  // The simulation weights only drive the proportional split of the items budget — the
+  // displayed total is always base + budget = target, not base + Σ(sim_weight × rate).
   const calibDisplayBase = calibrationMode && calibPreview
-    ? calibPreview.basePrices[calibSizeTab]
+    ? Math.round(calibPreview.minFill[calibSizeTab].base * 100) / 100
     : null
   const calibDisplayItemsTotal = calibrationMode && calibPreview
-    ? lines.reduce((s, l) => {
-        const cid = calibPreview.poolToComboId[l.poolItemId]
-        const rawRate = cid != null ? (
-          calibSizeTab === 'small'  ? (calibPreview.result.itemPricesSmall[cid]  ?? 0) :
-          calibSizeTab === 'medium' ? (calibPreview.result.itemPricesMedium[cid] ?? 0) :
-                                      (calibPreview.result.itemPricesLarge[cid]  ?? 0)
-        ) : 0
-        const rawLine = l.weightKg * rawRate
-        return s + (rawLine > 0 && rawLine < 0.10 ? 0.10 : rawLine)
-      }, 0)
+    ? Math.round(calibPreview.minFill[calibSizeTab].items * 100) / 100
     : null
-  const calibDisplayTotal = calibDisplayBase != null && calibDisplayItemsTotal != null
-    ? Math.round((calibDisplayBase + calibDisplayItemsTotal) * 100) / 100
+  const calibDisplayTotal = calibrationMode && calibPreview
+    ? Math.round(calibPreview.minFill[calibSizeTab].total * 100) / 100
     : null
 
   // Meat threshold
@@ -861,13 +862,12 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
               </div>
             )}
 
-            {/* Calibration: projected prices at MINIMUM FILL (not simulation weight).
-                Small total = target ($2), Medium/Large scale from min weight ratios.
-                Items + base = total by formula design. */}
+            {/* Calibration: target pricing per size at reference fill.
+                Small = simulation fill, Medium/Large scaled by min weight ratio. */}
             {calibrationMode && calibPreview && (
               <div className="border border-amber-300 dark:border-amber-700 rounded-lg overflow-hidden">
                 <div className="bg-amber-100 dark:bg-amber-900/40 px-3 py-1.5 text-xs font-semibold text-amber-800 dark:text-amber-300 uppercase tracking-wide">
-                  Price at minimum fill
+                  Pricing target per size
                 </div>
                 <div className="grid grid-cols-3 divide-x divide-amber-200 dark:divide-amber-700">
                   {(['small', 'medium', 'large'] as const).map(sz => {
@@ -883,7 +883,7 @@ export function AYLIComboModal({ combo, onConfirm, onCancel, onProgress, calibra
                   })}
                 </div>
                 <div className="border-t border-amber-200 dark:border-amber-700 px-3 py-1 text-[10px] text-amber-700 dark:text-amber-400 text-center">
-                  At min fill, Small = ${effectiveCalibTarget.toFixed(2)} · add more items to refine rates
+                  Small target = ${effectiveCalibTarget.toFixed(2)} · add more items to refine rates
                 </div>
               </div>
             )}

@@ -15,6 +15,7 @@ interface Props {
   defaultOptionIndex?: number   // 0-4; which generated option seeds the table; reset when this changes
   seedBasePrices?: { small: number; medium: number; large: number }  // pre-fills base row from combo definition when optIdx === 0
   seedMinWeights?: { small: number; medium: number; large: number }  // min meat weights — drives decreasing per-kg rates across sizes
+  minFillTargets?: { small: number; medium: number; large: number }  // when set, Total row shows minimum-fill price (target) not simulation total
   onChange?: (prices: TablePrices) => void
   className?: string
 }
@@ -105,7 +106,7 @@ function buildPrices(
   }
 }
 
-export function AYLIPricingTable({ simLines, targetPrice, multipliers, defaultOptionIndex = 0, seedBasePrices, seedMinWeights, onChange, className = '' }: Props) {
+export function AYLIPricingTable({ simLines, targetPrice, multipliers, defaultOptionIndex = 0, seedBasePrices, seedMinWeights, minFillTargets, onChange, className = '' }: Props) {
   const [itemCells,  setItemCells]  = useState<Record<string, CellRow>>({})
   const [baseCells,  setBaseCells]  = useState<CellRow>({ small: '0.00', medium: '0.00', large: '0.00' })
   const [overrides,  setOverrides]  = useState<Record<string, OverrideRow>>({})
@@ -260,21 +261,29 @@ export function AYLIPricingTable({ simLines, targetPrice, multipliers, defaultOp
           })}
         </div>
 
-        {/* Totals row */}
+        {/* Totals row — shows minimum-fill target price when provided, else simulation total */}
         <div className="grid grid-cols-[1fr_6.5rem_6.5rem_6.5rem] gap-2 items-center px-3 py-2.5
           border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-bold text-primary">Total</span>
-            {marginPct != null && marginPct > 0 && (
+            {minFillTargets && (
+              <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">at min fill</span>
+            )}
+            {!minFillTargets && marginPct != null && marginPct > 0 && (
               <span className="text-[10px] text-green-600 dark:text-green-400 font-semibold">{marginPct}% est. margin</span>
             )}
           </div>
-          {SIZES.map(sz => (
-            <div key={sz} className="text-right">
-              <p className="text-sm font-bold text-primary">${totals[sz].toFixed(2)}</p>
-              <p className="text-[10px] text-secondary">${rates[sz].toFixed(2)}/kg</p>
-            </div>
-          ))}
+          {SIZES.map(sz => {
+            const displayTotal = minFillTargets ? minFillTargets[sz] : totals[sz]
+            return (
+              <div key={sz} className="text-right">
+                <p className={`text-sm font-bold ${minFillTargets ? 'text-amber-600 dark:text-amber-400' : 'text-primary'}`}>
+                  ${displayTotal.toFixed(2)}
+                </p>
+                {!minFillTargets && <p className="text-[10px] text-secondary">${rates[sz].toFixed(2)}/kg</p>}
+              </div>
+            )
+          })}
         </div>
       </div>
 

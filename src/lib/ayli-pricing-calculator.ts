@@ -35,33 +35,63 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
+// Distribute itemsBudget across lines proportional to buying cost share.
+// minLinePrice: if an item's computed line price (weight × rate) falls below this, it is
+// floored to minLinePrice and its excess reserved; remaining budget redistributed iteratively.
 function itemPricesForBudget(
   lines: SimulationLine[],
   itemsBudget: number,
-  totalWeight: number
+  totalWeight: number,
+  minLinePrice: number = 0,
 ): Record<string, number> {
-  const pricedLines = lines.filter(l => l.buyingPricePerKg != null && l.buyingPricePerKg > 0)
-  const unpricedLines = lines.filter(l => l.buyingPricePerKg == null || l.buyingPricePerKg <= 0)
-  const unpricedWeight = unpricedLines.reduce((s, l) => s + l.weightKg, 0)
-  const pricedCost = pricedLines.reduce((s, l) => s + l.buyingPricePerKg! * l.weightKg, 0)
+  const empty: Record<string, number> = {}
+  for (const l of lines) empty[l.comboItemId] = 0
+  if (itemsBudget <= 0 || totalWeight <= 0 || lines.length === 0) return empty
 
-  const result: Record<string, number> = {}
+  const result: Record<string, number> = { ...empty }
+  let pending = [...lines]
+  let budget = itemsBudget
 
-  if (pricedLines.length > 0 && pricedCost > 0) {
-    const unpricedBudget = unpricedWeight > 0 ? (unpricedWeight / totalWeight) * itemsBudget : 0
-    const pricedBudget = itemsBudget - unpricedBudget
+  while (pending.length > 0 && budget > 0) {
+    const pricedP   = pending.filter(l => (l.buyingPricePerKg ?? 0) > 0)
+    const unpricedP = pending.filter(l => !((l.buyingPricePerKg ?? 0) > 0))
+    const unpricedW = unpricedP.reduce((s, l) => s + l.weightKg, 0)
+    const pricedCost = pricedP.reduce((s, l) => s + l.buyingPricePerKg! * l.weightKg, 0)
+    const pendingW  = pending.reduce((s, l) => s + l.weightKg, 0)
 
-    for (const l of pricedLines) {
-      const costShare = (l.buyingPricePerKg! * l.weightKg) / pricedCost
-      result[l.comboItemId] = round2((costShare * pricedBudget) / l.weightKg)
+    const shares: Record<string, number> = {}
+    if (pricedP.length > 0 && pricedCost > 0) {
+      const unpricedBudget = unpricedW > 0 ? (unpricedW / pendingW) * budget : 0
+      const pricedBudget   = budget - unpricedBudget
+      for (const l of pricedP)   shares[l.comboItemId] = ((l.buyingPricePerKg! * l.weightKg) / pricedCost) * pricedBudget
+      if (unpricedW > 0) {
+        const uRate = unpricedBudget / unpricedW
+        for (const l of unpricedP) shares[l.comboItemId] = l.weightKg * uRate
+      }
+    } else {
+      const rate = budget / pendingW
+      for (const l of pending) shares[l.comboItemId] = l.weightKg * rate
     }
-    if (unpricedWeight > 0) {
-      const rate = round2(unpricedBudget / unpricedWeight)
-      for (const l of unpricedLines) result[l.comboItemId] = rate
+
+    // Identify items whose computed line price falls below the floor
+    const belowFloor = minLinePrice > 0
+      ? pending.filter(l => l.weightKg > 0 && (shares[l.comboItemId] ?? 0) < minLinePrice)
+      : []
+
+    if (belowFloor.length === 0) {
+      for (const l of pending) {
+        result[l.comboItemId] = l.weightKg > 0 ? round2((shares[l.comboItemId] ?? 0) / l.weightKg) : 0
+      }
+      break
     }
-  } else {
-    const rate = round2(itemsBudget / totalWeight)
-    for (const l of lines) result[l.comboItemId] = rate
+
+    // Assign floor rate to violating items, deduct their fixed budget, remove from pending
+    for (const l of belowFloor) {
+      result[l.comboItemId] = round2(minLinePrice / l.weightKg)
+      budget -= minLinePrice
+    }
+    const flooredIds = new Set(belowFloor.map(l => l.comboItemId))
+    pending = pending.filter(l => !flooredIds.has(l.comboItemId))
   }
 
   return result
@@ -75,22 +105,16 @@ export interface SizeMultipliers {
 
 /**
  * Derives per-kg rates from the combo's defined base prices and (optionally) the min meat
- * weights for each size.
+ * weight ratios for each size.
  *
- * When minWeights are provided (all three > 0), they are used as the reference fill weight
- * per size. The revenue target for each size scales proportionally from targetPrice
- * (small reference), so:
- *   revSize = targetPrice × (minWeight[size] / minWeight[small])
- *   itemBudget[size] = revSize − base[size]
- *   rate[size] = itemBudget[size] / minWeight[size]   (per-kg)
+ * The simulation fill IS the small reference — rates are set so that at the captured weights,
+ * Σ(weight × rate) = itemsBudgetSmall exactly.  For medium/large the reference fill is scaled
+ * from the simulation using the ratio of min meat weights (or multipliers as fallback), producing
+ * per-kg rates that decrease from Small → Medium → Large.
  *
- * This naturally produces DECREASING per-kg rates as sizes grow (larger portions have a
- * higher base price that absorbs more of the cost, leaving less to per-kg), keeping rates
- * close to buying price and profitable.
- *
- * When minWeights are not available, falls back to the full-revenue-target formula using
- * the size multipliers as the reference weight (profitable, rates may increase with some
- * base price combinations).
+ * minLinePrice ($0.10): items whose computed line price would fall below this floor are assigned
+ * the floor price, and their reserved budget is excluded before redistributing to other items,
+ * keeping the items total exactly on budget.
  */
 export function computePricingFromBase(
   lines: SimulationLine[],
@@ -98,6 +122,7 @@ export function computePricingFromBase(
   basePrices: { small: number; medium: number; large: number },
   multipliers: SizeMultipliers = DEFAULT_SIZE_MULTIPLIERS,
   minWeights?: { small: number; medium: number; large: number },
+  minLinePrice: number = 0.10,
 ): {
   itemPricesSmall: Record<string, number>
   itemPricesMedium: Record<string, number>
@@ -108,15 +133,19 @@ export function computePricingFromBase(
   const totalSimWeight = lines.reduce((s, l) => s + l.weightKg, 0)
   if (totalSimWeight <= 0 || targetPrice <= 0) return empty
 
-  // Reference fill weight per size: use min meat weights when all three are positive,
-  // otherwise fall back to size multipliers applied to the simulation weight.
+  // Small reference = simulation fill.
+  // Medium/large reference = simulation × (minWeight ratio) or × multiplier if not set.
   const allMinSet = (minWeights?.small ?? 0) > 0 && (minWeights?.medium ?? 0) > 0 && (minWeights?.large ?? 0) > 0
-  const refSmall  = allMinSet ? minWeights!.small  : totalSimWeight * multipliers.small
-  const refMedium = allMinSet ? minWeights!.medium : totalSimWeight * multipliers.medium
-  const refLarge  = allMinSet ? minWeights!.large  : totalSimWeight * multipliers.large
+  const refSmall  = totalSimWeight
+  const refMedium = allMinSet
+    ? totalSimWeight * (minWeights!.medium / minWeights!.small)
+    : totalSimWeight * multipliers.medium
+  const refLarge  = allMinSet
+    ? totalSimWeight * (minWeights!.large  / minWeights!.small)
+    : totalSimWeight * multipliers.large
 
   // Revenue target for each size scales with its reference fill weight
-  const revSmall  = targetPrice                         // baseline
+  const revSmall  = targetPrice
   const revMedium = targetPrice * (refMedium / refSmall)
   const revLarge  = targetPrice * (refLarge  / refSmall)
 
@@ -125,12 +154,12 @@ export function computePricingFromBase(
   const budgetMedium = Math.max(0, revMedium - basePrices.medium)
   const budgetLarge  = Math.max(0, revLarge  - basePrices.large)
 
-  // itemPricesForBudget distributes a budget over the simulation weight.
-  // Scale each budget so the resulting per-kg rates correctly price the reference fill weight.
-  //   Σ(simWeight_i × rate_i) = budget × (totalSimWeight / refWeight)
-  const smallRates  = itemPricesForBudget(lines, budgetSmall  * (totalSimWeight / refSmall),  totalSimWeight)
-  const mediumRates = itemPricesForBudget(lines, budgetMedium * (totalSimWeight / refMedium), totalSimWeight)
-  const largeRates  = itemPricesForBudget(lines, budgetLarge  * (totalSimWeight / refLarge),  totalSimWeight)
+  // Distribute each size's scaled budget over the simulation weights.
+  // For small: scaledBudget = budgetSmall × (sim/refSmall) = budgetSmall × 1 = budgetSmall.
+  // For medium/large: scaledBudget < budgetSize → produces lower per-kg rates.
+  const smallRates  = itemPricesForBudget(lines, budgetSmall  * (totalSimWeight / refSmall),  totalSimWeight, minLinePrice)
+  const mediumRates = itemPricesForBudget(lines, budgetMedium * (totalSimWeight / refMedium), totalSimWeight, minLinePrice)
+  const largeRates  = itemPricesForBudget(lines, budgetLarge  * (totalSimWeight / refLarge),  totalSimWeight, minLinePrice)
 
   const itemPricesSmall:  Record<string, number> = {}
   const itemPricesMedium: Record<string, number> = {}
