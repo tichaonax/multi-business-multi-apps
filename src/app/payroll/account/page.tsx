@@ -392,6 +392,7 @@ function PayrollAccountContent() {
                           { label: 'Travel Allowance', val: breakdownData.earnings.travelAllowance },
                           { label: 'Overtime Pay', val: breakdownData.earnings.overtimePay },
                           { label: 'Benefits', val: breakdownData.earnings.benefitsTotal },
+                          { label: 'Per Diem', val: breakdownData.earnings.perDiem },
                         ].filter((r) => r.val > 0).map((row) => (
                           <div key={row.label} className="flex justify-between text-sm">
                             <span className="text-gray-600 dark:text-gray-400">{row.label}</span>
