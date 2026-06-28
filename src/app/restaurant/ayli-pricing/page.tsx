@@ -738,12 +738,22 @@ function CalibrationTab({
             <span className="text-xs text-secondary">· {totalWeightKg.toFixed(3)} kg simulation</span>
           </div>
 
-          {/* Pricing table */}
+          {/* Pricing table — seeded from combo's base prices + min meat weights */}
           <AYLIPricingTable
             simLines={simLines}
             targetPrice={parseFloat(targetPrice) || 0}
             multipliers={multipliers}
             defaultOptionIndex={advancedOptIdx}
+            seedBasePrices={{
+              small:  combo.sizes.find(s => s.sizeName === 'small')?.basePrice  ?? 0,
+              medium: combo.sizes.find(s => s.sizeName === 'medium')?.basePrice ?? 0,
+              large:  combo.sizes.find(s => s.sizeName === 'large')?.basePrice  ?? 0,
+            }}
+            seedMinWeights={{
+              small:  Number(combo.sizes.find(s => s.sizeName === 'small')?.meatThresholdKg  ?? 0),
+              medium: Number(combo.sizes.find(s => s.sizeName === 'medium')?.meatThresholdKg ?? 0),
+              large:  Number(combo.sizes.find(s => s.sizeName === 'large')?.meatThresholdKg  ?? 0),
+            }}
             onChange={setCustomPrices}
           />
 

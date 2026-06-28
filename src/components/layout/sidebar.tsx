@@ -178,6 +178,13 @@ export function Sidebar() {
       .catch(() => setScaleEnabled(false))
   }, [currentBusinessId])
 
+  // React immediately when POS Settings toggles scale integration
+  useEffect(() => {
+    const handler = (e: Event) => setScaleEnabled((e as CustomEvent<{ scaleEnabled: boolean }>).detail.scaleEnabled)
+    window.addEventListener('settings:scale-config-changed', handler)
+    return () => window.removeEventListener('settings:scale-config-changed', handler)
+  }, [])
+
   // Fetch pending supplier payment request count for badge
   useEffect(() => {
     if (!currentBusinessId || !hasPermission('canViewSupplierPaymentQueue')) {

@@ -47,7 +47,10 @@ export function POSSettingsHub({ businessId, businessType, posLink }: POSSetting
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ businessId, scaleEnabled: enabled }),
     })
-    if (res.ok) setScaleEnabled(enabled)
+    if (res.ok) {
+      setScaleEnabled(enabled)
+      window.dispatchEvent(new CustomEvent('settings:scale-config-changed', { detail: { scaleEnabled: enabled } }))
+    }
   }, [businessId])
 
   const hasAnything = canSeePrinterPrefs || canSeeThresholds || canSeeScale

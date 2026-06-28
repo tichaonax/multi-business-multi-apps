@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { computePricingOptions, SimulationLine, SizeMultipliers } from '@/lib/ayli-pricing-calculator'
+import { computePricingOptions, computePricingFromBase, SimulationLine, SizeMultipliers } from '@/lib/ayli-pricing-calculator'
 
 export interface TablePrices {
   itemPrices: Record<string, { small: number; medium: number; large: number }>
@@ -13,6 +13,8 @@ interface Props {
   targetPrice: number
   multipliers: SizeMultipliers
   defaultOptionIndex?: number   // 0-4; which generated option seeds the table; reset when this changes
+  seedBasePrices?: { small: number; medium: number; large: number }  // pre-fills base row from combo definition when optIdx === 0
+  seedMinWeights?: { small: number; medium: number; large: number }  // min meat weights — drives decreasing per-kg rates across sizes
   onChange?: (prices: TablePrices) => void
   className?: string
 }
@@ -25,8 +27,36 @@ function r2(n: number) { return Math.round(n * 100) / 100 }
 type CellRow = Record<Size, string>
 type OverrideRow = Record<Size, boolean>
 
-function deriveDefaults(simLines: SimulationLine[], targetPrice: number, multipliers: SizeMultipliers, optIdx = 0) {
+function deriveDefaults(
+  simLines: SimulationLine[], targetPrice: number, multipliers: SizeMultipliers, optIdx = 0,
+  seedBase?: { small: number; medium: number; large: number },
+  seedMinWeights?: { small: number; medium: number; large: number },
+) {
   if (simLines.length === 0 || targetPrice <= 0) return null
+
+  // When combo base prices are provided and no advanced option is selected,
+  // use them directly and scale per-kg rates so larger sizes are progressively cheaper.
+  if (seedBase && optIdx === 0) {
+    const result = computePricingFromBase(simLines, targetPrice, seedBase, multipliers, seedMinWeights)
+    const itemCells: Record<string, CellRow> = {}
+    for (const l of simLines) {
+      itemCells[l.comboItemId] = {
+        small:  r2(result.itemPricesSmall[l.comboItemId]  ?? 0).toFixed(2),
+        medium: r2(result.itemPricesMedium[l.comboItemId] ?? 0).toFixed(2),
+        large:  r2(result.itemPricesLarge[l.comboItemId]  ?? 0).toFixed(2),
+      }
+    }
+    return {
+      itemCells,
+      baseCells: {
+        small:  r2(seedBase.small).toFixed(2),
+        medium: r2(seedBase.medium).toFixed(2),
+        large:  r2(seedBase.large).toFixed(2),
+      } as CellRow,
+      estimatedMarginPct: result.estimatedMarginPct,
+    }
+  }
+
   const opts = computePricingOptions(simLines, targetPrice, multipliers)
   if (opts.length === 0) return null
   const opt = opts[Math.min(optIdx, opts.length - 1)]
@@ -75,7 +105,7 @@ function buildPrices(
   }
 }
 
-export function AYLIPricingTable({ simLines, targetPrice, multipliers, defaultOptionIndex = 0, onChange, className = '' }: Props) {
+export function AYLIPricingTable({ simLines, targetPrice, multipliers, defaultOptionIndex = 0, seedBasePrices, seedMinWeights, onChange, className = '' }: Props) {
   const [itemCells,  setItemCells]  = useState<Record<string, CellRow>>({})
   const [baseCells,  setBaseCells]  = useState<CellRow>({ small: '0.00', medium: '0.00', large: '0.00' })
   const [overrides,  setOverrides]  = useState<Record<string, OverrideRow>>({})
@@ -87,7 +117,7 @@ export function AYLIPricingTable({ simLines, targetPrice, multipliers, defaultOp
   useEffect(() => { onChangeRef.current = onChange }, [onChange])
 
   const resetToCalculated = useCallback(() => {
-    const d = deriveDefaults(simLines, targetPrice, multipliers, defaultOptionIndex)
+    const d = deriveDefaults(simLines, targetPrice, multipliers, defaultOptionIndex, seedBasePrices, seedMinWeights)
     if (!d) return
     setItemCells(d.itemCells)
     setBaseCells(d.baseCells)
@@ -95,7 +125,7 @@ export function AYLIPricingTable({ simLines, targetPrice, multipliers, defaultOp
     setHasEdits(false)
     setMarginPct(d.estimatedMarginPct)
     onChangeRef.current?.(buildPrices(simLines, d.itemCells, d.baseCells))
-  }, [simLines, targetPrice, multipliers, defaultOptionIndex])
+  }, [simLines, targetPrice, multipliers, defaultOptionIndex, seedBasePrices, seedMinWeights])
 
   useEffect(() => { resetToCalculated() }, [resetToCalculated])
 

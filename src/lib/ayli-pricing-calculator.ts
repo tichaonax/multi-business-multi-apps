@@ -73,6 +73,84 @@ export interface SizeMultipliers {
   large: number   // e.g. 3 → large holds 3× what small holds
 }
 
+/**
+ * Derives per-kg rates from the combo's defined base prices and (optionally) the min meat
+ * weights for each size.
+ *
+ * When minWeights are provided (all three > 0), they are used as the reference fill weight
+ * per size. The revenue target for each size scales proportionally from targetPrice
+ * (small reference), so:
+ *   revSize = targetPrice × (minWeight[size] / minWeight[small])
+ *   itemBudget[size] = revSize − base[size]
+ *   rate[size] = itemBudget[size] / minWeight[size]   (per-kg)
+ *
+ * This naturally produces DECREASING per-kg rates as sizes grow (larger portions have a
+ * higher base price that absorbs more of the cost, leaving less to per-kg), keeping rates
+ * close to buying price and profitable.
+ *
+ * When minWeights are not available, falls back to the full-revenue-target formula using
+ * the size multipliers as the reference weight (profitable, rates may increase with some
+ * base price combinations).
+ */
+export function computePricingFromBase(
+  lines: SimulationLine[],
+  targetPrice: number,
+  basePrices: { small: number; medium: number; large: number },
+  multipliers: SizeMultipliers = DEFAULT_SIZE_MULTIPLIERS,
+  minWeights?: { small: number; medium: number; large: number },
+): {
+  itemPricesSmall: Record<string, number>
+  itemPricesMedium: Record<string, number>
+  itemPricesLarge: Record<string, number>
+  estimatedMarginPct: number | null
+} {
+  const empty = { itemPricesSmall: {}, itemPricesMedium: {}, itemPricesLarge: {}, estimatedMarginPct: null }
+  const totalSimWeight = lines.reduce((s, l) => s + l.weightKg, 0)
+  if (totalSimWeight <= 0 || targetPrice <= 0) return empty
+
+  // Reference fill weight per size: use min meat weights when all three are positive,
+  // otherwise fall back to size multipliers applied to the simulation weight.
+  const allMinSet = (minWeights?.small ?? 0) > 0 && (minWeights?.medium ?? 0) > 0 && (minWeights?.large ?? 0) > 0
+  const refSmall  = allMinSet ? minWeights!.small  : totalSimWeight * multipliers.small
+  const refMedium = allMinSet ? minWeights!.medium : totalSimWeight * multipliers.medium
+  const refLarge  = allMinSet ? minWeights!.large  : totalSimWeight * multipliers.large
+
+  // Revenue target for each size scales with its reference fill weight
+  const revSmall  = targetPrice                         // baseline
+  const revMedium = targetPrice * (refMedium / refSmall)
+  const revLarge  = targetPrice * (refLarge  / refSmall)
+
+  // Item budgets after base price (floored at 0)
+  const budgetSmall  = Math.max(0, revSmall  - basePrices.small)
+  const budgetMedium = Math.max(0, revMedium - basePrices.medium)
+  const budgetLarge  = Math.max(0, revLarge  - basePrices.large)
+
+  // itemPricesForBudget distributes a budget over the simulation weight.
+  // Scale each budget so the resulting per-kg rates correctly price the reference fill weight.
+  //   Σ(simWeight_i × rate_i) = budget × (totalSimWeight / refWeight)
+  const smallRates  = itemPricesForBudget(lines, budgetSmall  * (totalSimWeight / refSmall),  totalSimWeight)
+  const mediumRates = itemPricesForBudget(lines, budgetMedium * (totalSimWeight / refMedium), totalSimWeight)
+  const largeRates  = itemPricesForBudget(lines, budgetLarge  * (totalSimWeight / refLarge),  totalSimWeight)
+
+  const itemPricesSmall:  Record<string, number> = {}
+  const itemPricesMedium: Record<string, number> = {}
+  const itemPricesLarge:  Record<string, number> = {}
+
+  for (const l of lines) {
+    itemPricesSmall[l.comboItemId]  = smallRates[l.comboItemId]  ?? 0
+    itemPricesMedium[l.comboItemId] = mediumRates[l.comboItemId] ?? 0
+    itemPricesLarge[l.comboItemId]  = largeRates[l.comboItemId]  ?? 0
+  }
+
+  const totalCost = lines.reduce((s, l) =>
+    s + (l.buyingPricePerKg != null ? l.buyingPricePerKg * l.weightKg : 0), 0)
+  const estimatedMarginPct = totalCost > 0
+    ? Math.round(((targetPrice - totalCost) / targetPrice) * 100)
+    : null
+
+  return { itemPricesSmall, itemPricesMedium, itemPricesLarge, estimatedMarginPct }
+}
+
 export function computePricingOptions(
   lines: SimulationLine[],
   targetPrice: number,   // small portion target selling price

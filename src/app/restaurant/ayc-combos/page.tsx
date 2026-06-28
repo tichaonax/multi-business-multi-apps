@@ -2,7 +2,8 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useScale } from '@/contexts/ScaleContext'
 import { EmojiPickerEnhanced } from '@/components/business/emoji-picker-enhanced'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useToastContext } from '@/components/ui/toast'
@@ -276,6 +277,97 @@ function PoolItemModal({
   )
 }
 
+// ─── Scale Meat Threshold Panel ───────────────────────────────────────────────
+
+const SCALE_STABLE_MS = 1500
+
+function ScaleMeatPanel({ onCapture, capturedSizes }: {
+  onCapture: (sizeName: string, kg: number) => void
+  capturedSizes: Record<string, string>
+}) {
+  const { weight, status, tare, isElectron } = useScale()
+  const [panelStep, setPanelStep] = useState<'tare' | 'reading'>('tare')
+  const [activeSize, setActiveSize] = useState('small')
+  const tareTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const liveWeight = weight?.weight ?? 0
+  const isStable = !!weight?.stable && !weight?.overload && liveWeight >= 0
+  const connected = status.status === 'connected'
+
+  const doTare = useCallback(() => {
+    tare()
+    setPanelStep('reading')
+  }, [tare])
+
+  // Auto-tare when container sits stable on scale
+  useEffect(() => {
+    if (panelStep !== 'tare' || !isStable || liveWeight <= 0) {
+      if (tareTimerRef.current) { clearTimeout(tareTimerRef.current); tareTimerRef.current = null }
+      return
+    }
+    tareTimerRef.current = setTimeout(doTare, SCALE_STABLE_MS)
+    return () => { if (tareTimerRef.current) { clearTimeout(tareTimerRef.current); tareTimerRef.current = null } }
+  }, [panelStep, isStable, liveWeight, doTare])
+
+  if (!isElectron || !connected) return null
+
+  return (
+    <div className="mt-3 border border-blue-200 dark:border-blue-700 rounded-lg p-3 bg-blue-50 dark:bg-blue-950/30">
+      {panelStep === 'tare' ? (
+        <div className="text-center space-y-2">
+          <p className="text-sm font-medium text-blue-800 dark:text-blue-200">⚖️ Place empty container on scale</p>
+          <p className="text-2xl font-mono text-blue-900 dark:text-blue-100">{liveWeight.toFixed(3)} kg</p>
+          {isStable && liveWeight > 0
+            ? <p className="text-xs text-green-600 dark:text-green-400">Stable — taring in a moment…</p>
+            : <p className="text-xs text-secondary">Will auto-tare when stable</p>
+          }
+          <button type="button" onClick={doTare}
+            className="text-xs text-blue-600 dark:text-blue-400 underline">
+            Tare manually
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {/* Size selector tabs */}
+          <div className="flex gap-1">
+            {SIZE_LABELS.map(s => (
+              <button key={s} type="button" onClick={() => setActiveSize(s)}
+                className={`flex-1 py-1.5 rounded text-xs font-medium capitalize transition-colors ${
+                  activeSize === s
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 dark:bg-gray-700 text-secondary hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}>
+                {s} {capturedSizes[s] ? '✓' : ''}
+              </button>
+            ))}
+          </div>
+          {/* Live weight */}
+          <div className="text-center">
+            <p className="text-3xl font-mono text-blue-900 dark:text-blue-100">{liveWeight.toFixed(3)} kg</p>
+            <p className="text-xs text-secondary mt-1">{isStable ? 'Stable' : 'Hold steady…'}</p>
+          </div>
+          {/* Capture button */}
+          <button type="button"
+            disabled={!isStable || liveWeight <= 0}
+            onClick={() => onCapture(activeSize, liveWeight)}
+            className="w-full py-2 rounded-md bg-green-600 text-white text-sm font-medium transition-opacity disabled:opacity-40 disabled:cursor-not-allowed hover:bg-green-700">
+            {isStable && liveWeight > 0
+              ? `Capture ${liveWeight.toFixed(3)} kg for ${activeSize}`
+              : 'Add meat to scale…'}
+          </button>
+          {/* Retare */}
+          <div className="text-center">
+            <button type="button" onClick={() => setPanelStep('tare')}
+              className="text-xs text-secondary underline">
+              ← Retare
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Combo Form Modal ──────────────────────────────────────────────────────────
 
 function ComboModal({
@@ -304,7 +396,9 @@ function ComboModal({
     () => src?.items.map(it => it.poolItemId) ?? []
   )
   const [saving, setSaving] = useState(false)
+  const [showScalePanel, setShowScalePanel] = useState(false)
   const toast = useToastContext()
+  const { isElectron, isConnected } = useScale()
 
   const toggleItem = (id: string) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
@@ -393,6 +487,29 @@ function ComboModal({
                   </div>
                 ))}
               </div>
+              {/* Optional scale-assisted meat threshold entry */}
+              {isElectron && isConnected && (
+                <div className="mt-2">
+                  <button type="button" onClick={() => setShowScalePanel(p => !p)}
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                    {showScalePanel ? '▲ Hide scale panel' : '⚖ Set min meat weights with scale'}
+                  </button>
+                  {showScalePanel && (
+                    <ScaleMeatPanel
+                      capturedSizes={Object.fromEntries(
+                        sizes.filter(s => s.meatThresholdKg).map(s => [s.sizeName, s.meatThresholdKg])
+                      )}
+                      onCapture={(sizeName, kg) =>
+                        setSizes(prev => prev.map(s =>
+                          s.sizeName === sizeName
+                            ? { ...s, meatThresholdKg: String(Math.round(kg * 1000) / 1000) }
+                            : s
+                        ))
+                      }
+                    />
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Pool items selector */}
