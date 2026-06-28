@@ -3380,12 +3380,18 @@ export default function RestaurantPOS() {
                               <span className="text-xs font-semibold text-gray-800 dark:text-gray-100 leading-tight line-clamp-2">{combo.name}</span>
                               <span className="text-base flex-shrink-0">⚖️</span>
                             </div>
-                            <div className="flex flex-wrap gap-1">
-                              {sizes.map((s: any) => (
-                                <span key={s.sizeName} className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
-                                  {s.sizeName[0].toUpperCase()} ${Number(s.basePrice).toFixed(2)}
-                                </span>
-                              ))}
+                            <div className="flex flex-wrap gap-1.5">
+                              {sizes.map((s: any) => {
+                                const sizeColor =
+                                  s.sizeName === 'small'  ? 'text-emerald-600 dark:text-emerald-400' :
+                                  s.sizeName === 'medium' ? 'text-sky-600 dark:text-sky-400' :
+                                                            'text-amber-600 dark:text-amber-400'
+                                return (
+                                  <span key={s.sizeName} className={`text-[10px] font-semibold ${sizeColor}`}>
+                                    {s.sizeName[0].toUpperCase()} ${Number(s.basePrice).toFixed(2)}
+                                  </span>
+                                )
+                              })}
                             </div>
                             <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
                               up to {combo.maxWeightKg} kg · {combo.maxItems} items

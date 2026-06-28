@@ -11478,7 +11478,13 @@ Click **Next — Build on Scale →** when ready.
 
 #### Step 2 — Build on Scale
 
-If this is the first build, click **Start Calibration Build**. If you have already built a capture in this session, the button reads **Resume Calibration** and reopens the modal with all previously captured lines intact.
+Step 2 offers **two calibration methods**. Both produce the same result — per-kg rates derived from captured weights — but differ in how you capture them. Choose whichever is more convenient for your kitchen workflow.
+
+---
+
+##### Method A — Add items one by one (forward)
+
+Click **Start Calibration Build**. If you have already built a capture in this session using this method, the button reads **Resume Calibration** and reopens the modal with all previously captured lines intact.
 
 The modal is visually distinct — an **amber border and banner** ("⚙ CALIBRATION MODE") make it clear you are not in a normal sale.
 
@@ -11513,6 +11519,62 @@ A target field at the top of the scrollable area shows the original target from 
 6. Click **Done — Review Pricing →**. The captured weights become the simulation lines and you advance to Step 3.
 
 > **Tip:** Build a realistic full small portion. The simulation weights are the direct reference — at exactly these captured weights the customer pays the target price ($2.00 for S). More realistic proportions produce more accurate per-kg rates.
+
+---
+
+##### Method B — Remove from full container (reverse)
+
+Click **Start Reverse Calibration**. This method is ideal when it is easier to fill the container first and remove items one at a time.
+
+**How it works — no tare needed:**
+
+The container sits on the scale throughout. The system measures only the *difference* between consecutive readings, so the container's own weight cancels out automatically and is never recorded.
+
+| System instruction | Your action | Scale | Weight captured |
+|---|---|---|---|
+| Confirm items, place full container | Fill with selected items, place on scale | 0.802 kg | — |
+| **"Remove 🥩 Mazondo"** | Take all Mazondo out | 0.518 kg | 0.284 kg |
+| **"Remove 🫘 Bean soups"** | Take all soups out | 0.386 kg | 0.132 kg |
+| **"Remove 🥦 Vegetables"** | Take all vegetables out | 0.367 kg | 0.019 kg |
+| **"Remove 🥔 Potatoes"** | Take all potatoes out | 0.348 kg | 0.019 kg |
+| *(auto-advance to Review)* | — | 0.348 kg (ignored) | Σ = 0.454 kg |
+
+**Step by step:**
+
+**1 — Confirm items for this portion**
+
+The modal opens showing all items assigned to the combo, all ticked by default. This is the item confirmation screen.
+
+- If the combo has a single fixed set of items (e.g. Mazondo + Bean soups + Potatoes + Vegetables), simply tap **Next → place X items on scale** without changing anything.
+- If the combo offers multiple choices in the same category (e.g. three meat options but you are only calibrating for Mazondo), **untick** the items that will not be in this specific build. Only the ticked items will be included in the removal sequence.
+
+> **Note:** If you see items here that should not belong to this combo at all, remove them from the combo definition first — go to **Restaurant → AYLI Combos → Edit [combo name]** and remove the unwanted pool items. The calibration modal reflects whatever is saved in the combo definition.
+
+**2 — Place the full container on the scale**
+
+Fill the container with exactly the items you ticked, then place it on the scale. Wait for the reading to stabilise (2 seconds) — the **Start removing items →** button enables automatically.
+
+**3 — Follow the removal instructions**
+
+The system shows one item at a time: **"Remove [emoji] [Item name] from the container"**
+
+- **Meat items always appear first** — removing meat first sets the minimum meat weight for pricing.
+- Physically remove all of that item from the container.
+- When the scale stabilises, the green **✓ Captured X.XXX kg of [Item]** button appears.
+- Tap once to confirm. The next instruction appears automatically.
+- A running log at the bottom shows all items captured so far.
+
+**4 — Auto-advance**
+
+When the last item is confirmed the modal closes automatically and advances to Step 3 — no extra button tap needed. The remaining scale reading (empty container) is never recorded; only the deltas matter.
+
+**Rules:**
+- **You do not choose what to remove** — the system tells you. Just follow the instructions.
+- **No manual weight entry** — the scale reading is the only source of truth.
+- **Meat must come out first** — this weight becomes the new Small min meat threshold on Apply.
+- If you remove the wrong item by mistake, tap **Start over** to return to the item confirmation screen and restart.
+
+> **Tip:** Remove each item cleanly and completely. Residue left in the container reduces the delta and under-records the item's weight, skewing the per-kg rates.
 
 #### Step 3 — Review & Apply
 

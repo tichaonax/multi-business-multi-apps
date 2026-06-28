@@ -8,6 +8,7 @@ import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useToastContext } from '@/components/ui/toast'
 import { AYLIComboModal, AYLIComboData } from '@/components/pos/AYLIComboModal'
+import { AYLIReverseCalibModal } from '@/components/pos/AYLIReverseCalibModal'
 import { AYLIPricingTable, type TablePrices } from '@/components/pos/AYLIPricingTable'
 import { computePricingOptions, type AyliPricingOption, type SimulationLine, type SizeMultipliers } from '@/lib/ayli-pricing-calculator'
 
@@ -367,6 +368,8 @@ function CalibrationTab({
   // ─── Wizard step ────────────────────────────────────────────────────────────
   const [wizardStep, setWizardStep] = useState<'target' | 'build' | 'review'>('target')
   const [showModal, setShowModal] = useState(false)
+  const [showReverseModal, setShowReverseModal] = useState(false)
+  const [captureMethod, setCaptureMethod] = useState<'forward' | 'reverse' | null>(null)
   const [capturedLines, setCapturedLines] = useState<AYLIComboData | null>(null)
 
   // ─── Pricing inputs (set in 'target' step, editable in 'review') ──────────
@@ -714,27 +717,50 @@ function CalibrationTab({
 
       {/* ── Step 2: Build on Scale ────────────────────────────────────────────── */}
       {wizardStep === 'build' && (
-        <div className="card p-5 text-center space-y-4">
-          <div className="text-4xl">⚖️</div>
-          <div>
-            <h3 className="font-semibold text-primary mb-1">Build a Small Portion on the Scale</h3>
-            <p className="text-sm text-secondary">
-              Fill the container as a customer would. Medium and large pricing will be extrapolated using your multipliers ({sizeMultipliers.medium}× and {sizeMultipliers.large}×).
-            </p>
-            <p className="text-xs mt-2 text-blue-600 dark:text-blue-400 font-medium">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <button className="btn-secondary text-xs" onClick={() => setWizardStep('target')}>← Change Price</button>
+            <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
               Target: ${parseFloat(targetPrice || '0').toFixed(2)} for small
-            </p>
+            </span>
           </div>
-          <div className="flex gap-3 justify-center">
-            <button className="btn-secondary" onClick={() => setWizardStep('target')}>← Change Price</button>
-            <button className="btn-primary" onClick={() => setShowModal(true)}>
-              {capturedLines ? 'Resume Calibration' : 'Start Calibration Build'}
-            </button>
+
+          {/* Two calibration method cards */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Forward method */}
+            <div className="card p-4 flex flex-col items-center text-center gap-3">
+              <div className="text-3xl">➕</div>
+              <div>
+                <p className="text-sm font-semibold text-primary">Add items one by one</p>
+                <p className="text-xs text-secondary mt-1">Start with an empty container, add ingredients as the system guides you.</p>
+              </div>
+              <button
+                className="btn-primary text-xs py-2 px-3 w-full mt-auto"
+                onClick={() => { setCaptureMethod('forward'); setShowModal(true) }}>
+                {capturedLines && captureMethod === 'forward' ? 'Resume Calibration' : 'Start Calibration Build'}
+              </button>
+            </div>
+
+            {/* Reverse method */}
+            <div className="card p-4 flex flex-col items-center text-center gap-3">
+              <div className="text-3xl">➖</div>
+              <div>
+                <p className="text-sm font-semibold text-primary">Remove from full container</p>
+                <p className="text-xs text-secondary mt-1">Start with a full container, remove items one by one as directed.</p>
+              </div>
+              <button
+                className="btn-primary text-xs py-2 px-3 w-full mt-auto"
+                onClick={() => { setCaptureMethod('reverse'); setShowReverseModal(true) }}>
+                {capturedLines && captureMethod === 'reverse' ? 'Resume Reverse Calib.' : 'Start Reverse Calibration'}
+              </button>
+            </div>
           </div>
+
+          {/* Last build summary */}
           {capturedLines && (
-            <div className="text-left border border-gray-200 dark:border-gray-600 rounded-lg p-3">
+            <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3">
               <p className="text-xs font-semibold text-secondary mb-2">
-                Last build ({capturedLines.lines.length} items, {capturedLines.lines.reduce((s, l) => s + l.weightKg, 0).toFixed(3)} kg):
+                Last build — {captureMethod === 'reverse' ? 'reverse' : 'forward'} ({capturedLines.lines.length} items, {capturedLines.lines.reduce((s, l) => s + l.weightKg, 0).toFixed(3)} kg):
               </p>
               {capturedLines.lines.map(l => (
                 <div key={l.poolItemId} className="flex justify-between text-xs text-primary py-0.5">
@@ -758,7 +784,15 @@ function CalibrationTab({
           <div className="flex items-center gap-3">
             <button
               className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-              onClick={() => { setWizardStep('build'); setShowModal(true) }}>
+              onClick={() => {
+                setWizardStep('build')
+                if (captureMethod === 'reverse') {
+                  setCapturedLines(null)
+                  setShowReverseModal(true)
+                } else {
+                  setShowModal(true)
+                }
+              }}>
               ← Modify capture
             </button>
             {capturedLines && (
@@ -938,7 +972,7 @@ function CalibrationTab({
         </div>
       )}
 
-      {/* AYLI combo modal — calibration build */}
+      {/* AYLI combo modal — forward calibration build */}
       {showModal && (
         <AYLIComboModal
           combo={combo}
@@ -948,6 +982,19 @@ function CalibrationTab({
           calibTargetPrice={parseFloat(targetPrice) || 0}
           calibInitialLines={capturedLines?.lines}
           doneLabelOverride={`Done — Review Pricing →`}
+        />
+      )}
+
+      {/* AYLI reverse calib modal — full container, system-directed removal */}
+      {showReverseModal && (
+        <AYLIReverseCalibModal
+          combo={combo}
+          calibTargetPrice={parseFloat(targetPrice) || 0}
+          onConfirm={data => {
+            setShowReverseModal(false)
+            handleComboConfirm(data)
+          }}
+          onCancel={() => setShowReverseModal(false)}
         />
       )}
     </div>
