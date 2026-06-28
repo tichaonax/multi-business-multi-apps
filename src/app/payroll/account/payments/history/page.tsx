@@ -14,14 +14,14 @@ import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 
 interface Payment {
   id: string
-  employeeId: string
+  employeeId: string | null
   employee: {
     employeeNumber: string
     firstName: string
     lastName: string
     fullName: string
     nationalId: string
-  }
+  } | null
   amount: number
   netAmount: number | null
   paymentType: string
@@ -422,6 +422,18 @@ function PaymentHistoryContent() {
     })
   }
 
+  const getEmployeeName = (payment: Payment) => {
+    if (!payment.employee) {
+      const labels: Record<string, string> = {
+        ZIMRA_PAYE: 'ZIMRA PAYE (All Employees)',
+        NSSA: 'NSSA (All Employees)',
+        AIDS_LEVY: 'AIDS Levy (All Employees)',
+      }
+      return labels[payment.paymentType] || 'N/A'
+    }
+    return payment.employee.fullName || `${payment.employee.firstName} ${payment.employee.lastName}`
+  }
+
   const getPaymentTypeLabel = (type: string) => {
     switch (type) {
       case 'SALARY': return 'Salary Payment'
@@ -677,11 +689,10 @@ function PaymentHistoryContent() {
                             <td className="px-4 py-3 text-sm">
                               <div>
                                 <p className="font-medium text-gray-900 dark:text-gray-100">
-                                  {payment.employee.fullName ||
-                                    `${payment.employee.firstName} ${payment.employee.lastName}`}
+                                  {getEmployeeName(payment)}
                                 </p>
                                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                                  {payment.employee.employeeNumber}
+                                  {payment.employee?.employeeNumber || ''}
                                 </p>
                               </div>
                             </td>
@@ -725,7 +736,7 @@ function PaymentHistoryContent() {
                                 {/* Sign Button - show for PENDING or VOUCHER_ISSUED */}
                                 {(payment.status === 'PENDING' || payment.status === 'VOUCHER_ISSUED') && !payment.isLocked && (
                                   <button
-                                    onClick={() => handleSignPayment(payment.id, payment.employee.fullName || `${payment.employee.firstName} ${payment.employee.lastName}`)}
+                                    onClick={() => handleSignPayment(payment.id, getEmployeeName(payment))}
                                     className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
                                     title="Sign Payment"
                                   >
@@ -736,7 +747,7 @@ function PaymentHistoryContent() {
                                 {/* Complete Button - show for SIGNED */}
                                 {payment.status === 'SIGNED' && (
                                   <button
-                                    onClick={() => handleCompletePayment(payment.id, payment.employee.fullName || `${payment.employee.firstName} ${payment.employee.lastName}`)}
+                                    onClick={() => handleCompletePayment(payment.id, getEmployeeName(payment))}
                                     className="px-3 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700"
                                     title="Mark as Completed"
                                   >
@@ -770,11 +781,10 @@ function PaymentHistoryContent() {
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <p className="font-medium text-gray-900 dark:text-gray-100">
-                              {payment.employee.fullName ||
-                                `${payment.employee.firstName} ${payment.employee.lastName}`}
+                              {getEmployeeName(payment)}
                             </p>
                             <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {payment.employee.employeeNumber}
+                              {payment.employee?.employeeNumber || ''}
                             </p>
                           </div>
                           <div className="text-right">
@@ -819,7 +829,7 @@ function PaymentHistoryContent() {
                           {/* Sign Button - show for PENDING or VOUCHER_ISSUED */}
                           {(payment.status === 'PENDING' || payment.status === 'VOUCHER_ISSUED') && !payment.isLocked && (
                             <button
-                              onClick={() => handleSignPayment(payment.id, payment.employee.fullName || `${payment.employee.firstName} ${payment.employee.lastName}`)}
+                              onClick={() => handleSignPayment(payment.id, getEmployeeName(payment))}
                               className="w-full px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700"
                             >
                               ✍️ Sign Payment
@@ -829,7 +839,7 @@ function PaymentHistoryContent() {
                           {/* Complete Button - show for SIGNED */}
                           {payment.status === 'SIGNED' && (
                             <button
-                              onClick={() => handleCompletePayment(payment.id, payment.employee.fullName || `${payment.employee.firstName} ${payment.employee.lastName}`)}
+                              onClick={() => handleCompletePayment(payment.id, getEmployeeName(payment))}
                               className="w-full px-3 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
                             >
                               ✅ Mark as Completed

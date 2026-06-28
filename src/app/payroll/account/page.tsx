@@ -207,7 +207,7 @@ function PayrollAccountContent() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold">📝 Recent Transactions</h2>
                 <button
-                  onClick={() => router.push('/payroll/account/history')}
+                  onClick={() => router.push('/payroll/account/payments/history')}
                   className="text-sm text-blue-600 hover:text-blue-800"
                 >
                   View All →
