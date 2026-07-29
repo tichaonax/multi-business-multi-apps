@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf'
+import { amountToWords } from '@/lib/amount-to-words'
 
 // jsPDF's built-in fonts don't support emoji — strip them before rendering
 const stripEmoji = (s: string) => s.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '').trim()
@@ -55,9 +56,14 @@ export function generatePaymentVoucherPdf(data: VoucherData): void {
   y = 36
 
   // ── Amount box (border only) ─────────────────────────────────────────────
+  doc.setFontSize(8)
+  doc.setFont('helvetica', 'italic')
+  const wordsLines: string[] = doc.splitTextToSize(`Amount in words: ${amountToWords(data.amount)}`, contentW - 8)
+  const amountBoxH = 18 + wordsLines.length * 4
+
   doc.setDrawColor(...BLACK)
   doc.setLineWidth(0.5)
-  doc.rect(margin, y, contentW, 18, 'S')
+  doc.rect(margin, y, contentW, amountBoxH, 'S')
 
   doc.setTextColor(...MID)
   doc.setFontSize(8)
@@ -69,7 +75,12 @@ export function generatePaymentVoucherPdf(data: VoucherData): void {
   doc.setTextColor(...DARK)
   doc.text(`$${data.amount.toFixed(2)}`, margin + 4, y + 15)
 
-  y += 24
+  doc.setFontSize(8)
+  doc.setFont('helvetica', 'italic')
+  doc.setTextColor(...MID)
+  doc.text(wordsLines, margin + 4, y + 21)
+
+  y += amountBoxH + 6
 
   // ── Helper: draw a bordered section with labelled rows ───────────────────
   const section = (title: string, lines: { label: string; value: string }[]) => {
@@ -157,14 +168,14 @@ export function generatePaymentVoucherPdf(data: VoucherData): void {
     }
   }
 
-  // Date line (left side) — left blank for payee to fill in when they sign
+  // Date line (left side) — left blank for payee to fill in when they sign and collect
   doc.setDrawColor(...MID)
   doc.setLineWidth(0.3)
   doc.line(margin + 3, y + 30, margin + 55, y + 30)
   doc.setFontSize(7)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(...LIGHT)
-  doc.text('Date', margin + 3, y + 34)
+  doc.text('Date Collected', margin + 3, y + 34)
 
   // Authorised signature line (right side)
   doc.setDrawColor(...MID)

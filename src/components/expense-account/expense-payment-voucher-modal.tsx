@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { generatePaymentVoucherPdf, VoucherData } from './payment-voucher-pdf'
+import { amountToWords } from '@/lib/amount-to-words'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { NationalIdInput } from '@/components/ui/national-id-input'
 
@@ -237,12 +238,17 @@ export function ExpensePaymentVoucherModal({
     .vch-amount { border: 1px solid #000; padding: 10px 16px; margin-bottom: 10px; }
     .vch-amount p { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #666; }
     .vch-amount span { font-size: 22px; font-weight: bold; }
+    .vch-amount-words { font-size: 9px; color: #666; font-style: italic; margin-top: 4px; }
     .vch-section { border: 1px solid #000; padding: 10px 16px; margin-bottom: 8px; }
     .vch-section-title { font-size: 9px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #ccc; }
     .vch-row { display: flex; gap: 12px; padding: 2px 0; font-size: 11px; }
     .vch-label { color: #666; min-width: 120px; }
     .vch-value { font-weight: bold; }
     .sig-img { max-height: 56px; margin-top: 6px; }
+    .vch-date-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-top: 8px; }
+    .vch-date-block { text-align: right; }
+    .vch-date-line { border-bottom: 1px solid #999; width: 110px; height: 32px; }
+    .vch-date-label { font-size: 9px; color: #999; margin-top: 2px; }
     .vch-footer { margin-top: 10px; font-size: 9px; color: #999; text-align: center; border-top: 1px solid #000; padding-top: 6px; font-style: italic; }
     .vch-prepared { display: flex; justify-content: space-between; font-size: 10px; color: #888; margin-top: 8px; }
   </style>
@@ -295,6 +301,7 @@ export function ExpensePaymentVoucherModal({
               <div className="vch-amount border border-black p-3 mb-2">
                 <p className="vch-amount text-xs text-gray-500 uppercase tracking-wide">Amount Paid</p>
                 <span className="text-2xl font-bold">${savedVoucherData.amount.toFixed(2)}</span>
+                <p className="vch-amount-words text-xs text-gray-500 italic mt-1">Amount in words: {amountToWords(savedVoucherData.amount)}</p>
               </div>
               {/* Paid To */}
               <div className="vch-section border border-black p-3 mb-2">
@@ -326,12 +333,20 @@ export function ExpensePaymentVoucherModal({
               {/* Signature */}
               <div className="vch-section border border-black p-3 mb-3">
                 <h3 className="vch-section-title text-xs font-bold uppercase tracking-widest mb-2 pb-1 border-b border-gray-200">Collector&#39;s Signature</h3>
-                {savedVoucherData.collectorSignature ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={savedVoucherData.collectorSignature} alt="Collector signature" className="sig-img max-h-14 mt-1" />
-                ) : (
-                  <div className="h-10 flex items-end pb-1"><div className="border-b border-gray-400 w-36" /></div>
-                )}
+                <div className="vch-date-row flex justify-between items-end gap-4">
+                  <div>
+                    {savedVoucherData.collectorSignature ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={savedVoucherData.collectorSignature} alt="Collector signature" className="sig-img max-h-14 mt-1" />
+                    ) : (
+                      <div className="h-10 flex items-end pb-1"><div className="border-b border-gray-400 w-36" /></div>
+                    )}
+                  </div>
+                  <div className="vch-date-block text-right shrink-0">
+                    <div className="vch-date-line border-b border-gray-400 w-28 h-8" />
+                    <p className="vch-date-label text-xs text-gray-400 mt-0.5">Date Collected</p>
+                  </div>
+                </div>
               </div>
               {/* Prepared by */}
               <div className="vch-prepared flex justify-between text-xs text-gray-400">
