@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getWorkingDaysInMonth, computeTotalsForEntry } from '@/lib/payroll/helpers'
+import { loadBrackets, loadTaxConstants, calculatePaye, calculateNssa, calculateAidsLevy } from '@/lib/payroll/paye-calc'
 import { hasPermission, canDeletePayroll } from '@/lib/permission-utils'
 import { isSystemAdmin, getUserRoleInBusiness } from '@/lib/permission-utils'
 
@@ -417,6 +418,20 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           console.warn('Could not fetch active loans for deduction display:', loanErr)
         }
 
+        // Load statutory tax brackets/constants so the preview can show live PAYE/NSSA/AIDS Levy
+        // estimates (same calculation the export route uses) instead of the raw DB columns, which
+        // stay at 0 until the period is actually exported.
+        let monthlyBrackets: any[] = []
+        let taxConstants = { aidsLevyRate: 0.03, nssaEmployeeRate: 0.045, nssaEmployerRate: 0.045 }
+        try {
+          [monthlyBrackets, taxConstants] = await Promise.all([
+            loadBrackets(period.year, 'MONTHLY'),
+            loadTaxConstants(period.year),
+          ])
+        } catch (taxErr) {
+          console.warn('Could not load PAYE tax brackets/constants for preview:', taxErr)
+        }
+
         enrichedEntries = await Promise.all(enrichedEntries.map(async entry => {
           const entryBenefits = entry.payroll_entry_benefits || []
           const empId = entry.employeeId
@@ -633,6 +648,21 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             - absenceFromTotals
             - clockInDeductionForReturn
 
+          // Statutory deductions preview — mirrors the export route's calculation so PAYE/NSSA/AIDS
+          // Levy/Net Take-Home shown before export match what actually ends up in the exported file.
+          // Uses the ZIMRA override columns when present, otherwise computes from live tax brackets.
+          const contractualBasicSalaryForTax = Number(
+            contract?.pdfGenerationData?.basicSalary
+            ?? contract?.baseSalary
+            ?? entry.baseSalary
+            ?? 0
+          )
+          const calcPaye = calculatePaye(grossAdjusted, monthlyBrackets)
+          const payeAmt = (entry as any).zimraPaye != null ? Number((entry as any).zimraPaye) : calcPaye
+          const nssaEmployeeAmt = (entry as any).zimraNssa != null ? Number((entry as any).zimraNssa) : calculateNssa(contractualBasicSalaryForTax, taxConstants.nssaEmployeeRate)
+          const aidsLevyAmt = (entry as any).zimraAidsLevy != null ? Number((entry as any).zimraAidsLevy) : calculateAidsLevy(payeAmt, taxConstants.aidsLevyRate)
+          const nssaEmployerAmt = calculateNssa(contractualBasicSalaryForTax, taxConstants.nssaEmployerRate)
+
           const returnedEntry = {
             ...entry,
             payrollEntryBenefits: entryBenefits,
@@ -659,6 +689,12 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             absenceDeduction: absenceFromTotals,
             // Deductions are shown separately — applied by third-party processor after gross
             netPay: grossAdjusted,
+            // Presentational statutory deduction preview (see calculation above) — overrides the raw
+            // DB columns, which remain 0 until the period is actually exported.
+            payeAmount: payeAmt,
+            aidsLevy: aidsLevyAmt,
+            nssaEmployee: nssaEmployeeAmt,
+            nssaEmployer: nssaEmployerAmt,
             // Presentational fields only - do not write these back to DB here
             displayBaseSalary,
             displayDateOfBirth: displayDob,
