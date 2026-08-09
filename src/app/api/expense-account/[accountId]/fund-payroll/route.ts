@@ -52,6 +52,8 @@ export async function POST(
     }
 
     // Get global payroll account
+    // NOTE: the balance check above is only a fast-path rejection. It's re-checked inside
+    // the $transaction below against a fresh read, immediately before the debit — see there.
     const payrollAccount = await getGlobalPayrollAccount()
     if (!payrollAccount) {
       return NextResponse.json({ error: 'Payroll account not found' }, { status: 404 })
@@ -74,6 +76,17 @@ export async function POST(
     }
 
     const result = await prisma.$transaction(async (tx: any) => {
+      // Re-check balance against a fresh read, inside the transaction, immediately before
+      // debiting — closes the race window between the fast-path check above and this write.
+      const freshAccount = await tx.expenseAccounts.findUnique({
+        where: { id: accountId },
+        select: { balance: true },
+      })
+      const freshBalance = Number(freshAccount?.balance ?? 0)
+      if (freshBalance < transferAmount) {
+        throw new Error(`INSUFFICIENT_BALANCE:${freshBalance.toFixed(2)}`)
+      }
+
       // 1. Create expense account payment (debit expense account)
       const payment = await tx.expenseAccountPayments.create({
         data: {
@@ -129,6 +142,11 @@ export async function POST(
       },
     }, { status: 201 })
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith('INSUFFICIENT_BALANCE:')) {
+      return NextResponse.json({
+        error: `Insufficient balance. Available: $${error.message.split(':')[1]}`,
+      }, { status: 400 })
+    }
     console.error('Error funding payroll from expense account:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

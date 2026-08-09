@@ -60,6 +60,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
   const [locking, setLocking] = useState(false)
   const [pdfGenerating, setPdfGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [cashWarning, setCashWarning] = useState<string | null>(null)
   const [mismatches, setMismatches] = useState<string[]>([])
   const [confirmForceClose, setConfirmForceClose] = useState(false)
   // local edits: itemId → actualAmount string
@@ -310,6 +311,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
       }
       setReport(data.report)
       setLineItems(data.lineItems)
+      setCashWarning(data.cashDiscrepancyWarning ?? null)
       refreshWeekRow(date, data.lineItems, data.report?.status ?? 'LOCKED')
       window.dispatchEvent(new CustomEvent('pending-actions:refresh'))
     } catch (e: unknown) {
@@ -333,6 +335,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
       if (!res.ok) throw new Error(data.error ?? 'Failed to close')
       setReport(data.report)
       setLineItems(data.lineItems)
+      setCashWarning(data.cashDiscrepancyWarning ?? null)
       refreshWeekRow(date, data.lineItems, data.report?.status ?? 'LOCKED')
       window.dispatchEvent(new CustomEvent('pending-actions:refresh'))
     } catch (e: unknown) {
@@ -518,6 +521,12 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
       {error && (
         <div className="rounded-md bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 p-3 text-sm text-red-700 dark:text-red-300">
           {error}
+        </div>
+      )}
+
+      {cashWarning && (
+        <div className="rounded-md bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 p-3 text-sm text-amber-800 dark:text-amber-300">
+          <span className="font-semibold">⚠ Cash shortfall detected:</span> {cashWarning}
         </div>
       )}
 

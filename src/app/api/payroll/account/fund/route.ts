@@ -77,6 +77,22 @@ export async function POST(request: NextRequest) {
         const biz = businesses.find((b) => b.id === transfer.businessId)!
         const amount = Number(transfer.amount)
 
+        // Re-check balance against a fresh read, inside the transaction, immediately before
+        // debiting — closes the race window between the check above and this write. Also
+        // naturally accounts for multiple transfers to the same business within this same
+        // request, since each iteration's OUTFLOW write is visible to the next.
+        const freshBucketRows = await tx.cashBucketEntry.groupBy({
+          by: ['direction'],
+          where: { businessId: transfer.businessId },
+          _sum: { amount: true },
+        })
+        const freshInflow = Number(freshBucketRows.find((r: any) => r.direction === 'INFLOW')?._sum.amount ?? 0)
+        const freshOutflow = Number(freshBucketRows.find((r: any) => r.direction === 'OUTFLOW')?._sum.amount ?? 0)
+        const freshBalance = freshInflow - freshOutflow
+        if (freshBalance < amount) {
+          throw new Error(`INSUFFICIENT_CASHBOX:${biz.name}:${freshBalance.toFixed(2)}`)
+        }
+
         // Debit cashbox — OUTFLOW entry
         await tx.cashBucketEntry.create({
           data: {
@@ -118,6 +134,12 @@ export async function POST(request: NextRequest) {
       data: { totalTransferred, transferCount: validTransfers.length },
     }, { status: 201 })
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith('INSUFFICIENT_CASHBOX:')) {
+      const [, bizName, available] = error.message.split(':')
+      return NextResponse.json({
+        error: `Insufficient cash box balance for ${bizName}. Available: $${available}`,
+      }, { status: 400 })
+    }
     console.error('Error batch funding payroll account:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

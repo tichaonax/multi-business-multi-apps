@@ -57,6 +57,65 @@ export interface RentTransferResult {
   amount: number
 }
 
+// ─── getAvailableCashForAllocation ───────────────────────────────────────────
+
+/**
+ * Computes the real cash actually available for automatic EOD allocations
+ * (rent transfer, expense auto-deposits, payroll contribution) for a business.
+ *
+ * This is deliberately NOT `businessAccounts.balance` — that column is credited for
+ * every PAID order regardless of payment method (cash, card, EcoCash, store credit),
+ * so it does not represent physical cash on hand. Real available cash is:
+ *
+ *   CashBucketEntry balance (INFLOW − OUTFLOW, all-time for this business)
+ *   + today's counted cash/EcoCash not yet posted to the bucket ledger
+ *     (that posting happens for real at cash-allocation lock time)
+ *
+ * Each caller in this file writes its own OUTFLOW earmark atomically with the
+ * deposit it creates, inside the same transaction — so calling this again later
+ * in the same EOD close (e.g. auto-deposits after rent, payroll after both)
+ * naturally sees the reduced balance.
+ *
+ * `cashForDateOverride`: callers that already know the correct cash pool for this
+ * call (e.g. the grouped EOD catch-up flow, which processes several historical
+ * dates against one lump-sum cash total before any SavedReports row exists for
+ * those dates) can supply it directly instead of having this function look up
+ * `SavedReports.cashCounted` for `eodDate`.
+ *
+ * `client`: pass the active `tx` when calling from inside a `$transaction` so the
+ * read is consistent with writes made earlier in the same transaction.
+ */
+export async function getAvailableCashForAllocation(
+  businessId: string,
+  eodDate: string,
+  cashForDateOverride?: number,
+  client: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<number> {
+  const bucketRows = await client.cashBucketEntry.groupBy({
+    by: ['direction'] as any,
+    where: { businessId },
+    _sum: { amount: true },
+  })
+  const bucketBalance =
+    Number((bucketRows as any[]).find(r => r.direction === 'INFLOW')?._sum.amount ?? 0) -
+    Number((bucketRows as any[]).find(r => r.direction === 'OUTFLOW')?._sum.amount ?? 0)
+
+  let depositNow = cashForDateOverride
+  if (depositNow === undefined) {
+    depositNow = 0
+    const dayStart = new Date(eodDate + 'T00:00:00Z')
+    const dayEnd = new Date(eodDate + 'T23:59:59.999Z')
+    const eodSaved = await client.savedReports.findFirst({
+      where: { businessId, reportType: 'END_OF_DAY', reportDate: { gte: dayStart, lte: dayEnd } },
+      select: { cashCounted: true, confirmedEcocashAmount: true },
+    })
+    if (eodSaved?.cashCounted != null) depositNow += Number(eodSaved.cashCounted)
+    if ((eodSaved as any)?.confirmedEcocashAmount != null) depositNow += Number((eodSaved as any).confirmedEcocashAmount)
+  }
+
+  return bucketBalance + depositNow
+}
+
 // ─── autoGenerateCashAllocationReport ────────────────────────────────────────
 
 /**
@@ -131,6 +190,7 @@ export async function processRentTransfer(
   eodDate: string,      // YYYY-MM-DD
   userId: string,
   note?: string,
+  cashForDateOverride?: number,
 ): Promise<RentTransferResult> {
   const config = await prisma.businessRentConfig.findUnique({
     where: { businessId },
@@ -161,12 +221,17 @@ export async function processRentTransfer(
   let depositId = ''
 
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const availableCash = await getAvailableCashForAllocation(businessId, eodDate, cashForDateOverride, tx)
+    if (availableCash < transferAmount) throw new Error('INSUFFICIENT_FUNDS:' + availableCash.toFixed(2))
+
+    // businessAccounts.balance bookkeeping is unchanged — still the sales-revenue ledger,
+    // still decremented here for continuity with existing reports/UI. It is no longer
+    // used to decide WHETHER the transfer is allowed (that's availableCash, above).
     const bizAcct = await tx.businessAccounts.findUnique({
       where: { businessId },
       select: { balance: true },
     })
     const currentBalance = Number(bizAcct?.balance ?? 0)
-    if (currentBalance < transferAmount) throw new Error('INSUFFICIENT_FUNDS:' + currentBalance.toFixed(2))
 
     const deposit = await tx.expenseAccountDeposits.create({
       data: {
@@ -201,6 +266,24 @@ export async function processRentTransfer(
         referenceId: config.expenseAccountId,
       },
     })
+
+    // Real-cash earmark, written atomically with the deposit: immediately reduces
+    // available cash for any later check in this same EOD close (auto-deposits,
+    // payroll contribution), and gives the cash-allocation lock step something to
+    // reconcile against instead of re-deriving everything from scratch.
+    await tx.cashBucketEntry.create({
+      data: {
+        businessId,
+        entryType: 'CASH_ALLOCATION',
+        direction: 'OUTFLOW',
+        amount: transferAmount,
+        referenceType: 'EOD_RENT_TRANSFER',
+        referenceId: deposit.id,
+        notes: `EOD rent transfer — ${eodDate}`,
+        entryDate: dayStart,
+        createdBy: userId,
+      },
+    })
   })
 
   return { alreadyTransferred: false, depositId, amount: transferAmount }
@@ -218,6 +301,7 @@ export async function processAutoDeposits(
   eodDate: string,   // YYYY-MM-DD
   userId: string,
   entries?: UserEntry[],
+  cashForDateOverride?: number,
 ): Promise<{ results: AutoDepositResult[]; summary: AutoDepositSummary }> {
   const entryMap: Map<string, UserEntry> | null =
     entries !== undefined ? new Map(entries.map(e => [e.configId, e])) : null
@@ -379,9 +463,12 @@ export async function processAutoDeposits(
     try {
       let depositId: string | undefined
       await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        const availableCash = await getAvailableCashForAllocation(businessId, eodDate, cashForDateOverride, tx)
+        if (availableCash < effectiveAmount) throw new Error('INSUFFICIENT_FUNDS:' + availableCash.toFixed(2))
+
+        // businessAccounts.balance bookkeeping is unchanged (see processRentTransfer comment).
         const biz = await tx.businessAccounts.findUnique({ where: { businessId }, select: { balance: true } })
         const currentBalance = Number(biz?.balance ?? 0)
-        if (currentBalance < effectiveAmount) throw new Error('INSUFFICIENT_FUNDS:' + currentBalance.toFixed(2))
 
         const deposit = await tx.expenseAccountDeposits.create({
           data: {
@@ -412,6 +499,21 @@ export async function processAutoDeposits(
             createdBy: userId,
             referenceType: 'EXPENSE_DEPOSIT',
             referenceId: config.expenseAccountId,
+          },
+        })
+
+        // Real-cash earmark — see processRentTransfer for why this is written here.
+        await tx.cashBucketEntry.create({
+          data: {
+            businessId,
+            entryType: 'CASH_ALLOCATION',
+            direction: 'OUTFLOW',
+            amount: effectiveAmount,
+            referenceType: 'EOD_AUTO_DEPOSIT',
+            referenceId: deposit.id,
+            notes: config.expenseAccount.accountName,
+            entryDate: eodDateObj,
+            createdBy: userId,
           },
         })
       })

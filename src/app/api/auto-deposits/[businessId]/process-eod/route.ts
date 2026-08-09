@@ -5,6 +5,7 @@ import { getEffectivePermissions } from '@/lib/permission-utils'
 import {
   autoGenerateCashAllocationReport,
   processAutoDeposits,
+  getAvailableCashForAllocation,
   UserEntry,
   AutoDepositResult,
 } from '@/lib/eod-utils'
@@ -47,7 +48,6 @@ export async function POST(request: NextRequest, { params }: Params) {
         id: true,
         name: true,
         isActive: true,
-        business_accounts: { select: { balance: true } },
       },
     })
     if (!business) {
@@ -59,12 +59,17 @@ export async function POST(request: NextRequest, { params }: Params) {
       const nonSkipped = entries.filter(e => !e.skip)
       if (nonSkipped.length > 0) {
         const totalRequested = nonSkipped.reduce((sum, e) => sum + e.amount, 0)
-        const currentBalance = Number(business.business_accounts?.balance ?? 0)
-        if (totalRequested > currentBalance) {
+        // Real cash available (CashBucketEntry + today's counted cash) — NOT
+        // businessAccounts.balance, which is credited for every payment method and
+        // doesn't reflect what's actually in the drawer. The definitive check still
+        // happens per-deposit inside processAutoDeposits; this is just an early,
+        // accurate error message for the common case.
+        const availableCash = await getAvailableCashForAllocation(businessId, eodDate)
+        if (totalRequested > availableCash) {
           return NextResponse.json(
             {
               error:
-                `Insufficient balance — $${currentBalance.toFixed(2)} available but ` +
+                `Insufficient cash available — $${availableCash.toFixed(2)} available but ` +
                 `$${totalRequested.toFixed(2)} requested`,
             },
             { status: 422 }

@@ -45,6 +45,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'totalCashReceived must be a non-negative number' }, { status: 400 })
     }
     const ecocashReceived = typeof totalEcocashReceived === 'number' && totalEcocashReceived > 0 ? totalEcocashReceived : 0
+    // Constant cash pool passed to processRentTransfer/processAutoDeposits for every date in
+    // this run. It stays the FULL lump sum (not a per-date share) — each call re-derives real
+    // availability as CashBucketEntry balance (which already reflects OUTFLOW earmarks written
+    // by earlier dates in this same loop) + this constant, so unspent cash correctly carries
+    // forward from one date to the next without double-counting what's already been consumed.
+    const totalCashPool = totalCashReceived + ecocashReceived
     const dateStrings: string[] = dates.map((d: { date: string }) => d.date)
     const invalidDate = dateStrings.find((d: string) => !/^\d{4}-\d{2}-\d{2}$/.test(d))
     if (invalidDate) {
@@ -200,7 +206,7 @@ export async function POST(request: NextRequest) {
       let rentAmount = 0
       if (totalCashReceived > 0) {
         try {
-          const rentResult = await processRentTransfer(businessId, date, user.id)
+          const rentResult = await processRentTransfer(businessId, date, user.id, undefined, totalCashPool)
           rentAmount = rentResult.amount
         } catch (rentErr: any) {
           // NO_RENT_CONFIG, RENT_ACCOUNT_INACTIVE, INSUFFICIENT_FUNDS — all acceptable
@@ -212,7 +218,7 @@ export async function POST(request: NextRequest) {
       let autoDepositTotal = 0
       if (totalCashReceived > 0) {
         try {
-          const { summary } = await processAutoDeposits(businessId, date, user.id)
+          const { summary } = await processAutoDeposits(businessId, date, user.id, undefined, totalCashPool)
           autoDepositTotal = summary.totalDeposited
         } catch (autoErr: any) {
           console.warn(`[grouped-run] Auto-deposits failed for ${date}:`, autoErr.message)
