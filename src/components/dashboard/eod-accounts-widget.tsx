@@ -8,6 +8,10 @@ interface EodAccount {
   accountName: string
   dailyAmount: number
   cashBoxBalance: number
+  isLoanAccount?: boolean
+  loanBalanceOwed?: number
+  availableToWithdraw?: number
+  loanStatus?: string
   businessContributions?: { businessId: string; businessName: string; cashBoxBalance: number }[]
 }
 
@@ -27,13 +31,57 @@ interface SelectedAccount {
   businessId?: string
 }
 
-function CashBox({ label, balance, dailyAmount, icon, onClick }: {
+function fmtMoney(n: number): string {
+  const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return n < 0 ? `-$${abs}` : `$${abs}`
+}
+
+function CashBox({
+  label, balance, dailyAmount, icon, onClick,
+  isLoanAccount, loanBalanceOwed, availableToWithdraw, loanStatus,
+}: {
   label: string
   balance: number
   dailyAmount?: number
   icon: string
   onClick: () => void
+  isLoanAccount?: boolean
+  loanBalanceOwed?: number
+  availableToWithdraw?: number
+  loanStatus?: string
 }) {
+  if (isLoanAccount) {
+    return (
+      <button
+        onClick={onClick}
+        className="flex flex-col gap-1 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 min-w-[170px] text-left hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer"
+      >
+        <div className="flex items-center gap-1">
+          <span className="text-sm">{icon}</span>
+          <span className="text-xs text-secondary truncate" title={label}>{label}</span>
+        </div>
+        {loanStatus === 'LOCKED' ? (
+          <>
+            <span className="text-xs text-secondary">Available to withdraw</span>
+            <span className="text-base font-bold font-mono text-emerald-600 dark:text-emerald-400">
+              {fmtMoney(availableToWithdraw ?? 0)}
+            </span>
+          </>
+        ) : (
+          <span className="text-xs text-amber-600 dark:text-amber-400 italic">
+            {loanStatus === 'SETTLED' ? 'Fully repaid' : 'Still recording — not locked yet'}
+          </span>
+        )}
+        <span className="text-xs text-red-500 dark:text-red-400/80">
+          Owed: {fmtMoney(-(loanBalanceOwed ?? 0))}
+        </span>
+        {dailyAmount !== undefined && (
+          <span className="text-xs text-gray-400">+${dailyAmount.toFixed(0)}/day</span>
+        )}
+      </button>
+    )
+  }
+
   return (
     <button
       onClick={onClick}
@@ -43,9 +91,12 @@ function CashBox({ label, balance, dailyAmount, icon, onClick }: {
         <span className="text-sm">{icon}</span>
         <span className="text-xs text-secondary truncate" title={label}>{label}</span>
       </div>
-      <span className="text-base font-bold font-mono text-gray-900 dark:text-gray-100">
-        ${balance.toFixed(2)}
+      <span className={`text-base font-bold font-mono ${balance < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
+        {fmtMoney(balance)}
       </span>
+      {balance < 0 && (
+        <span className="text-[10px] text-red-500 dark:text-red-400/80">still owed</span>
+      )}
       {dailyAmount !== undefined && (
         <span className="text-xs text-gray-400">+${dailyAmount.toFixed(0)}/day</span>
       )}
@@ -89,7 +140,7 @@ export function EodAccountsWidget() {
       >
         <div className="flex items-center gap-3">
           <span className="text-lg font-semibold text-primary">📦 Cash Box Balances</span>
-          <span className="text-sm font-medium text-blue-600 dark:text-blue-400">${grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} set aside</span>
+          <span className="text-sm font-medium text-blue-600 dark:text-blue-400">{fmtMoney(grandTotal)} set aside</span>
           <span className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs rounded-full px-2 py-0.5">
             {groups.length} business{groups.length !== 1 ? 'es' : ''}
           </span>
@@ -102,7 +153,10 @@ export function EodAccountsWidget() {
       {expanded && (
       <div className="px-4 sm:px-6 pb-6">
       <p className="text-xs text-secondary mb-4">
-        Cumulative cash physically set aside by cashiers during EOD allocation — pending deposit into each account.
+        Rent/expense accounts show the current balance, after any payments already made from it.
+        Loan accounts show what's available to withdraw this cycle (the accumulated holding-bucket
+        amount, once locked) alongside the total still owed. Payroll figures show cumulative EOD
+        contributions (shared account — no separate per-business balance).
       </p>
 
       <div className="space-y-4">
@@ -112,7 +166,7 @@ export function EodAccountsWidget() {
             <p className="text-xs font-semibold text-secondary uppercase tracking-wide mb-2">
               Shared Across Businesses
               <span className="ml-2 font-normal normal-case text-gray-400">
-                ${sharedTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {fmtMoney(sharedTotal)}
               </span>
             </p>
             <div className="flex flex-wrap gap-3">
@@ -123,14 +177,19 @@ export function EodAccountsWidget() {
                     label={acc.accountName}
                     balance={acc.cashBoxBalance}
                     dailyAmount={acc.dailyAmount}
+                    isLoanAccount={acc.isLoanAccount}
+                    loanBalanceOwed={acc.loanBalanceOwed}
+                    availableToWithdraw={acc.availableToWithdraw}
+                    loanStatus={acc.loanStatus}
                     onClick={() => setSelected({ id: acc.id, accountName: acc.accountName, businessName: 'Shared', type: 'account' })}
                   />
                   {acc.businessContributions && acc.businessContributions.length > 0 && (
                     <div className="flex flex-col gap-0.5 pl-2 border-l-2 border-gray-200 dark:border-gray-700">
+                      <span className="text-[10px] text-gray-400 italic">lifetime contribution by business:</span>
                       {acc.businessContributions.map(c => (
                         <span key={c.businessId} className="text-xs text-gray-500 dark:text-gray-400 flex justify-between gap-3">
                           <span className="truncate">{c.businessName}</span>
-                          <span className="font-mono text-gray-700 dark:text-gray-300">${c.cashBoxBalance.toFixed(2)}</span>
+                          <span className="font-mono text-gray-700 dark:text-gray-300">{fmtMoney(c.cashBoxBalance)}</span>
                         </span>
                       ))}
                     </div>
@@ -150,7 +209,7 @@ export function EodAccountsWidget() {
               <p className="text-xs font-semibold text-secondary uppercase tracking-wide">
                 {business.name}
                 <span className="ml-2 font-normal normal-case text-gray-400">
-                  ${bizTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {fmtMoney(bizTotal)}
                 </span>
               </p>
               <div className="flex flex-wrap gap-2">
@@ -161,6 +220,10 @@ export function EodAccountsWidget() {
                     label={acc.accountName}
                     balance={acc.cashBoxBalance}
                     dailyAmount={acc.dailyAmount}
+                    isLoanAccount={acc.isLoanAccount}
+                    loanBalanceOwed={acc.loanBalanceOwed}
+                    availableToWithdraw={acc.availableToWithdraw}
+                    loanStatus={acc.loanStatus}
                     onClick={() => setSelected({ id: acc.id, accountName: acc.accountName, businessName: business.name, type: 'account' })}
                   />
                 ))}

@@ -73,7 +73,7 @@ export function BusinessBalanceDisplay({
     return (
       <div className={`flex items-center justify-between ${className}`}>
         <span className="text-sm font-medium text-secondary">
-          {businessName} Balance:
+          {businessName} Sales Balance:
         </span>
         <div className="flex items-center space-x-2">
           {balanceInfo.hasAccount ? (
@@ -102,7 +102,7 @@ export function BusinessBalanceDisplay({
     <div className={`bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 ${className}`}>
       <div className="flex items-center justify-between mb-2">
         <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200">
-          💰 {businessName} Balance
+          💰 {businessName} Sales Balance
         </h4>
         {showRefreshButton && (
           <button
@@ -117,7 +117,7 @@ export function BusinessBalanceDisplay({
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-blue-700 dark:text-blue-300">Available Balance:</span>
+          <span className="text-sm text-blue-700 dark:text-blue-300">Sales Balance:</span>
           {balanceInfo.hasAccount ? (
             <span className="text-lg font-bold text-green-600 dark:text-green-400">
               ${balanceInfo.balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -128,6 +128,10 @@ export function BusinessBalanceDisplay({
             </span>
           )}
         </div>
+        <p className="text-[11px] text-blue-600/80 dark:text-blue-400/70 -mt-1">
+          Revenue retained across all payment methods (cash, card, EcoCash) — not physical cash.
+          See Cash Box for cash on hand.
+        </p>
 
         <div className="flex items-center justify-between">
           <span className="text-sm text-blue-700 dark:text-blue-300">Status:</span>

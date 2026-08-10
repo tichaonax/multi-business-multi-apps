@@ -17,7 +17,6 @@ export function EcocashConversionActions({ conversion, action, onSuccess, onClos
   const [tenderedAmount, setTenderedAmount] = useState(String(conversion.amount))
   const [transactionCode, setTransactionCode] = useState('')
   const [ecocashAmount, setEcocashAmount] = useState(String(conversion.tenderedAmount ?? conversion.amount))
-  const [cashTendered, setCashTendered] = useState(String(Math.round(Number(conversion.tenderedAmount ?? conversion.amount))))
   const [rejectionReason, setRejectionReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -30,6 +29,13 @@ export function EcocashConversionActions({ conversion, action, onSuccess, onClos
       const tendered = Number(tenderedAmount)
       if (!tendered || tendered <= 0) {
         setError('Tendered amount must be a positive number.')
+        return
+      }
+    }
+    if (action === 'complete') {
+      const approved = Number(conversion.tenderedAmount ?? conversion.amount)
+      if (Math.abs(Number(ecocashAmount) - approved) > 0.01) {
+        setError(`Eco-cash amount must match the approved amount (${fmt(approved)}). If the actual amount sent is different, deny this and have the requester resubmit.`)
         return
       }
     }
@@ -47,7 +53,7 @@ export function EcocashConversionActions({ conversion, action, onSuccess, onClos
       if (action === 'complete') body = {
         transactionCode: transactionCode.trim() || null,
         ecocashAmount: Number(ecocashAmount),
-        cashTendered: parseInt(cashTendered, 10),
+        // cashTendered is derived server-side from the approved amount — not sent here.
       }
 
       const res = await fetch(url, {
@@ -178,22 +184,21 @@ export function EcocashConversionActions({ conversion, action, onSuccess, onClos
                   required
                   className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
-                <p className="mt-1 text-xs text-gray-400">Exact decimal amount deducted from eco-cash wallet (e.g. 66.35). Used for eco-cash balance.</p>
+                <p className="mt-1 text-xs text-gray-400">
+                  Must match the approved amount ({fmt(Number(conversion.tenderedAmount ?? conversion.amount))}).
+                  If it changed, deny and have the requester resubmit instead of editing this.
+                </p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Cash Tendered <span className="text-red-500">*</span>
+                  Cash Tendered
                 </label>
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={cashTendered}
-                  onChange={e => setCashTendered(e.target.value)}
-                  required
-                  className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
-                <p className="mt-1 text-xs text-gray-400">Whole dollar amount of physical cash given to requester (e.g. 67).</p>
+                <div className="w-full px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/60 text-gray-700 dark:text-gray-300">
+                  {fmt(Math.round(Number(ecocashAmount) || 0))}
+                </div>
+                <p className="mt-1 text-xs text-gray-400">
+                  Whole-dollar cash to hand over — rounded automatically from the eco-cash amount above, not entered separately.
+                </p>
               </div>
             </div>
           )}

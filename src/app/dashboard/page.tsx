@@ -650,6 +650,12 @@ function DashboardContent() {
                   </div>
                   <div className="ml-3 flex-1 min-w-0">
                     <p className="text-xs font-semibold text-secondary uppercase tracking-wide">All</p>
+                    <p
+                      className="text-[10px] text-secondary mt-1 flex items-center gap-0.5 cursor-help"
+                      title="Revenue retained across all payment methods (cash, card, EcoCash) — not physical cash. See Cash Box below for cash on hand."
+                    >
+                      💰 Sales Balance
+                    </p>
                     <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight truncate">
                       ${(revenueBreakdown.summary.totalAccountBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
@@ -754,6 +760,12 @@ function DashboardContent() {
                       </div>
                       <div className="ml-3 flex-1 min-w-0">
                         <p className="text-xs font-semibold text-secondary uppercase tracking-wide capitalize">{businessType}</p>
+                        <p
+                          className="text-[10px] text-secondary mt-1 flex items-center gap-0.5 cursor-help"
+                          title="Revenue retained across all payment methods (cash, card, EcoCash) — not physical cash. See Cash Box below for cash on hand."
+                        >
+                          💰 Sales Balance
+                        </p>
                         <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight truncate">
                           ${(typeData.totalAccountBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>

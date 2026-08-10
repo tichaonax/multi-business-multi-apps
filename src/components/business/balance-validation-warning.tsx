@@ -32,10 +32,10 @@ export function BalanceValidationWarning({
           <span className="text-green-600 dark:text-green-400">✅</span>
           <div>
             <p className="text-sm text-green-800 dark:text-green-200 font-medium">
-              Sufficient Funds Available
+              Sufficient Account Balance
             </p>
             <p className="text-xs text-green-700 dark:text-green-300">
-              Current balance: ${validation.currentBalance.toFixed(2)} | Required: ${validation.requiredAmount.toFixed(2)}
+              Current sales balance: ${validation.currentBalance.toFixed(2)} | Required: ${validation.requiredAmount.toFixed(2)}
             </p>
           </div>
         </div>
@@ -75,10 +75,10 @@ export function BalanceValidationWarning({
         <span className="text-lg">{getWarningIcon()}</span>
         <div className="flex-1">
           <p className={`text-sm font-medium ${textColor}`}>
-            Insufficient Funds for {transactionType.charAt(0).toUpperCase() + transactionType.slice(1)}
+            Insufficient Account Balance for {transactionType.charAt(0).toUpperCase() + transactionType.slice(1)}
           </p>
           <div className={`text-xs ${subtextColor} space-y-1 mt-1`}>
-            <div>Current {businessName} Balance: <strong>${validation.currentBalance.toFixed(2)}</strong></div>
+            <div>Current {businessName} Sales Balance: <strong>${validation.currentBalance.toFixed(2)}</strong></div>
             <div>Required Amount: <strong>${validation.requiredAmount.toFixed(2)}</strong></div>
             {validation.shortfall && (
               <div className="font-medium">

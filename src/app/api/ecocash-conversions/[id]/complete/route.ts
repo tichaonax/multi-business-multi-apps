@@ -21,9 +21,13 @@ async function getEcocashBalance(businessId: string): Promise<number> {
 /**
  * PATCH /api/ecocash-conversions/[id]/complete
  * Confirms cash has been received from the requester and atomically creates:
- *   1. CashBucketEntry OUTFLOW ECOCASH (tenderedAmount)
- *   2. CashBucketEntry INFLOW  CASH    (tenderedAmount)
- * Net ledger effect = zero.
+ *   1. CashBucketEntry OUTFLOW ECOCASH (ecocashAmount)
+ *   2. CashBucketEntry INFLOW  CASH    (cashTendered)
+ * Net ledger effect = zero, up to whole-dollar rounding (physical cash can't be
+ * fractional). ecocashAmount must match the amount approved (conversion.tenderedAmount);
+ * cashTendered is always derived server-side as Math.round(ecocashAmount) — it is never
+ * accepted from the client — so the two legs can never diverge by more than $0.50 and can
+ * never be independently fabricated.
  */
 export async function PATCH(
   _request: NextRequest,
@@ -43,13 +47,9 @@ export async function PATCH(
     const body = await _request.json().catch(() => ({}))
     const transactionCode: string | null = body.transactionCode?.trim() || null
     const ecocashAmount: number = Number(body.ecocashAmount)
-    const cashTendered: number = parseInt(body.cashTendered, 10)
 
     if (!ecocashAmount || ecocashAmount <= 0) {
       return NextResponse.json({ error: 'Eco-cash amount must be a positive number.' }, { status: 400 })
-    }
-    if (!cashTendered || cashTendered <= 0 || !Number.isInteger(cashTendered)) {
-      return NextResponse.json({ error: 'Cash tendered must be a positive whole number.' }, { status: 400 })
     }
 
     const conversion = await prisma.ecocashConversion.findUnique({ where: { id } })
@@ -61,6 +61,23 @@ export async function PATCH(
         { status: 400 }
       )
     }
+
+    // ecocashAmount must match what was actually approved — the approval step means
+    // nothing if a completely different amount can be used here instead.
+    const approvedAmount = Number(conversion.tenderedAmount)
+    if (!conversion.tenderedAmount || Math.abs(ecocashAmount - approvedAmount) > 0.01) {
+      return NextResponse.json(
+        {
+          error: `Eco-cash amount ($${ecocashAmount.toFixed(2)}) must match the approved amount ($${approvedAmount.toFixed(2)}). ` +
+            `If the actual amount sent is different, deny this and have the requester resubmit for re-approval.`,
+        },
+        { status: 400 }
+      )
+    }
+
+    // Cash tendered is never taken from the client — it's a mechanical whole-dollar
+    // rounding of the approved eco-cash amount, not an independently editable figure.
+    const cashTendered = Math.round(ecocashAmount)
 
     // Race-condition guard: re-check balance before creating entries
     const balance = await getEcocashBalance(conversion.businessId)

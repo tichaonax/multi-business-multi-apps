@@ -286,18 +286,40 @@ export async function PUT(
 
       const payAmount = Number(withdrawalRequest.approvedAmount)
 
+      // Atomic transaction: create payment + decrement balance + update request.
+      // NOTE: this must DECREMENT the balance — a withdrawal payout is money leaving
+      // the loan's holding-bucket account, moving its balance further from $0 (more
+      // owed), the opposite direction from EOD auto-deposit accumulation. A prior
+      // regression flipped this to increment and dropped the payment record entirely,
+      // which silently double-credited the account on every payout with no audit trail.
       const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        // 1. Create ExpenseAccountPayments record (audit trail for the payout)
+        const payment = await tx.expenseAccountPayments.create({
+          data: {
+            expenseAccountId,
+            payeeType: 'LOAN_LENDER',
+            amount: payAmount,
+            paymentDate: new Date(),
+            paymentType: 'LOAN_WITHDRAWAL',
+            createdBy: user.id,
+            status: 'SUBMITTED',
+            isFullPayment: true,
+          },
+        })
+
+        // 2. Decrement the expense account balance (withdrawal drives balance more negative)
         await tx.expenseAccounts.update({
           where: { id: expenseAccountId },
-          data: { balance: { increment: payAmount } },
+          data: { balance: { decrement: payAmount } },
         })
 
+        // 3. Mark request as PAID with payment reference
         const updatedRequest = await tx.loanWithdrawalRequest.update({
           where: { id: requestId },
-          data: { status: 'PAID', paidBy: user.id, paidAt: new Date() },
+          data: { status: 'PAID', paidBy: user.id, paidAt: new Date(), paymentId: payment.id },
         })
 
-        return { withdrawalRequest: updatedRequest }
+        return { payment, withdrawalRequest: updatedRequest }
       })
 
       // Notify lender

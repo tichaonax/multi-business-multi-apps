@@ -6,14 +6,20 @@ import { getServerUser } from '@/lib/get-server-user'
 /**
  * GET /api/dashboard/eod-accounts
  *
- * Returns the cumulative physical cash-box balance for each EOD auto-deposit
- * account (excluding rent) and for the payroll contribution, per business.
+ * Returns the current balance for each EOD auto-deposit account (excluding rent) and
+ * the cumulative payroll contribution, per business.
  *
- * Cash-box balance = SUM of actualAmount from LOCKED CashAllocationLineItem
- * records for that expense account (i.e. what cashiers have physically set aside).
+ * Account balance = the expense account's actual current balance (deposits minus any
+ * payments already made from it — e.g. a loan repayment sent to the loan owner debits
+ * this figure, same as it debits the account itself). Previously this summed historical
+ * cashAllocationLineItem.actualAmount instead, which only ever grew and never reflected
+ * money that had since been paid back out — showing an inflated "balance" even after a
+ * loan had been fully repaid.
  *
- * Payroll cash-box balance = SUM of EOD_AUTO_CONTRIBUTION payrollAccountDeposits
- * for that business (physical cash set aside for payroll).
+ * Payroll cash contribution = SUM of EOD_AUTO_CONTRIBUTION payrollAccountDeposits for
+ * that business. Unlike a per-business expense account, the payroll account is one
+ * shared global account — there's no per-business "payroll balance" to read, so this
+ * stays a cumulative contribution figure rather than a net balance.
  */
 export async function GET() {
   try {
@@ -57,7 +63,7 @@ export async function GET() {
         businessId: true,
         dailyAmount: true,
         expenseAccount: {
-          select: { id: true, accountName: true, accountNumber: true },
+          select: { id: true, accountName: true, accountNumber: true, balance: true, isLoanAccount: true },
         },
         business: { select: { id: true, name: true, type: true } },
       },
@@ -66,8 +72,25 @@ export async function GET() {
 
     const relevantAccountIds = configs.map(c => c.expenseAccount.id)
 
-    // Sum actualAmount from LOCKED cash allocation line items per expense account
-    // (this is the cumulative physical cash set aside in each box by cashiers)
+    // For loan accounts, fetch the loan's lock-time balance snapshot + status so we can
+    // compute "available to withdraw" the same way the loan detail page and withdrawal
+    // request routes do: |lockedBalance| - |currentBalance|. Only meaningful once LOCKED —
+    // withdrawal requests aren't allowed before that (see withdrawal-requests/route.ts).
+    const loanAccountIds = configs.filter(c => c.expenseAccount.isLoanAccount).map(c => c.expenseAccount.id)
+    const loans = loanAccountIds.length > 0
+      ? await prisma.businessLoan.findMany({
+          where: { expenseAccountId: { in: loanAccountIds } },
+          select: { expenseAccountId: true, status: true, lockedBalance: true },
+        })
+      : []
+    const loanInfoByAccountId = new Map(
+      loans.filter(l => l.expenseAccountId).map(l => [l.expenseAccountId as string, l])
+    )
+
+    // Sum actualAmount from LOCKED cash allocation line items per expense account, per
+    // contributing business. Used ONLY for the shared-account "who contributed how much"
+    // breakdown below — a historical attribution figure, not a live balance. The headline
+    // number per account uses the account's real current balance (see configs loop below).
     const lineItems = relevantAccountIds.length > 0
       ? await prisma.cashAllocationLineItem.findMany({
           where: {
@@ -114,7 +137,16 @@ export async function GET() {
     // Build per-business groups
     const byBusiness = new Map<string, {
       business: { id: string; name: string; type: string }
-      accounts: { id: string; accountName: string; dailyAmount: number; cashBoxBalance: number }[]
+      accounts: {
+        id: string
+        accountName: string
+        dailyAmount: number
+        cashBoxBalance: number
+        isLoanAccount: boolean
+        loanBalanceOwed?: number
+        availableToWithdraw?: number
+        loanStatus?: string
+      }[]
       payrollCashBox: number
       canViewPayroll: boolean
     }>()
@@ -129,12 +161,42 @@ export async function GET() {
           canViewPayroll: isSystemAdmin(user) || hasPermission(user, 'canAccessPayroll', bizId),
         })
       }
-      byBusiness.get(bizId)!.accounts.push({
-        id: c.expenseAccount.id,
-        accountName: c.expenseAccount.accountName,
-        dailyAmount: Number(c.dailyAmount),
-        cashBoxBalance: cashBoxByAccountId.get(c.expenseAccount.id) ?? 0,
-      })
+
+      const currentBalance = Number(c.expenseAccount.balance)
+      const loanInfo = c.expenseAccount.isLoanAccount ? loanInfoByAccountId.get(c.expenseAccount.id) : undefined
+
+      if (loanInfo) {
+        // Loan account: show the actual amount still owed (informational) and, once
+        // LOCKED, the accumulated holding-bucket amount ready to be requested this cycle —
+        // same formula used by the loan detail page and withdrawal request routes.
+        const loanBalanceOwed = Math.abs(currentBalance)
+        const availableToWithdraw = loanInfo.status === 'LOCKED'
+          ? Math.max(0, Math.abs(Number(loanInfo.lockedBalance ?? 0)) - Math.abs(currentBalance))
+          : undefined
+
+        byBusiness.get(bizId)!.accounts.push({
+          id: c.expenseAccount.id,
+          accountName: c.expenseAccount.accountName,
+          dailyAmount: Number(c.dailyAmount),
+          // Headline figure = what's actually ready to request, not the raw (negative)
+          // loan balance — matches the "holding bucket" concept this widget represents.
+          cashBoxBalance: availableToWithdraw ?? 0,
+          isLoanAccount: true,
+          loanBalanceOwed,
+          availableToWithdraw,
+          loanStatus: loanInfo.status,
+        })
+      } else {
+        byBusiness.get(bizId)!.accounts.push({
+          id: c.expenseAccount.id,
+          accountName: c.expenseAccount.accountName,
+          dailyAmount: Number(c.dailyAmount),
+          // Real current balance — nets out any payments already made from this account,
+          // unlike the old ever-growing historical sum.
+          cashBoxBalance: currentBalance,
+          isLoanAccount: false,
+        })
+      }
     }
 
     // Add businesses that have payroll but no auto-deposit configs
@@ -178,6 +240,10 @@ export async function GET() {
       accountName: string
       dailyAmount: number
       cashBoxBalance: number
+      isLoanAccount: boolean
+      loanBalanceOwed?: number
+      availableToWithdraw?: number
+      loanStatus?: string
       businessContributions: { businessId: string; businessName: string; cashBoxBalance: number }[]
     }[] = []
     for (const g of allGroups) {
