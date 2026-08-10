@@ -69,6 +69,11 @@ export async function GET(request: NextRequest) {
             username: true
           }
         },
+        r710_business_integrations: {
+          select: {
+            businesses: { select: { name: true } }
+          }
+        },
         _count: {
           select: {
             r710_business_integrations: true,
@@ -95,6 +100,7 @@ export async function GET(request: NextRequest) {
       lastConnectedAt: device.lastConnectedAt,
       lastError: device.lastError,
       businessCount: device._count.r710_business_integrations,
+      businessNames: device.r710_business_integrations.map(i => i.businesses?.name).filter(Boolean),
       wlanCount: device._count.r710_wlans,
       createdBy: {
         id: device.creator.id,
@@ -180,14 +186,22 @@ export async function POST(request: NextRequest) {
 
     // Check if IP already registered
     const existingDevice = await prisma.r710DeviceRegistry.findUnique({
-      where: { ipAddress }
+      where: { ipAddress },
+      include: {
+        r710_business_integrations: {
+          include: { businesses: { select: { name: true } } }
+        }
+      }
     });
 
     if (existingDevice) {
       return NextResponse.json(
         {
           error: 'Device already registered',
-          message: `IP address ${ipAddress} is already in the device registry`,
+          message: `IP address ${ipAddress} is already registered to device "${existingDevice.description || existingDevice.id}"` +
+            (existingDevice.r710_business_integrations.length > 0
+              ? ` (serving: ${existingDevice.r710_business_integrations.map(i => i.businesses?.name).filter(Boolean).join(', ')})`
+              : ''),
           existingDeviceId: existingDevice.id
         },
         { status: 409 }

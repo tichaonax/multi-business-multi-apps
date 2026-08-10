@@ -84,6 +84,7 @@ function EditR710DeviceContent() {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [removingIntegration, setRemovingIntegration] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [saveFailure, setSaveFailure] = useState<{ message: string; details?: string } | null>(null)
 
   // Load device data
   useEffect(() => {
@@ -137,6 +138,9 @@ function EditR710DeviceContent() {
     // Clear test result when form changes
     if (testResult) {
       setTestResult(null)
+    }
+    if (saveFailure) {
+      setSaveFailure(null)
     }
   }
 
@@ -219,11 +223,15 @@ function EditR710DeviceContent() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, force = false) => {
     e.preventDefault()
 
     if (!validateForm()) {
       return
+    }
+
+    if (!force) {
+      setSaveFailure(null)
     }
 
     try {
@@ -246,6 +254,10 @@ function EditR710DeviceContent() {
         updatePayload.adminPassword = formData.adminPassword
       }
 
+      if (force) {
+        updatePayload.force = true
+      }
+
       const response = await fetch(`/api/admin/r710/devices/${deviceId}`, {
         method: 'PUT',
         headers: {
@@ -263,6 +275,14 @@ function EditR710DeviceContent() {
           '✅ Update Successful'
         )
         router.push('/r710-portal/devices')
+      } else if (data.canForce) {
+        // Device unreachable / auth failed while testing the new value - offer
+        // to save it anyway for cases where the admin knows it's correct but
+        // the device is temporarily unreachable (see MBM-257).
+        setSaveFailure({
+          message: data.message || data.error || 'Failed to update device',
+          details: data.details
+        })
       } else {
         showError(
           data.message || data.error || 'Failed to update device',
@@ -275,6 +295,19 @@ function EditR710DeviceContent() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleSaveAnyway = async () => {
+    const confirmed = await confirm({
+      title: 'Save Without Testing?',
+      description: 'The connectivity test failed for this value. Only continue if you\'re confident the IP address / credentials are correct and the device is just temporarily unreachable (e.g. network issue, reboot). The device will be marked "Disconnected" until the next successful test.',
+      confirmText: 'Save Anyway',
+      cancelText: 'Cancel'
+    })
+
+    if (!confirmed) return
+
+    await handleSubmit({ preventDefault: () => {} } as React.FormEvent, true)
   }
 
   const handleDelete = async () => {
@@ -748,6 +781,41 @@ function EditR710DeviceContent() {
                       <p><strong>Firmware:</strong> {testResult.firmwareVersion}</p>
                     </div>
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Save Failure - offers a force-save override */}
+          {saveFailure && (
+            <div className="p-4 rounded-md bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+              <div className="flex items-start">
+                <svg className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mr-3 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div className="flex-1">
+                  <h4 className="text-sm font-medium text-yellow-900 dark:text-yellow-200">
+                    Could Not Verify This Change
+                  </h4>
+                  <p className="text-sm mt-1 text-yellow-800 dark:text-yellow-300">
+                    {saveFailure.message}
+                  </p>
+                  {saveFailure.details && (
+                    <p className="text-xs mt-1 text-yellow-700 dark:text-yellow-400">{saveFailure.details}</p>
+                  )}
+                  <p className="text-xs mt-2 text-yellow-700 dark:text-yellow-400">
+                    If you're correcting a known-wrong value (e.g. fixing a mixed-up IP) and the device is
+                    just temporarily unreachable, you can save it anyway. It will be marked "Disconnected"
+                    until the next successful test.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleSaveAnyway}
+                    disabled={submitting}
+                    className="mt-3 inline-flex items-center px-3 py-1.5 text-xs font-medium text-yellow-900 dark:text-yellow-100 bg-yellow-200 dark:bg-yellow-800 rounded-md hover:bg-yellow-300 dark:hover:bg-yellow-700 disabled:opacity-50"
+                  >
+                    Save Anyway (Skip Test)
+                  </button>
                 </div>
               </div>
             </div>

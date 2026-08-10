@@ -23,6 +23,7 @@ interface R710Device {
   lastError: string | null
   isActive: boolean
   businessCount: number
+  businessNames: string[]
   createdAt: Date
 }
 
@@ -43,6 +44,9 @@ function R710DevicesContent() {
   const [devices, setDevices] = useState<R710Device[]>([])
   const [loading, setLoading] = useState(true)
   const [testingDevice, setTestingDevice] = useState<string | null>(null)
+  const [swapSourceId, setSwapSourceId] = useState<string | null>(null)
+  const [swapTargetId, setSwapTargetId] = useState<string>('')
+  const [swapping, setSwapping] = useState(false)
 
   useEffect(() => {
     loadDevices()
@@ -108,6 +112,48 @@ function R710DevicesContent() {
       )
     } finally {
       setTestingDevice(null)
+    }
+  }
+
+  const openSwapModal = (deviceId: string) => {
+    setSwapSourceId(deviceId)
+    setSwapTargetId('')
+  }
+
+  const closeSwapModal = () => {
+    setSwapSourceId(null)
+    setSwapTargetId('')
+  }
+
+  const confirmSwap = async () => {
+    if (!swapSourceId || !swapTargetId) return
+
+    try {
+      setSwapping(true)
+      const response = await fetch('/api/admin/r710/devices/swap-ip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ deviceIdA: swapSourceId, deviceIdB: swapTargetId })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        showSuccess(
+          'IP addresses swapped. Use "Test" on both devices to confirm connectivity at their corrected addresses.',
+          '✅ IP Addresses Swapped'
+        )
+        closeSwapModal()
+        await loadDevices()
+      } else {
+        showError(data.message || data.error || 'Failed to swap IP addresses', '❌ Swap Failed')
+      }
+    } catch (error) {
+      console.error('Failed to swap device IPs:', error)
+      showError('Unable to communicate with the server. Please try again.', '❌ Swap Failed')
+    } finally {
+      setSwapping(false)
     }
   }
 
@@ -282,6 +328,11 @@ function R710DevicesContent() {
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
                       {device.businessCount} {device.businessCount === 1 ? 'business' : 'businesses'}
                     </span>
+                    {device.businessNames.length > 0 && (
+                      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 max-w-[16rem]">
+                        {device.businessNames.join(', ')}
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-right space-x-2">
                     <button
@@ -315,6 +366,18 @@ function R710DevicesContent() {
                       </svg>
                       Edit
                     </Link>
+                    {devices.length > 1 && (
+                      <button
+                        onClick={() => openSwapModal(device.id)}
+                        className="inline-flex items-center px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
+                        title="Swap this device's IP address with another device"
+                      >
+                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                        </svg>
+                        Swap IP
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -346,6 +409,74 @@ function R710DevicesContent() {
           </Link>
         </div>
       )}
+
+      {/* Swap IP Modal */}
+      {swapSourceId && (() => {
+        const sourceDevice = devices.find(d => d.id === swapSourceId)
+        const targetDevice = devices.find(d => d.id === swapTargetId)
+        if (!sourceDevice) return null
+
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                Swap IP Addresses
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Exchange the IP address between two devices. Use this when a device's
+                IP was assigned to the wrong physical unit (e.g. after a mix-up).
+              </p>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Swap "{sourceDevice.description || sourceDevice.ipAddress}" ({sourceDevice.ipAddress}) with
+                </label>
+                <select
+                  value={swapTargetId}
+                  onChange={(e) => setSwapTargetId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="">Choose a device...</option>
+                  {devices.filter(d => d.id !== swapSourceId).map(d => (
+                    <option key={d.id} value={d.id}>
+                      {d.description || 'No description'} ({d.ipAddress})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {targetDevice && (
+                <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-3 text-sm">
+                  <p className="text-blue-900 dark:text-blue-200 font-medium mb-1">After swap:</p>
+                  <p className="text-blue-800 dark:text-blue-300">
+                    {sourceDevice.description || sourceDevice.id} → <span className="font-mono">{targetDevice.ipAddress}</span>
+                  </p>
+                  <p className="text-blue-800 dark:text-blue-300">
+                    {targetDevice.description || targetDevice.id} → <span className="font-mono">{sourceDevice.ipAddress}</span>
+                  </p>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={closeSwapModal}
+                  disabled={swapping}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmSwap}
+                  disabled={!swapTargetId || swapping}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {swapping ? 'Swapping...' : 'Swap IP Addresses'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

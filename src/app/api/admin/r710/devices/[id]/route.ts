@@ -194,7 +194,8 @@ export async function PUT(
       adminUsername,
       adminPassword,
       description,
-      isActive
+      isActive,
+      force
     } = body;
 
     // Prepare update data
@@ -215,14 +216,24 @@ export async function PUT(
     if (ipAddress && ipAddress !== device.ipAddress) {
       // Check if new IP is already registered
       const existingDevice = await prisma.r710DeviceRegistry.findUnique({
-        where: { ipAddress }
+        where: { ipAddress },
+        include: {
+          r710_business_integrations: {
+            include: { businesses: { select: { name: true } } }
+          }
+        }
       });
 
       if (existingDevice) {
         return NextResponse.json(
           {
             error: 'IP address already registered',
-            message: 'Another device is already registered with this IP address'
+            message: `IP ${ipAddress} is already registered to device "${existingDevice.description || existingDevice.id}"` +
+              (existingDevice.r710_business_integrations.length > 0
+                ? ` (serving: ${existingDevice.r710_business_integrations.map(i => i.businesses?.name).filter(Boolean).join(', ')})`
+                : ''),
+            existingDeviceId: existingDevice.id,
+            suggestion: 'Use the "Swap IP" action on the devices list to exchange addresses between two devices instead.'
           },
           { status: 409 }
         );
@@ -245,8 +256,12 @@ export async function PUT(
       credentialsChanged = true;
     }
 
-    // If IP or credentials changed, test connectivity
-    if (ipAddressChanged || credentialsChanged) {
+    // If IP or credentials changed, test connectivity - unless explicitly overridden.
+    // `force` exists for data corrections (e.g. fixing a mixed-up IP, see MBM-257)
+    // where the admin knows the correct value but the device may be transiently
+    // unreachable (network segment, firewall, reboot) and shouldn't be blocked
+    // from saving the correction.
+    if ((ipAddressChanged || credentialsChanged) && !force) {
       console.log(`[R710 Device Update] Testing connection for ${newIpAddress}...`);
 
       const r710Service = new RuckusR710ApiService({
@@ -263,7 +278,8 @@ export async function PUT(
           {
             error: 'Device unreachable',
             message: 'Cannot connect to R710 device with new credentials',
-            details: connectivityTest.error
+            details: connectivityTest.error,
+            canForce: true
           },
           { status: 503 }
         );
@@ -274,20 +290,11 @@ export async function PUT(
           {
             error: 'Authentication failed',
             message: 'New credentials are invalid',
-            details: connectivityTest.error
+            details: connectivityTest.error,
+            canForce: true
           },
           { status: 401 }
         );
-      }
-
-      // Invalidate cached session (forces re-authentication on next use)
-      console.log(`[R710 Device Update] Invalidating session for ${device.ipAddress}...`);
-      const sessionManager = getR710SessionManager();
-      await sessionManager.invalidateSession(device.ipAddress);
-
-      // If IP changed, also invalidate any session for the new IP
-      if (ipAddressChanged) {
-        await sessionManager.invalidateSession(newIpAddress);
       }
 
       // Update connection status
@@ -297,6 +304,25 @@ export async function PUT(
       updateData.lastError = null;
 
       console.log(`[R710 Device Update] ${ipAddressChanged ? 'IP address and ' : ''}Credentials updated and session invalidated`);
+    } else if ((ipAddressChanged || credentialsChanged) && force) {
+      // Saved without a live test - mark as unknown/disconnected rather than
+      // falsely claiming CONNECTED until the next real test confirms it.
+      updateData.connectionStatus = 'DISCONNECTED';
+      updateData.lastError = null;
+
+      console.log(`[R710 Device Update] Saved ${ipAddressChanged ? 'IP address' : 'credentials'} change WITHOUT testing (force=true)`);
+    }
+
+    if (ipAddressChanged || credentialsChanged) {
+      // Invalidate cached session (forces re-authentication on next use)
+      console.log(`[R710 Device Update] Invalidating session for ${device.ipAddress}...`);
+      const sessionManager = getR710SessionManager();
+      await sessionManager.invalidateSession(device.ipAddress);
+
+      // If IP changed, also invalidate any session for the new IP
+      if (ipAddressChanged) {
+        await sessionManager.invalidateSession(newIpAddress);
+      }
     }
 
     // Perform update
