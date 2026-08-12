@@ -20,6 +20,7 @@
     - [Printer Troubleshooting — Clearing Stuck Jobs](#printer-troubleshooting--clearing-stuck-jobs)
 6. [Employees — Clock-In, Leave & Per Diem](#6-employees--clock-in-leave--per-diem)
 7. [Expense Accounts & Petty Cash](#7-expense-accounts--petty-cash)
+    - [Adjusting an Account Balance (Admin Only)](#adjusting-an-account-balance-admin-only)
     - [Switching Between Expense Accounts](#switching-between-expense-accounts)
     - [Transferring Funds Between Non-Business Accounts](#transferring-funds-between-non-business-accounts)
 8. [Business Loans](#8-business-loans)
@@ -28,6 +29,7 @@
 11. [Construction & Projects](#11-construction--projects)
 12. [Driver & Vehicle Log](#12-driver--vehicle-log)
 13. [WiFi Token Sales — ESP32 and R710](#13-wifi-token-sales--esp32-and-r710)
+    - [Device Registry — Admin Setup & Fixing a Mixed-Up IP Address](#device-registry--admin-setup--fixing-a-mixed-up-ip-address)
 14. [Inventory & Barcode Labels](#14-inventory--barcode-labels)
     - [Predefined Domains & Category Taxonomy](#predefined-domains-categories--sub-categories--all-business-types)
     - [Custom Bulk Products](#custom-bulk-products--complete-guide)
@@ -2702,6 +2704,25 @@ Your manager will review it. You will receive a notification when it is approved
 
 ---
 
+### Adjusting an Account Balance (Admin Only)
+
+An account's balance is calculated automatically from its deposit and payment history — you never normally need to set it directly. But occasionally a balance can drift from what it should be (for example, after restoring from a backup, or if historical transactions were missing). If you notice a balance that looks wrong, a system administrator can correct it.
+
+**Who can do this:** System administrators only.
+
+1. Open the expense account with the incorrect balance.
+2. Next to the balance figure, click the ✏️ (pencil) icon. If you don't see it, you don't have permission to adjust balances.
+3. In the **Adjust Account Balance** window:
+   - **Correct Balance** — enter what the balance should actually be (e.g., from a bank/cash reconciliation).
+   - **Reason** — required. Explain why the correction is needed (e.g., "Reconciled against landlord statement — a deposit from before the backup restore was missing").
+4. Click **Adjust Balance**, then confirm.
+
+**What happens:** The system doesn't just overwrite the number — it posts a proper correction entry (a deposit or a payment, whichever direction is needed) into the account's transaction history, tagged with your name, the date, the old and new balance, and your reason. This keeps the balance fully auditable and means it won't silently drift back to the old figure later.
+
+> If the same account shows different balances in different places (e.g. on a dashboard summary vs. the account detail page), open the account detail page first — it recalculates the true balance from the full transaction history every time it loads, and this is always the number to trust.
+
+---
+
 ### Switching Between Expense Accounts
 
 When you are inside an expense account detail page, a **⇄ Switch** button appears in the breadcrumb bar next to "Accounts /". This lets you jump directly to another account without going back to the list.
@@ -3968,6 +3989,31 @@ Go to **R710 Portal → Sales History** to see:
 - All tokens sold (date, package, username/password)
 - Whether each token has been used or is still unused
 - Which tokens were sold via POS vs direct sale
+
+---
+
+#### Device Registry — Admin Setup & Fixing a Mixed-Up IP Address
+
+**Who reads this:** System administrators managing the physical R710 access points.
+
+Each physical R710 router is registered once in a global **Device Registry**, then linked to one or more businesses. Getting a device's IP address wrong here is the most common cause of "tokens sell fine but customers can't connect" — the token gets created on the wrong physical router.
+
+**Registering a new device:**
+1. Go to **R710 Portal → Devices → Register Device**.
+2. Enter the router's **IP address**, **admin username/password**, and an optional description (e.g. "Main building — Floor 2").
+3. Click **Test Connection** — registration is blocked until the test succeeds, confirming the system can actually reach and log into that router.
+4. Click **Register Device**.
+
+**Editing a device** (e.g. the router's IP changed): open **R710 Portal → Devices**, click **Edit** on the device, update the fields, and save. If you change the IP or password, the system re-tests the connection before saving — this protects against typos, but it also means the save is blocked if the router is only temporarily unreachable (network issue, reboot, wrong subnet from the server). If a test-gated save fails and you're confident the value you entered is correct, a **"Save Anyway (Skip Test)"** option appears — use it only when you're sure, since it skips live verification. The device is marked "Disconnected" until the next successful test confirms it.
+
+**Fixing two devices whose IP addresses got swapped:** If two routers' IP addresses were mixed up (e.g. during setup, one business's IP got assigned to another business's device by mistake), don't try to fix them one at a time — you'll hit an "IP already registered" error, since the wrong IP is already claimed by the other device. Instead:
+1. Go to **R710 Portal → Devices**.
+2. Click **Swap IP** on either of the two mixed-up devices.
+3. Select the other device from the dropdown — a preview shows exactly what each device's IP will become after the swap.
+4. Confirm. Both devices' IP addresses are exchanged in one step, and any cached connections to the old addresses are cleared automatically.
+5. Click **Test** on both devices afterward to confirm each one now connects correctly.
+
+> The devices list also shows which businesses each device is actually serving underneath the business count — worth a glance after any setup change, since a device serving the wrong business's WLAN is usually visible at a glance once you can see the names.
 
 ---
 
