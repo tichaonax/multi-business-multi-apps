@@ -24,7 +24,8 @@ export type AuditAction =
   | 'BACKUP_CREATED'
   | 'BACKUP_RESTORED'
   | 'PAYMENT_REVERSED_TO_PETTY_CASH'
-  | 'EXPENSE_ACCOUNT_TRANSFER';
+  | 'EXPENSE_ACCOUNT_TRANSFER'
+  | 'EXPENSE_ACCOUNT_BALANCE_ADJUSTED';
 
 export type AuditEntityType =
   | 'User'
@@ -40,7 +41,8 @@ export type AuditEntityType =
   | 'DataImport'
   | 'Backup'
   | 'PaymentReversalLog'
-  | 'ExpenseAccountTransfer';
+  | 'ExpenseAccountTransfer'
+  | 'ExpenseAccount';
 
 export interface AuditLogEntry {
   userId: string;
@@ -153,7 +155,7 @@ function generateChangeLog(oldValues: Record<string, any>, newValues: Record<str
  * Map entity type to database table name
  */
 function getTableNameFromEntityType(entityType: AuditEntityType): string {
-  const mapping: Record<AuditEntityType, string> = {
+  const mapping: Partial<Record<AuditEntityType, string>> = {
     'User': 'users',
     'Business': 'businesses',
     'Employee': 'employees',

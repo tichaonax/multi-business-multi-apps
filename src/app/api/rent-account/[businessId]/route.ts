@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
+import { calculateExpenseAccountBalance } from '@/lib/expense-account-utils'
 
 type Params = { params: Promise<{ businessId: string }> }
 
@@ -46,7 +47,9 @@ export async function GET(request: NextRequest, { params }: Params) {
       return NextResponse.json({ hasRentAccount: false, config: null })
     }
 
-    const balance = Number(config.expenseAccount.balance)
+    // Live-computed from the ledger, not the possibly-stale stored column
+    // (see MBM-258 — the stored `balance` column can drift from actual deposits/payments).
+    const balance = await calculateExpenseAccountBalance(config.expenseAccount.id)
     const monthlyRent = Number(config.monthlyRentAmount)
     const fundingPercent = monthlyRent > 0 ? Math.round((balance / monthlyRent) * 1000) / 10 : 0
     const indicator = computeIndicator(balance, monthlyRent)
@@ -301,7 +304,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
       },
     })
 
-    const balance = Number(updated.expenseAccount.balance)
+    const balance = await calculateExpenseAccountBalance(updated.expenseAccount.id)
     const fundingPercent = newMonthly > 0 ? Math.round((balance / newMonthly) * 1000) / 10 : 0
 
     return NextResponse.json({

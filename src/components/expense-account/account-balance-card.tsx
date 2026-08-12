@@ -1,23 +1,29 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAlert } from '@/components/ui/confirm-modal'
+import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 
 interface AccountBalanceCardProps {
   accountData: any
   onRefresh?: () => void
   canViewExpenseReports?: boolean
   canEditThreshold?: boolean
+  isAdmin?: boolean
 }
 
-export function AccountBalanceCard({ accountData, onRefresh, canViewExpenseReports = false, canEditThreshold = false }: AccountBalanceCardProps) {
+export function AccountBalanceCard({ accountData, onRefresh, canViewExpenseReports = false, canEditThreshold = false, isAdmin = false }: AccountBalanceCardProps) {
   const customAlert = useAlert()
+  const confirm = useConfirm()
   const [balanceSummary, setBalanceSummary] = useState<any>(null)
   const [balanceForbidden, setBalanceForbidden] = useState(false)
   const [loading, setLoading] = useState(false)
   const [editingThreshold, setEditingThreshold] = useState(false)
   const [thresholdInput, setThresholdInput] = useState('')
   const [savingThreshold, setSavingThreshold] = useState(false)
+  const [showAdjustModal, setShowAdjustModal] = useState(false)
+  const [adjustTarget, setAdjustTarget] = useState('')
+  const [adjustReason, setAdjustReason] = useState('')
+  const [adjusting, setAdjusting] = useState(false)
 
   useEffect(() => {
     if (accountData?.id) {
@@ -72,6 +78,54 @@ export function AccountBalanceCard({ accountData, onRefresh, canViewExpenseRepor
       customAlert({ title: 'Error', description: 'Network error. Please try again.' })
     } finally {
       setSavingThreshold(false)
+    }
+  }
+
+  const openAdjustModal = () => {
+    setAdjustTarget(String(balance))
+    setAdjustReason('')
+    setShowAdjustModal(true)
+  }
+
+  const handleAdjustBalance = async () => {
+    const target = parseFloat(adjustTarget)
+    if (isNaN(target)) {
+      customAlert({ title: 'Invalid value', description: 'Enter a valid balance amount.' })
+      return
+    }
+    if (!adjustReason.trim()) {
+      customAlert({ title: 'Reason required', description: 'Explain why this balance is being corrected (e.g. reconciled against a bank statement).' })
+      return
+    }
+
+    const confirmed = await confirm({
+      title: 'Adjust Account Balance?',
+      description: `This changes the balance from ${formatCurrency(balance)} to ${formatCurrency(target)} by posting an audited correction entry. This cannot be undone automatically — only with another correction.`,
+      confirmText: 'Adjust Balance',
+      cancelText: 'Cancel',
+    })
+    if (!confirmed) return
+
+    setAdjusting(true)
+    try {
+      const res = await fetch(`/api/expense-account/${accountData.id}/adjust-balance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ targetBalance: target, reason: adjustReason.trim() }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setShowAdjustModal(false)
+        fetchBalanceSummary()
+        if (onRefresh) onRefresh()
+      } else {
+        customAlert({ title: 'Error', description: data.error || data.message || 'Failed to adjust balance.' })
+      }
+    } catch {
+      customAlert({ title: 'Error', description: 'Network error. Please try again.' })
+    } finally {
+      setAdjusting(false)
     }
   }
 
@@ -135,6 +189,13 @@ export function AccountBalanceCard({ accountData, onRefresh, canViewExpenseRepor
             <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-white/20 border border-white/40 whitespace-nowrap">
               ⚡ Low
             </span>
+          )}
+          {isAdmin && (
+            <button
+              onClick={openAdjustModal}
+              className="opacity-50 hover:opacity-100 transition-opacity leading-none text-sm"
+              title="Manually correct this balance (admin only)"
+            >✏️</button>
           )}
         </div>
 
@@ -249,6 +310,60 @@ export function AccountBalanceCard({ accountData, onRefresh, canViewExpenseRepor
           </svg>
         </button>
       </div>
+
+      {/* Adjust Balance Modal (admin only) */}
+      {showAdjustModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg p-5 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-700">
+            <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-1">Adjust Account Balance</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              Current balance: <span className="font-semibold">{formatCurrency(balance)}</span>. This posts an
+              audited correction entry — it does not overwrite history.
+            </p>
+
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Correct Balance</label>
+            <div className="relative mb-3">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+              <input
+                type="number"
+                step="0.01"
+                value={adjustTarget}
+                onChange={(e) => setAdjustTarget(e.target.value)}
+                autoFocus
+                className="w-full pl-7 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary"
+              />
+            </div>
+
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason (required)</label>
+            <textarea
+              value={adjustReason}
+              onChange={(e) => setAdjustReason(e.target.value)}
+              rows={3}
+              placeholder="e.g. Reconciled against landlord statement — balance was missing a deposit from before the backup restore."
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-primary mb-4"
+            />
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAdjustModal(false)}
+                disabled={adjusting}
+                className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAdjustBalance}
+                disabled={adjusting || !adjustTarget || !adjustReason.trim()}
+                className="px-3 py-1.5 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50"
+              >
+                {adjusting ? 'Adjusting…' : 'Adjust Balance'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

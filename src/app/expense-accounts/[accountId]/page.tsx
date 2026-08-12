@@ -1735,6 +1735,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
           onRefresh={handleRefresh}
           canViewExpenseReports={canViewExpenseReports}
           canEditThreshold={canChangeCategory}
+          isAdmin={isSystemAdmin}
         />
 
 
