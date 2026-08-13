@@ -1259,6 +1259,26 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
     }
   }, [permissionsLoading, canAccessExpenseAccount, router])
 
+  // Fetch all accessible accounts for the switcher — also called after a balance
+  // adjustment so the dropdown doesn't keep showing a stale figure for this account.
+  const loadSwitcherAccounts = useCallback(() => {
+    fetch('/api/expense-account', { credentials: 'include' })
+      .then(r => r.json())
+      .then(json => {
+        if (json.data?.accounts) {
+          setSwitcherAccounts(
+            json.data.accounts.map((a: any) => ({
+              id: a.id,
+              accountName: a.accountName,
+              accountNumber: a.accountNumber,
+              balance: Number(a.balance ?? 0),
+            }))
+          )
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   useEffect(() => {
     if (session?.user?.id && accountId) {
       loadAccount()
@@ -1273,24 +1293,9 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
           }
         })
         .catch(() => {})
-      // Fetch all accessible accounts for the switcher
-      fetch('/api/expense-account', { credentials: 'include' })
-        .then(r => r.json())
-        .then(json => {
-          if (json.data?.accounts) {
-            setSwitcherAccounts(
-              json.data.accounts.map((a: any) => ({
-                id: a.id,
-                accountName: a.accountName,
-                accountNumber: a.accountNumber,
-                balance: Number(a.balance ?? 0),
-              }))
-            )
-          }
-        })
-        .catch(() => {})
+      loadSwitcherAccounts()
     }
-  }, [session?.user?.id, accountId])
+  }, [session?.user?.id, accountId, loadSwitcherAccounts])
 
   useEffect(() => {
     if (!session?.user) return
@@ -1435,6 +1440,9 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
 
   const handleRefresh = () => {
     loadAccount()
+    // Also re-sync the switcher list — otherwise it keeps showing this account's
+    // pre-edit balance until the page is fully reloaded.
+    loadSwitcherAccounts()
   }
 
   // One-click rent payment request — always for the full configured monthly rent

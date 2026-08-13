@@ -2713,11 +2713,11 @@ An account's balance is calculated automatically from its deposit and payment hi
 1. Open the expense account with the incorrect balance.
 2. Next to the balance figure, click the ✏️ (pencil) icon. If you don't see it, you don't have permission to adjust balances.
 3. In the **Adjust Account Balance** window:
-   - **Correct Balance** — enter what the balance should actually be (e.g., from a bank/cash reconciliation).
+   - **Correct Balance** — enter what the balance should actually be (e.g., from a bank/cash reconciliation). If you just want to sync the balance to what the account's actual deposits and payments currently add up to (its live contribution total), click **Match Current Contribution Balance** below the field — it fills in that figure for you. You can still type over it with a different value afterwards.
    - **Reason** — required. Explain why the correction is needed (e.g., "Reconciled against landlord statement — a deposit from before the backup restore was missing").
 4. Click **Adjust Balance**, then confirm.
 
-**What happens:** The system doesn't just overwrite the number — it posts a proper correction entry (a deposit or a payment, whichever direction is needed) into the account's transaction history, tagged with your name, the date, the old and new balance, and your reason. This keeps the balance fully auditable and means it won't silently drift back to the old figure later.
+**What happens:** The system doesn't just overwrite the number — it posts a proper correction entry (a deposit or a payment, whichever direction is needed) into the account's transaction history, tagged with your name, the date, the old and new balance, and your reason. This keeps the balance fully auditable and means it won't silently drift back to the old figure later. The account's own balance display, and the **⇄ Switch** account dropdown, both update immediately to the corrected figure — no page reload needed.
 
 > If the same account shows different balances in different places (e.g. on a dashboard summary vs. the account detail page), open the account detail page first — it recalculates the true balance from the full transaction history every time it loads, and this is always the number to trust.
 
