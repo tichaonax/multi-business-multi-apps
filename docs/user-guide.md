@@ -2713,7 +2713,7 @@ An account's balance is calculated automatically from its deposit and payment hi
 1. Open the expense account with the incorrect balance.
 2. Next to the balance figure, click the ✏️ (pencil) icon. If you don't see it, you don't have permission to adjust balances.
 3. In the **Adjust Account Balance** window:
-   - **Correct Balance** — enter what the balance should actually be (e.g., from a bank/cash reconciliation). If you just want to sync the balance to what the account's actual deposits and payments currently add up to (its live contribution total), click **Match Current Contribution Balance** below the field — it fills in that figure for you. You can still type over it with a different value afterwards.
+   - **Correct Balance** — enter what the balance should actually be (e.g., from a bank/cash reconciliation).
    - **Reason** — required. Explain why the correction is needed (e.g., "Reconciled against landlord statement — a deposit from before the backup restore was missing").
 4. Click **Adjust Balance**, then confirm.
 
