@@ -13,6 +13,7 @@
     - [Payroll Account Auto-Contribution (EOD)](#step-3b--payroll-account-auto-contribution-automatic)
     - [Setting Up EOD Payroll Auto-Contribution for a Business](#setting-up-eod-payroll-auto-contribution-for-a-business)
     - [Payroll Account — Transaction History & Breakdown](#payroll-account--transaction-history--breakdown)
+    - [Adjusting the Payroll Account Balance (Admin Only)](#adjusting-the-payroll-account-balance-admin-only)
 4. [Manager — Approvals, Payroll & Reports](#4-manager--approvals-payroll--reports)
 5. [HR & Employee Management](#5-hr--employee-management)
     - [Leave Management — HR Direct Actions](#leave-management--hr-direct-actions)
@@ -1060,6 +1061,23 @@ Shows the full payslip detail for that employee:
 **ZIMRA PAYE / NSSA / AIDS Levy row → Per-Employee Breakdown**
 
 Shows a table of every employee's individual contribution for that payroll period, with a running total at the bottom. This is useful for verifying figures before filing with ZIMRA or making NSSA payments.
+
+---
+
+### Adjusting the Payroll Account Balance (Admin Only)
+
+Like expense accounts, the payroll account's balance can occasionally drift from what it should be (for example, after restoring from a backup, or if historical transactions were missing). Unlike expense accounts, the payroll account has no automatic self-check — if you notice the balance looks wrong, or the account card shows **"⚠️ Needs reconciliation"** instead of **"✓ Accurate"**, a system administrator can correct it manually.
+
+**Who can do this:** System administrators only.
+
+1. Go to **Payroll → Payroll Account**.
+2. Next to the balance figure, click the ✏️ (pencil) icon. If you don't see it, you don't have permission to adjust balances.
+3. In the **Adjust Payroll Account Balance** window:
+   - **Correct Balance** — enter what the balance should actually be (e.g., from a bank reconciliation).
+   - **Reason** — required. Explain why the correction is needed.
+4. Click **Adjust Balance**, then confirm.
+
+**What happens:** The system doesn't just overwrite the number — it posts a proper correction entry into the account's transaction history (visible in Recent Transactions as **"Manual Balance Correction"**), tagged with your name, the date, the old and new balance, and your reason. This keeps the balance fully auditable.
 
 ---
 

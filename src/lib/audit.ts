@@ -25,7 +25,8 @@ export type AuditAction =
   | 'BACKUP_RESTORED'
   | 'PAYMENT_REVERSED_TO_PETTY_CASH'
   | 'EXPENSE_ACCOUNT_TRANSFER'
-  | 'EXPENSE_ACCOUNT_BALANCE_ADJUSTED';
+  | 'EXPENSE_ACCOUNT_BALANCE_ADJUSTED'
+  | 'PAYROLL_ACCOUNT_BALANCE_ADJUSTED';
 
 export type AuditEntityType =
   | 'User'
@@ -42,7 +43,8 @@ export type AuditEntityType =
   | 'Backup'
   | 'PaymentReversalLog'
   | 'ExpenseAccountTransfer'
-  | 'ExpenseAccount';
+  | 'ExpenseAccount'
+  | 'PayrollAccount';
 
 export interface AuditLogEntry {
   userId: string;
