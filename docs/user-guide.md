@@ -2744,7 +2744,10 @@ An account's balance is calculated automatically from its deposit and payment hi
 
 The same correction tool exists for two more balances, so every number in the books — expense accounts, the business's own revenue balance, and the physical cash box — can be kept in sync with reality:
 
-**Business Balance** (a business's revenue balance across all payment methods — shown on the **Dashboard**, next to "💰 [Business] Sales Balance"):
+**Business Balance** (a business's revenue balance across all payment methods) — the pencil appears in two places, both correcting the same balance:
+- The **Dashboard**, next to "💰 [Business] Sales Balance", or
+- **Business Accounts → [pick a business]** (`/business-accounts/[businessId]`), next to the large **Balance** figure at the top of the page — this is the dedicated account page with its own Transactions and Reports tabs, and is the more direct place to go when you're specifically reconciling that business's books.
+
 1. Click the ✏️ pencil next to the balance figure (admin only).
 2. Enter the **Correct Balance** and a required **Reason**, then confirm.
 
