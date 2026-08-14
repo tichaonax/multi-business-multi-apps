@@ -11,6 +11,7 @@ import ReceiptDetailModal from '@/components/receipts/receipt-detail-modal'
 import CrossBusinessAlert from '@/components/receipts/cross-business-alert'
 import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
 import { ReassignSalespersonModal, type ReassignResult } from '@/components/receipts/reassign-salesperson-modal'
+import { ReassignmentHistoryBadge, type ReassignmentHistoryEntry } from '@/components/receipts/reassignment-history-badge'
 import { getLocalDateString } from '@/lib/utils'
 import { useTimeDisplay } from '@/hooks/use-time-display'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -34,6 +35,7 @@ interface ReceiptListItem {
   createdAt: string
   cancellationOutcome: 'CANCELLED' | 'DENIED' | null
   refundAmount: number | null
+  reassignmentHistory: ReassignmentHistoryEntry[]
 }
 
 interface PaginationInfo {
@@ -560,7 +562,10 @@ function ReceiptHistoryPageContent() {
                       )}
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                      {receipt.salespersonName || '-'}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span>{receipt.salespersonName || '-'}</span>
+                        <ReassignmentHistoryBadge history={receipt.reassignmentHistory} />
+                      </div>
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                       {receipt.paymentMethod

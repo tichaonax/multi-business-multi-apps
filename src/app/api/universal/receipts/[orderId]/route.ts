@@ -117,6 +117,27 @@ export async function GET(
       }),
     }
 
+    // Reassignment history for this specific order
+    const reassignLogs = await prisma.managerOverrideLog.findMany({
+      where: {
+        action: 'SALE_REASSIGNMENT',
+        metadata: { path: ['orderIds'], array_contains: orderId },
+      },
+      select: { staffReason: true, createdAt: true, metadata: true, manager: { select: { name: true } } },
+      orderBy: { createdAt: 'desc' },
+    })
+    const reassignmentHistory = reassignLogs.map(log => {
+      const meta = log.metadata as any
+      const fromEntry = (meta.from || []).find((f: any) => (f.orderIds || []).includes(orderId))
+      return {
+        fromEmployeeName: fromEntry?.name ?? 'Unknown',
+        toEmployeeName: meta.toEmployeeName ?? 'Unknown',
+        reason: log.staffReason,
+        reassignedAt: log.createdAt,
+        reassignedByName: log.manager?.name ?? null,
+      }
+    })
+
     // Look up tokens sold with this order (R710 + ESP32 WiFi)
     const { r710Tokens, wifiTokens } = await lookupOrderTokens(prisma, order)
     if (r710Tokens.length > 0) orderData.r710Tokens = r710Tokens
@@ -147,6 +168,7 @@ export async function GET(
         totalAmount: order.totalAmount,
         customerName: order.business_customers?.name || null,
         employeeName: order.employees?.fullName || (order.attributes as any)?.employeeName || null,
+        reassignmentHistory,
         customerPhone: order.business_customers?.phone || null,
         status: order.status,
         paymentMethod: order.paymentMethod || null,

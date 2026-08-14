@@ -7,6 +7,7 @@ import { UnifiedReceiptPreviewModal } from '@/components/receipts/unified-receip
 import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
 import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
 import { ReassignSalespersonModal } from '@/components/receipts/reassign-salesperson-modal'
+import { ReassignmentHistoryBadge } from '@/components/receipts/reassignment-history-badge'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface ReceiptDetailModalProps {
@@ -254,8 +255,9 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
                     {order.employeeName && (
                       <div>
                         <dt className="text-xs text-gray-500 dark:text-gray-400">Served by</dt>
-                        <dd className="mt-1 text-sm text-gray-900 dark:text-white">
-                          {order.employeeName}
+                        <dd className="mt-1 text-sm text-gray-900 dark:text-white flex items-center gap-1.5 flex-wrap">
+                          <span>{order.employeeName}</span>
+                          <ReassignmentHistoryBadge history={order.reassignmentHistory || []} />
                         </dd>
                       </div>
                     )}

@@ -122,6 +122,39 @@ export async function GET(request: NextRequest) {
     const deniedOrderIds = new Set(deniedLogs.map((l: any) => l.targetId))
     const refundMap = new Map((cancellations as any[]).map(c => [c.orderId, Number(c.refundAmount)]))
 
+    // Reassignment history — each log covers a whole bulk action, so metadata.orderIds
+    // may include orders outside this page; metadata.from[].orderIds pins down which
+    // employee a *specific* order moved from within that action.
+    const reassignLogs = orderIds.length > 0
+      ? await prisma.managerOverrideLog.findMany({
+          where: {
+            action: 'SALE_REASSIGNMENT',
+            OR: orderIds.map(id => ({ metadata: { path: ['orderIds'], array_contains: id } })),
+          },
+          select: { staffReason: true, createdAt: true, metadata: true, manager: { select: { name: true } } },
+          orderBy: { createdAt: 'desc' },
+        })
+      : []
+    const historyByOrderId = new Map<string, Array<{
+      fromEmployeeName: string; toEmployeeName: string; reason: string; reassignedAt: Date; reassignedByName: string | null
+    }>>()
+    for (const log of reassignLogs) {
+      const meta = log.metadata as any
+      for (const oid of (meta?.orderIds || []) as string[]) {
+        if (!orderIds.includes(oid)) continue
+        const fromEntry = (meta.from || []).find((f: any) => (f.orderIds || []).includes(oid))
+        const arr = historyByOrderId.get(oid) ?? []
+        arr.push({
+          fromEmployeeName: fromEntry?.name ?? 'Unknown',
+          toEmployeeName: meta.toEmployeeName ?? 'Unknown',
+          reason: log.staffReason,
+          reassignedAt: log.createdAt,
+          reassignedByName: log.manager?.name ?? null,
+        })
+        historyByOrderId.set(oid, arr)
+      }
+    }
+
     return NextResponse.json({
       success: true,
       orders: orders.map(order => ({
@@ -145,6 +178,7 @@ export async function GET(request: NextRequest) {
         createdAt: order.createdAt,
         cancellationOutcome: order.status === 'CANCELLED' ? 'CANCELLED' : deniedOrderIds.has(order.id) ? 'DENIED' : null,
         refundAmount: refundMap.get(order.id) ?? null,
+        reassignmentHistory: historyByOrderId.get(order.id) ?? [],
       })),
       pagination: {
         total: totalCount,
