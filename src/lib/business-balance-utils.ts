@@ -103,12 +103,12 @@ export async function initializeBusinessAccount(
 
     // Create new account
     const account = await prisma.businessAccounts.create({
-      // cast to any because Prisma generated types expect additional required fields
-      data: ({
+      data: {
         businessId,
         balance: initialBalance,
-        createdBy
-      } as any)
+        createdBy,
+        updatedAt: new Date()
+      }
     }) as any
 
     // Create initial transaction if balance > 0
