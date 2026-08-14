@@ -22,6 +22,7 @@ export interface BusinessTypeFeatures {
   usedInventory?: boolean       // Support used/new condition tracking
   inventoryTransfer?: boolean   // Support inventory transfer between businesses
   bogoPromotion?: boolean       // Support BOGO pricing on used items
+  contractorJobs?: boolean      // Support contractor-based job/task billing
 }
 
 export interface BusinessTypeConfig {
@@ -176,6 +177,21 @@ export const BUSINESS_TYPE_CONFIGS: Record<string, BusinessTypeConfig> = {
       coupons: true
     },
     receiptType: 'services',
+    quickActionsEnabled: true
+  },
+
+  vehicle_service: {
+    displayName: 'Vehicle Repair & Service',
+    productDisplayMode: 'list',
+    paymentMethods: ['cash', 'card'],
+    features: {
+      customerLookup: true,
+      barcodeScan: true,
+      businessServices: true,
+      contractorJobs: true,
+      coupons: true
+    },
+    receiptType: 'vehicle_service',
     quickActionsEnabled: true
   },
 

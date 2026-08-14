@@ -159,6 +159,7 @@ model BusinessCustomers {
   delivery_customer_account  DeliveryCustomerAccounts?
   restaurant_credit_payments RestaurantCreditPayments[]
   order_cancellations        OrderCancellation[]        @relation("CustomerOrderCancellations")
+  vehicle_service_jobs       VehicleServiceJobs[]
 
   @@map("business_customers")
 }
@@ -233,6 +234,7 @@ model BusinessOrders {
   customer_rewards          CustomerRewards[]         @relation("RedeemedReward")
   order_cancellation        OrderCancellation?
   restaurant_credit_payment RestaurantCreditPayments?
+  vehicle_service_job       VehicleServiceJobs?
 
   @@index([orderNumber])
   @@index([businessId, createdAt(sort: Desc)])
@@ -425,60 +427,60 @@ model BusinessTransactions {
 }
 
 model Businesses {
-  id                                                                       String                        @id @default(uuid())
+  id                                                                       String                            @id @default(uuid())
   name                                                                     String
   type                                                                     String
   description                                                              String?
-  isActive                                                                 Boolean                       @default(true)
-  settings                                                                 Json                          @default("{}")
+  isActive                                                                 Boolean                           @default(true)
+  settings                                                                 Json                              @default("{}")
   createdBy                                                                String?
-  createdAt                                                                DateTime                      @default(now())
-  updatedAt                                                                DateTime                      @default(now())
+  createdAt                                                                DateTime                          @default(now())
+  updatedAt                                                                DateTime                          @default(now())
   umbrellaBusinessId                                                       String?
-  isUmbrellaBusiness                                                       Boolean                       @default(false)
-  umbrellaBusinessName                                                     String?                       @default("Demo Umbrella Company")
+  isUmbrellaBusiness                                                       Boolean                           @default(false)
+  umbrellaBusinessName                                                     String?                           @default("Demo Umbrella Company")
   umbrellaBusinessAddress                                                  String?
   umbrellaBusinessEmail                                                    String?
   umbrellaBusinessPhone                                                    String?
   umbrellaBusinessRegistration                                             String?
   shortName                                                                String?
-  isDemo                                                                   Boolean                       @default(false)
-  wifiIntegrationEnabled                                                   Boolean                       @default(false)
-  sku_format                                                               String?                       @default("{BUSINESS}-{SEQ}") @db.VarChar(50)
-  sku_prefix                                                               String?                       @db.VarChar(20)
-  sku_digits                                                               Int?                          @default(5)
+  isDemo                                                                   Boolean                           @default(false)
+  wifiIntegrationEnabled                                                   Boolean                           @default(false)
+  sku_format                                                               String?                           @default("{BUSINESS}-{SEQ}") @db.VarChar(50)
+  sku_prefix                                                               String?                           @db.VarChar(20)
+  sku_digits                                                               Int?                              @default(5)
   address                                                                  String?
   phone                                                                    String?
-  ecocashEnabled                                                           Boolean                       @default(false)
-  ecocashFeeType                                                           String?                       @default("FIXED") @map("ecocash_fee_type")
-  ecocashFeeValue                                                          Decimal?                      @default(0) @map("ecocash_fee_value") @db.Decimal(10, 2)
-  ecocashMinimumFee                                                        Decimal?                      @default(0) @map("ecocash_minimum_fee") @db.Decimal(10, 2)
-  cashRoundingEnabled                                                      Boolean                       @default(true) @map("cash_rounding_enabled")
-  cashRoundingStep                                                         Decimal                       @default(0.50) @map("cash_rounding_step") @db.Decimal(10, 2)
-  cashRoundingUpThreshold                                                  Decimal                       @default(0.05) @map("cash_rounding_up_threshold") @db.Decimal(10, 2)
-  cashRoundingMaxDownDiscount                                              Decimal                       @default(0.10) @map("cash_rounding_max_down_discount") @db.Decimal(10, 2)
-  transportCostEnabled                                                     Boolean                       @default(false)
-  transportDistanceKm                                                      Decimal?                      @db.Decimal(8, 2)
-  transportCostPerKm                                                       Decimal                       @default(0.30) @db.Decimal(6, 3)
-  requireSalespersonEod                                                    Boolean                       @default(false)
-  eodDeadlineTime                                                          String?                       @default("20:00") @db.VarChar(5)
-  couponsEnabled                                                           Boolean                       @default(false)
-  promosEnabled                                                            Boolean                       @default(false)
+  ecocashEnabled                                                           Boolean                           @default(false)
+  ecocashFeeType                                                           String?                           @default("FIXED") @map("ecocash_fee_type")
+  ecocashFeeValue                                                          Decimal?                          @default(0) @map("ecocash_fee_value") @db.Decimal(10, 2)
+  ecocashMinimumFee                                                        Decimal?                          @default(0) @map("ecocash_minimum_fee") @db.Decimal(10, 2)
+  cashRoundingEnabled                                                      Boolean                           @default(true) @map("cash_rounding_enabled")
+  cashRoundingStep                                                         Decimal                           @default(0.50) @map("cash_rounding_step") @db.Decimal(10, 2)
+  cashRoundingUpThreshold                                                  Decimal                           @default(0.05) @map("cash_rounding_up_threshold") @db.Decimal(10, 2)
+  cashRoundingMaxDownDiscount                                              Decimal                           @default(0.10) @map("cash_rounding_max_down_discount") @db.Decimal(10, 2)
+  transportCostEnabled                                                     Boolean                           @default(false)
+  transportDistanceKm                                                      Decimal?                          @db.Decimal(8, 2)
+  transportCostPerKm                                                       Decimal                           @default(0.30) @db.Decimal(6, 3)
+  requireSalespersonEod                                                    Boolean                           @default(false)
+  eodDeadlineTime                                                          String?                           @default("20:00") @db.VarChar(5)
+  couponsEnabled                                                           Boolean                           @default(false)
+  promosEnabled                                                            Boolean                           @default(false)
   receiptReturnPolicy                                                      String?
-  taxEnabled                                                               Boolean                       @default(false)
-  taxIncludedInPrice                                                       Boolean                       @default(true)
-  taxRate                                                                  Decimal?                      @db.Decimal(5, 2)
+  taxEnabled                                                               Boolean                           @default(false)
+  taxIncludedInPrice                                                       Boolean                           @default(true)
+  taxRate                                                                  Decimal?                          @db.Decimal(5, 2)
   taxLabel                                                                 String?
-  currency                                                                 String                        @default("USD")
-  currencySymbol                                                           String                        @default("$")
-  defaultPage                                                              String?                       @db.VarChar(50)
-  slogan                                                                   String?                       @default("Where Customer Is King") @db.VarChar(200)
-  showSlogan                                                               Boolean                       @default(true)
+  currency                                                                 String                            @default("USD")
+  currencySymbol                                                           String                            @default("$")
+  defaultPage                                                              String?                           @db.VarChar(50)
+  slogan                                                                   String?                           @default("Where Customer Is King") @db.VarChar(200)
+  showSlogan                                                               Boolean                           @default(true)
   logoImageId                                                              String?
-  invoiceCounter                                                           Int                           @default(0)
-  quotationCounter                                                         Int                           @default(0)
-  invoiceStartNumber                                                       Int                           @default(0)
-  quotationStartNumber                                                     Int                           @default(0)
+  invoiceCounter                                                           Int                               @default(0)
+  quotationCounter                                                         Int                               @default(0)
+  invoiceStartNumber                                                       Int                               @default(0)
+  quotationStartNumber                                                     Int                               @default(0)
   invoices                                                                 Invoices[]
   barcode_inventory_items                                                  BarcodeInventoryItems[]
   barcode_print_jobs                                                       BarcodePrintJobs[]
@@ -495,8 +497,8 @@ model Businesses {
   business_suppliers                                                       BusinessSuppliers[]
   business_token_menu_items                                                BusinessTokenMenuItems[]
   business_transactions                                                    BusinessTransactions[]
-  businesses                                                               Businesses?                   @relation("businessesTobusinesses", fields: [umbrellaBusinessId], references: [id])
-  other_businesses                                                         Businesses[]                  @relation("businessesTobusinesses")
+  businesses                                                               Businesses?                       @relation("businessesTobusinesses", fields: [umbrellaBusinessId], references: [id])
+  other_businesses                                                         Businesses[]                      @relation("businessesTobusinesses")
   customer_display_ads                                                     CustomerDisplayAd[]
   display_product_configs                                                  DisplayProductConfig[]
   display_global_settings                                                  DisplayGlobalSettings?
@@ -506,20 +508,20 @@ model Businesses {
   promo_campaigns                                                          PromoCampaigns[]
   pos_terminal_configs                                                     PosTerminalConfig[]
   device_connection_history                                                DeviceConnectionHistory[]
-  device_registry_first_seen                                               DeviceRegistry[]              @relation("DeviceFirstSeenBusiness")
-  device_registry_last_seen                                                DeviceRegistry[]              @relation("DeviceLastSeenBusiness")
+  device_registry_first_seen                                               DeviceRegistry[]                  @relation("DeviceFirstSeenBusiness")
+  device_registry_last_seen                                                DeviceRegistry[]                  @relation("DeviceLastSeenBusiness")
   employee_business_assignments                                            EmployeeBusinessAssignments[]
-  employee_contracts_employee_contracts_primaryBusinessIdTobusinesses      EmployeeContracts[]           @relation("employee_contracts_primaryBusinessIdTobusinesses")
-  employee_contracts_employee_contracts_umbrellaBusinessIdTobusinesses     EmployeeContracts[]           @relation("employee_contracts_umbrellaBusinessIdTobusinesses")
+  employee_contracts_employee_contracts_primaryBusinessIdTobusinesses      EmployeeContracts[]               @relation("employee_contracts_primaryBusinessIdTobusinesses")
+  employee_contracts_employee_contracts_umbrellaBusinessIdTobusinesses     EmployeeContracts[]               @relation("employee_contracts_umbrellaBusinessIdTobusinesses")
   employees                                                                Employees[]
   esp32_connected_clients                                                  ESP32ConnectedClients[]
-  expense_accounts                                                         ExpenseAccounts[]             @relation("BusinessExpenseAccounts")
-  expense_account_deposits                                                 ExpenseAccountDeposits[]      @relation("ExpenseAccountDepositSource")
-  expense_account_payments_as_payee                                        ExpenseAccountPayments[]      @relation("ExpensePaymentPayeeBusiness")
-  expense_payment_receipts                                                 ExpensePaymentReceipts[]      @relation("ReceiptPayeeBusiness")
+  expense_accounts                                                         ExpenseAccounts[]                 @relation("BusinessExpenseAccounts")
+  expense_account_deposits                                                 ExpenseAccountDeposits[]          @relation("ExpenseAccountDepositSource")
+  expense_account_payments_as_payee                                        ExpenseAccountPayments[]          @relation("ExpensePaymentPayeeBusiness")
+  expense_payment_receipts                                                 ExpensePaymentReceipts[]          @relation("ReceiptPayeeBusiness")
   expense_payment_vouchers                                                 ExpensePaymentVouchers[]
-  inter_business_loans_inter_business_loans_borrowerBusinessIdTobusinesses InterBusinessLoans[]          @relation("inter_business_loans_borrowerBusinessIdTobusinesses")
-  inter_business_loans_inter_business_loans_lenderBusinessIdTobusinesses   InterBusinessLoans[]          @relation("inter_business_loans_lenderBusinessIdTobusinesses")
+  inter_business_loans_inter_business_loans_borrowerBusinessIdTobusinesses InterBusinessLoans[]              @relation("inter_business_loans_borrowerBusinessIdTobusinesses")
+  inter_business_loans_inter_business_loans_lenderBusinessIdTobusinesses   InterBusinessLoans[]              @relation("inter_business_loans_lenderBusinessIdTobusinesses")
   mac_acl_entries                                                          MacAclEntry[]
   menu_combos                                                              MenuCombos[]
   as_you_like_it_combos                                                    AsYouLikeItCombos[]
@@ -534,14 +536,14 @@ model Businesses {
   print_jobs                                                               PrintJobs[]
   product_barcodes                                                         ProductBarcodes[]
   projects                                                                 Projects[]
-  r710_business_integrations                                               R710BusinessIntegrations[]    @relation("R710BusinessIntegration")
+  r710_business_integrations                                               R710BusinessIntegrations[]        @relation("R710BusinessIntegration")
   r710_business_token_menu_items                                           R710BusinessTokenMenuItems[]
   r710_connected_clients                                                   R710ConnectedClients[]
   r710_sync_logs                                                           R710SyncLogs[]
-  r710_token_configs                                                       R710TokenConfigs[]            @relation("R710TokenConfigToBusiness")
-  r710_token_sales                                                         R710TokenSales[]              @relation("R710TokenSaleToBusiness")
-  r710_tokens                                                              R710Tokens[]                  @relation("R710TokenToBusiness")
-  r710_wlans                                                               R710Wlans[]                   @relation("R710WlanToBusiness")
+  r710_token_configs                                                       R710TokenConfigs[]                @relation("R710TokenConfigToBusiness")
+  r710_token_sales                                                         R710TokenSales[]                  @relation("R710TokenSaleToBusiness")
+  r710_tokens                                                              R710Tokens[]                      @relation("R710TokenToBusiness")
+  r710_wlans                                                               R710Wlans[]                       @relation("R710WlanToBusiness")
   reprint_logs                                                             ReprintLog[]
   saved_reports                                                            SavedReports[]
   seed_data_templates                                                      SeedDataTemplates[]
@@ -554,52 +556,52 @@ model Businesses {
   wifi_tokens                                                              WifiTokens[]
   wifi_usage_analytics                                                     WiFiUsageAnalytics[]
   coupons                                                                  Coupons[]
-  inventory_transfers_source                                               InventoryTransfers[]          @relation("TransferSource")
-  inventory_transfers_target                                               InventoryTransfers[]          @relation("TransferTarget")
+  inventory_transfers_source                                               InventoryTransfers[]              @relation("TransferSource")
+  inventory_transfers_target                                               InventoryTransfers[]              @relation("TransferTarget")
   clothing_bales                                                           ClothingBales[]
   meal_program_participants                                                MealProgramParticipants[]
   meal_program_eligible_items                                              MealProgramEligibleItems[]
   meal_program_transactions                                                MealProgramTransactions[]
-  outgoing_loans_as_recipient                                              AccountOutgoingLoans[]        @relation("OutgoingLoanBusiness")
+  outgoing_loans_as_recipient                                              AccountOutgoingLoans[]            @relation("OutgoingLoanBusiness")
   supplier_payment_requests                                                SupplierPaymentRequests[]
   supplier_ratings                                                         SupplierRatings[]
-  rent_config                                                              BusinessRentConfig?           @relation("BusinessRentConfig")
-  auto_deposit_configs                                                     ExpenseAccountAutoDeposit[]   @relation("BusinessAutoDeposits")
-  cash_allocation_reports                                                  CashAllocationReport[]        @relation("BusinessCashAllocationReports")
+  rent_config                                                              BusinessRentConfig?               @relation("BusinessRentConfig")
+  auto_deposit_configs                                                     ExpenseAccountAutoDeposit[]       @relation("BusinessAutoDeposits")
+  cash_allocation_reports                                                  CashAllocationReport[]            @relation("BusinessCashAllocationReports")
   grouped_eod_runs                                                         GroupedEODRun[]
-  petty_cash_requests                                                      PettyCashRequests[]           @relation("BusinessPettyCash")
-  petty_cash_transactions                                                  PettyCashTransaction[]        @relation("PettyCashTransactionBusiness")
-  payment_reversal_logs                                                    PaymentReversalLog[]          @relation("ReversalLogBusiness")
-  payment_batch_submissions                                                PaymentBatchSubmissions[]     @relation("BusinessPaymentBatches")
-  eod_payment_batches                                                      EODPaymentBatch[]             @relation("BusinessEODPaymentBatches")
-  cash_bucket_entries                                                      CashBucketEntry[]             @relation("BusinessCashBucket")
-  per_diem_entries                                                         PerDiemEntries[]              @relation("PerDiemBusiness")
+  petty_cash_requests                                                      PettyCashRequests[]               @relation("BusinessPettyCash")
+  petty_cash_transactions                                                  PettyCashTransaction[]            @relation("PettyCashTransactionBusiness")
+  payment_reversal_logs                                                    PaymentReversalLog[]              @relation("ReversalLogBusiness")
+  payment_batch_submissions                                                PaymentBatchSubmissions[]         @relation("BusinessPaymentBatches")
+  eod_payment_batches                                                      EODPaymentBatch[]                 @relation("BusinessEODPaymentBatches")
+  cash_bucket_entries                                                      CashBucketEntry[]                 @relation("BusinessCashBucket")
+  per_diem_entries                                                         PerDiemEntries[]                  @relation("PerDiemBusiness")
   employee_absences                                                        EmployeeAbsences[]
   chickenBatches                                                           ChickenBatch[]
-  label_print_history                                                      ClothingLabelPrintHistory[]   @relation("LabelPrintHistoryBusiness")
+  label_print_history                                                      ClothingLabelPrintHistory[]       @relation("LabelPrintHistoryBusiness")
   chickenInventory                                                         ChickenInventory[]
   chickenVaccinationSchedules                                              ChickenVaccinationSchedule[]
   chickenUtilityCosts                                                      ChickenUtilityCost[]
   chickenLaborLogs                                                         ChickenLaborLog[]
   chickenRunSettings                                                       ChickenRunSettings?
-  stock_take_drafts                                                        StockTakeDrafts[]             @relation("StockTakeDraftBusiness")
-  stock_take_reports                                                       StockTakeReports[]            @relation("StockTakeReportBusiness")
-  customBulkProducts                                                       CustomBulkProducts[]          @relation("CustomBulkBusiness")
-  ecocash_conversions                                                      EcocashConversion[]           @relation("BusinessEcocashConversions")
+  stock_take_drafts                                                        StockTakeDrafts[]                 @relation("StockTakeDraftBusiness")
+  stock_take_reports                                                       StockTakeReports[]                @relation("StockTakeReportBusiness")
+  customBulkProducts                                                       CustomBulkProducts[]              @relation("CustomBulkBusiness")
+  ecocash_conversions                                                      EcocashConversion[]               @relation("BusinessEcocashConversions")
   menu_item_inventory_configs                                              MenuItemInventoryConfig[]
   menu_item_inventory_batches                                              MenuItemInventoryBatch[]
   delivery_customer_accounts                                               DeliveryCustomerAccounts[]
   delivery_runs                                                            DeliveryRuns[]
-  salesperson_eod_reports                                                  SalespersonEodReport[]        @relation("BusinessSalespersonEodReports")
-  policies                                                                 Policy[]                      @relation("BusinessPolicies")
-  policy_assignments                                                       PolicyAssignment[]            @relation("BusinessPolicyAssignments")
-  policy_acknowledgments                                                   PolicyAcknowledgment[]        @relation("BusinessPolicyAcknowledgments")
-  manager_override_logs                                                    ManagerOverrideLog[]          @relation("BusinessOverrideLogs")
-  order_cancellations                                                      OrderCancellation[]           @relation("BusinessOrderCancellations")
-  combo_section_payee                                                      ComboPaymentRequestSections[] @relation("ComboSectionPayeeBusiness")
-  combo_item_payee                                                         ComboPaymentRequestItems[]    @relation("ComboItemPayeeBusiness")
-  leave_policies_umbrella                                                  LeavePolicies[]               @relation("LeavePolicyUmbrella")
-  leave_policies_business                                                  LeavePolicies[]               @relation("LeavePolicyBusiness")
+  salesperson_eod_reports                                                  SalespersonEodReport[]            @relation("BusinessSalespersonEodReports")
+  policies                                                                 Policy[]                          @relation("BusinessPolicies")
+  policy_assignments                                                       PolicyAssignment[]                @relation("BusinessPolicyAssignments")
+  policy_acknowledgments                                                   PolicyAcknowledgment[]            @relation("BusinessPolicyAcknowledgments")
+  manager_override_logs                                                    ManagerOverrideLog[]              @relation("BusinessOverrideLogs")
+  order_cancellations                                                      OrderCancellation[]               @relation("BusinessOrderCancellations")
+  combo_section_payee                                                      ComboPaymentRequestSections[]     @relation("ComboSectionPayeeBusiness")
+  combo_item_payee                                                         ComboPaymentRequestItems[]        @relation("ComboItemPayeeBusiness")
+  leave_policies_umbrella                                                  LeavePolicies[]                   @relation("LeavePolicyUmbrella")
+  leave_policies_business                                                  LeavePolicies[]                   @relation("LeavePolicyBusiness")
   restaurant_credit_payments                                               RestaurantCreditPayments[]
   weight_pricing_rules                                                     WeightPricingRules[]
   livestock_purchase_sessions                                              LivestockPurchaseSessions[]
@@ -608,6 +610,9 @@ model Businesses {
   daily_special_schedules                                                  DailySpecialSchedule[]
   daily_special_day_overrides                                              DailySpecialDayOverride[]
   cash_rounding_logs                                                       CashRoundingLogs[]
+  vehicle_service_contractors                                              VehicleServiceContractors[]
+  vehicle_service_jobs                                                     VehicleServiceJobs[]
+  vehicle_service_contractor_payouts                                       VehicleServiceContractorPayouts[]
 
   @@map("businesses")
 }
@@ -1635,88 +1640,89 @@ model ExpenseAccountDeposits {
 }
 
 model ExpenseAccountPayments {
-  id                        String                           @id @default(uuid())
-  expenseAccountId          String
-  payeeType                 String
-  payeeUserId               String?
-  payeeEmployeeId           String?
-  payeePersonId             String?
-  payeeBusinessId           String?
-  payeeSupplierId           String?
-  categoryId                String?
-  subcategoryId             String?
-  subSubcategoryId          String?
-  amount                    Decimal                          @db.Decimal(12, 2)
-  paymentDate               DateTime
-  notes                     String?
-  receiptNumber             String?
-  receiptServiceProvider    String?
-  receiptReason             String?
-  isFullPayment             Boolean                          @default(true)
-  batchId                   String?
-  status                    String                           @default("SUBMITTED")
-  paymentType               String                           @default("REGULAR") // "REGULAR" | "LOAN_REPAYMENT" | "TRANSFER_RETURN" | "LOAN_DISBURSEMENT"
-  loanId                    String? // FK to ExpenseAccountLoans (incoming loan repayment)
-  outgoingLoanId            String? // FK to AccountOutgoingLoans (outgoing loan disbursement)
-  interestAmount            Decimal?                         @db.Decimal(12, 2) // Interest charged at repayment time
-  transferLedgerId          String? // FK to BusinessTransferLedger (for TRANSFER_RETURN)
-  createdBy                 String
-  submittedBy               String?
-  submittedAt               DateTime?
-  paidAt                    DateTime?                        @map("paid_at")
-  createdAt                 DateTime                         @default(now())
-  updatedAt                 DateTime                         @default(now()) @updatedAt
-  category                  ExpenseCategories?               @relation("ExpensePaymentCategory", fields: [categoryId], references: [id])
-  creator                   Users                            @relation("ExpensePaymentCreator", fields: [createdBy], references: [id])
-  expenseAccount            ExpenseAccounts                  @relation(fields: [expenseAccountId], references: [id], onDelete: Cascade)
-  payeeBusiness             Businesses?                      @relation("ExpensePaymentPayeeBusiness", fields: [payeeBusinessId], references: [id])
-  payeeSupplier             BusinessSuppliers?               @relation("ExpensePaymentPayeeSupplier", fields: [payeeSupplierId], references: [id])
-  payeeEmployee             Employees?                       @relation("ExpensePaymentPayeeEmployee", fields: [payeeEmployeeId], references: [id])
-  payeePerson               Persons?                         @relation("ExpensePaymentPayeePerson", fields: [payeePersonId], references: [id])
-  payeeUser                 Users?                           @relation("ExpensePaymentPayeeUser", fields: [payeeUserId], references: [id])
-  subcategory               ExpenseSubcategories?            @relation("ExpensePaymentSubcategory", fields: [subcategoryId], references: [id])
-  submitter                 Users?                           @relation("ExpensePaymentSubmitter", fields: [submittedBy], references: [id])
-  meal_program_transaction  MealProgramTransactions?         @relation("MealProgramExpensePayment")
-  transferLedger            BusinessTransferLedger?          @relation("TransferReturns", fields: [transferLedgerId], references: [id])
-  supplier_payment_partials SupplierPaymentRequestPartials[]
-  petty_cash_return         PettyCashRequests?               @relation("PettyCashReturnPayment")
-  petty_cash_transaction    PettyCashTransaction?            @relation("PettyCashTransactionPayment")
-  withdrawalRequestId       String?                          @unique @map("withdrawal_request_id")
-  withdrawalRequest         LoanWithdrawalRequest?           @relation("WithdrawalPayment")
-  batchSubmissionId         String?                          @map("batch_submission_id")
-  batchSubmission           PaymentBatchSubmissions?         @relation(fields: [batchSubmissionId], references: [id])
-  eodBatchId                String?                          @map("eod_batch_id")
-  eodBatch                  EODPaymentBatch?                 @relation("EODPaymentBatchItems", fields: [eodBatchId], references: [id])
-  eodMealBatchId            String?                          @map("eod_meal_batch_id")
+  id                                String                           @id @default(uuid())
+  expenseAccountId                  String
+  payeeType                         String
+  payeeUserId                       String?
+  payeeEmployeeId                   String?
+  payeePersonId                     String?
+  payeeBusinessId                   String?
+  payeeSupplierId                   String?
+  categoryId                        String?
+  subcategoryId                     String?
+  subSubcategoryId                  String?
+  amount                            Decimal                          @db.Decimal(12, 2)
+  paymentDate                       DateTime
+  notes                             String?
+  receiptNumber                     String?
+  receiptServiceProvider            String?
+  receiptReason                     String?
+  isFullPayment                     Boolean                          @default(true)
+  batchId                           String?
+  status                            String                           @default("SUBMITTED")
+  paymentType                       String                           @default("REGULAR") // "REGULAR" | "LOAN_REPAYMENT" | "TRANSFER_RETURN" | "LOAN_DISBURSEMENT"
+  loanId                            String? // FK to ExpenseAccountLoans (incoming loan repayment)
+  outgoingLoanId                    String? // FK to AccountOutgoingLoans (outgoing loan disbursement)
+  interestAmount                    Decimal?                         @db.Decimal(12, 2) // Interest charged at repayment time
+  transferLedgerId                  String? // FK to BusinessTransferLedger (for TRANSFER_RETURN)
+  createdBy                         String
+  submittedBy                       String?
+  submittedAt                       DateTime?
+  paidAt                            DateTime?                        @map("paid_at")
+  createdAt                         DateTime                         @default(now())
+  updatedAt                         DateTime                         @default(now()) @updatedAt
+  category                          ExpenseCategories?               @relation("ExpensePaymentCategory", fields: [categoryId], references: [id])
+  creator                           Users                            @relation("ExpensePaymentCreator", fields: [createdBy], references: [id])
+  expenseAccount                    ExpenseAccounts                  @relation(fields: [expenseAccountId], references: [id], onDelete: Cascade)
+  payeeBusiness                     Businesses?                      @relation("ExpensePaymentPayeeBusiness", fields: [payeeBusinessId], references: [id])
+  payeeSupplier                     BusinessSuppliers?               @relation("ExpensePaymentPayeeSupplier", fields: [payeeSupplierId], references: [id])
+  payeeEmployee                     Employees?                       @relation("ExpensePaymentPayeeEmployee", fields: [payeeEmployeeId], references: [id])
+  payeePerson                       Persons?                         @relation("ExpensePaymentPayeePerson", fields: [payeePersonId], references: [id])
+  payeeUser                         Users?                           @relation("ExpensePaymentPayeeUser", fields: [payeeUserId], references: [id])
+  subcategory                       ExpenseSubcategories?            @relation("ExpensePaymentSubcategory", fields: [subcategoryId], references: [id])
+  submitter                         Users?                           @relation("ExpensePaymentSubmitter", fields: [submittedBy], references: [id])
+  meal_program_transaction          MealProgramTransactions?         @relation("MealProgramExpensePayment")
+  transferLedger                    BusinessTransferLedger?          @relation("TransferReturns", fields: [transferLedgerId], references: [id])
+  supplier_payment_partials         SupplierPaymentRequestPartials[]
+  petty_cash_return                 PettyCashRequests?               @relation("PettyCashReturnPayment")
+  petty_cash_transaction            PettyCashTransaction?            @relation("PettyCashTransactionPayment")
+  withdrawalRequestId               String?                          @unique @map("withdrawal_request_id")
+  withdrawalRequest                 LoanWithdrawalRequest?           @relation("WithdrawalPayment")
+  batchSubmissionId                 String?                          @map("batch_submission_id")
+  batchSubmission                   PaymentBatchSubmissions?         @relation(fields: [batchSubmissionId], references: [id])
+  eodBatchId                        String?                          @map("eod_batch_id")
+  eodBatch                          EODPaymentBatch?                 @relation("EODPaymentBatchItems", fields: [eodBatchId], references: [id])
+  eodMealBatchId                    String?                          @map("eod_meal_batch_id")
   // ID of the consolidated MEAL_BATCH payment this individual MEAL_PROGRAM record belongs to
-  adHoc                     Boolean                          @default(false) @map("ad_hoc")
-  cancelledAt               DateTime?                        @map("cancelled_at")
-  paymentChannel            String                           @default("CASH") @map("payment_channel")
+  adHoc                             Boolean                          @default(false) @map("ad_hoc")
+  cancelledAt                       DateTime?                        @map("cancelled_at")
+  paymentChannel                    String                           @default("CASH") @map("payment_channel")
   // CASH | ECOCASH — channel used for this payment
-  ecocashTransactionCode    String?                          @map("ecocash_transaction_code")
-  priority                  String                           @default("NORMAL") @map("priority")
+  ecocashTransactionCode            String?                          @map("ecocash_transaction_code")
+  priority                          String                           @default("NORMAL") @map("priority")
   // NORMAL | URGENT — requester can flag urgent to help cashier prioritize
   // Reversal fields (MBM-153)
-  reversedAt                DateTime?                        @map("reversed_at")
-  reversedBy                String?                          @map("reversed_by")
-  reversalNote              String?                          @map("reversal_note")
-  reversalPettyCashId       String?                          @map("reversal_petty_cash_id")
+  reversedAt                        DateTime?                        @map("reversed_at")
+  reversedBy                        String?                          @map("reversed_by")
+  reversalNote                      String?                          @map("reversal_note")
+  reversalPettyCashId               String?                          @map("reversal_petty_cash_id")
   // Rejection audit trail (MBM-171, MBM-207)
-  rejectedBy                String?                          @map("rejected_by")
-  rejectedAt                DateTime?                        @map("rejected_at")
-  rejectionReason           String?                          @map("rejection_reason")
+  rejectedBy                        String?                          @map("rejected_by")
+  rejectedAt                        DateTime?                        @map("rejected_at")
+  rejectionReason                   String?                          @map("rejection_reason")
   // Amount override audit trail — set when approver approves a different amount than requested
-  approvedAmount            Decimal?                         @map("approved_amount") @db.Decimal(12, 2)
-  amountChangeNote          String?                          @map("amount_change_note")
-  projectId                 String?                          @map("project_id")
-  project                   Projects?                        @relation("ProjectExpensePayments", fields: [projectId], references: [id], onDelete: SetNull)
-  payment_voucher           ExpensePaymentVouchers?
-  adjustment_deposits       ExpenseAccountDeposits[]         @relation("AdjustmentDeposits")
-  lineItems                 Json?                            @map("line_items")
-  destinationDepositId      String?                          @unique @map("destination_deposit_id")
-  destinationDeposit        ExpenseAccountDeposits?          @relation("TransferDestination", fields: [destinationDepositId], references: [id])
-  expense_payment_receipts  ExpensePaymentReceipts[]
-  combo_request             ComboPaymentRequests?            @relation("ComboLinkedPayment")
+  approvedAmount                    Decimal?                         @map("approved_amount") @db.Decimal(12, 2)
+  amountChangeNote                  String?                          @map("amount_change_note")
+  projectId                         String?                          @map("project_id")
+  project                           Projects?                        @relation("ProjectExpensePayments", fields: [projectId], references: [id], onDelete: SetNull)
+  payment_voucher                   ExpensePaymentVouchers?
+  adjustment_deposits               ExpenseAccountDeposits[]         @relation("AdjustmentDeposits")
+  lineItems                         Json?                            @map("line_items")
+  destinationDepositId              String?                          @unique @map("destination_deposit_id")
+  destinationDeposit                ExpenseAccountDeposits?          @relation("TransferDestination", fields: [destinationDepositId], references: [id])
+  expense_payment_receipts          ExpensePaymentReceipts[]
+  combo_request                     ComboPaymentRequests?            @relation("ComboLinkedPayment")
+  vehicle_service_contractor_payout VehicleServiceContractorPayouts?
 
   @@index([expenseAccountId, paymentDate])
   @@index([categoryId])
@@ -2131,10 +2137,10 @@ model Images {
   size                    Int
   expiresAt               DateTime?
   createdAt               DateTime                @default(now())
-  product_images             ProductImages[]
-  warehouse_items            WarehouseItems[]
-  barcode_inventory_items    BarcodeInventoryItems[]
-  display_product_configs    DisplayProductConfig[]   @relation("DisplayAdImage")
+  product_images          ProductImages[]
+  warehouse_items         WarehouseItems[]
+  barcode_inventory_items BarcodeInventoryItems[]
+  display_product_configs DisplayProductConfig[]  @relation("DisplayAdImage")
 
   @@map("images")
 }
@@ -2155,20 +2161,22 @@ model InventoryDomains {
 }
 
 model InventorySubcategories {
-  id                      String                  @id @default(uuid())
-  categoryId              String
-  name                    String
-  emoji                   String?
-  description             String?
-  isDefault               Boolean                 @default(false)
-  isUserCreated           Boolean                 @default(false)
-  displayOrder            Int                     @default(0)
-  createdAt               DateTime                @default(now())
-  createdBy               String?
-  business_products       BusinessProducts[]
-  barcode_inventory_items BarcodeInventoryItems[]
-  category                BusinessCategories      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  users                   Users?                  @relation("SubcategoryCreatedBy", fields: [createdBy], references: [id])
+  id                                  String                             @id @default(uuid())
+  categoryId                          String
+  name                                String
+  emoji                               String?
+  description                         String?
+  isDefault                           Boolean                            @default(false)
+  isUserCreated                       Boolean                            @default(false)
+  displayOrder                        Int                                @default(0)
+  createdAt                           DateTime                           @default(now())
+  createdBy                           String?
+  business_products                   BusinessProducts[]
+  barcode_inventory_items             BarcodeInventoryItems[]
+  category                            BusinessCategories                 @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  users                               Users?                             @relation("SubcategoryCreatedBy", fields: [createdBy], references: [id])
+  vehicle_service_contractor_services VehicleServiceContractorServices[]
+  vehicle_service_tasks               VehicleServiceTasks[]
 
   @@unique([categoryId, name])
   @@map("inventory_subcategories")
@@ -2809,12 +2817,12 @@ model PayrollAccountDeposits {
 model PayrollAccountPayments {
   id               String                   @id @default(uuid())
   payrollAccountId String
-  employeeId       String?  // nullable — aggregate records (ZIMRA_PAYE, NSSA, AIDS_LEVY) have no single employee
-  payrollEntryId   String?  // FK to payroll_entries — set for SALARY records only
-  payrollPeriodId  String?  // FK to payroll_periods — set for all approval-generated records
+  employeeId       String? // nullable — aggregate records (ZIMRA_PAYE, NSSA, AIDS_LEVY) have no single employee
+  payrollEntryId   String? // FK to payroll_entries — set for SALARY records only
+  payrollPeriodId  String? // FK to payroll_periods — set for all approval-generated records
   amount           Decimal                  @db.Decimal(12, 2)
   paymentDate      DateTime                 @default(now())
-  paymentType      String   // SALARY | ZIMRA_PAYE | NSSA | AIDS_LEVY | ADVANCE | BONUS | LOAN_DISBURSEMENT
+  paymentType      String // SALARY | ZIMRA_PAYE | NSSA | AIDS_LEVY | ADVANCE | BONUS | LOAN_DISBURSEMENT
   status           String                   @default("PENDING")
   isAdvance        Boolean                  @default(false)
   isLocked         Boolean                  @default(false)
@@ -2946,6 +2954,7 @@ model Persons {
   external_clock_ins                ExternalClockIn[]
   combo_section_payee               ComboPaymentRequestSections[] @relation("ComboSectionPayeePerson")
   combo_item_payee                  ComboPaymentRequestItems[]    @relation("ComboItemPayeePerson")
+  vehicle_service_contractor        VehicleServiceContractors?
 
   @@map("persons")
 }
@@ -3460,14 +3469,14 @@ model PrintJobs {
 }
 
 model Users {
-  id                                                              String                           @id @default(uuid())
-  email                                                           String                           @unique
+  id                                                              String                            @id @default(uuid())
+  email                                                           String                            @unique
   passwordHash                                                    String
   name                                                            String
-  role                                                            String                           @default("user")
-  permissions                                                     Json                             @default("{}")
-  isActive                                                        Boolean                          @default(true)
-  passwordResetRequired                                           Boolean                          @default(false)
+  role                                                            String                            @default("user")
+  permissions                                                     Json                              @default("{}")
+  isActive                                                        Boolean                           @default(true)
+  passwordResetRequired                                           Boolean                           @default(false)
   deactivatedAt                                                   DateTime?
   deactivatedBy                                                   String?
   deactivationReason                                              String?
@@ -3475,19 +3484,19 @@ model Users {
   reactivatedAt                                                   DateTime?
   reactivatedBy                                                   String?
   reactivationNotes                                               String?
-  createdAt                                                       DateTime                         @default(now())
-  updatedAt                                                       DateTime                         @default(now())
+  createdAt                                                       DateTime                          @default(now())
+  updatedAt                                                       DateTime                          @default(now())
   lastAccessedAt                                                  DateTime?
   lastAccessedBusinessId                                          String?
   lastAccessedBusinessType                                        String?
-  username                                                        String?                          @unique
+  username                                                        String?                           @unique
   accounts                                                        Accounts[]
   audit_logs                                                      AuditLogs[]
   barcode_inventory_items                                         BarcodeInventoryItems[]
   barcode_print_jobs                                              BarcodePrintJobs[]
   barcode_templates                                               BarcodeTemplates[]
   business_accounts                                               BusinessAccounts[]
-  inventory_categories                                            BusinessCategories[]             @relation("CategoryCreatedBy")
+  inventory_categories                                            BusinessCategories[]              @relation("CategoryCreatedBy")
   business_memberships                                            BusinessMemberships[]
   business_transactions                                           BusinessTransactions[]
   chat_messages                                                   ChatMessages[]
@@ -3496,154 +3505,158 @@ model Users {
   chat_rooms                                                      ChatRooms[]
   construction_expenses                                           ConstructionExpenses[]
   construction_projects                                           ConstructionProjects[]
-  customer_layby_payment_processors                               CustomerLaybyPayment[]           @relation("CustomerLaybyPaymentProcessor")
-  customer_layby_creators                                         CustomerLayby[]                  @relation("CustomerLaybyCreator")
+  customer_layby_payment_processors                               CustomerLaybyPayment[]            @relation("CustomerLaybyPaymentProcessor")
+  customer_layby_creators                                         CustomerLayby[]                   @relation("CustomerLaybyCreator")
   driver_authorizations                                           DriverAuthorizations[]
   employees                                                       Employees?
-  business_transfer_ledgers_created                               BusinessTransferLedger[]         @relation("BusinessTransferLedgerCreator")
-  expense_account_deposits_created                                ExpenseAccountDeposits[]         @relation("ExpenseAccountDepositCreator")
-  expense_account_payments_created                                ExpenseAccountPayments[]         @relation("ExpensePaymentCreator")
-  expense_account_payments_as_payee                               ExpenseAccountPayments[]         @relation("ExpensePaymentPayeeUser")
-  expense_account_payments_submitted                              ExpenseAccountPayments[]         @relation("ExpensePaymentSubmitter")
-  expense_payment_receipts_created                                ExpensePaymentReceipts[]         @relation("ReceiptCreator")
-  expense_accounts_created                                        ExpenseAccounts[]                @relation("ExpenseAccountCreator")
-  expense_account_grants_received                                 ExpenseAccountGrants[]           @relation("ExpenseAccountGrantUser")
-  expense_account_grants_given                                    ExpenseAccountGrants[]           @relation("ExpenseAccountGrantGrantor")
+  business_transfer_ledgers_created                               BusinessTransferLedger[]          @relation("BusinessTransferLedgerCreator")
+  expense_account_deposits_created                                ExpenseAccountDeposits[]          @relation("ExpenseAccountDepositCreator")
+  expense_account_payments_created                                ExpenseAccountPayments[]          @relation("ExpensePaymentCreator")
+  expense_account_payments_as_payee                               ExpenseAccountPayments[]          @relation("ExpensePaymentPayeeUser")
+  expense_account_payments_submitted                              ExpenseAccountPayments[]          @relation("ExpensePaymentSubmitter")
+  expense_payment_receipts_created                                ExpensePaymentReceipts[]          @relation("ReceiptCreator")
+  expense_accounts_created                                        ExpenseAccounts[]                 @relation("ExpenseAccountCreator")
+  expense_account_grants_received                                 ExpenseAccountGrants[]            @relation("ExpenseAccountGrantUser")
+  expense_account_grants_given                                    ExpenseAccountGrants[]            @relation("ExpenseAccountGrantGrantor")
   expense_categories                                              ExpenseCategories[]
   expense_subcategories                                           ExpenseSubcategories[]
   fund_sources                                                    FundSources[]
   payment_notes                                                   PaymentNotes[]
-  inter_business_loans_inter_business_loans_createdByTousers      InterBusinessLoans[]             @relation("inter_business_loans_createdByTousers")
-  inter_business_loans_inter_business_loans_lenderUserIdTousers   InterBusinessLoans[]             @relation("inter_business_loans_lenderUserIdTousers")
-  inventory_subcategories                                         InventorySubcategories[]         @relation("SubcategoryCreatedBy")
+  inter_business_loans_inter_business_loans_createdByTousers      InterBusinessLoans[]              @relation("inter_business_loans_createdByTousers")
+  inter_business_loans_inter_business_loans_lenderUserIdTousers   InterBusinessLoans[]              @relation("inter_business_loans_lenderUserIdTousers")
+  inventory_subcategories                                         InventorySubcategories[]          @relation("SubcategoryCreatedBy")
   loan_transactions                                               LoanTransactions[]
-  mac_acl_entries_approved                                        MacAclEntry[]                    @relation("MacAclApprover")
-  mac_acl_entries_created                                         MacAclEntry[]                    @relation("MacAclCreator")
+  mac_acl_entries_approved                                        MacAclEntry[]                     @relation("MacAclApprover")
+  mac_acl_entries_created                                         MacAclEntry[]                     @relation("MacAclCreator")
   orders                                                          Orders[]
   payroll_account_deposits                                        PayrollAccountDeposits[]
-  payroll_account_payments_created                                PayrollAccountPayments[]         @relation("payroll_account_payments_created")
-  payroll_account_payments_signed                                 PayrollAccountPayments[]         @relation("payroll_account_payments_signed")
-  payroll_account_payments_completed                              PayrollAccountPayments[]         @relation("payroll_account_payments_completed")
+  payroll_account_payments_created                                PayrollAccountPayments[]          @relation("payroll_account_payments_created")
+  payroll_account_payments_signed                                 PayrollAccountPayments[]          @relation("payroll_account_payments_signed")
+  payroll_account_payments_completed                              PayrollAccountPayments[]          @relation("payroll_account_payments_completed")
   payroll_accounts                                                PayrollAccounts[]
-  payroll_adjustments_payroll_adjustments_approvedByTousers       PayrollAdjustments[]             @relation("payroll_adjustments_approvedByTousers")
-  payroll_adjustments_payroll_adjustments_createdByTousers        PayrollAdjustments[]             @relation("payroll_adjustments_createdByTousers")
+  payroll_adjustments_payroll_adjustments_approvedByTousers       PayrollAdjustments[]              @relation("payroll_adjustments_approvedByTousers")
+  payroll_adjustments_payroll_adjustments_createdByTousers        PayrollAdjustments[]              @relation("payroll_adjustments_createdByTousers")
   payroll_entries                                                 PayrollEntries[]
   payroll_exports                                                 PayrollExports[]
-  payroll_periods_payroll_periods_approvedByTousers               PayrollPeriods[]                 @relation("payroll_periods_approvedByTousers")
-  payroll_periods_payroll_periods_createdByTousers                PayrollPeriods[]                 @relation("payroll_periods_createdByTousers")
+  payroll_periods_payroll_periods_approvedByTousers               PayrollPeriods[]                  @relation("payroll_periods_approvedByTousers")
+  payroll_periods_payroll_periods_createdByTousers                PayrollPeriods[]                  @relation("payroll_periods_createdByTousers")
   permission_templates                                            PermissionTemplates[]
   personal_budgets                                                PersonalBudgets[]
   personal_expenses                                               PersonalExpenses[]
   persons                                                         Persons[]
-  portal_integrations_created                                     PortalIntegrations[]             @relation("PortalIntegrationCreator")
+  portal_integrations_created                                     PortalIntegrations[]              @relation("PortalIntegrationCreator")
   print_jobs                                                      PrintJobs[]
   product_price_changes                                           product_price_changes[]
-  project_transactions_project_transactions_approvedByTousers     ProjectTransactions[]            @relation("project_transactions_approvedByTousers")
-  project_transactions_project_transactions_createdByTousers      ProjectTransactions[]            @relation("project_transactions_createdByTousers")
+  project_transactions_project_transactions_approvedByTousers     ProjectTransactions[]             @relation("project_transactions_approvedByTousers")
+  project_transactions_project_transactions_createdByTousers      ProjectTransactions[]             @relation("project_transactions_createdByTousers")
   projects                                                        Projects[]
-  r710_device_registry                                            R710DeviceRegistry[]             @relation("R710DeviceCreator")
-  r710_token_sales                                                R710TokenSales[]                 @relation("R710TokenSaleSeller")
+  r710_device_registry                                            R710DeviceRegistry[]              @relation("R710DeviceCreator")
+  r710_token_sales                                                R710TokenSales[]                  @relation("R710TokenSaleSeller")
   reprint_logs                                                    ReprintLog[]
   saved_reports                                                   SavedReports[]
-  cash_counted_amendments                                         SavedReports[]                   @relation("CashCountedAmendment")
+  cash_counted_amendments                                         SavedReports[]                    @relation("CashCountedAmendment")
   seed_data_templates                                             SeedDataTemplates[]
   sessions                                                        Sessions[]
   userPermissions                                                 UserPermissions[]
   vehicle_drivers                                                 VehicleDrivers[]
   vehicle_expenses                                                VehicleExpenses[]
   vehicle_maintenance_records                                     VehicleMaintenanceRecords[]
-  vehicle_reimbursements_vehicle_reimbursements_approvedByTousers VehicleReimbursements[]          @relation("vehicle_reimbursements_approvedByTousers")
-  vehicle_reimbursements_vehicle_reimbursements_userIdTousers     VehicleReimbursements[]          @relation("vehicle_reimbursements_userIdTousers")
+  vehicle_reimbursements_vehicle_reimbursements_approvedByTousers VehicleReimbursements[]           @relation("vehicle_reimbursements_approvedByTousers")
+  vehicle_reimbursements_vehicle_reimbursements_userIdTousers     VehicleReimbursements[]           @relation("vehicle_reimbursements_userIdTousers")
   vehicles                                                        Vehicles[]
-  wifi_token_sales                                                WifiTokenSales[]                 @relation("WifiTokenSaleSeller")
-  meal_program_participants_registered                            MealProgramParticipants[]        @relation("MealProgramParticipantRegistrar")
-  meal_program_transactions_sold                                  MealProgramTransactions[]        @relation("MealProgramSoldByUser")
-  meal_program_eligible_items_created                             MealProgramEligibleItems[]       @relation("MealProgramEligibleItemCreator")
-  business_orders_created                                         BusinessOrders[]                 @relation("BusinessOrderCreator")
-  outgoing_loans_created                                          AccountOutgoingLoans[]           @relation("OutgoingLoanCreator")
-  outgoing_loans_contracts_signed                                 AccountOutgoingLoans[]           @relation("OutgoingLoanContractSigner")
-  outgoing_loan_payments_recorded                                 AccountOutgoingLoanPayments[]    @relation("OutgoingLoanPaymentRecorder")
-  payroll_slips_captured                                          PayrollSlips[]                   @relation("PayrollSlipCapturedBy")
-  payroll_slips_distributed                                       PayrollSlips[]                   @relation("PayrollSlipDistributedBy")
-  zimra_levy_processed                                            PayrollZimraRemittances[]        @relation("ZimraLevyProcessedBy")
-  zimra_submitted                                                 PayrollZimraRemittances[]        @relation("ZimraSubmittedBy")
-  supplier_payment_requests_submitted                             SupplierPaymentRequests[]        @relation("RequestSubmitter")
-  supplier_payment_requests_queued                                SupplierPaymentRequests[]        @relation("RequestQueuer")
-  supplier_payment_requests_approved                              SupplierPaymentRequests[]        @relation("RequestApprover")
-  supplier_payment_requests_denied                                SupplierPaymentRequests[]        @relation("RequestDenier")
-  supplier_payment_request_partials_paid                          SupplierPaymentRequestPartials[] @relation("PartialPayer")
+  wifi_token_sales                                                WifiTokenSales[]                  @relation("WifiTokenSaleSeller")
+  meal_program_participants_registered                            MealProgramParticipants[]         @relation("MealProgramParticipantRegistrar")
+  meal_program_transactions_sold                                  MealProgramTransactions[]         @relation("MealProgramSoldByUser")
+  meal_program_eligible_items_created                             MealProgramEligibleItems[]        @relation("MealProgramEligibleItemCreator")
+  business_orders_created                                         BusinessOrders[]                  @relation("BusinessOrderCreator")
+  outgoing_loans_created                                          AccountOutgoingLoans[]            @relation("OutgoingLoanCreator")
+  outgoing_loans_contracts_signed                                 AccountOutgoingLoans[]            @relation("OutgoingLoanContractSigner")
+  outgoing_loan_payments_recorded                                 AccountOutgoingLoanPayments[]     @relation("OutgoingLoanPaymentRecorder")
+  payroll_slips_captured                                          PayrollSlips[]                    @relation("PayrollSlipCapturedBy")
+  payroll_slips_distributed                                       PayrollSlips[]                    @relation("PayrollSlipDistributedBy")
+  zimra_levy_processed                                            PayrollZimraRemittances[]         @relation("ZimraLevyProcessedBy")
+  zimra_submitted                                                 PayrollZimraRemittances[]         @relation("ZimraSubmittedBy")
+  supplier_payment_requests_submitted                             SupplierPaymentRequests[]         @relation("RequestSubmitter")
+  supplier_payment_requests_queued                                SupplierPaymentRequests[]         @relation("RequestQueuer")
+  supplier_payment_requests_approved                              SupplierPaymentRequests[]         @relation("RequestApprover")
+  supplier_payment_requests_denied                                SupplierPaymentRequests[]         @relation("RequestDenier")
+  supplier_payment_request_partials_paid                          SupplierPaymentRequestPartials[]  @relation("PartialPayer")
   supplier_ratings                                                SupplierRatings[]
-  rent_configs_created                                            BusinessRentConfig[]             @relation("RentConfigCreator")
-  auto_deposit_configs_created                                    ExpenseAccountAutoDeposit[]      @relation("AutoDepositCreator")
-  expense_accounts_cap_set                                        ExpenseAccounts[]                @relation("ExpenseAccountCapSetter")
-  expense_accounts_frozen                                         ExpenseAccounts[]                @relation("ExpenseAccountFreezer")
-  cash_allocation_reports_created                                 CashAllocationReport[]           @relation("CashAllocationReportCreator")
-  cash_allocation_reports_locked                                  CashAllocationReport[]           @relation("CashAllocationReportLocker")
-  payment_batch_submissions_as_cashier                            PaymentBatchSubmissions[]        @relation("PaymentBatchCashier")
-  eod_payment_batches_reviewed                                    EODPaymentBatch[]                @relation("EODPaymentBatchReviewer")
-  cash_bucket_entries_created                                     CashBucketEntry[]                @relation("CashBucketEntryCreator")
-  cash_bucket_entries_edited                                      CashBucketEntry[]                @relation("CashBucketEntryEditor")
-  cash_bucket_entries_deleted                                     CashBucketEntry[]                @relation("CashBucketEntryDeleter")
-  cash_allocation_items_checked                                   CashAllocationLineItem[]         @relation("CashAllocationItemChecker")
-  petty_cash_requests_submitted                                   PettyCashRequests[]              @relation("PettyCashRequester")
-  petty_cash_requests_approved                                    PettyCashRequests[]              @relation("PettyCashApprover")
-  petty_cash_requests_settled                                     PettyCashRequests[]              @relation("PettyCashSettler")
-  petty_cash_requests_cancelled                                   PettyCashRequests[]              @relation("PettyCashCanceller")
-  petty_cash_transactions_created                                 PettyCashTransaction[]           @relation("PettyCashTransactionCreator")
-  per_diem_entered                                                PerDiemEntries[]                 @relation("PerDiemCashier")
-  absence_records_entered                                         EmployeeAbsences[]               @relation("AbsenceRecordedBy")
-  business_loans_managed                                          BusinessLoan[]                   @relation("LoanManager")
-  business_loans_as_lender                                        BusinessLoan[]                   @relation("LoanLender")
-  business_loans_created                                          BusinessLoan[]                   @relation("LoanCreator")
-  business_loans_lock_requested                                   BusinessLoan[]                   @relation("LoanLockRequester")
-  business_loans_locked                                           BusinessLoan[]                   @relation("LoanLocker")
-  business_loan_managers                                          BusinessLoanManager[]            @relation("LoanManagedByUsers")
-  business_loan_managers_added                                    BusinessLoanManager[]            @relation("LoanManagerAdder")
-  business_loan_expenses_created                                  BusinessLoanExpense[]            @relation("LoanExpenseCreator")
-  business_loan_pre_lock_repayments_created                       BusinessLoanPreLockRepayment[]   @relation("LoanPreLockRepayCreator")
-  loan_withdrawal_requests_created                                LoanWithdrawalRequest[]          @relation("WithdrawalRequester")
-  loan_withdrawal_requests_approved                               LoanWithdrawalRequest[]          @relation("WithdrawalApprover")
-  loan_withdrawal_requests_rejected                               LoanWithdrawalRequest[]          @relation("WithdrawalRejector")
-  loan_withdrawal_requests_rescinded                              LoanWithdrawalRequest[]          @relation("WithdrawalRescinder")
-  loan_withdrawal_requests_paid                                   LoanWithdrawalRequest[]          @relation("WithdrawalPayer")
+  rent_configs_created                                            BusinessRentConfig[]              @relation("RentConfigCreator")
+  auto_deposit_configs_created                                    ExpenseAccountAutoDeposit[]       @relation("AutoDepositCreator")
+  expense_accounts_cap_set                                        ExpenseAccounts[]                 @relation("ExpenseAccountCapSetter")
+  expense_accounts_frozen                                         ExpenseAccounts[]                 @relation("ExpenseAccountFreezer")
+  cash_allocation_reports_created                                 CashAllocationReport[]            @relation("CashAllocationReportCreator")
+  cash_allocation_reports_locked                                  CashAllocationReport[]            @relation("CashAllocationReportLocker")
+  payment_batch_submissions_as_cashier                            PaymentBatchSubmissions[]         @relation("PaymentBatchCashier")
+  eod_payment_batches_reviewed                                    EODPaymentBatch[]                 @relation("EODPaymentBatchReviewer")
+  cash_bucket_entries_created                                     CashBucketEntry[]                 @relation("CashBucketEntryCreator")
+  cash_bucket_entries_edited                                      CashBucketEntry[]                 @relation("CashBucketEntryEditor")
+  cash_bucket_entries_deleted                                     CashBucketEntry[]                 @relation("CashBucketEntryDeleter")
+  cash_allocation_items_checked                                   CashAllocationLineItem[]          @relation("CashAllocationItemChecker")
+  petty_cash_requests_submitted                                   PettyCashRequests[]               @relation("PettyCashRequester")
+  petty_cash_requests_approved                                    PettyCashRequests[]               @relation("PettyCashApprover")
+  petty_cash_requests_settled                                     PettyCashRequests[]               @relation("PettyCashSettler")
+  petty_cash_requests_cancelled                                   PettyCashRequests[]               @relation("PettyCashCanceller")
+  petty_cash_transactions_created                                 PettyCashTransaction[]            @relation("PettyCashTransactionCreator")
+  per_diem_entered                                                PerDiemEntries[]                  @relation("PerDiemCashier")
+  absence_records_entered                                         EmployeeAbsences[]                @relation("AbsenceRecordedBy")
+  business_loans_managed                                          BusinessLoan[]                    @relation("LoanManager")
+  business_loans_as_lender                                        BusinessLoan[]                    @relation("LoanLender")
+  business_loans_created                                          BusinessLoan[]                    @relation("LoanCreator")
+  business_loans_lock_requested                                   BusinessLoan[]                    @relation("LoanLockRequester")
+  business_loans_locked                                           BusinessLoan[]                    @relation("LoanLocker")
+  business_loan_managers                                          BusinessLoanManager[]             @relation("LoanManagedByUsers")
+  business_loan_managers_added                                    BusinessLoanManager[]             @relation("LoanManagerAdder")
+  business_loan_expenses_created                                  BusinessLoanExpense[]             @relation("LoanExpenseCreator")
+  business_loan_pre_lock_repayments_created                       BusinessLoanPreLockRepayment[]    @relation("LoanPreLockRepayCreator")
+  loan_withdrawal_requests_created                                LoanWithdrawalRequest[]           @relation("WithdrawalRequester")
+  loan_withdrawal_requests_approved                               LoanWithdrawalRequest[]           @relation("WithdrawalApprover")
+  loan_withdrawal_requests_rejected                               LoanWithdrawalRequest[]           @relation("WithdrawalRejector")
+  loan_withdrawal_requests_rescinded                              LoanWithdrawalRequest[]           @relation("WithdrawalRescinder")
+  loan_withdrawal_requests_paid                                   LoanWithdrawalRequest[]           @relation("WithdrawalPayer")
   app_notifications                                               AppNotification[]
-  bale_bogo_history                                               ClothingBaleBogoHistory[]        @relation("BaleBogoHistoryUser")
-  label_print_history                                             ClothingLabelPrintHistory[]      @relation("LabelPrintHistoryUser")
-  payment_reversal_logs                                           PaymentReversalLog[]             @relation("ReversalLogReverser")
-  stock_take_drafts_created                                       StockTakeDrafts[]                @relation("StockTakeDraftCreator")
-  stock_take_reports_submitted                                    StockTakeReports[]               @relation("StockTakeReportSubmitter")
-  stock_take_reports_managed                                      StockTakeReports[]               @relation("StockTakeReportManager")
-  stock_take_report_employee_signoffs                             StockTakeReportEmployees[]       @relation("StockTakeReportEmployeeSigner")
-  ecocash_conversions_requested                                   EcocashConversion[]              @relation("EcocashConversionRequester")
-  ecocash_conversions_approved                                    EcocashConversion[]              @relation("EcocashConversionApprover")
-  ecocash_conversions_completed                                   EcocashConversion[]              @relation("EcocashConversionCompleter")
-  ecocash_conversions_rejected                                    EcocashConversion[]              @relation("EcocashConversionRejecter")
-  salesperson_eod_reports_as_salesperson                          SalespersonEodReport[]           @relation("SalespersonEodReports")
-  salesperson_eod_reports_submitted                               SalespersonEodReport[]           @relation("SalespersonEodSubmitter")
-  policies_created                                                Policy[]                         @relation("PolicyCreator")
-  policy_versions_created                                         PolicyVersion[]                  @relation("PolicyVersionCreator")
-  policy_versions_published                                       PolicyVersion[]                  @relation("PolicyVersionPublisher")
-  policy_assignments_created                                      PolicyAssignment[]               @relation("PolicyAssignmentCreator")
-  policy_assignments_assigned_to                                  PolicyAssignment[]               @relation("PolicyAssignmentUser")
-  policy_acknowledgments                                          PolicyAcknowledgment[]           @relation("PolicyAcknowledgmentUser")
-  policy_acknowledgments_waived                                   PolicyAcknowledgment[]           @relation("PolicyAcknowledgmentWaiver")
+  bale_bogo_history                                               ClothingBaleBogoHistory[]         @relation("BaleBogoHistoryUser")
+  label_print_history                                             ClothingLabelPrintHistory[]       @relation("LabelPrintHistoryUser")
+  payment_reversal_logs                                           PaymentReversalLog[]              @relation("ReversalLogReverser")
+  stock_take_drafts_created                                       StockTakeDrafts[]                 @relation("StockTakeDraftCreator")
+  stock_take_reports_submitted                                    StockTakeReports[]                @relation("StockTakeReportSubmitter")
+  stock_take_reports_managed                                      StockTakeReports[]                @relation("StockTakeReportManager")
+  stock_take_report_employee_signoffs                             StockTakeReportEmployees[]        @relation("StockTakeReportEmployeeSigner")
+  ecocash_conversions_requested                                   EcocashConversion[]               @relation("EcocashConversionRequester")
+  ecocash_conversions_approved                                    EcocashConversion[]               @relation("EcocashConversionApprover")
+  ecocash_conversions_completed                                   EcocashConversion[]               @relation("EcocashConversionCompleter")
+  ecocash_conversions_rejected                                    EcocashConversion[]               @relation("EcocashConversionRejecter")
+  salesperson_eod_reports_as_salesperson                          SalespersonEodReport[]            @relation("SalespersonEodReports")
+  salesperson_eod_reports_submitted                               SalespersonEodReport[]            @relation("SalespersonEodSubmitter")
+  policies_created                                                Policy[]                          @relation("PolicyCreator")
+  policy_versions_created                                         PolicyVersion[]                   @relation("PolicyVersionCreator")
+  policy_versions_published                                       PolicyVersion[]                   @relation("PolicyVersionPublisher")
+  policy_assignments_created                                      PolicyAssignment[]                @relation("PolicyAssignmentCreator")
+  policy_assignments_assigned_to                                  PolicyAssignment[]                @relation("PolicyAssignmentUser")
+  policy_acknowledgments                                          PolicyAcknowledgment[]            @relation("PolicyAcknowledgmentUser")
+  policy_acknowledgments_waived                                   PolicyAcknowledgment[]            @relation("PolicyAcknowledgmentWaiver")
   manager_override_code                                           ManagerOverrideCodes?
   manager_override_code_history                                   ManagerOverrideCodeHistory[]
-  manager_override_logs_as_manager                                ManagerOverrideLog[]             @relation("OverrideManager")
-  manager_override_logs_as_requester                              ManagerOverrideLog[]             @relation("OverrideRequester")
-  order_cancellations_requested                                   OrderCancellation[]              @relation("CancellationRequested")
-  order_cancellations_approved                                    OrderCancellation[]              @relation("CancellationApproved")
-  combo_requests_created                                          ComboPaymentRequests[]           @relation("ComboRequestCreator")
-  combo_requests_approved                                         ComboPaymentRequests[]           @relation("ComboRequestApprover")
-  combo_requests_returned                                         ComboPaymentRequests[]           @relation("ComboRequestReturnedBy")
-  combo_requests_settled                                          ComboPaymentRequests[]           @relation("ComboRequestSettler")
-  combo_section_payee                                             ComboPaymentRequestSections[]    @relation("ComboSectionPayeeUser")
-  combo_item_payee                                                ComboPaymentRequestItems[]       @relation("ComboItemPayeeUser")
-  expense_account_accesses                                        ExpenseAccountUserAccess[]       @relation("UserExpenseAccountAccesses")
-  expense_account_accesses_granted                                ExpenseAccountUserAccess[]       @relation("ExpenseAccountAccessGrantor")
+  manager_override_logs_as_manager                                ManagerOverrideLog[]              @relation("OverrideManager")
+  manager_override_logs_as_requester                              ManagerOverrideLog[]              @relation("OverrideRequester")
+  order_cancellations_requested                                   OrderCancellation[]               @relation("CancellationRequested")
+  order_cancellations_approved                                    OrderCancellation[]               @relation("CancellationApproved")
+  combo_requests_created                                          ComboPaymentRequests[]            @relation("ComboRequestCreator")
+  combo_requests_approved                                         ComboPaymentRequests[]            @relation("ComboRequestApprover")
+  combo_requests_returned                                         ComboPaymentRequests[]            @relation("ComboRequestReturnedBy")
+  combo_requests_settled                                          ComboPaymentRequests[]            @relation("ComboRequestSettler")
+  combo_section_payee                                             ComboPaymentRequestSections[]     @relation("ComboSectionPayeeUser")
+  combo_item_payee                                                ComboPaymentRequestItems[]        @relation("ComboItemPayeeUser")
+  expense_account_accesses                                        ExpenseAccountUserAccess[]        @relation("UserExpenseAccountAccesses")
+  expense_account_accesses_granted                                ExpenseAccountUserAccess[]        @relation("ExpenseAccountAccessGrantor")
   warehouse_batches_imported                                      WarehouseBatches[]
-  warehouse_items_moved                                           WarehouseItems[]                 @relation("WarehouseItemMover")
-  warehouse_reference_locks_locked                                WarehouseReferenceLocks[]        @relation("ReferenceLockUser")
+  warehouse_items_moved                                           WarehouseItems[]                  @relation("WarehouseItemMover")
+  warehouse_reference_locks_locked                                WarehouseReferenceLocks[]         @relation("ReferenceLockUser")
+  vehicle_service_contractor_account                              VehicleServiceContractors?        @relation("VehicleServiceContractorUser")
+  vehicle_service_contractors_created                             VehicleServiceContractors[]       @relation("VehicleServiceContractorCreator")
+  vehicle_service_jobs_created                                    VehicleServiceJobs[]
+  vehicle_service_contractor_payouts_created                      VehicleServiceContractorPayouts[]
 
   @@map("users")
 }
@@ -4887,7 +4900,7 @@ model CustomerDisplayAd {
 model DisplayProductConfig {
   id                  String     @id @default(uuid())
   businessId          String
-  itemType            String     // 'menu_item' | 'product' | 'ayli_combo' | 'category'
+  itemType            String // 'menu_item' | 'product' | 'ayli_combo' | 'category'
   itemId              String
   priorityBoost       Int        @default(0)
   isDailySpecial      Boolean    @default(false)
@@ -4907,16 +4920,16 @@ model DisplayProductConfig {
 }
 
 model DisplayGlobalSettings {
-  id                   String     @id @default(uuid())
-  businessId           String     @unique
-  rotationIntervalSecs    Int        @default(6)
-  enableSmartDisplay      Boolean    @default(true)
-  enableSplitLayout       Boolean    @default(true)
-  maxItemsInRotation      Int        @default(12)
-  specialShowPercentage   Int        @default(25)
-  createdAt            DateTime   @default(now())
-  updatedAt            DateTime   @updatedAt
-  businesses           Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  id                    String     @id @default(uuid())
+  businessId            String     @unique
+  rotationIntervalSecs  Int        @default(6)
+  enableSmartDisplay    Boolean    @default(true)
+  enableSplitLayout     Boolean    @default(true)
+  maxItemsInRotation    Int        @default(12)
+  specialShowPercentage Int        @default(25)
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+  businesses            Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@map("display_global_settings")
 }
@@ -7427,7 +7440,7 @@ model WeightPricingRules {
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
 
-  businesses        Businesses        @relation(fields: [businessId], references: [id])
+  businesses        Businesses         @relation(fields: [businessId], references: [id])
   business_products BusinessProducts[]
 
   @@unique([businessId, categoryName, ruleType, purchaseType])
@@ -7527,10 +7540,10 @@ model AsYouLikeItCombos {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  businesses            Businesses                @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  sizes                 AsYouLikeItComboSizes[]
-  items                 AsYouLikeItComboItems[]
-  pricing_calibrations  AyliPricingCalibrations[]
+  businesses           Businesses                @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  sizes                AsYouLikeItComboSizes[]
+  items                AsYouLikeItComboItems[]
+  pricing_calibrations AyliPricingCalibrations[]
 
   @@map("as_you_like_it_combos")
 }
@@ -7599,8 +7612,8 @@ model DailySpecial {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  businesses     Businesses              @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  product        BusinessProducts        @relation(fields: [productId], references: [id])
+  businesses     Businesses                @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  product        BusinessProducts          @relation(fields: [productId], references: [id])
   add_ons        DailySpecialAddOn[]
   schedule_slots DailySpecialSchedule[]
   day_overrides  DailySpecialDayOverride[]
@@ -7652,19 +7665,162 @@ model DailySpecialDayOverride {
   @@map("daily_special_day_overrides")
 }
 
-
 model CashRoundingLogs {
-  id             String     @id @default(cuid())
-  businessId     String     @map("business_id")
-  orderId        String?    @map("order_id")
+  id             String   @id @default(cuid())
+  businessId     String   @map("business_id")
+  orderId        String?  @map("order_id")
   direction      String
-  originalAmount Decimal    @map("original_amount") @db.Decimal(10, 2)
-  roundedAmount  Decimal    @map("rounded_amount") @db.Decimal(10, 2)
-  adjustment     Decimal    @db.Decimal(10, 2)
-  staffNote      String?    @map("staff_note")
-  createdAt      DateTime   @default(now()) @map("created_at")
+  originalAmount Decimal  @map("original_amount") @db.Decimal(10, 2)
+  roundedAmount  Decimal  @map("rounded_amount") @db.Decimal(10, 2)
+  adjustment     Decimal  @db.Decimal(10, 2)
+  staffNote      String?  @map("staff_note")
+  createdAt      DateTime @default(now()) @map("created_at")
 
-  business       Businesses @relation(fields: [businessId], references: [id])
+  business Businesses @relation(fields: [businessId], references: [id])
 
   @@map("cash_rounding_logs")
+}
+
+// ============================================================
+// Vehicle Repair & Service (MBM-261)
+// ============================================================
+
+model VehicleServiceContractors {
+  id         String   @id @default(uuid())
+  businessId String
+  personId   String   @unique
+  userId     String?  @unique
+  status     String   @default("active") // active | retired | disabled
+  notes      String?
+  createdBy  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  businesses Businesses @relation(fields: [businessId], references: [id])
+  persons    Persons    @relation(fields: [personId], references: [id])
+  users      Users?     @relation("VehicleServiceContractorUser", fields: [userId], references: [id])
+  creator    Users?     @relation("VehicleServiceContractorCreator", fields: [createdBy], references: [id])
+
+  skills   VehicleServiceContractorSkills[]
+  services VehicleServiceContractorServices[]
+  tasks    VehicleServiceTasks[]
+  payouts  VehicleServiceContractorPayouts[]
+
+  @@index([businessId])
+  @@index([status])
+  @@map("vehicle_service_contractors")
+}
+
+model VehicleServiceContractorSkills {
+  id            String    @id @default(uuid())
+  contractorId  String
+  name          String
+  certification String?
+  issuedDate    DateTime?
+  expiryDate    DateTime?
+  createdAt     DateTime  @default(now())
+
+  contractor VehicleServiceContractors @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  @@index([contractorId])
+  @@map("vehicle_service_contractor_skills")
+}
+
+model VehicleServiceContractorServices {
+  id            String   @id @default(uuid())
+  contractorId  String
+  subcategoryId String
+  feeAmount     Decimal  @db.Decimal(12, 2)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  contractor  VehicleServiceContractors @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  subcategory InventorySubcategories    @relation(fields: [subcategoryId], references: [id])
+
+  @@unique([contractorId, subcategoryId])
+  @@map("vehicle_service_contractor_services")
+}
+
+model VehicleServiceJobs {
+  id           String   @id @default(uuid())
+  businessId   String
+  customerId   String?
+  vehicleMake  String?
+  vehicleModel String?
+  vehiclePlate String?
+  vehicleVin   String?
+  status       String   @default("open") // open | in_progress | completed | billed | cancelled
+  orderId      String?  @unique
+  notes        String?
+  createdBy    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+
+  businesses         Businesses         @relation(fields: [businessId], references: [id])
+  business_customers BusinessCustomers? @relation(fields: [customerId], references: [id])
+  business_orders    BusinessOrders?    @relation(fields: [orderId], references: [id])
+  creator            Users?             @relation(fields: [createdBy], references: [id])
+
+  tasks VehicleServiceTasks[]
+
+  @@index([businessId, status])
+  @@map("vehicle_service_jobs")
+}
+
+model VehicleServiceTasks {
+  id                    String    @id @default(uuid())
+  jobId                 String
+  subcategoryId         String
+  contractorId          String
+  status                String    @default("assigned") // assigned | in_progress | completed
+  workDescription       String?
+  agreedFeeAmount       Decimal   @db.Decimal(12, 2)
+  customerPriceOverride Decimal?  @db.Decimal(12, 2)
+  assignedAt            DateTime  @default(now())
+  completedAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @default(now()) @updatedAt
+
+  job         VehicleServiceJobs                   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  subcategory InventorySubcategories               @relation(fields: [subcategoryId], references: [id])
+  contractor  VehicleServiceContractors            @relation(fields: [contractorId], references: [id])
+  payoutItem  VehicleServiceContractorPayoutItems?
+
+  @@index([jobId])
+  @@index([contractorId])
+  @@index([status])
+  @@map("vehicle_service_tasks")
+}
+
+model VehicleServiceContractorPayouts {
+  id           String   @id @default(uuid())
+  contractorId String
+  businessId   String
+  paymentId    String   @unique
+  periodStart  DateTime
+  periodEnd    DateTime
+  totalAmount  Decimal  @db.Decimal(12, 2)
+  createdAt    DateTime @default(now())
+  createdBy    String?
+
+  contractor VehicleServiceContractors             @relation(fields: [contractorId], references: [id])
+  businesses Businesses                            @relation(fields: [businessId], references: [id])
+  payment    ExpenseAccountPayments                @relation(fields: [paymentId], references: [id])
+  creator    Users?                                @relation(fields: [createdBy], references: [id])
+  items      VehicleServiceContractorPayoutItems[]
+
+  @@index([contractorId])
+  @@map("vehicle_service_contractor_payouts")
+}
+
+model VehicleServiceContractorPayoutItems {
+  id       String @id @default(uuid())
+  payoutId String
+  taskId   String @unique
+
+  payout VehicleServiceContractorPayouts @relation(fields: [payoutId], references: [id], onDelete: Cascade)
+  task   VehicleServiceTasks             @relation(fields: [taskId], references: [id])
+
+  @@map("vehicle_service_contractor_payout_items")
 }

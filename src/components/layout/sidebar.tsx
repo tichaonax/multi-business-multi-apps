@@ -1102,6 +1102,26 @@ export function Sidebar() {
               </>
             )}
 
+            {/* Vehicle Service Features */}
+            {currentBusiness.businessType === 'vehicle_service' && (
+              <>
+                <Link href="/universal/pos" className={getLinkClasses('/universal/pos')}>
+                  <span className="text-lg">🚗</span>
+                  <span>POS System</span>
+                </Link>
+                <Link href="/vehicle-service/jobs" className={getLinkClasses('/vehicle-service/jobs')}>
+                  <span className="text-lg">🛠️</span>
+                  <span>Jobs</span>
+                </Link>
+                {(isSystemAdmin(currentUser) || hasPermission('canManageEmployees')) && (
+                  <Link href="/vehicle-service/contractors" className={getLinkClasses('/vehicle-service/contractors')}>
+                    <span className="text-lg">🔧</span>
+                    <span>Contractors</span>
+                  </Link>
+                )}
+              </>
+            )}
+
             {/* Services Features */}
             {currentBusiness.businessType === 'services' && (
               <>

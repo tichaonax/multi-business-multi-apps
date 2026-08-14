@@ -59,8 +59,13 @@ const BUSINESS_TYPES = [
   'consulting',
   'retail',
   'services',
+  'vehicle_service',
   'other'
 ]
+
+const BUSINESS_TYPE_LABELS: Record<string, string> = {
+  vehicle_service: 'Vehicle Repair & Service',
+}
 
 const ECOCASH_DEFAULT_FEES: Record<string, string> = {
   restaurant: '0.20',
@@ -223,7 +228,7 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
                         </label>
                         {method === 'PUT' ? (
                           <div className="input-field bg-gray-50 dark:bg-neutral-700/50 text-secondary cursor-not-allowed capitalize">
-                            {formData.type}
+                            {BUSINESS_TYPE_LABELS[formData.type] || formData.type}
                           </div>
                         ) : (
                           <select
@@ -234,7 +239,7 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
                           >
                             {BUSINESS_TYPES.map(type => (
                               <option key={type} value={type}>
-                                {type.charAt(0).toUpperCase() + type.slice(1)}
+                                {BUSINESS_TYPE_LABELS[type] || (type.charAt(0).toUpperCase() + type.slice(1))}
                               </option>
                             ))}
                           </select>
