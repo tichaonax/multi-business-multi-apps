@@ -6,6 +6,8 @@ import { getCategoryEmoji } from '@/lib/category-emojis'
 import { UnifiedReceiptPreviewModal } from '@/components/receipts/unified-receipt-preview-modal'
 import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
 import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
+import { ReassignSalespersonModal } from '@/components/receipts/reassign-salesperson-modal'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface ReceiptDetailModalProps {
   receiptId: string
@@ -22,6 +24,8 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
   const [reprintReceiptData, setReprintReceiptData] = useState<any>(null)
   const [cancelTarget, setCancelTarget] = useState<CancelOrderSummary | null>(null)
   const [cancelError, setCancelError] = useState<string | null>(null)
+  const [showReassign, setShowReassign] = useState(false)
+  const { hasPermissionInBusiness, isSystemAdmin } = useBusinessPermissionsContext()
 
   useEffect(() => {
     fetchReceipt()
@@ -94,6 +98,12 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
         return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate()
       })()
     : false
+
+  const canReassign = !!order?.businessId && (
+    isSystemAdmin ||
+    hasPermissionInBusiness('canCloseBooks', order.businessId) ||
+    hasPermissionInBusiness('canAccessFinancialData', order.businessId)
+  )
 
   const handleOpenCancel = () => {
     if (!order) return
@@ -429,7 +439,7 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
 
           {/* Footer */}
           <div className="bg-gray-50 dark:bg-gray-900 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <div className="flex-1">
+            <div className="flex-1 flex items-center gap-2">
               {order?.status === 'COMPLETED' && order?.paymentStatus === 'PAID' && isSameDayOrder && (
                 <button
                   onClick={handleOpenCancel}
@@ -437,6 +447,15 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
                   className="px-4 py-2 text-red-600 border border-red-300 rounded-md text-sm font-medium hover:bg-red-50 disabled:opacity-50"
                 >
                   Cancel Order
+                </button>
+              )}
+              {canReassign && (
+                <button
+                  onClick={() => setShowReassign(true)}
+                  disabled={reprinting || loading}
+                  className="px-4 py-2 text-blue-600 border border-blue-300 rounded-md text-sm font-medium hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50"
+                >
+                  Reassign Salesperson
                 </button>
               )}
               {cancelError && (
@@ -499,6 +518,20 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
             } catch { setCancelError('Connection error — please try again'); setCancelTarget(null) }
           }}
           onAborted={() => setCancelTarget(null)}
+        />
+      )}
+
+      {/* Reassign Salesperson Modal */}
+      {showReassign && order?.businessId && (
+        <ReassignSalespersonModal
+          businessId={order.businessId}
+          orderIds={[receiptId]}
+          targetCount={1}
+          onClose={() => setShowReassign(false)}
+          onComplete={() => {
+            setShowReassign(false)
+            fetchReceipt()
+          }}
         />
       )}
 

@@ -10,9 +10,11 @@ import ReceiptSearchBar from '@/components/receipts/receipt-search-bar'
 import ReceiptDetailModal from '@/components/receipts/receipt-detail-modal'
 import CrossBusinessAlert from '@/components/receipts/cross-business-alert'
 import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
+import { ReassignSalespersonModal, type ReassignResult } from '@/components/receipts/reassign-salesperson-modal'
 import { getLocalDateString } from '@/lib/utils'
 import { useTimeDisplay } from '@/hooks/use-time-display'
 import { ContentLayout } from '@/components/layout/content-layout'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface ReceiptListItem {
   id: string
@@ -74,6 +76,10 @@ function ReceiptHistoryPageContent() {
   const [dateToDisplay, setDateToDisplay] = useState('')     // dd/mm/yyyy for input
   const [datePreset, setDatePreset] = useState<'today' | 'yesterday' | 'week' | 'month' | 'custom' | ''>('')
   const { useServerTime } = useTimeDisplay()
+  const { hasPermissionInBusiness, isSystemAdmin } = useBusinessPermissionsContext()
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [selectAllFilterActive, setSelectAllFilterActive] = useState(false)
+  const [reassignTarget, setReassignTarget] = useState<{ orderIds?: string[]; filter?: { query?: string; startDate?: string; endDate?: string }; count: number } | null>(null)
 
   // Get businessId from URL params or localStorage
   useEffect(() => {
@@ -297,6 +303,45 @@ function ReceiptHistoryPageContent() {
     })
   }
 
+  const canReassign = !!businessId && (
+    isSystemAdmin ||
+    hasPermissionInBusiness('canCloseBooks', businessId) ||
+    hasPermissionInBusiness('canAccessFinancialData', businessId)
+  )
+
+  const toggleSelected = (id: string) => {
+    setSelectAllFilterActive(false)
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAllLoaded = () => {
+    setSelectAllFilterActive(false)
+    setSelectedIds(prev => {
+      if (prev.size === receipts.length) return new Set()
+      return new Set(receipts.map(r => r.id))
+    })
+  }
+
+  const clearSelection = () => {
+    setSelectedIds(new Set())
+    setSelectAllFilterActive(false)
+  }
+
+  const handleReassignComplete = (result: ReassignResult) => {
+    const reassignedSet = new Set(result.reassigned)
+    if (reassignedSet.size > 0) {
+      fetchReceipts(searchQuery, 0, dateFrom, dateTo)
+    }
+    clearSelection()
+  }
+
+  const selectionCount = selectAllFilterActive ? (pagination?.total ?? 0) : selectedIds.size
+
   if (status === 'loading') {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -399,12 +444,63 @@ function ReceiptHistoryPageContent() {
           </div>
         )}
 
+        {/* Bulk selection action bar */}
+        {canReassign && (selectedIds.size > 0 || selectAllFilterActive) && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="text-sm text-blue-800 dark:text-blue-300">
+              <span className="font-semibold">{selectionCount}</span> sale{selectionCount === 1 ? '' : 's'} selected
+              {!selectAllFilterActive && pagination && pagination.total > receipts.length && selectedIds.size === receipts.length && (
+                <button
+                  onClick={() => setSelectAllFilterActive(true)}
+                  className="ml-2 text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                >
+                  Select all {pagination.total} matching current filter
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={clearSelection}
+                className="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white"
+              >
+                Clear selection
+              </button>
+              <button
+                onClick={() => {
+                  if (selectAllFilterActive) {
+                    setReassignTarget({
+                      filter: { query: searchQuery || undefined, startDate: dateFrom || undefined, endDate: dateTo || undefined },
+                      count: pagination?.total ?? 0,
+                    })
+                  } else {
+                    setReassignTarget({ orderIds: Array.from(selectedIds), count: selectedIds.size })
+                  }
+                }}
+                className="px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+              >
+                Reassign Salesperson
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Receipts List */}
         {!loading && receipts.length > 0 && (
           <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 table-fixed w-full">
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
+                  {canReassign && (
+                    <th className="px-3 py-3 text-left w-8">
+                      <input
+                        type="checkbox"
+                        checked={receipts.length > 0 && selectedIds.size === receipts.length}
+                        onChange={toggleSelectAllLoaded}
+                        onClick={(e) => e.stopPropagation()}
+                        className="rounded border-gray-300 dark:border-gray-600"
+                      />
+                    </th>
+                  )}
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Receipt #
                   </th>
@@ -444,6 +540,16 @@ function ReceiptHistoryPageContent() {
                         : 'hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                   >
+                    {canReassign && (
+                      <td className="px-3 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(receipt.id)}
+                          onChange={() => toggleSelected(receipt.id)}
+                          className="rounded border-gray-300 dark:border-gray-600"
+                        />
+                      </td>
+                    )}
                     <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                       {receipt.orderNumber}
                     </td>
@@ -500,23 +606,33 @@ function ReceiptHistoryPageContent() {
                       </span>
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                      {receipt.cancellationOutcome === 'CANCELLED' ? (
-                        <span className="px-2 py-1 text-xs font-medium text-red-700 bg-red-100 dark:bg-red-900/30 dark:text-red-400 rounded-lg">
-                          Refunded
-                        </span>
-                      ) : receipt.cancellationOutcome === 'DENIED' ? (
-                        <span className="px-2 py-1 text-xs font-medium text-orange-700 bg-orange-100 dark:bg-orange-900/30 dark:text-orange-400 rounded-lg">
-                          Denied
-                        </span>
-                      ) : receipt.status === 'COMPLETED' && isSameDayOrder(receipt.createdAt) ? (
-                        <button
-                          onClick={() => handleCancelClick(receipt.id)}
-                          disabled={cancelLoading === receipt.id}
-                          className="px-3 py-1 text-xs font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
-                        >
-                          {cancelLoading === receipt.id ? '…' : 'Cancel / Refund'}
-                        </button>
-                      ) : null}
+                      <div className="flex items-center gap-2">
+                        {receipt.cancellationOutcome === 'CANCELLED' ? (
+                          <span className="px-2 py-1 text-xs font-medium text-red-700 bg-red-100 dark:bg-red-900/30 dark:text-red-400 rounded-lg">
+                            Refunded
+                          </span>
+                        ) : receipt.cancellationOutcome === 'DENIED' ? (
+                          <span className="px-2 py-1 text-xs font-medium text-orange-700 bg-orange-100 dark:bg-orange-900/30 dark:text-orange-400 rounded-lg">
+                            Denied
+                          </span>
+                        ) : receipt.status === 'COMPLETED' && isSameDayOrder(receipt.createdAt) ? (
+                          <button
+                            onClick={() => handleCancelClick(receipt.id)}
+                            disabled={cancelLoading === receipt.id}
+                            className="px-3 py-1 text-xs font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                          >
+                            {cancelLoading === receipt.id ? '…' : 'Cancel / Refund'}
+                          </button>
+                        ) : null}
+                        {canReassign && (
+                          <button
+                            onClick={() => setReassignTarget({ orderIds: [receipt.id], count: 1 })}
+                            className="px-3 py-1 text-xs font-medium text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                          >
+                            Reassign
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -615,6 +731,17 @@ function ReceiptHistoryPageContent() {
           results={crossBusinessResults}
           onSelect={handleCrossBusinessSelect}
           onClose={() => setShowCrossBusinessAlert(false)}
+        />
+      )}
+
+      {reassignTarget && businessId && (
+        <ReassignSalespersonModal
+          businessId={businessId}
+          orderIds={reassignTarget.orderIds}
+          filter={reassignTarget.filter}
+          targetCount={reassignTarget.count}
+          onClose={() => setReassignTarget(null)}
+          onComplete={handleReassignComplete}
         />
       )}
     </ContentLayout>

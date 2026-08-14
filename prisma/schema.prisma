@@ -7041,6 +7041,7 @@ model PolicyAcknowledgment {
 
 enum ManagerOverrideAction {
   ORDER_CANCELLATION
+  SALE_REASSIGNMENT
 }
 
 enum OverrideOutcome {
