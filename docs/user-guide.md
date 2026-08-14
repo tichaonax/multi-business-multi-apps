@@ -12156,4 +12156,16 @@ If a salesperson has already submitted (or a manager has already approved) their
 
 Every successful reassignment (single or bulk) writes an entry to the manager override audit log — who made the change, which employee it moved from and to, how many sales were affected, and the reason given. This log cannot be edited or deleted from the UI, the same as order cancellation records (Section 37).
 
+### Seeing a Sale's Reassignment History
+
+Once a sale has been reassigned, a small **↺ Reassigned** badge appears next to the salesperson's name — in Receipt History and in the receipt's detail view. If a sale has been reassigned more than once, the badge shows the count (e.g. **↺ Reassigned ×2**).
+
+Hover over the badge (or tap it on a touchscreen) to open a popup showing the full history, most recent first:
+
+- Who it moved **from** and **to** for that reassignment
+- The reason given
+- The date/time, and which manager made the change
+
+If a sale has been reassigned multiple times, every reassignment is listed in the popup, not just the most recent one — so you can trace the sale's full attribution history from its original salesperson to today.
+
 All tables and their referenced images are backed up automatically with every full backup.
