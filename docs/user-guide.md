@@ -160,6 +160,7 @@
     - [Receipt — AYLI Breakdown](#receipt--ayli-breakdown)
     - [Permissions](#permissions-1)
 55. [Smart Customer Display — Dynamic Menu & Ads](#55-smart-customer-display--dynamic-menu--ads)
+56. [Sale Salesperson Reassignment](#56-sale-salesperson-reassignment)
     - [Overview](#overview-2)
     - [Rotating Ads Panel](#rotating-ads-panel)
     - [Live Menu Panel](#live-menu-panel)
@@ -12095,5 +12096,64 @@ New columns (not new tables):
 - `business_products.menuNumber` — display number (e.g. `1`, `1a`) used to filter what appears on the customer display
 - `as_you_like_it_combos.menuNumber` — same for AYLI combos; assigned via the Menu Numbers management page
 - `display_global_settings.specialShowPercentage` — how often the special card appears in the left panel rotation (0–100%)
+
+---
+
+## 56. Sale Salesperson Reassignment
+
+> **Who reads this:** Managers and admins who need to correct which employee a completed sale is credited to.
+
+### Overview
+
+A sale is sometimes recorded under the wrong salesperson — the terminal was left on the previous cashier's name, a new employee used a coworker's login before their own account was set up, or the reassignment at checkout was simply missed. This feature lets a manager correct that after the fact, for one sale or many, from **Receipt History** or a receipt's detail view.
+
+This is an **attribution fix only**. It corrects who a sale is credited to for reporting purposes (Receipt History, the Salesperson Shortfall Report, and any future per-salesperson reporting). It does **not** change payroll — commission in this system is a flat monthly amount tied to an employee's contract, not calculated from individual sales, so reassigning a sale never changes anyone's pay.
+
+### Who Can Reassign
+
+Available to system admins and anyone with **Can Close Books** or **Can Access Financial Data** permission on the business. Staff without one of these permissions do not see the Reassign controls at all.
+
+### Reassigning a Single Sale
+
+**From Receipt History:**
+1. Navigate to **Receipt History**.
+2. Find the sale and click **Reassign** in its Actions column.
+
+**From a receipt's detail view:**
+1. Click a receipt to open its details.
+2. Click **Reassign Salesperson** at the bottom of the modal, next to Cancel Order.
+
+Either way, a modal opens:
+1. Choose the correct employee from the **Reassign to** dropdown.
+2. Enter a reason (required — this is recorded on the audit trail).
+3. Click **Reassign**.
+
+### Reassigning Multiple Sales at Once
+
+Receipt History supports bulk reassignment, including a mix of sales that currently belong to *different* salespeople — they all move to whichever employee you pick.
+
+1. Use the checkboxes on the left of each row to select sales. The header checkbox selects everything currently loaded on the page.
+2. If more sales match your current search/date filter than are loaded on the page, a **Select all N matching current filter** link appears once every loaded row is checked — click it to apply the reassignment to the entire filtered result set, not just what's on screen.
+3. Click **Reassign Salesperson** in the blue action bar that appears above the table.
+4. Pick the employee, enter a reason, and confirm.
+
+### After You Confirm
+
+The result screen reports what happened to every sale in the selection:
+
+| Outcome | Meaning |
+|---------|---------|
+| **Reassigned** | Updated successfully |
+| **Already assigned to this employee** | No-op — skipped, not counted as an error |
+| **No salesperson to reassign from** | The sale had no salesperson recorded at all (e.g. some WiFi portal or meal-program sales) — skipped |
+| **Blocked** | The sale's date already has a submitted or manager-approved End-of-Day report for its *current* salesperson — see below |
+
+### Why a Sale Can Be Blocked
+
+If a salesperson has already submitted (or a manager has already approved) their End-of-Day cash report for the day a sale falls on, that sale is locked from reassignment. Moving it afterward would silently change cash figures that have already been reconciled and signed off. If a sale genuinely needs to move despite this, contact an admin — this restriction is not exposed as a bypassable option in the UI, by design.
+
+### What Gets Recorded
+
+Every successful reassignment (single or bulk) writes an entry to the manager override audit log — who made the change, which employee it moved from and to, how many sales were affected, and the reason given. This log cannot be edited or deleted from the UI, the same as order cancellation records (Section 37).
 
 All tables and their referenced images are backed up automatically with every full backup.
