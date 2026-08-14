@@ -368,6 +368,13 @@ export default function CashBucketPage() {
   const [deleteReason, setDeleteReason] = useState('')
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
 
+  // Adjust balance modal state (admin only)
+  const [adjustBalanceBiz, setAdjustBalanceBiz] = useState<BucketBalance | null>(null)
+  const [adjustCashTarget, setAdjustCashTarget] = useState('')
+  const [adjustEcocashTarget, setAdjustEcocashTarget] = useState('')
+  const [adjustReason, setAdjustReason] = useState('')
+  const [adjustSubmitting, setAdjustSubmitting] = useState(false)
+
   // Eco-cash conversion state
   const [conversions, setConversions] = useState<EcocashConversion[]>([])
   const [conversionsLoading, setConversionsLoading] = useState(false)
@@ -513,6 +520,67 @@ export default function CashBucketPage() {
       }
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const openAdjustBalanceModal = (b: BucketBalance) => {
+    setAdjustBalanceBiz(b)
+    setAdjustCashTarget(String(b.cashBalance))
+    setAdjustEcocashTarget(String(b.ecocashBalance))
+    setAdjustReason('')
+  }
+
+  const handleAdjustBalanceSubmit = async () => {
+    if (!adjustBalanceBiz) return
+    const cashTarget = adjustCashTarget.trim() === '' ? undefined : parseFloat(adjustCashTarget)
+    const ecoTarget = adjustEcocashTarget.trim() === '' ? undefined : parseFloat(adjustEcocashTarget)
+    if (cashTarget === undefined && ecoTarget === undefined) {
+      await alert({ title: 'Nothing to adjust', description: 'Enter a corrected cash and/or EcoCash balance.' })
+      return
+    }
+    if ((cashTarget !== undefined && isNaN(cashTarget)) || (ecoTarget !== undefined && isNaN(ecoTarget))) {
+      await alert({ title: 'Invalid value', description: 'Enter valid balance amounts.' })
+      return
+    }
+    if (!adjustReason.trim()) {
+      await alert({ title: 'Reason required', description: 'Explain why this balance is being corrected (e.g. reconciled against a physical cash count).' })
+      return
+    }
+
+    const bizName = adjustBalanceBiz.business?.name ?? 'this business'
+    const lines: string[] = []
+    if (cashTarget !== undefined) lines.push(`💵 Cash: ${fmt(adjustBalanceBiz.cashBalance)} → ${fmt(cashTarget)}`)
+    if (ecoTarget !== undefined) lines.push(`📱 EcoCash: ${fmt(adjustBalanceBiz.ecocashBalance)} → ${fmt(ecoTarget)}`)
+    const ok = await confirm({
+      title: 'Adjust Cash Box Balance?',
+      description: `This posts an audited correction entry for ${bizName}. This cannot be undone automatically — only with another correction.\n${lines.join('\n')}`,
+      confirmText: 'Adjust Balance',
+      cancelText: 'Cancel',
+    })
+    if (!ok) return
+
+    setAdjustSubmitting(true)
+    try {
+      const res = await fetch('/api/cash-bucket/adjust-balance', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId: adjustBalanceBiz.businessId,
+          ...(cashTarget !== undefined ? { targetCashBalance: cashTarget } : {}),
+          ...(ecoTarget !== undefined ? { targetEcocashBalance: ecoTarget } : {}),
+          reason: adjustReason.trim(),
+        }),
+      })
+      const json = await res.json()
+      if (res.ok) {
+        setAdjustBalanceBiz(null)
+        await load()
+      } else {
+        await alert({ title: 'Error', description: json.error ?? 'Failed to adjust balance' })
+      }
+    } finally {
+      setAdjustSubmitting(false)
     }
   }
 
@@ -733,8 +801,15 @@ export default function CashBucketPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {balances.map(b => (
                     <div key={b.businessId} className="rounded-lg border border-border bg-card px-4 py-3 space-y-3">
-                      <div>
+                      <div className="flex items-center justify-between gap-2">
                         <p className="text-xs font-medium text-secondary uppercase tracking-wide truncate">{b.business?.name ?? b.businessId}</p>
+                        {isAdmin && (
+                          <button
+                            onClick={() => openAdjustBalanceModal(b)}
+                            className="opacity-50 hover:opacity-100 transition-opacity leading-none text-sm shrink-0"
+                            title="Manually correct cash/EcoCash balance (admin only)"
+                          >✏️</button>
+                        )}
                       </div>
 
                       {/* Physical cash section */}
@@ -1444,6 +1519,74 @@ export default function CashBucketPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Adjust cash box balance modal (admin only) */}
+      {adjustBalanceBiz && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-xl w-full max-w-sm p-5">
+            <h3 className="text-sm font-semibold text-primary mb-1">Adjust Cash Box Balance</h3>
+            <p className="text-xs text-secondary mb-4">
+              {adjustBalanceBiz.business?.name ?? 'This business'} — posts an audited correction entry per channel.
+              It does not overwrite history. Leave a field unchanged if that channel is already correct.
+            </p>
+
+            <label className="block text-xs font-medium text-secondary mb-1">Correct Cash Balance</label>
+            <div className="relative mb-3">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+              <input
+                type="number"
+                step="0.01"
+                value={adjustCashTarget}
+                onChange={e => setAdjustCashTarget(e.target.value)}
+                autoFocus
+                className="w-full pl-7 pr-3 py-2 border border-border rounded-md text-sm bg-background text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="text-[10px] text-secondary mt-0.5">Current: {fmt(adjustBalanceBiz.cashBalance)}</p>
+            </div>
+
+            <label className="block text-xs font-medium text-secondary mb-1">Correct EcoCash Balance</label>
+            <div className="relative mb-3">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+              <input
+                type="number"
+                step="0.01"
+                value={adjustEcocashTarget}
+                onChange={e => setAdjustEcocashTarget(e.target.value)}
+                className="w-full pl-7 pr-3 py-2 border border-border rounded-md text-sm bg-background text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="text-[10px] text-secondary mt-0.5">Current: {fmt(adjustBalanceBiz.ecocashBalance)}</p>
+            </div>
+
+            <label className="block text-xs font-medium text-secondary mb-1">Reason (required)</label>
+            <textarea
+              value={adjustReason}
+              onChange={e => setAdjustReason(e.target.value)}
+              rows={3}
+              placeholder="e.g. Reconciled against a physical cash count at closing."
+              className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+            />
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setAdjustBalanceBiz(null)}
+                disabled={adjustSubmitting}
+                className="flex-1 py-2 px-4 rounded-md text-sm font-medium border border-border text-secondary hover:bg-gray-50 dark:hover:bg-gray-700/30 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAdjustBalanceSubmit}
+                disabled={adjustSubmitting || !adjustReason.trim()}
+                className="flex-1 py-2 px-4 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+              >
+                {adjustSubmitting ? 'Adjusting…' : 'Adjust Balance'}
+              </button>
+            </div>
           </div>
         </div>
       )}

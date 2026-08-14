@@ -2740,6 +2740,21 @@ An account's balance is calculated automatically from its deposit and payment hi
 
 > If the same account shows different balances in different places (e.g. on a dashboard summary vs. the account detail page), open the account detail page first — it recalculates the true balance from the full transaction history every time it loads, and this is always the number to trust.
 
+### Adjusting the Business Balance or Cash Box (Admin Only)
+
+The same correction tool exists for two more balances, so every number in the books — expense accounts, the business's own revenue balance, and the physical cash box — can be kept in sync with reality:
+
+**Business Balance** (a business's revenue balance across all payment methods — shown on the **Dashboard**, next to "💰 [Business] Sales Balance"):
+1. Click the ✏️ pencil next to the balance figure (admin only).
+2. Enter the **Correct Balance** and a required **Reason**, then confirm.
+
+**Cash Box — Cash and EcoCash** (the **Cash Box** page, per-business breakdown):
+1. Click the ✏️ pencil next to a business's name (admin only).
+2. The **Adjust Cash Box Balance** window lets you correct **Cash** and **EcoCash** independently — enter a new value for either or both (leave a field as-is if that channel is already correct), plus one shared **Reason**.
+3. Confirm. Correcting the cash figure automatically updates "💵 Physical cash to count" too, since that's the cash balance plus whatever is currently earmarked for rent/payroll/other allocations — you don't need to (and can't) adjust that combined figure directly, only the underlying cash balance.
+
+**What happens (same principle in both cases):** Nothing is silently overwritten. Each correction posts a real, audited entry into the same transaction/ledger history everything else in that balance is built from — tagged with who made it, when, the old and new values, and the reason — so the fix is permanent and traceable, and won't drift back to the old number the next time the balance is recalculated.
+
 ### Linking an Expense Account to a Business (Admin Only)
 
 A business's expense account is normally linked automatically when the business is created. If an account somehow ends up without a business link — most likely an older account created before this was in place — several features that look up "this business's expense account" (like contractor payouts and auto-deposits) won't be able to find it.

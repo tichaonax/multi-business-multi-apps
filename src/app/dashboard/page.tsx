@@ -1123,6 +1123,7 @@ function DashboardContent() {
               businessName={currentBusiness?.businessName || 'Current Business'}
               showRefreshButton={true}
               variant="full"
+              isAdmin={isSysAdmin}
             />
             <LoanBreakdownCard businessId={businessId} />
           </div>
