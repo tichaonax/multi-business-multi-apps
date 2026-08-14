@@ -15,6 +15,7 @@ const businessTypeModules = [
   { type: 'construction', icon: '🏗️', name: 'Construction' },
   { type: 'services', icon: '💼', name: 'Services' },
   { type: 'vehicles', icon: '🚗', name: 'Vehicles' },
+  { type: 'vehicle_service', icon: '🛠️', name: 'Vehicle Service' },
   { type: 'retail', icon: '🏪', name: 'Retail' },
   { type: 'consulting', icon: '📊', name: 'Consulting' },
 ]
@@ -235,6 +236,14 @@ export function MobileSidebar() {
           <>
             {navLink('/construction', '🏗️', 'Dashboard')}
             {navLink('/construction/suppliers', '🤝', 'Suppliers')}
+          </>
+        )
+      case 'vehicle_service':
+        return (
+          <>
+            {navLink('/universal/pos', '🚗', 'POS System')}
+            {navLink('/vehicle-service/jobs', '🛠️', 'Jobs')}
+            {(isAdmin || hasBusinessPermission('canManageEmployees')) && navLink('/vehicle-service/contractors', '🔧', 'Contractors')}
           </>
         )
       default:

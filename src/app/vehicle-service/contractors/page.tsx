@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { generatePaymentVoucherPdf } from '@/components/expense-account/payment-voucher-pdf'
 
 interface ContractorListItem {
   id: string
@@ -31,7 +32,7 @@ const STATUS_STYLES: Record<string, string> = {
 export default function VehicleServiceContractorsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const { currentBusinessId, hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness, hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
 
   const [contractors, setContractors] = useState<ContractorListItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -180,6 +181,8 @@ export default function VehicleServiceContractorsPage() {
         <ContractorDetailModal
           contractorId={selectedContractorId}
           businessId={currentBusinessId!}
+          businessName={currentBusiness?.businessName || 'Business'}
+          creatorName={session?.user?.name || 'Manager'}
           onClose={() => setSelectedContractorId(null)}
           onChanged={fetchContractors}
         />
@@ -288,8 +291,8 @@ function AddContractorModal({ businessId, onClose, onCreated }: { businessId: st
 
 interface ServiceCatalogEntry { id: string; name: string; emoji: string; services: { id: string; name: string; emoji: string | null }[] }
 
-function ContractorDetailModal({ contractorId, businessId, onClose, onChanged }: {
-  contractorId: string; businessId: string; onClose: () => void; onChanged: () => void
+function ContractorDetailModal({ contractorId, businessId, businessName, creatorName, onClose, onChanged }: {
+  contractorId: string; businessId: string; businessName: string; creatorName: string; onClose: () => void; onChanged: () => void
 }) {
   const [contractor, setContractor] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -375,6 +378,22 @@ function ContractorDetailModal({ contractorId, businessId, onClose, onChanged }:
     } finally {
       setPayoutLoading(false)
     }
+  }
+
+  const downloadVoucher = (payout: { voucherNumber: string; totalAmount: number; paymentDate?: string; notes?: string | null }) => {
+    if (!contractor) return
+    generatePaymentVoucherPdf({
+      voucherNumber: payout.voucherNumber,
+      paymentDate: payout.paymentDate || new Date().toISOString(),
+      amount: Number(payout.totalAmount),
+      payeeName: contractor.persons.fullName,
+      payeeType: 'Contractor',
+      purpose: payout.notes || 'Vehicle service contractor payout',
+      collectorName: contractor.persons.fullName,
+      collectorPhone: contractor.persons.phone,
+      creatorName,
+      businessName,
+    })
   }
 
   const handleStatusChange = async (newStatus: string) => {
@@ -581,8 +600,11 @@ function ContractorDetailModal({ contractorId, businessId, onClose, onChanged }:
                   {payoutError && <p className="text-xs text-red-600 dark:text-red-400 mb-2">{payoutError}</p>}
 
                   {payoutResult && (
-                    <div className="p-2 mb-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded text-xs text-green-800 dark:text-green-400">
-                      ✓ Payout of ${Number(payoutResult.totalAmount).toFixed(2)} submitted for cashier approval ({payoutResult.taskCount} job{payoutResult.taskCount === 1 ? '' : 's'}).
+                    <div className="p-2 mb-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded text-xs text-green-800 dark:text-green-400 flex items-center justify-between gap-2">
+                      <span>✓ Payout of ${Number(payoutResult.totalAmount).toFixed(2)} submitted for cashier approval ({payoutResult.taskCount} job{payoutResult.taskCount === 1 ? '' : 's'}).</span>
+                      <button onClick={() => downloadVoucher(payoutResult)} className="shrink-0 px-2 py-1 bg-white dark:bg-gray-800 border border-green-300 dark:border-green-700 rounded text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40">
+                        Download Voucher
+                      </button>
                     </div>
                   )}
 
@@ -614,9 +636,12 @@ function ContractorDetailModal({ contractorId, businessId, onClose, onChanged }:
                     <div>
                       <p className="text-[10px] font-medium text-gray-400 uppercase mb-1">Past Payouts</p>
                       {payoutHistory.map(p => (
-                        <div key={p.id} className="flex justify-between text-xs text-gray-600 dark:text-gray-300 py-0.5">
-                          <span>{new Date(p.periodStart).toLocaleDateString()} – {new Date(p.periodEnd).toLocaleDateString()} ({p.taskCount} jobs)</span>
-                          <span>${Number(p.totalAmount).toFixed(2)} — {p.paymentStatus}</span>
+                        <div key={p.id} className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-300 py-0.5 gap-2">
+                          <span className="truncate">{new Date(p.periodStart).toLocaleDateString()} – {new Date(p.periodEnd).toLocaleDateString()} ({p.taskCount} jobs)</span>
+                          <span className="shrink-0">${Number(p.totalAmount).toFixed(2)} — {p.paymentStatus}</span>
+                          <button onClick={() => downloadVoucher(p)} className="shrink-0 text-blue-600 dark:text-blue-400 hover:underline" title="Download voucher PDF">
+                            PDF
+                          </button>
                         </div>
                       ))}
                     </div>

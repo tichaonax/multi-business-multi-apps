@@ -31,13 +31,16 @@ export async function GET(
 
     const payouts = await prisma.vehicleServiceContractorPayouts.findMany({
       where: { contractorId },
-      include: { payment: { select: { status: true, paymentDate: true, paidAt: true } }, items: true },
+      include: { payment: { select: { status: true, paymentDate: true, paidAt: true, notes: true } }, items: true },
       orderBy: { createdAt: 'desc' },
     })
 
     return NextResponse.json({
       payouts: payouts.map(p => ({
         id: p.id,
+        // Display-only reference derived from the payout's own id — no separate
+        // sequence/column needed, this voucher is never re-issued with a new number.
+        voucherNumber: `CP-${p.createdAt.toISOString().slice(0, 10).replace(/-/g, '')}-${p.id.slice(0, 6).toUpperCase()}`,
         periodStart: p.periodStart,
         periodEnd: p.periodEnd,
         totalAmount: p.totalAmount,
@@ -46,6 +49,7 @@ export async function GET(
         paymentStatus: p.payment.status,
         paymentDate: p.payment.paymentDate,
         paidAt: p.payment.paidAt,
+        notes: p.payment.notes,
       })),
     })
   } catch (error) {
@@ -147,7 +151,14 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      payout: { id: payout.id, totalAmount, taskCount: tasks.length, contractorName: contractor.persons.fullName },
+      payout: {
+        id: payout.id,
+        voucherNumber: `CP-${payout.createdAt.toISOString().slice(0, 10).replace(/-/g, '')}-${payout.id.slice(0, 6).toUpperCase()}`,
+        totalAmount,
+        taskCount: tasks.length,
+        contractorName: contractor.persons.fullName,
+        paymentDate: now.toISOString(),
+      },
     })
   } catch (error) {
     console.error('Create payout error:', error)
