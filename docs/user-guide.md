@@ -2740,6 +2740,17 @@ An account's balance is calculated automatically from its deposit and payment hi
 
 > If the same account shows different balances in different places (e.g. on a dashboard summary vs. the account detail page), open the account detail page first — it recalculates the true balance from the full transaction history every time it loads, and this is always the number to trust.
 
+### Linking an Expense Account to a Business (Admin Only)
+
+A business's expense account is normally linked automatically when the business is created. If an account somehow ends up without a business link — most likely an older account created before this was in place — several features that look up "this business's expense account" (like contractor payouts and auto-deposits) won't be able to find it.
+
+**Who can do this:** System administrators only.
+
+1. Open the account. If it's a **GENERAL** account with no business link, a **🔗 Link to Business** button appears next to the Active/Inactive status.
+2. Click it, pick the correct business from the list, and confirm.
+
+This can only be done once per account — an already-linked account can't be re-pointed to a different business from here, to avoid accidentally disconnecting a business from a live account by mistake.
+
 ---
 
 ### Switching Between Expense Accounts
@@ -12227,7 +12238,7 @@ From a contractor's detail screen (**Contractors → select contractor → Month
 
 This submits a payment request through the **same cashier-approval queue** used for every other expense-account payment in the system (Payee = the contractor, as a Person) — no separate approval process to learn. Once generated, those specific tasks are permanently locked against being included in any future payout, so re-running the same period (or overlapping periods) never double-pays a contractor. A contractor's past payout history is listed on the same screen, and each voucher (just-generated or historical) has a **Download Voucher** button that produces a printable PDF payment voucher — the same format used for other expense-account payments.
 
-> **Note:** Generating a payout requires the business to have an active expense account. A vehicle-service business created before this was checked automatically may need one set up manually first — if payout generation says no active expense account exists, that's what's missing.
+> **Note:** Generating a payout requires the business to have an active expense account linked to it. Every newly created business is now set up with one automatically. If an older business predates this and payout generation says no active expense account exists, an admin can fix it — see [Linking an Expense Account to a Business](#linking-an-expense-account-to-a-business-admin-only).
 
 ### Permissions Reference
 
