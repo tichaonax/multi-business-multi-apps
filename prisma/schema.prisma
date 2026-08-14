@@ -3013,29 +3013,31 @@ model ProductImages {
 }
 
 model ProductVariants {
-  id                       String                   @id @default(uuid())
-  productId                String
-  name                     String?
-  sku                      String
-  barcode                  String?
-  price                    Decimal?                 @db.Decimal(10, 2)
-  stockQuantity            Int                      @default(0)
-  reorderLevel             Int                      @default(0)
-  isActive                 Boolean                  @default(true)
-  attributes               Json?
-  isAvailable              Boolean                  @default(true)
-  originalPrice            Decimal?                 @db.Decimal(10, 2)
-  discountPercent          Decimal?                 @db.Decimal(5, 2)
-  discountAmount           Decimal?                 @db.Decimal(10, 2)
-  createdAt                DateTime                 @default(now())
-  updatedAt                DateTime
-  business_order_items     BusinessOrderItems[]
-  business_stock_movements BusinessStockMovements[]
-  menu_combo_items         MenuComboItems[]
-  product_barcodes         ProductBarcodes[]
-  business_products        BusinessProducts         @relation(fields: [productId], references: [id])
-  inventory_transfer_items InventoryTransferItems[]
-  expiryBatches            ItemExpiryBatch[]        @relation("ProductVariantExpiryBatches")
+  id                             String                        @id @default(uuid())
+  productId                      String
+  name                           String?
+  sku                            String
+  barcode                        String?
+  price                          Decimal?                      @db.Decimal(10, 2)
+  stockQuantity                  Int                           @default(0)
+  reorderLevel                   Int                           @default(0)
+  isActive                       Boolean                       @default(true)
+  attributes                     Json?
+  isAvailable                    Boolean                       @default(true)
+  originalPrice                  Decimal?                      @db.Decimal(10, 2)
+  discountPercent                Decimal?                      @db.Decimal(5, 2)
+  discountAmount                 Decimal?                      @db.Decimal(10, 2)
+  createdAt                      DateTime                      @default(now())
+  updatedAt                      DateTime
+  business_order_items           BusinessOrderItems[]
+  business_stock_movements       BusinessStockMovements[]
+  menu_combo_items               MenuComboItems[]
+  product_barcodes               ProductBarcodes[]
+  business_products              BusinessProducts              @relation(fields: [productId], references: [id])
+  inventory_transfer_items       InventoryTransferItems[]
+  expiryBatches                  ItemExpiryBatch[]             @relation("ProductVariantExpiryBatches")
+  vehicle_service_parts_requests VehicleServicePartsRequests[]
+  vehicle_service_job_parts      VehicleServiceJobParts[]
 
   @@map("product_variants")
 }
@@ -3657,6 +3659,8 @@ model Users {
   vehicle_service_contractors_created                             VehicleServiceContractors[]       @relation("VehicleServiceContractorCreator")
   vehicle_service_jobs_created                                    VehicleServiceJobs[]
   vehicle_service_contractor_payouts_created                      VehicleServiceContractorPayouts[]
+  vehicle_service_jobs_released                                   VehicleServiceJobs[]              @relation("VehicleServiceJobReleasedBy")
+  vehicle_service_parts_requests_reviewed                         VehicleServicePartsRequests[]     @relation("PartsRequestReviewer")
 
   @@map("users")
 }
@@ -7701,10 +7705,12 @@ model VehicleServiceContractors {
   users      Users?     @relation("VehicleServiceContractorUser", fields: [userId], references: [id])
   creator    Users?     @relation("VehicleServiceContractorCreator", fields: [createdBy], references: [id])
 
-  skills   VehicleServiceContractorSkills[]
-  services VehicleServiceContractorServices[]
-  tasks    VehicleServiceTasks[]
-  payouts  VehicleServiceContractorPayouts[]
+  skills        VehicleServiceContractorSkills[]
+  services      VehicleServiceContractorServices[]
+  tasks         VehicleServiceTasks[]
+  payouts       VehicleServiceContractorPayouts[]
+  primaryJobs   VehicleServiceJobs[]               @relation("JobPrimaryContractor")
+  partsRequests VehicleServicePartsRequests[]
 
   @@index([businessId])
   @@index([status])
@@ -7743,26 +7749,35 @@ model VehicleServiceContractorServices {
 }
 
 model VehicleServiceJobs {
-  id           String   @id @default(uuid())
-  businessId   String
-  customerId   String?
-  vehicleMake  String?
-  vehicleModel String?
-  vehiclePlate String?
-  vehicleVin   String?
-  status       String   @default("open") // open | in_progress | completed | billed | cancelled
-  orderId      String?  @unique
-  notes        String?
-  createdBy    String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now()) @updatedAt
+  id                  String    @id @default(uuid())
+  businessId          String
+  customerId          String?
+  vehicleMake         String?
+  vehicleModel        String?
+  vehiclePlate        String?
+  vehicleVin          String?
+  status              String    @default("open") // open | in_progress | completed | billed | cancelled
+  orderId             String?   @unique
+  notes               String?
+  primaryContractorId String?
+  jobCardPrintedAt    DateTime?
+  vehicleReleasedAt   DateTime?
+  vehicleReleasedById String?
+  jobCardReturnedAt   DateTime?
+  createdBy           String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
 
-  businesses         Businesses         @relation(fields: [businessId], references: [id])
-  business_customers BusinessCustomers? @relation(fields: [customerId], references: [id])
-  business_orders    BusinessOrders?    @relation(fields: [orderId], references: [id])
-  creator            Users?             @relation(fields: [createdBy], references: [id])
+  businesses         Businesses                 @relation(fields: [businessId], references: [id])
+  business_customers BusinessCustomers?         @relation(fields: [customerId], references: [id])
+  business_orders    BusinessOrders?            @relation(fields: [orderId], references: [id])
+  creator            Users?                     @relation(fields: [createdBy], references: [id])
+  primaryContractor  VehicleServiceContractors? @relation("JobPrimaryContractor", fields: [primaryContractorId], references: [id])
+  vehicleReleasedBy  Users?                     @relation("VehicleServiceJobReleasedBy", fields: [vehicleReleasedById], references: [id])
 
-  tasks VehicleServiceTasks[]
+  tasks         VehicleServiceTasks[]
+  partsRequests VehicleServicePartsRequests[]
+  jobParts      VehicleServiceJobParts[]
 
   @@index([businessId, status])
   @@map("vehicle_service_jobs")
@@ -7782,10 +7797,11 @@ model VehicleServiceTasks {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @default(now()) @updatedAt
 
-  job         VehicleServiceJobs                   @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  subcategory InventorySubcategories               @relation(fields: [subcategoryId], references: [id])
-  contractor  VehicleServiceContractors            @relation(fields: [contractorId], references: [id])
-  payoutItem  VehicleServiceContractorPayoutItems?
+  job           VehicleServiceJobs                   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  subcategory   InventorySubcategories               @relation(fields: [subcategoryId], references: [id])
+  contractor    VehicleServiceContractors            @relation(fields: [contractorId], references: [id])
+  payoutItem    VehicleServiceContractorPayoutItems?
+  partsRequests VehicleServicePartsRequests[]
 
   @@index([jobId])
   @@index([contractorId])
@@ -7823,4 +7839,54 @@ model VehicleServiceContractorPayoutItems {
   task   VehicleServiceTasks             @relation(fields: [taskId], references: [id])
 
   @@map("vehicle_service_contractor_payout_items")
+}
+
+// MBM-262 Phase C: parts requests (contractor -> Inventory Department)
+model VehicleServicePartsRequests {
+  id               String    @id @default(uuid())
+  jobId            String
+  taskId           String?
+  contractorId     String
+  description      String
+  quantity         Int
+  status           String    @default("REQUESTED") // REQUESTED | APPROVED | REJECTED | ISSUED
+  requestedAt      DateTime  @default(now())
+  reviewedBy       String?
+  reviewedAt       DateTime?
+  rejectionReason  String?
+  productVariantId String?
+  issuedQuantity   Int?
+  issuedAt         DateTime?
+
+  job            VehicleServiceJobs        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  task           VehicleServiceTasks?      @relation(fields: [taskId], references: [id])
+  contractor     VehicleServiceContractors @relation(fields: [contractorId], references: [id])
+  reviewer       Users?                    @relation("PartsRequestReviewer", fields: [reviewedBy], references: [id])
+  productVariant ProductVariants?          @relation(fields: [productVariantId], references: [id])
+  jobPart        VehicleServiceJobParts?
+
+  @@index([jobId])
+  @@index([contractorId])
+  @@index([status])
+  @@map("vehicle_service_parts_requests")
+}
+
+// The "committed to this job" parts list — populated when Inventory issues a
+// requested part (stock decremented at that moment) or when staff add a part
+// directly at billing time (partsRequestId null in that case).
+model VehicleServiceJobParts {
+  id               String   @id @default(uuid())
+  jobId            String
+  productVariantId String
+  quantity         Int
+  unitPrice        Decimal  @db.Decimal(10, 2)
+  partsRequestId   String?  @unique
+  createdAt        DateTime @default(now())
+
+  job            VehicleServiceJobs           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  productVariant ProductVariants              @relation(fields: [productVariantId], references: [id])
+  partsRequest   VehicleServicePartsRequests? @relation(fields: [partsRequestId], references: [id])
+
+  @@index([jobId])
+  @@map("vehicle_service_job_parts")
 }

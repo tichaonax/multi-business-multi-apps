@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
         subcategory: { select: { name: true, emoji: true } },
         job: {
           select: {
+            id: true,
             vehicleMake: true,
             vehicleModel: true,
             vehiclePlate: true,
@@ -51,6 +52,7 @@ export async function GET(request: NextRequest) {
       contractorStatus: contractor.status,
       tasks: tasks.map(t => ({
         id: t.id,
+        jobId: t.job.id,
         status: t.status,
         workDescription: t.workDescription,
         assignedAt: t.assignedAt,

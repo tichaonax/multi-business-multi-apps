@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { CustomerQuickRegister } from '@/components/pos/customer-quick-register'
 
 interface JobListItem {
   id: string
@@ -16,6 +17,10 @@ interface JobListItem {
   vehiclePlate: string | null
   orderId: string | null
   createdAt: string
+  jobCardPrintedAt: string | null
+  jobCardReturnedAt: string | null
+  vehicleReleasedAt: string | null
+  primaryContractorName: string | null
   customerName: string | null
   customerPhone: string | null
   taskCount: number
@@ -34,7 +39,7 @@ const STATUS_STYLES: Record<string, string> = {
 export default function VehicleServiceJobsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const { currentBusinessId } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness } = useBusinessPermissionsContext()
 
   const [jobs, setJobs] = useState<JobListItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -122,7 +127,7 @@ export default function VehicleServiceJobsPage() {
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
-                  {['Vehicle', 'Customer', 'Status', 'Tasks', 'Total', 'Created'].map(h => (
+                  {['Vehicle', 'Customer', 'Primary Contractor', 'Status', 'Tasks', 'Total', 'Created'].map(h => (
                     <th key={h} className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -137,9 +142,27 @@ export default function VehicleServiceJobsPage() {
                     <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                       {[j.vehicleMake, j.vehicleModel].filter(Boolean).join(' ') || '—'}
                       {j.vehiclePlate && <span className="ml-1 text-xs text-gray-400">({j.vehiclePlate})</span>}
+                      {j.jobCardPrintedAt && (
+                        <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full" title={`Printed ${new Date(j.jobCardPrintedAt).toLocaleString()}`}>
+                          🖨️ Printed
+                        </span>
+                      )}
+                      {j.jobCardReturnedAt && (
+                        <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-medium bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 rounded-full" title={`Returned ${new Date(j.jobCardReturnedAt).toLocaleString()}`}>
+                          ↩️ Returned
+                        </span>
+                      )}
+                      {j.vehicleReleasedAt && (
+                        <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full">
+                          ✓ Released
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                       {j.customerName || 'Walk-in'}
+                    </td>
+                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
+                      {j.primaryContractorName || '—'}
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-semibold rounded-full ${STATUS_STYLES[j.status] || ''}`}>
@@ -166,6 +189,8 @@ export default function VehicleServiceJobsPage() {
       {showAddModal && currentBusinessId && (
         <NewJobModal
           businessId={currentBusinessId}
+          businessName={currentBusiness?.businessName || 'Business'}
+          businessPhone={currentBusiness?.phone}
           onClose={() => setShowAddModal(false)}
           onCreated={(jobId) => router.push(`/vehicle-service/jobs/${jobId}`)}
         />
@@ -174,13 +199,18 @@ export default function VehicleServiceJobsPage() {
   )
 }
 
-function NewJobModal({ businessId, onClose, onCreated }: { businessId: string; onClose: () => void; onCreated: (jobId: string) => void }) {
+function NewJobModal({ businessId, businessName, businessPhone, onClose, onCreated }: {
+  businessId: string; businessName: string; businessPhone?: string; onClose: () => void; onCreated: (jobId: string) => void
+}) {
   const [form, setForm] = useState({ vehicleMake: '', vehicleModel: '', vehiclePlate: '', vehicleVin: '', notes: '' })
   const [customerQuery, setCustomerQuery] = useState('')
   const [customerResults, setCustomerResults] = useState<any[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [contractors, setContractors] = useState<Array<{ id: string; fullName: string }>>([])
+  const [primaryContractorId, setPrimaryContractorId] = useState('')
+  const [showQuickRegister, setShowQuickRegister] = useState(false)
 
   useEffect(() => {
     if (!customerQuery.trim() || selectedCustomer) { setCustomerResults([]); return }
@@ -194,8 +224,16 @@ function NewJobModal({ businessId, onClose, onCreated }: { businessId: string; o
     return () => clearTimeout(t)
   }, [customerQuery, businessId, selectedCustomer])
 
+  useEffect(() => {
+    fetch(`/api/vehicle-service/contractors?businessId=${businessId}&status=active`)
+      .then(res => res.ok ? res.json() : { contractors: [] })
+      .then(data => setContractors((data.contractors || []).map((c: any) => ({ id: c.id, fullName: c.fullName }))))
+      .catch(() => setContractors([]))
+  }, [businessId])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!primaryContractorId) { setError('Select a primary contractor for this job'); return }
     setSubmitting(true)
     setError(null)
     try {
@@ -204,6 +242,7 @@ function NewJobModal({ businessId, onClose, onCreated }: { businessId: string; o
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           businessId,
+          primaryContractorId,
           customerId: selectedCustomer?.id || undefined,
           vehicleMake: form.vehicleMake || undefined,
           vehicleModel: form.vehicleModel || undefined,
@@ -239,6 +278,14 @@ function NewJobModal({ businessId, onClose, onCreated }: { businessId: string; o
                     <span>{selectedCustomer.name}</span>
                     <button type="button" onClick={() => { setSelectedCustomer(null); setCustomerQuery('') }} className="text-xs text-blue-600 hover:underline">Change</button>
                   </div>
+                ) : showQuickRegister ? (
+                  <CustomerQuickRegister
+                    businessId={businessId}
+                    businessName={businessName}
+                    businessPhone={businessPhone}
+                    onCreated={(c: any) => { setSelectedCustomer(c); setShowQuickRegister(false) }}
+                    onCancel={() => setShowQuickRegister(false)}
+                  />
                 ) : (
                   <>
                     <input
@@ -262,8 +309,33 @@ function NewJobModal({ businessId, onClose, onCreated }: { businessId: string; o
                         ))}
                       </div>
                     )}
+                    {customerQuery.trim() && customerResults.length === 0 && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        No match. <button type="button" onClick={() => setShowQuickRegister(true)} className="text-blue-600 dark:text-blue-400 hover:underline">Register a new customer</button>
+                      </p>
+                    )}
+                    {!customerQuery.trim() && (
+                      <button type="button" onClick={() => setShowQuickRegister(true)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1">
+                        + New Customer
+                      </button>
+                    )}
                   </>
                 )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Primary Contractor *</label>
+                <select
+                  value={primaryContractorId}
+                  onChange={e => setPrimaryContractorId(e.target.value)}
+                  className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
+                  <option value="">Select primary contractor...</option>
+                  {contractors.map(c => (
+                    <option key={c.id} value={c.id}>{c.fullName}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-gray-400 mt-0.5">Who the job card is handed to — individual tasks can still go to other contractors.</p>
               </div>
 
               {[

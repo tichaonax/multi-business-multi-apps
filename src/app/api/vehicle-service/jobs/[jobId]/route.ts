@@ -19,12 +19,24 @@ export async function GET(
       where: { id: jobId },
       include: {
         business_customers: { select: { id: true, name: true, phone: true } },
+        primaryContractor: { select: { id: true, persons: { select: { fullName: true, phone: true } } } },
+        vehicleReleasedBy: { select: { id: true, name: true } },
+        business_orders: { select: { orderNumber: true, paymentStatus: true } },
         tasks: {
           include: {
             subcategory: { select: { id: true, name: true, emoji: true } },
             contractor: { select: { id: true, persons: { select: { fullName: true } } } },
           },
           orderBy: { createdAt: 'asc' },
+        },
+        jobParts: {
+          include: { productVariant: { select: { id: true, business_products: { select: { name: true } } } } },
+        },
+        partsRequests: {
+          include: {
+            contractor: { select: { id: true, persons: { select: { fullName: true } } } },
+          },
+          orderBy: { requestedAt: 'desc' },
         },
       },
     })
@@ -43,7 +55,7 @@ export async function GET(
 }
 
 // PATCH /api/vehicle-service/jobs/[jobId]
-// Body: { status?, customerId?, vehicleMake?, vehicleModel?, vehiclePlate?, vehicleVin?, notes? }
+// Body: { status?, customerId?, vehicleMake?, vehicleModel?, vehiclePlate?, vehicleVin?, notes?, primaryContractorId?, markPrinted?, markCardReturned?, releaseVehicle? }
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ jobId: string }> }
@@ -54,12 +66,18 @@ export async function PATCH(
 
     const { jobId } = await params
     const body = await request.json()
-    const { status, customerId, vehicleMake, vehicleModel, vehiclePlate, vehicleVin, notes } = body as {
+    const { status, customerId, vehicleMake, vehicleModel, vehiclePlate, vehicleVin, notes, primaryContractorId, markPrinted, markCardReturned, releaseVehicle } = body as {
       status?: string; customerId?: string; vehicleMake?: string; vehicleModel?: string
-      vehiclePlate?: string; vehicleVin?: string; notes?: string
+      vehiclePlate?: string; vehicleVin?: string; notes?: string; primaryContractorId?: string; markPrinted?: boolean; markCardReturned?: boolean; releaseVehicle?: boolean
     }
 
-    const existing = await prisma.vehicleServiceJobs.findUnique({ where: { id: jobId }, select: { businessId: true, status: true } })
+    const existing = await prisma.vehicleServiceJobs.findUnique({
+      where: { id: jobId },
+      select: {
+        businessId: true, status: true, vehicleReleasedAt: true,
+        business_orders: { select: { paymentStatus: true } },
+      },
+    })
     if (!existing) return NextResponse.json({ error: 'Job not found' }, { status: 404 })
 
     if (!isSystemAdmin(user)) {
@@ -76,6 +94,28 @@ export async function PATCH(
       }
     }
 
+    if (releaseVehicle) {
+      if (existing.status !== 'billed' || existing.business_orders?.paymentStatus !== 'PAID') {
+        return NextResponse.json({ error: 'The vehicle can only be released once the job is billed and paid' }, { status: 409 })
+      }
+      if (existing.vehicleReleasedAt) {
+        return NextResponse.json({ error: 'This vehicle has already been released' }, { status: 409 })
+      }
+    }
+
+    if (primaryContractorId) {
+      const contractor = await prisma.vehicleServiceContractors.findUnique({
+        where: { id: primaryContractorId },
+        select: { businessId: true, status: true },
+      })
+      if (!contractor || contractor.businessId !== existing.businessId) {
+        return NextResponse.json({ error: 'Primary contractor not found for this business' }, { status: 400 })
+      }
+      if (contractor.status !== 'active') {
+        return NextResponse.json({ error: `Selected primary contractor is ${contractor.status} and cannot take new jobs` }, { status: 400 })
+      }
+    }
+
     const job = await prisma.vehicleServiceJobs.update({
       where: { id: jobId },
       data: {
@@ -86,6 +126,10 @@ export async function PATCH(
         ...(vehiclePlate !== undefined ? { vehiclePlate: vehiclePlate || null } : {}),
         ...(vehicleVin !== undefined ? { vehicleVin: vehicleVin || null } : {}),
         ...(notes !== undefined ? { notes: notes || null } : {}),
+        ...(primaryContractorId ? { primaryContractorId } : {}),
+        ...(markPrinted ? { jobCardPrintedAt: new Date() } : {}),
+        ...(markCardReturned ? { jobCardReturnedAt: new Date() } : {}),
+        ...(releaseVehicle ? { vehicleReleasedAt: new Date(), vehicleReleasedById: user.id } : {}),
       },
     })
 

@@ -1119,6 +1119,12 @@ export function Sidebar() {
                     <span>Contractors</span>
                   </Link>
                 )}
+                {(isSystemAdmin(currentUser) || hasPermission('canManageInventory')) && (
+                  <Link href="/vehicle-service/parts-requests" className={getLinkClasses('/vehicle-service/parts-requests')}>
+                    <span className="text-lg">📦</span>
+                    <span>Parts Requests</span>
+                  </Link>
+                )}
               </>
             )}
 

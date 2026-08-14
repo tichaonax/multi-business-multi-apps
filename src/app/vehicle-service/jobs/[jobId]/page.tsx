@@ -76,6 +76,25 @@ export default function VehicleServiceJobDetailPage() {
     fetchJob()
   }
 
+  const handleReleaseVehicle = async () => {
+    await fetch(`/api/vehicle-service/jobs/${jobId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ releaseVehicle: true }),
+    })
+    fetchJob()
+  }
+
+  const handlePrintCard = async () => {
+    window.open(`/vehicle-service/jobs/${jobId}/card`, '_blank')
+    await fetch(`/api/vehicle-service/jobs/${jobId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ markPrinted: true }),
+    })
+    fetchJob()
+  }
+
   const handleAddTask = async () => {
     setTaskError(null)
     if (!newTask.subcategoryId || !newTask.contractorId) {
@@ -115,6 +134,16 @@ export default function VehicleServiceJobDetailPage() {
   const formatCurrency = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
   const allServices = catalog.flatMap(cat => cat.services.map(s => ({ ...s, categoryName: cat.name })))
   const selectedFee = eligible.find(c => c.contractorId === newTask.contractorId)?.feeAmount
+  const allTasksComplete = !!job && job.tasks.length > 0 && job.tasks.every((t: any) => t.status === 'completed')
+
+  const handleMarkCardReturned = async () => {
+    await fetch(`/api/vehicle-service/jobs/${jobId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ markCardReturned: true }),
+    })
+    fetchJob()
+  }
 
   if (status === 'loading') {
     return <div className="flex items-center justify-center min-h-screen text-gray-600">Loading...</div>
@@ -148,6 +177,11 @@ export default function VehicleServiceJobDetailPage() {
                     {job.business_customers?.name || 'Walk-in customer'}
                     {job.business_customers?.phone && ` · ${job.business_customers.phone}`}
                   </p>
+                  {job.primaryContractor && (
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                      Primary contractor: {job.primaryContractor.persons.fullName}
+                    </p>
+                  )}
                 </div>
                 {job.orderId && (
                   <span className="px-2 py-1 text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-full">
@@ -171,7 +205,26 @@ export default function VehicleServiceJobDetailPage() {
                   </button>
                 ))}
               </div>
-              {job.status !== 'billed' && job.status !== 'cancelled' && job.tasks.length > 0 && job.tasks.every((t: any) => t.status === 'completed') && (
+              {allTasksComplete && job.status !== 'billed' && job.status !== 'cancelled' && (
+                <div className="mt-3 flex items-center gap-2 flex-wrap">
+                  <span className="px-2 py-1 text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 rounded-full">
+                    ✓ Ready to Bill
+                  </span>
+                  {!job.jobCardReturnedAt ? (
+                    <button
+                      onClick={handleMarkCardReturned}
+                      className="px-3 py-1.5 text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
+                    >
+                      Mark Job Card Returned
+                    </button>
+                  ) : (
+                    <span className="text-xs text-gray-400" title={new Date(job.jobCardReturnedAt).toLocaleString()}>
+                      Card returned {new Date(job.jobCardReturnedAt).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              )}
+              {allTasksComplete && job.status !== 'billed' && job.status !== 'cancelled' && (
                 <button
                   onClick={() => setShowBillModal(true)}
                   className="mt-3 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium"
@@ -187,6 +240,26 @@ export default function VehicleServiceJobDetailPage() {
                   View Receipt
                 </button>
               )}
+              {job.status === 'billed' && job.business_orders?.paymentStatus === 'PAID' && (
+                job.vehicleReleasedAt ? (
+                  <span className="mt-3 ml-2 inline-block px-3 py-2 text-sm text-green-700 dark:text-green-400" title={new Date(job.vehicleReleasedAt).toLocaleString()}>
+                    ✓ Vehicle released {new Date(job.vehicleReleasedAt).toLocaleDateString()}{job.vehicleReleasedBy?.name ? ` by ${job.vehicleReleasedBy.name}` : ''}
+                  </span>
+                ) : (
+                  <button
+                    onClick={handleReleaseVehicle}
+                    className="mt-3 ml-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium"
+                  >
+                    🚗 Release Vehicle
+                  </button>
+                )
+              )}
+              <button
+                onClick={handlePrintCard}
+                className="mt-3 ml-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800"
+              >
+                🖨️ {job.jobCardPrintedAt ? 'Reprint Job Card' : 'Print Job Card'}
+              </button>
             </div>
 
             {/* Tasks */}
@@ -293,6 +366,37 @@ export default function VehicleServiceJobDetailPage() {
                 </div>
               )}
             </div>
+
+            {/* Parts */}
+            {(job.jobParts?.length > 0 || job.partsRequests?.length > 0) && (
+              <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
+                <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Parts</h4>
+                {job.jobParts?.length > 0 && (
+                  <div className="mb-3 space-y-1">
+                    <p className="text-[10px] font-medium text-gray-400 uppercase">Issued</p>
+                    {job.jobParts.map((jp: any) => (
+                      <div key={jp.id} className="flex justify-between text-sm text-gray-700 dark:text-gray-300">
+                        <span>{jp.productVariant.business_products.name} × {jp.quantity}</span>
+                        <span>{formatCurrency(Number(jp.unitPrice) * jp.quantity)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {job.partsRequests?.filter((r: any) => r.status !== 'ISSUED').length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-medium text-gray-400 uppercase">Requests</p>
+                    {job.partsRequests.filter((r: any) => r.status !== 'ISSUED').map((r: any) => (
+                      <div key={r.id} className="flex justify-between text-sm text-gray-600 dark:text-gray-300">
+                        <span>{r.description} × {r.quantity} <span className="text-xs text-gray-400">({r.contractor.persons.fullName})</span></span>
+                        <span className={`text-xs font-medium ${r.status === 'REJECTED' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                          {r.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -351,8 +455,9 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
 
   const labourTotal = job.tasks.reduce((s: number, t: any) => s + Number(t.customerPriceOverride ?? t.agreedFeeAmount), 0)
   const partsTotal = billParts.reduce((s, p) => s + p.unitPrice * p.quantity, 0)
+  const issuedPartsTotal = (job.jobParts || []).reduce((s: number, jp: any) => s + Number(jp.unitPrice) * jp.quantity, 0)
   const otherTotal = otherCharges.reduce((s, c) => s + (parseFloat(c.amount) || 0), 0)
-  const grandTotal = labourTotal + partsTotal + otherTotal
+  const grandTotal = labourTotal + partsTotal + issuedPartsTotal + otherTotal
 
   const handleSubmit = async () => {
     setSubmitting(true)
@@ -400,9 +505,22 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
                   ))}
                 </div>
 
+                {/* Issued parts (already committed via a parts request — read-only) */}
+                {job.jobParts?.length > 0 && (
+                  <div>
+                    <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Issued Parts</h5>
+                    {job.jobParts.map((jp: any) => (
+                      <div key={jp.id} className="flex justify-between text-sm text-gray-700 dark:text-gray-300">
+                        <span>{jp.productVariant.business_products.name} × {jp.quantity}</span>
+                        <span>{formatCurrency(Number(jp.unitPrice) * jp.quantity)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* Parts */}
                 <div>
-                  <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Parts</h5>
+                  <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Add More Parts</h5>
                   <div className="relative mb-2">
                     <input
                       type="text"

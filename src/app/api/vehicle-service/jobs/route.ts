@@ -29,6 +29,10 @@ export async function GET(request: NextRequest) {
         vehiclePlate: true,
         orderId: true,
         createdAt: true,
+        jobCardPrintedAt: true,
+        jobCardReturnedAt: true,
+        vehicleReleasedAt: true,
+        primaryContractor: { select: { id: true, persons: { select: { fullName: true } } } },
         business_customers: { select: { id: true, name: true, phone: true } },
         tasks: {
           select: { id: true, status: true, agreedFeeAmount: true, customerPriceOverride: true },
@@ -46,6 +50,10 @@ export async function GET(request: NextRequest) {
         vehiclePlate: j.vehiclePlate,
         orderId: j.orderId,
         createdAt: j.createdAt,
+        jobCardPrintedAt: j.jobCardPrintedAt,
+        jobCardReturnedAt: j.jobCardReturnedAt,
+        vehicleReleasedAt: j.vehicleReleasedAt,
+        primaryContractorName: j.primaryContractor?.persons?.fullName ?? null,
         customerName: j.business_customers?.name ?? null,
         customerPhone: j.business_customers?.phone ?? null,
         taskCount: j.tasks.length,
@@ -60,27 +68,40 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/vehicle-service/jobs
-// Body: { businessId, customerId?, vehicleMake?, vehicleModel?, vehiclePlate?, vehicleVin?, notes? }
+// Body: { businessId, primaryContractorId, customerId?, vehicleMake?, vehicleModel?, vehiclePlate?, vehicleVin?, notes? }
 export async function POST(request: NextRequest) {
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await request.json()
-    const { businessId, customerId, vehicleMake, vehicleModel, vehiclePlate, vehicleVin, notes } = body as {
-      businessId?: string; customerId?: string; vehicleMake?: string; vehicleModel?: string
+    const { businessId, primaryContractorId, customerId, vehicleMake, vehicleModel, vehiclePlate, vehicleVin, notes } = body as {
+      businessId?: string; primaryContractorId?: string; customerId?: string; vehicleMake?: string; vehicleModel?: string
       vehiclePlate?: string; vehicleVin?: string; notes?: string
     }
     if (!businessId) return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
+    if (!primaryContractorId) return NextResponse.json({ error: 'primaryContractorId is required' }, { status: 400 })
 
     if (!isSystemAdmin(user)) {
       const membership = await prisma.businessMemberships.findFirst({ where: { userId: user.id, businessId } })
       if (!membership) return NextResponse.json({ error: 'Access denied to this business' }, { status: 403 })
     }
 
+    const primaryContractor = await prisma.vehicleServiceContractors.findUnique({
+      where: { id: primaryContractorId },
+      select: { businessId: true, status: true },
+    })
+    if (!primaryContractor || primaryContractor.businessId !== businessId) {
+      return NextResponse.json({ error: 'Primary contractor not found for this business' }, { status: 400 })
+    }
+    if (primaryContractor.status !== 'active') {
+      return NextResponse.json({ error: `Selected primary contractor is ${primaryContractor.status} and cannot take new jobs` }, { status: 400 })
+    }
+
     const job = await prisma.vehicleServiceJobs.create({
       data: {
         businessId,
+        primaryContractorId,
         customerId: customerId || null,
         vehicleMake: vehicleMake || null,
         vehicleModel: vehicleModel || null,

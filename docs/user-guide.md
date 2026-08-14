@@ -160,6 +160,7 @@
     - [Receipt — AYLI Breakdown](#receipt--ayli-breakdown)
     - [Permissions](#permissions-1)
 55. [Smart Customer Display — Dynamic Menu & Ads](#55-smart-customer-display--dynamic-menu--ads)
+56. [Vehicle Repair & Service Business Type](#56-vehicle-repair--service-business-type)
     - [Overview](#overview-2)
     - [Rotating Ads Panel](#rotating-ads-panel)
     - [Live Menu Panel](#live-menu-panel)
@@ -12097,3 +12098,158 @@ New columns (not new tables):
 - `display_global_settings.specialShowPercentage` — how often the special card appears in the left panel rotation (0–100%)
 
 All tables and their referenced images are backed up automatically with every full backup.
+
+---
+
+## 56. Vehicle Repair & Service Business Type
+
+> **Who reads this:** Admins setting up a vehicle repair/service shop, managers registering contractors and billing jobs, and contractors using their restricted portal.
+
+### Overview
+
+The **Vehicle Repair & Service** business type (`vehicle_service`) is for garages, repair shops, and similar businesses that combine three things in one job: mechanical **labour** performed by outside **contractors** (not employees), **parts** sold from inventory, and a single **customer bill** at the end covering both.
+
+It is a separate business type from **Vehicle Sales** — the existing "Vehicles" type is a car dealership (VIN tracking, no contractors or jobs). Don't confuse the two when creating a business.
+
+Contractors are **not employees**. They hold no payroll contract, are paid per completed job at a pre-agreed rate, and log into a separate, restricted **Contractor Portal** that shows them only their own work — never pricing, payments, or receipts.
+
+### Setting Up the Business
+
+Create the business as normal (**Admin → Businesses → New Business**) and choose **Vehicle Repair & Service** as the type. This automatically gives the business:
+
+- The full parts/service category taxonomy (4 domains, 21 categories, ~170 individual services and parts — oil changes, brakes, tires, engine work, electrical, parts and accessories, cleaning/detailing, fleet and roadside services) — the same category picker used everywhere else in the app (POS, inventory) already understands this taxonomy.
+- **Jobs** and **Contractors** links in the sidebar (desktop and mobile). A **Parts Requests** link also appears for anyone with the `canManageInventory` permission — see [Parts Requests](#parts-requests-contractor-to-inventory-department) below.
+
+### Managing Contractors
+
+Navigate to **Contractors** in the sidebar (requires **Manage Employees** permission or system admin).
+
+**Registering a new contractor:**
+1. Click **+ Add Contractor**.
+2. Enter their personal details — full name, phone, national ID (required), email and address (optional).
+3. Click **Create Contractor**.
+
+This creates the contractor's core record. Click into it (or the row) to **Manage** further:
+
+| Section | What it does |
+|---|---|
+| **Status** | Active / Retired / Disabled. Retired and disabled contractors are automatically excluded from every job-assignment picker — they cannot be given new work, but their history and past payouts are preserved. |
+| **Skills & Certifications** | Free-text list — skill name plus an optional certification note (e.g. "ASE Certified"). Informational only; does not gate what they can be assigned. |
+| **Authorized Services & Fees** | The specific services this contractor is qualified to perform, each with **their own agreed fee**. A contractor can hold many authorized services. Only services they're authorized for (and only while Active) appear when assigning them to a job task. |
+| **Contractor Portal Login** | Creates the contractor's login (email + optional password — leave password blank to auto-generate a temporary one that must be changed on first sign-in). This is a normal user account, but it is **not** given membership in the business the way an employee account would be — it can only ever reach the Contractor Portal, nothing else. |
+| **Monthly Payout** | See [Monthly Contractor Payments](#monthly-contractor-payments) below. |
+
+### Assigning Jobs & Tasks
+
+Navigate to **Jobs** in the sidebar.
+
+**Creating a job:**
+1. Click **+ New Job**.
+2. Search for an existing customer, or leave blank for a walk-in. If the search finds no match, a **+ New Customer** link appears right there in the modal — it opens the same quick-registration form used at the POS, so you never have to leave the job screen to register someone first.
+3. Enter vehicle details (make, model, plate, VIN — all optional but recommended).
+4. Pick the **primary contractor** for the job — required. This is the main contractor associated with the vehicle visit and is what prints on the job card; individual tasks can still be assigned to other contractors.
+5. Click **Create Job** — you're taken straight to the job's detail page.
+
+**Adding tasks (assigning contractors):**
+On the job detail page, use **Add Task**:
+1. Pick the **service** being performed (e.g. "Brake pad replacement") from the same taxonomy seeded at setup.
+2. The **contractor** dropdown automatically shows only active contractors specifically authorized for that exact service, each with their fee shown — retired, disabled, or unauthorized contractors never appear here, regardless of how the picker is used.
+3. Optionally set a **fixed customer price** (see below) and a short work note.
+4. Click **Add Task**.
+
+A job can have any number of tasks, and different tasks on the same job can go to different contractors — e.g. one contractor for an oil change, another for a brake job, on the same vehicle visit.
+
+**Task status:** Assigned → In Progress → Completed. Staff/managers can update task status directly here; contractors update their own tasks from their portal (see below). A completed task cannot be removed from a job.
+
+### The Job Card (Print)
+
+Every job has a printable **job card** — a work document for the shop floor and the contractor, deliberately showing **no pricing anywhere**: just the job number, vehicle, customer, primary contractor, every task with its service and instructions, and signature lines.
+
+- **Print Job Card** on the job detail page opens the card in a new tab and records when it was first printed (shown as a "Printed" badge in the jobs list). Printing again after that shows as **Reprint Job Card**.
+- Once every task on the job is marked Completed, a **Mark Job Card Returned** action becomes available — this records the moment the physical card comes back from the shop floor, separate from task completion itself, and is the cue that the job is ready to bill. The jobs list shows a "Returned" badge once this is done.
+
+### Parts Requests (Contractor to Inventory Department)
+
+Contractors don't have inventory access or pricing visibility, so they can't look up exact part SKUs themselves. Instead:
+
+1. **From the Contractor Portal**, on any of their in-progress tasks, a contractor clicks **Request Part**, describes what they need in plain text, and gives a quantity. This appears immediately in their own **My Parts Requests** list with a status badge.
+2. **Inventory Department** (anyone with `canManageInventory`, or system admin) sees every pending request on the **Parts Requests** page (sidebar link). For each request they either:
+   - **Issue** it — search and pick the actual product/variant in stock, confirm the quantity. This decrements stock **immediately** (the part physically leaves the shelf now, not at billing time) and attaches the part to the job.
+   - **Reject** it — with a short reason, which the contractor sees on their own Parts Requests list.
+3. **At Bill Job time**, any parts that were issued this way are already pre-filled into the bill at their recorded price — no re-searching, and stock is **not** decremented a second time. Parts added directly at billing (bypassing a request) still decrement stock as normal at that point.
+
+The job detail page shows a **Parts** panel listing everything issued plus any pending or rejected requests, so staff always have visibility into what's been requested and fulfilled for a job.
+
+### Pricing: Contractor Fee vs. Customer Price
+
+Each task has two amounts that can differ:
+
+- **Contractor's fee** — snapshotted automatically from that contractor's authorized rate for that service *at the moment the task is created*. If the contractor's rate changes later, jobs already in progress are unaffected — only new tasks pick up the new rate.
+- **Customer's price** — normally the same as the contractor's fee. If you set a **fixed customer price** when adding the task, the customer is billed that amount instead, while the contractor is still paid their own agreed fee. Use this when a specific service has a flat shop price regardless of which contractor performs it, or when marking up labour.
+
+The job detail page shows both whenever they differ, so it's always clear what the shop is charging versus what's owed to the contractor.
+
+### The Contractor Portal
+
+Contractors sign in at the normal login screen with the credentials created for them. They land on a **completely separate, restricted screen** — no sidebar, no other business navigation, nothing outside their own task list.
+
+From the portal a contractor can:
+- See every **incomplete** task assigned to them (across all jobs).
+- **Start Work** on a task (moves it to In Progress).
+- **Mark Complete**, with a short text field to describe the work performed.
+
+A contractor **cannot** see customer pricing, labour charges, payment information, invoices, receipts, or any charge breakdown anywhere in the portal — not just hidden in the UI, this data is never returned by the portal's API in the first place. Once a task is marked complete, the contractor can no longer edit or reopen it from the portal.
+
+### Billing a Job
+
+Once **every task on a job is marked Completed**, a **Bill This Job** button appears on the job detail page (staff/manager action, not available to contractors).
+
+1. Click **Bill This Job**.
+2. Labour lines are pre-filled from the completed tasks (using the customer price set above, or the contractor's fee if no override was set).
+3. Any parts already **Issued** through a parts request (see above) are shown read-only, pre-filled at their recorded price — nothing to search for, and stock isn't touched again here.
+4. Search and add any **additional parts** used that weren't formally requested — normal inventory search, with stock automatically checked and deducted on billing.
+5. Add any **other charges** (shop supplies, disposal fees, etc.) as free-form line items.
+6. Choose the payment method and confirm.
+
+This produces a normal receipt/order — it appears in **Receipt History** exactly like any other sale, with a full itemized breakdown of services performed, parts used, and other charges. The job is marked **Billed** and locked from further changes. The sale also credits the business account immediately, the same way every other sale does — nothing about vehicle-service billing needs special handling anywhere else in the system.
+
+### Releasing the Vehicle
+
+Billing produces the receipt, but handing the vehicle back is a separate, deliberate step. Once a job is **Billed** and its payment status is **Paid**, a **Release Vehicle** button appears on the job detail page. Clicking it records who released the vehicle and when — the job detail page then shows "Vehicle released" going forward. This can't be done before payment is confirmed, and can't be repeated once a vehicle has been released.
+
+### Monthly Contractor Payments
+
+From a contractor's detail screen (**Contractors → select contractor → Monthly Payout**):
+
+1. Pick a period (defaults to the current calendar month).
+2. Click **Preview** — shows every completed, billed, and paid job/task for that contractor in the period that hasn't already been paid out, with a running total.
+3. Click **Generate Payout Voucher**.
+
+This submits a payment request through the **same cashier-approval queue** used for every other expense-account payment in the system (Payee = the contractor, as a Person) — no separate approval process to learn. Once generated, those specific tasks are permanently locked against being included in any future payout, so re-running the same period (or overlapping periods) never double-pays a contractor. A contractor's past payout history is listed on the same screen, and each voucher (just-generated or historical) has a **Download Voucher** button that produces a printable PDF payment voucher — the same format used for other expense-account payments.
+
+> **Note:** Generating a payout requires the business to have an active expense account. A vehicle-service business created before this was checked automatically may need one set up manually first — if payout generation says no active expense account exists, that's what's missing.
+
+### Permissions Reference
+
+| Action | Permission required |
+|---|---|
+| Manage contractors (create, skills, services, login) | `canManageEmployees` or system admin |
+| Create/manage jobs and tasks | Business membership (any staff with access to the business) |
+| Bill a job / release a vehicle | Business membership |
+| Issue or reject a parts request | `canManageInventory` or system admin |
+| Generate/view contractor payouts | `canAccessFinancialData`, `canCloseBooks`, or system admin |
+| Contractor Portal access (including requesting parts) | The contractor's own login only — no business permission applies |
+
+### Backup — Tables
+
+| Table | Contents |
+|---|---|
+| `vehicle_service_contractors` | Contractor profile, status, portal login link |
+| `vehicle_service_contractor_skills` | Skills/certifications |
+| `vehicle_service_contractor_services` | Authorized services + agreed fee per contractor |
+| `vehicle_service_jobs` | Job header — vehicle, customer, status, primary contractor, job-card print/return timestamps, vehicle release timestamp, linked order once billed |
+| `vehicle_service_tasks` | Individual tasks — service, assigned contractor, status, agreed fee, customer price override |
+| `vehicle_service_contractor_payouts` | One row per generated payout voucher |
+| `vehicle_service_contractor_payout_items` | Which tasks were included in which payout (prevents double payment) |
+| `vehicle_service_parts_requests` | A contractor's part request — description, quantity, status (Requested/Issued/Rejected), who reviewed it |
+| `vehicle_service_job_parts` | Parts actually issued to a job (via a request or added directly at billing) |

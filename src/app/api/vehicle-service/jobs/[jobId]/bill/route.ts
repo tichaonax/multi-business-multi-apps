@@ -44,6 +44,11 @@ export async function POST(
             contractor: { select: { id: true } },
           },
         },
+        // Parts already issued by Inventory Department via a parts request — stock
+        // was decremented and the movement logged at issue time, not now.
+        jobParts: {
+          include: { productVariant: { select: { business_products: { select: { name: true } } } } },
+        },
       },
     })
     if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 })
@@ -99,11 +104,20 @@ export async function POST(
       const v = variants.find(v => v.id === p.productVariantId)
       return { variantId: p.productVariantId, quantity: p.quantity, unitPrice: Number(v.price ?? v.business_products?.basePrice ?? 0), name: v.business_products.name }
     })
+    // Already-issued parts (Inventory Department fulfilled a contractor's request) —
+    // billed at their recorded price, stock is NOT decremented again here.
+    const issuedPartLines = job.jobParts.map(jp => ({
+      variantId: jp.productVariantId,
+      quantity: jp.quantity,
+      unitPrice: Number(jp.unitPrice),
+      name: jp.productVariant.business_products.name,
+    }))
     const otherLines = (otherCharges || []).filter(c => c.description && Number(c.amount) > 0)
 
     const subtotal =
       labourLines.reduce((s, l) => s + l.amount, 0) +
       partLines.reduce((s, l) => s + l.unitPrice * l.quantity, 0) +
+      issuedPartLines.reduce((s, l) => s + l.unitPrice * l.quantity, 0) +
       otherLines.reduce((s, c) => s + Number(c.amount), 0)
 
     if (subtotal <= 0) {
@@ -189,6 +203,22 @@ export async function POST(
             attributes: { orderId: order.id, vehicleServiceJobId: job.id },
           },
         })
+      }
+
+      for (const p of issuedPartLines) {
+        await tx.businessOrderItems.create({
+          data: {
+            id: randomUUID(),
+            orderId: order.id,
+            productVariantId: p.variantId,
+            quantity: p.quantity,
+            unitPrice: p.unitPrice,
+            discountAmount: 0,
+            totalPrice: p.unitPrice * p.quantity,
+            attributes: { type: 'part', issuedByRequest: true },
+          },
+        })
+        // No stock decrement / movement here — already recorded when Inventory issued it.
       }
 
       for (const c of otherLines) {

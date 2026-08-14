@@ -367,7 +367,8 @@ export async function POST(request: NextRequest) {
             tx.productVariants.create({
               data: {
                 ...variant,
-                productId: product.id
+                productId: product.id,
+                updatedAt: new Date()
               }
             })
           )
@@ -532,7 +533,8 @@ export async function PUT(request: NextRequest) {
               return await tx.productVariants.create({
                 data: {
                   ...variant,
-                  productId: id
+                  productId: id,
+                  updatedAt: new Date()
                 }
               })
             }
