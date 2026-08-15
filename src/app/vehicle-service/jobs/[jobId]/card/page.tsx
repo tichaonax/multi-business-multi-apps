@@ -4,12 +4,15 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
+import { formatPhoneNumberLocal, formatDateByFormat } from '@/lib/country-codes'
+import { useDateFormat } from '@/contexts/settings-context'
 
 // Work document only — deliberately renders no pricing, fees, or charges anywhere,
 // even though the underlying job detail API returns them. See MBM-262 Decision #2.
 export default function JobCardPrintPage() {
   const params = useParams()
   const jobId = params.jobId as string
+  const { format: dateFormat } = useDateFormat()
   const [job, setJob] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -46,7 +49,7 @@ export default function JobCardPrintPage() {
           <h1 className="text-xl font-bold">JOB CARD</h1>
           <div className="text-right text-xs">
             <div>Job #{job.id.slice(0, 8).toUpperCase()}</div>
-            <div>{new Date(job.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+            <div>{formatDateByFormat(job.createdAt, dateFormat)}</div>
           </div>
         </div>
 
@@ -60,7 +63,7 @@ export default function JobCardPrintPage() {
           <div>
             <p className="text-xs text-gray-500 uppercase">Customer</p>
             <p className="font-semibold">{job.business_customers?.name || 'Walk-in customer'}</p>
-            {job.business_customers?.phone && <p>{job.business_customers.phone}</p>}
+            {job.business_customers?.phone && <p>{formatPhoneNumberLocal(job.business_customers.phone)}</p>}
           </div>
         </div>
 

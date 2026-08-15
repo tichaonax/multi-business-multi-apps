@@ -7,6 +7,9 @@ import { useSession } from 'next-auth/react'
 import { useRouter, useParams } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { SearchableSelect } from '@/components/ui/searchable-select'
+import { PhoneNumberInput } from '@/components/ui/phone-number-input'
+import { NationalIdInput } from '@/components/ui/national-id-input'
+import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 
 const JOB_STATUSES = ['open', 'in_progress', 'completed', 'billed', 'cancelled']
 const TASK_STATUSES = ['assigned', 'in_progress', 'completed']
@@ -30,9 +33,28 @@ export default function VehicleServiceJobDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [catalog, setCatalog] = useState<ServiceCatalogEntry[]>([])
   const [eligible, setEligible] = useState<Array<{ contractorId: string; fullName: string; feeAmount: number }>>([])
-  const [newTask, setNewTask] = useState({ subcategoryId: '', contractorId: '', customerPriceOverride: '', workDescription: '' })
+  const [newTask, setNewTask] = useState({ categoryId: '', subcategoryId: '', contractorId: '', customerPriceOverride: '', workDescription: '' })
   const [taskError, setTaskError] = useState<string | null>(null)
+  const [addingTask, setAddingTask] = useState(false)
+  const [taskPartsQuery, setTaskPartsQuery] = useState('')
+  const [taskPartsResults, setTaskPartsResults] = useState<any[]>([])
+  const [taskParts, setTaskParts] = useState<Array<{ productVariantId: string; name: string; quantity: number; stockQuantity: number }>>([])
   const [showBillModal, setShowBillModal] = useState(false)
+
+  // Add Task contractor picker: contractors who exist but aren't authorized
+  // (with a fee) for the currently selected service, and global person search
+  // for adding someone brand new — same "already exists, reuse it" pattern as
+  // New Job's Primary Contractor field (see MBM-264 follow-ups).
+  const [allContractors, setAllContractors] = useState<Array<{ id: string; personId: string; fullName: string }>>([])
+  const [personSearchResults, setPersonSearchResults] = useState<Array<{ id: string; fullName: string; phone: string }>>([])
+  const [showNewContractorForm, setShowNewContractorForm] = useState(false)
+  const [newContractorForm, setNewContractorForm] = useState({ fullName: '', phone: '', nationalId: '', idFormatTemplateId: '' })
+  const [creatingContractor, setCreatingContractor] = useState(false)
+  const [contractorFormError, setContractorFormError] = useState<string | null>(null)
+  const [existingPersonMatch, setExistingPersonMatch] = useState<{ id: string; fullName: string } | null>(null)
+  const [authorizingContractor, setAuthorizingContractor] = useState<{ id: string; fullName: string } | null>(null)
+  const [authorizeFee, setAuthorizeFee] = useState('')
+  const [authorizing, setAuthorizing] = useState(false)
 
   const fetchJob = useCallback(async () => {
     setLoading(true)
@@ -66,7 +88,177 @@ export default function VehicleServiceJobDetailPage() {
       .then(data => setEligible(data.contractors || []))
       .catch(() => setEligible([]))
     setNewTask(t => ({ ...t, contractorId: '' }))
+    setAuthorizingContractor(null)
+    setAuthorizeFee('')
   }, [newTask.subcategoryId, job?.businessId])
+
+  // All active contractors at the business (not just those authorized for the
+  // currently selected service) — powers the "not authorized yet" and
+  // "not a contractor yet" branches of the Add Task contractor picker.
+  useEffect(() => {
+    if (!job?.businessId) return
+    fetch(`/api/vehicle-service/contractors?businessId=${job.businessId}&status=active`)
+      .then(res => res.ok ? res.json() : { contractors: [] })
+      .then(data => setAllContractors((data.contractors || []).map((c: any) => ({ id: c.id, personId: c.personId, fullName: c.fullName }))))
+      .catch(() => setAllContractors([]))
+  }, [job?.businessId])
+
+  // Known-parts search for Add Task (e.g. an oil filter for an oil change) —
+  // same product search + immediate-stock-decrement model as Bill Job's own
+  // "Add More Parts", just usable earlier, at task-creation time.
+  useEffect(() => {
+    if (!taskPartsQuery.trim() || !job?.businessId) { setTaskPartsResults([]); return }
+    const t = setTimeout(async () => {
+      const res = await fetch(`/api/universal/products?businessId=${job.businessId}&productType=PHYSICAL&search=${encodeURIComponent(taskPartsQuery)}&includeVariants=true&limit=10`)
+      if (res.ok) {
+        const data = await res.json()
+        setTaskPartsResults(data.products || data.data || [])
+      }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [taskPartsQuery, job?.businessId])
+
+  const addTaskPart = (product: any) => {
+    const variant = (product.product_variants || product.variants || [])[0]
+    if (!variant) return
+    if (taskParts.some(p => p.productVariantId === variant.id)) return
+    setTaskParts([...taskParts, {
+      productVariantId: variant.id,
+      name: product.name,
+      quantity: 1,
+      stockQuantity: Number(variant.stockQuantity ?? 0),
+    }])
+    setTaskPartsQuery('')
+    setTaskPartsResults([])
+  }
+
+  // Global person search (Persons has no businessId — search everywhere) so an
+  // existing individual can be reused as a contractor instead of duplicated.
+  const handleContractorSearchQuery = (query: string) => {
+    if (!query.trim()) { setPersonSearchResults([]); return }
+    fetch(`/api/persons?search=${encodeURIComponent(query.trim())}`)
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setPersonSearchResults((Array.isArray(data) ? data : []).map((p: any) => ({ id: p.id, fullName: p.fullName, phone: p.phone }))))
+      .catch(() => setPersonSearchResults([]))
+  }
+
+  const handleUseExistingPersonAsContractor = async (personId: string, fullName: string) => {
+    setContractorFormError(null)
+    try {
+      const res = await fetch('/api/vehicle-service/contractors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId: job.businessId, personId }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setContractorFormError(data.error || `Failed to add ${fullName} as a contractor`); return }
+      const newContractor = { id: data.contractor.id, personId, fullName: data.contractor.persons?.fullName ?? fullName }
+      setAllContractors(prev => [...prev, newContractor])
+      setAuthorizingContractor({ id: newContractor.id, fullName: newContractor.fullName })
+      setAuthorizeFee('')
+      setExistingPersonMatch(null)
+      setShowNewContractorForm(false)
+      setPersonSearchResults([])
+    } catch {
+      setContractorFormError('Connection error — please try again')
+    }
+  }
+
+  const handleTaskContractorChange = (val: string) => {
+    setTaskError(null)
+    if (val.startsWith('eligible:')) {
+      setNewTask(t => ({ ...t, contractorId: val.slice('eligible:'.length) }))
+      setAuthorizingContractor(null)
+    } else if (val.startsWith('contractor:')) {
+      const contractorId = val.slice('contractor:'.length)
+      const c = allContractors.find(c => c.id === contractorId)
+      setNewTask(t => ({ ...t, contractorId: '' }))
+      setAuthorizingContractor(c ? { id: c.id, fullName: c.fullName } : null)
+      setAuthorizeFee('')
+    } else if (val.startsWith('person:')) {
+      const personId = val.slice('person:'.length)
+      const p = personSearchResults.find(p => p.id === personId)
+      if (p) handleUseExistingPersonAsContractor(personId, p.fullName)
+    }
+  }
+
+  const handleCreateContractor = async () => {
+    if (!newContractorForm.fullName.trim() || !newContractorForm.phone.trim() || !newContractorForm.nationalId.trim()) {
+      setContractorFormError('Full name, phone, and national ID are required')
+      return
+    }
+    setCreatingContractor(true)
+    setContractorFormError(null)
+    setExistingPersonMatch(null)
+    try {
+      const personRes = await fetch('/api/persons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: newContractorForm.fullName.trim(),
+          phone: newContractorForm.phone.trim(),
+          nationalId: newContractorForm.nationalId.trim(),
+          idFormatTemplateId: newContractorForm.idFormatTemplateId || undefined,
+        }),
+      })
+      const person = await personRes.json()
+      if (personRes.status === 409 && person.existingPerson) {
+        setExistingPersonMatch({ id: person.existingPerson.id, fullName: person.existingPerson.fullName })
+        return
+      }
+      if (!personRes.ok) { setContractorFormError(person.error || 'Failed to register person'); return }
+
+      const contractorRes = await fetch('/api/vehicle-service/contractors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId: job.businessId, personId: person.id }),
+      })
+      const contractorData = await contractorRes.json()
+      if (!contractorRes.ok) { setContractorFormError(contractorData.error || 'Failed to create contractor'); return }
+
+      const newContractor = { id: contractorData.contractor.id, personId: person.id, fullName: contractorData.contractor.persons?.fullName ?? newContractorForm.fullName.trim() }
+      setAllContractors(prev => [...prev, newContractor])
+      setAuthorizingContractor({ id: newContractor.id, fullName: newContractor.fullName })
+      setAuthorizeFee('')
+      setShowNewContractorForm(false)
+      setNewContractorForm({ fullName: '', phone: '', nationalId: '', idFormatTemplateId: '' })
+    } catch {
+      setContractorFormError('Connection error — please try again')
+    } finally {
+      setCreatingContractor(false)
+    }
+  }
+
+  // Authorizes the picked contractor for the currently selected service
+  // (POST .../services requires canManageEmployees/admin server-side — a 403
+  // here surfaces as a task error telling staff to ask a manager).
+  const handleAuthorizeContractor = async () => {
+    if (!authorizingContractor || !newTask.subcategoryId) return
+    const fee = parseFloat(authorizeFee)
+    if (isNaN(fee) || fee < 0) { setTaskError('Enter a valid fee to authorize this contractor for this service'); return }
+    setAuthorizing(true)
+    setTaskError(null)
+    try {
+      const res = await fetch(`/api/vehicle-service/contractors/${authorizingContractor.id}/services`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subcategoryId: newTask.subcategoryId, feeAmount: fee }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setTaskError(data.error || 'Failed to authorize contractor'); return }
+
+      const eligibleRes = await fetch(`/api/vehicle-service/contractors/eligible?businessId=${job.businessId}&subcategoryId=${newTask.subcategoryId}`)
+      if (eligibleRes.ok) {
+        const eligibleData = await eligibleRes.json()
+        setEligible(eligibleData.contractors || [])
+      }
+      setNewTask(t => ({ ...t, contractorId: authorizingContractor.id }))
+      setAuthorizingContractor(null)
+      setAuthorizeFee('')
+    } finally {
+      setAuthorizing(false)
+    }
+  }
 
   const handleJobStatusChange = async (newStatus: string) => {
     await fetch(`/api/vehicle-service/jobs/${jobId}`, {
@@ -102,20 +294,49 @@ export default function VehicleServiceJobDetailPage() {
       setTaskError('Select a service and a contractor')
       return
     }
-    const res = await fetch(`/api/vehicle-service/jobs/${jobId}/tasks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        subcategoryId: newTask.subcategoryId,
-        contractorId: newTask.contractorId,
-        customerPriceOverride: newTask.customerPriceOverride ? parseFloat(newTask.customerPriceOverride) : undefined,
-        workDescription: newTask.workDescription || undefined,
-      }),
-    })
-    const data = await res.json()
-    if (!res.ok) { setTaskError(data.error || 'Failed to add task'); return }
-    setNewTask({ subcategoryId: '', contractorId: '', customerPriceOverride: '', workDescription: '' })
-    fetchJob()
+    setAddingTask(true)
+    try {
+      const res = await fetch(`/api/vehicle-service/jobs/${jobId}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subcategoryId: newTask.subcategoryId,
+          contractorId: newTask.contractorId,
+          customerPriceOverride: newTask.customerPriceOverride ? parseFloat(newTask.customerPriceOverride) : undefined,
+          workDescription: newTask.workDescription || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setTaskError(data.error || 'Failed to add task'); return }
+
+      // Attach any known parts picked while adding this task (e.g. an oil
+      // filter for an oil change) — decrements stock immediately, same as
+      // Bill Job's part-adding.
+      for (const p of taskParts) {
+        const partRes = await fetch(`/api/vehicle-service/jobs/${jobId}/parts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productVariantId: p.productVariantId, quantity: p.quantity }),
+        })
+        if (!partRes.ok) {
+          const partData = await partRes.json()
+          setTaskError(`Task added, but couldn't add part "${p.name}": ${partData.error || 'unknown error'}`)
+        }
+      }
+
+      setNewTask({ categoryId: '', subcategoryId: '', contractorId: '', customerPriceOverride: '', workDescription: '' })
+      setTaskParts([])
+      setAuthorizingContractor(null)
+      setAuthorizeFee('')
+      setShowNewContractorForm(false)
+      setNewContractorForm({ fullName: '', phone: '', nationalId: '', idFormatTemplateId: '' })
+      setContractorFormError(null)
+      setExistingPersonMatch(null)
+      setPersonSearchResults([])
+      fetchJob()
+    } finally {
+      setAddingTask(false)
+    }
   }
 
   const handleTaskStatusChange = async (taskId: string, newStatus: string) => {
@@ -133,8 +354,15 @@ export default function VehicleServiceJobDetailPage() {
   }
 
   const formatCurrency = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
-  const allServices = catalog.flatMap(cat => cat.services.map(s => ({ ...s, categoryName: cat.name })))
+  const selectedCategory = catalog.find(c => c.id === newTask.categoryId)
   const selectedFee = eligible.find(c => c.contractorId === newTask.contractorId)?.feeAmount
+  const eligibleIds = new Set(eligible.map(c => c.contractorId))
+  const allContractorPersonIds = new Set(allContractors.map(c => c.personId))
+  const taskContractorOptions = [
+    ...eligible.map(c => ({ value: `eligible:${c.contractorId}`, name: `${c.fullName} — ${formatCurrency(Number(c.feeAmount))}` })),
+    ...allContractors.filter(c => !eligibleIds.has(c.id)).map(c => ({ value: `contractor:${c.id}`, name: `${c.fullName} — not authorized for this service yet` })),
+    ...personSearchResults.filter(p => !allContractorPersonIds.has(p.id)).map(p => ({ value: `person:${p.id}`, name: `${p.fullName} — not yet a contractor here` })),
+  ]
   const allTasksComplete = !!job && job.tasks.length > 0 && job.tasks.every((t: any) => t.status === 'completed')
 
   const handleMarkCardReturned = async () => {
@@ -176,7 +404,7 @@ export default function VehicleServiceJobDetailPage() {
                   </h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     {job.business_customers?.name || 'Walk-in customer'}
-                    {job.business_customers?.phone && ` · ${job.business_customers.phone}`}
+                    {job.business_customers?.phone && ` · ${formatPhoneNumberForDisplay(job.business_customers.phone)}`}
                   </p>
                   {job.primaryContractor && (
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
@@ -321,24 +549,115 @@ export default function VehicleServiceJobDetailPage() {
                   <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400">Add Task</h5>
                   <div className="grid grid-cols-2 gap-2">
                     <SearchableSelect
-                      options={allServices.map(s => ({ value: s.id, name: `${s.categoryName} — ${s.name}` }))}
-                      value={newTask.subcategoryId}
-                      onChange={v => setNewTask({ ...newTask, subcategoryId: v })}
-                      placeholder="Select service..."
-                      searchPlaceholder="Search services..."
+                      options={catalog.map(c => ({ value: c.id, name: `${c.emoji ? c.emoji + ' ' : ''}${c.name}` }))}
+                      value={newTask.categoryId}
+                      onChange={v => setNewTask({ ...newTask, categoryId: v, subcategoryId: '' })}
+                      placeholder="Select category..."
+                      searchPlaceholder="Search categories..."
                       required
                     />
                     <SearchableSelect
-                      options={eligible.map(c => ({ value: c.contractorId, name: `${c.fullName} — ${formatCurrency(Number(c.feeAmount))}` }))}
-                      value={newTask.contractorId}
-                      onChange={v => setNewTask({ ...newTask, contractorId: v })}
-                      placeholder="Select contractor..."
-                      searchPlaceholder="Search eligible contractors..."
-                      emptyMessage={newTask.subcategoryId ? 'No eligible contractors' : 'Pick a service first'}
-                      disabled={!newTask.subcategoryId}
+                      options={(selectedCategory?.services ?? []).map(s => ({ value: s.id, name: `${s.emoji ? s.emoji + ' ' : ''}${s.name}` }))}
+                      value={newTask.subcategoryId}
+                      onChange={v => setNewTask({ ...newTask, subcategoryId: v })}
+                      placeholder={newTask.categoryId ? 'Select service...' : 'Pick a category first'}
+                      searchPlaceholder="Search services..."
+                      emptyMessage="No services in this category"
+                      disabled={!newTask.categoryId}
                       required
                     />
                   </div>
+                  {authorizingContractor ? (
+                    <div className="border border-amber-200 dark:border-amber-800 rounded-lg p-3 bg-amber-50 dark:bg-amber-900/10 space-y-2">
+                      <p className="text-xs text-amber-700 dark:text-amber-400">
+                        <span className="font-medium">{authorizingContractor.fullName}</span> isn't authorized for {selectedCategory && newTask.subcategoryId
+                          ? (selectedCategory.services.find(s => s.id === newTask.subcategoryId)?.name ?? 'this service')
+                          : 'this service'} yet — set a fee to authorize them.
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          type="number" min="0" step="0.01" placeholder="Fee $" value={authorizeFee}
+                          onChange={e => setAuthorizeFee(e.target.value)}
+                          className="flex-1 text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        />
+                        <button type="button" onClick={handleAuthorizeContractor} disabled={authorizing}
+                          className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded">
+                          {authorizing ? 'Authorizing…' : 'Authorize & Select'}
+                        </button>
+                        <button type="button" onClick={() => { setAuthorizingContractor(null); setAuthorizeFee('') }}
+                          className="px-3 py-1.5 text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : showNewContractorForm ? (
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2 bg-gray-50 dark:bg-gray-900">
+                      {existingPersonMatch ? (
+                        <>
+                          <p className="text-sm text-amber-700 dark:text-amber-400">
+                            <span className="font-medium">{existingPersonMatch.fullName}</span> already exists with that phone/national ID — reuse them instead of creating a duplicate.
+                          </p>
+                          <div className="flex gap-2">
+                            <button type="button" onClick={() => handleUseExistingPersonAsContractor(existingPersonMatch.id, existingPersonMatch.fullName)}
+                              className="flex-1 py-1.5 px-3 rounded-md text-xs font-medium text-white bg-teal-600 hover:bg-teal-700">
+                              Use {existingPersonMatch.fullName}
+                            </button>
+                            <button type="button" onClick={() => setExistingPersonMatch(null)}
+                              className="py-1.5 px-3 rounded-md text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                              Back
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-xs font-medium text-gray-600 dark:text-gray-300">New Contractor</p>
+                          <input type="text" placeholder="Full name *" value={newContractorForm.fullName}
+                            onChange={e => setNewContractorForm({ ...newContractorForm, fullName: e.target.value })}
+                            className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                          <PhoneNumberInput
+                            value={newContractorForm.phone}
+                            onChange={fullPhone => setNewContractorForm({ ...newContractorForm, phone: fullPhone })}
+                            label="Phone *"
+                            required
+                          />
+                          <NationalIdInput
+                            value={newContractorForm.nationalId}
+                            templateId={newContractorForm.idFormatTemplateId}
+                            onChange={(nationalId, templateId) => setNewContractorForm({ ...newContractorForm, nationalId, idFormatTemplateId: templateId || '' })}
+                            onTemplateChange={templateId => setNewContractorForm({ ...newContractorForm, idFormatTemplateId: templateId })}
+                            label="National ID *"
+                            required
+                          />
+                          {contractorFormError && <p className="text-xs text-red-600 dark:text-red-400">{contractorFormError}</p>}
+                          <div className="flex gap-2">
+                            <button type="button" onClick={handleCreateContractor} disabled={creatingContractor}
+                              className="flex-1 py-1.5 px-3 rounded-md text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50">
+                              {creatingContractor ? 'Creating…' : 'Create & Continue'}
+                            </button>
+                            <button type="button" onClick={() => { setShowNewContractorForm(false); setContractorFormError(null) }}
+                              className="py-1.5 px-3 rounded-md text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                              Cancel
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-gray-400">After creating, you'll set their fee to authorize them for the selected service.</p>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <SearchableSelect
+                      options={taskContractorOptions}
+                      value={newTask.contractorId ? `eligible:${newTask.contractorId}` : ''}
+                      onChange={handleTaskContractorChange}
+                      onSearchQuery={handleContractorSearchQuery}
+                      onCreateNew={q => { setNewContractorForm({ fullName: q, phone: '', nationalId: '', idFormatTemplateId: '' }); setShowNewContractorForm(true) }}
+                      createNewLabel={q => `+ New Contractor: "${q}"`}
+                      placeholder="Select contractor..."
+                      searchPlaceholder="Search contractors (also checks everyone in the system)..."
+                      emptyMessage={newTask.subcategoryId ? 'No contractors found' : 'Pick a service first'}
+                      disabled={!newTask.subcategoryId}
+                      required
+                    />
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     <input
                       type="number" min="0" step="0.01"
@@ -355,9 +674,50 @@ export default function VehicleServiceJobDetailPage() {
                       className="text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     />
                   </div>
+
+                  {/* Known parts (optional) — e.g. an oil filter for an oil change */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">Known Parts (optional)</label>
+                    {taskParts.length > 0 && (
+                      <div className="space-y-1 mb-1.5">
+                        {taskParts.map(p => (
+                          <div key={p.productVariantId} className="flex items-center justify-between gap-2 text-xs bg-gray-50 dark:bg-gray-900 rounded px-2 py-1">
+                            <span>{p.name}</span>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <input
+                                type="number" min="1" max={p.stockQuantity} value={p.quantity}
+                                onChange={e => setTaskParts(taskParts.map(x => x.productVariantId === p.productVariantId ? { ...x, quantity: Math.max(1, parseInt(e.target.value) || 1) } : x))}
+                                className="w-14 text-xs px-1 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                              />
+                              <button type="button" onClick={() => setTaskParts(taskParts.filter(x => x.productVariantId !== p.productVariantId))} className="text-red-500 hover:underline">Remove</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={taskPartsQuery}
+                        onChange={e => setTaskPartsQuery(e.target.value)}
+                        placeholder="Search parts inventory to attach..."
+                        className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                      {taskPartsResults.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                          {taskPartsResults.map((p: any) => (
+                            <button key={p.id} type="button" onClick={() => addTaskPart(p)} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">
+                              {p.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   {taskError && <p className="text-xs text-red-600 dark:text-red-400">{taskError}</p>}
-                  <button onClick={handleAddTask} className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded">
-                    Add Task
+                  <button onClick={handleAddTask} disabled={addingTask} className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded">
+                    {addingTask ? 'Adding…' : 'Add Task'}
                   </button>
                 </div>
               )}

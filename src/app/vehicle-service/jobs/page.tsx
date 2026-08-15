@@ -12,6 +12,9 @@ import { CustomerQuickRegister } from '@/components/pos/customer-quick-register'
 import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { getPresetDateRange, type DatePreset } from '@/lib/date-presets'
+import { PhoneNumberInput } from '@/components/ui/phone-number-input'
+import { NationalIdInput } from '@/components/ui/national-id-input'
+import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 
 interface JobListItem {
   id: string
@@ -318,7 +321,7 @@ function NewJobModal({ businessId, businessName, businessPhone, initialCustomer,
   const [primaryContractorId, setPrimaryContractorId] = useState('')
   const [personSearchResults, setPersonSearchResults] = useState<Array<{ id: string; fullName: string; phone: string }>>([])
   const [showNewContractorForm, setShowNewContractorForm] = useState(false)
-  const [newContractorForm, setNewContractorForm] = useState({ fullName: '', phone: '', nationalId: '' })
+  const [newContractorForm, setNewContractorForm] = useState({ fullName: '', phone: '', nationalId: '', idFormatTemplateId: '' })
   const [creatingContractor, setCreatingContractor] = useState(false)
   const [contractorFormError, setContractorFormError] = useState<string | null>(null)
   const [existingPersonMatch, setExistingPersonMatch] = useState<{ id: string; fullName: string } | null>(null)
@@ -431,6 +434,7 @@ function NewJobModal({ businessId, businessName, businessPhone, initialCustomer,
           fullName: newContractorForm.fullName.trim(),
           phone: newContractorForm.phone.trim(),
           nationalId: newContractorForm.nationalId.trim(),
+          idFormatTemplateId: newContractorForm.idFormatTemplateId || undefined,
         }),
       })
       const person = await personRes.json()
@@ -452,7 +456,7 @@ function NewJobModal({ businessId, businessName, businessPhone, initialCustomer,
       setContractors(prev => [...prev, newContractor])
       setPrimaryContractorId(newContractor.id)
       setShowNewContractorForm(false)
-      setNewContractorForm({ fullName: '', phone: '', nationalId: '' })
+      setNewContractorForm({ fullName: '', phone: '', nationalId: '', idFormatTemplateId: '' })
     } catch {
       setContractorFormError('Connection error — please try again')
     } finally {
@@ -533,7 +537,7 @@ function NewJobModal({ businessId, businessName, businessPhone, initialCustomer,
                             onClick={() => { setSelectedCustomer(c); setCustomerResults([]) }}
                             className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
                           >
-                            {c.name} {c.phone && <span className="text-xs text-gray-400">({c.phone})</span>}
+                            {c.name} {c.phone && <span className="text-xs text-gray-400">({formatPhoneNumberForDisplay(c.phone)})</span>}
                           </button>
                         ))}
                       </div>
@@ -549,7 +553,7 @@ function NewJobModal({ businessId, businessName, businessPhone, initialCustomer,
                         {crossBusinessResults.map((c: any) => (
                           <div key={c.id} className="flex items-center justify-between gap-2 text-sm bg-white dark:bg-gray-800 rounded px-2 py-1.5">
                             <span>
-                              {c.name} {c.phone && <span className="text-xs text-gray-400">({c.phone})</span>}
+                              {c.name} {c.phone && <span className="text-xs text-gray-400">({formatPhoneNumberForDisplay(c.phone)})</span>}
                               <span className="block text-[10px] text-gray-400">at {c.sourceBusinessName}</span>
                             </span>
                             <button
@@ -609,15 +613,19 @@ function NewJobModal({ businessId, businessName, businessPhone, initialCustomer,
                           onChange={e => setNewContractorForm({ ...newContractorForm, fullName: e.target.value })}
                           className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                         />
-                        <input
-                          type="text" placeholder="Phone *" value={newContractorForm.phone}
-                          onChange={e => setNewContractorForm({ ...newContractorForm, phone: e.target.value })}
-                          className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        <PhoneNumberInput
+                          value={newContractorForm.phone}
+                          onChange={fullPhone => setNewContractorForm({ ...newContractorForm, phone: fullPhone })}
+                          label="Phone *"
+                          required
                         />
-                        <input
-                          type="text" placeholder="National ID *" value={newContractorForm.nationalId}
-                          onChange={e => setNewContractorForm({ ...newContractorForm, nationalId: e.target.value })}
-                          className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        <NationalIdInput
+                          value={newContractorForm.nationalId}
+                          templateId={newContractorForm.idFormatTemplateId}
+                          onChange={(nationalId, templateId) => setNewContractorForm({ ...newContractorForm, nationalId, idFormatTemplateId: templateId || '' })}
+                          onTemplateChange={templateId => setNewContractorForm({ ...newContractorForm, idFormatTemplateId: templateId })}
+                          label="National ID *"
+                          required
                         />
                         {contractorFormError && <p className="text-xs text-red-600 dark:text-red-400">{contractorFormError}</p>}
                         <div className="flex gap-2">
@@ -647,7 +655,7 @@ function NewJobModal({ businessId, businessName, businessPhone, initialCustomer,
                     value={primaryContractorId ? `contractor:${primaryContractorId}` : ''}
                     onChange={handleContractorChange}
                     onSearchQuery={handleContractorSearchQuery}
-                    onCreateNew={q => { setNewContractorForm({ fullName: q, phone: '', nationalId: '' }); setShowNewContractorForm(true) }}
+                    onCreateNew={q => { setNewContractorForm({ fullName: q, phone: '', nationalId: '', idFormatTemplateId: '' }); setShowNewContractorForm(true) }}
                     createNewLabel={q => `+ New Contractor: "${q}"`}
                     placeholder="Search contractors..."
                     searchPlaceholder="Search by name (also checks everyone in the system)..."

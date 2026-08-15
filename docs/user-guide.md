@@ -12183,12 +12183,15 @@ Navigate to **Jobs** in the sidebar.
 
 **Adding tasks (assigning contractors):**
 On the job detail page, use **Add Task**:
-1. Pick the **service** being performed (e.g. "Brake pad replacement") from the same taxonomy seeded at setup.
-2. The **contractor** dropdown automatically shows only active contractors specifically authorized for that exact service, each with their fee shown — retired, disabled, or unauthorized contractors never appear here, regardless of how the picker is used.
+1. Pick a **category** first (e.g. "🛢️ Oil Change and Lubrication"), then the **service** within it (e.g. "🛢️ Standard oil change") — the service picker stays disabled until a category is chosen, and only shows services in that category. Both pickers show the emoji seeded for that category/service.
+2. Pick the **contractor**. Contractors already authorized for that exact service appear first with their fee shown. Anyone else active at the business also appears, labeled "not authorized for this service yet" — picking one prompts for a fee to authorize them for this specific service on the spot, no trip to the Contractors page needed. If the contractor isn't registered at all yet, search finds them system-wide (like Primary Contractor on New Job) or a **+ New Contractor** option lets you register them right there — either way, you'll still set a fee to authorize them for the selected service before the task can be added. Retired or disabled contractors never appear.
 3. Optionally set a **fixed customer price** (see below) and a short work note.
-4. Click **Add Task**.
+4. Optionally attach **Known Parts** — if you already know what part the job needs (e.g. an oil filter for an oil change), search for it right there by name and add it with a quantity. This searches real stocked inventory (not a category list), and the part's stock is deducted immediately, the same way parts are deducted when added from Bill Job. This is separate from a contractor requesting parts mid-job — use Known Parts when staff already knows what's needed up front.
+5. Click **Add Task**.
 
 A job can have any number of tasks, and different tasks on the same job can go to different contractors — e.g. one contractor for an oil change, another for a brake job, on the same vehicle visit.
+
+**Phone and national ID formatting:** anywhere a contractor is registered (New Job, Add Task, or the Contractors page), phone and national ID use the same standard input widgets as the rest of the app — a country-code selector defaulting to Zimbabwe for phone, and a format template defaulting to the Zimbabwe National ID pattern, with validation against the selected format. Phone numbers are shown formatted (e.g. "+263 77 123 4567") everywhere they're displayed on-screen; the printed Job Card shows the local format (e.g. "078 486 9759"), matching how receipts show phone numbers.
 
 **Task status:** Assigned → In Progress → Completed. Staff/managers can update task status directly here; contractors update their own tasks from their portal (see below). A completed task cannot be removed from a job.
 

@@ -9,6 +9,9 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { generatePaymentVoucherPdf } from '@/components/expense-account/payment-voucher-pdf'
 import { SearchableSelect } from '@/components/ui/searchable-select'
+import { PhoneNumberInput } from '@/components/ui/phone-number-input'
+import { NationalIdInput } from '@/components/ui/national-id-input'
+import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 
 interface ContractorListItem {
   id: string
@@ -142,7 +145,7 @@ export default function VehicleServiceContractorsPage() {
                       >
                         <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{c.fullName}</td>
                         <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                          <div>{c.phone}</div>
+                          <div>{formatPhoneNumberForDisplay(c.phone)}</div>
                           {c.email && <div className="text-xs text-gray-400">{c.email}</div>}
                         </td>
                         <td className="px-3 py-4 whitespace-nowrap">
@@ -193,7 +196,7 @@ export default function VehicleServiceContractorsPage() {
 }
 
 function AddContractorModal({ businessId, onClose, onCreated }: { businessId: string; onClose: () => void; onCreated: () => void }) {
-  const [form, setForm] = useState({ fullName: '', phone: '', email: '', nationalId: '', address: '', notes: '' })
+  const [form, setForm] = useState({ fullName: '', phone: '', email: '', nationalId: '', idFormatTemplateId: '', address: '', notes: '' })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [existingPersonMatch, setExistingPersonMatch] = useState<{ id: string; fullName: string } | null>(null)
@@ -254,6 +257,7 @@ function AddContractorModal({ businessId, onClose, onCreated }: { businessId: st
           phone: form.phone,
           email: form.email || undefined,
           nationalId: form.nationalId,
+          idFormatTemplateId: form.idFormatTemplateId || undefined,
           address: form.address || undefined,
           notes: form.notes || undefined,
         }),
@@ -310,7 +314,7 @@ function AddContractorModal({ businessId, onClose, onCreated }: { businessId: st
                   {lookupResults.map((p: any) => (
                     <div key={p.id} className="flex items-center justify-between gap-2 text-sm bg-gray-50 dark:bg-gray-900 rounded px-2 py-1.5">
                       <span>
-                        {p.fullName} <span className="text-xs text-gray-400">({p.phone})</span>
+                        {p.fullName} <span className="text-xs text-gray-400">({formatPhoneNumberForDisplay(p.phone)})</span>
                       </span>
                       <button
                         type="button"
@@ -362,23 +366,47 @@ function AddContractorModal({ businessId, onClose, onCreated }: { businessId: st
                 </div>
               ) : (
                 <>
-                  {[
-                    { key: 'fullName', label: 'Full Name *' },
-                    { key: 'phone', label: 'Phone *' },
-                    { key: 'email', label: 'Email' },
-                    { key: 'nationalId', label: 'National ID *' },
-                    { key: 'address', label: 'Address' },
-                  ].map(f => (
-                    <div key={f.key}>
-                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{f.label}</label>
-                      <input
-                        type="text"
-                        value={(form as any)[f.key]}
-                        onChange={e => setForm({ ...form, [f.key]: e.target.value })}
-                        className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      />
-                    </div>
-                  ))}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Full Name *</label>
+                    <input
+                      type="text"
+                      value={form.fullName}
+                      onChange={e => setForm({ ...form, fullName: e.target.value })}
+                      className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  <PhoneNumberInput
+                    value={form.phone}
+                    onChange={fullPhone => setForm({ ...form, phone: fullPhone })}
+                    label="Phone *"
+                    required
+                  />
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Email</label>
+                    <input
+                      type="text"
+                      value={form.email}
+                      onChange={e => setForm({ ...form, email: e.target.value })}
+                      className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  <NationalIdInput
+                    value={form.nationalId}
+                    templateId={form.idFormatTemplateId}
+                    onChange={(nationalId, templateId) => setForm({ ...form, nationalId, idFormatTemplateId: templateId || '' })}
+                    onTemplateChange={templateId => setForm({ ...form, idFormatTemplateId: templateId })}
+                    label="National ID *"
+                    required
+                  />
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Address</label>
+                    <input
+                      type="text"
+                      value={form.address}
+                      onChange={e => setForm({ ...form, address: e.target.value })}
+                      className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                  </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Notes</label>
                     <textarea
@@ -625,7 +653,7 @@ function ContractorDetailModal({ contractorId, businessId, businessName, creator
                 {/* Contact */}
                 <div>
                   <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Contact</h4>
-                  <p className="text-sm text-gray-900 dark:text-white">{contractor.persons.phone}</p>
+                  <p className="text-sm text-gray-900 dark:text-white">{formatPhoneNumberForDisplay(contractor.persons.phone)}</p>
                   {contractor.persons.email && <p className="text-sm text-gray-600 dark:text-gray-300">{contractor.persons.email}</p>}
                 </div>
 

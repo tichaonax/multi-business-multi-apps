@@ -10,6 +10,7 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
 import { CustomerQuickRegister } from '@/components/pos/customer-quick-register'
+import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 
 interface ServiceCustomer {
   id: string
@@ -176,7 +177,7 @@ export default function VehicleServiceCustomersPage() {
                           </button>
                         )}
                       </div>
-                      <div className="text-xs text-gray-400">{c.phone || c.email || c.customerNumber}</div>
+                      <div className="text-xs text-gray-400">{c.phone ? formatPhoneNumberForDisplay(c.phone) : (c.email || c.customerNumber)}</div>
                     </td>
                     <td className="px-3 py-4 text-sm text-gray-600 dark:text-gray-300">
                       {c.vehicles.length === 0 ? '-' : c.vehicles.map((v, i) => (
@@ -213,7 +214,7 @@ export default function VehicleServiceCustomersPage() {
             </p>
             <dl className="text-xs text-gray-600 dark:text-gray-300 space-y-1.5">
               <div className="flex justify-between"><dt className="text-gray-400">Customer #</dt><dd>{detailCustomer.customerNumber}</dd></div>
-              <div className="flex justify-between"><dt className="text-gray-400">Phone</dt><dd>{detailCustomer.phone || '-'}</dd></div>
+              <div className="flex justify-between"><dt className="text-gray-400">Phone</dt><dd>{detailCustomer.phone ? formatPhoneNumberForDisplay(detailCustomer.phone) : '-'}</dd></div>
               <div className="flex justify-between"><dt className="text-gray-400">Customer since</dt><dd>{formatDate(detailCustomer.customerSince)}</dd></div>
               <div className="flex justify-between"><dt className="text-gray-400">Total orders (all businesses)</dt><dd>{detailCustomer.totalOrders}</dd></div>
               <div className="flex justify-between"><dt className="text-gray-400">Total spent (all businesses)</dt><dd>${detailCustomer.totalSpent.toFixed(2)}</dd></div>
@@ -251,7 +252,7 @@ export default function VehicleServiceCustomersPage() {
                     {lookupResults.map((c: any) => (
                       <div key={c.id} className="flex items-center justify-between gap-2 text-sm bg-gray-50 dark:bg-gray-900 rounded px-2 py-1.5">
                         <span>
-                          {c.name} {c.phone && <span className="text-xs text-gray-400">({c.phone})</span>}
+                          {c.name} {c.phone && <span className="text-xs text-gray-400">({formatPhoneNumberForDisplay(c.phone)})</span>}
                           <span className="block text-[10px] text-green-600 dark:text-green-400 font-medium">Already a customer here</span>
                         </span>
                         <button
@@ -266,7 +267,7 @@ export default function VehicleServiceCustomersPage() {
                     {lookupCrossBusiness.map((c: any) => (
                       <div key={c.id} className="flex items-center justify-between gap-2 text-sm bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded px-2 py-1.5">
                         <span>
-                          {c.name} {c.phone && <span className="text-xs text-gray-400">({c.phone})</span>}
+                          {c.name} {c.phone && <span className="text-xs text-gray-400">({formatPhoneNumberForDisplay(c.phone)})</span>}
                           <span className="block text-[10px] text-amber-700 dark:text-amber-400">at {c.sourceBusinessName} — same customer, reuse this record</span>
                         </span>
                         <button
