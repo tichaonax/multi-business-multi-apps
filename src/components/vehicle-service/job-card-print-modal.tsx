@@ -88,44 +88,44 @@ ${content}
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 bg-gray-50 dark:bg-gray-800">
-          <div ref={contentRef} className="bg-white text-gray-900 rounded shadow-sm">
-            <div className="card" style={{ border: '2px solid #000', padding: 24 }}>
-              <div className="header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', borderBottom: '2px solid #000', paddingBottom: 12, marginBottom: 16 }}>
+          <div ref={contentRef} className="bg-white text-gray-900 rounded shadow-sm" style={{ background: '#fff', color: '#111' }}>
+            <div style={{ border: '2px solid #000', padding: 24, background: '#fff', color: '#111' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', borderBottom: '2px solid #000', paddingBottom: 12, marginBottom: 16 }}>
                 <h1 style={{ fontSize: 20, fontWeight: 'bold', margin: 0 }}>JOB CARD</h1>
-                <div className="meta" style={{ textAlign: 'right', fontSize: 12 }}>
+                <div style={{ textAlign: 'right', fontSize: 12 }}>
                   <div>Job #{job.id.slice(0, 8).toUpperCase()}</div>
                   <div>{formatDateByFormat(job.createdAt, dateFormat)}</div>
                 </div>
               </div>
 
-              <div className="grid2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16, fontSize: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16, fontSize: 14 }}>
                 <div>
-                  <p className="label" style={{ fontSize: 11, color: '#666', textTransform: 'uppercase', margin: '0 0 2px' }}>Vehicle</p>
-                  <p className="value" style={{ fontWeight: 600, margin: 0 }}>{[job.vehicleMake, job.vehicleModel].filter(Boolean).join(' ') || '—'}</p>
+                  <p style={{ fontSize: 11, color: '#666', textTransform: 'uppercase', margin: '0 0 2px' }}>Vehicle</p>
+                  <p style={{ fontWeight: 600, margin: 0 }}>{[job.vehicleMake, job.vehicleModel].filter(Boolean).join(' ') || '—'}</p>
                   {job.vehiclePlate && <p style={{ margin: 0 }}>Plate: {job.vehiclePlate}</p>}
                   {job.vehicleVin && <p style={{ margin: 0 }}>VIN: {job.vehicleVin}</p>}
                 </div>
                 <div>
-                  <p className="label" style={{ fontSize: 11, color: '#666', textTransform: 'uppercase', margin: '0 0 2px' }}>Customer</p>
-                  <p className="value" style={{ fontWeight: 600, margin: 0 }}>{job.business_customers?.name || 'Walk-in customer'}</p>
+                  <p style={{ fontSize: 11, color: '#666', textTransform: 'uppercase', margin: '0 0 2px' }}>Customer</p>
+                  <p style={{ fontWeight: 600, margin: 0 }}>{job.business_customers?.name || 'Walk-in customer'}</p>
                   {job.business_customers?.phone && <p style={{ margin: 0 }}>{formatPhoneNumberLocal(job.business_customers.phone)}</p>}
                 </div>
               </div>
 
-              <div className="section" style={{ marginBottom: 16, fontSize: 14 }}>
-                <p className="label" style={{ fontSize: 11, color: '#666', textTransform: 'uppercase', margin: '0 0 2px' }}>Primary Contractor</p>
-                <p className="value" style={{ fontWeight: 600, margin: 0 }}>{job.primaryContractor?.persons?.fullName || '—'}</p>
+              <div style={{ marginBottom: 16, fontSize: 14 }}>
+                <p style={{ fontSize: 11, color: '#666', textTransform: 'uppercase', margin: '0 0 2px' }}>Primary Contractor</p>
+                <p style={{ fontWeight: 600, margin: 0 }}>{job.primaryContractor?.persons?.fullName || '—'}</p>
               </div>
 
               {job.notes && (
-                <div className="section" style={{ marginBottom: 16, fontSize: 14 }}>
-                  <p className="label" style={{ fontSize: 11, color: '#666', textTransform: 'uppercase', margin: '0 0 2px' }}>Job Notes</p>
+                <div style={{ marginBottom: 16, fontSize: 14 }}>
+                  <p style={{ fontSize: 11, color: '#666', textTransform: 'uppercase', margin: '0 0 2px' }}>Job Notes</p>
                   <p style={{ margin: 0 }}>{job.notes}</p>
                 </div>
               )}
 
-              <div className="worktitle" style={{ borderTop: '2px solid #000', paddingTop: 12 }}>
-                <p className="label" style={{ fontSize: 11, color: '#666', textTransform: 'uppercase', margin: '0 0 8px' }}>Work Required</p>
+              <div style={{ borderTop: '2px solid #000', paddingTop: 12 }}>
+                <p style={{ fontSize: 11, color: '#666', textTransform: 'uppercase', margin: '0 0 8px' }}>Work Required</p>
                 <table style={{ width: '100%', fontSize: 14, borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
@@ -146,13 +146,13 @@ ${content}
                 </table>
               </div>
 
-              <div className="sign" style={{ marginTop: 32, paddingTop: 16, borderTop: '1px solid #ccc', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32, fontSize: 12 }}>
+              <div style={{ marginTop: 32, paddingTop: 16, borderTop: '1px solid #ccc', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32, fontSize: 12 }}>
                 <div>
-                  <div className="sign-line" style={{ borderBottom: '1px solid #666', height: 32 }}></div>
+                  <div style={{ borderBottom: '1px solid #666', height: 32 }}></div>
                   <p style={{ marginTop: 4 }}>Contractor signature / collected by</p>
                 </div>
                 <div>
-                  <div className="sign-line" style={{ borderBottom: '1px solid #666', height: 32 }}></div>
+                  <div style={{ borderBottom: '1px solid #666', height: 32 }}></div>
                   <p style={{ marginTop: 4 }}>Date collected</p>
                 </div>
               </div>
