@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
         status: c.status,
         notes: c.notes,
         createdAt: c.createdAt,
+        personId: c.persons.id,
         fullName: c.persons.fullName,
         phone: c.persons.phone,
         email: c.persons.email,

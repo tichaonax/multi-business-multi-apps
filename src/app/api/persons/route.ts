@@ -131,16 +131,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Check for duplicate national ID
-    const existingPerson = await prisma.persons.findUnique({
-      where: { nationalId }
-    })
+    // Check for duplicate national ID — Persons is already a single shared
+    // identity system-wide (no businessId), so a match means this exact person
+    // already exists: return them so the caller can reuse the record instead
+    // of dead-ending (see MBM-264 follow-up — same pattern as customer phones).
+    if (nationalId) {
+      const existingPerson = await prisma.persons.findUnique({
+        where: { nationalId }
+      })
 
-    if (existingPerson) {
-      return NextResponse.json(
-        { error: 'A person with this national ID already exists' },
-        { status: 400 }
-      )
+      if (existingPerson) {
+        return NextResponse.json(
+          { error: 'A person with this national ID already exists', existingPerson },
+          { status: 409 }
+        )
+      }
     }
 
     // Check for duplicate email if provided
@@ -151,8 +156,8 @@ export async function POST(req: NextRequest) {
 
       if (existingEmail) {
         return NextResponse.json(
-          { error: 'A person with this email already exists' },
-          { status: 400 }
+          { error: 'A person with this email already exists', existingPerson: existingEmail },
+          { status: 409 }
         )
       }
     }

@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { generatePaymentVoucherPdf } from '@/components/expense-account/payment-voucher-pdf'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 
 interface ContractorListItem {
   id: string
@@ -195,6 +196,45 @@ function AddContractorModal({ businessId, onClose, onCreated }: { businessId: st
   const [form, setForm] = useState({ fullName: '', phone: '', email: '', nationalId: '', address: '', notes: '' })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [existingPersonMatch, setExistingPersonMatch] = useState<{ id: string; fullName: string } | null>(null)
+
+  // Search first — Persons has no businessId, it's already one shared identity
+  // system-wide, so check for the person before offering to create a new one
+  // (same standard as customer/contractor search elsewhere — see MBM-264 follow-up).
+  const [lookupQuery, setLookupQuery] = useState('')
+  const [lookupResults, setLookupResults] = useState<any[]>([])
+  const [showRegisterForm, setShowRegisterForm] = useState(false)
+  const [addingPersonId, setAddingPersonId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!lookupQuery.trim()) { setLookupResults([]); return }
+    const t = setTimeout(() => {
+      fetch(`/api/persons?search=${encodeURIComponent(lookupQuery.trim())}`)
+        .then(res => res.ok ? res.json() : [])
+        .then(data => setLookupResults(Array.isArray(data) ? data : []))
+        .catch(() => setLookupResults([]))
+    }, 300)
+    return () => clearTimeout(t)
+  }, [lookupQuery])
+
+  const handleUsePerson = async (personId: string) => {
+    setAddingPersonId(personId)
+    setError(null)
+    try {
+      const res = await fetch('/api/vehicle-service/contractors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId, personId }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error || 'Failed to add contractor'); return }
+      onCreated()
+    } catch {
+      setError('Connection error — please try again')
+    } finally {
+      setAddingPersonId(null)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -204,6 +244,7 @@ function AddContractorModal({ businessId, onClose, onCreated }: { businessId: st
     }
     setSubmitting(true)
     setError(null)
+    setExistingPersonMatch(null)
     try {
       const personRes = await fetch('/api/persons', {
         method: 'POST',
@@ -218,6 +259,10 @@ function AddContractorModal({ businessId, onClose, onCreated }: { businessId: st
         }),
       })
       const person = await personRes.json()
+      if (personRes.status === 409 && person.existingPerson) {
+        setExistingPersonMatch({ id: person.existingPerson.id, fullName: person.existingPerson.fullName })
+        return
+      }
       if (!personRes.ok) { setError(person.error || 'Failed to register person'); return }
 
       const contractorRes = await fetch('/api/vehicle-service/contractors', {
@@ -241,48 +286,124 @@ function AddContractorModal({ businessId, onClose, onCreated }: { businessId: st
       <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75" onClick={submitting ? undefined : onClose} />
         <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-          <form onSubmit={handleSubmit}>
-            <div className="bg-gray-50 dark:bg-gray-900 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white">Add Contractor</h3>
-            </div>
-            <div className="px-6 py-4 space-y-3 max-h-[70vh] overflow-y-auto">
-              {[
-                { key: 'fullName', label: 'Full Name *' },
-                { key: 'phone', label: 'Phone *' },
-                { key: 'email', label: 'Email' },
-                { key: 'nationalId', label: 'National ID *' },
-                { key: 'address', label: 'Address' },
-              ].map(f => (
-                <div key={f.key}>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{f.label}</label>
-                  <input
-                    type="text"
-                    value={(form as any)[f.key]}
-                    onChange={e => setForm({ ...form, [f.key]: e.target.value })}
-                    className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
+          <div className="bg-gray-50 dark:bg-gray-900 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white">Add Contractor</h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">✕</button>
+          </div>
+
+          {!showRegisterForm ? (
+            <div className="px-6 py-4 space-y-3">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Search first — if they're already in the system (even as a contractor at another business, or a payee), reuse that record instead of creating a duplicate.
+              </p>
+              <input
+                type="text"
+                autoFocus
+                value={lookupQuery}
+                onChange={e => setLookupQuery(e.target.value)}
+                placeholder="Search by name, phone, or national ID..."
+                className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+              {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+              {lookupResults.length > 0 && (
+                <div className="space-y-1.5">
+                  {lookupResults.map((p: any) => (
+                    <div key={p.id} className="flex items-center justify-between gap-2 text-sm bg-gray-50 dark:bg-gray-900 rounded px-2 py-1.5">
+                      <span>
+                        {p.fullName} <span className="text-xs text-gray-400">({p.phone})</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleUsePerson(p.id)}
+                        disabled={addingPersonId === p.id}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50 shrink-0"
+                      >
+                        {addingPersonId === p.id ? 'Adding…' : 'Use This Person'}
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Notes</label>
-                <textarea
-                  value={form.notes}
-                  onChange={e => setForm({ ...form, notes: e.target.value })}
-                  rows={2}
-                  className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-              </div>
-              {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+              )}
+              {lookupQuery.trim() && lookupResults.length === 0 && (
+                <p className="text-xs text-gray-400">No match found.</p>
+              )}
+              <button
+                type="button"
+                onClick={() => { setForm({ ...form, fullName: lookupQuery }); setShowRegisterForm(true) }}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                {lookupQuery.trim() ? 'None of these — register a new contractor' : '+ Register a new contractor (skip search)'}
+              </button>
+            </div>
+          ) : (
+          <form onSubmit={handleSubmit}>
+            <div className="px-6 py-4 space-y-3 max-h-[70vh] overflow-y-auto">
+              {existingPersonMatch ? (
+                <div className="border border-amber-300 dark:border-amber-700 rounded-lg p-3 bg-amber-50 dark:bg-amber-900/10 space-y-2">
+                  <p className="text-sm text-amber-800 dark:text-amber-300">
+                    <span className="font-medium">{existingPersonMatch.fullName}</span> already exists with that phone/national ID — use their record instead of creating a duplicate.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleUsePerson(existingPersonMatch.id)}
+                      className="flex-1 py-1.5 px-3 rounded-md text-sm font-medium text-white bg-teal-600 hover:bg-teal-700"
+                    >
+                      Use {existingPersonMatch.fullName}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExistingPersonMatch(null)}
+                      className="py-1.5 px-3 rounded-md text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
+                      Back
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {[
+                    { key: 'fullName', label: 'Full Name *' },
+                    { key: 'phone', label: 'Phone *' },
+                    { key: 'email', label: 'Email' },
+                    { key: 'nationalId', label: 'National ID *' },
+                    { key: 'address', label: 'Address' },
+                  ].map(f => (
+                    <div key={f.key}>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{f.label}</label>
+                      <input
+                        type="text"
+                        value={(form as any)[f.key]}
+                        onChange={e => setForm({ ...form, [f.key]: e.target.value })}
+                        className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                    </div>
+                  ))}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Notes</label>
+                    <textarea
+                      value={form.notes}
+                      onChange={e => setForm({ ...form, notes: e.target.value })}
+                      rows={2}
+                      className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+                </>
+              )}
             </div>
             <div className="bg-gray-50 dark:bg-gray-900 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
-              <button type="button" onClick={onClose} disabled={submitting} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50">
-                Cancel
+              <button type="button" onClick={() => { setShowRegisterForm(false); setExistingPersonMatch(null); setError(null) }} disabled={submitting} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50">
+                Back to Search
               </button>
-              <button type="submit" disabled={submitting} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-md text-sm font-medium">
-                {submitting ? 'Creating...' : 'Create Contractor'}
-              </button>
+              {!existingPersonMatch && (
+                <button type="submit" disabled={submitting} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-md text-sm font-medium">
+                  {submitting ? 'Creating...' : 'Create Contractor'}
+                </button>
+              )}
             </div>
           </form>
+          )}
         </div>
       </div>
     </div>
@@ -542,13 +663,16 @@ function ContractorDetailModal({ contractorId, businessId, businessName, creator
                     ))}
                   </div>
                   <div className="flex gap-2">
-                    <select value={newService.subcategoryId} onChange={e => setNewService({ ...newService, subcategoryId: e.target.value })}
-                      className="flex-1 text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                      <option value="">Select a service...</option>
-                      {allServices.filter(s => !authorizedSubcategoryIds.has(s.id)).map(s => (
-                        <option key={s.id} value={s.id}>{s.categoryName} — {s.name}</option>
-                      ))}
-                    </select>
+                    <div className="flex-1">
+                      <SearchableSelect
+                        options={allServices.filter(s => !authorizedSubcategoryIds.has(s.id)).map(s => ({ value: s.id, name: `${s.categoryName} — ${s.name}` }))}
+                        value={newService.subcategoryId}
+                        onChange={v => setNewService({ ...newService, subcategoryId: v })}
+                        placeholder="Select a service..."
+                        searchPlaceholder="Search services..."
+                        required
+                      />
+                    </div>
                     <input type="number" min="0" step="0.01" placeholder="Fee $" value={newService.feeAmount}
                       onChange={e => setNewService({ ...newService, feeAmount: e.target.value })}
                       className="w-24 text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />

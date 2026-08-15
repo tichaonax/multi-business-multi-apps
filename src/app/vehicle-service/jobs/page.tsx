@@ -10,6 +10,7 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { CustomerQuickRegister } from '@/components/pos/customer-quick-register'
 import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { getPresetDateRange, type DatePreset } from '@/lib/date-presets'
 
 interface JobListItem {
@@ -56,7 +57,18 @@ function VehicleServiceJobsPageContent() {
   const [jobs, setJobs] = useState<JobListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [showAddModal, setShowAddModal] = useState(false)
+  // Deep link from elsewhere (e.g. the Customers page "Start a Job") — pre-selects
+  // a customer and opens New Job immediately, no re-searching required.
+  const [showAddModal, setShowAddModal] = useState(() => !!searchParams.get('newJobCustomerId'))
+  const [initialCustomer] = useState(() => {
+    const id = searchParams.get('newJobCustomerId')
+    if (!id) return null
+    return {
+      id,
+      name: searchParams.get('newJobCustomerName') || '',
+      phone: searchParams.get('newJobCustomerPhone') || null,
+    }
+  })
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState(() => searchParams.get('search') || '')
   const [contractorFilter, setContractorFilter] = useState('')
@@ -148,18 +160,16 @@ function VehicleServiceJobsPageContent() {
           onToChange={handleDateToChange}
           onClearDates={clearDateFilters}
           extraFilters={
-            <div>
+            <div className="w-48">
               <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Contractor</label>
-              <select
+              <SearchableSelect
+                options={filterContractors.map(c => ({ value: c.id, name: c.fullName }))}
                 value={contractorFilter}
-                onChange={(e) => setContractorFilter(e.target.value)}
-                className="px-2 py-1.5 text-sm border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-              >
-                <option value="">All contractors</option>
-                {filterContractors.map(c => (
-                  <option key={c.id} value={c.id}>{c.fullName}</option>
-                ))}
-              </select>
+                onChange={setContractorFilter}
+                placeholder="All contractors"
+                searchPlaceholder="Search contractors..."
+                allLabel="All contractors"
+              />
             </div>
           }
         />
@@ -283,6 +293,7 @@ function VehicleServiceJobsPageContent() {
           businessId={currentBusinessId}
           businessName={currentBusiness?.businessName || 'Business'}
           businessPhone={currentBusiness?.phone}
+          initialCustomer={initialCustomer}
           onClose={() => setShowAddModal(false)}
           onCreated={(jobId) => router.push(`/vehicle-service/jobs/${jobId}`)}
         />
@@ -291,19 +302,28 @@ function VehicleServiceJobsPageContent() {
   )
 }
 
-function NewJobModal({ businessId, businessName, businessPhone, onClose, onCreated }: {
-  businessId: string; businessName: string; businessPhone?: string; onClose: () => void; onCreated: (jobId: string) => void
+function NewJobModal({ businessId, businessName, businessPhone, initialCustomer, onClose, onCreated }: {
+  businessId: string; businessName: string; businessPhone?: string
+  initialCustomer?: { id: string; name: string; phone: string | null } | null
+  onClose: () => void; onCreated: (jobId: string) => void
 }) {
   const [form, setForm] = useState({ vehicleMake: '', vehicleModel: '', vehiclePlate: '', vehicleVin: '', notes: '' })
   const [customerQuery, setCustomerQuery] = useState('')
   const [customerResults, setCustomerResults] = useState<any[]>([])
   const [crossBusinessResults, setCrossBusinessResults] = useState<any[]>([])
-  const [selectedCustomer, setSelectedCustomer] = useState<any>(null)
-  const [copyingCustomerId, setCopyingCustomerId] = useState<string | null>(null)
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(initialCustomer ?? null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [contractors, setContractors] = useState<Array<{ id: string; fullName: string }>>([])
+  const [contractors, setContractors] = useState<Array<{ id: string; personId: string; fullName: string }>>([])
   const [primaryContractorId, setPrimaryContractorId] = useState('')
+  const [personSearchResults, setPersonSearchResults] = useState<Array<{ id: string; fullName: string; phone: string }>>([])
+  const [showNewContractorForm, setShowNewContractorForm] = useState(false)
+  const [newContractorForm, setNewContractorForm] = useState({ fullName: '', phone: '', nationalId: '' })
+  const [creatingContractor, setCreatingContractor] = useState(false)
+  const [contractorFormError, setContractorFormError] = useState<string | null>(null)
+  const [existingPersonMatch, setExistingPersonMatch] = useState<{ id: string; fullName: string } | null>(null)
+  const [vehicleMakes, setVehicleMakes] = useState<string[]>([])
+  const [vehiclePairs, setVehiclePairs] = useState<Array<{ make: string; model: string }>>([])
   const [showQuickRegister, setShowQuickRegister] = useState(false)
 
   useEffect(() => {
@@ -319,35 +339,126 @@ function NewJobModal({ businessId, businessName, businessPhone, onClose, onCreat
     return () => clearTimeout(t)
   }, [customerQuery, businessId, selectedCustomer])
 
-  // Copy a customer found at another business into a new record for this business —
-  // same rules/UI as CustomerQuickRegister, just pre-filled (see MBM-264).
-  const handleUseOtherBusinessCustomer = async (match: any) => {
-    setCopyingCustomerId(match.id)
-    setError(null)
-    try {
-      const res = await fetch('/api/customers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fullName: match.name, primaryPhone: match.phone, businessId }),
-      })
-      const data = await res.json()
-      if (!res.ok || !data.success) { setError(data.error || 'Failed to copy customer'); return }
-      setSelectedCustomer(data.customer)
-      setCustomerResults([])
-      setCrossBusinessResults([])
-    } catch {
-      setError('Connection error — please try again')
-    } finally {
-      setCopyingCustomerId(null)
-    }
+  // Phone numbers uniquely identify a customer system-wide (see MBM-264 follow-up) —
+  // a match found at another business is the SAME customer record, selected as-is,
+  // not copied into a new row for this business.
+  const handleUseOtherBusinessCustomer = (match: any) => {
+    setSelectedCustomer(match)
+    setCustomerResults([])
+    setCrossBusinessResults([])
   }
 
   useEffect(() => {
     fetch(`/api/vehicle-service/contractors?businessId=${businessId}&status=active`)
       .then(res => res.ok ? res.json() : { contractors: [] })
-      .then(data => setContractors((data.contractors || []).map((c: any) => ({ id: c.id, fullName: c.fullName }))))
+      .then(data => setContractors((data.contractors || []).map((c: any) => ({ id: c.id, personId: c.personId, fullName: c.fullName }))))
       .catch(() => setContractors([]))
+
+    fetch(`/api/vehicle-service/vehicle-suggestions?businessId=${businessId}`)
+      .then(res => res.ok ? res.json() : { makes: [], pairs: [] })
+      .then(data => { setVehicleMakes(data.makes || []); setVehiclePairs(data.pairs || []) })
+      .catch(() => {})
   }, [businessId])
+
+  // Model can only be created attached to a Make — the picker is scoped to
+  // whichever make is currently selected and disabled until one is chosen.
+  const modelsForSelectedMake = form.vehicleMake
+    ? Array.from(new Set(vehiclePairs.filter(p => p.make === form.vehicleMake).map(p => p.model)))
+    : []
+
+  // Global person search (Persons has no businessId — search everywhere) so an
+  // existing individual can be reused as a contractor instead of duplicated
+  // (see MBM-264 follow-up — same standard as customer/contractor consistency).
+  const handleContractorSearchQuery = (query: string) => {
+    if (!query.trim()) { setPersonSearchResults([]); return }
+    fetch(`/api/persons?search=${encodeURIComponent(query.trim())}`)
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setPersonSearchResults((Array.isArray(data) ? data : []).map((p: any) => ({ id: p.id, fullName: p.fullName, phone: p.phone }))))
+      .catch(() => setPersonSearchResults([]))
+  }
+
+  const existingContractorPersonIds = new Set(contractors.map(c => c.personId))
+  const contractorOptions = [
+    ...contractors.map(c => ({ value: `contractor:${c.id}`, name: c.fullName })),
+    ...personSearchResults
+      .filter(p => !existingContractorPersonIds.has(p.id))
+      .map(p => ({ value: `person:${p.id}`, name: `${p.fullName} — not yet a contractor here` })),
+  ]
+
+  const handleUseExistingPerson = async (personId: string, fullName: string) => {
+    setContractorFormError(null)
+    try {
+      const res = await fetch('/api/vehicle-service/contractors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId, personId }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setContractorFormError(data.error || `Failed to add ${fullName} as a contractor`); return }
+      const newContractor = { id: data.contractor.id, personId, fullName: data.contractor.persons?.fullName ?? fullName }
+      setContractors(prev => [...prev, newContractor])
+      setPrimaryContractorId(newContractor.id)
+      setExistingPersonMatch(null)
+      setShowNewContractorForm(false)
+    } catch {
+      setContractorFormError('Connection error — please try again')
+    }
+  }
+
+  const handleContractorChange = (val: string) => {
+    if (val.startsWith('contractor:')) {
+      setPrimaryContractorId(val.slice('contractor:'.length))
+    } else if (val.startsWith('person:')) {
+      const personId = val.slice('person:'.length)
+      const person = personSearchResults.find(p => p.id === personId)
+      if (person) handleUseExistingPerson(personId, person.fullName)
+    }
+  }
+
+  const handleCreateContractor = async () => {
+    if (!newContractorForm.fullName.trim() || !newContractorForm.phone.trim() || !newContractorForm.nationalId.trim()) {
+      setContractorFormError('Full name, phone, and national ID are required')
+      return
+    }
+    setCreatingContractor(true)
+    setContractorFormError(null)
+    setExistingPersonMatch(null)
+    try {
+      const personRes = await fetch('/api/persons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: newContractorForm.fullName.trim(),
+          phone: newContractorForm.phone.trim(),
+          nationalId: newContractorForm.nationalId.trim(),
+        }),
+      })
+      const person = await personRes.json()
+      if (personRes.status === 409 && person.existingPerson) {
+        setExistingPersonMatch({ id: person.existingPerson.id, fullName: person.existingPerson.fullName })
+        return
+      }
+      if (!personRes.ok) { setContractorFormError(person.error || 'Failed to register person'); return }
+
+      const contractorRes = await fetch('/api/vehicle-service/contractors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId, personId: person.id }),
+      })
+      const contractorData = await contractorRes.json()
+      if (!contractorRes.ok) { setContractorFormError(contractorData.error || 'Failed to create contractor'); return }
+
+      const newContractor = { id: contractorData.contractor.id, personId: person.id, fullName: contractorData.contractor.persons?.fullName ?? newContractorForm.fullName.trim() }
+      setContractors(prev => [...prev, newContractor])
+      setPrimaryContractorId(newContractor.id)
+      setShowNewContractorForm(false)
+      setNewContractorForm({ fullName: '', phone: '', nationalId: '' })
+    } catch {
+      setContractorFormError('Connection error — please try again')
+    } finally {
+      setCreatingContractor(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -444,10 +555,9 @@ function NewJobModal({ businessId, businessName, businessPhone, onClose, onCreat
                             <button
                               type="button"
                               onClick={() => handleUseOtherBusinessCustomer(c)}
-                              disabled={copyingCustomerId === c.id}
-                              className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50 shrink-0"
+                              className="text-xs text-blue-600 dark:text-blue-400 hover:underline shrink-0"
                             >
-                              {copyingCustomerId === c.id ? 'Adding…' : 'Use This Customer'}
+                              Use This Customer
                             </button>
                           </div>
                         ))}
@@ -467,22 +577,120 @@ function NewJobModal({ businessId, businessName, businessPhone, onClose, onCreat
 
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Primary Contractor *</label>
-                <select
-                  value={primaryContractorId}
-                  onChange={e => setPrimaryContractorId(e.target.value)}
-                  className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  <option value="">Select primary contractor...</option>
-                  {contractors.map(c => (
-                    <option key={c.id} value={c.id}>{c.fullName}</option>
-                  ))}
-                </select>
+                {showNewContractorForm ? (
+                  <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2 bg-gray-50 dark:bg-gray-900">
+                    {existingPersonMatch ? (
+                      <>
+                        <p className="text-sm text-amber-700 dark:text-amber-400">
+                          <span className="font-medium">{existingPersonMatch.fullName}</span> already exists with that phone/national ID — reuse them instead of creating a duplicate.
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleUseExistingPerson(existingPersonMatch.id, existingPersonMatch.fullName)}
+                            className="flex-1 py-1.5 px-3 rounded-md text-xs font-medium text-white bg-teal-600 hover:bg-teal-700"
+                          >
+                            Use {existingPersonMatch.fullName}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setExistingPersonMatch(null)}
+                            className="py-1.5 px-3 rounded-md text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                          >
+                            Back
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xs font-medium text-gray-600 dark:text-gray-300">New Contractor</p>
+                        <input
+                          type="text" placeholder="Full name *" value={newContractorForm.fullName}
+                          onChange={e => setNewContractorForm({ ...newContractorForm, fullName: e.target.value })}
+                          className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        />
+                        <input
+                          type="text" placeholder="Phone *" value={newContractorForm.phone}
+                          onChange={e => setNewContractorForm({ ...newContractorForm, phone: e.target.value })}
+                          className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        />
+                        <input
+                          type="text" placeholder="National ID *" value={newContractorForm.nationalId}
+                          onChange={e => setNewContractorForm({ ...newContractorForm, nationalId: e.target.value })}
+                          className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        />
+                        {contractorFormError && <p className="text-xs text-red-600 dark:text-red-400">{contractorFormError}</p>}
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={handleCreateContractor}
+                            disabled={creatingContractor}
+                            className="flex-1 py-1.5 px-3 rounded-md text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            {creatingContractor ? 'Creating…' : 'Create & Select'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setShowNewContractorForm(false); setContractorFormError(null) }}
+                            className="py-1.5 px-3 rounded-md text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-gray-400">New contractors aren't authorized for any services yet — set that up from the Contractors page before assigning tasks.</p>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <SearchableSelect
+                    options={contractorOptions}
+                    value={primaryContractorId ? `contractor:${primaryContractorId}` : ''}
+                    onChange={handleContractorChange}
+                    onSearchQuery={handleContractorSearchQuery}
+                    onCreateNew={q => { setNewContractorForm({ fullName: q, phone: '', nationalId: '' }); setShowNewContractorForm(true) }}
+                    createNewLabel={q => `+ New Contractor: "${q}"`}
+                    placeholder="Search contractors..."
+                    searchPlaceholder="Search by name (also checks everyone in the system)..."
+                    emptyMessage="No active contractors here yet"
+                    required
+                  />
+                )}
                 <p className="text-[10px] text-gray-400 mt-0.5">Who the job card is handed to — individual tasks can still go to other contractors.</p>
               </div>
 
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Vehicle Make</label>
+                <SearchableSelect
+                  options={vehicleMakes.map(m => ({ value: m, name: m }))}
+                  value={form.vehicleMake}
+                  onChange={v => setForm({ ...form, vehicleMake: v, vehicleModel: '' })}
+                  placeholder="Select or add a make..."
+                  emptyMessage="No makes recorded yet"
+                  onCreateNew={q => {
+                    setForm({ ...form, vehicleMake: q, vehicleModel: '' })
+                    if (!vehicleMakes.includes(q)) setVehicleMakes(prev => [...prev, q].sort())
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Vehicle Model</label>
+                <SearchableSelect
+                  options={modelsForSelectedMake.map(m => ({ value: m, name: m }))}
+                  value={form.vehicleModel}
+                  onChange={v => setForm({ ...form, vehicleModel: v })}
+                  placeholder={form.vehicleMake ? 'Select or add a model...' : 'Pick a make first'}
+                  emptyMessage="No models recorded for this make yet"
+                  disabled={!form.vehicleMake}
+                  onCreateNew={q => {
+                    setForm({ ...form, vehicleModel: q })
+                    if (form.vehicleMake && !modelsForSelectedMake.includes(q)) {
+                      setVehiclePairs(prev => [...prev, { make: form.vehicleMake, model: q }])
+                    }
+                  }}
+                />
+                <p className="text-[10px] text-gray-400 mt-0.5">Models are attached to a make — pick or add the make first.</p>
+              </div>
               {[
-                { key: 'vehicleMake', label: 'Vehicle Make' },
-                { key: 'vehicleModel', label: 'Vehicle Model' },
                 { key: 'vehiclePlate', label: 'Plate Number' },
                 { key: 'vehicleVin', label: 'VIN' },
               ].map(f => (

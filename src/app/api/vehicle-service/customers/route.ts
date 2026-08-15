@@ -6,6 +6,13 @@ import { isSystemAdmin } from '@/lib/permission-utils'
 // GET /api/vehicle-service/customers?businessId=
 // Customers who have at least one vehicle-service job at this business —
 // the "service customers" view for the Vehicle Service home page (see MBM-264).
+//
+// A customer's own BusinessCustomers row belongs to whichever business first
+// registered them (its "home" business) — phone numbers uniquely identify a
+// customer system-wide, so the SAME row is reused (not copied) when they're
+// selected for a job at a different business. That means a service customer
+// here may have a home record that lives at another business entirely, so this
+// filters through the job's own businessId rather than the customer row's.
 export async function GET(request: NextRequest) {
   try {
     const user = await getServerUser()
@@ -21,14 +28,21 @@ export async function GET(request: NextRequest) {
     }
 
     const customers = await prisma.businessCustomers.findMany({
-      where: { businessId, vehicle_service_jobs: { some: {} } },
+      where: { vehicle_service_jobs: { some: { businessId } } },
       select: {
         id: true,
         name: true,
         phone: true,
         email: true,
         customerNumber: true,
+        businessId: true,
+        totalSpent: true,
+        loyaltyPoints: true,
+        createdAt: true,
+        businesses: { select: { id: true, name: true, type: true } },
+        _count: { select: { business_orders: true } },
         vehicle_service_jobs: {
+          where: { businessId },
           select: {
             id: true,
             vehicleMake: true,
@@ -52,6 +66,7 @@ export async function GET(request: NextRequest) {
               .map(j => [j.vehiclePlate || `${j.vehicleMake}-${j.vehicleModel}`, { make: j.vehicleMake, model: j.vehicleModel, plate: j.vehiclePlate }])
           ).values()
         )
+        const isFromOtherBusiness = c.businessId !== businessId
         return {
           id: c.id,
           name: c.name,
@@ -61,6 +76,14 @@ export async function GET(request: NextRequest) {
           vehicles,
           jobCount: c.vehicle_service_jobs.length,
           lastVisit: c.vehicle_service_jobs[0]?.createdAt ?? null,
+          isFromOtherBusiness,
+          homeBusinessId: isFromOtherBusiness ? c.businesses.id : null,
+          homeBusinessName: isFromOtherBusiness ? c.businesses.name : null,
+          homeBusinessType: isFromOtherBusiness ? c.businesses.type : null,
+          customerSince: c.createdAt,
+          totalOrders: c._count.business_orders,
+          totalSpent: Number(c.totalSpent),
+          loyaltyPoints: c.loyaltyPoints,
         }
       }),
     })

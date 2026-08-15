@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useParams } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 
 const JOB_STATUSES = ['open', 'in_progress', 'completed', 'billed', 'cancelled']
 const TASK_STATUSES = ['assigned', 'in_progress', 'completed']
@@ -319,29 +320,24 @@ export default function VehicleServiceJobDetailPage() {
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-4 space-y-2">
                   <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400">Add Task</h5>
                   <div className="grid grid-cols-2 gap-2">
-                    <select
+                    <SearchableSelect
+                      options={allServices.map(s => ({ value: s.id, name: `${s.categoryName} — ${s.name}` }))}
                       value={newTask.subcategoryId}
-                      onChange={e => setNewTask({ ...newTask, subcategoryId: e.target.value })}
-                      className="text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    >
-                      <option value="">Select service...</option>
-                      {allServices.map(s => (
-                        <option key={s.id} value={s.id}>{s.categoryName} — {s.name}</option>
-                      ))}
-                    </select>
-                    <select
+                      onChange={v => setNewTask({ ...newTask, subcategoryId: v })}
+                      placeholder="Select service..."
+                      searchPlaceholder="Search services..."
+                      required
+                    />
+                    <SearchableSelect
+                      options={eligible.map(c => ({ value: c.contractorId, name: `${c.fullName} — ${formatCurrency(Number(c.feeAmount))}` }))}
                       value={newTask.contractorId}
-                      onChange={e => setNewTask({ ...newTask, contractorId: e.target.value })}
+                      onChange={v => setNewTask({ ...newTask, contractorId: v })}
+                      placeholder="Select contractor..."
+                      searchPlaceholder="Search eligible contractors..."
+                      emptyMessage={newTask.subcategoryId ? 'No eligible contractors' : 'Pick a service first'}
                       disabled={!newTask.subcategoryId}
-                      className="text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
-                    >
-                      <option value="">
-                        {newTask.subcategoryId && eligible.length === 0 ? 'No eligible contractors' : 'Select contractor...'}
-                      </option>
-                      {eligible.map(c => (
-                        <option key={c.contractorId} value={c.contractorId}>{c.fullName} — {formatCurrency(Number(c.feeAmount))}</option>
-                      ))}
-                    </select>
+                      required
+                    />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <input

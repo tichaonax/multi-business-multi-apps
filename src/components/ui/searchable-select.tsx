@@ -26,6 +26,14 @@ interface SearchableSelectProps {
   loading?: boolean
   renderOption?: (option: Option) => ReactNode   // custom row content in dropdown
   renderValue?: (option: Option) => ReactNode    // custom content in trigger when selected
+  /** Fires (debounced by the caller if needed) as the search text changes — lets the
+   *  caller feed in async results (e.g. a server-side lookup) via the `options` prop. */
+  onSearchQuery?: (query: string) => void
+  /** When provided, shows a "+ Add "{search}"" row so a value with no match can be
+   *  created/accepted on the fly, matching the standard lookup-with-add pattern used
+   *  elsewhere in the app (e.g. payee selection). */
+  onCreateNew?: (query: string) => void
+  createNewLabel?: (query: string) => string
 }
 
 function getOptionValue(o: Option): string {
@@ -53,6 +61,9 @@ export function SearchableSelect({
   loading = false,
   renderOption,
   renderValue,
+  onSearchQuery,
+  onCreateNew,
+  createNewLabel,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -151,7 +162,7 @@ export function SearchableSelect({
           ref={inputRef}
           type="text"
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => { setSearch(e.target.value); onSearchQuery?.(e.target.value) }}
           placeholder={searchPlaceholder ?? placeholder}
           className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-primary focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
@@ -166,7 +177,7 @@ export function SearchableSelect({
             {allLabel}
           </button>
         )}
-        {filtered.length === 0 ? (
+        {filtered.length === 0 && !(onCreateNew && search.trim()) ? (
           <p className="px-3 py-2 text-sm text-secondary italic">{emptyMessage}</p>
         ) : (
           filtered.map(o => {
@@ -183,6 +194,15 @@ export function SearchableSelect({
             )
           })
         )}
+        {onCreateNew && search.trim() && !filtered.some(o => getOptionLabel(o).toLowerCase() === search.trim().toLowerCase()) && (
+          <button
+            type="button"
+            onClick={() => { const q = search.trim(); setOpen(false); setSearch(''); onCreateNew(q) }}
+            className="w-full text-left px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 border-t border-border font-medium"
+          >
+            {createNewLabel ? createNewLabel(search.trim()) : `+ Add "${search.trim()}"`}
+          </button>
+        )}
       </div>
     </div>
   )
@@ -196,8 +216,15 @@ export function SearchableSelect({
         disabled={disabled || loading}
         className={`w-full border rounded-md px-3 py-2 text-sm bg-background text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-blue-500 ${error ? 'border-red-400' : 'border-border'} ${disabled || loading ? 'opacity-50 cursor-not-allowed text-secondary' : 'text-primary'}`}
       >
-        <span className={selected ? 'text-primary' : 'text-gray-400 dark:text-gray-500'}>
-          {loading ? 'Loading…' : selected ? (renderValue ? renderValue(selected) : getOptionLabel(selected)) : placeholder}
+        <span className={selected || (onCreateNew && value) ? 'text-primary' : 'text-gray-400 dark:text-gray-500'}>
+          {loading
+            ? 'Loading…'
+            : selected
+            ? (renderValue ? renderValue(selected) : getOptionLabel(selected))
+            // Creatable mode: a value can legitimately be a freeform string not yet
+            // in `options` (just typed via "+ Add") — show it rather than reverting
+            // to the placeholder, which would look like the selection was lost.
+            : (onCreateNew && value) ? value : placeholder}
         </span>
         <svg className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

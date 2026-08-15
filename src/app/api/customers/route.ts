@@ -175,29 +175,43 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Duplicate check is scoped to THIS business only — BusinessCustomers is
-    // intentionally per-business (see MBM-264), so the same phone/email is
-    // expected to appear at multiple businesses for the same real person.
+    // Phone/email uniquely identify a real person system-wide (not per-business —
+    // see MBM-264 follow-up): if either already belongs to a customer at ANY
+    // business, that existing record is the one to use — creating a second row
+    // would violate "no two customers share a number." The response carries
+    // enough of the existing customer to select it directly, no extra fetch needed.
     if (validatedData.primaryEmail) {
       const existing = await prisma.businessCustomers.findFirst({
-        where: { businessId: validatedData.businessId, email: validatedData.primaryEmail }
+        where: { email: validatedData.primaryEmail },
+        include: { businesses: { select: { id: true, name: true } } },
       })
       if (existing) {
         return NextResponse.json(
-          { error: 'Customer with this email already exists', existingCustomerId: existing.id },
-          { status: 400 }
+          {
+            error: 'Customer with this email already exists',
+            existingCustomerId: existing.id,
+            existingCustomer: existing,
+            isFromOtherBusiness: existing.businessId !== validatedData.businessId,
+          },
+          { status: 409 }
         )
       }
     }
 
     if (validatedData.primaryPhone) {
       const existingByPhone = await prisma.businessCustomers.findFirst({
-        where: { businessId: validatedData.businessId, phone: validatedData.primaryPhone }
+        where: { phone: validatedData.primaryPhone },
+        include: { businesses: { select: { id: true, name: true } } },
       })
       if (existingByPhone) {
         return NextResponse.json(
-          { error: 'Customer with this phone number already exists', existingCustomerId: existingByPhone.id },
-          { status: 400 }
+          {
+            error: 'Customer with this phone number already exists',
+            existingCustomerId: existingByPhone.id,
+            existingCustomer: existingByPhone,
+            isFromOtherBusiness: existingByPhone.businessId !== validatedData.businessId,
+          },
+          { status: 409 }
         )
       }
     }

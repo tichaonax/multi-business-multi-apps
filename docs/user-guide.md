@@ -12155,8 +12155,9 @@ Navigate to **Contractors** in the sidebar (requires **Manage Employees** permis
 
 **Registering a new contractor:**
 1. Click **+ Add Contractor**.
-2. Enter their personal details — full name, phone, national ID (required), email and address (optional).
-3. Click **Create Contractor**.
+2. **Search first** — contractors are backed by the same shared person records used for payees and other individuals system-wide, so if this person already exists anywhere (e.g. already a contractor at another business), they'll turn up here. Click **Use This Person** to reuse their record instead of creating a duplicate. (A person can only be a contractor at one business at a time — trying to reuse someone already active elsewhere will say so.)
+3. If nobody matches, click **register a new contractor** and enter their details — full name, phone, national ID (required), email and address (optional). If the national ID or phone turns out to already belong to someone (a search miss), you'll be offered their existing record instead of an error.
+4. Click **Create Contractor**.
 
 This creates the contractor's core record. Click into it (or the row) to **Manage** further:
 
@@ -12175,9 +12176,9 @@ Navigate to **Jobs** in the sidebar.
 **Creating a job:**
 1. Click **+ New Job**.
 2. Search for an existing customer, or leave blank for a walk-in. If the search finds no match, a **+ New Customer** link appears right there in the modal — it opens the same quick-registration form used at the POS, so you never have to leave the job screen to register someone first.
-   - If the person is already a customer at **another business** (e.g. they've eaten at the restaurant but never visited the shop before), the search finds them there too and shows them under "Not a customer here yet, but found elsewhere," tagged with which business they're from. Click **Use This Customer** to create their record here in one click — no re-typing their name or phone. Each business still keeps its own separate customer record and order history; this just saves you from starting from scratch.
-3. Enter vehicle details (make, model, plate, VIN — all optional but recommended).
-4. Pick the **primary contractor** for the job — required. This is the main contractor associated with the vehicle visit and is what prints on the job card; individual tasks can still be assigned to other contractors.
+   - Phone numbers uniquely identify a customer everywhere in the system — nobody has two records. If the person is already a customer at **another business** (e.g. they've eaten at the restaurant but never visited the shop before), the search finds them there too and shows them under "Not a customer here yet, but found elsewhere," tagged with which business they're from. Click **Use This Customer** to select their existing record — same customer number, same profile, same order history, wherever they're used. Trying to register them again with the same phone number (instead of selecting them) is blocked, with a prompt to use the existing record instead.
+3. Enter vehicle details (make, model, plate, VIN — all optional but recommended). **Make** and **Model** suggest values already used at this business as you type — pick one or just type a new one; typing it here is enough for it to show up as a suggestion next time. **Model is attached to Make** — it stays disabled until a Make is chosen, and only shows models already seen for that specific make (so "Hilux" won't show up under "Isuzu"). Changing the Make clears whatever Model was selected.
+4. Pick the **primary contractor** for the job — required. Search as you type; if they're not registered yet, a **+ New Contractor** option appears at the bottom of the results — fill in name, phone, and national ID right there and they're immediately selected, no need to leave the job screen. (A brand-new contractor isn't authorized for any services yet — set that up from the Contractors page before assigning them tasks.) This is the main contractor associated with the vehicle visit and is what prints on the job card; individual tasks can still be assigned to other contractors.
 5. Click **Create Job** — you're taken straight to the job's detail page.
 
 **Adding tasks (assigning contractors):**
@@ -12272,7 +12273,9 @@ This submits a payment request through the **same cashier-approval queue** used 
 
 **Customers** in the sidebar (or the button next to "+ New Job" on the Jobs page) shows everyone who has had at least one job at this business — their vehicle(s), how many jobs, and when they last came in. Click **View Jobs** on any row to jump to their job history.
 
-This list is scoped to vehicle-service jobs specifically, but the customers themselves are the same customer records used everywhere in the system — see the customer search note under [Assigning Jobs & Tasks](#assigning-jobs--tasks) above for how to reuse a customer who's already registered at another business instead of creating a duplicate.
+If a customer's record actually belongs to another business (e.g. they were first registered at the restaurant, and their record was reused here rather than duplicated), their name shows a small **also at [business]** badge — click it for a popup with their full picture: customer number, phone, how long they've been a customer, and their total orders/spend/loyalty points across every business, since it's genuinely one shared record.
+
+**+ New Customer** searches first — across this business and every other business — before offering to register someone new. If a match turns up anywhere, use it instead of creating a new record; phone numbers are unique system-wide, so registering the same number twice is blocked with a prompt to use the existing customer instead. Only when nobody matches does it fall through to the registration form (the same one used at the POS everywhere else).
 
 ### Permissions Reference
 
