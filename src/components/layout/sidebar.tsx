@@ -1190,7 +1190,7 @@ export function Sidebar() {
             )}
 
             {/* Default Features for Other Business Types (retail, consulting, etc.) */}
-            {!['restaurant', 'grocery', 'clothing', 'hardware', 'services', 'construction'].includes(currentBusiness.businessType) && (
+            {!['restaurant', 'grocery', 'clothing', 'hardware', 'services', 'construction', 'vehicle_service'].includes(currentBusiness.businessType) && (
               <>
                 <Link href="/dashboard" className={getLinkClasses('/dashboard')}>
                   <span className="text-lg">📊</span>

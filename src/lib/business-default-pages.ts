@@ -16,6 +16,18 @@ export interface DefaultPageOption {
  * Get available default page options for a specific business type
  */
 export function getDefaultPageOptions(businessType: string): DefaultPageOption[] {
+  // vehicle_service doesn't follow the generic /{businessType}/* convention below —
+  // it has no root page, uses the shared universal POS, and its own pages live under
+  // the hyphenated /vehicle-service/* path (the DB type value uses an underscore).
+  if (businessType === 'vehicle_service') {
+    return [
+      { value: 'home', label: 'Jobs', icon: '🛠️', path: '/vehicle-service/jobs' },
+      { value: 'pos', label: 'POS System', icon: '🚗', path: '/universal/pos' },
+      { value: 'contractors', label: 'Contractors', icon: '🔧', path: '/vehicle-service/contractors' },
+      { value: 'parts-requests', label: 'Parts Requests', icon: '📦', path: '/vehicle-service/parts-requests' },
+    ]
+  }
+
   // Common pages available to all business types
   const common: DefaultPageOption[] = [
     { value: 'home', label: 'Business Home', icon: '🏠', path: `/${businessType}` },
@@ -68,6 +80,13 @@ export function getDefaultPageOptions(businessType: string): DefaultPageOption[]
  * @returns The full path to navigate to
  */
 export function getDefaultPagePath(businessType: string, defaultPage: string | null): string {
+  // vehicle_service has no root page at /vehicle_service (or /vehicle-service) — its
+  // "home" is the Jobs page. Always resolve through its own options list below.
+  if (businessType === 'vehicle_service') {
+    const home = getDefaultPageOptions(businessType).find(opt => opt.value === (defaultPage || 'home'))
+    return home?.path || '/vehicle-service/jobs'
+  }
+
   // If no default page specified, use home
   if (!defaultPage || defaultPage === 'home') {
     return `/${businessType}`

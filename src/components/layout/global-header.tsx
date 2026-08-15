@@ -175,9 +175,11 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
       permissions?: string[]  // Required permissions (OR logic - any one grants access)
     }
 
+    // vehicle_service has no page at /vehicle_service (or /vehicle-service) — its
+    // pages live under the hyphenated /vehicle-service/* path, with Jobs as home.
     const baseLinks: MenuLink[] = [
       {
-        href: `/${businessType}`,
+        href: businessType === 'vehicle_service' ? '/vehicle-service/jobs' : `/${businessType}`,
         icon: '🏠',
         label: `${businessType.charAt(0).toUpperCase() + businessType.slice(1)} Home`
       }
@@ -225,6 +227,12 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports', permissions: ['canViewWifiReports', 'canAccessFinancialData'] },
         { href: `/${businessType}/list`, icon: '📋', label: 'Services List' },
         { href: `/${businessType}/categories`, icon: '📂', label: 'Categories' }
+      ],
+      vehicle_service: [
+        { href: '/universal/pos', icon: '🚗', label: 'POS System' },
+        { href: '/vehicle-service/jobs', icon: '🛠️', label: 'Jobs' },
+        { href: '/vehicle-service/contractors', icon: '🔧', label: 'Contractors', permissions: ['canManageEmployees'] },
+        { href: '/vehicle-service/parts-requests', icon: '📦', label: 'Parts Requests', permissions: ['canManageInventory'] }
       ]
     }
 
