@@ -12181,6 +12181,8 @@ Navigate to **Jobs** in the sidebar.
 4. Pick the **primary contractor** for the job — required. Search as you type; if they're not registered yet, a **+ New Contractor** option appears at the bottom of the results — fill in name, phone, and national ID right there and they're immediately selected, no need to leave the job screen. (A brand-new contractor isn't authorized for any services yet — set that up from the Contractors page before assigning them tasks.) This is the main contractor associated with the vehicle visit and is what prints on the job card; individual tasks can still be assigned to other contractors.
 5. Click **Create Job** — you're taken straight to the job's detail page.
 
+**Job notes:** shown just below the primary contractor on the job detail page — click it (or **+ Add job notes** if empty) at any time, on any job regardless of status, to edit and save. This is the same free-text field printed as "Job Notes" on the Job Card.
+
 **Adding tasks (assigning contractors):**
 On the job detail page, use **Add Task**:
 1. Pick a **category** first (e.g. "🛢️ Oil Change and Lubrication"), then the **service** within it (e.g. "🛢️ Standard oil change") — the service picker stays disabled until a category is chosen, and only shows services in that category. Both pickers show the emoji seeded for that category/service.
@@ -12218,7 +12220,7 @@ The Jobs list has a search bar at the top (the same style used on Receipt Histor
 
 Every job has a printable **job card** — a work document for the shop floor and the contractor, deliberately showing **no pricing anywhere**: just the job number, vehicle, customer, primary contractor, every task with its service and instructions, and signature lines.
 
-- **Print Job Card** on the job detail page opens the card in a new tab and records when it was first printed (shown as a "Printed" badge in the jobs list). Printing again after that shows as **Reprint Job Card**.
+- **Print Job Card** on the job detail page opens a print-preview modal in the same tab (no page reload) and records when it was first printed (shown as a "Printed" badge in the jobs list). Printing again after that shows as **Reprint Job Card**. Clicking **Print / Save PDF** inside the preview opens the browser's print dialog on just that document.
 - Once every task on the job is marked Completed, a **Mark Job Card Returned** action becomes available — this records the moment the physical card comes back from the shop floor, separate from task completion itself, and is the cue that the job is ready to bill. The jobs list shows a "Returned" badge once this is done.
 
 ### Parts Requests (Contractor to Inventory Department)

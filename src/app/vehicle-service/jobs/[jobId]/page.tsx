@@ -11,6 +11,7 @@ import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { NationalIdInput } from '@/components/ui/national-id-input'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { JobCardPrintModal } from '@/components/vehicle-service/job-card-print-modal'
 
 const JOB_STATUSES = ['open', 'in_progress', 'completed', 'billed', 'cancelled']
 const TASK_STATUSES = ['assigned', 'in_progress', 'completed']
@@ -55,6 +56,10 @@ export default function VehicleServiceJobDetailPage() {
   const [taskPartsResults, setTaskPartsResults] = useState<any[]>([])
   const [taskParts, setTaskParts] = useState<Array<{ productVariantId: string; name: string; quantity: number; stockQuantity: number }>>([])
   const [showBillModal, setShowBillModal] = useState(false)
+  const [showJobCardModal, setShowJobCardModal] = useState(false)
+  const [editingNotes, setEditingNotes] = useState(false)
+  const [notesInput, setNotesInput] = useState('')
+  const [savingNotes, setSavingNotes] = useState(false)
 
   // Add Task contractor picker: contractors who exist but aren't authorized
   // (with a fee) for the currently selected service, and global person search
@@ -298,7 +303,7 @@ export default function VehicleServiceJobDetailPage() {
   }
 
   const handlePrintCard = async () => {
-    window.open(`/vehicle-service/jobs/${jobId}/card`, '_blank')
+    setShowJobCardModal(true)
     await fetch(`/api/vehicle-service/jobs/${jobId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -403,6 +408,21 @@ export default function VehicleServiceJobDetailPage() {
     fetchJob()
   }
 
+  const handleSaveNotes = async () => {
+    setSavingNotes(true)
+    try {
+      await fetch(`/api/vehicle-service/jobs/${jobId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: notesInput }),
+      })
+      setEditingNotes(false)
+      fetchJob()
+    } finally {
+      setSavingNotes(false)
+    }
+  }
+
   if (status === 'loading') {
     return <div className="flex items-center justify-center min-h-screen text-gray-600">Loading...</div>
   }
@@ -439,6 +459,35 @@ export default function VehicleServiceJobDetailPage() {
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                       Primary contractor: {job.primaryContractor.persons.fullName}
                     </p>
+                  )}
+                  {editingNotes ? (
+                    <div className="mt-2 space-y-1.5">
+                      <textarea
+                        value={notesInput}
+                        onChange={e => setNotesInput(e.target.value)}
+                        rows={2}
+                        placeholder="Job notes (optional)"
+                        autoFocus
+                        className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                      <div className="flex gap-2">
+                        <button onClick={handleSaveNotes} disabled={savingNotes}
+                          className="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded">
+                          {savingNotes ? 'Saving…' : 'Save'}
+                        </button>
+                        <button onClick={() => setEditingNotes(false)} disabled={savingNotes}
+                          className="px-3 py-1 text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setNotesInput(job.notes || ''); setEditingNotes(true) }}
+                      className="mt-1 text-xs text-left text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 hover:underline block"
+                    >
+                      {job.notes ? `Notes: ${job.notes}` : '+ Add job notes'}
+                    </button>
                   )}
                 </div>
                 {job.orderId && (
@@ -816,6 +865,12 @@ export default function VehicleServiceJobDetailPage() {
           onBilled={() => { setShowBillModal(false); fetchJob() }}
         />
       )}
+
+      <JobCardPrintModal
+        isOpen={showJobCardModal}
+        job={job}
+        onClose={() => setShowJobCardModal(false)}
+      />
     </ContentLayout>
   )
 }
