@@ -1,6 +1,31 @@
 import { prisma } from '@/lib/prisma'
 import { Decimal } from '@prisma/client/runtime/library'
 
+/**
+ * Sum of |amount| for BusinessTransactions rows matching the given types.
+ *
+ * Debit-type amounts are NOT stored with a consistent sign: legacy seed data
+ * (type='DEBIT') stores negative amounts, while normal writers (type=
+ * 'withdrawal', including the manual balance-adjustment endpoint) always
+ * store a positive magnitude. Summing the raw column first and taking
+ * Math.abs() of that total is wrong whenever a business has both kinds of
+ * rows — positive and negative amounts can cancel each other out inside the
+ * sum before the abs() is ever applied. Taking the absolute value of each
+ * row before summing is correct regardless of any row's stored sign.
+ */
+export async function sumAbsBusinessTransactionAmounts(
+  businessId: string,
+  types: string[],
+  client: { $queryRaw: typeof prisma.$queryRaw } = prisma
+): Promise<number> {
+  const result = await client.$queryRaw<{ total: any }[]>`
+    SELECT COALESCE(SUM(ABS(amount)), 0) as total
+    FROM business_transactions
+    WHERE "businessId" = ${businessId} AND type = ANY(${types})
+  `
+  return Number(result[0]?.total ?? 0)
+}
+
 export interface BusinessBalanceInfo {
   businessId: string
   balance: number
@@ -49,17 +74,11 @@ export async function getBusinessBalance(businessId: string): Promise<BusinessBa
     // Compute true balance from transaction history — guards against stale stored balance
     const CREDIT_TYPES = ['deposit', 'transfer', 'loan_received', 'CREDIT']
     const DEBIT_TYPES = ['withdrawal', 'loan_disbursement', 'loan_payment', 'DEBIT']
-    const [creditsAgg, debitsAgg] = await Promise.all([
-      (prisma.businessTransactions as any).aggregate({
-        where: { businessId, type: { in: CREDIT_TYPES } },
-        _sum: { amount: true },
-      }),
-      (prisma.businessTransactions as any).aggregate({
-        where: { businessId, type: { in: DEBIT_TYPES } },
-        _sum: { amount: true },
-      }),
+    const [totalCredits, totalDebits] = await Promise.all([
+      sumAbsBusinessTransactionAmounts(businessId, CREDIT_TYPES),
+      sumAbsBusinessTransactionAmounts(businessId, DEBIT_TYPES),
     ])
-    const trueBalance = Number(creditsAgg._sum?.amount ?? 0) - Math.abs(Number(debitsAgg._sum?.amount ?? 0))
+    const trueBalance = totalCredits - totalDebits
 
     return {
       businessId,
