@@ -94,8 +94,12 @@ export async function POST(
 
     const employee = await prisma.employees.findFirst({ where: { userId: user.id }, select: { id: true } })
 
+    // customerLabourRate is the customer-facing price (independent of the
+    // contractor's own agreedFeeAmount, see MBM-265). Tasks created before
+    // that field existed fall back to agreedFeeAmount so an in-progress job's
+    // total doesn't silently change underneath it.
     const labourLines = job.tasks.map(t => ({
-      amount: Number(t.customerPriceOverride ?? t.agreedFeeAmount),
+      amount: Number(t.customerPriceOverride ?? t.customerLabourRate ?? t.agreedFeeAmount),
       name: t.subcategory.name,
       taskId: t.id,
       contractorId: t.contractorId,

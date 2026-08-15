@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
+import { canViewFinancials } from '@/lib/vehicle-service/permissions'
 
 const VALID_TASK_STATUSES = ['assigned', 'in_progress', 'completed']
 
@@ -31,6 +32,7 @@ export async function PATCH(
       const membership = await prisma.businessMemberships.findFirst({ where: { userId: user.id, businessId: task.job.businessId } })
       if (!membership) return NextResponse.json({ error: 'Access denied to this business' }, { status: 403 })
     }
+    const canSeeMoney = isSystemAdmin(user) || canViewFinancials(user, task.job.businessId)
 
     if (status && !VALID_TASK_STATUSES.includes(status)) {
       return NextResponse.json({ error: `status must be one of ${VALID_TASK_STATUSES.join(', ')}` }, { status: 400 })
@@ -40,6 +42,11 @@ export async function PATCH(
       where: { id: taskId },
       data: {
         ...(status ? { status, completedAt: status === 'completed' ? new Date() : null } : {}),
+        // Stamped once — the first time work actually begins. Re-toggling
+        // status later never overwrites the original start time. Actual
+        // duration (startedAt → completedAt) is informational only (see
+        // MBM-265) — nothing here recalculates the labour charge from it.
+        ...(status === 'in_progress' && !task.startedAt ? { startedAt: new Date() } : {}),
         ...(workDescription !== undefined ? { workDescription: workDescription || null } : {}),
       },
       include: {
@@ -48,7 +55,11 @@ export async function PATCH(
       },
     })
 
-    return NextResponse.json({ success: true, task: updated })
+    const responseTask = canSeeMoney
+      ? updated
+      : { ...updated, agreedFeeAmount: undefined, customerLabourRate: undefined, customerPriceOverride: undefined }
+
+    return NextResponse.json({ success: true, task: responseTask })
   } catch (error) {
     console.error('Update vehicle service task error:', error)
     return NextResponse.json({ error: 'Failed to update task' }, { status: 500 })

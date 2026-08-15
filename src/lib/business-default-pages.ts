@@ -26,6 +26,7 @@ export function getDefaultPageOptions(businessType: string): DefaultPageOption[]
       { value: 'customers', label: 'Customers', icon: '🧑‍🤝‍🧑', path: '/vehicle-service/customers' },
       { value: 'contractors', label: 'Contractors', icon: '🔧', path: '/vehicle-service/contractors' },
       { value: 'parts-requests', label: 'Parts Requests', icon: '📦', path: '/vehicle-service/parts-requests' },
+      { value: 'labour-rates', label: 'Labour Rates', icon: '💵', path: '/vehicle-service/labour-rates' },
     ]
   }
 

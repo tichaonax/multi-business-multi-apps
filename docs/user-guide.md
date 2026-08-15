@@ -12147,7 +12147,7 @@ Contractors are **not employees**. They hold no payroll contract, are paid per c
 Create the business as normal (**Admin → Businesses → New Business**) and choose **Vehicle Repair & Service** as the type. This automatically gives the business:
 
 - The full parts/service category taxonomy (4 domains, 21 categories, ~170 individual services and parts — oil changes, brakes, tires, engine work, electrical, parts and accessories, cleaning/detailing, fleet and roadside services) — the same category picker used everywhere else in the app (POS, inventory) already understands this taxonomy.
-- **Jobs** and **Contractors** links in the sidebar (desktop and mobile). A **Parts Requests** link also appears for anyone with the `canManageInventory` permission — see [Parts Requests](#parts-requests-contractor-to-inventory-department) below.
+- **Jobs** and **Contractors** links in the sidebar (desktop and mobile). A **Parts Requests** link also appears for anyone with the `canManageInventory` permission — see [Parts Requests](#parts-requests-contractor-to-inventory-department) below. A **Labour Rates** link also appears for anyone with financial-data access — see [Labour Costs & Contractor Pay](#labour-costs--contractor-pay-two-separate-numbers) below.
 
 ### Managing Contractors
 
@@ -12185,15 +12185,25 @@ Navigate to **Jobs** in the sidebar.
 On the job detail page, use **Add Task**:
 1. Pick a **category** first (e.g. "🛢️ Oil Change and Lubrication"), then the **service** within it (e.g. "🛢️ Standard oil change") — the service picker stays disabled until a category is chosen, and only shows services in that category. Both pickers show the emoji seeded for that category/service.
 2. Pick the **contractor**. Contractors already authorized for that exact service appear first with their fee shown. Anyone else active at the business also appears, labeled "not authorized for this service yet" — picking one prompts for a fee to authorize them for this specific service on the spot, no trip to the Contractors page needed. If the contractor isn't registered at all yet, search finds them system-wide (like Primary Contractor on New Job) or a **+ New Contractor** option lets you register them right there — either way, you'll still set a fee to authorize them for the selected service before the task can be added. Retired or disabled contractors never appear.
-3. Optionally set a **fixed customer price** (see below) and a short work note.
-4. Optionally attach **Known Parts** — if you already know what part the job needs (e.g. an oil filter for an oil change), search for it right there by name and add it with a quantity. This searches real stocked inventory (not a category list), and the part's stock is deducted immediately, the same way parts are deducted when added from Bill Job. This is separate from a contractor requesting parts mid-job — use Known Parts when staff already knows what's needed up front.
-5. Click **Add Task**.
+3. **If you can see financial data** (see Labour Costs below): the service's configured labour rate shows as the default customer charge, with an optional field to override it for just this task. If the service has no rate configured yet, you'll be prompted to set one — it's saved as the new default for that service going forward. If you can't see financial data, this step is skipped entirely and the task uses whatever rate is already configured.
+4. Optionally add a short work note.
+5. Optionally attach **Known Parts** — if you already know what part the job needs (e.g. an oil filter for an oil change), search for it right there by name and add it with a quantity. This searches real stocked inventory (not a category list), and the part's stock is deducted immediately, the same way parts are deducted when added from Bill Job. This is separate from a contractor requesting parts mid-job — use Known Parts when staff already knows what's needed up front.
+6. Click **Add Task**.
 
 A job can have any number of tasks, and different tasks on the same job can go to different contractors — e.g. one contractor for an oil change, another for a brake job, on the same vehicle visit.
 
 **Phone and national ID formatting:** anywhere a contractor is registered (New Job, Add Task, or the Contractors page), phone and national ID use the same standard input widgets as the rest of the app — a country-code selector defaulting to Zimbabwe for phone, and a format template defaulting to the Zimbabwe National ID pattern, with validation against the selected format. Phone numbers are shown formatted (e.g. "+263 77 123 4567") everywhere they're displayed on-screen; the printed Job Card shows the local format (e.g. "078 486 9759"), matching how receipts show phone numbers.
 
-**Task status:** Assigned → In Progress → Completed. Staff/managers can update task status directly here; contractors update their own tasks from their portal (see below). A completed task cannot be removed from a job.
+**Task status:** Assigned → In Progress → Completed. Staff/managers can update task status directly here; contractors update their own tasks from their portal (see below). A completed task cannot be removed from a job. The first time a task moves to In Progress, its start time is recorded; once completed, staff with financial-data access see the actual time taken alongside the task — this is for reference only and never changes the price.
+
+### Labour Costs & Contractor Pay (two separate numbers)
+
+The **customer labour charge** (what the customer is billed for a service) and the **contractor's pay rate** (what the contractor earns for doing it) are configured completely independently — a shop can charge a customer $35 for a brake inspection while paying the contractor $20 for it, and neither number affects the other.
+
+- **Labour Rates** (sidebar, under vehicle-service — requires financial-data access) is the central screen for the customer-facing side: every service, grouped by category with its emoji, shows its current default rate or "Not set." Click any rate to edit it inline.
+- **Contractor Payment Settings** — the Contractors page's existing "Authorized Services & Fees" section — is entirely separate and controls what each individual contractor earns per service. Contractors never see this configuration, only their own portal, which never displays rate figures either.
+- On the job detail page, staff with financial-data access see each task's labour charge and contractor pay as two distinct figures, plus a **Total Estimated Cost** for the whole job (labour + parts) above Add Task. Everyone else sees the job's tasks and status with no dollar amounts anywhere. "Bill This Job" is only available to staff who can see this financial data, since billing is itself a breakdown of these figures.
+- The printed Job Card never shows any of this — pricing has never appeared on it, for anyone.
 
 ### Searching and Filtering Jobs
 
@@ -12225,12 +12235,12 @@ The job detail page shows a **Parts** panel listing everything issued plus any p
 
 ### Pricing: Contractor Fee vs. Customer Price
 
-Each task has two amounts that can differ:
+Both amounts on a task are **snapshotted at the moment the task is created**, from two entirely separate configuration screens (see Labour Costs & Contractor Pay above) — changing either rate afterward never retroactively affects a job already in progress, only new tasks pick up the new rate:
 
-- **Contractor's fee** — snapshotted automatically from that contractor's authorized rate for that service *at the moment the task is created*. If the contractor's rate changes later, jobs already in progress are unaffected — only new tasks pick up the new rate.
-- **Customer's price** — normally the same as the contractor's fee. If you set a **fixed customer price** when adding the task, the customer is billed that amount instead, while the contractor is still paid their own agreed fee. Use this when a specific service has a flat shop price regardless of which contractor performs it, or when marking up labour.
+- **Contractor's fee** — from that contractor's Authorized Services & Fees rate for the service (Contractors page).
+- **Customer's price** — from the service's configured Labour Rate, or the fixed price you set for that specific task, if you set one. These two numbers are independent by design — they are not the same figure, and changing the shop's labour rate never affects what a contractor is paid, or vice versa.
 
-The job detail page shows both whenever they differ, so it's always clear what the shop is charging versus what's owed to the contractor.
+The job detail page shows both, side by side, for anyone with financial-data access.
 
 ### The Contractor Portal
 
@@ -12248,7 +12258,7 @@ A contractor **cannot** see customer pricing, labour charges, payment informatio
 Once **every task on a job is marked Completed**, a **Bill This Job** button appears on the job detail page (staff/manager action, not available to contractors).
 
 1. Click **Bill This Job**.
-2. Labour lines are pre-filled from the completed tasks (using the customer price set above, or the contractor's fee if no override was set).
+2. Labour lines are pre-filled from the completed tasks (each task's fixed price override if one was set, otherwise its configured labour rate — never the contractor's own fee, which is a separate figure).
 3. Any parts already **Issued** through a parts request (see above) are shown read-only, pre-filled at their recorded price — nothing to search for, and stock isn't touched again here.
 4. Search and add any **additional parts** used that weren't formally requested — normal inventory search, with stock automatically checked and deducted on billing.
 5. Add any **other charges** (shop supplies, disposal fees, etc.) as free-form line items.
@@ -12285,8 +12295,10 @@ If a customer's record actually belongs to another business (e.g. they were firs
 | Action | Permission required |
 |---|---|
 | Manage contractors (create, skills, services, login) | `canManageEmployees` or system admin |
-| Create/manage jobs and tasks, search jobs, view service customers | Business membership (any staff with access to the business) |
-| Bill a job / release a vehicle | Business membership |
+| Create/manage jobs and tasks, search jobs, view service customers | Business membership (any staff with access to the business) — task creation itself needs no financial permission, but setting/seeing any dollar amount on it does (see below) |
+| View labour costs, contractor pay, and Total Estimated Cost on a job; configure Labour Rates; set a fixed price override or a new labour rate when adding a task | `canAccessFinancialData` or system admin |
+| Bill a job | `canAccessFinancialData` or system admin |
+| Release a vehicle | Business membership |
 | Issue or reject a parts request | `canManageInventory` or system admin |
 | Generate/view contractor payouts | `canAccessFinancialData`, `canCloseBooks`, or system admin |
 | Contractor Portal access (including requesting parts) | The contractor's own login only — no business permission applies |
@@ -12299,7 +12311,8 @@ If a customer's record actually belongs to another business (e.g. they were firs
 | `vehicle_service_contractor_skills` | Skills/certifications |
 | `vehicle_service_contractor_services` | Authorized services + agreed fee per contractor |
 | `vehicle_service_jobs` | Job header — vehicle, customer, status, primary contractor, job-card print/return timestamps, vehicle release timestamp, linked order once billed |
-| `vehicle_service_tasks` | Individual tasks — service, assigned contractor, status, agreed fee, customer price override |
+| `vehicle_service_tasks` | Individual tasks — service, assigned contractor, status, agreed fee (contractor pay), customer labour rate, customer price override, work-started/completed timestamps |
+| `vehicle_service_labour_rates` | Default customer labour charge per business + service — the Labour Rates screen's config, entirely separate from contractor pay |
 | `vehicle_service_contractor_payouts` | One row per generated payout voucher |
 | `vehicle_service_contractor_payout_items` | Which tasks were included in which payout (prevents double payment) |
 | `vehicle_service_parts_requests` | A contractor's part request — description, quantity, status (Requested/Issued/Rejected), who reviewed it |

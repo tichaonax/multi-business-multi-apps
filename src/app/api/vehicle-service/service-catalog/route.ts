@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
+import { canViewFinancials } from '@/lib/vehicle-service/permissions'
 
 // GET /api/vehicle-service/service-catalog?businessId=
 // Returns only the "Vehicle Services" domain (labour/service subcategories) — not
@@ -23,31 +24,50 @@ export async function GET(request: NextRequest) {
       if (!membership) return NextResponse.json({ error: 'Access denied to this business' }, { status: 403 })
     }
 
-    const categories = await prisma.businessCategories.findMany({
-      where: {
-        businessType: 'vehicle_service',
-        businessId: null,
-        isActive: true,
-        domain: { name: 'Vehicle Services' },
-      },
-      select: {
-        id: true,
-        name: true,
-        emoji: true,
-        inventory_subcategories: {
-          select: { id: true, name: true, emoji: true },
-          orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+    // Labour rates are financial data — only fetched (and only ever included in
+    // the response) for users authorised to see money, never merely hidden
+    // client-side. Everyone else still gets the full category/service tree so
+    // task creation itself keeps working for them.
+    const showRates = isSystemAdmin(user) || canViewFinancials(user, businessId)
+
+    const [categories, rates] = await Promise.all([
+      prisma.businessCategories.findMany({
+        where: {
+          businessType: 'vehicle_service',
+          businessId: null,
+          isActive: true,
+          domain: { name: 'Vehicle Services' },
         },
-      },
-      orderBy: { name: 'asc' },
-    })
+        select: {
+          id: true,
+          name: true,
+          emoji: true,
+          inventory_subcategories: {
+            select: { id: true, name: true, emoji: true },
+            orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+          },
+        },
+        orderBy: { name: 'asc' },
+      }),
+      showRates
+        ? prisma.vehicleServiceLabourRates.findMany({
+            where: { businessId, isActive: true },
+            select: { subcategoryId: true, customerRate: true },
+          })
+        : Promise.resolve([]),
+    ])
+
+    const rateBySubcategory = new Map(rates.map(r => [r.subcategoryId, Number(r.customerRate)]))
 
     return NextResponse.json({
       categories: categories.map(c => ({
         id: c.id,
         name: c.name,
         emoji: c.emoji,
-        services: c.inventory_subcategories,
+        services: c.inventory_subcategories.map(s => ({
+          ...s,
+          customerRate: rateBySubcategory.get(s.id) ?? null,
+        })),
       })),
     })
   } catch (error) {

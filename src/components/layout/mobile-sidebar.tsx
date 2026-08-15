@@ -246,6 +246,7 @@ export function MobileSidebar() {
             {navLink('/vehicle-service/customers', '🧑‍🤝‍🧑', 'Customers')}
             {(isAdmin || hasBusinessPermission('canManageEmployees')) && navLink('/vehicle-service/contractors', '🔧', 'Contractors')}
             {(isAdmin || hasBusinessPermission('canManageInventory')) && navLink('/vehicle-service/parts-requests', '📦', 'Parts Requests')}
+            {(isAdmin || hasBusinessPermission('canAccessFinancialData')) && navLink('/vehicle-service/labour-rates', '💵', 'Labour Rates')}
           </>
         )
       default:

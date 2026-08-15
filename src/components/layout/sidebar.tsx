@@ -1129,6 +1129,12 @@ export function Sidebar() {
                     <span>Parts Requests</span>
                   </Link>
                 )}
+                {(isSystemAdmin(currentUser) || hasPermission('canAccessFinancialData')) && (
+                  <Link href="/vehicle-service/labour-rates" className={getLinkClasses('/vehicle-service/labour-rates')}>
+                    <span className="text-lg">💵</span>
+                    <span>Labour Rates</span>
+                  </Link>
+                )}
               </>
             )}
 

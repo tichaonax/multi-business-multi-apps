@@ -55,7 +55,8 @@ function VehicleServiceJobsPageContent() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { currentBusinessId, currentBusiness } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness, hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
+  const canSeeMoney = isSystemAdmin || hasPermission('canAccessFinancialData')
 
   const [jobs, setJobs] = useState<JobListItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -200,6 +201,14 @@ function VehicleServiceJobsPageContent() {
             >
               🧑‍🤝‍🧑 Customers
             </Link>
+            {canSeeMoney && (
+              <Link
+                href="/vehicle-service/labour-rates"
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg text-sm font-medium"
+              >
+                💵 Labour Rates
+              </Link>
+            )}
             <button
               onClick={() => setShowAddModal(true)}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"

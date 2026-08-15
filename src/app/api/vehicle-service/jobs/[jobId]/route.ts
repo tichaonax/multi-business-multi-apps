@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
+import { canViewFinancials } from '@/lib/vehicle-service/permissions'
 
 const VALID_JOB_STATUSES = ['open', 'in_progress', 'completed', 'billed', 'cancelled']
 
@@ -46,8 +47,30 @@ export async function GET(
       const membership = await prisma.businessMemberships.findFirst({ where: { userId: user.id, businessId: job.businessId } })
       if (!membership) return NextResponse.json({ error: 'Access denied to this business' }, { status: 403 })
     }
+    const canSeeMoney = isSystemAdmin(user) || canViewFinancials(user, job.businessId)
 
-    return NextResponse.json({ job })
+    if (!canSeeMoney) {
+      // Financial fields are stripped server-side, not merely hidden in the
+      // UI — a user without canAccessFinancialData never receives labour
+      // pricing, contractor pay, parts cost, or a total estimate (MBM-265).
+      return NextResponse.json({
+        job: {
+          ...job,
+          tasks: job.tasks.map(t => ({ ...t, agreedFeeAmount: undefined, customerLabourRate: undefined, customerPriceOverride: undefined })),
+          jobParts: job.jobParts.map(jp => ({ ...jp, unitPrice: undefined })),
+        },
+      })
+    }
+
+    // Legacy tasks created before MBM-265 have no customerLabourRate snapshot —
+    // fall back to the contractor fee they were originally billed at so an
+    // in-progress job's total doesn't silently change underneath it.
+    const labourTotal = job.tasks.reduce((sum, t) => sum + Number(t.customerPriceOverride ?? t.customerLabourRate ?? t.agreedFeeAmount), 0)
+    const partsTotal = job.jobParts.reduce((sum, jp) => sum + Number(jp.unitPrice) * jp.quantity, 0)
+
+    return NextResponse.json({
+      job: { ...job, financials: { totalEstimatedCost: labourTotal + partsTotal } },
+    })
   } catch (error) {
     console.error('Get vehicle service job error:', error)
     return NextResponse.json({ error: 'Failed to fetch job' }, { status: 500 })

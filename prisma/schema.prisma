@@ -613,6 +613,7 @@ model Businesses {
   vehicle_service_contractors                                              VehicleServiceContractors[]
   vehicle_service_jobs                                                     VehicleServiceJobs[]
   vehicle_service_contractor_payouts                                       VehicleServiceContractorPayouts[]
+  vehicle_service_labour_rates                                             VehicleServiceLabourRates[]
 
   @@map("businesses")
 }
@@ -2177,6 +2178,7 @@ model InventorySubcategories {
   users                               Users?                             @relation("SubcategoryCreatedBy", fields: [createdBy], references: [id])
   vehicle_service_contractor_services VehicleServiceContractorServices[]
   vehicle_service_tasks               VehicleServiceTasks[]
+  vehicle_service_labour_rates        VehicleServiceLabourRates[]
 
   @@unique([categoryId, name])
   @@map("inventory_subcategories")
@@ -3658,6 +3660,7 @@ model Users {
   vehicle_service_contractor_account                              VehicleServiceContractors?        @relation("VehicleServiceContractorUser")
   vehicle_service_contractors_created                             VehicleServiceContractors[]       @relation("VehicleServiceContractorCreator")
   vehicle_service_jobs_created                                    VehicleServiceJobs[]
+  vehicle_service_labour_rates_created                            VehicleServiceLabourRates[]        @relation("VehicleServiceLabourRateCreator")
   vehicle_service_contractor_payouts_created                      VehicleServiceContractorPayouts[]
   vehicle_service_jobs_released                                   VehicleServiceJobs[]              @relation("VehicleServiceJobReleasedBy")
   vehicle_service_parts_requests_reviewed                         VehicleServicePartsRequests[]     @relation("PartsRequestReviewer")
@@ -7748,6 +7751,24 @@ model VehicleServiceContractorServices {
   @@map("vehicle_service_contractor_services")
 }
 
+model VehicleServiceLabourRates {
+  id            String   @id @default(uuid())
+  businessId    String
+  subcategoryId String
+  customerRate  Decimal  @db.Decimal(12, 2)
+  isActive      Boolean  @default(true)
+  createdBy     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  businesses  Businesses             @relation(fields: [businessId], references: [id])
+  subcategory InventorySubcategories @relation(fields: [subcategoryId], references: [id])
+  creator     Users?                 @relation("VehicleServiceLabourRateCreator", fields: [createdBy], references: [id])
+
+  @@unique([businessId, subcategoryId])
+  @@map("vehicle_service_labour_rates")
+}
+
 model VehicleServiceJobs {
   id                  String    @id @default(uuid())
   businessId          String
@@ -7791,8 +7812,10 @@ model VehicleServiceTasks {
   status                String    @default("assigned") // assigned | in_progress | completed
   workDescription       String?
   agreedFeeAmount       Decimal   @db.Decimal(12, 2)
+  customerLabourRate    Decimal?  @db.Decimal(12, 2)
   customerPriceOverride Decimal?  @db.Decimal(12, 2)
   assignedAt            DateTime  @default(now())
+  startedAt             DateTime?
   completedAt           DateTime?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @default(now()) @updatedAt

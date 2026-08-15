@@ -233,7 +233,8 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         { href: '/vehicle-service/jobs', icon: '🛠️', label: 'Jobs' },
         { href: '/vehicle-service/customers', icon: '🧑‍🤝‍🧑', label: 'Customers' },
         { href: '/vehicle-service/contractors', icon: '🔧', label: 'Contractors', permissions: ['canManageEmployees'] },
-        { href: '/vehicle-service/parts-requests', icon: '📦', label: 'Parts Requests', permissions: ['canManageInventory'] }
+        { href: '/vehicle-service/parts-requests', icon: '📦', label: 'Parts Requests', permissions: ['canManageInventory'] },
+        { href: '/vehicle-service/labour-rates', icon: '💵', label: 'Labour Rates', permissions: ['canAccessFinancialData'] }
       ]
     }
 

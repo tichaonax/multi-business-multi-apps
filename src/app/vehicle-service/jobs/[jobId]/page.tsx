@@ -10,6 +10,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { NationalIdInput } from '@/components/ui/national-id-input'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 const JOB_STATUSES = ['open', 'in_progress', 'completed', 'billed', 'cancelled']
 const TASK_STATUSES = ['assigned', 'in_progress', 'completed']
@@ -20,13 +21,27 @@ const TASK_STATUS_STYLES: Record<string, string> = {
   completed: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
 }
 
-interface ServiceCatalogEntry { id: string; name: string; emoji: string; services: { id: string; name: string; emoji: string | null }[] }
+// Actual duration is informational only (see MBM-265) — nothing recalculates
+// the labour charge from it, it's just shown alongside a completed task.
+function formatDuration(startedAt?: string | null, completedAt?: string | null): string | null {
+  if (!startedAt || !completedAt) return null
+  const ms = new Date(completedAt).getTime() - new Date(startedAt).getTime()
+  if (ms <= 0) return null
+  const totalMinutes = Math.round(ms / 60000)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`
+}
+
+interface ServiceCatalogEntry { id: string; name: string; emoji: string; services: { id: string; name: string; emoji: string | null; customerRate: number | null }[] }
 
 export default function VehicleServiceJobDetailPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const params = useParams()
   const jobId = params.jobId as string
+  const { hasPermission, isSystemAdmin: isSysAdmin } = useBusinessPermissionsContext()
+  const canSeeMoney = isSysAdmin || hasPermission('canAccessFinancialData')
 
   const [job, setJob] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -55,6 +70,9 @@ export default function VehicleServiceJobDetailPage() {
   const [authorizingContractor, setAuthorizingContractor] = useState<{ id: string; fullName: string } | null>(null)
   const [authorizeFee, setAuthorizeFee] = useState('')
   const [authorizing, setAuthorizing] = useState(false)
+  // New default labour rate, entered inline the first time a service with no
+  // configured customer rate is used in Add Task (see MBM-265).
+  const [newLabourRate, setNewLabourRate] = useState('')
 
   const fetchJob = useCallback(async () => {
     setLoading(true)
@@ -90,6 +108,7 @@ export default function VehicleServiceJobDetailPage() {
     setNewTask(t => ({ ...t, contractorId: '' }))
     setAuthorizingContractor(null)
     setAuthorizeFee('')
+    setNewLabourRate('')
   }, [newTask.subcategoryId, job?.businessId])
 
   // All active contractors at the business (not just those authorized for the
@@ -294,6 +313,10 @@ export default function VehicleServiceJobDetailPage() {
       setTaskError('Select a service and a contractor')
       return
     }
+    if (canSeeMoney && selectedService && selectedService.customerRate === null && !newLabourRate.trim()) {
+      setTaskError('Set a labour rate for this service before adding the task')
+      return
+    }
     setAddingTask(true)
     try {
       const res = await fetch(`/api/vehicle-service/jobs/${jobId}/tasks`, {
@@ -302,7 +325,12 @@ export default function VehicleServiceJobDetailPage() {
         body: JSON.stringify({
           subcategoryId: newTask.subcategoryId,
           contractorId: newTask.contractorId,
-          customerPriceOverride: newTask.customerPriceOverride ? parseFloat(newTask.customerPriceOverride) : undefined,
+          ...(canSeeMoney ? {
+            customerPriceOverride: newTask.customerPriceOverride ? parseFloat(newTask.customerPriceOverride) : undefined,
+            customerRate: selectedService && selectedService.customerRate === null && newLabourRate.trim()
+              ? parseFloat(newLabourRate)
+              : undefined,
+          } : {}),
           workDescription: newTask.workDescription || undefined,
         }),
       })
@@ -328,6 +356,7 @@ export default function VehicleServiceJobDetailPage() {
       setTaskParts([])
       setAuthorizingContractor(null)
       setAuthorizeFee('')
+      setNewLabourRate('')
       setShowNewContractorForm(false)
       setNewContractorForm({ fullName: '', phone: '', nationalId: '', idFormatTemplateId: '' })
       setContractorFormError(null)
@@ -355,7 +384,7 @@ export default function VehicleServiceJobDetailPage() {
 
   const formatCurrency = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
   const selectedCategory = catalog.find(c => c.id === newTask.categoryId)
-  const selectedFee = eligible.find(c => c.contractorId === newTask.contractorId)?.feeAmount
+  const selectedService = selectedCategory?.services.find(s => s.id === newTask.subcategoryId)
   const eligibleIds = new Set(eligible.map(c => c.contractorId))
   const allContractorPersonIds = new Set(allContractors.map(c => c.personId))
   const taskContractorOptions = [
@@ -453,7 +482,7 @@ export default function VehicleServiceJobDetailPage() {
                   )}
                 </div>
               )}
-              {allTasksComplete && job.status !== 'billed' && job.status !== 'cancelled' && (
+              {allTasksComplete && job.status !== 'billed' && job.status !== 'cancelled' && canSeeMoney && (
                 <button
                   onClick={() => setShowBillModal(true)}
                   className="mt-3 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium"
@@ -497,7 +526,8 @@ export default function VehicleServiceJobDetailPage() {
               <div className="space-y-2 mb-4">
                 {job.tasks.length === 0 && <p className="text-sm text-gray-400">No tasks assigned yet.</p>}
                 {job.tasks.map((t: any) => {
-                  const price = t.customerPriceOverride ?? t.agreedFeeAmount
+                  const customerAmount = t.customerPriceOverride ?? t.customerLabourRate ?? t.agreedFeeAmount
+                  const duration = formatDuration(t.startedAt, t.completedAt)
                   return (
                     <div key={t.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
                       <div className="flex items-start justify-between gap-3">
@@ -506,12 +536,15 @@ export default function VehicleServiceJobDetailPage() {
                             {t.subcategory.emoji} {t.subcategory.name}
                           </p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {t.contractor.persons.fullName} · {formatCurrency(Number(price))}
-                            {t.customerPriceOverride && (
-                              <span className="ml-1 text-amber-600 dark:text-amber-400">
-                                (fixed price; contractor paid {formatCurrency(Number(t.agreedFeeAmount))})
-                              </span>
+                            {t.contractor.persons.fullName}
+                            {canSeeMoney && (
+                              <>
+                                {' · '}Labour {formatCurrency(Number(customerAmount))}
+                                {t.customerPriceOverride && <span className="text-amber-600 dark:text-amber-400"> (fixed)</span>}
+                                {' · '}Contractor pay {formatCurrency(Number(t.agreedFeeAmount))}
+                              </>
                             )}
+                            {duration && <> · {duration}</>}
                           </p>
                           {t.workDescription && <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{t.workDescription}</p>}
                         </div>
@@ -543,6 +576,13 @@ export default function VehicleServiceJobDetailPage() {
                   )
                 })}
               </div>
+
+              {canSeeMoney && job.financials && (
+                <div className="flex justify-between items-center text-sm font-semibold text-gray-900 dark:text-white border-t border-gray-200 dark:border-gray-700 pt-3 mb-1">
+                  <span>Total Estimated Cost</span>
+                  <span>{formatCurrency(job.financials.totalEstimatedCost)}</span>
+                </div>
+              )}
 
               {job.status !== 'billed' && job.status !== 'cancelled' && (
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-4 space-y-2">
@@ -658,22 +698,34 @@ export default function VehicleServiceJobDetailPage() {
                       required
                     />
                   )}
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="number" min="0" step="0.01"
-                      placeholder={selectedFee !== undefined ? `Fixed customer price (default $${Number(selectedFee).toFixed(2)})` : 'Fixed customer price (optional)'}
-                      value={newTask.customerPriceOverride}
-                      onChange={e => setNewTask({ ...newTask, customerPriceOverride: e.target.value })}
-                      className="text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Work notes (optional)"
-                      value={newTask.workDescription}
-                      onChange={e => setNewTask({ ...newTask, workDescription: e.target.value })}
-                      className="text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    />
-                  </div>
+                  {canSeeMoney && newTask.subcategoryId && (
+                    selectedService && selectedService.customerRate === null ? (
+                      <div className="border border-amber-200 dark:border-amber-800 rounded-lg p-3 bg-amber-50 dark:bg-amber-900/10 space-y-1.5">
+                        <p className="text-xs text-amber-700 dark:text-amber-400">No labour rate set for this service yet — set one now (becomes the default for future tasks).</p>
+                        <input
+                          type="number" min="0" step="0.01" placeholder="Labour rate $"
+                          value={newLabourRate}
+                          onChange={e => setNewLabourRate(e.target.value)}
+                          className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        />
+                      </div>
+                    ) : (
+                      <input
+                        type="number" min="0" step="0.01"
+                        placeholder={selectedService?.customerRate != null ? `Override labour price for this task (default $${Number(selectedService.customerRate).toFixed(2)})` : 'Override labour price for this task (optional)'}
+                        value={newTask.customerPriceOverride}
+                        onChange={e => setNewTask({ ...newTask, customerPriceOverride: e.target.value })}
+                        className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                    )
+                  )}
+                  <input
+                    type="text"
+                    placeholder="Work notes (optional)"
+                    value={newTask.workDescription}
+                    onChange={e => setNewTask({ ...newTask, workDescription: e.target.value })}
+                    className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
 
                   {/* Known parts (optional) — e.g. an oil filter for an oil change */}
                   <div>
@@ -733,7 +785,7 @@ export default function VehicleServiceJobDetailPage() {
                     {job.jobParts.map((jp: any) => (
                       <div key={jp.id} className="flex justify-between text-sm text-gray-700 dark:text-gray-300">
                         <span>{jp.productVariant.business_products.name} × {jp.quantity}</span>
-                        <span>{formatCurrency(Number(jp.unitPrice) * jp.quantity)}</span>
+                        {canSeeMoney && <span>{formatCurrency(Number(jp.unitPrice) * jp.quantity)}</span>}
                       </div>
                     ))}
                   </div>
@@ -809,7 +861,7 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
     setPartsResults([])
   }
 
-  const labourTotal = job.tasks.reduce((s: number, t: any) => s + Number(t.customerPriceOverride ?? t.agreedFeeAmount), 0)
+  const labourTotal = job.tasks.reduce((s: number, t: any) => s + Number(t.customerPriceOverride ?? t.customerLabourRate ?? t.agreedFeeAmount), 0)
   const partsTotal = billParts.reduce((s, p) => s + p.unitPrice * p.quantity, 0)
   const issuedPartsTotal = (job.jobParts || []).reduce((s: number, jp: any) => s + Number(jp.unitPrice) * jp.quantity, 0)
   const otherTotal = otherCharges.reduce((s, c) => s + (parseFloat(c.amount) || 0), 0)
@@ -856,7 +908,7 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
                   {job.tasks.map((t: any) => (
                     <div key={t.id} className="flex justify-between text-sm text-gray-700 dark:text-gray-300">
                       <span>{t.subcategory.name}</span>
-                      <span>{formatCurrency(Number(t.customerPriceOverride ?? t.agreedFeeAmount))}</span>
+                      <span>{formatCurrency(Number(t.customerPriceOverride ?? t.customerLabourRate ?? t.agreedFeeAmount))}</span>
                     </div>
                   ))}
                 </div>

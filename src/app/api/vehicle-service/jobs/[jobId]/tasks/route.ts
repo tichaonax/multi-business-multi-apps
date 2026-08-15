@@ -2,12 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
+import { canViewFinancials } from '@/lib/vehicle-service/permissions'
 
 // POST /api/vehicle-service/jobs/[jobId]/tasks
-// Body: { subcategoryId, contractorId, customerPriceOverride?, workDescription? }
+// Body: { subcategoryId, contractorId, customerPriceOverride?, customerRate?, workDescription? }
 // The contractor must be active and specifically authorized for this service —
 // their agreed fee for it is snapshotted onto the task so later rate changes
-// don't retroactively alter jobs already in progress.
+// don't retroactively alter jobs already in progress. Separately, the customer
+// labour charge is snapshotted from the central VehicleServiceLabourRates config
+// for this business+service — a genuinely different amount from the contractor's
+// fee (see MBM-265). If no rate is configured yet, a financially-authorised
+// caller must supply `customerRate`, which both prices this task and becomes
+// the new default for the service going forward.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ jobId: string }> }
@@ -18,8 +24,8 @@ export async function POST(
 
     const { jobId } = await params
     const body = await request.json()
-    const { subcategoryId, contractorId, customerPriceOverride, workDescription } = body as {
-      subcategoryId?: string; contractorId?: string; customerPriceOverride?: number; workDescription?: string
+    const { subcategoryId, contractorId, customerPriceOverride, customerRate, workDescription } = body as {
+      subcategoryId?: string; contractorId?: string; customerPriceOverride?: number; customerRate?: number; workDescription?: string
     }
     if (!subcategoryId) return NextResponse.json({ error: 'subcategoryId is required' }, { status: 400 })
     if (!contractorId) return NextResponse.json({ error: 'contractorId is required' }, { status: 400 })
@@ -31,9 +37,17 @@ export async function POST(
       const membership = await prisma.businessMemberships.findFirst({ where: { userId: user.id, businessId: job.businessId } })
       if (!membership) return NextResponse.json({ error: 'Access denied to this business' }, { status: 403 })
     }
+    const canSeeMoney = isSystemAdmin(user) || canViewFinancials(user, job.businessId)
 
     if (job.status === 'billed' || job.status === 'cancelled') {
       return NextResponse.json({ error: `Cannot add tasks to a ${job.status} job` }, { status: 409 })
+    }
+
+    // Setting a per-task fixed price, or supplying a brand-new default labour
+    // rate, are both financial actions — only for authorised callers. The
+    // Add Task UI never sends these fields for anyone else, this is a backstop.
+    if ((customerPriceOverride !== undefined && customerPriceOverride !== null || customerRate !== undefined && customerRate !== null) && !canSeeMoney) {
+      return NextResponse.json({ error: 'Only authorised users can set labour pricing' }, { status: 403 })
     }
 
     // The contractor must be active and specifically authorized (with a fee) for this service.
@@ -52,12 +66,34 @@ export async function POST(
       return NextResponse.json({ error: `Contractor is ${authorization.contractor.status} and cannot be assigned to new jobs` }, { status: 409 })
     }
 
+    // Customer labour charge — completely independent of the contractor's fee above.
+    let customerLabourRate: number
+    const existingRate = await prisma.vehicleServiceLabourRates.findUnique({
+      where: { businessId_subcategoryId: { businessId: job.businessId, subcategoryId } },
+    })
+    if (existingRate && existingRate.isActive) {
+      customerLabourRate = Number(existingRate.customerRate)
+    } else if (customerRate !== undefined && customerRate !== null && !isNaN(Number(customerRate)) && Number(customerRate) >= 0) {
+      const created = await prisma.vehicleServiceLabourRates.upsert({
+        where: { businessId_subcategoryId: { businessId: job.businessId, subcategoryId } },
+        create: { businessId: job.businessId, subcategoryId, customerRate: Number(customerRate), createdBy: user.id },
+        update: { customerRate: Number(customerRate), isActive: true },
+      })
+      customerLabourRate = Number(created.customerRate)
+    } else {
+      return NextResponse.json({
+        error: 'No labour rate configured for this service yet',
+        needsLabourRate: true,
+      }, { status: 400 })
+    }
+
     const task = await prisma.vehicleServiceTasks.create({
       data: {
         jobId,
         subcategoryId,
         contractorId,
         agreedFeeAmount: authorization.feeAmount,
+        customerLabourRate,
         customerPriceOverride: customerPriceOverride !== undefined && customerPriceOverride !== null
           ? Number(customerPriceOverride)
           : null,
@@ -69,7 +105,13 @@ export async function POST(
       },
     })
 
-    return NextResponse.json({ success: true, task })
+    // Financial fields are stripped for callers without permission — a real
+    // server-side gate, not just a UI hide, per MBM-265.
+    const responseTask = canSeeMoney
+      ? task
+      : { ...task, agreedFeeAmount: undefined, customerLabourRate: undefined, customerPriceOverride: undefined }
+
+    return NextResponse.json({ success: true, task: responseTask })
   } catch (error) {
     console.error('Add vehicle service task error:', error)
     return NextResponse.json({ error: 'Failed to add task' }, { status: 500 })
