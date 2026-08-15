@@ -1113,6 +1113,10 @@ export function Sidebar() {
                   <span className="text-lg">🛠️</span>
                   <span>Jobs</span>
                 </Link>
+                <Link href="/vehicle-service/customers" className={getLinkClasses('/vehicle-service/customers')}>
+                  <span className="text-lg">🧑‍🤝‍🧑</span>
+                  <span>Customers</span>
+                </Link>
                 {(isSystemAdmin(currentUser) || hasPermission('canManageEmployees')) && (
                   <Link href="/vehicle-service/contractors" className={getLinkClasses('/vehicle-service/contractors')}>
                     <span className="text-lg">🔧</span>

@@ -2,12 +2,15 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { CustomerQuickRegister } from '@/components/pos/customer-quick-register'
+import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
+import { getPresetDateRange, type DatePreset } from '@/lib/date-presets'
 
 interface JobListItem {
   id: string
@@ -37,8 +40,17 @@ const STATUS_STYLES: Record<string, string> = {
 }
 
 export default function VehicleServiceJobsPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center items-center min-h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>}>
+      <VehicleServiceJobsPageContent />
+    </Suspense>
+  )
+}
+
+function VehicleServiceJobsPageContent() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { currentBusinessId, currentBusiness } = useBusinessPermissionsContext()
 
   const [jobs, setJobs] = useState<JobListItem[]>([])
@@ -46,6 +58,12 @@ export default function VehicleServiceJobsPage() {
   const [error, setError] = useState<string | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
   const [statusFilter, setStatusFilter] = useState('')
+  const [search, setSearch] = useState(() => searchParams.get('search') || '')
+  const [contractorFilter, setContractorFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [datePreset, setDatePreset] = useState<DatePreset>('')
+  const [filterContractors, setFilterContractors] = useState<Array<{ id: string; fullName: string }>>([])
 
   const fetchJobs = useCallback(async () => {
     if (!currentBusinessId) return
@@ -54,6 +72,10 @@ export default function VehicleServiceJobsPage() {
     try {
       const params = new URLSearchParams({ businessId: currentBusinessId })
       if (statusFilter) params.append('status', statusFilter)
+      if (search) params.append('search', search)
+      if (contractorFilter) params.append('contractorId', contractorFilter)
+      if (dateFrom) params.append('dateFrom', dateFrom)
+      if (dateTo) params.append('dateTo', dateTo)
       const res = await fetch(`/api/vehicle-service/jobs?${params}`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to load jobs')
@@ -63,9 +85,42 @@ export default function VehicleServiceJobsPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentBusinessId, statusFilter])
+  }, [currentBusinessId, statusFilter, search, contractorFilter, dateFrom, dateTo])
 
   useEffect(() => { fetchJobs() }, [fetchJobs])
+
+  useEffect(() => {
+    if (!currentBusinessId) return
+    fetch(`/api/vehicle-service/contractors?businessId=${currentBusinessId}&status=active`)
+      .then(res => res.ok ? res.json() : { contractors: [] })
+      .then(data => setFilterContractors((data.contractors || []).map((c: any) => ({ id: c.id, fullName: c.fullName }))))
+      .catch(() => setFilterContractors([]))
+  }, [currentBusinessId])
+
+  function applyDatePreset(preset: 'today' | 'yesterday' | 'week' | 'month') {
+    const { from, to } = getPresetDateRange(preset)
+    setDateFrom(from)
+    setDateTo(to)
+    setDatePreset(preset)
+  }
+
+  function handleDateFromChange(iso: string) {
+    setDateFrom(iso)
+    const newTo = (!dateTo || iso > dateTo) ? iso : dateTo
+    setDateTo(newTo)
+    setDatePreset('custom')
+  }
+
+  function handleDateToChange(iso: string) {
+    setDateTo(iso)
+    setDatePreset('custom')
+  }
+
+  function clearDateFilters() {
+    setDateFrom('')
+    setDateTo('')
+    setDatePreset('')
+  }
 
   const formatCurrency = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 
@@ -80,6 +135,35 @@ export default function VehicleServiceJobsPage() {
   return (
     <ContentLayout title="Vehicle Service Jobs" subtitle="Create jobs, assign contractors to tasks, and track progress">
       <div className="max-w-6xl mx-auto">
+        <ListSearchFilterBar
+          onSearchChange={setSearch}
+          searchLoading={loading}
+          searchPlaceholder="Search by customer, contractor, vehicle, or service (e.g. oil change)..."
+          initialValue={search}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          datePreset={datePreset}
+          onPresetClick={applyDatePreset}
+          onFromChange={handleDateFromChange}
+          onToChange={handleDateToChange}
+          onClearDates={clearDateFilters}
+          extraFilters={
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Contractor</label>
+              <select
+                value={contractorFilter}
+                onChange={(e) => setContractorFilter(e.target.value)}
+                className="px-2 py-1.5 text-sm border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+              >
+                <option value="">All contractors</option>
+                {filterContractors.map(c => (
+                  <option key={c.id} value={c.id}>{c.fullName}</option>
+                ))}
+              </select>
+            </div>
+          }
+        />
+
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             {(['', 'open', 'in_progress', 'completed', 'billed', 'cancelled'] as const).map(s => (
@@ -96,12 +180,20 @@ export default function VehicleServiceJobsPage() {
               </button>
             ))}
           </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
-          >
-            + New Job
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/vehicle-service/customers"
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg text-sm font-medium"
+            >
+              🧑‍🤝‍🧑 Customers
+            </Link>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+            >
+              + New Job
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -205,7 +297,9 @@ function NewJobModal({ businessId, businessName, businessPhone, onClose, onCreat
   const [form, setForm] = useState({ vehicleMake: '', vehicleModel: '', vehiclePlate: '', vehicleVin: '', notes: '' })
   const [customerQuery, setCustomerQuery] = useState('')
   const [customerResults, setCustomerResults] = useState<any[]>([])
+  const [crossBusinessResults, setCrossBusinessResults] = useState<any[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null)
+  const [copyingCustomerId, setCopyingCustomerId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [contractors, setContractors] = useState<Array<{ id: string; fullName: string }>>([])
@@ -213,16 +307,40 @@ function NewJobModal({ businessId, businessName, businessPhone, onClose, onCreat
   const [showQuickRegister, setShowQuickRegister] = useState(false)
 
   useEffect(() => {
-    if (!customerQuery.trim() || selectedCustomer) { setCustomerResults([]); return }
+    if (!customerQuery.trim() || selectedCustomer) { setCustomerResults([]); setCrossBusinessResults([]); return }
     const t = setTimeout(async () => {
-      const res = await fetch(`/api/universal/customers?businessId=${businessId}&search=${encodeURIComponent(customerQuery)}&limit=5`)
+      const res = await fetch(`/api/universal/customers?businessId=${businessId}&search=${encodeURIComponent(customerQuery)}&limit=5&crossBusiness=true`)
       if (res.ok) {
         const data = await res.json()
         setCustomerResults(data.customers || data.data || [])
+        setCrossBusinessResults(data.crossBusinessMatches || [])
       }
     }, 300)
     return () => clearTimeout(t)
   }, [customerQuery, businessId, selectedCustomer])
+
+  // Copy a customer found at another business into a new record for this business —
+  // same rules/UI as CustomerQuickRegister, just pre-filled (see MBM-264).
+  const handleUseOtherBusinessCustomer = async (match: any) => {
+    setCopyingCustomerId(match.id)
+    setError(null)
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullName: match.name, primaryPhone: match.phone, businessId }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) { setError(data.error || 'Failed to copy customer'); return }
+      setSelectedCustomer(data.customer)
+      setCustomerResults([])
+      setCrossBusinessResults([])
+    } catch {
+      setError('Connection error — please try again')
+    } finally {
+      setCopyingCustomerId(null)
+    }
+  }
 
   useEffect(() => {
     fetch(`/api/vehicle-service/contractors?businessId=${businessId}&status=active`)
@@ -309,10 +427,34 @@ function NewJobModal({ businessId, businessName, businessPhone, onClose, onCreat
                         ))}
                       </div>
                     )}
-                    {customerQuery.trim() && customerResults.length === 0 && (
+                    {customerQuery.trim() && customerResults.length === 0 && crossBusinessResults.length === 0 && (
                       <p className="text-xs text-gray-400 mt-1">
                         No match. <button type="button" onClick={() => setShowQuickRegister(true)} className="text-blue-600 dark:text-blue-400 hover:underline">Register a new customer</button>
                       </p>
+                    )}
+                    {customerResults.length === 0 && crossBusinessResults.length > 0 && (
+                      <div className="mt-1 border border-amber-200 dark:border-amber-800 rounded-lg bg-amber-50 dark:bg-amber-900/10 p-2 space-y-1.5">
+                        <p className="text-[11px] text-amber-700 dark:text-amber-400">Not a customer here yet, but found elsewhere:</p>
+                        {crossBusinessResults.map((c: any) => (
+                          <div key={c.id} className="flex items-center justify-between gap-2 text-sm bg-white dark:bg-gray-800 rounded px-2 py-1.5">
+                            <span>
+                              {c.name} {c.phone && <span className="text-xs text-gray-400">({c.phone})</span>}
+                              <span className="block text-[10px] text-gray-400">at {c.sourceBusinessName}</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleUseOtherBusinessCustomer(c)}
+                              disabled={copyingCustomerId === c.id}
+                              className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50 shrink-0"
+                            >
+                              {copyingCustomerId === c.id ? 'Adding…' : 'Use This Customer'}
+                            </button>
+                          </div>
+                        ))}
+                        <button type="button" onClick={() => setShowQuickRegister(true)} className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline">
+                          Or register as a new customer
+                        </button>
+                      </div>
                     )}
                     {!customerQuery.trim() && (
                       <button type="button" onClick={() => setShowQuickRegister(true)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1">

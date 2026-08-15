@@ -243,6 +243,7 @@ export function MobileSidebar() {
           <>
             {navLink('/universal/pos', '🚗', 'POS System')}
             {navLink('/vehicle-service/jobs', '🛠️', 'Jobs')}
+            {navLink('/vehicle-service/customers', '🧑‍🤝‍🧑', 'Customers')}
             {(isAdmin || hasBusinessPermission('canManageEmployees')) && navLink('/vehicle-service/contractors', '🔧', 'Contractors')}
             {(isAdmin || hasBusinessPermission('canManageInventory')) && navLink('/vehicle-service/parts-requests', '📦', 'Parts Requests')}
           </>

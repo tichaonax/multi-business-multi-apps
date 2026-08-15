@@ -167,10 +167,20 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = CreateCustomerSchema.parse(body)
 
-    // Check for existing customer by email or phone
+    // Require businessId for customer creation
+    if (!validatedData.businessId) {
+      return NextResponse.json(
+        { error: 'Business ID is required' },
+        { status: 400 }
+      )
+    }
+
+    // Duplicate check is scoped to THIS business only — BusinessCustomers is
+    // intentionally per-business (see MBM-264), so the same phone/email is
+    // expected to appear at multiple businesses for the same real person.
     if (validatedData.primaryEmail) {
       const existing = await prisma.businessCustomers.findFirst({
-        where: { email: validatedData.primaryEmail }
+        where: { businessId: validatedData.businessId, email: validatedData.primaryEmail }
       })
       if (existing) {
         return NextResponse.json(
@@ -180,23 +190,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check for existing customer by phone
     if (validatedData.primaryPhone) {
-      const existingByPhone = await prisma.businessCustomers.findFirst({ where: { phone: validatedData.primaryPhone } })
+      const existingByPhone = await prisma.businessCustomers.findFirst({
+        where: { businessId: validatedData.businessId, phone: validatedData.primaryPhone }
+      })
       if (existingByPhone) {
         return NextResponse.json(
           { error: 'Customer with this phone number already exists', existingCustomerId: existingByPhone.id },
           { status: 400 }
         )
       }
-    }
-
-    // Require businessId for customer creation
-    if (!validatedData.businessId) {
-      return NextResponse.json(
-        { error: 'Business ID is required' },
-        { status: 400 }
-      )
     }
 
     // Get business details

@@ -6,13 +6,13 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import ReceiptSearchBar from '@/components/receipts/receipt-search-bar'
 import ReceiptDetailModal from '@/components/receipts/receipt-detail-modal'
 import CrossBusinessAlert from '@/components/receipts/cross-business-alert'
 import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
-import { getLocalDateString } from '@/lib/utils'
 import { useTimeDisplay } from '@/hooks/use-time-display'
 import { ContentLayout } from '@/components/layout/content-layout'
+import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
+import { getPresetDateRange, type DatePreset } from '@/lib/date-presets'
 
 interface ReceiptListItem {
   id: string
@@ -70,9 +70,7 @@ function ReceiptHistoryPageContent() {
   const [cancelLoading, setCancelLoading] = useState<string | null>(null) // receiptId being loaded
   const [dateFrom, setDateFrom] = useState('')       // ISO yyyy-mm-dd for API
   const [dateTo, setDateTo] = useState('')         // ISO yyyy-mm-dd for API
-  const [dateFromDisplay, setDateFromDisplay] = useState('') // dd/mm/yyyy for input
-  const [dateToDisplay, setDateToDisplay] = useState('')     // dd/mm/yyyy for input
-  const [datePreset, setDatePreset] = useState<'today' | 'yesterday' | 'week' | 'month' | 'custom' | ''>('')
+  const [datePreset, setDatePreset] = useState<DatePreset>('')
   const { useServerTime } = useTimeDisplay()
 
   // Get businessId from URL params or localStorage
@@ -162,48 +160,11 @@ function ReceiptHistoryPageContent() {
     fetchReceipts(query, 0)
   }, [fetchReceipts])
 
-  // Convert ISO date (yyyy-mm-dd) → display format (dd/mm/yyyy)
-  function isoToDisplay(iso: string): string {
-    if (!iso) return ''
-    const [y, m, d] = iso.split('-')
-    if (!y || !m || !d) return iso
-    return `${d}/${m}/${y}`
-  }
-
-  // Convert display format (dd/mm/yyyy) → ISO (yyyy-mm-dd); returns '' if invalid/incomplete
-  function displayToIso(display: string): string {
-    if (!display) return ''
-    const parts = display.split('/')
-    if (parts.length !== 3) return ''
-    const [d, m, y] = parts
-    if (!d || !m || !y || y.length !== 4) return ''
-    const iso = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
-    const date = new Date(iso)
-    return isNaN(date.getTime()) ? '' : iso
-  }
-
   // Apply a date preset
   function applyPreset(preset: 'today' | 'yesterday' | 'week' | 'month') {
-    const now = new Date()
-    const today = getLocalDateString(now)
-    let from = today
-    let to = today
-    if (preset === 'yesterday') {
-      const d = new Date(now)
-      d.setDate(d.getDate() - 1)
-      from = getLocalDateString(d)
-      to = from
-    } else if (preset === 'week') {
-      const d = new Date(now)
-      d.setDate(d.getDate() - 6)
-      from = getLocalDateString(d)
-    } else if (preset === 'month') {
-      from = `${today.slice(0, 7)}-01`
-    }
+    const { from, to } = getPresetDateRange(preset)
     setDateFrom(from)
     setDateTo(to)
-    setDateFromDisplay(isoToDisplay(from))
-    setDateToDisplay(isoToDisplay(to))
     setDatePreset(preset)
     fetchReceipts(searchQuery, 0, from, to)
   }
@@ -211,10 +172,23 @@ function ReceiptHistoryPageContent() {
   function clearDates() {
     setDateFrom('')
     setDateTo('')
-    setDateFromDisplay('')
-    setDateToDisplay('')
     setDatePreset('')
     fetchReceipts(searchQuery, 0, '', '')
+  }
+
+  function handleFromChange(iso: string) {
+    setDateFrom(iso)
+    // If no end date yet, or end is before new start, sync end to start
+    const newTo = (!dateTo || iso > dateTo) ? iso : dateTo
+    setDateTo(newTo)
+    setDatePreset('custom')
+    fetchReceipts(searchQuery, 0, iso, newTo)
+  }
+
+  function handleToChange(iso: string) {
+    setDateTo(iso)
+    setDatePreset('custom')
+    fetchReceipts(searchQuery, 0, dateFrom, iso)
   }
 
   // Handle receipt click
@@ -314,76 +288,29 @@ function ReceiptHistoryPageContent() {
     <ContentLayout title="Receipt History" subtitle="Search and reprint past receipts">
       <div className="max-w-6xl mx-auto">
 
-        {/* Search Bar */}
-        <div className="mb-4">
-          <ReceiptSearchBar onSearch={handleSearch} loading={loading} />
-        </div>
-
-        {/* Date Filters */}
-        <div className="mb-6 flex flex-wrap items-end gap-3 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
-          {/* Presets */}
-          <div className="flex gap-2">
-            {(['today', 'yesterday', 'week', 'month'] as const).map((p) => (
-              <button
-                key={p}
-                onClick={() => applyPreset(p)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                  datePreset === p
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
-                }`}
-              >
-                {p === 'today' ? 'Today' : p === 'yesterday' ? 'Yesterday' : p === 'week' ? 'Last 7 Days' : 'This Month'}
-              </button>
-            ))}
-          </div>
-          {/* Date pickers */}
-          <div className="flex items-end gap-2">
-            <div>
-              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">From</label>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => {
-                  const iso = e.target.value
-                  setDateFrom(iso)
-                  // If no end date yet, or end is before new start, sync end to start
-                  const newTo = (!dateTo || iso > dateTo) ? iso : dateTo
-                  setDateTo(newTo)
-                  setDateFromDisplay(isoToDisplay(iso))
-                  setDateToDisplay(isoToDisplay(newTo))
-                  setDatePreset('custom')
-                  fetchReceipts(searchQuery, 0, iso, newTo)
-                }}
-                className="px-2 py-1.5 text-sm border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">To</label>
-              <input
-                type="date"
-                value={dateTo}
-                min={dateFrom || undefined}
-                onChange={(e) => {
-                  const iso = e.target.value
-                  setDateTo(iso)
-                  setDateToDisplay(isoToDisplay(iso))
-                  setDatePreset('custom')
-                  fetchReceipts(searchQuery, 0, dateFrom, iso)
-                }}
-                className="px-2 py-1.5 text-sm border rounded-lg bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-              />
-            </div>
-            {(dateFrom || dateTo) && (
-              <button
-                onClick={clearDates}
-                className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </div>
+        {/* Search + Date Filters */}
+        <ListSearchFilterBar
+          onSearchChange={handleSearch}
+          searchLoading={loading}
+          searchPlaceholder="Search by receipt #, customer, or amount..."
+          searchHint={(rawQuery) =>
+            rawQuery.length < 4 ? (
+              <p>Type at least 4 characters to search</p>
+            ) : (
+              <p>
+                Searching current business...
+                {rawQuery.match(/^\d{8}/) && ' (Will search other businesses if not found)'}
+              </p>
+            )
+          }
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          datePreset={datePreset}
+          onPresetClick={applyPreset}
+          onFromChange={handleFromChange}
+          onToChange={handleToChange}
+          onClearDates={clearDates}
+        />
 
         {/* Error Message */}
         {error && (
@@ -402,7 +329,7 @@ function ReceiptHistoryPageContent() {
         {/* Receipts List */}
         {!loading && receipts.length > 0 && (
           <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 table-fixed w-full">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">

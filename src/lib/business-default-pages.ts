@@ -23,6 +23,7 @@ export function getDefaultPageOptions(businessType: string): DefaultPageOption[]
     return [
       { value: 'home', label: 'Jobs', icon: '🛠️', path: '/vehicle-service/jobs' },
       { value: 'pos', label: 'POS System', icon: '🚗', path: '/universal/pos' },
+      { value: 'customers', label: 'Customers', icon: '🧑‍🤝‍🧑', path: '/vehicle-service/customers' },
       { value: 'contractors', label: 'Contractors', icon: '🔧', path: '/vehicle-service/contractors' },
       { value: 'parts-requests', label: 'Parts Requests', icon: '📦', path: '/vehicle-service/parts-requests' },
     ]

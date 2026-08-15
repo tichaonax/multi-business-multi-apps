@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
     const segment = searchParams.get('segment')
     const search = searchParams.get('search')
     const includeOrders = searchParams.get('includeOrders') === 'true'
+    const crossBusiness = searchParams.get('crossBusiness') === 'true'
     const page = parseInt(searchParams.get('page') || '1')
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100)
     const skip = (page - 1) * limit
@@ -117,9 +118,46 @@ export async function GET(request: NextRequest) {
       _count: true
     })
 
+    // Opt-in cross-business fallback (see MBM-264): only runs when nothing matched
+    // in the current business, so every existing caller's behavior is unchanged
+    // unless it explicitly asks for this AND has no local results.
+    let crossBusinessMatches: any[] = []
+    if (crossBusiness && search && search.trim().length >= 2 && customers.length === 0) {
+      const otherMatches = await prisma.businessCustomers.findMany({
+        where: {
+          businessId: { not: businessId },
+          isActive: true,
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { email: { contains: search, mode: 'insensitive' } },
+            { phone: { contains: search, mode: 'insensitive' } },
+          ],
+        },
+        include: {
+          businesses: { select: { id: true, name: true, type: true } },
+        },
+        orderBy: { name: 'asc' },
+        take: 10,
+      })
+      crossBusinessMatches = otherMatches.map(c => ({
+        id: c.id,
+        name: c.name,
+        email: c.email,
+        phone: c.phone,
+        address: c.address,
+        city: c.city,
+        country: c.country,
+        customerType: c.customerType,
+        isFromOtherBusiness: true,
+        sourceBusinessId: c.businesses.id,
+        sourceBusinessName: c.businesses.name,
+      }))
+    }
+
     return NextResponse.json({
       success: true,
       data: customers,
+      crossBusinessMatches,
       meta: {
         total: totalCount,
         page,

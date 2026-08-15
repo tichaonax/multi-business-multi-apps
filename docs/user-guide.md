@@ -12175,6 +12175,7 @@ Navigate to **Jobs** in the sidebar.
 **Creating a job:**
 1. Click **+ New Job**.
 2. Search for an existing customer, or leave blank for a walk-in. If the search finds no match, a **+ New Customer** link appears right there in the modal — it opens the same quick-registration form used at the POS, so you never have to leave the job screen to register someone first.
+   - If the person is already a customer at **another business** (e.g. they've eaten at the restaurant but never visited the shop before), the search finds them there too and shows them under "Not a customer here yet, but found elsewhere," tagged with which business they're from. Click **Use This Customer** to create their record here in one click — no re-typing their name or phone. Each business still keeps its own separate customer record and order history; this just saves you from starting from scratch.
 3. Enter vehicle details (make, model, plate, VIN — all optional but recommended).
 4. Pick the **primary contractor** for the job — required. This is the main contractor associated with the vehicle visit and is what prints on the job card; individual tasks can still be assigned to other contractors.
 5. Click **Create Job** — you're taken straight to the job's detail page.
@@ -12189,6 +12190,15 @@ On the job detail page, use **Add Task**:
 A job can have any number of tasks, and different tasks on the same job can go to different contractors — e.g. one contractor for an oil change, another for a brake job, on the same vehicle visit.
 
 **Task status:** Assigned → In Progress → Completed. Staff/managers can update task status directly here; contractors update their own tasks from their portal (see below). A completed task cannot be removed from a job.
+
+### Searching and Filtering Jobs
+
+The Jobs list has a search bar at the top (the same style used on Receipt History) plus date and contractor filters:
+
+- **Search** matches the customer's name or phone, the vehicle's make/model/plate, either contractor's name, or the service performed — so typing "oil change" finds every job with that task on it, regardless of who did the work or which vehicle it was.
+- **Date presets** (Today / Yesterday / Last 7 Days / This Month) or a custom **From/To** range filter by when the job was created.
+- **Contractor** dropdown filters to jobs where that contractor is either the primary contractor or has a task on the job.
+- All filters combine — e.g. search "oil change" + a specific contractor + this month shows only that contractor's oil changes this month.
 
 ### The Job Card (Print)
 
@@ -12258,12 +12268,18 @@ This submits a payment request through the **same cashier-approval queue** used 
 
 > **Note:** Generating a payout requires the business to have an active expense account linked to it. Every newly created business is now set up with one automatically. If an older business predates this and payout generation says no active expense account exists, an admin can fix it — see [Linking an Expense Account to a Business](#linking-an-expense-account-to-a-business-admin-only).
 
+### Service Customers
+
+**Customers** in the sidebar (or the button next to "+ New Job" on the Jobs page) shows everyone who has had at least one job at this business — their vehicle(s), how many jobs, and when they last came in. Click **View Jobs** on any row to jump to their job history.
+
+This list is scoped to vehicle-service jobs specifically, but the customers themselves are the same customer records used everywhere in the system — see the customer search note under [Assigning Jobs & Tasks](#assigning-jobs--tasks) above for how to reuse a customer who's already registered at another business instead of creating a duplicate.
+
 ### Permissions Reference
 
 | Action | Permission required |
 |---|---|
 | Manage contractors (create, skills, services, login) | `canManageEmployees` or system admin |
-| Create/manage jobs and tasks | Business membership (any staff with access to the business) |
+| Create/manage jobs and tasks, search jobs, view service customers | Business membership (any staff with access to the business) |
 | Bill a job / release a vehicle | Business membership |
 | Issue or reject a parts request | `canManageInventory` or system admin |
 | Generate/view contractor payouts | `canAccessFinancialData`, `canCloseBooks`, or system admin |

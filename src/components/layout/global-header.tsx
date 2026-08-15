@@ -231,6 +231,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
       vehicle_service: [
         { href: '/universal/pos', icon: '🚗', label: 'POS System' },
         { href: '/vehicle-service/jobs', icon: '🛠️', label: 'Jobs' },
+        { href: '/vehicle-service/customers', icon: '🧑‍🤝‍🧑', label: 'Customers' },
         { href: '/vehicle-service/contractors', icon: '🔧', label: 'Contractors', permissions: ['canManageEmployees'] },
         { href: '/vehicle-service/parts-requests', icon: '📦', label: 'Parts Requests', permissions: ['canManageInventory'] }
       ]
@@ -314,6 +315,13 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
 
   // Function to get navigation path that preserves current module when switching businesses
   const getBusinessNavigationPath = (targetBusinessType: string, targetBiz?: { businessId: string; expenseAccounts?: { id: string; accountName: string }[] } | null): string => {
+    // vehicle_service has no page at /vehicle_service (or /vehicle-service) — none of
+    // the generic /{businessType}/* module-preservation logic below applies to it, so
+    // short-circuit straight to its own home page (Jobs) regardless of the current path.
+    if (targetBusinessType === 'vehicle_service') {
+      return '/vehicle-service/jobs'
+    }
+
     const currentPath = pathname
     let targetPath = `/${targetBusinessType}` // Default to business homepage
 

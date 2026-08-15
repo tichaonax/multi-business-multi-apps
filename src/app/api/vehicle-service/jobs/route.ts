@@ -3,7 +3,11 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
 
-// GET /api/vehicle-service/jobs?businessId=&status=
+// GET /api/vehicle-service/jobs?businessId=&status=&search=&contractorId=&dateFrom=&dateTo=
+// search matches: customer name/phone, vehicle make/model/plate, primary contractor name,
+// any task's contractor name, or any task's service (subcategory) name — e.g. "oil change".
+// contractorId matches jobs where that contractor is the primary contractor OR has a task.
+// dateFrom/dateTo filter on createdAt (inclusive; dateTo extended to end-of-day).
 export async function GET(request: NextRequest) {
   try {
     const user = await getServerUser()
@@ -12,6 +16,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('businessId')
     const jobStatus = searchParams.get('status') || undefined
+    const search = searchParams.get('search')?.trim() || undefined
+    const contractorId = searchParams.get('contractorId') || undefined
+    const dateFrom = searchParams.get('dateFrom') || undefined
+    const dateTo = searchParams.get('dateTo') || undefined
     if (!businessId) return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
 
     if (!isSystemAdmin(user)) {
@@ -19,8 +27,47 @@ export async function GET(request: NextRequest) {
       if (!membership) return NextResponse.json({ error: 'Access denied to this business' }, { status: 403 })
     }
 
+    const createdAtFilter: any = {}
+    if (dateFrom) createdAtFilter.gte = new Date(dateFrom)
+    if (dateTo) {
+      const end = new Date(dateTo)
+      end.setDate(end.getDate() + 1)
+      createdAtFilter.lt = end
+    }
+
+    const andFilters: any[] = []
+    if (contractorId) {
+      andFilters.push({
+        OR: [
+          { primaryContractorId: contractorId },
+          { tasks: { some: { contractorId } } },
+        ],
+      })
+    }
+    if (search) {
+      andFilters.push({
+        OR: [
+          { business_customers: { name: { contains: search, mode: 'insensitive' } } },
+          { business_customers: { phone: { contains: search } } },
+          { vehicleMake: { contains: search, mode: 'insensitive' } },
+          { vehicleModel: { contains: search, mode: 'insensitive' } },
+          { vehiclePlate: { contains: search, mode: 'insensitive' } },
+          { primaryContractor: { persons: { fullName: { contains: search, mode: 'insensitive' } } } },
+          { tasks: { some: { contractor: { persons: { fullName: { contains: search, mode: 'insensitive' } } } } } },
+          { tasks: { some: { subcategory: { name: { contains: search, mode: 'insensitive' } } } } },
+        ],
+      })
+    }
+
+    const where: any = {
+      businessId,
+      ...(jobStatus ? { status: jobStatus } : {}),
+      ...(Object.keys(createdAtFilter).length > 0 ? { createdAt: createdAtFilter } : {}),
+      ...(andFilters.length > 0 ? { AND: andFilters } : {}),
+    }
+
     const jobs = await prisma.vehicleServiceJobs.findMany({
-      where: { businessId, ...(jobStatus ? { status: jobStatus } : {}) },
+      where,
       select: {
         id: true,
         status: true,
