@@ -58,7 +58,6 @@ export function PaymentPanel({
 }: PaymentPanelProps) {
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('cash')
   const [cashAmount, setCashAmount] = useState<string>('')
-  const [showCashInput, setShowCashInput] = useState(false)
   const [ecocashTxCode, setEcocashTxCode] = useState<string>('')
 
   // Calculate EcoCash fee and total
@@ -124,7 +123,6 @@ export function PaymentPanel({
             key={method}
             onClick={() => {
               setSelectedMethod(method)
-              setShowCashInput(method === 'cash')
               if (method !== 'ecocash') setEcocashTxCode('')
             }}
             disabled={isDisabled}
@@ -175,7 +173,7 @@ export function PaymentPanel({
         ))}
 
         {/* Cash Amount Input */}
-        {showCashInput && selectedMethod === 'cash' && totals.total > 0 && (
+        {selectedMethod === 'cash' && totals.total > 0 && (
           <div className="mt-4 space-y-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Amount Received
