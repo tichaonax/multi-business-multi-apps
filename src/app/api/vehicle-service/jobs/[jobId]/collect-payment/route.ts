@@ -17,6 +17,13 @@ const VALID_PAYMENT_METHODS = ['CASH', 'CARD', 'MOBILE_MONEY', 'ECOCASH', 'BANK_
 // customer, who takes it to a cashier — a different user, at a different
 // time — to actually pay. This is also where the business account gets
 // credited (moved out of billing itself, for the same reason).
+//
+// Returns the paid order's line items (with real product names resolved)
+// so the caller can build a receipt preview without a second round-trip —
+// the receipt-preview step is a separate feature request layered on top of
+// the two-step flow, not something the caller already has in memory the way
+// a same-request checkout does (payment can happen well after billing, by a
+// different user).
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ jobId: string }> }
@@ -36,6 +43,7 @@ export async function POST(
       where: { id: jobId },
       select: {
         id: true, businessId: true, status: true, orderId: true,
+        business_customers: { select: { name: true, phone: true } },
         business_orders: { select: { id: true, orderNumber: true, paymentStatus: true, totalAmount: true } },
       },
     })
@@ -64,6 +72,11 @@ export async function POST(
         paidBy: user.id,
         paidAt: now,
       },
+      include: {
+        business_order_items: {
+          include: { product_variants: { select: { business_products: { select: { name: true } } } } },
+        },
+      },
     })
 
     try {
@@ -84,7 +97,28 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      order: { id: order.id, orderNumber: order.orderNumber, totalAmount: Number(order.totalAmount), paidAt: order.paidAt },
+      order: {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        subtotal: Number(order.subtotal),
+        taxAmount: Number(order.taxAmount),
+        discountAmount: Number(order.discountAmount),
+        totalAmount: Number(order.totalAmount),
+        paymentMethod: order.paymentMethod,
+        paidAt: order.paidAt,
+        customerName: job.business_customers?.name ?? null,
+        customerPhone: job.business_customers?.phone ?? null,
+        items: order.business_order_items.map(item => {
+          const attrs = (item.attributes as any) || {}
+          const name = attrs.productName || item.product_variants?.business_products?.name || 'Item'
+          return {
+            name,
+            quantity: item.quantity,
+            unitPrice: Number(item.unitPrice),
+            totalPrice: Number(item.totalPrice),
+          }
+        }),
+      },
     })
   } catch (error) {
     console.error('Collect vehicle service payment error:', error)

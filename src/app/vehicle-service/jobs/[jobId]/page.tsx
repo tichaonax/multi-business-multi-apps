@@ -13,6 +13,10 @@ import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { JobCardPrintModal } from '@/components/vehicle-service/job-card-print-modal'
 import { InvoicePrintModal } from '@/components/vehicle-service/invoice-print-modal'
+import { UnifiedReceiptPreviewModal } from '@/components/receipts/unified-receipt-preview-modal'
+import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
+import { buildReceiptWithBusinessInfo } from '@/lib/printing/receipt-builder'
+import type { ReceiptData } from '@/types/printing'
 
 // "Billed" is deliberately excluded here — it's a consequence of actually
 // billing the job (Bill This Job), never a status a user picks directly.
@@ -1196,9 +1200,12 @@ const PAYMENT_METHODS = ['CASH', 'CARD', 'MOBILE_MONEY', 'ECOCASH', 'BANK_TRANSF
 // different user than the one who billed it (the customer walks the printed
 // invoice to a cashier). This is what actually credits the business account.
 function CollectPaymentModal({ job, onClose, onPaid }: { job: any; onClose: () => void; onPaid: () => void }) {
+  const { currentBusiness } = useBusinessPermissionsContext()
   const [paymentMethod, setPaymentMethod] = useState('CASH')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false)
 
   const formatCurrency = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
   const totalAmount = Number(job.business_orders?.totalAmount ?? 0)
@@ -1214,7 +1221,39 @@ function CollectPaymentModal({ job, onClose, onPaid }: { job: any; onClose: () =
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Failed to process payment'); return }
-      onPaid()
+
+      // Receipt preview is optional — same pattern used everywhere else in
+      // the app (restaurant/grocery/clothing/universal POS): show a preview,
+      // let the user print or just close it. Either way payment is already
+      // recorded; printing is a courtesy step, not a requirement.
+      const order = data.order
+      const receiptData = buildReceiptWithBusinessInfo(
+        {
+          id: order.id,
+          orderNumber: order.orderNumber,
+          orderDate: order.paidAt || new Date().toISOString(),
+          orderType: 'SALE',
+          status: 'COMPLETED',
+          subtotal: order.subtotal,
+          taxAmount: order.taxAmount,
+          discountAmount: order.discountAmount,
+          totalAmount: order.totalAmount,
+          paymentMethod: order.paymentMethod,
+          paymentStatus: 'PAID',
+          customerName: order.customerName || undefined,
+          customerPhone: order.customerPhone || undefined,
+          items: order.items,
+        },
+        {
+          id: job.businessId,
+          name: currentBusiness?.businessName || 'Business',
+          type: 'vehicle_service',
+          address: currentBusiness?.address,
+          phone: currentBusiness?.phone,
+        }
+      )
+      setPendingReceiptData(receiptData)
+      setShowReceiptPreview(true)
     } catch {
       setError('Connection error — please try again')
     } finally {
@@ -1223,6 +1262,7 @@ function CollectPaymentModal({ job, onClose, onPaid }: { job: any; onClose: () =
   }
 
   return (
+    <>
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75" onClick={submitting ? undefined : onClose} />
@@ -1254,5 +1294,20 @@ function CollectPaymentModal({ job, onClose, onPaid }: { job: any; onClose: () =
         </div>
       </div>
     </div>
+
+    <UnifiedReceiptPreviewModal
+      isOpen={showReceiptPreview}
+      onClose={() => { setShowReceiptPreview(false); setPendingReceiptData(null); onPaid() }}
+      receiptData={pendingReceiptData}
+      businessType={'vehicle_service' as any}
+      onPrintConfirm={async (options) => {
+        if (!pendingReceiptData) return
+        await ReceiptPrintManager.printReceipt(pendingReceiptData, 'vehicle_service' as any, { ...options, autoPrint: true })
+        setShowReceiptPreview(false)
+        setPendingReceiptData(null)
+        onPaid()
+      }}
+    />
+    </>
   )
 }

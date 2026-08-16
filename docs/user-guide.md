@@ -12282,6 +12282,7 @@ This creates the order (visible in **Receipt History** like any other sale, with
 - On the job detail page, a **Collect Payment** button appears whenever a job is Billed but still unpaid.
 - On the Jobs list, the **Awaiting Payment** filter (next to the status pills) shows every such job across the business, each also tagged with a small "Awaiting Payment" badge — this is the queue a cashier works from.
 - Collecting payment just needs the payment method — confirming it marks the order **Paid**, records who collected it and when, and **only then** credits the business account. The job is now ready for **Release Vehicle**.
+- Right after payment, the same receipt preview used everywhere else in the app (POS, restaurant, grocery, clothing) opens automatically — pick a printer and print, or just close it. Printing is entirely optional; the payment is already recorded either way, closing without printing has no effect on that.
 
 ### Releasing the Vehicle
 
