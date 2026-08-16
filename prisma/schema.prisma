@@ -221,6 +221,8 @@ model BusinessOrders {
   isManualEntry             Boolean                   @default(false)
   manualEntryNote           String?
   createdBy                 String?
+  paidAt                    DateTime?
+  paidBy                    String?
   createdAt                 DateTime                  @default(now())
   updatedAt                 DateTime
   business_order_items      BusinessOrderItems[]
@@ -228,6 +230,7 @@ model BusinessOrders {
   business_customers        BusinessCustomers?        @relation(fields: [customerId], references: [id])
   employees                 Employees?                @relation(fields: [employeeId], references: [id])
   creator                   Users?                    @relation("BusinessOrderCreator", fields: [createdBy], references: [id])
+  payer                     Users?                    @relation("BusinessOrderPayer", fields: [paidBy], references: [id])
   reprint_logs              ReprintLog[]
   coupon_usages             CouponUsages[]
   meal_program_transaction  MealProgramTransactions?
@@ -3573,6 +3576,7 @@ model Users {
   meal_program_transactions_sold                                  MealProgramTransactions[]         @relation("MealProgramSoldByUser")
   meal_program_eligible_items_created                             MealProgramEligibleItems[]        @relation("MealProgramEligibleItemCreator")
   business_orders_created                                         BusinessOrders[]                  @relation("BusinessOrderCreator")
+  business_orders_paid                                             BusinessOrders[]                  @relation("BusinessOrderPayer")
   outgoing_loans_created                                          AccountOutgoingLoans[]            @relation("OutgoingLoanCreator")
   outgoing_loans_contracts_signed                                 AccountOutgoingLoans[]            @relation("OutgoingLoanContractSigner")
   outgoing_loan_payments_recorded                                 AccountOutgoingLoanPayments[]     @relation("OutgoingLoanPaymentRecorder")

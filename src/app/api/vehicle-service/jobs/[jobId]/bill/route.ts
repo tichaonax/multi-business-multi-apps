@@ -3,7 +3,6 @@ import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
-import { initializeBusinessAccount, processBusinessTransaction } from '@/lib/business-balance-utils'
 
 function generateOrderNumber(orderCount: number): string {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
@@ -12,12 +11,18 @@ function generateOrderNumber(orderCount: number): string {
 }
 
 // POST /api/vehicle-service/jobs/[jobId]/bill
-// Body: { parts?: [{productVariantId, quantity}], otherCharges?: [{description, amount}], paymentMethod }
+// Body: { parts?: [{productVariantId, quantity}], otherCharges?: [{description, amount}], discountAmount?, taxAmount? }
+//
+// Generates the customer invoice only — see MBM-266. This creates the order
+// with paymentStatus PENDING and does NOT collect a payment method or credit
+// the business account; that happens later, separately, via
+// POST .../collect-payment (potentially by a different user — the cashier
+// the customer's printed invoice gets handed to).
 //
 // Converts a completed job into a normal BusinessOrders record (see MBM-261 Design
 // Decision #3): each completed task becomes a labour line item (customerPriceOverride
-// if set, else the contractor's agreedFeeAmount), parts become normal physical line
-// items with the usual stock decrement, and the resulting order flows through the
+// if set, else the customer's labour rate — see MBM-265), parts become normal physical
+// line items with the usual stock decrement, and the resulting order flows through the
 // existing receipt/EOD/business-account pipeline exactly like any other sale.
 export async function POST(
   request: NextRequest,
@@ -29,10 +34,11 @@ export async function POST(
 
     const { jobId } = await params
     const body = await request.json()
-    const { parts, otherCharges, paymentMethod } = body as {
+    const { parts, otherCharges, discountAmount, taxAmount } = body as {
       parts?: Array<{ productVariantId: string; quantity: number }>
       otherCharges?: Array<{ description: string; amount: number }>
-      paymentMethod?: string
+      discountAmount?: number
+      taxAmount?: number
     }
 
     const job = await prisma.vehicleServiceJobs.findUnique({
@@ -128,6 +134,13 @@ export async function POST(
       return NextResponse.json({ error: 'Total must be greater than zero' }, { status: 400 })
     }
 
+    const tax = taxAmount && !isNaN(Number(taxAmount)) && Number(taxAmount) > 0 ? Number(taxAmount) : 0
+    // Discount can never exceed subtotal+tax — same clamp the universal orders endpoint uses.
+    const discount = discountAmount && !isNaN(Number(discountAmount)) && Number(discountAmount) > 0
+      ? Math.min(Number(discountAmount), subtotal + tax)
+      : 0
+    const totalAmount = subtotal + tax - discount
+
     const result = await prisma.$transaction(async (tx) => {
       const orderCount = await tx.businessOrders.count({ where: { businessId: job.businessId } })
       const orderNumber = generateOrderNumber(orderCount)
@@ -143,11 +156,11 @@ export async function POST(
           orderType: 'SALE',
           status: 'COMPLETED',
           subtotal,
-          taxAmount: 0,
-          discountAmount: 0,
-          totalAmount: subtotal,
-          paymentMethod: (paymentMethod as any) || 'CASH',
-          paymentStatus: 'PAID',
+          taxAmount: tax,
+          discountAmount: discount,
+          totalAmount,
+          paymentMethod: null,
+          paymentStatus: 'PENDING',
           businessType: 'vehicle_service',
           attributes: { vehicleServiceJobId: job.id },
           processedAt: now,
@@ -248,23 +261,14 @@ export async function POST(
       return order
     })
 
-    try {
-      await initializeBusinessAccount(job.businessId, 0, user.id)
-      await processBusinessTransaction({
-        businessId: job.businessId,
-        amount: subtotal,
-        type: 'deposit',
-        description: `Order revenue - ${result.orderNumber}`,
-        referenceId: result.id,
-        referenceType: 'order',
-        notes: 'Vehicle service job billed',
-        createdBy: user.id,
-      })
-    } catch (balanceError) {
-      console.error('Failed to credit business balance for vehicle service job:', balanceError)
-    }
+    // Business account is credited when payment is actually collected
+    // (POST .../collect-payment), not here — crediting revenue before the
+    // customer has paid would misstate real cash position. See MBM-266.
 
-    return NextResponse.json({ success: true, order: { id: result.id, orderNumber: result.orderNumber, totalAmount: subtotal } })
+    return NextResponse.json({
+      success: true,
+      order: { id: result.id, orderNumber: result.orderNumber, subtotal, taxAmount: tax, discountAmount: discount, totalAmount },
+    })
   } catch (error) {
     console.error('Bill vehicle service job error:', error)
     return NextResponse.json({ error: 'Failed to bill job' }, { status: 500 })

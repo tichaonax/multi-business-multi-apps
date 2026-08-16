@@ -22,7 +22,7 @@ export async function GET(
         business_customers: { select: { id: true, name: true, phone: true } },
         primaryContractor: { select: { id: true, persons: { select: { fullName: true, phone: true } } } },
         vehicleReleasedBy: { select: { id: true, name: true } },
-        business_orders: { select: { orderNumber: true, paymentStatus: true } },
+        business_orders: { select: { orderNumber: true, paymentStatus: true, totalAmount: true } },
         tasks: {
           include: {
             subcategory: { select: { id: true, name: true, emoji: true } },
@@ -114,6 +114,24 @@ export async function PATCH(
       }
       if (existing.status === 'billed') {
         return NextResponse.json({ error: 'A billed job cannot be changed. Manage the order from Receipt History instead.' }, { status: 409 })
+      }
+      // "Billed" is a consequence of actually billing the job (see POST .../bill),
+      // never a status a user picks directly — otherwise a job could show as
+      // Billed with no invoice/order behind it at all.
+      if (status === 'billed') {
+        return NextResponse.json({ error: 'Billed is set automatically when the job is billed — use Bill This Job.' }, { status: 400 })
+      }
+      // Enforce the intended sequence: a job can't jump to Completed while
+      // work is still outstanding, and can't be marked In Progress before any
+      // task exists to actually be in progress.
+      if (status === 'completed' || status === 'in_progress') {
+        const tasks = await prisma.vehicleServiceTasks.findMany({ where: { jobId }, select: { status: true } })
+        if (tasks.length === 0) {
+          return NextResponse.json({ error: `Assign at least one task before marking the job ${status === 'completed' ? 'Completed' : 'In Progress'}` }, { status: 409 })
+        }
+        if (status === 'completed' && !tasks.every(t => t.status === 'completed')) {
+          return NextResponse.json({ error: 'All tasks must be completed before marking the job Completed' }, { status: 409 })
+        }
       }
     }
 

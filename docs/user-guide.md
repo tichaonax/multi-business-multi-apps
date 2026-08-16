@@ -12198,6 +12198,13 @@ A job can have any number of tasks, and different tasks on the same job can go t
 
 **Task status:** Assigned → In Progress → Completed. Staff/managers can update task status directly here; contractors update their own tasks from their portal (see below). A completed task cannot be removed from a job. The first time a task moves to In Progress, its start time is recorded; once completed, staff with financial-data access see the actual time taken alongside the task — this is for reference only and never changes the price.
 
+**Job status:** Open → In Progress → Completed → Billed, plus Cancelled at any point. The status buttons on the job detail page enforce this sequence — they aren't just labels:
+- **In Progress** is disabled until at least one task has been assigned.
+- **Completed** is disabled until every task on the job is itself Completed.
+- **Billed** never appears as a clickable button at all — it's set automatically by **Bill This Job** once an invoice is actually generated, never by hand. The job still shows a "Billed" badge once that happens.
+
+This prevents a job from ever showing Completed or Billed without the underlying work — or invoice — actually existing.
+
 ### Labour Costs & Contractor Pay (two separate numbers)
 
 The **customer labour charge** (what the customer is billed for a service) and the **contractor's pay rate** (what the contractor earns for doing it) are configured completely independently — a shop can charge a customer $35 for a brake inspection while paying the contractor $20 for it, and neither number affects the other.
@@ -12255,18 +12262,26 @@ From the portal a contractor can:
 
 A contractor **cannot** see customer pricing, labour charges, payment information, invoices, receipts, or any charge breakdown anywhere in the portal — not just hidden in the UI, this data is never returned by the portal's API in the first place. Once a task is marked complete, the contractor can no longer edit or reopen it from the portal.
 
-### Billing a Job
+### Billing a Job — Two Steps: Invoice, Then Payment
 
-Once **every task on a job is marked Completed**, a **Bill This Job** button appears on the job detail page (staff/manager action, not available to contractors).
+Billing and payment are deliberately **separate steps**, because in practice the customer is handed a printed invoice and walks it to a cashier — often a different person, sometimes much later — who actually takes the payment. Nothing about generating the invoice requires payment to happen in the same sitting, or by the same staff member.
+
+**Step 1 — Generate the invoice.** Once **every task on a job is marked Completed**, a **Bill This Job** button appears on the job detail page (requires financial-data access; not available to contractors).
 
 1. Click **Bill This Job**.
 2. Labour lines are pre-filled from the completed tasks (each task's fixed price override if one was set, otherwise its configured labour rate — never the contractor's own fee, which is a separate figure).
 3. Any parts already **Issued** through a parts request (see above) are shown read-only, pre-filled at their recorded price — nothing to search for, and stock isn't touched again here.
 4. Search and add any **additional parts** used that weren't formally requested — normal inventory search, with stock automatically checked and deducted on billing.
 5. Add any **other charges** (shop supplies, disposal fees, etc.) as free-form line items.
-6. Choose the payment method and confirm.
+6. **Discount** and **tax** are both adjustable here — tax pre-fills from the business's own tax settings (the same rate used at the POS) but can be changed or cleared for this invoice; discount is a plain dollar amount.
+7. Click **Generate Invoice**.
 
-This produces a normal receipt/order — it appears in **Receipt History** exactly like any other sale, with a full itemized breakdown of services performed, parts used, and other charges. The job is marked **Billed** and locked from further changes. The sale also credits the business account immediately, the same way every other sale does — nothing about vehicle-service billing needs special handling anywhere else in the system.
+This creates the order (visible in **Receipt History** like any other sale, with a full itemized breakdown) and marks the job **Billed** — but the order's payment status is **Pending**, and the business account is **not** credited yet. A **Print Invoice** button appears immediately after generating it, opening a print-ready copy of the invoice to hand to the customer.
+
+**Step 2 — Collect payment.** Any authorised user (not necessarily whoever billed it) can now retrieve this job and take the payment:
+- On the job detail page, a **Collect Payment** button appears whenever a job is Billed but still unpaid.
+- On the Jobs list, the **Awaiting Payment** filter (next to the status pills) shows every such job across the business, each also tagged with a small "Awaiting Payment" badge — this is the queue a cashier works from.
+- Collecting payment just needs the payment method — confirming it marks the order **Paid**, records who collected it and when, and **only then** credits the business account. The job is now ready for **Release Vehicle**.
 
 ### Releasing the Vehicle
 
@@ -12299,7 +12314,8 @@ If a customer's record actually belongs to another business (e.g. they were firs
 | Manage contractors (create, skills, services, login) | `canManageEmployees` or system admin |
 | Create/manage jobs and tasks, search jobs, view service customers | Business membership (any staff with access to the business) — task creation itself needs no financial permission, but setting/seeing any dollar amount on it does (see below) |
 | View labour costs, contractor pay, and Total Estimated Cost on a job; configure Labour Rates; set a fixed price override or a new labour rate when adding a task | `canAccessFinancialData` or system admin |
-| Bill a job | `canAccessFinancialData` or system admin |
+| Bill a job (generate invoice) | `canAccessFinancialData` or system admin |
+| Collect payment on a billed job | `canAccessFinancialData` or system admin — same requirement as billing, independent of who billed it |
 | Release a vehicle | Business membership |
 | Issue or reject a parts request | `canManageInventory` or system admin |
 | Generate/view contractor payouts | `canAccessFinancialData`, `canCloseBooks`, or system admin |

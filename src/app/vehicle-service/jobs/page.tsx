@@ -32,7 +32,8 @@ interface JobListItem {
   customerPhone: string | null
   taskCount: number
   completedTaskCount: number
-  totalCustomerPrice: number
+  totalCustomerPrice?: number
+  paymentStatus: string | null
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -74,6 +75,7 @@ function VehicleServiceJobsPageContent() {
     }
   })
   const [statusFilter, setStatusFilter] = useState('')
+  const [awaitingPaymentOnly, setAwaitingPaymentOnly] = useState(false)
   const [search, setSearch] = useState(() => searchParams.get('search') || '')
   const [contractorFilter, setContractorFilter] = useState('')
   const [dateFrom, setDateFrom] = useState('')
@@ -87,7 +89,12 @@ function VehicleServiceJobsPageContent() {
     setError(null)
     try {
       const params = new URLSearchParams({ businessId: currentBusinessId })
-      if (statusFilter) params.append('status', statusFilter)
+      if (awaitingPaymentOnly) {
+        params.append('status', 'billed')
+        params.append('paymentStatus', 'PENDING')
+      } else if (statusFilter) {
+        params.append('status', statusFilter)
+      }
       if (search) params.append('search', search)
       if (contractorFilter) params.append('contractorId', contractorFilter)
       if (dateFrom) params.append('dateFrom', dateFrom)
@@ -101,7 +108,7 @@ function VehicleServiceJobsPageContent() {
     } finally {
       setLoading(false)
     }
-  }, [currentBusinessId, statusFilter, search, contractorFilter, dateFrom, dateTo])
+  }, [currentBusinessId, statusFilter, awaitingPaymentOnly, search, contractorFilter, dateFrom, dateTo])
 
   useEffect(() => { fetchJobs() }, [fetchJobs])
 
@@ -183,9 +190,9 @@ function VehicleServiceJobsPageContent() {
             {(['', 'open', 'in_progress', 'completed', 'billed', 'cancelled'] as const).map(s => (
               <button
                 key={s || 'all'}
-                onClick={() => setStatusFilter(s)}
+                onClick={() => { setStatusFilter(s); setAwaitingPaymentOnly(false) }}
                 className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                  statusFilter === s
+                  !awaitingPaymentOnly && statusFilter === s
                     ? 'bg-blue-600 text-white border-blue-600'
                     : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
                 }`}
@@ -193,6 +200,18 @@ function VehicleServiceJobsPageContent() {
                 {s === '' ? 'All' : s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}
               </button>
             ))}
+            {canSeeMoney && (
+              <button
+                onClick={() => { setAwaitingPaymentOnly(true); setStatusFilter('billed') }}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                  awaitingPaymentOnly
+                    ? 'bg-amber-600 text-white border-amber-600'
+                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
+                }`}
+              >
+                💰 Awaiting Payment
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Link
@@ -282,12 +301,17 @@ function VehicleServiceJobsPageContent() {
                       <span className={`px-2 py-1 text-xs font-semibold rounded-full ${STATUS_STYLES[j.status] || ''}`}>
                         {j.status.replace('_', ' ')}
                       </span>
+                      {j.status === 'billed' && j.paymentStatus === 'PENDING' && (
+                        <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full">
+                          💰 Awaiting Payment
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                       {j.completedTaskCount}/{j.taskCount} completed
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {formatCurrency(j.totalCustomerPrice)}
+                      {j.totalCustomerPrice !== undefined ? formatCurrency(j.totalCustomerPrice) : '—'}
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {new Date(j.createdAt).toLocaleDateString()}

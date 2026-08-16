@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
+import { canViewFinancials } from '@/lib/vehicle-service/permissions'
 
 // GET /api/vehicle-service/jobs?businessId=&status=&search=&contractorId=&dateFrom=&dateTo=
 // search matches: customer name/phone, vehicle make/model/plate, primary contractor name,
@@ -20,12 +21,14 @@ export async function GET(request: NextRequest) {
     const contractorId = searchParams.get('contractorId') || undefined
     const dateFrom = searchParams.get('dateFrom') || undefined
     const dateTo = searchParams.get('dateTo') || undefined
+    const paymentStatus = searchParams.get('paymentStatus') || undefined
     if (!businessId) return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
 
     if (!isSystemAdmin(user)) {
       const membership = await prisma.businessMemberships.findFirst({ where: { userId: user.id, businessId } })
       if (!membership) return NextResponse.json({ error: 'Access denied to this business' }, { status: 403 })
     }
+    const canSeeMoney = isSystemAdmin(user) || canViewFinancials(user, businessId)
 
     const createdAtFilter: any = {}
     if (dateFrom) createdAtFilter.gte = new Date(dateFrom)
@@ -62,6 +65,7 @@ export async function GET(request: NextRequest) {
     const where: any = {
       businessId,
       ...(jobStatus ? { status: jobStatus } : {}),
+      ...(paymentStatus ? { business_orders: { paymentStatus } } : {}),
       ...(Object.keys(createdAtFilter).length > 0 ? { createdAt: createdAtFilter } : {}),
       ...(andFilters.length > 0 ? { AND: andFilters } : {}),
     }
@@ -81,8 +85,9 @@ export async function GET(request: NextRequest) {
         vehicleReleasedAt: true,
         primaryContractor: { select: { id: true, persons: { select: { fullName: true } } } },
         business_customers: { select: { id: true, name: true, phone: true } },
+        business_orders: { select: { paymentStatus: true } },
         tasks: {
-          select: { id: true, status: true, agreedFeeAmount: true, customerPriceOverride: true },
+          select: { id: true, status: true, agreedFeeAmount: true, customerLabourRate: true, customerPriceOverride: true },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -96,6 +101,7 @@ export async function GET(request: NextRequest) {
         vehicleModel: j.vehicleModel,
         vehiclePlate: j.vehiclePlate,
         orderId: j.orderId,
+        paymentStatus: j.business_orders?.paymentStatus ?? null,
         createdAt: j.createdAt,
         jobCardPrintedAt: j.jobCardPrintedAt,
         jobCardReturnedAt: j.jobCardReturnedAt,
@@ -105,7 +111,11 @@ export async function GET(request: NextRequest) {
         customerPhone: j.business_customers?.phone ?? null,
         taskCount: j.tasks.length,
         completedTaskCount: j.tasks.filter(t => t.status === 'completed').length,
-        totalCustomerPrice: j.tasks.reduce((sum, t) => sum + Number(t.customerPriceOverride ?? t.agreedFeeAmount), 0),
+        // Financial figure — stripped server-side for anyone without financial
+        // access, same gate used throughout vehicle-service (see MBM-265).
+        totalCustomerPrice: canSeeMoney
+          ? j.tasks.reduce((sum, t) => sum + Number(t.customerPriceOverride ?? t.customerLabourRate ?? t.agreedFeeAmount), 0)
+          : undefined,
       })),
     })
   } catch (error) {

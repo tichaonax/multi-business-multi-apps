@@ -12,8 +12,12 @@ import { NationalIdInput } from '@/components/ui/national-id-input'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { JobCardPrintModal } from '@/components/vehicle-service/job-card-print-modal'
+import { InvoicePrintModal } from '@/components/vehicle-service/invoice-print-modal'
 
-const JOB_STATUSES = ['open', 'in_progress', 'completed', 'billed', 'cancelled']
+// "Billed" is deliberately excluded here — it's a consequence of actually
+// billing the job (Bill This Job), never a status a user picks directly.
+// It still displays via the separate "Billed" badge once job.orderId is set.
+const JOB_STATUSES = ['open', 'in_progress', 'completed', 'cancelled']
 const TASK_STATUSES = ['assigned', 'in_progress', 'completed']
 
 const TASK_STATUS_STYLES: Record<string, string> = {
@@ -57,6 +61,8 @@ export default function VehicleServiceJobDetailPage() {
   const [taskParts, setTaskParts] = useState<Array<{ productVariantId: string; name: string; quantity: number; stockQuantity: number }>>([])
   const [showBillModal, setShowBillModal] = useState(false)
   const [showJobCardModal, setShowJobCardModal] = useState(false)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [statusError, setStatusError] = useState<string | null>(null)
   const [editingNotes, setEditingNotes] = useState(false)
   const [notesInput, setNotesInput] = useState('')
   const [savingNotes, setSavingNotes] = useState(false)
@@ -285,11 +291,17 @@ export default function VehicleServiceJobDetailPage() {
   }
 
   const handleJobStatusChange = async (newStatus: string) => {
-    await fetch(`/api/vehicle-service/jobs/${jobId}`, {
+    setStatusError(null)
+    const res = await fetch(`/api/vehicle-service/jobs/${jobId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: newStatus }),
     })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      setStatusError(data.error || 'Failed to update job status')
+      return
+    }
     fetchJob()
   }
 
@@ -497,21 +509,29 @@ export default function VehicleServiceJobDetailPage() {
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
-                {JOB_STATUSES.map(s => (
-                  <button
-                    key={s}
-                    onClick={() => handleJobStatusChange(s)}
-                    disabled={job.status === 'billed'}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed ${
-                      job.status === s
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600'
-                    }`}
-                  >
-                    {s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                  </button>
-                ))}
+                {JOB_STATUSES.map(s => {
+                  const blockedReason =
+                    s === 'in_progress' && job.tasks.length === 0 ? 'Assign at least one task first'
+                    : s === 'completed' && !allTasksComplete ? 'All tasks must be completed first'
+                    : null
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => handleJobStatusChange(s)}
+                      disabled={job.status === 'billed' || (job.status !== s && !!blockedReason)}
+                      title={job.status !== s ? blockedReason ?? undefined : undefined}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg border disabled:opacity-50 disabled:cursor-not-allowed ${
+                        job.status === s
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600'
+                      }`}
+                    >
+                      {s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                    </button>
+                  )
+                })}
               </div>
+              {statusError && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{statusError}</p>}
               {allTasksComplete && job.status !== 'billed' && job.status !== 'cancelled' && (
                 <div className="mt-3 flex items-center gap-2 flex-wrap">
                   <span className="px-2 py-1 text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 rounded-full">
@@ -545,6 +565,14 @@ export default function VehicleServiceJobDetailPage() {
                   className="mt-3 ml-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800"
                 >
                   View Receipt
+                </button>
+              )}
+              {job.status === 'billed' && job.business_orders?.paymentStatus === 'PENDING' && canSeeMoney && (
+                <button
+                  onClick={() => setShowPaymentModal(true)}
+                  className="mt-3 ml-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium"
+                >
+                  💰 Collect Payment
                 </button>
               )}
               {job.status === 'billed' && job.business_orders?.paymentStatus === 'PAID' && (
@@ -871,6 +899,14 @@ export default function VehicleServiceJobDetailPage() {
         job={job}
         onClose={() => setShowJobCardModal(false)}
       />
+
+      {showPaymentModal && job && (
+        <CollectPaymentModal
+          job={job}
+          onClose={() => setShowPaymentModal(false)}
+          onPaid={() => { setShowPaymentModal(false); fetchJob() }}
+        />
+      )}
     </ContentLayout>
   )
 }
@@ -882,10 +918,16 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
   const [partsResults, setPartsResults] = useState<any[]>([])
   const [billParts, setBillParts] = useState<BillPart[]>([])
   const [otherCharges, setOtherCharges] = useState<Array<{ description: string; amount: string }>>([])
-  const [paymentMethod, setPaymentMethod] = useState('CASH')
+  const [discountInput, setDiscountInput] = useState('')
+  const [taxInput, setTaxInput] = useState('')
+  const [taxLabel, setTaxLabel] = useState('Tax')
+  const [taxRate, setTaxRate] = useState(0)
+  const [taxEnabled, setTaxEnabled] = useState(false)
+  const [taxManuallyEdited, setTaxManuallyEdited] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<{ orderNumber: string; totalAmount: number } | null>(null)
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false)
+  const [result, setResult] = useState<{ id: string; orderNumber: string; subtotal: number; taxAmount: number; discountAmount: number; totalAmount: number } | null>(null)
 
   const formatCurrency = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 
@@ -900,6 +942,21 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
     }, 300)
     return () => clearTimeout(t)
   }, [partsQuery, job.businessId])
+
+  // Fetch the business's own tax settings (same source POS checkout uses) to
+  // pre-fill a default — still a plain editable $ amount here, since labour
+  // rates aren't tax-inclusive retail prices the way product pricing is.
+  useEffect(() => {
+    fetch(`/api/universal/business-config?businessId=${job.businessId}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(config => {
+        if (!config) return
+        if (config.taxLabel) setTaxLabel(config.taxLabel)
+        setTaxEnabled(!!config.taxEnabled)
+        setTaxRate(Number(config.taxRate) || 0)
+      })
+      .catch(() => {})
+  }, [job.businessId])
 
   const addPart = (product: any) => {
     const variant = (product.product_variants || product.variants || [])[0]
@@ -920,7 +977,18 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
   const partsTotal = billParts.reduce((s, p) => s + p.unitPrice * p.quantity, 0)
   const issuedPartsTotal = (job.jobParts || []).reduce((s: number, jp: any) => s + Number(jp.unitPrice) * jp.quantity, 0)
   const otherTotal = otherCharges.reduce((s, c) => s + (parseFloat(c.amount) || 0), 0)
-  const grandTotal = labourTotal + partsTotal + issuedPartsTotal + otherTotal
+  const subtotal = labourTotal + partsTotal + issuedPartsTotal + otherTotal
+  const taxAmount = parseFloat(taxInput) || 0
+  const discountAmount = Math.min(parseFloat(discountInput) || 0, subtotal + taxAmount)
+  const grandTotal = subtotal + taxAmount - discountAmount
+
+  // Keep tax following the subtotal as parts/charges are added, until the
+  // user manually types their own value — then it's their call from then on.
+  useEffect(() => {
+    if (taxManuallyEdited || !taxEnabled || !taxRate) return
+    setTaxInput((subtotal * (taxRate / 100)).toFixed(2))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subtotal, taxEnabled, taxRate, taxManuallyEdited])
 
   const handleSubmit = async () => {
     setSubmitting(true)
@@ -932,7 +1000,8 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
         body: JSON.stringify({
           parts: billParts.map(p => ({ productVariantId: p.productVariantId, quantity: p.quantity })),
           otherCharges: otherCharges.filter(c => c.description && parseFloat(c.amount) > 0).map(c => ({ description: c.description, amount: parseFloat(c.amount) })),
-          paymentMethod,
+          discountAmount: discountAmount || undefined,
+          taxAmount: taxAmount || undefined,
         }),
       })
       const data = await res.json()
@@ -946,6 +1015,7 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
   }
 
   return (
+    <>
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75" onClick={submitting ? undefined : onClose} />
@@ -1039,25 +1109,50 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
                   </button>
                 </div>
 
-                {/* Payment method */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Payment Method</label>
-                  <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-                    {['CASH', 'CARD', 'MOBILE_MONEY', 'ECOCASH', 'BANK_TRANSFER'].map(m => <option key={m} value={m}>{m.replace('_', ' ')}</option>)}
-                  </select>
+                {/* Discount & tax */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Discount</label>
+                    <input
+                      type="number" min="0" step="0.01" placeholder="$0.00" value={discountInput}
+                      onChange={e => setDiscountInput(e.target.value)}
+                      className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{taxLabel}</label>
+                    <input
+                      type="number" min="0" step="0.01" placeholder="$0.00" value={taxInput}
+                      onChange={e => { setTaxInput(e.target.value); setTaxManuallyEdited(true) }}
+                      className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                  </div>
                 </div>
 
-                <div className="border-t border-gray-200 dark:border-gray-700 pt-2 flex justify-between text-base font-semibold text-gray-900 dark:text-white">
-                  <span>Total</span>
-                  <span>{formatCurrency(grandTotal)}</span>
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-2 space-y-0.5 text-sm text-gray-600 dark:text-gray-300">
+                  <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
+                  {taxAmount > 0 && <div className="flex justify-between"><span>{taxLabel}</span><span>{formatCurrency(taxAmount)}</span></div>}
+                  {discountAmount > 0 && <div className="flex justify-between text-amber-600 dark:text-amber-400"><span>Discount</span><span>-{formatCurrency(discountAmount)}</span></div>}
+                  <div className="flex justify-between text-base font-semibold text-gray-900 dark:text-white pt-1">
+                    <span>Total</span>
+                    <span>{formatCurrency(grandTotal)}</span>
+                  </div>
                 </div>
+
+                <p className="text-xs text-gray-400">This generates the customer invoice — payment is collected separately afterward, from this job's "Collect Payment" action.</p>
 
                 {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
               </>
             ) : (
-              <div className="text-center py-4">
-                <p className="text-green-700 dark:text-green-400 font-medium mb-1">✓ Job billed successfully</p>
-                <p className="text-sm text-gray-600 dark:text-gray-300">Receipt #{result.orderNumber} — {formatCurrency(result.totalAmount)}</p>
+              <div className="text-center py-4 space-y-3">
+                <div>
+                  <p className="text-green-700 dark:text-green-400 font-medium mb-1">✓ Invoice generated</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">Invoice #{result.orderNumber} — {formatCurrency(result.totalAmount)}</p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Awaiting payment — collect it from the job detail page once the customer pays.</p>
+                </div>
+                <button onClick={() => setShowInvoiceModal(true)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800">
+                  🖨️ Print Invoice
+                </button>
               </div>
             )}
           </div>
@@ -1069,7 +1164,7 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
                   Cancel
                 </button>
                 <button onClick={handleSubmit} disabled={submitting} className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-md text-sm font-medium">
-                  {submitting ? 'Processing...' : `Bill ${formatCurrency(grandTotal)}`}
+                  {submitting ? 'Generating...' : `Generate Invoice ${formatCurrency(grandTotal)}`}
                 </button>
               </>
             ) : (
@@ -1077,6 +1172,84 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
                 Done
               </button>
             )}
+          </div>
+        </div>
+      </div>
+    </div>
+    <InvoicePrintModal
+      isOpen={showInvoiceModal}
+      onClose={() => setShowInvoiceModal(false)}
+      job={job}
+      billParts={billParts}
+      otherCharges={otherCharges}
+      result={result}
+      taxLabel={taxLabel}
+    />
+    </>
+  )
+}
+
+const PAYMENT_METHODS = ['CASH', 'CARD', 'MOBILE_MONEY', 'ECOCASH', 'BANK_TRANSFER']
+
+// Step 2 of the two-step billing flow (see MBM-266) — a job that's already
+// been invoiced (paymentStatus PENDING) gets paid here, potentially by a
+// different user than the one who billed it (the customer walks the printed
+// invoice to a cashier). This is what actually credits the business account.
+function CollectPaymentModal({ job, onClose, onPaid }: { job: any; onClose: () => void; onPaid: () => void }) {
+  const [paymentMethod, setPaymentMethod] = useState('CASH')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const formatCurrency = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+  const totalAmount = Number(job.business_orders?.totalAmount ?? 0)
+
+  const handleSubmit = async () => {
+    setSubmitting(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/vehicle-service/jobs/${job.id}/collect-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentMethod }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error || 'Failed to process payment'); return }
+      onPaid()
+    } catch {
+      setError('Connection error — please try again')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75" onClick={submitting ? undefined : onClose} />
+        <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
+          <div className="bg-gray-50 dark:bg-gray-900 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white">Collect Payment</h3>
+          </div>
+          <div className="px-6 py-4 space-y-4 text-left">
+            <div className="flex justify-between text-base font-semibold text-gray-900 dark:text-white">
+              <span>Invoice {job.business_orders?.orderNumber}</span>
+              <span>{formatCurrency(totalAmount)}</span>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Payment Method</label>
+              <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m.replace('_', ' ')}</option>)}
+              </select>
+            </div>
+            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          </div>
+          <div className="bg-gray-50 dark:bg-gray-900 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+            <button onClick={onClose} disabled={submitting} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50">
+              Cancel
+            </button>
+            <button onClick={handleSubmit} disabled={submitting} className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-md text-sm font-medium">
+              {submitting ? 'Processing...' : `Confirm Payment ${formatCurrency(totalAmount)}`}
+            </button>
           </div>
         </div>
       </div>
