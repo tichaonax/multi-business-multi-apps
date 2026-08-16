@@ -455,6 +455,8 @@ function ContractorDetailModal({ contractorId, businessId, businessName, creator
   const [showLoginAudit, setShowLoginAudit] = useState(false)
   const [revokeReason, setRevokeReason] = useState('')
   const [showRevokeConfirm, setShowRevokeConfirm] = useState(false)
+  const [showResetPasswordForm, setShowResetPasswordForm] = useState(false)
+  const [resetPasswordInput, setResetPasswordInput] = useState('')
   const [loginActionLoading, setLoginActionLoading] = useState(false)
   const [loginActionError, setLoginActionError] = useState<string | null>(null)
   const [payoutPeriod, setPayoutPeriod] = useState(() => {
@@ -604,6 +606,7 @@ function ContractorDetailModal({ contractorId, businessId, businessName, creator
     })
     const data = await res.json()
     if (res.ok) {
+      setLoginForm({ email: '', password: '' })
       if (data.temporaryPassword) setTempPassword(data.temporaryPassword)
       fetchContractor()
       onChanged()
@@ -649,6 +652,30 @@ function ContractorDetailModal({ contractorId, businessId, businessName, creator
       const data = await res.json()
       if (!res.ok) { setLoginActionError(data.error || 'Failed to reactivate login'); return }
       fetchContractor()
+      if (showLoginAudit) fetchLoginAudit()
+    } finally {
+      setLoginActionLoading(false)
+    }
+  }
+
+  const handleResetPassword = async () => {
+    if (resetPasswordInput && resetPasswordInput.length < 6) {
+      setLoginActionError('Password must be at least 6 characters')
+      return
+    }
+    setLoginActionLoading(true)
+    setLoginActionError(null)
+    try {
+      const res = await fetch(`/api/vehicle-service/contractors/${contractorId}/reset-login-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: resetPasswordInput || undefined }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setLoginActionError(data.error || 'Failed to reset password'); return }
+      if (data.temporaryPassword) setTempPassword(data.temporaryPassword)
+      setResetPasswordInput('')
+      setShowResetPasswordForm(false)
       if (showLoginAudit) fetchLoginAudit()
     } finally {
       setLoginActionLoading(false)
@@ -762,17 +789,31 @@ function ContractorDetailModal({ contractorId, businessId, businessName, creator
                 {/* Login */}
                 <div>
                   <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Contractor Portal Login</h4>
+                  {tempPassword && (
+                    <div className="p-2 mb-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between gap-2">
+                      <span>Temporary password: <span className="font-mono font-semibold">{tempPassword}</span> — share securely, must be changed on first login.</span>
+                      <button onClick={() => setTempPassword(null)} className="shrink-0 text-amber-600 dark:text-amber-400 hover:underline">Dismiss</button>
+                    </div>
+                  )}
                   {contractor.users ? (
                     <div className="space-y-2">
                       {contractor.users.isActive ? (
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-sm text-green-700 dark:text-green-400">✓ Login active: {contractor.users.email}</p>
-                          <button
-                            onClick={() => { setShowRevokeConfirm(true); setLoginActionError(null) }}
-                            className="px-2 py-1 text-xs font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
-                          >
-                            Revoke Access
-                          </button>
+                          <div className="flex gap-2 shrink-0">
+                            <button
+                              onClick={() => { setShowResetPasswordForm(true); setLoginActionError(null) }}
+                              className="px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
+                            >
+                              Reset Password
+                            </button>
+                            <button
+                              onClick={() => { setShowRevokeConfirm(true); setLoginActionError(null) }}
+                              className="px-2 py-1 text-xs font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
+                            >
+                              Revoke Access
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div className="flex items-center justify-between gap-2">
@@ -785,13 +826,39 @@ function ContractorDetailModal({ contractorId, businessId, businessName, creator
                               </p>
                             )}
                           </div>
-                          <button
-                            onClick={handleReactivateLogin}
-                            disabled={loginActionLoading}
-                            className="px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded"
-                          >
-                            {loginActionLoading ? 'Reactivating…' : 'Reactivate'}
-                          </button>
+                          <div className="flex gap-2 shrink-0">
+                            <button
+                              onClick={() => { setShowResetPasswordForm(true); setLoginActionError(null) }}
+                              className="px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700"
+                            >
+                              Reset Password
+                            </button>
+                            <button
+                              onClick={handleReactivateLogin}
+                              disabled={loginActionLoading}
+                              className="px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded"
+                            >
+                              {loginActionLoading ? 'Reactivating…' : 'Reactivate'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {showResetPasswordForm && (
+                        <div className="p-2 border border-gray-200 dark:border-gray-700 rounded bg-gray-50 dark:bg-gray-900 space-y-2">
+                          <input
+                            type="password" placeholder="New password (optional — leave blank to auto-generate)" value={resetPasswordInput}
+                            onChange={e => setResetPasswordInput(e.target.value)}
+                            className="w-full text-xs px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          />
+                          <div className="flex gap-2">
+                            <button onClick={handleResetPassword} disabled={loginActionLoading} className="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded">
+                              {loginActionLoading ? 'Resetting…' : 'Set New Password'}
+                            </button>
+                            <button onClick={() => { setShowResetPasswordForm(false); setResetPasswordInput('') }} disabled={loginActionLoading} className="px-3 py-1 text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700">
+                              Cancel
+                            </button>
+                          </div>
                         </div>
                       )}
 
@@ -828,7 +895,7 @@ function ContractorDetailModal({ contractorId, businessId, businessName, creator
                           {loginAudit.map(entry => (
                             <div key={entry.id} className="text-xs text-gray-600 dark:text-gray-300 flex justify-between gap-2">
                               <span>
-                                {entry.action === 'CREATE' ? 'Login created' : entry.action === 'ACCOUNT_LOCKED' ? 'Access revoked' : entry.action === 'ACCOUNT_UNLOCKED' ? 'Access reactivated' : entry.action}
+                                {entry.action === 'CREATE' ? 'Login created' : entry.action === 'ACCOUNT_LOCKED' ? 'Access revoked' : entry.action === 'ACCOUNT_UNLOCKED' ? 'Access reactivated' : entry.action === 'PASSWORD_RESET' ? 'Password reset' : entry.action}
                                 {entry.reason ? ` — ${entry.reason}` : ''}
                                 {entry.performedBy ? ` (by ${entry.performedBy.name})` : ''}
                               </span>
@@ -840,15 +907,12 @@ function ContractorDetailModal({ contractorId, businessId, businessName, creator
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {tempPassword && (
-                        <div className="p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded text-xs text-amber-800 dark:text-amber-300">
-                          Temporary password: <span className="font-mono font-semibold">{tempPassword}</span> — share securely, must be changed on first login.
-                        </div>
-                      )}
                       <div className="flex gap-2">
                         <input placeholder="Login email" value={loginForm.email} onChange={e => setLoginForm({ ...loginForm, email: e.target.value })}
                           className="flex-1 text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-                        <button onClick={handleCreateLogin} className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded">Create Login</button>
+                        <input type="password" placeholder="Password (optional)" value={loginForm.password} onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
+                          className="flex-1 text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                        <button onClick={handleCreateLogin} className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded whitespace-nowrap">Create Login</button>
                       </div>
                       <p className="text-xs text-gray-400">Leave password blank to auto-generate a temporary one.</p>
                     </div>

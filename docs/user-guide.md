@@ -12166,8 +12166,19 @@ This creates the contractor's core record. Click into it (or the row) to **Manag
 | **Status** | Active / Retired / Disabled. Retired and disabled contractors are automatically excluded from every job-assignment picker — they cannot be given new work, but their history and past payouts are preserved. |
 | **Skills & Certifications** | Free-text list — skill name plus an optional certification note (e.g. "ASE Certified"). Informational only; does not gate what they can be assigned. |
 | **Authorized Services & Fees** | The specific services this contractor is qualified to perform, each with **their own agreed fee**. A contractor can hold many authorized services. Only services they're authorized for (and only while Active) appear when assigning them to a job task. |
-| **Contractor Portal Login** | Creates the contractor's login (email + optional password — leave password blank to auto-generate a temporary one that must be changed on first sign-in). This is a normal user account, but it is **not** given membership in the business the way an employee account would be — it can only ever reach the Contractor Portal, nothing else. Once created, **Revoke Access** blocks sign-in immediately (with an optional reason) without touching the contractor's profile, tasks, or payout history — fully reversible via **Reactivate**. **View login history** shows every create/revoke/reactivate event with who did it and when. |
+| **Contractor Portal Login** | Creates, revokes, resets, and audits the contractor's own sign-in — see [Contractor Portal Login Management](#contractor-portal-login-management) below. |
 | **Monthly Payout** | See [Monthly Contractor Payments](#monthly-contractor-payments) below. |
+
+### Contractor Portal Login Management
+
+This is a normal user account, but it is **not** given membership in the business the way an employee account would be — it can only ever reach the Contractor Portal, nothing else.
+
+- **Create Login**: enter an email and, optionally, a password. Leave the password field blank to have the system generate a random temporary one instead — either way, both fields are right there on the form. An auto-generated password must be changed by the contractor the first time they actually sign in; a password you type in yourself is **not** forced to change.
+- **Temporary password display**: if a password was auto-generated (at creation, or later via Reset Password), it's shown **once**, in an amber banner at the top of this section — copy it and share it with the contractor securely (it's never shown or retrievable again after you navigate away or click Dismiss). This banner stays visible regardless of whether the login is currently active or revoked.
+- **Reset Password**: available any time a login exists, whether active or revoked — lets a manager set a specific new password, or leave it blank to generate a fresh temporary one (same behavior as creation). Useful when a contractor forgets their password or a temporary one needs replacing.
+- **Revoke Access**: blocks sign-in to the Contractor Portal immediately (with an optional reason). Their profile, skills, authorized services, tasks, and payout history are completely untouched — this only stops them signing in. Fully reversible.
+- **Reactivate**: restores a revoked login immediately.
+- **View login history**: expands a list of every login event — created, revoked, reactivated, password reset — each showing who did it and when, and the reason if one was given.
 
 ### Assigning Jobs & Tasks
 
