@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { canViewFinancials } from '@/lib/vehicle-service/permissions'
+import { checkAndEscalateStaleJobs } from '@/lib/vehicle-service/notify'
 
 // GET /api/vehicle-service/jobs?businessId=&status=&search=&contractorId=&dateFrom=&dateTo=
 // search matches: customer name/phone, vehicle make/model/plate, primary contractor name,
@@ -29,6 +30,11 @@ export async function GET(request: NextRequest) {
       if (!membership) return NextResponse.json({ error: 'Access denied to this business' }, { status: 403 })
     }
     const canSeeMoney = isSystemAdmin(user) || canViewFinancials(user, businessId)
+
+    // Lazy escalation check — runs whenever the Jobs list is loaded, no cron
+    // needed (see src/lib/vehicle-service/notify.ts). Fire-and-forget so a
+    // slow notification pass never delays the page.
+    checkAndEscalateStaleJobs(businessId)
 
     const createdAtFilter: any = {}
     if (dateFrom) createdAtFilter.gte = new Date(dateFrom)

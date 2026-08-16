@@ -12299,6 +12299,13 @@ This creates the order (visible in **Receipt History** like any other sale, with
 
 Billing produces the receipt, but handing the vehicle back is a separate, deliberate step. Once a job is **Billed** and its payment status is **Paid**, a **Release Vehicle** button appears on the job detail page. Clicking it records who released the vehicle and when — the job detail page then shows "Vehicle released" going forward. This can't be done before payment is confirmed, and can't be repeated once a vehicle has been released.
 
+### Bell Notifications
+
+Two situations in the vehicle-service workflow raise a bell notification (top-right of every page) automatically, using the same notification system as the rest of the app:
+
+- **Invoice awaiting payment** 🧾 — the moment a job is billed (Step 1 above), everyone with financial-data access in the business is notified that an invoice is sitting there ready for Step 2. Clicking the notification opens the job directly.
+- **Job not started** ⏰ — if a job has been sitting **Open** for more than 24 hours with no task ever moved to In Progress, everyone who can manage contractor assignments is notified so someone can follow up. This check runs automatically whenever the Jobs list is loaded (no separate schedule to configure), and won't repeat for the same job more than once a day.
+
 ### Monthly Contractor Payments
 
 From a contractor's detail screen (**Contractors → select contractor → Monthly Payout**):

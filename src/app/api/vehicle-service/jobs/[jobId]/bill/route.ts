@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
+import { notifyJobBilled } from '@/lib/vehicle-service/notify'
 
 function generateOrderNumber(orderCount: number): string {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
@@ -264,6 +265,8 @@ export async function POST(
     // Business account is credited when payment is actually collected
     // (POST .../collect-payment), not here — crediting revenue before the
     // customer has paid would misstate real cash position. See MBM-266.
+
+    notifyJobBilled(job.id, job.businessId, result.orderNumber, totalAmount)
 
     return NextResponse.json({
       success: true,
