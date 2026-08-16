@@ -11,6 +11,7 @@ import { useAlert, useConfirm, usePrompt } from '@/components/ui/confirm-modal';
 import { fitTemplateName } from '@/lib/text-abbreviation';
 import { Barcode, X } from 'lucide-react';
 import { globalBarcodeService } from '@/lib/services/global-barcode-service';
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context';
 
 interface PrintJob {
   id: string;
@@ -52,7 +53,10 @@ export default function PrintJobsPage() {
   const prompt = usePrompt();
   const [printJobs, setPrintJobs] = useState<PrintJob[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedBusinessId, setSelectedBusinessId] = useState<string>('all');
+  const { currentBusinessId } = useBusinessPermissionsContext();
+  // Default to the business currently selected in the header — same
+  // scoping rule as the barcode management dashboard.
+  const [selectedBusinessId, setSelectedBusinessId] = useState<string>(currentBusinessId || 'all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [businesses, setBusinesses] = useState<any[]>([]);
@@ -68,6 +72,15 @@ export default function PrintJobsPage() {
   const lastKeypressTimeRef = useRef<number>(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const scanTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // currentBusinessId resolves asynchronously (session/context load) so the
+  // initial useState value above is often still empty on first render —
+  // apply it as soon as it arrives.
+  useEffect(() => {
+    if (currentBusinessId) {
+      setSelectedBusinessId(currentBusinessId);
+    }
+  }, [currentBusinessId]);
 
   useEffect(() => {
     fetchBusinesses();
