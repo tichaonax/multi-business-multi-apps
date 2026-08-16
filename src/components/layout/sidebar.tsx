@@ -41,6 +41,7 @@ const businessTypeModules = [
   { type: 'services', icon: '💼', name: 'Services' },
   { type: 'retail', icon: '🏪', name: 'Retail' },
   { type: 'consulting', icon: '📊', name: 'Consulting' },
+  { type: 'vehicle_service', icon: '🚗', name: 'Vehicle Service' },
 ]
 
 // Helper function to get icon for any business type
@@ -1226,8 +1227,15 @@ export function Sidebar() {
               </>
             )}
 
-            {/* Coupon Management — shown for any business type with coupons enabled */}
-            {currentBusiness.couponsEnabled && (isSystemAdmin(currentUser) || hasPermission('canManageCoupons')) && (
+            {/* Coupon Management — shown for business types with a coupons page
+                (clothing/grocery/restaurant only). The link used to build its
+                href from the raw businessType string, which 404'd for any
+                type whose route slug doesn't match 1:1 (e.g. vehicle_service
+                -> /vehicle_service/coupons instead of /vehicle-service/...,
+                and hardware/construction/services have no coupons page at all). */}
+            {currentBusiness.couponsEnabled &&
+              ['clothing', 'grocery', 'restaurant'].includes(currentBusiness.businessType) &&
+              (isSystemAdmin(currentUser) || hasPermission('canManageCoupons')) && (
               <Link href={`/${currentBusiness.businessType}/coupons`} className={getLinkClasses(`/${currentBusiness.businessType}/coupons`)}>
                 <span className="text-lg">🏷️</span>
                 <span>Coupon Management</span>

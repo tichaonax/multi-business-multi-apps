@@ -43,6 +43,9 @@ export async function PATCH(
     if (task.status === 'completed') {
       return NextResponse.json({ error: 'This task is already marked complete' }, { status: 409 })
     }
+    if (task.job.status === 'billed' || task.job.status === 'cancelled') {
+      return NextResponse.json({ error: `Cannot change a task on a ${task.job.status} job` }, { status: 409 })
+    }
 
     const updated = await prisma.vehicleServiceTasks.update({
       where: { id: taskId },

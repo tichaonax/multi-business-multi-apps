@@ -100,7 +100,11 @@ export function MobileSidebar() {
   const handleSelectBusiness = (businessId: string, businessType: string) => {
     switchBusiness(businessId)
     setIsOpen(false)
-    window.location.href = `/${businessType}`
+    // vehicle_service has no page at /vehicle_service OR /vehicle-service
+    // (only nested routes like /vehicle-service/jobs exist) — same
+    // short-circuit the desktop header's switch-business handler already
+    // uses (getBusinessNavigationPath in global-header.tsx).
+    window.location.href = businessType === 'vehicle_service' ? '/vehicle-service/jobs' : `/${businessType}`
   }
 
   const close = () => setIsOpen(false)

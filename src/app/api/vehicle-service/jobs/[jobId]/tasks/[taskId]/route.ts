@@ -38,6 +38,13 @@ export async function PATCH(
     if (status && !VALID_TASK_STATUSES.includes(status)) {
       return NextResponse.json({ error: `status must be one of ${VALID_TASK_STATUSES.join(', ')}` }, { status: 400 })
     }
+    // A billed job is a locked, receipted record — its tasks (which the
+    // invoice was generated from) can't retroactively change underneath it.
+    // Same rule the job's own status PATCH and the Known-Parts-attach route
+    // already enforce; this endpoint had no such guard at all.
+    if ((status || workDescription !== undefined) && (task.job.status === 'billed' || task.job.status === 'cancelled')) {
+      return NextResponse.json({ error: `Cannot change a task on a ${task.job.status} job` }, { status: 409 })
+    }
 
     const updated = await prisma.vehicleServiceTasks.update({
       where: { id: taskId },
@@ -83,7 +90,7 @@ export async function DELETE(
     const { jobId, taskId } = await params
     const task = await prisma.vehicleServiceTasks.findUnique({
       where: { id: taskId },
-      include: { job: { select: { businessId: true } } },
+      include: { job: { select: { businessId: true, status: true } } },
     })
     if (!task || task.jobId !== jobId) return NextResponse.json({ error: 'Task not found' }, { status: 404 })
 
@@ -94,6 +101,9 @@ export async function DELETE(
 
     if (task.status === 'completed') {
       return NextResponse.json({ error: 'A completed task cannot be removed' }, { status: 409 })
+    }
+    if (task.job.status === 'billed' || task.job.status === 'cancelled') {
+      return NextResponse.json({ error: `Cannot remove a task on a ${task.job.status} job` }, { status: 409 })
     }
 
     await prisma.vehicleServiceTasks.delete({ where: { id: taskId } })

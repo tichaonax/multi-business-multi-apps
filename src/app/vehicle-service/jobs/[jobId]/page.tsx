@@ -420,11 +420,17 @@ export default function VehicleServiceJobDetailPage() {
   }
 
   const handleTaskStatusChange = async (taskId: string, newStatus: string) => {
-    await fetch(`/api/vehicle-service/jobs/${jobId}/tasks/${taskId}`, {
+    setStatusError(null)
+    const res = await fetch(`/api/vehicle-service/jobs/${jobId}/tasks/${taskId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: newStatus }),
     })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      setStatusError(data.error || 'Failed to update task status')
+      return
+    }
     fetchJob()
   }
 
@@ -706,20 +712,25 @@ export default function VehicleServiceJobDetailPage() {
                         </span>
                       </div>
                       <div className="flex items-center gap-2 mt-2">
-                        {TASK_STATUSES.map(s => (
-                          <button
-                            key={s}
-                            onClick={() => handleTaskStatusChange(t.id, s)}
-                            className={`px-2 py-1 text-[11px] rounded border ${
-                              t.status === s
-                                ? 'bg-blue-600 text-white border-blue-600'
-                                : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600'
-                            }`}
-                          >
-                            {s.replace('_', ' ')}
-                          </button>
-                        ))}
-                        {t.status !== 'completed' && (
+                        {TASK_STATUSES.map(s => {
+                          const locked = job.status === 'billed' || job.status === 'cancelled'
+                          return (
+                            <button
+                              key={s}
+                              onClick={() => handleTaskStatusChange(t.id, s)}
+                              disabled={locked}
+                              title={locked ? `This job is ${job.status} — tasks can no longer be changed` : undefined}
+                              className={`px-2 py-1 text-[11px] rounded border ${
+                                t.status === s
+                                  ? 'bg-blue-600 text-white border-blue-600'
+                                  : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600'
+                              } ${locked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                              {s.replace('_', ' ')}
+                            </button>
+                          )
+                        })}
+                        {t.status !== 'completed' && job.status !== 'billed' && job.status !== 'cancelled' && (
                           <button onClick={() => handleRemoveTask(t.id)} className="ml-auto text-[11px] text-red-500 hover:underline">
                             Remove
                           </button>
