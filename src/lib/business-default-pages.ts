@@ -24,6 +24,7 @@ export function getDefaultPageOptions(businessType: string): DefaultPageOption[]
       { value: 'home', label: 'Jobs', icon: '🛠️', path: '/vehicle-service/jobs' },
       { value: 'pos', label: 'POS System', icon: '🚗', path: '/universal/pos' },
       { value: 'customers', label: 'Customers', icon: '🧑‍🤝‍🧑', path: '/vehicle-service/customers' },
+      { value: 'parts', label: 'Parts Inventory', icon: '🧰', path: '/vehicle-service/parts' },
       { value: 'contractors', label: 'Contractors', icon: '🔧', path: '/vehicle-service/contractors' },
       { value: 'parts-requests', label: 'Parts Requests', icon: '📦', path: '/vehicle-service/parts-requests' },
       { value: 'labour-rates', label: 'Labour Rates', icon: '💵', path: '/vehicle-service/labour-rates' },

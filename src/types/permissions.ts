@@ -346,6 +346,21 @@ export interface CoreBusinessPermissions {
 }
 
 // Business-Type-Specific Permission Modules
+
+// Vehicle Parts Inventory (MBM-268) — finer-grained tiers than the generic
+// canManageInventory/canZeroOutInventory flags: Staff can receive stock and
+// process returns day-to-day; only Managers/Admins can transfer, adjust,
+// write off, or reprice. Populated per-role in getMembershipPermissions()
+// (see VEHICLE_SERVICE_PERMISSION_PRESETS below), not hand-set per business.
+export interface VehicleServicePermissions {
+  canReceiveStock: boolean;
+  canProcessReturns: boolean;
+  canTransferStock: boolean;
+  canAdjustStock: boolean;
+  canWriteOffStock: boolean;
+  canSetPartPricing: boolean;
+}
+
 export interface ClothingPermissions {
   // Project Management
   canViewProjects: boolean;
@@ -926,6 +941,7 @@ export interface BusinessPermissions extends UserLevelPermissions, CoreBusinessP
   construction?: ConstructionPermissions;
   grocery?: GroceryPermissions;
   consulting?: ConsultingPermissions;
+  vehicle_service?: VehicleServicePermissions;
 }
 
 // Business type definitions
@@ -3455,6 +3471,51 @@ export const RESTAURANT_ASSOCIATE_USER_PERMISSIONS: UserLevelPermissions = {
   canZeroOutInventory: false,
   canManageAssets: false,
   canManageExpiryActions: false,
+};
+
+// Vehicle Parts Inventory (MBM-268) role presets — layered onto
+// BusinessPermissions.vehicle_service only for vehicle_service-businessType
+// memberships (see getMembershipPermissions in permission-utils.ts). Kept as
+// its own small role-keyed map rather than added to every existing preset
+// object above, since those presets are business-type-agnostic.
+const VEHICLE_SERVICE_MANAGER_PERMISSIONS: VehicleServicePermissions = {
+  canReceiveStock: true,
+  canProcessReturns: true,
+  canTransferStock: true,
+  canAdjustStock: true,
+  canWriteOffStock: true,
+  canSetPartPricing: true,
+};
+
+const VEHICLE_SERVICE_STAFF_PERMISSIONS: VehicleServicePermissions = {
+  canReceiveStock: true,
+  canProcessReturns: true,
+  canTransferStock: false,
+  canAdjustStock: false,
+  canWriteOffStock: false,
+  canSetPartPricing: false,
+};
+
+const VEHICLE_SERVICE_NO_ACCESS_PERMISSIONS: VehicleServicePermissions = {
+  canReceiveStock: false,
+  canProcessReturns: false,
+  canTransferStock: false,
+  canAdjustStock: false,
+  canWriteOffStock: false,
+  canSetPartPricing: false,
+};
+
+export const VEHICLE_SERVICE_PERMISSION_PRESETS: Record<string, VehicleServicePermissions> = {
+  'business-owner': VEHICLE_SERVICE_MANAGER_PERMISSIONS,
+  'business-manager': VEHICLE_SERVICE_MANAGER_PERMISSIONS,
+  'system-admin': VEHICLE_SERVICE_MANAGER_PERMISSIONS,
+  'employee': VEHICLE_SERVICE_STAFF_PERMISSIONS,
+  'restaurant-associate': VEHICLE_SERVICE_STAFF_PERMISSIONS,
+  'grocery-associate': VEHICLE_SERVICE_STAFF_PERMISSIONS,
+  'clothing-associate': VEHICLE_SERVICE_STAFF_PERMISSIONS,
+  'salesperson': VEHICLE_SERVICE_STAFF_PERMISSIONS,
+  'delivery-driver': VEHICLE_SERVICE_NO_ACCESS_PERMISSIONS,
+  'read-only': VEHICLE_SERVICE_NO_ACCESS_PERMISSIONS,
 };
 
 // Permission presets for easy management

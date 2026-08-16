@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
+import { checkAndNotifyLowStockForVariant } from '@/lib/inventory/low-stock-notifier'
 
 // POST /api/vehicle-service/jobs/[jobId]/parts
 // Body: { productVariantId, quantity }
@@ -45,7 +46,7 @@ export async function POST(
 
     const variant = await prisma.productVariants.findUnique({
       where: { id: productVariantId },
-      include: { business_products: { select: { businessId: true, basePrice: true, name: true } } },
+      include: { business_products: { select: { businessId: true, basePrice: true, costPrice: true, name: true } } },
     })
     if (!variant) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     if (variant.business_products.businessId !== job.businessId) {
@@ -55,7 +56,11 @@ export async function POST(
       return NextResponse.json({ error: `Insufficient stock for ${variant.business_products.name} (have ${variant.stockQuantity}, need ${quantity})` }, { status: 400 })
     }
 
+    // Customer-facing price (job part / order item) vs. actual cost (stock
+    // movement unitCost) — these were being conflated before MBM-268, which
+    // silently zeroed out profit reporting for every known-parts attach.
     const unitPrice = Number(variant.price ?? variant.business_products.basePrice ?? 0)
+    const unitCost = Number(variant.business_products.costPrice ?? 0)
 
     const jobPart = await prisma.$transaction(async (tx) => {
       await tx.productVariants.update({
@@ -67,9 +72,12 @@ export async function POST(
         data: {
           businessId: job.businessId,
           productVariantId,
-          movementType: 'SALE',
+          businessProductId: variant.productId,
+          // MBM-268 — parts consumed on a job are distinct from a direct
+          // sale, so reporting can separate the two.
+          movementType: 'SERVICE_USE',
           quantity: -quantity,
-          unitCost: unitPrice,
+          unitCost,
           reference: `Job ${jobId.slice(0, 8)} — part added at task creation`,
           businessType: 'vehicle_service',
           attributes: { vehicleServiceJobId: job.id },
@@ -86,6 +94,8 @@ export async function POST(
         include: { productVariant: { select: { id: true, business_products: { select: { name: true } } } } },
       })
     })
+
+    await checkAndNotifyLowStockForVariant(prisma, productVariantId, job.businessId)
 
     return NextResponse.json({ success: true, jobPart })
   } catch (error) {

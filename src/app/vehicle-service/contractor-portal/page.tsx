@@ -52,6 +52,9 @@ export default function ContractorPortalPage() {
   const [requestingTaskId, setRequestingTaskId] = useState<string | null>(null)
   const [partForm, setPartForm] = useState({ description: '', quantity: '1' })
   const [partSubmitting, setPartSubmitting] = useState(false)
+  // Read-only "view available parts" while typing a request (MBM-268) — the
+  // request itself stays free-text, this just shows what's actually in stock.
+  const [availableParts, setAvailableParts] = useState<Array<{ id: string; name: string; category: string | null; inStock: boolean; stockQuantity: number }>>([])
   const [partError, setPartError] = useState<string | null>(null)
 
   const fetchTasks = useCallback(async () => {
@@ -79,6 +82,18 @@ export default function ContractorPortalPage() {
 
   useEffect(() => { fetchTasks() }, [fetchTasks])
   useEffect(() => { fetchPartsRequests() }, [fetchPartsRequests])
+
+  useEffect(() => {
+    if (!requestingTaskId || !partForm.description.trim()) { setAvailableParts([]); return }
+    const t = setTimeout(async () => {
+      const res = await fetch(`/api/vehicle-service/contractor-portal/parts?search=${encodeURIComponent(partForm.description.trim())}`)
+      if (res.ok) {
+        const data = await res.json()
+        setAvailableParts(data.parts || [])
+      }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [partForm.description, requestingTaskId])
 
   const handleRequestPart = async (task: PortalTask) => {
     if (!partForm.description.trim()) { setPartError('Describe the part you need'); return }
@@ -256,6 +271,23 @@ export default function ContractorPortalPage() {
                     placeholder="What part do you need? (e.g. front brake pads)"
                     className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
+                  {availableParts.length > 0 && (
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-700 max-h-40 overflow-y-auto">
+                      {availableParts.map(p => (
+                        <button
+                          type="button"
+                          key={p.id}
+                          onClick={() => setPartForm({ ...partForm, description: p.name })}
+                          className="w-full text-left px-2 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-between gap-2"
+                        >
+                          <span className="text-gray-700 dark:text-gray-300">{p.name}{p.category ? ` — ${p.category}` : ''}</span>
+                          <span className={p.inStock ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                            {p.inStock ? `${p.stockQuantity} in stock` : 'Out of stock'}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex items-center gap-2">
                     <input
                       type="number" min="1" value={partForm.quantity}

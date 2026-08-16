@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { notifyJobBilled } from '@/lib/vehicle-service/notify'
+import { checkAndNotifyLowStockForVariant } from '@/lib/inventory/low-stock-notifier'
 
 function generateOrderNumber(orderCount: number): string {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')
@@ -85,7 +86,7 @@ export async function POST(
       const variantIds = partsInput.map(p => p.productVariantId)
       variants = await prisma.productVariants.findMany({
         where: { id: { in: variantIds } },
-        include: { business_products: { select: { productType: true, businessId: true, name: true } } },
+        include: { business_products: { select: { productType: true, businessId: true, name: true, costPrice: true } } },
       })
       for (const p of partsInput) {
         const v = variants.find(v => v.id === p.productVariantId)
@@ -112,13 +113,16 @@ export async function POST(
       contractorId: t.contractorId,
     }))
     // customerUnitPrice is what the invoice charges — forced to $0 on a
-    // parts-waived rework job (MBM-267). unitPrice (the real price) is kept
-    // separately and always used for the stock movement's unitCost below, so
-    // inventory/COGS tracking stays accurate even when the customer isn't billed.
+    // parts-waived rework job (MBM-267). unitCost is the actual cost (not
+    // the selling price — conflating the two here previously zeroed out
+    // profit reporting, MBM-268) and is always used for the stock
+    // movement, so inventory/COGS tracking stays accurate even when the
+    // customer isn't billed.
     const partLines = partsInput.map(p => {
       const v = variants.find(v => v.id === p.productVariantId)
       const unitPrice = Number(v.price ?? v.business_products?.basePrice ?? 0)
-      return { variantId: p.productVariantId, quantity: p.quantity, unitPrice, customerUnitPrice: job.waiveParts ? 0 : unitPrice, name: v.business_products.name }
+      const unitCost = Number(v.business_products?.costPrice ?? 0)
+      return { variantId: p.productVariantId, productId: v.productId, quantity: p.quantity, unitPrice, unitCost, customerUnitPrice: job.waiveParts ? 0 : unitPrice, name: v.business_products.name }
     })
     // Already-issued parts (Inventory Department fulfilled a contractor's request) —
     // billed at their recorded price, stock is NOT decremented again here.
@@ -224,9 +228,12 @@ export async function POST(
           data: {
             businessId: job.businessId,
             productVariantId: p.variantId,
-            movementType: 'SALE',
+            businessProductId: p.productId,
+            // MBM-268 — billed as part of a repair job, so this is
+            // consumption on a job, not a direct over-the-counter sale.
+            movementType: 'SERVICE_USE',
             quantity: -p.quantity,
-            unitCost: p.unitPrice,
+            unitCost: p.unitCost,
             reference: orderNumber,
             employeeId: employee?.id ?? null,
             businessType: 'vehicle_service',
@@ -279,6 +286,9 @@ export async function POST(
     // customer has paid would misstate real cash position. See MBM-266.
 
     notifyJobBilled(job.id, job.businessId, result.orderNumber, totalAmount)
+    for (const p of partLines) {
+      checkAndNotifyLowStockForVariant(prisma, p.variantId, job.businessId)
+    }
 
     return NextResponse.json({
       success: true,

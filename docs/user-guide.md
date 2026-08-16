@@ -12253,6 +12253,31 @@ Contractors don't have inventory access or pricing visibility, so they can't loo
 
 The job detail page shows a **Parts** panel listing everything issued plus any pending or rejected requests, so staff always have visibility into what's been requested and fulfilled for a job.
 
+### Parts Inventory
+
+A dedicated **Parts Inventory** page (sidebar link, next to Jobs and Customers) is where vehicle parts — the same parts jobs pull from above — get created, stocked, and searched. It's built on the app's normal product catalog, so every part here is also a normal, scannable, sellable inventory item; nothing about it is a separate system.
+
+**Categories** are organized under two domains: **🧰 Parts and Accessories Sales** (everything sellable — filters, fluids, engine parts, brakes, electrical, tires, body, interior, and more) and **🔧 Workshop Inventory** (hand tools, workshop equipment, and consumables like gloves and shop towels — tracked for internal use, never sold to a customer).
+
+**Adding a part** (**+ Add Part**, or **📷 Scan** a barcode that isn't recognized yet — both reuse the exact same scanner and quick-registration flow every other business type already uses): fill in name, SKU, category, price, and optionally brand, supplier, storage location, condition, OEM/Aftermarket, and reorder level. **Vehicle Compatibility** rows let one part be tagged as fitting several vehicles (make, model, year range, engine, transmission) — a generic oil filter that fits five different cars only needs five compatibility rows, not five separate inventory items.
+
+**Duplicate check**: before creating a part, the system looks for close matches (same category plus a similar name, brand, or vehicle) and shows them instead of creating a new item blind — pick **👁️ View existing** to check it, or a manager/admin can click **🆕 Create new anyway** to proceed regardless.
+
+**Searching and filtering** covers name, SKU, barcode, vehicle make/model/year, domain, category, condition, OEM/Aftermarket, and stock status (In Stock / Low Stock / Out of Stock).
+
+**Stock actions**, from a part's detail page (financial-tier permissions apply — see below):
+- **➕ Receive Stock** — record new stock coming in, with cost and a reference (PO number, invoice, etc.)
+- **↩️ Process Return** — a customer bringing a part back (stock goes up) or a return to the supplier (stock goes down)
+- **🧰 Internal Use** — a workshop consumable used day-to-day, not charged to anyone
+- **🧾 Adjust Stock** — a manager-level correction (a miscount, found stock), always with a required reason
+- **💥 Write Off** — damaged, lost, or stolen stock, always with a required reason
+
+Every one of these creates a permanent, timestamped movement record shown on the part's own **Stock Movement History** — quantities never change silently. A low-stock bell notification fires automatically the same way it already does for every other business type's inventory, the moment a write-off or adjustment pushes a part to or below its reorder level.
+
+**Permissions**: Staff can receive stock and process returns as part of normal day-to-day work. Only Managers/Administrators can transfer stock between businesses, adjust quantities, write off stock, or change pricing — Technicians (contractors) can search available parts from their own portal (to know what's in stock before requesting one — see Parts Requests above) but never see cost or selling prices, and can't touch stock levels or pricing at all.
+
+**Reports** (**📊 Reports**, from the Parts Inventory page): a **Stock Report** (current levels, low/out-of-stock counts, recent write-offs, by location) and a **Sales & Profit Report** (date-range filtered — quantity sold directly vs. used on a repair job, revenue, cost, gross profit and margin, best/worst sellers, and profit by vehicle make/model, sourced from the actual vehicle a part was used on). Both support CSV export and print/Save-as-PDF from the browser's own print dialog.
+
 ### Pricing: Contractor Fee vs. Customer Price
 
 Both amounts on a task are **snapshotted at the moment the task is created**, from two entirely separate configuration screens (see Labour Costs & Contractor Pay above) — changing either rate afterward never retroactively affects a job already in progress, only new tasks pick up the new rate:

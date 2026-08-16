@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions, isSystemAdmin } from '@/lib/permission-utils'
+import { checkAndNotifyLowStockForVariant } from '@/lib/inventory/low-stock-notifier'
 
 function canManageInventory(user: any, businessId: string) {
   const perms = getEffectivePermissions(user, businessId)
@@ -47,7 +48,7 @@ export async function POST(
 
     const variant = await prisma.productVariants.findUnique({
       where: { id: productVariantId },
-      include: { business_products: { select: { businessId: true, productType: true, basePrice: true, name: true } } },
+      include: { business_products: { select: { businessId: true, productType: true, basePrice: true, costPrice: true, name: true } } },
     })
     if (!variant) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     if (variant.business_products.businessId !== partsRequest.job.businessId) {
@@ -57,7 +58,10 @@ export async function POST(
       return NextResponse.json({ error: `Insufficient stock (have ${variant.stockQuantity}, need ${qty})` }, { status: 400 })
     }
 
+    // Customer-facing price (job part) vs. actual cost (stock movement
+    // unitCost) — conflating these silently zeroed out profit reporting.
     const unitPrice = Number(variant.price ?? variant.business_products.basePrice ?? 0)
+    const unitCost = Number(variant.business_products.costPrice ?? 0)
     const now = new Date()
 
     await prisma.$transaction(async (tx) => {
@@ -70,9 +74,12 @@ export async function POST(
         data: {
           businessId: partsRequest.job.businessId,
           productVariantId,
-          movementType: 'SALE',
+          businessProductId: variant.productId,
+          // MBM-268 — distinct from a direct sale, so reporting can separate
+          // "used on a job" from "sold across the counter".
+          movementType: 'SERVICE_USE',
           quantity: -qty,
-          unitCost: unitPrice,
+          unitCost,
           reference: `Parts request ${requestId.slice(0, 8)}`,
           businessType: 'vehicle_service',
           attributes: { vehicleServiceJobId: partsRequest.job.id, partsRequestId: requestId },
@@ -101,6 +108,8 @@ export async function POST(
         },
       })
     })
+
+    await checkAndNotifyLowStockForVariant(prisma, productVariantId, partsRequest.job.businessId)
 
     return NextResponse.json({ success: true })
   } catch (error) {
