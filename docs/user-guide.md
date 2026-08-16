@@ -12166,7 +12166,7 @@ This creates the contractor's core record. Click into it (or the row) to **Manag
 | **Status** | Active / Retired / Disabled. Retired and disabled contractors are automatically excluded from every job-assignment picker — they cannot be given new work, but their history and past payouts are preserved. |
 | **Skills & Certifications** | Free-text list — skill name plus an optional certification note (e.g. "ASE Certified"). Informational only; does not gate what they can be assigned. |
 | **Authorized Services & Fees** | The specific services this contractor is qualified to perform, each with **their own agreed fee**. A contractor can hold many authorized services. Only services they're authorized for (and only while Active) appear when assigning them to a job task. |
-| **Contractor Portal Login** | Creates the contractor's login (email + optional password — leave password blank to auto-generate a temporary one that must be changed on first sign-in). This is a normal user account, but it is **not** given membership in the business the way an employee account would be — it can only ever reach the Contractor Portal, nothing else. |
+| **Contractor Portal Login** | Creates the contractor's login (email + optional password — leave password blank to auto-generate a temporary one that must be changed on first sign-in). This is a normal user account, but it is **not** given membership in the business the way an employee account would be — it can only ever reach the Contractor Portal, nothing else. Once created, **Revoke Access** blocks sign-in immediately (with an optional reason) without touching the contractor's profile, tasks, or payout history — fully reversible via **Reactivate**. **View login history** shows every create/revoke/reactivate event with who did it and when. |
 | **Monthly Payout** | See [Monthly Contractor Payments](#monthly-contractor-payments) below. |
 
 ### Assigning Jobs & Tasks
@@ -12199,11 +12199,11 @@ A job can have any number of tasks, and different tasks on the same job can go t
 **Task status:** Assigned → In Progress → Completed. Staff/managers can update task status directly here; contractors update their own tasks from their portal (see below). A completed task cannot be removed from a job. The first time a task moves to In Progress, its start time is recorded; once completed, staff with financial-data access see the actual time taken alongside the task — this is for reference only and never changes the price.
 
 **Job status:** Open → In Progress → Completed → Billed, plus Cancelled at any point. The status buttons on the job detail page enforce this sequence — they aren't just labels:
-- **In Progress** is disabled until at least one task has been assigned.
+- **In Progress** happens automatically — the moment any task on the job is marked In Progress (by staff here, or by the contractor from their own portal), the job itself advances to In Progress too. No manual click needed, and it never fires early — a job with no tasks yet, or with all tasks still Assigned, stays Open.
 - **Completed** is disabled until every task on the job is itself Completed.
 - **Billed** never appears as a clickable button at all — it's set automatically by **Bill This Job** once an invoice is actually generated, never by hand. The job still shows a "Billed" badge once that happens.
 
-This prevents a job from ever showing Completed or Billed without the underlying work — or invoice — actually existing.
+This prevents a job from ever showing Completed or Billed without the underlying work — or invoice — actually existing, and keeps the job's own status honest without staff having to remember to update it by hand.
 
 ### Labour Costs & Contractor Pay (two separate numbers)
 

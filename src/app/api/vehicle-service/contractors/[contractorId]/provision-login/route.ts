@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
+import { createAuditLog } from '@/lib/audit'
 
 function canManage(user: any, businessId: string) {
   const perms = getEffectivePermissions(user, businessId)
@@ -66,6 +67,19 @@ export async function POST(
         data: { userId: created.id },
       })
       return created
+    })
+
+    await createAuditLog({
+      userId: user.id,
+      action: 'CREATE',
+      entityType: 'User',
+      entityId: newUser.id,
+      metadata: {
+        businessId: contractor.businessId,
+        contractorId,
+        contractorName: contractor.persons.fullName,
+        reason: 'Contractor portal login created',
+      },
     })
 
     return NextResponse.json({

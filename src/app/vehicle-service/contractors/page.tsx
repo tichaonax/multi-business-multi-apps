@@ -451,6 +451,12 @@ function ContractorDetailModal({ contractorId, businessId, businessName, creator
   const [newService, setNewService] = useState({ subcategoryId: '', feeAmount: '' })
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
   const [tempPassword, setTempPassword] = useState<string | null>(null)
+  const [loginAudit, setLoginAudit] = useState<Array<{ id: string; action: string; timestamp: string; performedBy: { name: string; email: string } | null; reason: string | null }>>([])
+  const [showLoginAudit, setShowLoginAudit] = useState(false)
+  const [revokeReason, setRevokeReason] = useState('')
+  const [showRevokeConfirm, setShowRevokeConfirm] = useState(false)
+  const [loginActionLoading, setLoginActionLoading] = useState(false)
+  const [loginActionError, setLoginActionError] = useState<string | null>(null)
   const [payoutPeriod, setPayoutPeriod] = useState(() => {
     const now = new Date()
     const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
@@ -604,6 +610,51 @@ function ContractorDetailModal({ contractorId, businessId, businessName, creator
     }
   }
 
+  const fetchLoginAudit = useCallback(async () => {
+    const res = await fetch(`/api/vehicle-service/contractors/${contractorId}/login-audit`)
+    if (res.ok) {
+      const data = await res.json()
+      setLoginAudit(data.entries || [])
+    }
+  }, [contractorId])
+
+  const handleRevokeLogin = async () => {
+    setLoginActionLoading(true)
+    setLoginActionError(null)
+    try {
+      const res = await fetch(`/api/vehicle-service/contractors/${contractorId}/revoke-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: revokeReason || undefined }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setLoginActionError(data.error || 'Failed to revoke login'); return }
+      setShowRevokeConfirm(false)
+      setRevokeReason('')
+      fetchContractor()
+      if (showLoginAudit) fetchLoginAudit()
+    } finally {
+      setLoginActionLoading(false)
+    }
+  }
+
+  const handleReactivateLogin = async () => {
+    setLoginActionLoading(true)
+    setLoginActionError(null)
+    try {
+      const res = await fetch(`/api/vehicle-service/contractors/${contractorId}/reactivate-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      const data = await res.json()
+      if (!res.ok) { setLoginActionError(data.error || 'Failed to reactivate login'); return }
+      fetchContractor()
+      if (showLoginAudit) fetchLoginAudit()
+    } finally {
+      setLoginActionLoading(false)
+    }
+  }
+
   const allServices = catalog.flatMap(cat => cat.services.map(s => ({ ...s, categoryName: cat.name })))
   const authorizedSubcategoryIds = new Set((contractor?.services || []).map((s: any) => s.subcategoryId))
 
@@ -712,7 +763,81 @@ function ContractorDetailModal({ contractorId, businessId, businessName, creator
                 <div>
                   <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Contractor Portal Login</h4>
                   {contractor.users ? (
-                    <p className="text-sm text-green-700 dark:text-green-400">✓ Login active: {contractor.users.email}</p>
+                    <div className="space-y-2">
+                      {contractor.users.isActive ? (
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm text-green-700 dark:text-green-400">✓ Login active: {contractor.users.email}</p>
+                          <button
+                            onClick={() => { setShowRevokeConfirm(true); setLoginActionError(null) }}
+                            className="px-2 py-1 text-xs font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
+                          >
+                            Revoke Access
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-sm text-red-600 dark:text-red-400">⛔ Login revoked: {contractor.users.email}</p>
+                            {contractor.users.deactivatedAt && (
+                              <p className="text-xs text-gray-400">
+                                {new Date(contractor.users.deactivatedAt).toLocaleString()}
+                                {contractor.users.deactivationReason ? ` — ${contractor.users.deactivationReason}` : ''}
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            onClick={handleReactivateLogin}
+                            disabled={loginActionLoading}
+                            className="px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded"
+                          >
+                            {loginActionLoading ? 'Reactivating…' : 'Reactivate'}
+                          </button>
+                        </div>
+                      )}
+
+                      {showRevokeConfirm && (
+                        <div className="p-2 border border-red-200 dark:border-red-800 rounded bg-red-50 dark:bg-red-900/10 space-y-2">
+                          <p className="text-xs text-red-700 dark:text-red-400">This blocks sign-in to the contractor portal immediately. Their profile, tasks, and payout history are unaffected and this can be reversed anytime.</p>
+                          <input
+                            type="text" placeholder="Reason (optional)" value={revokeReason}
+                            onChange={e => setRevokeReason(e.target.value)}
+                            className="w-full text-xs px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          />
+                          <div className="flex gap-2">
+                            <button onClick={handleRevokeLogin} disabled={loginActionLoading} className="px-3 py-1 text-xs font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded">
+                              {loginActionLoading ? 'Revoking…' : 'Confirm Revoke'}
+                            </button>
+                            <button onClick={() => { setShowRevokeConfirm(false); setRevokeReason('') }} disabled={loginActionLoading} className="px-3 py-1 text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700">
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {loginActionError && <p className="text-xs text-red-600 dark:text-red-400">{loginActionError}</p>}
+
+                      <button
+                        onClick={() => { const next = !showLoginAudit; setShowLoginAudit(next); if (next) fetchLoginAudit() }}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        {showLoginAudit ? '▲ Hide login history' : '▼ View login history'}
+                      </button>
+                      {showLoginAudit && (
+                        <div className="space-y-1 border-t border-gray-100 dark:border-gray-700 pt-2">
+                          {loginAudit.length === 0 && <p className="text-xs text-gray-400">No history yet.</p>}
+                          {loginAudit.map(entry => (
+                            <div key={entry.id} className="text-xs text-gray-600 dark:text-gray-300 flex justify-between gap-2">
+                              <span>
+                                {entry.action === 'CREATE' ? 'Login created' : entry.action === 'ACCOUNT_LOCKED' ? 'Access revoked' : entry.action === 'ACCOUNT_UNLOCKED' ? 'Access reactivated' : entry.action}
+                                {entry.reason ? ` — ${entry.reason}` : ''}
+                                {entry.performedBy ? ` (by ${entry.performedBy.name})` : ''}
+                              </span>
+                              <span className="text-gray-400 shrink-0">{new Date(entry.timestamp).toLocaleDateString()}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <div className="space-y-2">
                       {tempPassword && (

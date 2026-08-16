@@ -24,7 +24,7 @@ export async function GET(
       where: { id: contractorId },
       include: {
         persons: true,
-        users: { select: { id: true, email: true, isActive: true } },
+        users: { select: { id: true, email: true, isActive: true, deactivatedAt: true, deactivationReason: true, reactivatedAt: true } },
         skills: { orderBy: { createdAt: 'asc' } },
         services: {
           include: { subcategory: { select: { id: true, name: true, emoji: true } } },

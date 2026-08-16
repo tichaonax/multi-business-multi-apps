@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { autoAdvanceJobIfOpen } from '@/lib/vehicle-service/job-status'
 
 const VALID_STATUSES = ['in_progress', 'completed']
 
@@ -34,7 +35,7 @@ export async function PATCH(
 
     const task = await prisma.vehicleServiceTasks.findUnique({
       where: { id: taskId },
-      select: { contractorId: true, status: true },
+      select: { contractorId: true, status: true, startedAt: true, job: { select: { id: true, status: true } } },
     })
     if (!task || task.contractorId !== contractor.id) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 })
@@ -47,10 +48,19 @@ export async function PATCH(
       where: { id: taskId },
       data: {
         ...(status ? { status, completedAt: status === 'completed' ? new Date() : null } : {}),
+        // Same "stamped once, informational only" rule as the staff-side
+        // route (see MBM-265) — this is the more common real-world path,
+        // since contractors mostly work from their own portal, not staff
+        // clicking through the job detail page on their behalf.
+        ...(status === 'in_progress' && !task.startedAt ? { startedAt: new Date() } : {}),
         ...(workDescription !== undefined ? { workDescription: workDescription || null } : {}),
       },
       select: { id: true, status: true, workDescription: true },
     })
+
+    if (status === 'in_progress') {
+      await autoAdvanceJobIfOpen(task.job.id, task.job.status)
+    }
 
     return NextResponse.json({ success: true, task: updated })
   } catch (error) {

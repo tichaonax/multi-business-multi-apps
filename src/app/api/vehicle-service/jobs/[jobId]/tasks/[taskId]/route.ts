@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { canViewFinancials } from '@/lib/vehicle-service/permissions'
+import { autoAdvanceJobIfOpen } from '@/lib/vehicle-service/job-status'
 
 const VALID_TASK_STATUSES = ['assigned', 'in_progress', 'completed']
 
@@ -54,6 +55,10 @@ export async function PATCH(
         contractor: { select: { id: true, persons: { select: { fullName: true } } } },
       },
     })
+
+    if (status === 'in_progress') {
+      await autoAdvanceJobIfOpen(jobId, task.job.status)
+    }
 
     const responseTask = canSeeMoney
       ? updated
