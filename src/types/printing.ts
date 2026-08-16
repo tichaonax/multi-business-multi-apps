@@ -202,7 +202,7 @@ export interface ReceiptData {
   // Business-specific data (varies by type)
   businessSpecificData?: RestaurantReceiptData | ClothingReceiptData | GroceryReceiptData |
     HardwareReceiptData | ConstructionReceiptData | VehiclesReceiptData | ConsultingReceiptData |
-    RetailReceiptData | ServicesReceiptData;
+    RetailReceiptData | ServicesReceiptData | VehicleServiceReceiptData;
 
   // Footer
   footerMessage?: string;
@@ -367,6 +367,19 @@ export interface VehiclesReceiptData {
   laborRate: number;
   technicianName: string;
   warranty?: string;
+}
+
+// Vehicle Repair & Service (businessType 'vehicle_service') — distinct from the
+// older, unused VehiclesReceiptData above (businessType 'vehicles'). Fields are
+// optional since a job's vehicle/contractor details may be partially filled in.
+export interface VehicleServiceReceiptData {
+  vehicleInfo?: {
+    make?: string;
+    model?: string;
+    licensePlate?: string;
+    vin?: string;
+  };
+  contractorName?: string;
 }
 
 export interface ConsultingReceiptData {

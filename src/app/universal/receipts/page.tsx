@@ -80,6 +80,18 @@ function ReceiptHistoryPageContent() {
     setBusinessId(urlBusinessId || storedBusinessId || null)
   }, [searchParams])
 
+  // Deep link from elsewhere (e.g. vehicle-service job detail's "View Receipt")
+  // straight to one receipt, instead of just landing on the unfiltered list.
+  // ReceiptDetailModal fetches its own data by ID, so this doesn't need to
+  // wait for the list itself to load.
+  useEffect(() => {
+    const receiptId = searchParams.get('receiptId')
+    if (receiptId) {
+      setSelectedReceiptId(receiptId)
+      setShowDetailModal(true)
+    }
+  }, [searchParams])
+
   // Cross-business search
   const searchAcrossBusinesses = useCallback(async (query: string) => {
     try {

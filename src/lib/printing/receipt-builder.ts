@@ -340,6 +340,19 @@ function buildBusinessSpecificData(order: OrderData, businessType: string): any 
         })),
         projectReference: order.attributes?.projectReference
       };
+    case 'vehicle_service':
+      // vehicleMake/Model/Plate/Vin/contractorName are attached onto
+      // order.attributes by buildReceiptFromOrder below (via the job the
+      // order was billed from) — not present on the order row itself.
+      return {
+        vehicleInfo: {
+          make: order.attributes?.vehicleMake,
+          model: order.attributes?.vehicleModel,
+          licensePlate: order.attributes?.vehiclePlate,
+          vin: order.attributes?.vehicleVin,
+        },
+        contractorName: order.attributes?.contractorName,
+      };
     default:
       return undefined;
   }
@@ -405,6 +418,43 @@ export async function buildReceiptFromOrder(
   if (!businessInfo) {
     console.error('Could not fetch business information for receipt')
     return null
+  }
+
+  // Vehicle-service orders don't carry vehicle/contractor details on the
+  // order row itself — only a pointer to the job they were billed from
+  // (attributes.vehicleServiceJobId, set by POST .../jobs/[jobId]/bill).
+  // Look it up here so buildBusinessSpecificData's 'vehicle_service' case
+  // (above) has something to read, whichever caller (receipt preview or
+  // reprint) invoked this shared builder.
+  if (order.attributes?.vehicleServiceJobId) {
+    try {
+      const { prisma } = await import('@/lib/prisma')
+      const job = await prisma.vehicleServiceJobs.findUnique({
+        where: { id: order.attributes.vehicleServiceJobId },
+        select: {
+          vehicleMake: true,
+          vehicleModel: true,
+          vehiclePlate: true,
+          vehicleVin: true,
+          primaryContractor: { select: { persons: { select: { fullName: true } } } },
+        },
+      })
+      if (job) {
+        order = {
+          ...order,
+          attributes: {
+            ...order.attributes,
+            vehicleMake: job.vehicleMake ?? undefined,
+            vehicleModel: job.vehicleModel ?? undefined,
+            vehiclePlate: job.vehiclePlate ?? undefined,
+            vehicleVin: job.vehicleVin ?? undefined,
+            contractorName: job.primaryContractor?.persons?.fullName ?? undefined,
+          },
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to fetch vehicle-service job details for receipt:', err)
+    }
   }
 
   // Attempt to fetch umbrella phone (server-side only)

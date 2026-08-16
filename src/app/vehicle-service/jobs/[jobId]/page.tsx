@@ -565,7 +565,7 @@ export default function VehicleServiceJobDetailPage() {
               )}
               {job.orderId && (
                 <button
-                  onClick={() => router.push(`/universal/receipts?businessId=${job.businessId}`)}
+                  onClick={() => router.push(`/universal/receipts?businessId=${job.businessId}&receiptId=${job.orderId}`)}
                   className="mt-3 ml-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800"
                 >
                   View Receipt
