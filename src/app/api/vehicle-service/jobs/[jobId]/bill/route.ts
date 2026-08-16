@@ -111,27 +111,39 @@ export async function POST(
       taskId: t.id,
       contractorId: t.contractorId,
     }))
+    // customerUnitPrice is what the invoice charges — forced to $0 on a
+    // parts-waived rework job (MBM-267). unitPrice (the real price) is kept
+    // separately and always used for the stock movement's unitCost below, so
+    // inventory/COGS tracking stays accurate even when the customer isn't billed.
     const partLines = partsInput.map(p => {
       const v = variants.find(v => v.id === p.productVariantId)
-      return { variantId: p.productVariantId, quantity: p.quantity, unitPrice: Number(v.price ?? v.business_products?.basePrice ?? 0), name: v.business_products.name }
+      const unitPrice = Number(v.price ?? v.business_products?.basePrice ?? 0)
+      return { variantId: p.productVariantId, quantity: p.quantity, unitPrice, customerUnitPrice: job.waiveParts ? 0 : unitPrice, name: v.business_products.name }
     })
     // Already-issued parts (Inventory Department fulfilled a contractor's request) —
     // billed at their recorded price, stock is NOT decremented again here.
-    const issuedPartLines = job.jobParts.map(jp => ({
-      variantId: jp.productVariantId,
-      quantity: jp.quantity,
-      unitPrice: Number(jp.unitPrice),
-      name: jp.productVariant.business_products.name,
-    }))
+    const issuedPartLines = job.jobParts.map(jp => {
+      const unitPrice = Number(jp.unitPrice)
+      return {
+        variantId: jp.productVariantId,
+        quantity: jp.quantity,
+        unitPrice,
+        customerUnitPrice: job.waiveParts ? 0 : unitPrice,
+        name: jp.productVariant.business_products.name,
+      }
+    })
     const otherLines = (otherCharges || []).filter(c => c.description && Number(c.amount) > 0)
 
     const subtotal =
       labourLines.reduce((s, l) => s + l.amount, 0) +
-      partLines.reduce((s, l) => s + l.unitPrice * l.quantity, 0) +
-      issuedPartLines.reduce((s, l) => s + l.unitPrice * l.quantity, 0) +
+      partLines.reduce((s, l) => s + l.customerUnitPrice * l.quantity, 0) +
+      issuedPartLines.reduce((s, l) => s + l.customerUnitPrice * l.quantity, 0) +
       otherLines.reduce((s, c) => s + Number(c.amount), 0)
 
-    if (subtotal <= 0) {
+    // A rework job (MBM-267) can legitimately bill $0 when labor/parts are
+    // fully waived — every other job keeps the original protection against
+    // an accidental empty invoice.
+    if (subtotal < 0 || (subtotal === 0 && !job.reworkOfJobId)) {
       return NextResponse.json({ error: 'Total must be greater than zero' }, { status: 400 })
     }
 
@@ -198,10 +210,10 @@ export async function POST(
             orderId: order.id,
             productVariantId: p.variantId,
             quantity: p.quantity,
-            unitPrice: p.unitPrice,
+            unitPrice: p.customerUnitPrice,
             discountAmount: 0,
-            totalPrice: p.unitPrice * p.quantity,
-            attributes: { type: 'part' },
+            totalPrice: p.customerUnitPrice * p.quantity,
+            attributes: { type: 'part', ...(job.waiveParts ? { waived: true } : {}) },
           },
         })
         await tx.productVariants.update({
@@ -230,10 +242,10 @@ export async function POST(
             orderId: order.id,
             productVariantId: p.variantId,
             quantity: p.quantity,
-            unitPrice: p.unitPrice,
+            unitPrice: p.customerUnitPrice,
             discountAmount: 0,
-            totalPrice: p.unitPrice * p.quantity,
-            attributes: { type: 'part', issuedByRequest: true },
+            totalPrice: p.customerUnitPrice * p.quantity,
+            attributes: { type: 'part', issuedByRequest: true, ...(job.waiveParts ? { waived: true } : {}) },
           },
         })
         // No stock decrement / movement here — already recorded when Inventory issued it.

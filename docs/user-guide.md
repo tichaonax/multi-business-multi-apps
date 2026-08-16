@@ -12299,6 +12299,23 @@ This creates the order (visible in **Receipt History** like any other sale, with
 
 Billing produces the receipt, but handing the vehicle back is a separate, deliberate step. Once a job is **Billed** and its payment status is **Paid**, a **Release Vehicle** button appears on the job detail page. Clicking it records who released the vehicle and when — the job detail page then shows "Vehicle released" going forward. This can't be done before payment is confirmed, and can't be repeated once a vehicle has been released.
 
+### Rework Jobs
+
+Once a job is billed, its status is locked — it can never be reopened or edited back to In Progress or Completed, even by an admin. If a vehicle comes back needing warranty-style follow-up work, create a **new** job instead:
+
+1. On **New Job**, check **This is a rework job**.
+2. Search for and select the **Original Job** this rework relates to.
+3. Two checkboxes appear, both checked by default:
+   - **Waive labor charges** — every task added to this job bills the customer **$0** for labour, regardless of any configured rate.
+   - **Waive parts charges** — any parts added at billing (freshly picked or already issued) bill the customer **$0**. Stock is still deducted normally, and internal cost tracking is unaffected — only what the *customer* is charged changes.
+4. Uncheck either box for a partial waiver (e.g. a genuinely new part still gets charged, but the redo labour is free).
+
+A fully-waived rework job can be billed at a **$0 total** — this is the one case where the normal "total must be greater than zero" rule doesn't apply, since a free warranty visit is still worth invoicing and closing out properly (so **Release Vehicle** can still happen).
+
+**Contractor pay, separately**: when adding a task to a rework job, a **Contractor Pay** field appears — independent of the customer-facing waivers above. If the same contractor who did the original work is doing the rework, it defaults to **$0** (they don't get paid twice for their own mistake) with a note explaining why; pick a different contractor and it defaults to their normal fee instead, since they didn't cause the issue. Either way, this is just a default — type any amount to override it, including a partial reduced rate instead of a full waiver.
+
+The job detail page shows a **Rework of {vehicle}** link back to the original job, and the original job lists any rework jobs created from it, so the history stays traceable in both directions.
+
 ### Bell Notifications
 
 Two situations in the vehicle-service workflow raise a bell notification (top-right of every page) automatically, using the same notification system as the rest of the app:

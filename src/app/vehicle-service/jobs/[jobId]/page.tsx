@@ -88,6 +88,10 @@ export default function VehicleServiceJobDetailPage() {
   // New default labour rate, entered inline the first time a service with no
   // configured customer rate is used in Add Task (see MBM-265).
   const [newLabourRate, setNewLabourRate] = useState('')
+  // Contractor-pay override (MBM-267) — independent of the customer-facing
+  // waiveLabor flag. Only surfaced on rework jobs.
+  const [contractorFeeOverrideInput, setContractorFeeOverrideInput] = useState('')
+  const [originalJobTasks, setOriginalJobTasks] = useState<Array<{ subcategoryId: string; contractorId: string }>>([])
 
   const fetchJob = useCallback(async () => {
     setLoading(true)
@@ -124,7 +128,29 @@ export default function VehicleServiceJobDetailPage() {
     setAuthorizingContractor(null)
     setAuthorizeFee('')
     setNewLabourRate('')
+    setContractorFeeOverrideInput('')
   }, [newTask.subcategoryId, job?.businessId])
+
+  // Rework jobs (MBM-267): fetch the original job's tasks once, so Add Task
+  // can detect "same contractor redoing the same service" and default their
+  // pay to $0 — a helpful nudge, not enforced.
+  useEffect(() => {
+    if (!job?.reworkOfJobId) { setOriginalJobTasks([]); return }
+    fetch(`/api/vehicle-service/jobs/${job.reworkOfJobId}`)
+      .then(res => res.ok ? res.json() : { job: null })
+      .then(data => setOriginalJobTasks((data.job?.tasks || []).map((t: any) => ({ subcategoryId: t.subcategoryId, contractorId: t.contractorId }))))
+      .catch(() => setOriginalJobTasks([]))
+  }, [job?.reworkOfJobId])
+
+  const sameContractorAsOriginal = originalJobTasks.some(
+    t => t.subcategoryId === newTask.subcategoryId && t.contractorId === newTask.contractorId
+  )
+
+  useEffect(() => {
+    if (sameContractorAsOriginal && !contractorFeeOverrideInput) {
+      setContractorFeeOverrideInput('0')
+    }
+  }, [sameContractorAsOriginal]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // All active contractors at the business (not just those authorized for the
   // currently selected service) — powers the "not authorized yet" and
@@ -351,6 +377,9 @@ export default function VehicleServiceJobDetailPage() {
             customerRate: selectedService && selectedService.customerRate === null && newLabourRate.trim()
               ? parseFloat(newLabourRate)
               : undefined,
+            contractorFeeOverride: job.reworkOfJobId && contractorFeeOverrideInput.trim() !== ''
+              ? parseFloat(contractorFeeOverrideInput)
+              : undefined,
           } : {}),
           workDescription: newTask.workDescription || undefined,
         }),
@@ -374,6 +403,7 @@ export default function VehicleServiceJobDetailPage() {
       }
 
       setNewTask({ categoryId: '', subcategoryId: '', contractorId: '', customerPriceOverride: '', workDescription: '' })
+      setContractorFeeOverrideInput('')
       setTaskParts([])
       setAuthorizingContractor(null)
       setAuthorizeFee('')
@@ -475,6 +505,43 @@ export default function VehicleServiceJobDetailPage() {
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                       Primary contractor: {job.primaryContractor.persons.fullName}
                     </p>
+                  )}
+                  {job.reworkOfJob && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                      Rework of{' '}
+                      <a href={`/vehicle-service/jobs/${job.reworkOfJob.id}`} className="underline hover:no-underline">
+                        {[job.reworkOfJob.vehicleMake, job.reworkOfJob.vehicleModel].filter(Boolean).join(' ') || 'job'}
+                        {job.reworkOfJob.vehiclePlate && ` (${job.reworkOfJob.vehiclePlate})`}
+                      </a>
+                    </p>
+                  )}
+                  {(job.waiveLabor || job.waiveParts) && (
+                    <div className="flex gap-1.5 mt-1">
+                      {job.waiveLabor && (
+                        <span className="px-2 py-0.5 text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full">
+                          Labor Waived
+                        </span>
+                      )}
+                      {job.waiveParts && (
+                        <span className="px-2 py-0.5 text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full">
+                          Parts Waived
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {job.reworkJobs && job.reworkJobs.length > 0 && (
+                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      Rework jobs from this one:{' '}
+                      {job.reworkJobs.map((rj: any, i: number) => (
+                        <span key={rj.id}>
+                          {i > 0 && ', '}
+                          <a href={`/vehicle-service/jobs/${rj.id}`} className="underline hover:no-underline">
+                            {[rj.vehicleMake, rj.vehicleModel].filter(Boolean).join(' ') || 'job'}
+                            {rj.vehiclePlate && ` (${rj.vehiclePlate})`}
+                          </a>
+                        </span>
+                      ))}
+                    </div>
                   )}
                   {editingNotes ? (
                     <div className="mt-2 space-y-1.5">
@@ -622,7 +689,12 @@ export default function VehicleServiceJobDetailPage() {
                               <>
                                 {' · '}Labour {formatCurrency(Number(customerAmount))}
                                 {t.customerPriceOverride && <span className="text-amber-600 dark:text-amber-400"> (fixed)</span>}
-                                {' · '}Contractor pay {formatCurrency(Number(t.agreedFeeAmount))}
+                                {' · '}Contractor pay {formatCurrency(Number(t.contractorFeeOverride ?? t.agreedFeeAmount))}
+                                {t.contractorFeeOverride !== null && t.contractorFeeOverride !== undefined && (
+                                  <span className="text-amber-600 dark:text-amber-400">
+                                    {' '}{Number(t.contractorFeeOverride) === 0 ? '(waived)' : `(reduced from ${formatCurrency(Number(t.agreedFeeAmount))})`}
+                                  </span>
+                                )}
                               </>
                             )}
                             {duration && <> · {duration}</>}
@@ -780,7 +852,11 @@ export default function VehicleServiceJobDetailPage() {
                     />
                   )}
                   {canSeeMoney && newTask.subcategoryId && (
-                    selectedService && selectedService.customerRate === null ? (
+                    job.waiveLabor ? (
+                      <p className="text-xs text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800 rounded-lg p-2 bg-amber-50 dark:bg-amber-900/10">
+                        Labor waived — rework job. This task will bill the customer $0 regardless of any configured rate.
+                      </p>
+                    ) : selectedService && selectedService.customerRate === null ? (
                       <div className="border border-amber-200 dark:border-amber-800 rounded-lg p-3 bg-amber-50 dark:bg-amber-900/10 space-y-1.5">
                         <p className="text-xs text-amber-700 dark:text-amber-400">No labour rate set for this service yet — set one now (becomes the default for future tasks).</p>
                         <input
@@ -799,6 +875,22 @@ export default function VehicleServiceJobDetailPage() {
                         className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       />
                     )
+                  )}
+                  {canSeeMoney && job.reworkOfJobId && newTask.subcategoryId && newTask.contractorId && (
+                    <div>
+                      <input
+                        type="number" min="0" step="0.01"
+                        placeholder="Contractor pay for this task (optional override)"
+                        value={contractorFeeOverrideInput}
+                        onChange={e => setContractorFeeOverrideInput(e.target.value)}
+                        className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        {sameContractorAsOriginal
+                          ? 'Same contractor as the original job — defaulted to $0 (waived). Adjust if needed.'
+                          : 'Leave blank to pay this contractor their normal fee for the rework.'}
+                      </p>
+                    </div>
                   )}
                   <input
                     type="text"
@@ -978,8 +1070,11 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
   }
 
   const labourTotal = job.tasks.reduce((s: number, t: any) => s + Number(t.customerPriceOverride ?? t.customerLabourRate ?? t.agreedFeeAmount), 0)
-  const partsTotal = billParts.reduce((s, p) => s + p.unitPrice * p.quantity, 0)
-  const issuedPartsTotal = (job.jobParts || []).reduce((s: number, jp: any) => s + Number(jp.unitPrice) * jp.quantity, 0)
+  // Parts bill the customer at $0 on a parts-waived rework job (MBM-267) —
+  // matches the bill route's own logic, so this preview never overstates
+  // what's actually about to be invoiced.
+  const partsTotal = job.waiveParts ? 0 : billParts.reduce((s, p) => s + p.unitPrice * p.quantity, 0)
+  const issuedPartsTotal = job.waiveParts ? 0 : (job.jobParts || []).reduce((s: number, jp: any) => s + Number(jp.unitPrice) * jp.quantity, 0)
   const otherTotal = otherCharges.reduce((s, c) => s + (parseFloat(c.amount) || 0), 0)
   const subtotal = labourTotal + partsTotal + issuedPartsTotal + otherTotal
   const taxAmount = parseFloat(taxInput) || 0
@@ -1033,7 +1128,9 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
               <>
                 {/* Labour */}
                 <div>
-                  <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Labour ({job.tasks.length})</h5>
+                  <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                    Labour ({job.tasks.length}){job.waiveLabor && <span className="text-amber-600 dark:text-amber-400"> (waived)</span>}
+                  </h5>
                   {job.tasks.map((t: any) => (
                     <div key={t.id} className="flex justify-between text-sm text-gray-700 dark:text-gray-300">
                       <span>{t.subcategory.name}</span>
@@ -1045,11 +1142,13 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
                 {/* Issued parts (already committed via a parts request — read-only) */}
                 {job.jobParts?.length > 0 && (
                   <div>
-                    <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Issued Parts</h5>
+                    <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                      Issued Parts{job.waiveParts && <span className="text-amber-600 dark:text-amber-400"> (waived)</span>}
+                    </h5>
                     {job.jobParts.map((jp: any) => (
                       <div key={jp.id} className="flex justify-between text-sm text-gray-700 dark:text-gray-300">
                         <span>{jp.productVariant.business_products.name} × {jp.quantity}</span>
-                        <span>{formatCurrency(Number(jp.unitPrice) * jp.quantity)}</span>
+                        <span>{job.waiveParts ? formatCurrency(0) : formatCurrency(Number(jp.unitPrice) * jp.quantity)}</span>
                       </div>
                     ))}
                   </div>
@@ -1057,7 +1156,9 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
 
                 {/* Parts */}
                 <div>
-                  <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Add More Parts</h5>
+                  <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                    Add More Parts{job.waiveParts && <span className="text-amber-600 dark:text-amber-400"> (customer billed $0 — rework job)</span>}
+                  </h5>
                   <div className="relative mb-2">
                     <input
                       type="text"
@@ -1084,7 +1185,7 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
                         onChange={e => setBillParts(billParts.map(bp => bp.productVariantId === p.productVariantId ? { ...bp, quantity: parseInt(e.target.value) || 1 } : bp))}
                         className="w-14 text-xs px-1 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       />
-                      <span className="w-16 text-right">{formatCurrency(p.unitPrice * p.quantity)}</span>
+                      <span className="w-16 text-right">{job.waiveParts ? formatCurrency(0) : formatCurrency(p.unitPrice * p.quantity)}</span>
                       <button onClick={() => setBillParts(billParts.filter(bp => bp.productVariantId !== p.productVariantId))} className="text-red-500 text-xs">✕</button>
                     </div>
                   ))}

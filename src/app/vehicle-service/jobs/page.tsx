@@ -362,6 +362,25 @@ function NewJobModal({ businessId, businessName, businessPhone, initialCustomer,
   const [vehiclePairs, setVehiclePairs] = useState<Array<{ make: string; model: string }>>([])
   const [showQuickRegister, setShowQuickRegister] = useState(false)
 
+  // Rework job (MBM-267) — a fresh job for warranty-style follow-up work on a
+  // vehicle already billed, instead of reopening the locked original.
+  const [isRework, setIsRework] = useState(false)
+  const [reworkOfJobId, setReworkOfJobId] = useState('')
+  const [reworkJobResults, setReworkJobResults] = useState<Array<{ value: string; name: string }>>([])
+  const [waiveLabor, setWaiveLabor] = useState(true)
+  const [waiveParts, setWaiveParts] = useState(true)
+
+  const handleReworkJobSearchQuery = (query: string) => {
+    if (!query.trim()) { setReworkJobResults([]); return }
+    fetch(`/api/vehicle-service/jobs?businessId=${businessId}&search=${encodeURIComponent(query.trim())}`)
+      .then(res => res.ok ? res.json() : { jobs: [] })
+      .then(data => setReworkJobResults((data.jobs || []).map((j: any) => ({
+        value: j.id,
+        name: `${[j.vehicleMake, j.vehicleModel].filter(Boolean).join(' ') || 'Vehicle'}${j.vehiclePlate ? ` (${j.vehiclePlate})` : ''}${j.customerName ? ` — ${j.customerName}` : ''}`,
+      }))))
+      .catch(() => setReworkJobResults([]))
+  }
+
   useEffect(() => {
     if (!customerQuery.trim() || selectedCustomer) { setCustomerResults([]); setCrossBusinessResults([]); return }
     const t = setTimeout(async () => {
@@ -500,6 +519,7 @@ function NewJobModal({ businessId, businessName, businessPhone, initialCustomer,
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!primaryContractorId) { setError('Select a primary contractor for this job'); return }
+    if (isRework && !reworkOfJobId) { setError('Select the original job this is a rework of'); return }
     setSubmitting(true)
     setError(null)
     try {
@@ -515,6 +535,9 @@ function NewJobModal({ businessId, businessName, businessPhone, initialCustomer,
           vehiclePlate: form.vehiclePlate || undefined,
           vehicleVin: form.vehicleVin || undefined,
           notes: form.notes || undefined,
+          reworkOfJobId: isRework ? reworkOfJobId : undefined,
+          waiveLabor: isRework ? waiveLabor : undefined,
+          waiveParts: isRework ? waiveParts : undefined,
         }),
       })
       const data = await res.json()
@@ -745,6 +768,38 @@ function NewJobModal({ businessId, businessName, businessPhone, initialCustomer,
                   />
                 </div>
               ))}
+              <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                  <input type="checkbox" checked={isRework} onChange={e => setIsRework(e.target.checked)} className="rounded" />
+                  This is a rework job (warranty follow-up on a job already billed)
+                </label>
+                {isRework && (
+                  <div className="mt-3 space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Original Job</label>
+                      <SearchableSelect
+                        options={reworkJobResults}
+                        value={reworkOfJobId}
+                        onChange={setReworkOfJobId}
+                        onSearchQuery={handleReworkJobSearchQuery}
+                        placeholder="Search by vehicle, plate, or customer..."
+                        searchPlaceholder="Search jobs at this business..."
+                        emptyMessage="No matching jobs found"
+                        required
+                      />
+                    </div>
+                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <input type="checkbox" checked={waiveLabor} onChange={e => setWaiveLabor(e.target.checked)} className="rounded" />
+                      Waive labor charges (customer not billed for tasks on this job)
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <input type="checkbox" checked={waiveParts} onChange={e => setWaiveParts(e.target.checked)} className="rounded" />
+                      Waive parts charges (customer not billed for parts on this job)
+                    </label>
+                    <p className="text-[10px] text-gray-400">Contractor pay for each task can be waived or reduced individually when adding tasks — most useful when the same contractor is redoing their own earlier work.</p>
+                  </div>
+                )}
+              </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Notes</label>
                 <textarea

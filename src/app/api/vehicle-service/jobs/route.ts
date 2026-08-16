@@ -131,16 +131,21 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/vehicle-service/jobs
-// Body: { businessId, primaryContractorId, customerId?, vehicleMake?, vehicleModel?, vehiclePlate?, vehicleVin?, notes? }
+// Body: { businessId, primaryContractorId, customerId?, vehicleMake?, vehicleModel?, vehiclePlate?, vehicleVin?, notes?,
+//         reworkOfJobId?, waiveLabor?, waiveParts? }
+// reworkOfJobId/waiveLabor/waiveParts (MBM-267) mark this job as a warranty-style
+// rework of an earlier one — the customer already paid on the original job, so
+// labour/parts can be billed at $0 here instead of reopening the locked original.
 export async function POST(request: NextRequest) {
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await request.json()
-    const { businessId, primaryContractorId, customerId, vehicleMake, vehicleModel, vehiclePlate, vehicleVin, notes } = body as {
+    const { businessId, primaryContractorId, customerId, vehicleMake, vehicleModel, vehiclePlate, vehicleVin, notes, reworkOfJobId, waiveLabor, waiveParts } = body as {
       businessId?: string; primaryContractorId?: string; customerId?: string; vehicleMake?: string; vehicleModel?: string
       vehiclePlate?: string; vehicleVin?: string; notes?: string
+      reworkOfJobId?: string; waiveLabor?: boolean; waiveParts?: boolean
     }
     if (!businessId) return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
     if (!primaryContractorId) return NextResponse.json({ error: 'primaryContractorId is required' }, { status: 400 })
@@ -161,6 +166,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Selected primary contractor is ${primaryContractor.status} and cannot take new jobs` }, { status: 400 })
     }
 
+    if (reworkOfJobId) {
+      const originalJob = await prisma.vehicleServiceJobs.findUnique({
+        where: { id: reworkOfJobId },
+        select: { businessId: true },
+      })
+      if (!originalJob || originalJob.businessId !== businessId) {
+        return NextResponse.json({ error: 'Original job not found for this business' }, { status: 400 })
+      }
+    }
+
     const job = await prisma.vehicleServiceJobs.create({
       data: {
         businessId,
@@ -171,6 +186,9 @@ export async function POST(request: NextRequest) {
         vehiclePlate: vehiclePlate || null,
         vehicleVin: vehicleVin || null,
         notes: notes || null,
+        reworkOfJobId: reworkOfJobId || null,
+        waiveLabor: !!waiveLabor,
+        waiveParts: !!waiveParts,
         createdBy: user.id,
       },
     })

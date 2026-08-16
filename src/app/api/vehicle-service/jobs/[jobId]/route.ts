@@ -23,6 +23,8 @@ export async function GET(
         primaryContractor: { select: { id: true, persons: { select: { fullName: true, phone: true } } } },
         vehicleReleasedBy: { select: { id: true, name: true } },
         business_orders: { select: { orderNumber: true, paymentStatus: true, totalAmount: true } },
+        reworkOfJob: { select: { id: true, vehicleMake: true, vehicleModel: true, vehiclePlate: true } },
+        reworkJobs: { select: { id: true, vehicleMake: true, vehicleModel: true, vehiclePlate: true, status: true }, orderBy: { createdAt: 'desc' } },
         tasks: {
           include: {
             subcategory: { select: { id: true, name: true, emoji: true } },
@@ -56,7 +58,7 @@ export async function GET(
       return NextResponse.json({
         job: {
           ...job,
-          tasks: job.tasks.map(t => ({ ...t, agreedFeeAmount: undefined, customerLabourRate: undefined, customerPriceOverride: undefined })),
+          tasks: job.tasks.map(t => ({ ...t, agreedFeeAmount: undefined, contractorFeeOverride: undefined, customerLabourRate: undefined, customerPriceOverride: undefined })),
           jobParts: job.jobParts.map(jp => ({ ...jp, unitPrice: undefined })),
         },
       })

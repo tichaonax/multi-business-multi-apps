@@ -36,6 +36,7 @@ export async function getEligibleTasks(
     select: {
       id: true,
       agreedFeeAmount: true,
+      contractorFeeOverride: true,
       subcategory: { select: { name: true } },
       job: {
         select: {
@@ -51,7 +52,7 @@ export async function getEligibleTasks(
 
   return tasks.map(t => ({
     taskId: t.id,
-    amount: Number(t.agreedFeeAmount),
+    amount: Number(t.contractorFeeOverride ?? t.agreedFeeAmount),
     serviceName: t.subcategory.name,
     jobId: t.job.id,
     vehicle: [t.job.vehicleMake, t.job.vehicleModel].filter(Boolean).join(' ') || null,

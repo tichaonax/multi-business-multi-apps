@@ -7789,6 +7789,9 @@ model VehicleServiceJobs {
   vehicleReleasedAt   DateTime?
   vehicleReleasedById String?
   jobCardReturnedAt   DateTime?
+  reworkOfJobId       String?
+  waiveLabor          Boolean   @default(false)
+  waiveParts          Boolean   @default(false)
   createdBy           String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @default(now()) @updatedAt
@@ -7799,12 +7802,15 @@ model VehicleServiceJobs {
   creator            Users?                     @relation(fields: [createdBy], references: [id])
   primaryContractor  VehicleServiceContractors? @relation("JobPrimaryContractor", fields: [primaryContractorId], references: [id])
   vehicleReleasedBy  Users?                     @relation("VehicleServiceJobReleasedBy", fields: [vehicleReleasedById], references: [id])
+  reworkOfJob         VehicleServiceJobs?        @relation("JobRework", fields: [reworkOfJobId], references: [id])
+  reworkJobs          VehicleServiceJobs[]       @relation("JobRework")
 
   tasks         VehicleServiceTasks[]
   partsRequests VehicleServicePartsRequests[]
   jobParts      VehicleServiceJobParts[]
 
   @@index([businessId, status])
+  @@index([reworkOfJobId])
   @@map("vehicle_service_jobs")
 }
 
@@ -7816,6 +7822,7 @@ model VehicleServiceTasks {
   status                String    @default("assigned") // assigned | in_progress | completed
   workDescription       String?
   agreedFeeAmount       Decimal   @db.Decimal(12, 2)
+  contractorFeeOverride Decimal?  @db.Decimal(12, 2)
   customerLabourRate    Decimal?  @db.Decimal(12, 2)
   customerPriceOverride Decimal?  @db.Decimal(12, 2)
   assignedAt            DateTime  @default(now())
