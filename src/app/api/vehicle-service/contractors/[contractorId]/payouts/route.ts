@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions, isSystemAdmin } from '@/lib/permission-utils'
-import { getEligibleTasks } from '@/lib/vehicle-service/payout-eligibility'
+import { getEligibleTasks, getDueDate, isOverdue, daysOverdue } from '@/lib/vehicle-service/payout-eligibility'
 
 function canManagePayouts(user: any, businessId: string) {
   const perms = getEffectivePermissions(user, businessId)
@@ -31,26 +31,38 @@ export async function GET(
 
     const payouts = await prisma.vehicleServiceContractorPayouts.findMany({
       where: { contractorId },
-      include: { payment: { select: { status: true, paymentDate: true, paidAt: true, notes: true } }, items: true },
+      include: {
+        payment: { select: { status: true, paymentDate: true, paidAt: true, notes: true, eodBatchId: true } },
+        items: true,
+      },
       orderBy: { createdAt: 'desc' },
     })
 
     return NextResponse.json({
-      payouts: payouts.map(p => ({
-        id: p.id,
-        // Display-only reference derived from the payout's own id — no separate
-        // sequence/column needed, this voucher is never re-issued with a new number.
-        voucherNumber: `CP-${p.createdAt.toISOString().slice(0, 10).replace(/-/g, '')}-${p.id.slice(0, 6).toUpperCase()}`,
-        periodStart: p.periodStart,
-        periodEnd: p.periodEnd,
-        totalAmount: p.totalAmount,
-        taskCount: p.items.length,
-        createdAt: p.createdAt,
-        paymentStatus: p.payment.status,
-        paymentDate: p.payment.paymentDate,
-        paidAt: p.payment.paidAt,
-        notes: p.payment.notes,
-      })),
+      payouts: payouts.map(p => {
+        const dueDate = getDueDate(p.periodEnd, p.dueDateOverride)
+        return {
+          id: p.id,
+          // Display-only reference derived from the payout's own id — no separate
+          // sequence/column needed, this voucher is never re-issued with a new number.
+          voucherNumber: `CP-${p.createdAt.toISOString().slice(0, 10).replace(/-/g, '')}-${p.id.slice(0, 6).toUpperCase()}`,
+          periodStart: p.periodStart,
+          periodEnd: p.periodEnd,
+          totalAmount: p.totalAmount,
+          taskCount: p.items.length,
+          createdAt: p.createdAt,
+          paymentStatus: p.payment.status,
+          paymentDate: p.payment.paymentDate,
+          paidAt: p.payment.paidAt,
+          notes: p.payment.notes,
+          eodBatchId: p.payment.eodBatchId,
+          dueDate,
+          isOverdue: !p.voidedAt && ['SUBMITTED', 'PENDING_APPROVAL', 'QUEUED'].includes(p.payment.status) && isOverdue(dueDate),
+          daysOverdue: daysOverdue(dueDate),
+          voidedAt: p.voidedAt,
+          canAmend: !p.voidedAt && p.payment.status === 'SUBMITTED',
+        }
+      }),
     })
   } catch (error) {
     console.error('List payouts error:', error)
@@ -75,7 +87,12 @@ export async function POST(
 
     const { contractorId } = await params
     const body = await request.json()
-    const { periodStart: periodStartStr, periodEnd: periodEndStr } = body as { periodStart?: string; periodEnd?: string }
+    const {
+      periodStart: periodStartStr,
+      periodEnd: periodEndStr,
+      taskIds,
+      dueDate: dueDateStr,
+    } = body as { periodStart?: string; periodEnd?: string; taskIds?: string[]; dueDate?: string }
     if (!periodStartStr || !periodEndStr) {
       return NextResponse.json({ error: 'periodStart and periodEnd are required' }, { status: 400 })
     }
@@ -100,7 +117,19 @@ export async function POST(
 
     const periodStart = new Date(periodStartStr)
     const periodEnd = new Date(periodEndStr + 'T23:59:59.999')
-    const tasks = await getEligibleTasks(contractorId, periodStart, periodEnd)
+    const eligibleTasks = await getEligibleTasks(contractorId, periodStart, periodEnd)
+
+    // taskIds lets the user exclude specific jobs from this voucher (e.g. one is
+    // disputed) — re-validated against the same eligibility query the preview used
+    // rather than trusted from the client, closing the preview→submit race where a
+    // task could be claimed by a different payout in between.
+    const tasks = taskIds
+      ? eligibleTasks.filter(t => taskIds.includes(t.taskId))
+      : eligibleTasks
+
+    if (taskIds && tasks.length !== taskIds.length) {
+      return NextResponse.json({ error: 'One or more selected jobs are no longer eligible for payout — refresh and try again' }, { status: 409 })
+    }
 
     if (tasks.length === 0) {
       return NextResponse.json({ error: 'No unpaid completed work found for this contractor in the selected period' }, { status: 400 })
@@ -108,6 +137,7 @@ export async function POST(
 
     const totalAmount = tasks.reduce((sum, t) => sum + t.amount, 0)
     const now = new Date()
+    const dueDateOverride = dueDateStr ? new Date(dueDateStr + 'T23:59:59.999') : null
 
     const payout = await prisma.$transaction(async (tx) => {
       const payment = await tx.expenseAccountPayments.create({
@@ -117,7 +147,7 @@ export async function POST(
           payeePersonId: contractor.personId,
           amount: totalAmount,
           paymentDate: now,
-          notes: `Vehicle service contractor payout — ${tasks.length} completed job${tasks.length === 1 ? '' : 's'} (${periodStartStr} to ${periodEndStr})`,
+          notes: `Vehicle service contractor payout — ${tasks.length} completed job${tasks.length === 1 ? '' : 's'}${taskIds ? ' (manually selected)' : ` (${periodStartStr} to ${periodEndStr})`}`,
           isFullPayment: true,
           status: 'SUBMITTED',
           paymentType: 'REGULAR',
@@ -137,6 +167,7 @@ export async function POST(
           periodEnd,
           totalAmount,
           createdBy: user.id,
+          dueDateOverride,
         },
       })
 
@@ -158,6 +189,7 @@ export async function POST(
         taskCount: tasks.length,
         contractorName: contractor.persons.fullName,
         paymentDate: now.toISOString(),
+        dueDate: getDueDate(payout.periodEnd, payout.dueDateOverride),
       },
     })
   } catch (error) {

@@ -7882,15 +7882,18 @@ model VehicleServiceTasks {
 }
 
 model VehicleServiceContractorPayouts {
-  id           String   @id @default(uuid())
-  contractorId String
-  businessId   String
-  paymentId    String   @unique
-  periodStart  DateTime
-  periodEnd    DateTime
-  totalAmount  Decimal  @db.Decimal(12, 2)
-  createdAt    DateTime @default(now())
-  createdBy    String?
+  id              String    @id @default(uuid())
+  contractorId    String
+  businessId      String
+  paymentId       String    @unique
+  periodStart     DateTime
+  periodEnd       DateTime
+  totalAmount     Decimal   @db.Decimal(12, 2)
+  createdAt       DateTime  @default(now())
+  createdBy       String?
+  dueDateOverride DateTime?
+  voidedAt        DateTime?
+  voidedBy        String?
 
   contractor VehicleServiceContractors             @relation(fields: [contractorId], references: [id])
   businesses Businesses                            @relation(fields: [businessId], references: [id])

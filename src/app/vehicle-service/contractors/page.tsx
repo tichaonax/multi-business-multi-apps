@@ -5,9 +5,11 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { generatePaymentVoucherPdf } from '@/components/expense-account/payment-voucher-pdf'
+import { useConfirm, usePrompt } from '@/components/ui/confirm-modal'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { NationalIdInput } from '@/components/ui/national-id-input'
@@ -100,12 +102,20 @@ export default function VehicleServiceContractorsPage() {
                   </button>
                 ))}
               </div>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
-              >
-                + Add Contractor
-              </button>
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/vehicle-service/contractors/payments-report"
+                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  📊 Payments Report
+                </Link>
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+                >
+                  + Add Contractor
+                </button>
+              </div>
             </div>
 
             {error && (
@@ -443,6 +453,8 @@ interface ServiceCatalogEntry { id: string; name: string; emoji: string; service
 function ContractorDetailModal({ contractorId, businessId, businessName, creatorName, onClose, onChanged }: {
   contractorId: string; businessId: string; businessName: string; creatorName: string; onClose: () => void; onChanged: () => void
 }) {
+  const confirm = useConfirm()
+  const prompt = usePrompt()
   const [contractor, setContractor] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -470,6 +482,9 @@ function ContractorDetailModal({ contractorId, businessId, businessName, creator
   const [payoutLoading, setPayoutLoading] = useState(false)
   const [payoutError, setPayoutError] = useState<string | null>(null)
   const [payoutResult, setPayoutResult] = useState<any>(null)
+  const [payoutSelectedTaskIds, setPayoutSelectedTaskIds] = useState<Set<string>>(new Set())
+  const [payoutDueDate, setPayoutDueDate] = useState('')
+  const [editingPayoutId, setEditingPayoutId] = useState<string | null>(null)
 
   const fetchContractor = useCallback(async () => {
     setLoading(true)
@@ -508,29 +523,117 @@ function ContractorDetailModal({ contractorId, businessId, businessName, creator
     setPayoutLoading(true)
     setPayoutError(null)
     setPayoutPreview(null)
+    setEditingPayoutId(null)
     try {
       const res = await fetch(`/api/vehicle-service/contractors/${contractorId}/payout-preview?periodStart=${payoutPeriod.start}&periodEnd=${payoutPeriod.end}`)
       const data = await res.json()
       if (!res.ok) { setPayoutError(data.error || 'Failed to preview payout'); return }
       setPayoutPreview(data)
+      setPayoutSelectedTaskIds(new Set(data.tasks.map((t: any) => t.taskId)))
     } finally {
       setPayoutLoading(false)
     }
   }
 
+  // Load an already-generated (still SUBMITTED) payout back into the preview panel
+  // for amending — its own current jobs come back pre-checked alongside any newly
+  // eligible ones in the same period.
+  const handleEditPayout = async (payout: any) => {
+    setPayoutLoading(true)
+    setPayoutError(null)
+    setPayoutPreview(null)
+    setPayoutResult(null)
+    setEditingPayoutId(payout.id)
+    setPayoutDueDate(payout.dueDate ? new Date(payout.dueDate).toISOString().slice(0, 10) : '')
+    try {
+      const start = new Date(payout.periodStart).toISOString().slice(0, 10)
+      const end = new Date(payout.periodEnd).toISOString().slice(0, 10)
+      setPayoutPeriod({ start, end })
+      const res = await fetch(`/api/vehicle-service/contractors/${contractorId}/payout-preview?periodStart=${start}&periodEnd=${end}&payoutId=${payout.id}`)
+      const data = await res.json()
+      if (!res.ok) { setPayoutError(data.error || 'Failed to load payout for editing'); setEditingPayoutId(null); return }
+      setPayoutPreview(data)
+      setPayoutSelectedTaskIds(new Set(data.tasks.filter((t: any) => t.alreadyIncluded).map((t: any) => t.taskId)))
+    } finally {
+      setPayoutLoading(false)
+    }
+  }
+
+  const togglePayoutTask = (taskId: string) => {
+    setPayoutSelectedTaskIds(prev => {
+      const next = new Set(prev)
+      if (next.has(taskId)) next.delete(taskId)
+      else next.add(taskId)
+      return next
+    })
+  }
+
   const handleGeneratePayout = async () => {
+    if (payoutSelectedTaskIds.size === 0) { setPayoutError('Select at least one job to include'); return }
     setPayoutLoading(true)
     setPayoutError(null)
     try {
-      const res = await fetch(`/api/vehicle-service/contractors/${contractorId}/payouts`, {
+      const taskIds = Array.from(payoutSelectedTaskIds)
+      const body: any = editingPayoutId
+        ? { taskIds, dueDate: payoutDueDate || null }
+        : { periodStart: payoutPeriod.start, periodEnd: payoutPeriod.end, taskIds, dueDate: payoutDueDate || undefined }
+
+      const res = await fetch(
+        editingPayoutId
+          ? `/api/vehicle-service/contractors/${contractorId}/payouts/${editingPayoutId}`
+          : `/api/vehicle-service/contractors/${contractorId}/payouts`,
+        {
+          method: editingPayoutId ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }
+      )
+      const data = await res.json()
+      if (!res.ok) { setPayoutError(data.error || 'Failed to save payout'); return }
+      setPayoutResult(editingPayoutId ? null : data.payout)
+      setPayoutPreview(null)
+      setEditingPayoutId(null)
+      setPayoutDueDate('')
+      fetchPayoutHistory()
+    } finally {
+      setPayoutLoading(false)
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setEditingPayoutId(null)
+    setPayoutPreview(null)
+    setPayoutDueDate('')
+    setPayoutError(null)
+  }
+
+  const handleVoidPayout = async (payout: any) => {
+    const confirmed = await confirm({
+      title: 'Void Payout Voucher',
+      description: `Void ${payout.voucherNumber ?? 'this voucher'} for $${Number(payout.totalAmount).toFixed(2)}? Its ${payout.taskCount} job${payout.taskCount === 1 ? '' : 's'} will become available for a future payout again.`,
+      confirmText: 'Void Voucher',
+      cancelText: 'Keep It',
+    })
+    if (!confirmed) return
+
+    const reason = await prompt({
+      title: 'Reason for Voiding',
+      description: 'Optional — recorded on the payment for audit purposes.',
+      placeholder: 'e.g. duplicate voucher, disputed job removed',
+      confirmText: 'Void',
+      cancelText: 'Skip',
+    })
+
+    setPayoutLoading(true)
+    setPayoutError(null)
+    try {
+      const res = await fetch(`/api/vehicle-service/contractors/${contractorId}/payouts/${payout.id}/void`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ periodStart: payoutPeriod.start, periodEnd: payoutPeriod.end }),
+        body: JSON.stringify({ reason: reason || undefined }),
       })
       const data = await res.json()
-      if (!res.ok) { setPayoutError(data.error || 'Failed to generate payout'); return }
-      setPayoutResult(data.payout)
-      setPayoutPreview(null)
+      if (!res.ok) { setPayoutError(data.error || 'Failed to void payout'); return }
       fetchPayoutHistory()
     } finally {
       setPayoutLoading(false)
@@ -922,20 +1025,36 @@ function ContractorDetailModal({ contractorId, businessId, businessName, creator
                 {/* Monthly payout */}
                 <div>
                   <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Monthly Payout</h4>
-                  <div className="flex items-end gap-2 mb-2">
+
+                  {editingPayoutId && (
+                    <div className="flex items-center justify-between p-2 mb-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded text-xs text-amber-800 dark:text-amber-400">
+                      <span>Editing an existing voucher — pick which jobs it should include, then save.</span>
+                      <button onClick={handleCancelEdit} className="shrink-0 underline">Cancel</button>
+                    </div>
+                  )}
+
+                  <div className="flex items-end gap-2 mb-2 flex-wrap">
                     <div>
                       <label className="block text-[10px] text-gray-400 mb-0.5">From</label>
-                      <input type="date" value={payoutPeriod.start} onChange={e => { setPayoutPeriod({ ...payoutPeriod, start: e.target.value }); setPayoutPreview(null) }}
-                        className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                      <input type="date" value={payoutPeriod.start} disabled={!!editingPayoutId} onChange={e => { setPayoutPeriod({ ...payoutPeriod, start: e.target.value }); setPayoutPreview(null) }}
+                        className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50" />
                     </div>
                     <div>
                       <label className="block text-[10px] text-gray-400 mb-0.5">To</label>
-                      <input type="date" value={payoutPeriod.end} onChange={e => { setPayoutPeriod({ ...payoutPeriod, end: e.target.value }); setPayoutPreview(null) }}
+                      <input type="date" value={payoutPeriod.end} disabled={!!editingPayoutId} onChange={e => { setPayoutPeriod({ ...payoutPeriod, end: e.target.value }); setPayoutPreview(null) }}
+                        className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-400 mb-0.5">Due Date</label>
+                      <input type="date" value={payoutDueDate} onChange={e => setPayoutDueDate(e.target.value)}
+                        placeholder="End of month"
                         className="text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                     </div>
-                    <button onClick={handlePreviewPayout} disabled={payoutLoading} className="px-3 py-1.5 text-xs bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50">
-                      Preview
-                    </button>
+                    {!editingPayoutId && (
+                      <button onClick={handlePreviewPayout} disabled={payoutLoading} className="px-3 py-1.5 text-xs bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50">
+                        Preview
+                      </button>
+                    )}
                   </div>
 
                   {payoutError && <p className="text-xs text-red-600 dark:text-red-400 mb-2">{payoutError}</p>}
@@ -955,18 +1074,26 @@ function ContractorDetailModal({ contractorId, businessId, businessName, creator
                         <p className="text-xs text-gray-400">No unpaid completed work in this period.</p>
                       ) : (
                         <>
+                          <div className="flex justify-end gap-2 text-[10px] text-blue-600 dark:text-blue-400">
+                            <button onClick={() => setPayoutSelectedTaskIds(new Set(payoutPreview.tasks.map((t: any) => t.taskId)))} className="hover:underline">Select All</button>
+                            <button onClick={() => setPayoutSelectedTaskIds(new Set())} className="hover:underline">Select None</button>
+                          </div>
                           {payoutPreview.tasks.map((t: any) => (
-                            <div key={t.taskId} className="flex justify-between text-xs text-gray-700 dark:text-gray-300">
-                              <span>{t.orderNumber} — {t.serviceName}{t.vehicle ? ` (${t.vehicle})` : ''}</span>
-                              <span>${Number(t.amount).toFixed(2)}</span>
-                            </div>
+                            <label key={t.taskId} className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer">
+                              <input type="checkbox" checked={payoutSelectedTaskIds.has(t.taskId)} onChange={() => togglePayoutTask(t.taskId)}
+                                className="rounded w-3.5 h-3.5" />
+                              <span className="flex-1 flex justify-between">
+                                <span>{t.orderNumber} — {t.serviceName}{t.vehicle ? ` (${t.vehicle})` : ''}</span>
+                                <span>${Number(t.amount).toFixed(2)}</span>
+                              </span>
+                            </label>
                           ))}
                           <div className="flex justify-between text-xs font-semibold text-gray-900 dark:text-white pt-1 border-t border-gray-100 dark:border-gray-700">
-                            <span>Total</span>
-                            <span>${Number(payoutPreview.totalAmount).toFixed(2)}</span>
+                            <span>Total ({payoutSelectedTaskIds.size} selected)</span>
+                            <span>${payoutPreview.tasks.filter((t: any) => payoutSelectedTaskIds.has(t.taskId)).reduce((sum: number, t: any) => sum + Number(t.amount), 0).toFixed(2)}</span>
                           </div>
-                          <button onClick={handleGeneratePayout} disabled={payoutLoading} className="mt-1 px-3 py-1.5 text-xs bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded">
-                            {payoutLoading ? 'Generating...' : 'Generate Payout Voucher'}
+                          <button onClick={handleGeneratePayout} disabled={payoutLoading || payoutSelectedTaskIds.size === 0} className="mt-1 px-3 py-1.5 text-xs bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded">
+                            {payoutLoading ? 'Saving...' : editingPayoutId ? 'Save Changes' : 'Generate Payout Voucher'}
                           </button>
                         </>
                       )}
@@ -976,15 +1103,35 @@ function ContractorDetailModal({ contractorId, businessId, businessName, creator
                   {payoutHistory.length > 0 && (
                     <div>
                       <p className="text-[10px] font-medium text-gray-400 uppercase mb-1">Past Payouts</p>
-                      {payoutHistory.map(p => (
-                        <div key={p.id} className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-300 py-0.5 gap-2">
-                          <span className="truncate">{new Date(p.periodStart).toLocaleDateString()} – {new Date(p.periodEnd).toLocaleDateString()} ({p.taskCount} jobs)</span>
-                          <span className="shrink-0">${Number(p.totalAmount).toFixed(2)} — {p.paymentStatus}</span>
-                          <button onClick={() => downloadVoucher(p)} className="shrink-0 text-blue-600 dark:text-blue-400 hover:underline" title="Download voucher PDF">
-                            PDF
-                          </button>
-                        </div>
-                      ))}
+                      {payoutHistory.map(p => {
+                        const badge = p.voidedAt
+                          ? { label: 'Voided', cls: 'text-gray-400' }
+                          : p.isOverdue
+                          ? { label: `${p.daysOverdue}d Overdue`, cls: 'text-red-600 dark:text-red-400 font-medium' }
+                          : { label: p.paymentStatus, cls: 'text-gray-500 dark:text-gray-400' }
+                        return (
+                          <div key={p.id} className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-300 py-1 gap-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                            <span className="truncate flex-1">{new Date(p.periodStart).toLocaleDateString()} – {new Date(p.periodEnd).toLocaleDateString()} ({p.taskCount} jobs)</span>
+                            <span className="shrink-0">${Number(p.totalAmount).toFixed(2)}</span>
+                            {p.eodBatchId && !p.voidedAt ? (
+                              <a href={`/expense-accounts/payment-batches/${p.eodBatchId}/review`} className={`shrink-0 hover:underline ${badge.cls}`} title="Go to EOD batch review">
+                                {badge.label}
+                              </a>
+                            ) : (
+                              <span className={`shrink-0 ${badge.cls}`}>{badge.label}</span>
+                            )}
+                            {p.canAmend && (
+                              <>
+                                <button onClick={() => handleEditPayout(p)} className="shrink-0 text-blue-600 dark:text-blue-400 hover:underline">Edit</button>
+                                <button onClick={() => handleVoidPayout(p)} className="shrink-0 text-red-600 dark:text-red-400 hover:underline">Void</button>
+                              </>
+                            )}
+                            <button onClick={() => downloadVoucher(p)} className="shrink-0 text-blue-600 dark:text-blue-400 hover:underline" title="Download voucher PDF">
+                              PDF
+                            </button>
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
                 </div>

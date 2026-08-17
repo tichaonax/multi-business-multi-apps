@@ -12207,7 +12207,7 @@ A job can have any number of tasks, and different tasks on the same job can go t
 
 **Phone and national ID formatting:** anywhere a contractor is registered (New Job, Add Task, or the Contractors page), phone and national ID use the same standard input widgets as the rest of the app — a country-code selector defaulting to Zimbabwe for phone, and a format template defaulting to the Zimbabwe National ID pattern, with validation against the selected format. Phone numbers are shown formatted (e.g. "+263 77 123 4567") everywhere they're displayed on-screen; the printed Job Card shows the local format (e.g. "078 486 9759"), matching how receipts show phone numbers.
 
-**Task status:** Assigned → In Progress → Completed. Staff/managers can update task status directly here; contractors update their own tasks from their portal (see below). A completed task cannot be removed from a job. The first time a task moves to In Progress, its start time is recorded; once completed, staff with financial-data access see the actual time taken alongside the task — this is for reference only and never changes the price.
+**Task status:** Assigned → In Progress → Completed. Staff/managers can update task status directly here; contractors update their own tasks from their portal (see below). A completed task cannot be removed from a job. The first time a task moves to In Progress, its start time is recorded; once completed, staff with financial-data access see the actual time taken alongside the task — this is for reference only and never changes the price. Once the **job itself** is Billed or Cancelled, every task on it is locked — status can no longer be changed and tasks can no longer be removed, from either the job detail page or the Contractor Portal, since the invoice (and any contractor pay) has already been generated from exactly that set of tasks. This matches the job-level lock below — see [Rework Jobs](#rework-jobs) for how to handle follow-up work on an already-billed job.
 
 **Job status:** Open → In Progress → Completed → Billed, plus Cancelled at any point. The status buttons on the job detail page enforce this sequence — they aren't just labels:
 - **In Progress** happens automatically — the moment any task on the job is marked In Progress (by staff here, or by the contractor from their own portal), the job itself advances to In Progress too. No manual click needed, and it never fires early — a job with no tasks yet, or with all tasks still Assigned, stays Open.
@@ -12353,12 +12353,30 @@ Two situations in the vehicle-service workflow raise a bell notification (top-ri
 From a contractor's detail screen (**Contractors → select contractor → Monthly Payout**):
 
 1. Pick a period (defaults to the current calendar month).
-2. Click **Preview** — shows every completed, billed, and paid job/task for that contractor in the period that hasn't already been paid out, with a running total.
-3. Click **Generate Payout Voucher**.
+2. Click **Preview** — shows every completed, billed, and paid job/task for that contractor in the period that hasn't already been paid out, with a running total. **Every job is listed with its own checkbox, checked by default** — uncheck any you don't want on this voucher (e.g. one is under dispute and should wait). Use **Select All / Select None** to speed that up. The running total updates live as you check/uncheck.
+3. Optionally set a **Due Date** — leave it blank and it defaults to the end of the calendar month the period covers (the shop's normal "pay by end of month" policy); type a different date to override it for just this voucher.
+4. Click **Generate Payout Voucher**.
 
-This submits a payment request through the **same cashier-approval queue** used for every other expense-account payment in the system (Payee = the contractor, as a Person) — no separate approval process to learn. Once generated, those specific tasks are permanently locked against being included in any future payout, so re-running the same period (or overlapping periods) never double-pays a contractor. A contractor's past payout history is listed on the same screen, and each voucher (just-generated or historical) has a **Download Voucher** button that produces a printable PDF payment voucher — the same format used for other expense-account payments.
+This submits a payment request through the **same cashier-approval queue** used for every other expense-account payment in the system (Payee = the contractor, as a Person) — no separate approval process to learn. Only the jobs you actually checked are included and locked against being included in any future payout — anything you unchecked stays available to bundle into a later voucher, so re-running the same period (or overlapping periods) never double-pays a contractor.
+
+**Past Payouts** (same screen) lists every voucher for this contractor, each showing:
+- A **status badge** — Submitted (not yet picked up for review), Pending Approval (linked straight to the EOD batch review page — click it to jump there), Approved, Rejected, Voided, or, if a submitted voucher has passed its due date by more than 7 days, **"Nd Overdue"** in red.
+- **Edit** and **Void**, shown only while the voucher is still Submitted (i.e. before a cashier has picked it up for EOD review — once that happens, changes go through the cashier rejecting it there instead, the same as any other expense-account payment):
+  - **Edit** reopens the job checklist for that specific voucher — its current jobs come back pre-checked alongside anything newly eligible in the same period — check/uncheck and save to change what it covers, or update its due date.
+  - **Void** cancels the voucher entirely (with an optional reason, kept for the record) — every job on it becomes available for a future payout again, and the linked payment is marked cancelled. This can't be undone; generate a new voucher afterward if needed.
+- **Download Voucher** — a printable PDF payment voucher, the same format used for other expense-account payments.
 
 > **Note:** Generating a payout requires the business to have an active expense account linked to it. Every newly created business is now set up with one automatically. If an older business predates this and payout generation says no active expense account exists, an admin can fix it — see [Linking an Expense Account to a Business](#linking-an-expense-account-to-a-business-admin-only).
+
+### Contractor Payments Report
+
+**Contractors → 📊 Payments Report** gives a business-wide, searchable view across every contractor — for tracking down disputes or simply seeing what's outstanding, without opening each contractor one at a time. Three tabs:
+
+- **Pending Submissions** — completed, billed-and-paid jobs that haven't been put on any payout voucher yet, per contractor, with how long ago each was completed.
+- **Pending Payments** — every generated voucher still working its way through approval (Submitted or Pending Approval), with its due date and status.
+- **Overdue** — anything from either of the above that's more than 7 days past its due date (jobs still unsubmitted past the end of the month they were done in, or vouchers still unpaid past their due date), red-highlighted.
+
+Each tab has the same search-and-date-filter bar used throughout the app (search by contractor, vehicle, order number, or voucher number; filter by date preset or a custom range), summary tiles for count/total/overdue-count, and **CSV Export** / **Print / Save PDF** buttons.
 
 ### Service Customers
 
@@ -12379,7 +12397,7 @@ If a customer's record actually belongs to another business (e.g. they were firs
 | Collect payment on a billed job | `canAccessFinancialData` or system admin — same requirement as billing, independent of who billed it |
 | Release a vehicle | Business membership |
 | Issue or reject a parts request | `canManageInventory` or system admin |
-| Generate/view contractor payouts | `canAccessFinancialData`, `canCloseBooks`, or system admin |
+| Generate/view/edit/void contractor payouts, view Payments Report | `canAccessFinancialData`, `canCloseBooks`, or system admin |
 | Contractor Portal access (including requesting parts) | The contractor's own login only — no business permission applies |
 
 ### Backup — Tables
@@ -12392,7 +12410,7 @@ If a customer's record actually belongs to another business (e.g. they were firs
 | `vehicle_service_jobs` | Job header — vehicle, customer, status, primary contractor, job-card print/return timestamps, vehicle release timestamp, linked order once billed |
 | `vehicle_service_tasks` | Individual tasks — service, assigned contractor, status, agreed fee (contractor pay), customer labour rate, customer price override, work-started/completed timestamps |
 | `vehicle_service_labour_rates` | Default customer labour charge per business + service — the Labour Rates screen's config, entirely separate from contractor pay |
-| `vehicle_service_contractor_payouts` | One row per generated payout voucher |
+| `vehicle_service_contractor_payouts` | One row per generated payout voucher — period, total, due date (computed or overridden), void status |
 | `vehicle_service_contractor_payout_items` | Which tasks were included in which payout (prevents double payment) |
 | `vehicle_service_parts_requests` | A contractor's part request — description, quantity, status (Requested/Issued/Rejected), who reviewed it |
 | `vehicle_service_job_parts` | Parts actually issued to a job (via a request or added directly at billing) |
