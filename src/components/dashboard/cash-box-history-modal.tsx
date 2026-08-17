@@ -33,6 +33,7 @@ interface Payment {
 
 interface CashBoxData {
   accountName: string
+  currentBalance?: number // present for type: 'account' — the expense account's real, correctable balance
   setAsides: SetAside[]
   payments: Payment[]
   totals: { setAside: number; paid: number }
@@ -151,8 +152,15 @@ export function CashBoxHistoryModal({
 
   useEffect(fetchData, [accountId, businessId, type])
 
+  // Payroll's correctable figure is its per-business cumulative contribution
+  // (totals.setAside — there's no separate "real balance" column, see
+  // adjust-business-contribution route). An account's correctable figure is
+  // its real ExpenseAccounts.balance — totals.setAside there is a *historical*
+  // EOD-attribution figure that intentionally isn't rewritten by a correction.
+  const adjustableCurrentValue = type === 'payroll' ? (data?.totals.setAside ?? 0) : (data?.currentBalance ?? 0)
+
   const openAdjustModal = () => {
-    setAdjustTarget(String(data?.totals.setAside ?? 0))
+    setAdjustTarget(String(adjustableCurrentValue))
     setAdjustReason('')
     setShowAdjustModal(true)
   }
@@ -168,9 +176,12 @@ export function CashBoxHistoryModal({
       return
     }
 
+    const isPayroll = type === 'payroll'
     const confirmed = await confirm({
-      title: 'Adjust Payroll Contribution?',
-      description: `This changes ${businessName}'s payroll contribution from ${fmt(data?.totals.setAside ?? 0)} to ${fmt(target)} by posting an audited correction entry — existing history is kept, not deleted. This cannot be undone automatically — only with another correction.`,
+      title: isPayroll ? 'Adjust Payroll Contribution?' : 'Adjust Account Balance?',
+      description: isPayroll
+        ? `This changes ${businessName}'s payroll contribution from ${fmt(adjustableCurrentValue)} to ${fmt(target)} by posting an audited correction entry — existing history is kept, not deleted. This cannot be undone automatically — only with another correction.`
+        : `This changes ${accountName}'s balance from ${fmt(adjustableCurrentValue)} to ${fmt(target)} by posting an audited correction entry — existing history is kept, not deleted. This cannot be undone automatically — only with another correction.`,
       confirmText: 'Adjust Balance',
       cancelText: 'Cancel',
     })
@@ -178,12 +189,21 @@ export function CashBoxHistoryModal({
 
     setAdjusting(true)
     try {
-      const res = await fetch('/api/payroll/account/adjust-business-contribution', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ businessId, targetBalance: target, reason: adjustReason.trim() }),
-      })
+      const res = await fetch(
+        isPayroll
+          ? '/api/payroll/account/adjust-business-contribution'
+          : `/api/expense-account/${accountId}/adjust-balance`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(
+            isPayroll
+              ? { businessId, targetBalance: target, reason: adjustReason.trim() }
+              : { targetBalance: target, reason: adjustReason.trim() }
+          ),
+        }
+      )
       const resData = await res.json()
       if (res.ok) {
         setShowAdjustModal(false)
@@ -239,11 +259,11 @@ export function CashBoxHistoryModal({
               <div>
                 <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
                   🏦 {accountName}
-                  {type === 'payroll' && isAdmin && (
+                  {isAdmin && (
                     <button
                       onClick={openAdjustModal}
                       className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                      title="Manually correct this business's payroll contribution (admin only)"
+                      title={type === 'payroll' ? "Manually correct this business's payroll contribution (admin only)" : 'Manually correct this account balance (admin only)'}
                     >
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
@@ -273,6 +293,14 @@ export function CashBoxHistoryModal({
                       {fmt(netBalance)}
                     </p>
                   </div>
+                  {type === 'account' && data.currentBalance !== undefined && (
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">Account Balance</span>
+                      <p className="font-mono font-semibold text-gray-900 dark:text-gray-100" title="The account's real current balance — may differ from Net in Box, which only reflects locked EOD set-asides">
+                        {fmt(data.currentBalance)}
+                      </p>
+                    </div>
+                  )}
                   {hasMultipleBiz && (
                     <button
                       onClick={() => setShowBizBreakdown(v => !v)}
@@ -446,9 +474,9 @@ export function CashBoxHistoryModal({
             className="bg-white dark:bg-gray-900 rounded-lg p-5 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100"
             onClick={e => e.stopPropagation()}
           >
-            <h3 className="text-base font-bold mb-1">Adjust Payroll Contribution</h3>
+            <h3 className="text-base font-bold mb-1">{type === 'payroll' ? 'Adjust Payroll Contribution' : 'Adjust Account Balance'}</h3>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-              {businessName}'s current contribution: <span className="font-semibold">{fmt(data?.totals.setAside ?? 0)}</span>. This
+              {type === 'payroll' ? `${businessName}'s current contribution` : `${accountName}'s current balance`}: <span className="font-semibold">{fmt(adjustableCurrentValue)}</span>. This
               posts an audited correction entry — it does not delete history.
             </p>
 

@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
     // Resolve the account's business for permission check
     const account = await prisma.expenseAccounts.findUnique({
       where: { id: accountId },
-      select: { id: true, accountName: true, businessId: true },
+      select: { id: true, accountName: true, businessId: true, balance: true },
     })
     if (!account) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 })
@@ -244,6 +244,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         accountName: account.accountName,
+        currentBalance: Number(account.balance),
         setAsides,
         payments: paymentRows,
         totals: {
