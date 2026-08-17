@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import { CashBoxHistoryModal } from './cash-box-history-modal'
 
 interface EodAccount {
@@ -105,13 +106,15 @@ function CashBox({
 }
 
 export function EodAccountsWidget() {
+  const { data: session } = useSession()
+  const isAdmin = session?.user?.role === 'admin'
   const [groups, setGroups] = useState<BusinessGroup[]>([])
   const [sharedAccounts, setSharedAccounts] = useState<EodAccount[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<SelectedAccount | null>(null)
   const [expanded, setExpanded] = useState(false)
 
-  useEffect(() => {
+  const fetchAccounts = () => {
     fetch('/api/dashboard/eod-accounts')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -120,7 +123,9 @@ export function EodAccountsWidget() {
       })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(fetchAccounts, [])
 
   if (loading || groups.length === 0) return null
 
@@ -251,6 +256,8 @@ export function EodAccountsWidget() {
           businessName={selected.businessName}
           type={selected.type}
           businessId={selected.businessId}
+          isAdmin={isAdmin}
+          onAdjusted={fetchAccounts}
           onClose={() => setSelected(null)}
         />
       )}

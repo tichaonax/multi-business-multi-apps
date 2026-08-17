@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, ChevronDown, ChevronRight } from 'lucide-react'
+import { X, ChevronDown, ChevronRight, Pencil } from 'lucide-react'
 import { ModalPortal } from '@/components/ui/modal-portal'
+import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 
 interface SetAside {
   id: string
@@ -56,6 +57,8 @@ const monthLabel = (key: string) => {
 const sourceTypeLabel = (t: string) => {
   if (t === 'EOD_AUTO_DEPOSIT') return 'EOD Auto-Deposit'
   if (t === 'EOD_RENT_TRANSFER') return 'Rent Transfer'
+  if (t === 'EOD_AUTO_CONTRIBUTION') return 'EOD Contribution'
+  if (t === 'MANUAL_ADJUSTMENT') return 'Manual Adjustment'
   return t
 }
 
@@ -104,19 +107,25 @@ function MonthSection({
 }
 
 export function CashBoxHistoryModal({
-  accountId, accountName, businessName, type = 'account', businessId, onClose,
+  accountId, accountName, businessName, type = 'account', businessId, isAdmin = false, onAdjusted, onClose,
 }: {
   accountId?: string; accountName: string; businessName: string
-  type?: 'account' | 'payroll'; businessId?: string; onClose: () => void
+  type?: 'account' | 'payroll'; businessId?: string; isAdmin?: boolean; onAdjusted?: () => void; onClose: () => void
 }) {
+  const customAlert = useAlert()
+  const confirm = useConfirm()
   const [data, setData] = useState<CashBoxData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<'setasides' | 'payments'>('setasides')
   const [openMonths, setOpenMonths] = useState<Set<string>>(new Set())
   const [showBizBreakdown, setShowBizBreakdown] = useState(false)
+  const [showAdjustModal, setShowAdjustModal] = useState(false)
+  const [adjustTarget, setAdjustTarget] = useState('')
+  const [adjustReason, setAdjustReason] = useState('')
+  const [adjusting, setAdjusting] = useState(false)
 
-  useEffect(() => {
+  const fetchData = () => {
     const url =
       type === 'payroll'
         ? `/api/dashboard/cash-box-history?type=payroll&businessId=${businessId}`
@@ -138,7 +147,57 @@ export function CashBoxHistoryModal({
       })
       .catch(() => setError('Failed to load'))
       .finally(() => setLoading(false))
-  }, [accountId, businessId, type])
+  }
+
+  useEffect(fetchData, [accountId, businessId, type])
+
+  const openAdjustModal = () => {
+    setAdjustTarget(String(data?.totals.setAside ?? 0))
+    setAdjustReason('')
+    setShowAdjustModal(true)
+  }
+
+  const handleAdjustBalance = async () => {
+    const target = parseFloat(adjustTarget)
+    if (isNaN(target)) {
+      customAlert({ title: 'Invalid value', description: 'Enter a valid balance amount.' })
+      return
+    }
+    if (!adjustReason.trim()) {
+      customAlert({ title: 'Reason required', description: 'Explain why this contribution is being corrected (e.g. clearing demo/test data for a clean start).' })
+      return
+    }
+
+    const confirmed = await confirm({
+      title: 'Adjust Payroll Contribution?',
+      description: `This changes ${businessName}'s payroll contribution from ${fmt(data?.totals.setAside ?? 0)} to ${fmt(target)} by posting an audited correction entry — existing history is kept, not deleted. This cannot be undone automatically — only with another correction.`,
+      confirmText: 'Adjust Balance',
+      cancelText: 'Cancel',
+    })
+    if (!confirmed) return
+
+    setAdjusting(true)
+    try {
+      const res = await fetch('/api/payroll/account/adjust-business-contribution', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ businessId, targetBalance: target, reason: adjustReason.trim() }),
+      })
+      const resData = await res.json()
+      if (res.ok) {
+        setShowAdjustModal(false)
+        fetchData()
+        onAdjusted?.()
+      } else {
+        customAlert({ title: 'Error', description: resData.error || 'Failed to adjust balance.' })
+      }
+    } catch {
+      customAlert({ title: 'Error', description: 'Network error. Please try again.' })
+    } finally {
+      setAdjusting(false)
+    }
+  }
 
   const toggleMonth = (key: string) =>
     setOpenMonths(prev => {
@@ -178,7 +237,18 @@ export function CashBoxHistoryModal({
           <div className="flex-none">
             <div className="flex items-start justify-between p-4 border-b border-gray-200 dark:border-gray-700">
               <div>
-                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">🏦 {accountName}</h2>
+                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
+                  🏦 {accountName}
+                  {type === 'payroll' && isAdmin && (
+                    <button
+                      onClick={openAdjustModal}
+                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                      title="Manually correct this business's payroll contribution (admin only)"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </h2>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{businessName} — Cash Box History</p>
               </div>
               <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded">
@@ -287,7 +357,7 @@ export function CashBoxHistoryModal({
                               {sourceTypeLabel(s.sourceType)}
                               {s.isGrouped && <span className="ml-1 text-blue-500">(grouped)</span>}
                             </td>
-                            <td className="px-4 py-2 text-right font-mono font-semibold text-green-600 dark:text-green-400">
+                            <td className={`px-4 py-2 text-right font-mono font-semibold ${s.amount < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                               {fmt(s.amount)}
                             </td>
                             <td className="px-4 py-2 text-gray-500 dark:text-gray-400">{s.lockedBy ?? '—'}</td>
@@ -369,6 +439,62 @@ export function CashBoxHistoryModal({
           </div>
         </div>
       </div>
+
+      {showAdjustModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[210] p-4" onClick={() => setShowAdjustModal(false)}>
+          <div
+            className="bg-white dark:bg-gray-900 rounded-lg p-5 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-base font-bold mb-1">Adjust Payroll Contribution</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              {businessName}'s current contribution: <span className="font-semibold">{fmt(data?.totals.setAside ?? 0)}</span>. This
+              posts an audited correction entry — it does not delete history.
+            </p>
+
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Correct Balance</label>
+            <div className="relative mb-3">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+              <input
+                type="number"
+                step="0.01"
+                value={adjustTarget}
+                onChange={(e) => setAdjustTarget(e.target.value)}
+                autoFocus
+                className="w-full pl-7 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason (required)</label>
+            <textarea
+              value={adjustReason}
+              onChange={(e) => setAdjustReason(e.target.value)}
+              rows={3}
+              placeholder="e.g. Clearing demo/test data for a clean start."
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-blue-500 mb-4"
+            />
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAdjustModal(false)}
+                disabled={adjusting}
+                className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAdjustBalance}
+                disabled={adjusting || !adjustTarget || !adjustReason.trim()}
+                className="px-3 py-1.5 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {adjusting ? 'Adjusting…' : 'Adjust Balance'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </ModalPortal>
   )
 }

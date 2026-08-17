@@ -16,8 +16,9 @@ import { getServerUser } from '@/lib/get-server-user'
  * money that had since been paid back out — showing an inflated "balance" even after a
  * loan had been fully repaid.
  *
- * Payroll cash contribution = SUM of EOD_AUTO_CONTRIBUTION payrollAccountDeposits for
- * that business. Unlike a per-business expense account, the payroll account is one
+ * Payroll cash contribution = SUM of EOD_AUTO_CONTRIBUTION (plus any MANUAL_ADJUSTMENT
+ * correction — see /api/payroll/account/adjust-business-contribution) payrollAccountDeposits
+ * for that business. Unlike a per-business expense account, the payroll account is one
  * shared global account — there's no per-business "payroll balance" to read, so this
  * stays a cumulative contribution figure rather than a net balance.
  */
@@ -126,7 +127,7 @@ export async function GET() {
       by: ['businessId'],
       where: {
         businessId: { in: accessibleBusinessIds },
-        transactionType: 'EOD_AUTO_CONTRIBUTION',
+        transactionType: { in: ['EOD_AUTO_CONTRIBUTION', 'MANUAL_ADJUSTMENT'] },
       },
       _sum: { amount: true },
     })

@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       const depositRows = await prisma.payrollAccountDeposits.findMany({
         where: {
           businessId,
-          transactionType: 'EOD_AUTO_CONTRIBUTION',
+          transactionType: { in: ['EOD_AUTO_CONTRIBUTION', 'MANUAL_ADJUSTMENT'] },
         },
         select: {
           id: true,
