@@ -14,6 +14,7 @@
     - [Setting Up EOD Payroll Auto-Contribution for a Business](#setting-up-eod-payroll-auto-contribution-for-a-business)
     - [Payroll Account — Transaction History & Breakdown](#payroll-account--transaction-history--breakdown)
     - [Adjusting the Payroll Account Balance (Admin Only)](#adjusting-the-payroll-account-balance-admin-only)
+    - [Adjusting a Business's Payroll Contribution (Admin Only)](#adjusting-a-businesss-payroll-contribution-admin-only)
 4. [Manager — Approvals, Payroll & Reports](#4-manager--approvals-payroll--reports)
 5. [HR & Employee Management](#5-hr--employee-management)
     - [Leave Management — HR Direct Actions](#leave-management--hr-direct-actions)
@@ -1080,6 +1081,23 @@ Like expense accounts, the payroll account's balance can occasionally drift from
 4. Click **Adjust Balance**, then confirm.
 
 **What happens:** The system doesn't just overwrite the number — it posts a proper correction entry into the account's transaction history (visible in Recent Transactions as **"Manual Balance Correction"**), tagged with your name, the date, the old and new balance, and your reason. This keeps the balance fully auditable.
+
+---
+
+### Adjusting a Business's Payroll Contribution (Admin Only)
+
+The payroll account is one shared account, but the dashboard's **Cash Box Balances** widget shows each business's own cumulative contribution to it as a separate **Payroll** card (e.g. under "HXI Eats", "HXI Fashions"). If one of these needs correcting — clearing out demo/test data for a clean start, or fixing a figure that's drifted — an admin can adjust it the same way as the account-level balance above, without deleting the underlying EOD contribution history.
+
+**Who can do this:** System administrators only.
+
+1. From the **Dashboard**, click a business's **Payroll** card under Cash Box Balances to open its history.
+2. Next to the modal's title, click the ✏️ (pencil) icon. If you don't see it, you don't have permission to adjust balances.
+3. In the **Adjust Payroll Contribution** window:
+   - **Correct Balance** — enter what this business's contribution should actually be (often `0` for a clean start).
+   - **Reason** — required.
+4. Click **Adjust Balance**, then confirm.
+
+**What happens:** Same as above — a signed correction entry is posted (visible in the card's own history as **"Manual Adjustment"**, alongside the regular EOD contribution entries), and both the business's card and the shared payroll account's overall balance update immediately. Nothing is deleted.
 
 ---
 
