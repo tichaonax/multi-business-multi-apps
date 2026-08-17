@@ -41,6 +41,7 @@ function fmtMoney(n: number): string {
 function CashBox({
   label, balance, dailyAmount, icon, onClick,
   isLoanAccount, loanBalanceOwed, availableToWithdraw, loanStatus,
+  neverNegative,
 }: {
   label: string
   balance: number
@@ -51,6 +52,11 @@ function CashBox({
   loanBalanceOwed?: number
   availableToWithdraw?: number
   loanStatus?: string
+  // Payroll's cash box is physical cash on hand — it can't go below zero, so a
+  // negative underlying figure (funding not yet caught up to contributions) is
+  // display-clamped to $0 rather than shown as an owed amount, unlike loan/expense
+  // accounts where a negative balance is a real, meaningful owed figure.
+  neverNegative?: boolean
 }) {
   if (isLoanAccount) {
     return (
@@ -93,10 +99,10 @@ function CashBox({
         <span className="text-sm">{icon}</span>
         <span className="text-xs text-secondary truncate" title={label}>{label}</span>
       </div>
-      <span className={`text-base font-bold font-mono ${balance < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
-        {fmtMoney(balance)}
+      <span className={`text-base font-bold font-mono ${balance < 0 && !neverNegative ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
+        {fmtMoney(neverNegative ? Math.max(0, balance) : balance)}
       </span>
-      {balance < 0 && (
+      {balance < 0 && !neverNegative && (
         <span className="text-[10px] text-red-500 dark:text-red-400/80">still owed</span>
       )}
       {dailyAmount !== undefined && (
@@ -333,13 +339,14 @@ export function EodAccountsWidget() {
                   icon="💼"
                   label="Overall Balance"
                   balance={payrollAccountBalance}
+                  neverNegative
                   onClick={() => isAdmin && setShowPayrollAdjust(true)}
                 />
               </div>
             </div>
           )}
           {groups.map(({ business, accounts, payrollCashBox, canViewPayroll, subtotal }) => {
-            const bizTotal = subtotal ?? accounts.reduce((s, a) => s + a.cashBoxBalance, 0) + payrollCashBox
+            const bizTotal = subtotal ?? accounts.reduce((s, a) => s + a.cashBoxBalance, 0) + Math.max(0, payrollCashBox)
             return (
             <div key={business.id} className="flex flex-col gap-2">
               <p className="text-xs font-semibold text-secondary uppercase tracking-wide">
@@ -368,6 +375,7 @@ export function EodAccountsWidget() {
                     icon="💼"
                     label="Payroll"
                     balance={payrollCashBox}
+                    neverNegative
                     onClick={() => setSelected({ accountName: 'Payroll', businessName: business.name, type: 'payroll', businessId: business.id })}
                   />
                 )}

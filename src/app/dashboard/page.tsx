@@ -681,7 +681,7 @@ function DashboardContent() {
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-secondary flex items-center gap-1" title="Cash and EcoCash on hand, not yet earmarked for any purpose">🪣 Cash Box (Free)</span>
                   <span className={`font-semibold ${(revenueBreakdown.summary.totalCashBoxBalance ?? 0) > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-secondary'}`}>
-                    ${(revenueBreakdown.summary.totalCashBoxBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    ${Math.max(0, revenueBreakdown.summary.totalCashBoxBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
                 {(revenueBreakdown.summary.totalEarmarked ?? 0) > 0 && (
@@ -704,7 +704,7 @@ function DashboardContent() {
                   <div className="pl-3 space-y-0.5">
                     <div className="flex items-center justify-between text-xs text-secondary">
                       <span>💵 Cash</span>
-                      <span>${(revenueBreakdown.summary.totalCashBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span>${Math.max(0, revenueBreakdown.summary.totalCashBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs text-secondary">
                       <span>📱 EcoCash</span>
@@ -810,7 +810,7 @@ function DashboardContent() {
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-secondary flex items-center gap-1" title="Cash and EcoCash on hand, not yet earmarked for any purpose">🪣 Cash Box (Free)</span>
                       <span className={`font-semibold ${typeData.totalCashBoxBalance > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-secondary'}`}>
-                        ${(typeData.totalCashBoxBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ${Math.max(0, typeData.totalCashBoxBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
                     {(typeData.totalEarmarked ?? 0) > 0 && (
@@ -833,7 +833,7 @@ function DashboardContent() {
                       <div className="pl-3 space-y-0.5">
                         <div className="flex items-center justify-between text-xs text-secondary">
                           <span>💵 Cash</span>
-                          <span>${(typeData.totalCashBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          <span>${Math.max(0, typeData.totalCashBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                         <div className="flex items-center justify-between text-xs text-secondary">
                           <span>📱 EcoCash</span>

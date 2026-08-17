@@ -277,10 +277,13 @@ export async function GET() {
     const groups = allGroups.map(g => ({
       ...g,
       accounts: g.accounts.filter(a => !sharedAccountIds.has(a.id)),
+      // Payroll's cash box can't go below zero (see CashBox's neverNegative prop on the
+      // dashboard widget) — clamp its contribution here too so this subtotal matches what
+      // the individual cards on screen add up to.
       subtotal:
         g.accounts
           .filter(a => !sharedAccountIds.has(a.id))
-          .reduce((s, a) => s + a.cashBoxBalance, 0) + g.payrollCashBox,
+          .reduce((s, a) => s + a.cashBoxBalance, 0) + Math.max(0, g.payrollCashBox),
     }))
 
     // Global payroll account balance — one shared account across every business, distinct
