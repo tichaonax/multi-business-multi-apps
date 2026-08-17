@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { CashBoxHistoryModal } from './cash-box-history-modal'
+import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 
 interface EodAccount {
   id: string
@@ -105,13 +106,125 @@ function CashBox({
   )
 }
 
+// The global payroll account has no per-business history to browse here (that's the
+// dedicated Payroll → Payroll Account page's job) — just a quick balance + correction,
+// so a user doesn't have to leave the dashboard for a simple adjustment. Mirrors the
+// adjust form on that page (AccountBalanceCard) and the per-account/per-business ones
+// in CashBoxHistoryModal.
+function PayrollAccountAdjustModal({ balance, onAdjusted, onClose }: { balance: number; onAdjusted: () => void; onClose: () => void }) {
+  const customAlert = useAlert()
+  const confirm = useConfirm()
+  const [target, setTarget] = useState(String(balance))
+  const [reason, setReason] = useState('')
+  const [adjusting, setAdjusting] = useState(false)
+
+  const handleAdjust = async () => {
+    const value = parseFloat(target)
+    if (isNaN(value)) {
+      customAlert({ title: 'Invalid value', description: 'Enter a valid balance amount.' })
+      return
+    }
+    if (!reason.trim()) {
+      customAlert({ title: 'Reason required', description: 'Explain why this balance is being corrected.' })
+      return
+    }
+    const confirmed = await confirm({
+      title: 'Adjust Payroll Account Balance?',
+      description: `This changes the balance from ${fmtMoney(balance)} to ${fmtMoney(value)} by posting an audited correction entry. This cannot be undone automatically — only with another correction.`,
+      confirmText: 'Adjust Balance',
+      cancelText: 'Cancel',
+    })
+    if (!confirmed) return
+
+    setAdjusting(true)
+    try {
+      const res = await fetch('/api/payroll/account/adjust-balance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ targetBalance: value, reason: reason.trim() }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        onAdjusted()
+        onClose()
+      } else {
+        customAlert({ title: 'Error', description: data.error || 'Failed to adjust balance.' })
+      }
+    } catch {
+      customAlert({ title: 'Error', description: 'Network error. Please try again.' })
+    } finally {
+      setAdjusting(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200] p-4" onClick={onClose}>
+      <div
+        className="bg-white dark:bg-gray-900 rounded-lg p-5 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100"
+        onClick={e => e.stopPropagation()}
+      >
+        <h3 className="text-base font-bold mb-1">Adjust Payroll Account Balance</h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+          Current balance: <span className="font-semibold">{fmtMoney(balance)}</span>. This posts an audited
+          correction entry — it does not overwrite history. For full transaction history, see
+          Payroll → Payroll Account.
+        </p>
+
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Correct Balance</label>
+        <div className="relative mb-3">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+          <input
+            type="number"
+            step="0.01"
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+            autoFocus
+            className="w-full pl-7 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason (required)</label>
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          rows={3}
+          placeholder="e.g. Reconciled against bank statement."
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-blue-500 mb-4"
+        />
+
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={adjusting}
+            className="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleAdjust}
+            disabled={adjusting || !target || !reason.trim()}
+            className="px-3 py-1.5 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            {adjusting ? 'Adjusting…' : 'Adjust Balance'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function EodAccountsWidget() {
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'admin'
   const [groups, setGroups] = useState<BusinessGroup[]>([])
   const [sharedAccounts, setSharedAccounts] = useState<EodAccount[]>([])
+  const [payrollAccountBalance, setPayrollAccountBalance] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<SelectedAccount | null>(null)
+  const [showPayrollAdjust, setShowPayrollAdjust] = useState(false)
   const [expanded, setExpanded] = useState(false)
 
   const fetchAccounts = () => {
@@ -120,6 +233,7 @@ export function EodAccountsWidget() {
       .then(data => {
         if (data?.data) setGroups(data.data)
         if (data?.sharedAccounts) setSharedAccounts(data.sharedAccounts)
+        setPayrollAccountBalance(data?.payrollAccount?.balance ?? null)
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -205,8 +319,25 @@ export function EodAccountsWidget() {
           </div>
         )}
 
-        {/* Per-business groups — laid out side by side */}
+        {/* Per-business groups — laid out side by side, with the overall (shared)
+            Payroll Account balance leading the row so it reads as "the account these
+            per-business contributions feed into" rather than just another business. */}
         <div className="flex flex-wrap gap-4">
+          {payrollAccountBalance !== null && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs font-semibold text-secondary uppercase tracking-wide">
+                Payroll Account
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <CashBox
+                  icon="💼"
+                  label="Overall Balance"
+                  balance={payrollAccountBalance}
+                  onClick={() => isAdmin && setShowPayrollAdjust(true)}
+                />
+              </div>
+            </div>
+          )}
           {groups.map(({ business, accounts, payrollCashBox, canViewPayroll, subtotal }) => {
             const bizTotal = subtotal ?? accounts.reduce((s, a) => s + a.cashBoxBalance, 0) + payrollCashBox
             return (
@@ -259,6 +390,14 @@ export function EodAccountsWidget() {
           isAdmin={isAdmin}
           onAdjusted={fetchAccounts}
           onClose={() => setSelected(null)}
+        />
+      )}
+
+      {showPayrollAdjust && payrollAccountBalance !== null && (
+        <PayrollAccountAdjustModal
+          balance={payrollAccountBalance}
+          onAdjusted={fetchAccounts}
+          onClose={() => setShowPayrollAdjust(false)}
         />
       )}
     </div>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
+import { getGlobalPayrollAccount } from '@/lib/payroll-account-utils'
 
 /**
  * GET /api/dashboard/eod-accounts
@@ -276,10 +277,31 @@ export async function GET() {
           .reduce((s, a) => s + a.cashBoxBalance, 0) + g.payrollCashBox,
     }))
 
+    // Global payroll account balance — one shared account across every business, distinct
+    // from the per-business "cumulative contribution" figures above (deposits minus ALL
+    // payments, not just this business's share of them). Surfaced here so the same
+    // correction available on the dedicated Payroll Account page doesn't require leaving
+    // the dashboard (see MBM-269 follow-up).
+    const canViewGlobalPayroll = isSystemAdmin(user) || userBusinessIds.some((id: string) => hasPermission(user, 'canAccessPayroll', id))
+    let payrollAccount: { balance: number } | null = null
+    if (canViewGlobalPayroll) {
+      const account = await getGlobalPayrollAccount()
+      if (account) {
+        const [depositsAgg, paymentsAgg] = await Promise.all([
+          prisma.payrollAccountDeposits.aggregate({ where: { payrollAccountId: account.id }, _sum: { amount: true } }),
+          prisma.payrollAccountPayments.aggregate({ where: { payrollAccountId: account.id }, _sum: { amount: true } }),
+        ])
+        payrollAccount = {
+          balance: Number(depositsAgg._sum.amount || 0) - Number(paymentsAgg._sum.amount || 0),
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       sharedAccounts,
       data: groups,
+      payrollAccount,
     })
   } catch (err) {
     console.error('[GET /api/dashboard/eod-accounts]', err)
