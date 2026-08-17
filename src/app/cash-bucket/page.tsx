@@ -720,7 +720,7 @@ export default function CashBucketPage() {
                     </div>
                     {totalAllocated > 0 && (
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-500 dark:text-gray-400">└── 🔒 Earmarked (set aside this month)</span>
+                        <span className="text-gray-500 dark:text-gray-400">└── 🔒 Earmarked (set aside, last 7 days)</span>
                         <span className="font-semibold text-amber-600 dark:text-amber-400">{fmt(totalAllocated)}</span>
                       </div>
                     )}
@@ -882,7 +882,7 @@ export default function CashBucketPage() {
                             ))}
                           </>
                         ) : (
-                          <div className="pl-3 text-gray-400 dark:text-gray-500">└── no earmarked funds this month</div>
+                          <div className="pl-3 text-gray-400 dark:text-gray-500">└── no earmarked funds in the last 7 days</div>
                         )}
                       </div>
 
@@ -929,7 +929,7 @@ export default function CashBucketPage() {
                       {combinedAllocs.length > 0 && (
                         <>
                           <div className="flex justify-between items-center pl-3">
-                            <span className="text-gray-400 dark:text-gray-500">└── 🔒 Earmarked this month ({combinedAllocs.length} item{combinedAllocs.length !== 1 ? 's' : ''})</span>
+                            <span className="text-gray-400 dark:text-gray-500">└── 🔒 Earmarked, last 7 days ({combinedAllocs.length} item{combinedAllocs.length !== 1 ? 's' : ''})</span>
                             <span className="font-semibold text-amber-600 dark:text-amber-400">{fmt(totalAllocated)}</span>
                           </div>
                           {combinedAllocs.map((a, i) => (
@@ -1645,7 +1645,7 @@ export default function CashBucketPage() {
             onClick={e => e.stopPropagation()}
           >
             <h3 className="text-sm font-semibold text-primary mb-1">{allocationDetail.accountName}</h3>
-            <p className="text-xs text-secondary mb-4">{allocationDetail.businessName} — what makes up this month's earmarked total</p>
+            <p className="text-xs text-secondary mb-4">{allocationDetail.businessName} — what makes up this earmarked total (last 7 days)</p>
 
             {allocationDetailLoading ? (
               <p className="text-sm text-secondary">Loading…</p>

@@ -679,11 +679,27 @@ function DashboardContent() {
               </div>
               <div className="bg-gray-50 dark:bg-gray-800/60 border-t border-gray-100 dark:border-gray-700 px-4 py-2.5 space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-secondary flex items-center gap-1">🪣 Cash Box</span>
+                  <span className="text-secondary flex items-center gap-1" title="Cash and EcoCash on hand, not yet earmarked for any purpose">🪣 Cash Box (Free)</span>
                   <span className={`font-semibold ${(revenueBreakdown.summary.totalCashBoxBalance ?? 0) > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-secondary'}`}>
                     ${(revenueBreakdown.summary.totalCashBoxBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
+                {(revenueBreakdown.summary.totalEarmarked ?? 0) > 0 && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-secondary flex items-center gap-1" title="Cash still in the box but reserved for allocation or payroll funding (last 7 days)">🔒 Earmarked</span>
+                    <span className="font-semibold text-amber-600 dark:text-amber-400">
+                      ${(revenueBreakdown.summary.totalEarmarked ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                )}
+                {(revenueBreakdown.summary.totalExpenseAccountBalance ?? 0) > 0 && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-secondary flex items-center gap-1">🏦 Expense Account</span>
+                    <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                      ${(revenueBreakdown.summary.totalExpenseAccountBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                )}
                 {(revenueBreakdown.summary.totalEcocashBalance ?? 0) > 0 && (
                   <div className="pl-3 space-y-0.5">
                     <div className="flex items-center justify-between text-xs text-secondary">
@@ -792,11 +808,27 @@ function DashboardContent() {
                   <div className="bg-gray-50 dark:bg-gray-800/60 border-t border-gray-100 dark:border-gray-700 px-4 py-2.5 space-y-1.5">
                     {/* Cash Box */}
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-secondary flex items-center gap-1">🪣 Cash Box</span>
+                      <span className="text-secondary flex items-center gap-1" title="Cash and EcoCash on hand, not yet earmarked for any purpose">🪣 Cash Box (Free)</span>
                       <span className={`font-semibold ${typeData.totalCashBoxBalance > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-secondary'}`}>
                         ${(typeData.totalCashBoxBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
+                    {(typeData.totalEarmarked ?? 0) > 0 && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-secondary flex items-center gap-1" title="Cash still in the box but reserved for allocation or payroll funding (last 7 days)">🔒 Earmarked</span>
+                        <span className="font-semibold text-amber-600 dark:text-amber-400">
+                          ${(typeData.totalEarmarked ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    )}
+                    {(typeData.totalExpenseAccountBalance ?? 0) > 0 && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-secondary flex items-center gap-1">🏦 Expense Account</span>
+                        <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                          ${(typeData.totalExpenseAccountBalance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    )}
                     {(typeData.totalEcocashBalance ?? 0) > 0 && (
                       <div className="pl-3 space-y-0.5">
                         <div className="flex items-center justify-between text-xs text-secondary">
@@ -1799,6 +1831,20 @@ function DashboardContent() {
                                     </span>
                                   </div>
                                 </div>
+                                {((business.earmarkedTotal ?? 0) > 0 || (business.expenseAccountBalance ?? 0) > 0) && (
+                                  <div className="flex items-center space-x-3 mt-1">
+                                    {(business.earmarkedTotal ?? 0) > 0 && (
+                                      <span className="text-xs text-amber-600 dark:text-amber-400" title="Earmarked, last 7 days">
+                                        🔒 ${business.earmarkedTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                      </span>
+                                    )}
+                                    {(business.expenseAccountBalance ?? 0) > 0 && (
+                                      <span className="text-xs text-indigo-600 dark:text-indigo-400" title={business.expenseAccountName ?? 'Expense Account'}>
+                                        🏦 ${business.expenseAccountBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </div>
                             <div className="text-right">

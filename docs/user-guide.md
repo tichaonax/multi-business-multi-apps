@@ -233,13 +233,15 @@ Each card shows:
 | **Account balance** (large number) | The running business account balance — total revenue minus expenses |
 | **Sales** | Total revenue from all completed and pending orders |
 | **💵 / 📱 split** | Cash vs EcoCash breakdown of sales (shown only when EcoCash sales exist) |
-| **🪣 Cash Box** | Physical cash and EcoCash currently held in the till |
+| **🪣 Cash Box (Free)** | Physical cash and EcoCash currently held in the till and not earmarked for anything |
+| **🔒 Earmarked** | Cash still in the till but already reserved for an allocation or payroll funding (rolling 7-day window). Only shown when greater than zero — see [Cash Box, Earmarked, and Expense Account on the Dashboard](#cash-box-earmarked-and-expense-account-on-the-dashboard). |
+| **🏦 Expense Account** | The business's own expense account balance. Only shown when greater than zero. |
 | **📦 Inventory** | Total value of stock on hand — calculated as quantity × cost price (or selling price if no cost price is set). Only shown when inventory value is greater than zero. |
 | **🏠 Rent** | How much of this month's rent target has been contributed, with a progress bar |
 
 The **All** card at the far left shows the combined totals across every business type.
 
-Click any card to open a detailed breakdown showing each individual business within that type.
+Click any card to open a detailed breakdown showing each individual business within that type, including its own 🔒 Earmarked and 🏦 Expense Account figures.
 
 #### Today's Performance
 
@@ -2779,13 +2781,29 @@ The same correction tool exists for two more balances, so every number in the bo
 
 ### Drilling Into an Earmarked Amount (Cash Box)
 
-On the **Cash Box** page's Per-Business Breakdown, each business's "💵 Physical cash to count" splits into "✅ Free / available" and "🔒 Earmarked" — and every individual line under Earmarked (e.g. "Loan: Tichaona Hwandaza", "General Expenses", a rent account) is clickable.
+On the **Cash Box** page's Per-Business Breakdown, each business's "💵 Physical cash to count" splits into "✅ Free / available" and "🔒 Earmarked (last 7 days)" — and every individual line under Earmarked (e.g. "Loan: Tichaona Hwandaza", "General Expenses", a rent account) is clickable.
+
+Earmarked entries are shown on a **rolling 7-day window**, not "since the start of this month" — a line drops off the list 7 days after it was recorded, so the list doesn't keep growing as the month goes on. This same window is used everywhere earmarked totals are shown (the Cash Box page and the Dashboard, below).
 
 Click a line to open a breakdown showing:
-- Every individual entry this month that adds up to that line's total — its date, amount, and who recorded it.
+- Every individual entry in that window that adds up to that line's total — its date, amount, and who recorded it.
 - The **real expense account** it belongs to, by name and account number (🏦) — including shared accounts used by more than one business (like "General Expenses" or a shared loan account), which don't otherwise show which real account they map to.
 
 This is read-only — it's for tracing where an earmarked figure actually comes from, not for editing it. To correct the underlying cash balance, use the ✏️ pencil described above instead.
+
+### Cash Box, Earmarked, and Expense Account on the Dashboard
+
+The **Dashboard**'s business-type cards (and the summary "All" card) show three related but distinct figures in their footer, using consistent labels:
+
+| Label | Meaning |
+|---|---|
+| **🪣 Cash Box (Free)** | Cash and EcoCash currently on hand and *not* reserved for anything — this is the same figure previously labeled just "Cash Box"; the "(Free)" suffix was added so it's not confused with the earmarked total next to it. |
+| **🔒 Earmarked** | Cash still physically in the box but already reserved for an allocation or payroll funding, over the same rolling 7-day window used on the Cash Box page. Only shown when non-zero. |
+| **🏦 Expense Account** | The balance of the business's own GENERAL expense account. Only shown when non-zero. |
+
+> Note: unlike the Cash Box page's "💵 Physical cash to count" (which is Free + Earmarked combined), the Dashboard's "🪣 Cash Box (Free)" figure does **not** include Earmarked — that's why Earmarked is broken out as its own line here instead of being folded in.
+
+Opening a business-type card's detail view (click the card) also lists each individual business with its own 🔒 Earmarked and 🏦 Expense Account figures, when either is non-zero — the same figures as the type-level card, scoped to just that one business.
 
 ### Linking an Expense Account to a Business (Admin Only)
 

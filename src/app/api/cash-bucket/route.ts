@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
+import { getEarmarkWindowStart } from '@/lib/cash-bucket-earmark-window'
 
 /**
  * GET /api/cash-bucket
@@ -122,10 +123,8 @@ export async function GET(request: NextRequest) {
     })
     const bizMap = new Map(businesses.map((b) => [b.id, b]))
 
-    // CASH_ALLOCATION outflow breakdown (current month) — earmarked funds still physically in the box
-    const startOfMonth = new Date()
-    startOfMonth.setDate(1)
-    startOfMonth.setHours(0, 0, 0, 0)
+    // CASH_ALLOCATION outflow breakdown (rolling window) — earmarked funds still physically in the box
+    const windowStart = getEarmarkWindowStart()
 
     const allocationRows = await prisma.cashBucketEntry.groupBy({
       by: ['businessId', 'notes'] as any,
@@ -133,7 +132,7 @@ export async function GET(request: NextRequest) {
         entryType: 'CASH_ALLOCATION',
         direction: 'OUTFLOW',
         deletedAt: null,
-        entryDate: { gte: startOfMonth },
+        entryDate: { gte: windowStart },
         ...(businessId && { businessId }),
       },
       _sum: { amount: true },
@@ -146,14 +145,14 @@ export async function GET(request: NextRequest) {
       allocMap.set(row.businessId, items)
     }
 
-    // PAYROLL_FUNDING outflow breakdown (current month) — payroll reserved in the box
+    // PAYROLL_FUNDING outflow breakdown (rolling window) — payroll reserved in the box
     const payrollRows = await prisma.cashBucketEntry.groupBy({
       by: ['businessId'] as any,
       where: {
         entryType: 'PAYROLL_FUNDING',
         direction: 'OUTFLOW',
         deletedAt: null,
-        entryDate: { gte: startOfMonth },
+        entryDate: { gte: windowStart },
         ...(businessId && { businessId }),
       },
       _sum: { amount: true },
@@ -164,7 +163,7 @@ export async function GET(request: NextRequest) {
       allocMap.set(row.businessId, items)
     }
 
-    // PAYMENT_APPROVAL outflows this month — cash that already physically left the box.
+    // PAYMENT_APPROVAL outflows in the same window — cash that already physically left the box.
     // These reduce the earmarked display: earmarks that have been disbursed should clear.
     const approvalRows = await prisma.cashBucketEntry.groupBy({
       by: ['businessId'] as any,
@@ -173,7 +172,7 @@ export async function GET(request: NextRequest) {
         direction: 'OUTFLOW',
         paymentChannel: 'CASH',
         deletedAt: null,
-        entryDate: { gte: startOfMonth },
+        entryDate: { gte: windowStart },
         ...(businessId && { businessId }),
       },
       _sum: { amount: true },

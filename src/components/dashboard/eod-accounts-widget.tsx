@@ -363,7 +363,7 @@ export function EodAccountsWidget() {
                     onClick={() => setSelected({ id: acc.id, accountName: acc.accountName, businessName: business.name, type: 'account' })}
                   />
                 ))}
-                {payrollCashBox > 0 && canViewPayroll && (
+                {canViewPayroll && (
                   <CashBox
                     icon="💼"
                     label="Payroll"

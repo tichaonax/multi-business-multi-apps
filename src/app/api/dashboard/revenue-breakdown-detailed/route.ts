@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client'
 import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 import { getBusinessBalance } from '@/lib/business-balance-utils'
+import { getEarmarkWindowStart } from '@/lib/cash-bucket-earmark-window'
 
 export async function GET(req: NextRequest) {
   try {
@@ -90,6 +91,43 @@ export async function GET(req: NextRequest) {
         cashBoxMap.set(row.businessId, row.direction === 'INFLOW' ? cur + amt : cur - amt)
       }
     }
+    // cashBoxMap above is the FREE/AVAILABLE portion only — CASH_ALLOCATION and
+    // PAYROLL_FUNDING outflows already reduced it, same as "Free / available" on the
+    // Cash Bucket page. This "Earmarked" figure is that reduction, shown separately
+    // so the two pages agree on what "Cash Box" means instead of silently differing.
+    const earmarkWindowStart = getEarmarkWindowStart()
+    const earmarkRows = allBusinessIds.length > 0
+      ? await prisma.cashBucketEntry.groupBy({
+          by: ['businessId'] as any,
+          where: {
+            businessId: { in: allBusinessIds },
+            entryType: { in: ['CASH_ALLOCATION', 'PAYROLL_FUNDING'] },
+            direction: 'OUTFLOW',
+            deletedAt: null,
+            entryDate: { gte: earmarkWindowStart },
+          },
+          _sum: { amount: true },
+        })
+      : []
+    const earmarkedMap = new Map(
+      (earmarkRows as any[]).map(r => [r.businessId, Number(r._sum.amount ?? 0)])
+    )
+
+    // --- Batch fetch each business's own primary (GENERAL) expense account balance ---
+    // Same "no isPrimary field" resolution used everywhere else in the app — the
+    // oldest active GENERAL account for the business.
+    const generalAccounts = allBusinessIds.length > 0
+      ? await prisma.expenseAccounts.findMany({
+          where: { businessId: { in: allBusinessIds }, isActive: true, accountType: 'GENERAL' },
+          select: { businessId: true, accountName: true, balance: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
+        })
+      : []
+    const expenseAccountMap = new Map<string, { accountName: string; balance: number }>()
+    for (const acc of generalAccounts) {
+      if (!acc.businessId || expenseAccountMap.has(acc.businessId)) continue // keep the oldest only
+      expenseAccountMap.set(acc.businessId, { accountName: acc.accountName, balance: Number(acc.balance) })
+    }
 
     // --- Batch fetch rent configs + current-month contributions ---
     // Use this month's EOD_RENT_TRANSFER deposits, not the all-time account balance,
@@ -175,6 +213,8 @@ export async function GET(req: NextRequest) {
         const ecocashBalance = ecocashBoxMap.get(business.id) ?? 0
         const cashRevenue = cashSalesMap.get(business.id) ?? 0
         const ecocashRevenue = ecocashSalesMap.get(business.id) ?? 0
+        const earmarkedTotal = earmarkedMap.get(business.id) ?? 0
+        const expenseAccount = expenseAccountMap.get(business.id) ?? null
 
         return {
           businessId: business.id,
@@ -189,6 +229,10 @@ export async function GET(req: NextRequest) {
           accountBalance: balanceInfo.balance,
           hasAccount: balanceInfo.hasAccount,
           cashBoxBalance: cashBalance + ecocashBalance,
+          earmarkedTotal,
+          expenseAccountBalance: expenseAccount?.balance ?? 0,
+          expenseAccountName: expenseAccount?.accountName ?? null,
+          hasExpenseAccount: expenseAccount !== null,
           cashBalance,
           ecocashBalance,
           cashRevenue,
@@ -213,6 +257,8 @@ export async function GET(req: NextRequest) {
           pendingOrders: 0,
           totalAccountBalance: 0,
           totalCashBoxBalance: 0,
+          totalEarmarked: 0,
+          totalExpenseAccountBalance: 0,
           totalCashBalance: 0,
           totalEcocashBalance: 0,
           totalCashRevenue: 0,
@@ -233,6 +279,8 @@ export async function GET(req: NextRequest) {
       t.pendingOrders += item.pendingOrders
       t.totalAccountBalance += item.accountBalance
       t.totalCashBoxBalance += item.cashBoxBalance
+      t.totalEarmarked += item.earmarkedTotal
+      t.totalExpenseAccountBalance += item.expenseAccountBalance
       t.totalCashBalance += item.cashBalance
       t.totalEcocashBalance += item.ecocashBalance
       t.totalCashRevenue += item.cashRevenue
@@ -254,6 +302,10 @@ export async function GET(req: NextRequest) {
         accountBalance: item.accountBalance,
         hasAccount: item.hasAccount,
         cashBoxBalance: item.cashBoxBalance,
+        earmarkedTotal: item.earmarkedTotal,
+        expenseAccountBalance: item.expenseAccountBalance,
+        expenseAccountName: item.expenseAccountName,
+        hasExpenseAccount: item.hasExpenseAccount,
         cashBalance: item.cashBalance,
         ecocashBalance: item.ecocashBalance,
         cashRevenue: item.cashRevenue,
@@ -290,6 +342,8 @@ export async function GET(req: NextRequest) {
         pendingOrders: typeValues.reduce((s, t) => s + t.pendingOrders, 0),
         totalAccountBalance: typeValues.reduce((s, t) => s + t.totalAccountBalance, 0),
         totalCashBoxBalance: typeValues.reduce((s, t) => s + t.totalCashBoxBalance, 0),
+        totalEarmarked: typeValues.reduce((s, t) => s + t.totalEarmarked, 0),
+        totalExpenseAccountBalance: typeValues.reduce((s, t) => s + t.totalExpenseAccountBalance, 0),
         totalCashBalance: typeValues.reduce((s, t) => s + t.totalCashBalance, 0),
         totalEcocashBalance: typeValues.reduce((s, t) => s + t.totalEcocashBalance, 0),
         totalCashRevenue: typeValues.reduce((s, t) => s + t.totalCashRevenue, 0),

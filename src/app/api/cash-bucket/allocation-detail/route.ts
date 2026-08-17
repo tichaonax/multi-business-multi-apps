@@ -2,8 +2,9 @@
  * GET /api/cash-bucket/allocation-detail?businessId=&entryType=&notes=
  *
  * Drill-down for one earmarked line on the Cash Box "Per-Business Breakdown" —
- * lists the individual CashBucketEntry rows that sum to that line's amount this
- * month, plus the real expense account it belongs to.
+ * lists the individual CashBucketEntry rows that sum to that line's amount within
+ * the same rolling window the summary line uses (see cash-bucket-earmark-window.ts),
+ * plus the real expense account it belongs to.
  *
  * The earmarked line's own grouping key IS the account name (CashBucketEntry.notes
  * for CASH_ALLOCATION is set to `account.accountName` at creation time — see
@@ -18,6 +19,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
+import { getEarmarkWindowStart } from '@/lib/cash-bucket-earmark-window'
 
 export async function GET(request: NextRequest) {
   try {
@@ -40,9 +42,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'entryType must be CASH_ALLOCATION or PAYROLL_FUNDING' }, { status: 400 })
     }
 
-    const startOfMonth = new Date()
-    startOfMonth.setDate(1)
-    startOfMonth.setHours(0, 0, 0, 0)
+    const windowStart = getEarmarkWindowStart()
 
     const entries = await prisma.cashBucketEntry.findMany({
       where: {
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
         entryType,
         direction: 'OUTFLOW',
         deletedAt: null,
-        entryDate: { gte: startOfMonth },
+        entryDate: { gte: windowStart },
         ...(entryType === 'CASH_ALLOCATION' ? { notes: notes ?? undefined } : {}),
       },
       select: {

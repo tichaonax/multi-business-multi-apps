@@ -219,8 +219,14 @@ export async function GET() {
       }
     }
 
+    // Not `payrollCashBox > 0` — a manual correction (see
+    // adjust-business-contribution) can legitimately leave this at exactly 0 or
+    // negative, and hiding the group then would hide the only way to fix it. Every
+    // business here already got added for a real reason (has accounts, or is a key
+    // in payrollCashByBusiness — which only contains businesses with actual deposit
+    // rows), so keep the group whenever payroll is even viewable for it.
     const allGroups = Array.from(byBusiness.values()).filter(
-      g => g.accounts.length > 0 || g.payrollCashBox > 0
+      g => g.accounts.length > 0 || g.canViewPayroll
     )
 
     // Detect shared accounts: expenseAccountIds that appear in more than one business group
