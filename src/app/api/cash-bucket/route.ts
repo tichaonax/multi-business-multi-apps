@@ -139,10 +139,10 @@ export async function GET(request: NextRequest) {
       _sum: { amount: true },
     })
 
-    const allocMap = new Map<string, { accountName: string; amount: number }[]>()
+    const allocMap = new Map<string, { accountName: string; amount: number; entryType: string; notes: string | null }[]>()
     for (const row of allocationRows as any[]) {
       const items = allocMap.get(row.businessId) ?? []
-      items.push({ accountName: row.notes ?? 'Unspecified', amount: Number(row._sum.amount ?? 0) })
+      items.push({ accountName: row.notes ?? 'Unspecified', amount: Number(row._sum.amount ?? 0), entryType: 'CASH_ALLOCATION', notes: row.notes ?? null })
       allocMap.set(row.businessId, items)
     }
 
@@ -160,7 +160,7 @@ export async function GET(request: NextRequest) {
     })
     for (const row of payrollRows as any[]) {
       const items = allocMap.get(row.businessId) ?? []
-      items.push({ accountName: 'Payroll Funding', amount: Number(row._sum.amount ?? 0) })
+      items.push({ accountName: 'Payroll Funding', amount: Number(row._sum.amount ?? 0), entryType: 'PAYROLL_FUNDING', notes: null })
       allocMap.set(row.businessId, items)
     }
 

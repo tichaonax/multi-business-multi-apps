@@ -21,6 +21,18 @@ interface Business {
 interface AllocationItem {
   accountName: string
   amount: number
+  entryType: 'CASH_ALLOCATION' | 'PAYROLL_FUNDING'
+  notes: string | null
+}
+
+interface AllocationDetailItem {
+  id: string
+  amount: number
+  date: string
+  notes: string | null
+  createdBy: string | null
+  accountName: string | null
+  accountNumber: string | null
 }
 
 interface BucketBalance {
@@ -375,6 +387,12 @@ export default function CashBucketPage() {
   const [adjustReason, setAdjustReason] = useState('')
   const [adjustSubmitting, setAdjustSubmitting] = useState(false)
 
+  // Earmarked-line drill-down modal state
+  const [allocationDetail, setAllocationDetail] = useState<{
+    businessName: string; accountName: string; items: AllocationDetailItem[]
+  } | null>(null)
+  const [allocationDetailLoading, setAllocationDetailLoading] = useState(false)
+
   // Eco-cash conversion state
   const [conversions, setConversions] = useState<EcocashConversion[]>([])
   const [conversionsLoading, setConversionsLoading] = useState(false)
@@ -520,6 +538,28 @@ export default function CashBucketPage() {
       }
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const openAllocationDetail = async (businessId: string, businessName: string, alloc: AllocationItem) => {
+    setAllocationDetailLoading(true)
+    setAllocationDetail({ businessName, accountName: alloc.accountName, items: [] })
+    try {
+      const params = new URLSearchParams({ businessId, entryType: alloc.entryType })
+      if (alloc.entryType === 'CASH_ALLOCATION' && alloc.notes) params.set('notes', alloc.notes)
+      const res = await fetch(`/api/cash-bucket/allocation-detail?${params}`, { credentials: 'include' })
+      const data = await res.json()
+      if (res.ok) {
+        setAllocationDetail({ businessName, accountName: alloc.accountName, items: data.items || [] })
+      } else {
+        await alert({ title: 'Error', description: data.error || 'Failed to load detail.' })
+        setAllocationDetail(null)
+      }
+    } catch {
+      await alert({ title: 'Error', description: 'Network error. Please try again.' })
+      setAllocationDetail(null)
+    } finally {
+      setAllocationDetailLoading(false)
     }
   }
 
@@ -829,10 +869,16 @@ export default function CashBucketPage() {
                               <span className="font-semibold text-amber-600 dark:text-amber-400">{fmt(b.allocatedTotal)}</span>
                             </div>
                             {b.allocations.map((a, i) => (
-                              <div key={i} className={`flex justify-between items-center pl-8 py-0.5 rounded text-gray-400 dark:text-gray-400 ${i % 2 === 0 ? 'bg-amber-50/60 dark:bg-amber-900/10' : 'bg-gray-50/60 dark:bg-gray-700/20'}`}>
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => openAllocationDetail(b.businessId, b.business?.name ?? b.businessId, a)}
+                                className={`w-full flex justify-between items-center pl-8 py-0.5 rounded text-gray-400 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:underline text-left ${i % 2 === 0 ? 'bg-amber-50/60 dark:bg-amber-900/10' : 'bg-gray-50/60 dark:bg-gray-700/20'}`}
+                                title="Click to see what makes up this amount"
+                              >
                                 <span className="truncate max-w-[140px]">{i === b.allocations.length - 1 ? '└──' : '├──'} {a.accountName}</span>
                                 <span className="font-medium">{fmt(a.amount)}</span>
-                              </div>
+                              </button>
                             ))}
                           </>
                         ) : (
@@ -1585,6 +1631,53 @@ export default function CashBucketPage() {
                 className="flex-1 py-2 px-4 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
               >
                 {adjustSubmitting ? 'Adjusting…' : 'Adjust Balance'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Earmarked-line drill-down modal */}
+      {allocationDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setAllocationDetail(null)}>
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-xl w-full max-w-lg p-5 max-h-[80vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-semibold text-primary mb-1">{allocationDetail.accountName}</h3>
+            <p className="text-xs text-secondary mb-4">{allocationDetail.businessName} — what makes up this month's earmarked total</p>
+
+            {allocationDetailLoading ? (
+              <p className="text-sm text-secondary">Loading…</p>
+            ) : allocationDetail.items.length === 0 ? (
+              <p className="text-sm text-secondary">No entries found.</p>
+            ) : (
+              <div className="space-y-2">
+                {allocationDetail.items.map(item => (
+                  <div key={item.id} className="border border-border rounded-md p-2.5 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-secondary">{new Date(item.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                      <span className="font-semibold text-amber-600 dark:text-amber-400">{fmt(item.amount)}</span>
+                    </div>
+                    {item.accountName && (
+                      <p className="text-primary mt-1">
+                        🏦 {item.accountName}{item.accountNumber ? ` (${item.accountNumber})` : ''}
+                      </p>
+                    )}
+                    {item.notes && <p className="text-secondary mt-0.5 truncate">{item.notes}</p>}
+                    {item.createdBy && <p className="text-secondary mt-0.5">by {item.createdBy}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex justify-end mt-4">
+              <button
+                type="button"
+                onClick={() => setAllocationDetail(null)}
+                className="py-2 px-4 rounded-md text-sm font-medium border border-border text-secondary hover:bg-gray-50 dark:hover:bg-gray-700/30"
+              >
+                Close
               </button>
             </div>
           </div>

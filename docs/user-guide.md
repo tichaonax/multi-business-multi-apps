@@ -2777,6 +2777,16 @@ The same correction tool exists for two more balances, so every number in the bo
 
 **What happens (same principle in both cases):** Nothing is silently overwritten. Each correction posts a real, audited entry into the same transaction/ledger history everything else in that balance is built from — tagged with who made it, when, the old and new values, and the reason — so the fix is permanent and traceable, and won't drift back to the old number the next time the balance is recalculated.
 
+### Drilling Into an Earmarked Amount (Cash Box)
+
+On the **Cash Box** page's Per-Business Breakdown, each business's "💵 Physical cash to count" splits into "✅ Free / available" and "🔒 Earmarked" — and every individual line under Earmarked (e.g. "Loan: Tichaona Hwandaza", "General Expenses", a rent account) is clickable.
+
+Click a line to open a breakdown showing:
+- Every individual entry this month that adds up to that line's total — its date, amount, and who recorded it.
+- The **real expense account** it belongs to, by name and account number (🏦) — including shared accounts used by more than one business (like "General Expenses" or a shared loan account), which don't otherwise show which real account they map to.
+
+This is read-only — it's for tracing where an earmarked figure actually comes from, not for editing it. To correct the underlying cash balance, use the ✏️ pencil described above instead.
+
 ### Linking an Expense Account to a Business (Admin Only)
 
 A business's expense account is normally linked automatically when the business is created. If an account somehow ends up without a business link — most likely an older account created before this was in place — several features that look up "this business's expense account" (like contractor payouts and auto-deposits) won't be able to find it.

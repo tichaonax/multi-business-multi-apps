@@ -988,8 +988,19 @@ function DashboardContent() {
                     )
                   }
                   return (
-                    <Link key={b.businessId} href={href}>
-                      <div className={`card p-4 hover:shadow-lg transition-all cursor-pointer ${
+                    // Not a plain <Link> — the target page reads whichever business is
+                    // currently active from context, so navigating there without first
+                    // switching to *this* card's business showed the currently-active
+                    // business's data under a mismatched breadcrumb for the one just
+                    // clicked. Switch first, then navigate, mirroring how the header's
+                    // business switcher and mobile sidebar already do this.
+                    <div
+                      key={b.businessId}
+                      role="link"
+                      tabIndex={0}
+                      onClick={async () => { await switchBusiness(b.businessId); router.push(href) }}
+                      onKeyDown={async (e) => { if (e.key === 'Enter') { await switchBusiness(b.businessId); router.push(href) } }}
+                      className={`card p-4 hover:shadow-lg transition-all cursor-pointer ${
                         isActive ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''
                       }`}>
                         <div className="flex items-center justify-between mb-2">
@@ -1070,7 +1081,6 @@ function DashboardContent() {
                           </div>
                         )}
                       </div>
-                    </Link>
                   )
                 })
               }
