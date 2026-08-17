@@ -40,6 +40,8 @@ export type NotificationType =
   | 'WITHDRAWAL_DENIED_ADMIN'
   | 'WITHDRAWAL_PAID'
   | 'WITHDRAWAL_CASHIER_ALERT'
+  | 'JOB_BILLED_AWAITING_PAYMENT'
+  | 'JOB_START_ESCALATION'
 
 export interface NotificationPayload {
   userIds: string[]

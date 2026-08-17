@@ -26,6 +26,7 @@ export function hasExpenseAccountPermission(
 }
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { sumAbsBusinessTransactionAmounts } from '@/lib/business-balance-utils'
 
 /**
  * Calculate current balance from deposits and payments
@@ -252,17 +253,11 @@ export async function checkBusinessAccountBalance(businessId: string, amount: nu
   // Compute true balance from transaction history — guards against stale stored balance
   const CREDIT_TYPES = ['deposit', 'transfer', 'loan_received', 'CREDIT']
   const DEBIT_TYPES = ['withdrawal', 'loan_disbursement', 'loan_payment', 'DEBIT']
-  const [creditsAgg, debitsAgg] = await Promise.all([
-    (prisma.businessTransactions as any).aggregate({
-      where: { businessId, type: { in: CREDIT_TYPES } },
-      _sum: { amount: true },
-    }),
-    (prisma.businessTransactions as any).aggregate({
-      where: { businessId, type: { in: DEBIT_TYPES } },
-      _sum: { amount: true },
-    }),
+  const [totalCredits, totalDebits] = await Promise.all([
+    sumAbsBusinessTransactionAmounts(businessId, CREDIT_TYPES),
+    sumAbsBusinessTransactionAmounts(businessId, DEBIT_TYPES),
   ])
-  const trueBalance = Number(creditsAgg._sum?.amount ?? 0) - Math.abs(Number(debitsAgg._sum?.amount ?? 0))
+  const trueBalance = totalCredits - totalDebits
   return trueBalance >= amount
 }
 
@@ -293,17 +288,11 @@ export async function debitBusinessAccount(
   // even when the stored balance column is stale
   const CREDIT_TYPES = ['deposit', 'transfer', 'loan_received', 'CREDIT']
   const DEBIT_TYPES = ['withdrawal', 'loan_disbursement', 'loan_payment', 'DEBIT']
-  const [creditsAgg, debitsAgg] = await Promise.all([
-    (prisma.businessTransactions as any).aggregate({
-      where: { businessId, type: { in: CREDIT_TYPES } },
-      _sum: { amount: true },
-    }),
-    (prisma.businessTransactions as any).aggregate({
-      where: { businessId, type: { in: DEBIT_TYPES } },
-      _sum: { amount: true },
-    }),
+  const [totalCredits, totalDebits] = await Promise.all([
+    sumAbsBusinessTransactionAmounts(businessId, CREDIT_TYPES),
+    sumAbsBusinessTransactionAmounts(businessId, DEBIT_TYPES),
   ])
-  const trueBalance = Number(creditsAgg._sum?.amount ?? 0) - Math.abs(Number(debitsAgg._sum?.amount ?? 0))
+  const trueBalance = totalCredits - totalDebits
 
   if (trueBalance < amount) {
     throw new Error(
@@ -361,17 +350,11 @@ export async function creditBusinessAccount(
 
   const CREDIT_TYPES = ['deposit', 'transfer', 'loan_received', 'CREDIT']
   const DEBIT_TYPES = ['withdrawal', 'loan_disbursement', 'loan_payment', 'DEBIT']
-  const [creditsAgg, debitsAgg] = await Promise.all([
-    (prisma.businessTransactions as any).aggregate({
-      where: { businessId, type: { in: CREDIT_TYPES } },
-      _sum: { amount: true },
-    }),
-    (prisma.businessTransactions as any).aggregate({
-      where: { businessId, type: { in: DEBIT_TYPES } },
-      _sum: { amount: true },
-    }),
+  const [totalCredits, totalDebits] = await Promise.all([
+    sumAbsBusinessTransactionAmounts(businessId, CREDIT_TYPES),
+    sumAbsBusinessTransactionAmounts(businessId, DEBIT_TYPES),
   ])
-  const trueBalance = Number(creditsAgg._sum?.amount ?? 0) - Math.abs(Number(debitsAgg._sum?.amount ?? 0))
+  const trueBalance = totalCredits - totalDebits
   const newBalance = trueBalance + amount
 
   await prisma.businessAccounts.update({

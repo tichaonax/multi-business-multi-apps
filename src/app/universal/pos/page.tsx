@@ -453,6 +453,12 @@ export default function UniversalPOS() {
   // then navigates to POS
   useEffect(() => {
     if (hasImportedGlobalCart.current) return
+    // Mark done immediately (not just on the "had items" path) — this runs
+    // once per mount only. Otherwise the local→global mirror effect below
+    // would keep re-populating globalCart.cart, re-triggering this import
+    // effect (it depends on globalCart.cart) and re-importing the same
+    // items on every local cart change, doubling quantities each time.
+    hasImportedGlobalCart.current = true
     if (globalCart.cart.length === 0) return
 
     const itemCount = globalCart.cart.length
@@ -481,14 +487,35 @@ export default function UniversalPOS() {
       })
     })
 
-    // Mark as imported first to prevent re-runs
-    hasImportedGlobalCart.current = true
-
     // Clear global cart after importing to avoid duplicates
     globalCart.clearCart()
 
     toast.success(`Loaded ${itemCount} item(s) from cart`)
   }, [globalCart.cart, addToCart, globalCart.clearCart])
+
+  // Mirror the local POS cart into the global cart so the header's mini-cart
+  // badge/preview reflects what's actually in the cart while shopping
+  // directly on this page (items added here never otherwise touch
+  // globalCart — only items added via the mini-cart on other pages did,
+  // via the import effect above). Restaurant POS's own cart page does the
+  // same local→global push; Universal POS (used by vehicle-service and
+  // every other non-custom business type) was missing it entirely.
+  useEffect(() => {
+    globalCart.replaceCart(
+      cart.map(item => ({
+        id: item.id,
+        productId: item.productId || item.id,
+        variantId: item.variantId || '',
+        name: item.name,
+        sku: item.sku || '',
+        price: item.unitPrice,
+        quantity: item.quantity,
+        imageUrl: item.imageUrl,
+        isCombo: item.isCombo,
+        comboItems: item.comboItems
+      }))
+    )
+  }, [cart, globalCart.replaceCart])
 
   // Handle coupon apply with manager approval for >$5
   const handleApplyCoupon = async (input: string, customerPhone: string) => {

@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal';
 import { useSettings } from '@/contexts/settings-context';
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context';
 
 interface DashboardStats {
   totalTemplates: number;
@@ -49,7 +50,12 @@ export default function BarcodeManagementDashboard() {
   });
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedBusinessId, setSelectedBusinessId] = useState<string>('all');
+  const { currentBusinessId } = useBusinessPermissionsContext();
+  // Default to the business currently selected in the header so barcode
+  // management opens scoped to that business's own jobs/templates instead
+  // of dumping every business's data in front of the user. They can still
+  // widen the "Filter by Business" dropdown to "All Businesses" manually.
+  const [selectedBusinessId, setSelectedBusinessId] = useState<string>(currentBusinessId || 'all');
   const [businesses, setBusinesses] = useState<any[]>([]);
   const [isCleaningUp, setIsCleaningUp] = useState(false);
   const { settings, refreshSettings } = useSettings();
@@ -60,6 +66,15 @@ export default function BarcodeManagementDashboard() {
   useEffect(() => {
     fetchBusinesses();
   }, []);
+
+  // currentBusinessId resolves asynchronously (session/context load) so the
+  // initial useState value above is often still empty on first render —
+  // apply it as soon as it arrives.
+  useEffect(() => {
+    if (currentBusinessId) {
+      setSelectedBusinessId(currentBusinessId);
+    }
+  }, [currentBusinessId]);
 
   useEffect(() => {
     setMinBarcodeLengthInput(settings.minBarcodeLength);

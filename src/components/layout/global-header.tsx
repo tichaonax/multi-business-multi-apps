@@ -175,9 +175,11 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
       permissions?: string[]  // Required permissions (OR logic - any one grants access)
     }
 
+    // vehicle_service has no page at /vehicle_service (or /vehicle-service) — its
+    // pages live under the hyphenated /vehicle-service/* path, with Jobs as home.
     const baseLinks: MenuLink[] = [
       {
-        href: `/${businessType}`,
+        href: businessType === 'vehicle_service' ? '/vehicle-service/jobs' : `/${businessType}`,
         icon: '🏠',
         label: `${businessType.charAt(0).toUpperCase() + businessType.slice(1)} Home`
       }
@@ -225,6 +227,15 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         { href: `/${businessType}/reports`, icon: '📊', label: 'Sales Reports', permissions: ['canViewWifiReports', 'canAccessFinancialData'] },
         { href: `/${businessType}/list`, icon: '📋', label: 'Services List' },
         { href: `/${businessType}/categories`, icon: '📂', label: 'Categories' }
+      ],
+      vehicle_service: [
+        { href: '/universal/pos', icon: '🚗', label: 'POS System' },
+        { href: '/vehicle-service/jobs', icon: '🛠️', label: 'Jobs' },
+        { href: '/vehicle-service/customers', icon: '🧑‍🤝‍🧑', label: 'Customers' },
+        { href: '/vehicle-service/parts', icon: '🧰', label: 'Parts Inventory' },
+        { href: '/vehicle-service/contractors', icon: '🔧', label: 'Contractors', permissions: ['canManageEmployees'] },
+        { href: '/vehicle-service/parts-requests', icon: '📦', label: 'Parts Requests', permissions: ['canManageInventory'] },
+        { href: '/vehicle-service/labour-rates', icon: '💵', label: 'Labour Rates', permissions: ['canAccessFinancialData'] }
       ]
     }
 
@@ -262,8 +273,11 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
       }))
       .filter((link, idx, arr) => arr.findIndex(l => l.label === link.label) === idx) // deduplicate same-label accounts
 
-    // Coupon management link - only if business has coupons enabled
-    const couponLinks: MenuLink[] = currentBusiness?.couponsEnabled
+    // Coupon management link - only for business types that actually have a
+    // coupons page (clothing/grocery/restaurant) — other types' businessType
+    // string doesn't always match its route slug (e.g. vehicle_service ->
+    // /vehicle-service/...), so building the href straight from it 404s.
+    const couponLinks: MenuLink[] = currentBusiness?.couponsEnabled && ['clothing', 'grocery', 'restaurant'].includes(businessType)
       ? [{ href: `/${businessType}/coupons`, icon: '🏷️', label: 'Coupons', permissions: ['canManageCoupons'] }]
       : []
 
@@ -306,6 +320,13 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
 
   // Function to get navigation path that preserves current module when switching businesses
   const getBusinessNavigationPath = (targetBusinessType: string, targetBiz?: { businessId: string; expenseAccounts?: { id: string; accountName: string }[] } | null): string => {
+    // vehicle_service has no page at /vehicle_service (or /vehicle-service) — none of
+    // the generic /{businessType}/* module-preservation logic below applies to it, so
+    // short-circuit straight to its own home page (Jobs) regardless of the current path.
+    if (targetBusinessType === 'vehicle_service') {
+      return '/vehicle-service/jobs'
+    }
+
     const currentPath = pathname
     let targetPath = `/${targetBusinessType}` // Default to business homepage
 
@@ -460,7 +481,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                   title={
                     rentIndicator.hasRentAccount
                       ? `${currentBusiness.businessName} · Rent fund: $${rentIndicator.balance.toFixed(2)} (${rentIndicator.fundingPercent}% of $${rentIndicator.monthlyRentAmount.toFixed(2)}) · Due day ${rentIndicator.rentDueDay}`
-                      : `${currentBusiness.businessName} - ${currentBusiness.businessType}`
+                      : `${currentBusiness.businessName} - ${formatBusinessTypeLabel(currentBusiness.businessType)}`
                   }
                   onMouseEnter={handleBusinessMenuEnter}
                   onMouseLeave={handleBusinessMenuLeave}
@@ -470,8 +491,8 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                     <div className="font-medium text-blue-900 dark:text-blue-100 text-[10px] sm:text-sm max-w-[72px] sm:max-w-32 lg:max-w-48 truncate">
                       {currentBusiness.businessName}
                     </div>
-                    <div className="hidden sm:block text-xs text-blue-600 dark:text-blue-400 capitalize">
-                      {currentBusiness.businessType}
+                    <div className="hidden sm:block text-xs text-blue-600 dark:text-blue-400">
+                      {formatBusinessTypeLabel(currentBusiness.businessType)}
                     </div>
                   </div>
                   {/* Rent account funding indicator dot */}
@@ -516,8 +537,8 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                         <p className="text-sm font-medium text-gray-900 dark:text-white">
                           {currentBusiness.businessName}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                          {currentBusiness.businessType} Business
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {formatBusinessTypeLabel(currentBusiness.businessType)} Business
                         </p>
                       </div>
                       
@@ -542,7 +563,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                     {switchingToBusinessId === otherBusinesses[0].businessId ? '⟳' : '🔄'}
                                   </span>
                                   <span className="truncate">Switch to {otherBusinesses[0].businessName}</span>
-                                  <span className="ml-auto text-xs capitalize text-gray-400 dark:text-gray-500 shrink-0">{otherBusinesses[0].businessType}</span>
+                                  <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 shrink-0">{formatBusinessTypeLabel(otherBusinesses[0].businessType)}</span>
                                 </button>
                               ) : (
                                 // Multiple businesses — accordion
@@ -568,7 +589,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                       <div className="flex items-center gap-2 px-6 py-1.5">
                                         <span className="text-green-500 text-xs shrink-0">✓</span>
                                         <span className="text-xs text-gray-400 dark:text-gray-500 truncate">{currentBusiness.businessName}</span>
-                                        <span className="ml-auto capitalize text-gray-300 dark:text-gray-600 text-xs shrink-0">{currentBusiness.businessType}</span>
+                                        <span className="ml-auto text-gray-300 dark:text-gray-600 text-xs shrink-0">{formatBusinessTypeLabel(currentBusiness.businessType)}</span>
                                         {(isSystemAdmin(session.user as SessionUser) || hasPermission('canEditBusiness')) && (
                                           <button
                                             onClick={async () => {
@@ -657,7 +678,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                                 {switchingToBusinessId === biz.businessId ? '⟳' : '🏢'}
                                               </span>
                                               <span className="truncate">{biz.businessName}</span>
-                                              <span className="ml-auto capitalize text-gray-400 dark:text-gray-500 shrink-0">{biz.businessType}</span>
+                                              <span className="ml-auto text-gray-400 dark:text-gray-500 shrink-0">{formatBusinessTypeLabel(biz.businessType)}</span>
                                             </button>
                                           ))
                                         })()}
@@ -1186,7 +1207,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               onClick={() => { markRead(n.id); setShowNotifPanel(false); if (n.linkUrl) window.location.href = n.linkUrl }}
                             >
                               <span className="mt-0.5 shrink-0 text-base">
-                                {isUrgent ? '🚨' : n.type === 'PAYMENT_APPROVED' ? '✅' : n.type === 'PAYMENT_REJECTED' ? '↩️' : n.type === 'PAYMENT_SUBMITTED' ? '📋' : n.type === 'PAYMENT_PAID' ? '💰' : n.type === 'PETTY_CASH_SUBMITTED' ? '💸' : n.type === 'PETTY_CASH_APPROVED' ? '🪙' : n.type === 'PETTY_CASH_REJECTED' ? '❌' : n.type === 'CHAT_MESSAGE' ? '💬' : n.type === 'LOW_STOCK' ? '📦' : n.type === 'COMBO_REQUEST_SUBMITTED' ? '📋' : n.type === 'COMBO_REQUEST_APPROVED' ? '✅' : n.type === 'COMBO_REQUEST_PARTIALLY_APPROVED' ? '⚠️' : n.type === 'COMBO_REQUEST_CANCELLED' ? '❌' : n.type === 'COMBO_REQUEST_PAID' ? '💯' : '🔔'}
+                                {isUrgent ? '🚨' : n.type === 'PAYMENT_APPROVED' ? '✅' : n.type === 'PAYMENT_REJECTED' ? '↩️' : n.type === 'PAYMENT_SUBMITTED' ? '📋' : n.type === 'PAYMENT_PAID' ? '💰' : n.type === 'PETTY_CASH_SUBMITTED' ? '💸' : n.type === 'PETTY_CASH_APPROVED' ? '🪙' : n.type === 'PETTY_CASH_REJECTED' ? '❌' : n.type === 'CHAT_MESSAGE' ? '💬' : n.type === 'LOW_STOCK' ? '📦' : n.type === 'COMBO_REQUEST_SUBMITTED' ? '📋' : n.type === 'COMBO_REQUEST_APPROVED' ? '✅' : n.type === 'COMBO_REQUEST_PARTIALLY_APPROVED' ? '⚠️' : n.type === 'COMBO_REQUEST_CANCELLED' ? '❌' : n.type === 'COMBO_REQUEST_PAID' ? '💯' : n.type === 'JOB_BILLED_AWAITING_PAYMENT' ? '🧾' : n.type === 'JOB_START_ESCALATION' ? '⏰' : '🔔'}
                               </span>
                               <div className="min-w-0 flex-1">
                                 <p className={`font-medium truncate ${isUrgent ? 'text-red-700 dark:text-red-300' : !n.isRead ? 'text-blue-700 dark:text-blue-300' : 'text-primary'}`}>{n.title}</p>
@@ -1384,6 +1405,17 @@ function Breadcrumb({ pathname, title }: BreadcrumbProps) {
       ))}
     </nav>
   )
+}
+
+// businessType values are stored snake_case (e.g. 'vehicle_service') — plain
+// CSS `capitalize` only capitalizes the first letter of the whole string
+// since '_' isn't a word boundary, producing "Vehicle_service". This
+// actually splits on '_' first, so every word gets capitalized.
+function formatBusinessTypeLabel(businessType: string): string {
+  return businessType
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
 }
 
 function formatSegmentName(segment: string): string {

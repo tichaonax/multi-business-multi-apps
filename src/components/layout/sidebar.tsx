@@ -41,6 +41,7 @@ const businessTypeModules = [
   { type: 'services', icon: '💼', name: 'Services' },
   { type: 'retail', icon: '🏪', name: 'Retail' },
   { type: 'consulting', icon: '📊', name: 'Consulting' },
+  { type: 'vehicle_service', icon: '🚗', name: 'Vehicle Service' },
 ]
 
 // Helper function to get icon for any business type
@@ -1102,6 +1103,46 @@ export function Sidebar() {
               </>
             )}
 
+            {/* Vehicle Service Features */}
+            {currentBusiness.businessType === 'vehicle_service' && (
+              <>
+                <Link href="/universal/pos" className={getLinkClasses('/universal/pos')}>
+                  <span className="text-lg">🚗</span>
+                  <span>POS System</span>
+                </Link>
+                <Link href="/vehicle-service/jobs" className={getLinkClasses('/vehicle-service/jobs')}>
+                  <span className="text-lg">🛠️</span>
+                  <span>Jobs</span>
+                </Link>
+                <Link href="/vehicle-service/customers" className={getLinkClasses('/vehicle-service/customers')}>
+                  <span className="text-lg">🧑‍🤝‍🧑</span>
+                  <span>Customers</span>
+                </Link>
+                <Link href="/vehicle-service/parts" className={getLinkClasses('/vehicle-service/parts')}>
+                  <span className="text-lg">🧰</span>
+                  <span>Parts Inventory</span>
+                </Link>
+                {(isSystemAdmin(currentUser) || hasPermission('canManageEmployees')) && (
+                  <Link href="/vehicle-service/contractors" className={getLinkClasses('/vehicle-service/contractors')}>
+                    <span className="text-lg">🔧</span>
+                    <span>Contractors</span>
+                  </Link>
+                )}
+                {(isSystemAdmin(currentUser) || hasPermission('canManageInventory')) && (
+                  <Link href="/vehicle-service/parts-requests" className={getLinkClasses('/vehicle-service/parts-requests')}>
+                    <span className="text-lg">📦</span>
+                    <span>Parts Requests</span>
+                  </Link>
+                )}
+                {(isSystemAdmin(currentUser) || hasPermission('canAccessFinancialData')) && (
+                  <Link href="/vehicle-service/labour-rates" className={getLinkClasses('/vehicle-service/labour-rates')}>
+                    <span className="text-lg">💵</span>
+                    <span>Labour Rates</span>
+                  </Link>
+                )}
+              </>
+            )}
+
             {/* Services Features */}
             {currentBusiness.businessType === 'services' && (
               <>
@@ -1164,7 +1205,7 @@ export function Sidebar() {
             )}
 
             {/* Default Features for Other Business Types (retail, consulting, etc.) */}
-            {!['restaurant', 'grocery', 'clothing', 'hardware', 'services', 'construction'].includes(currentBusiness.businessType) && (
+            {!['restaurant', 'grocery', 'clothing', 'hardware', 'services', 'construction', 'vehicle_service'].includes(currentBusiness.businessType) && (
               <>
                 <Link href="/dashboard" className={getLinkClasses('/dashboard')}>
                   <span className="text-lg">📊</span>
@@ -1186,8 +1227,15 @@ export function Sidebar() {
               </>
             )}
 
-            {/* Coupon Management — shown for any business type with coupons enabled */}
-            {currentBusiness.couponsEnabled && (isSystemAdmin(currentUser) || hasPermission('canManageCoupons')) && (
+            {/* Coupon Management — shown for business types with a coupons page
+                (clothing/grocery/restaurant only). The link used to build its
+                href from the raw businessType string, which 404'd for any
+                type whose route slug doesn't match 1:1 (e.g. vehicle_service
+                -> /vehicle_service/coupons instead of /vehicle-service/...,
+                and hardware/construction/services have no coupons page at all). */}
+            {currentBusiness.couponsEnabled &&
+              ['clothing', 'grocery', 'restaurant'].includes(currentBusiness.businessType) &&
+              (isSystemAdmin(currentUser) || hasPermission('canManageCoupons')) && (
               <Link href={`/${currentBusiness.businessType}/coupons`} className={getLinkClasses(`/${currentBusiness.businessType}/coupons`)}>
                 <span className="text-lg">🏷️</span>
                 <span>Coupon Management</span>

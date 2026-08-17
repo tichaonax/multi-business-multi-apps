@@ -21,6 +21,7 @@ export interface Product {
   basePrice: number
   category?: string
   categoryId?: string
+  categoryEmoji?: string | null
   imageUrl?: string
   stockQuantity?: number
   barcode?: string
@@ -105,6 +106,7 @@ export function useProductLoader(
         basePrice: parseFloat(product.basePrice || product.price || 0),
         category: product.category?.name,
         categoryId: product.categoryId,
+        categoryEmoji: product.categoryEmoji ?? product.category?.emoji ?? null,
         imageUrl: product.imageUrl || product.images?.[0]?.url,
         stockQuantity: product.stockQuantity,
         barcode: product.barcode,

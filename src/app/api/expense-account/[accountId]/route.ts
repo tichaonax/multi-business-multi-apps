@@ -191,6 +191,8 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { accountId } = await params
+
     // Get user permissions (pass full user object, not just ID)
     const permissions = getEffectivePermissions(user)
     if (!permissions.canCreateExpenseAccount) {
@@ -203,14 +205,21 @@ export async function PATCH(
       }
     }
 
-    const { accountId} = await params
     const body = await request.json()
-    const { accountName, description, lowBalanceThreshold, isActive } = body
+    const { accountName, description, lowBalanceThreshold, isActive, businessId } = body
 
     // isActive toggle is admin-only
     if (isActive !== undefined && user.role !== 'admin') {
       return NextResponse.json(
         { error: 'Only admins can activate or deactivate expense accounts' },
+        { status: 403 }
+      )
+    }
+
+    // Linking an unlinked account to a business is admin-only
+    if (businessId !== undefined && user.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Only admins can link an expense account to a business' },
         { status: 403 }
       )
     }
@@ -225,6 +234,22 @@ export async function PATCH(
         { error: 'Expense account not found' },
         { status: 404 }
       )
+    }
+
+    // Only allow linking a currently-unlinked account — re-pointing an
+    // already-linked account is not exposed here to avoid accidentally
+    // disconnecting a business from a live expense account.
+    if (businessId !== undefined) {
+      if (existing.businessId) {
+        return NextResponse.json(
+          { error: 'This account is already linked to a business' },
+          { status: 409 }
+        )
+      }
+      const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { id: true } })
+      if (!business) {
+        return NextResponse.json({ error: 'Business not found' }, { status: 400 })
+      }
     }
 
     // If updating account name, check for duplicates
@@ -258,6 +283,7 @@ export async function PATCH(
     if (description !== undefined) updateData.description = description?.trim() || null
     if (lowBalanceThreshold !== undefined) updateData.lowBalanceThreshold = lowBalanceThreshold
     if (isActive !== undefined) updateData.isActive = Boolean(isActive)
+    if (businessId !== undefined) updateData.businessId = businessId
 
     // Update account
     const account = await prisma.expenseAccounts.update({
@@ -286,6 +312,7 @@ export async function PATCH(
           description: account.description,
           isActive: account.isActive,
           lowBalanceThreshold: Number(account.lowBalanceThreshold),
+          businessId: account.businessId,
           createdBy: account.createdBy,
           createdAt: account.createdAt.toISOString(),
           updatedAt: account.updatedAt.toISOString(),
@@ -316,6 +343,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { accountId } = await params
+
     // Get user permissions (pass full user object, not just ID)
     const permissions = getEffectivePermissions(user)
     if (!permissions.canDeleteExpenseAccounts) {
@@ -327,8 +356,6 @@ export async function DELETE(
         )
       }
     }
-
-    const { accountId } = await params
 
     // Check if account exists
     const account = await prisma.expenseAccounts.findUnique({

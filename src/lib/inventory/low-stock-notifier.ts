@@ -125,6 +125,16 @@ async function getBusinessUserIds(prisma: PrismaClient, businessId: string): Pro
       .filter((id): id is string => id !== null)
   }
 
+  // System admins get full access everywhere but often have no
+  // BusinessMemberships row for a business they run directly (e.g.
+  // vehicle-service businesses, where contractors log in via a separate
+  // userId link, not a membership) — without this, such a business would
+  // silently get zero low-stock recipients (MBM-268).
+  const systemAdmins = await prisma.users.findMany({
+    where: { role: 'admin', isActive: true },
+    select: { id: true },
+  })
+
   // Deduplicate
-  return [...new Set([...memberUserIds, ...supervisorUserIds])]
+  return [...new Set([...memberUserIds, ...supervisorUserIds, ...systemAdmins.map(a => a.id)])]
 }

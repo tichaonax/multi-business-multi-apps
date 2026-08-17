@@ -8,6 +8,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useToastContext } from '@/components/ui/toast';
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context';
 import ProductSearchModal from '@/components/barcode-management/product-search-modal';
 import PriceOverrideDialog from '@/components/barcode-management/price-override-dialog';
 import BarcodePreview from '@/components/barcode-management/barcode-preview';
@@ -19,6 +20,7 @@ function NewPrintJobPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToastContext();
+  const { currentBusinessId } = useBusinessPermissionsContext();
   const templateId = searchParams.get('templateId');
   const baleId = searchParams.get('baleId');
   const baleBarcodeData = searchParams.get('barcodeData');
@@ -70,7 +72,7 @@ function NewPrintJobPageContent() {
     if (savedPrintToPdf === 'true') {
       setPrintToPdf(true);
     }
-  }, [templateId]);
+  }, [templateId, currentBusinessId]);
 
   // Pre-fill form from bale query params (when navigating from bale inventory)
   useEffect(() => {
@@ -120,7 +122,14 @@ function NewPrintJobPageContent() {
 
   const fetchAvailableTemplates = async () => {
     try {
-      const response = await fetch('/api/universal/barcode-management/templates?limit=100');
+      // Scope to the business currently selected in the header — otherwise
+      // this dropdown lists every business's templates (e.g. clothing bale
+      // templates showing up while working in Jiffy Lube/vehicle service).
+      const params = new URLSearchParams({ limit: '100' });
+      if (currentBusinessId) {
+        params.append('businessId', currentBusinessId);
+      }
+      const response = await fetch(`/api/universal/barcode-management/templates?${params}`);
       if (response.ok) {
         const data = await response.json();
         setAvailableTemplates(data.templates || []);

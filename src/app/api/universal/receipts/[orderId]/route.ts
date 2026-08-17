@@ -170,6 +170,7 @@ export async function GET(
         employeeName: order.employees?.fullName || (order.attributes as any)?.employeeName || null,
         reassignmentHistory,
         customerPhone: order.business_customers?.phone || null,
+        contractorName: (receiptData.businessSpecificData as any)?.contractorName || null,
         status: order.status,
         paymentMethod: order.paymentMethod || null,
         paymentStatus: order.paymentStatus || null,

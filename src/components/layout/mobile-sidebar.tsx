@@ -15,6 +15,7 @@ const businessTypeModules = [
   { type: 'construction', icon: '🏗️', name: 'Construction' },
   { type: 'services', icon: '💼', name: 'Services' },
   { type: 'vehicles', icon: '🚗', name: 'Vehicles' },
+  { type: 'vehicle_service', icon: '🛠️', name: 'Vehicle Service' },
   { type: 'retail', icon: '🏪', name: 'Retail' },
   { type: 'consulting', icon: '📊', name: 'Consulting' },
 ]
@@ -99,7 +100,11 @@ export function MobileSidebar() {
   const handleSelectBusiness = (businessId: string, businessType: string) => {
     switchBusiness(businessId)
     setIsOpen(false)
-    window.location.href = `/${businessType}`
+    // vehicle_service has no page at /vehicle_service OR /vehicle-service
+    // (only nested routes like /vehicle-service/jobs exist) — same
+    // short-circuit the desktop header's switch-business handler already
+    // uses (getBusinessNavigationPath in global-header.tsx).
+    window.location.href = businessType === 'vehicle_service' ? '/vehicle-service/jobs' : `/${businessType}`
   }
 
   const close = () => setIsOpen(false)
@@ -235,6 +240,18 @@ export function MobileSidebar() {
           <>
             {navLink('/construction', '🏗️', 'Dashboard')}
             {navLink('/construction/suppliers', '🤝', 'Suppliers')}
+          </>
+        )
+      case 'vehicle_service':
+        return (
+          <>
+            {navLink('/universal/pos', '🚗', 'POS System')}
+            {navLink('/vehicle-service/jobs', '🛠️', 'Jobs')}
+            {navLink('/vehicle-service/customers', '🧑‍🤝‍🧑', 'Customers')}
+            {navLink('/vehicle-service/parts', '🧰', 'Parts Inventory')}
+            {(isAdmin || hasBusinessPermission('canManageEmployees')) && navLink('/vehicle-service/contractors', '🔧', 'Contractors')}
+            {(isAdmin || hasBusinessPermission('canManageInventory')) && navLink('/vehicle-service/parts-requests', '📦', 'Parts Requests')}
+            {(isAdmin || hasBusinessPermission('canAccessFinancialData')) && navLink('/vehicle-service/labour-rates', '💵', 'Labour Rates')}
           </>
         )
       default:

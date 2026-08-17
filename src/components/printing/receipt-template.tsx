@@ -56,6 +56,33 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
           <span>{data.hideTax ? 'Vendor:' : 'Salesperson:'}</span>
           <span>{data.salespersonName}</span>
         </div>
+        {data.businessType === 'vehicle_service' && (() => {
+          const jobData = data.businessSpecificData as { contractorName?: string; vehicleInfo?: { make?: string; model?: string; licensePlate?: string; vin?: string } } | undefined
+          const v = jobData?.vehicleInfo
+          const vehicleLine = v && (v.make || v.model) ? [v.make, v.model].filter(Boolean).join(' ') : undefined
+          return (
+            <>
+              {jobData?.contractorName && (
+                <div className="flex justify-between mb-0.5">
+                  <span>Contractor:</span>
+                  <span>{jobData.contractorName}</span>
+                </div>
+              )}
+              {vehicleLine && (
+                <div className="flex justify-between mb-0.5">
+                  <span>Vehicle:</span>
+                  <span>{vehicleLine}</span>
+                </div>
+              )}
+              {v?.licensePlate && (
+                <div className="flex justify-between mb-0.5">
+                  <span>Plate:</span>
+                  <span>{v.licensePlate}</span>
+                </div>
+              )}
+            </>
+          )
+        })()}
       </div>
 
       {/* Meals Program Section */}

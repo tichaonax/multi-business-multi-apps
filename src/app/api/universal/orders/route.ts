@@ -97,7 +97,8 @@ function generateOrderNumber(businessType: string, orderCount: number): string {
     services: 'SVC',
     retail: 'RTL',
     construction: 'CTN',
-    vehicles: 'VEH'
+    vehicles: 'VEH',
+    vehicle_service: 'VSV'
   }[businessType] || 'BIZ'
 
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, '')

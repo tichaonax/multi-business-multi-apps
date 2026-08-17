@@ -167,36 +167,53 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = CreateCustomerSchema.parse(body)
 
-    // Check for existing customer by email or phone
-    if (validatedData.primaryEmail) {
-      const existing = await prisma.businessCustomers.findFirst({
-        where: { email: validatedData.primaryEmail }
-      })
-      if (existing) {
-        return NextResponse.json(
-          { error: 'Customer with this email already exists', existingCustomerId: existing.id },
-          { status: 400 }
-        )
-      }
-    }
-
-    // Check for existing customer by phone
-    if (validatedData.primaryPhone) {
-      const existingByPhone = await prisma.businessCustomers.findFirst({ where: { phone: validatedData.primaryPhone } })
-      if (existingByPhone) {
-        return NextResponse.json(
-          { error: 'Customer with this phone number already exists', existingCustomerId: existingByPhone.id },
-          { status: 400 }
-        )
-      }
-    }
-
     // Require businessId for customer creation
     if (!validatedData.businessId) {
       return NextResponse.json(
         { error: 'Business ID is required' },
         { status: 400 }
       )
+    }
+
+    // Phone/email uniquely identify a real person system-wide (not per-business —
+    // see MBM-264 follow-up): if either already belongs to a customer at ANY
+    // business, that existing record is the one to use — creating a second row
+    // would violate "no two customers share a number." The response carries
+    // enough of the existing customer to select it directly, no extra fetch needed.
+    if (validatedData.primaryEmail) {
+      const existing = await prisma.businessCustomers.findFirst({
+        where: { email: validatedData.primaryEmail },
+        include: { businesses: { select: { id: true, name: true } } },
+      })
+      if (existing) {
+        return NextResponse.json(
+          {
+            error: 'Customer with this email already exists',
+            existingCustomerId: existing.id,
+            existingCustomer: existing,
+            isFromOtherBusiness: existing.businessId !== validatedData.businessId,
+          },
+          { status: 409 }
+        )
+      }
+    }
+
+    if (validatedData.primaryPhone) {
+      const existingByPhone = await prisma.businessCustomers.findFirst({
+        where: { phone: validatedData.primaryPhone },
+        include: { businesses: { select: { id: true, name: true } } },
+      })
+      if (existingByPhone) {
+        return NextResponse.json(
+          {
+            error: 'Customer with this phone number already exists',
+            existingCustomerId: existingByPhone.id,
+            existingCustomer: existingByPhone,
+            isFromOtherBusiness: existingByPhone.businessId !== validatedData.businessId,
+          },
+          { status: 409 }
+        )
+      }
     }
 
     // Get business details

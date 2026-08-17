@@ -5,7 +5,8 @@ import {
   BUSINESS_PERMISSION_PRESETS,
   BusinessPermissionPreset,
   DEFAULT_USER_PERMISSIONS,
-  ADMIN_USER_PERMISSIONS
+  ADMIN_USER_PERMISSIONS,
+  VEHICLE_SERVICE_PERMISSION_PRESETS
 } from '@/types/permissions'
 
 export interface SessionUser {
@@ -135,6 +136,21 @@ function getMembershipPermissions(membership: any): BusinessPermissions {
     if ((customPermissions as any)[key] === true) {
       (merged as any)[key] = true
     }
+  }
+
+  // Vehicle Parts Inventory (MBM-268) — a finer-grained module, layered in
+  // only for vehicle_service memberships rather than added to every
+  // business-type-agnostic preset above.
+  if (membership.businessType === 'vehicle_service') {
+    const vsPreset = VEHICLE_SERVICE_PERMISSION_PRESETS[presetKey] || VEHICLE_SERVICE_PERMISSION_PRESETS['read-only']
+    const vsCustom = (customPermissions.vehicle_service || {}) as Partial<import('@/types/permissions').VehicleServicePermissions>
+    const vsMerged = { ...vsPreset }
+    for (const key of Object.keys(vsCustom) as Array<keyof typeof vsCustom>) {
+      if (vsCustom[key] === true) {
+        (vsMerged as any)[key] = true
+      }
+    }
+    ;(merged as any).vehicle_service = vsMerged
   }
 
   return merged as BusinessPermissions

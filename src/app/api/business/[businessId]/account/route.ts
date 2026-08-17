@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin, getEffectivePermissions } from '@/lib/permission-utils'
+import { sumAbsBusinessTransactionAmounts } from '@/lib/business-balance-utils'
 
 /**
  * GET /api/business/[businessId]/account
@@ -61,20 +62,13 @@ export async function GET(
     const CREDIT_TYPES = ['deposit', 'transfer', 'loan_received', 'CREDIT']
     const DEBIT_TYPES = ['withdrawal', 'loan_disbursement', 'loan_payment', 'DEBIT']
 
-    const [creditsAgg, debitsAgg] = await Promise.all([
-      (prisma.businessTransactions as any).aggregate({
-        where: { businessId, type: { in: CREDIT_TYPES } },
-        _sum: { amount: true },
-      }),
-      (prisma.businessTransactions as any).aggregate({
-        where: { businessId, type: { in: DEBIT_TYPES } },
-        _sum: { amount: true },
-      }),
+    // Sum each row's absolute value, not Math.abs() of the total — DEBIT-type rows
+    // store a negative amount while withdrawal-type rows store a positive one, and
+    // summing them together first lets the signs cancel each other out incorrectly.
+    const [totalCredits, totalDebits] = await Promise.all([
+      sumAbsBusinessTransactionAmounts(businessId, CREDIT_TYPES),
+      sumAbsBusinessTransactionAmounts(businessId, DEBIT_TYPES),
     ])
-
-    const totalCredits = Number(creditsAgg._sum?.amount ?? 0)
-    // DEBIT-type transactions store amount as a negative number; take absolute value
-    const totalDebits = Math.abs(Number(debitsAgg._sum?.amount ?? 0))
     const computedBalance = totalCredits - totalDebits
 
     // Silent self-repair if column is stale

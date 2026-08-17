@@ -19,6 +19,7 @@ import type {
   HardwareReceiptData,
   ConstructionReceiptData,
   VehiclesReceiptData,
+  VehicleServiceReceiptData,
   ConsultingReceiptData,
   RetailReceiptData,
   ServicesReceiptData,
@@ -116,6 +117,9 @@ export function generateReceipt(data: ReceiptData): string {
       break;
     case 'vehicles':
       receipt = generateVehiclesReceipt(data);
+      break;
+    case 'vehicle_service':
+      receipt = generateVehicleServiceReceipt(data);
       break;
     case 'consulting':
       receipt = generateConsultingReceipt(data);
@@ -1002,6 +1006,105 @@ function generateVehiclesReceipt(data: ReceiptData): string {
     receipt += centerText('Thank you for your business!') + LF;
   }
   receipt += centerText('Drive safe!') + LF;
+
+  // Cut paper
+  receipt += CUT;
+
+  return receipt;
+}
+
+/**
+ * 6b. Vehicle Repair & Service Receipt Template (businessType 'vehicle_service')
+ *
+ * Distinct from generateVehiclesReceipt above (the older, unused 'vehicles'
+ * business type) — this one iterates the order's real, already-priced line
+ * items (labour per task, parts, other charges) instead of reconstructing
+ * pricing from separate partsUsed/laborHours fields, so totals always match
+ * what was actually billed. Vehicle/contractor details are additive context.
+ */
+function generateVehicleServiceReceipt(data: ReceiptData): string {
+  const jobData = data.businessSpecificData as VehicleServiceReceiptData;
+
+  let receipt = '';
+
+  // Initialize printer and reset margins
+  receipt += ESC + '@';
+  receipt += ESC + 'l' + String.fromCharCode(0);
+
+  // Header - center align
+  receipt += ESC + 'a' + String.fromCharCode(1);
+  receipt += centerText(data.businessName) + LF;
+  if (data.businessAddress) receipt += centerText(data.businessAddress) + LF;
+  if (data.businessPhone) receipt += centerText(`Tel: ${formatPhoneNumberForDisplay(data.businessPhone)}`) + LF;
+  receipt += centerText('SERVICE RECEIPT') + LF;
+
+  // Left align for content
+  receipt += ESC + 'a' + String.fromCharCode(0);
+
+  // Receipt info
+  receipt += `Receipt: ${data.receiptNumber.formattedNumber}` + LF;
+  receipt += `Date: ${formatDateTime(data.transactionDate)}` + LF;
+  if (data.salespersonName) {
+    receipt += `Salesperson: ${data.salespersonName}` + LF;
+  }
+  if (jobData?.contractorName) {
+    receipt += `Contractor: ${stripEmojis(jobData.contractorName)}` + LF;
+  }
+  if (data.customerName) {
+    receipt += `Customer: ${stripEmojis(data.customerName)}` + LF;
+    if (data.customerPhone) {
+      receipt += `Phone: ${formatPhoneNumberForDisplay(data.customerPhone)}` + LF;
+    }
+  }
+
+  // Vehicle info
+  const v = jobData?.vehicleInfo;
+  if (v && (v.make || v.model || v.licensePlate || v.vin)) {
+    receipt += LF;
+    receipt += 'Vehicle:' + LF;
+    if (v.make || v.model) receipt += `  ${[v.make, v.model].filter(Boolean).join(' ')}` + LF;
+    if (v.licensePlate) receipt += `  Plate: ${v.licensePlate}` + LF;
+    if (v.vin) receipt += `  VIN: ${v.vin}` + LF;
+  }
+
+  // Items - real billed line items (labour per task, parts, other charges)
+  receipt += LF;
+  data.items.forEach(item => {
+    receipt += formatLineItem(item.name, item.quantity, item.unitPrice, item.totalPrice);
+    if (item.notes) {
+      receipt += `  ${item.notes}` + LF;
+    }
+  });
+
+  // Totals
+  receipt += formatTotal('Subtotal', data.subtotal);
+  if (data.tax > 0 && !data.taxIncludedInPrice) {
+    receipt += formatTotal('Tax', data.tax);
+  }
+  if (data.discount) {
+    receipt += formatTotal(data.discountLabel || 'Discount', -data.discount);
+  }
+  receipt += formatTotal('TOTAL', data.total, true);
+
+  // Payment
+  receipt += formatPaymentLines(data);
+
+  // Return policy (always print - use default if not configured)
+  const vehicleServiceReturnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';
+  receipt += LF;
+  receipt += wrapText(stripEmojis(vehicleServiceReturnPolicy), RECEIPT_WIDTH) + LF;
+
+  // Footer - center align
+  receipt += LF;
+  receipt += ESC + 'a' + String.fromCharCode(1);
+  if (data.umbrellaPhone) {
+    receipt += centerText(data.umbrellaPhone) + LF;
+  }
+  if (data.customerName) {
+    receipt += centerText(`Thank you, ${stripEmojis(data.customerName)}!`) + LF;
+  } else {
+    receipt += centerText('Thank you for your business!') + LF;
+  }
 
   // Cut paper
   receipt += CUT;

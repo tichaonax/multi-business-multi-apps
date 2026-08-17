@@ -205,6 +205,7 @@ export function ProductPanel({
       productId: product.id,
       variantId: variant?.id,
       categoryId: product.categoryId,
+      categoryEmoji: product.categoryEmoji,
       imageUrl: product.imageUrl,
       isService: product.isService,
       isWiFiToken: product.isWiFiToken,
@@ -342,6 +343,7 @@ export function ProductPanel({
                           />
                         )}
                         <h3 className="font-medium text-sm text-gray-900 dark:text-white line-clamp-2">
+                          {product.categoryEmoji && <span className="mr-1">{product.categoryEmoji}</span>}
                           {product.name}
                         </h3>
                         <p className="text-lg font-bold text-blue-600 dark:text-blue-400 mt-1">
@@ -443,6 +445,7 @@ export function ProductPanel({
                     </button>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-gray-900 dark:text-white truncate">
+                        {product.categoryEmoji && <span className="mr-1">{product.categoryEmoji}</span>}
                         {product.name}
                       </h3>
                       {product.barcode && (
@@ -499,6 +502,7 @@ export function ProductPanel({
                           </button>
                           <div className="flex-1">
                           <h3 className="font-medium text-gray-900 dark:text-white">
+                            {product.categoryEmoji && <span className="mr-1">{product.categoryEmoji}</span>}
                             {product.name}
                           </h3>
                           {product.description && (

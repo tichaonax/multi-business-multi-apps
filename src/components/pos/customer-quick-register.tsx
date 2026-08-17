@@ -62,6 +62,8 @@ export function CustomerQuickRegister({ businessId, businessName, businessPhone,
   const [error, setError] = useState<string | null>(null)
   // After creation: show card preview before handing off
   const [createdCustomer, setCreatedCustomer] = useState<QuickRegisterCustomer | null>(null)
+  // Phone/email already belongs to someone — offer to use that record instead of blocking (see MBM-264 follow-up)
+  const [existingMatch, setExistingMatch] = useState<{ customer: any; businessName: string; isFromOtherBusiness: boolean } | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -71,6 +73,7 @@ export function CustomerQuickRegister({ businessId, businessName, businessPhone,
     if (digitsOnly.length < 9) { setError('Phone number must be at least 9 digits'); return }
     setSaving(true)
     setError(null)
+    setExistingMatch(null)
     try {
       const res = await fetch('/api/customers', {
         method: 'POST',
@@ -82,6 +85,14 @@ export function CustomerQuickRegister({ businessId, businessName, businessPhone,
         })
       })
       const data = await res.json()
+      if (res.status === 409 && data.existingCustomer) {
+        setExistingMatch({
+          customer: data.existingCustomer,
+          businessName: data.existingCustomer.businesses?.name ?? 'another business',
+          isFromOtherBusiness: !!data.isFromOtherBusiness,
+        })
+        return
+      }
       if (!res.ok || !data.success) throw new Error(data.error || 'Failed to create customer')
       const c = data.customer
       const newCustomer: QuickRegisterCustomer = {
@@ -98,6 +109,47 @@ export function CustomerQuickRegister({ businessId, businessName, businessPhone,
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleUseExisting = () => {
+    if (!existingMatch) return
+    const c = existingMatch.customer
+    onCreated({
+      id: c.id,
+      customerNumber: c.customerNumber,
+      name: c.name,
+      phone: c.phone ?? undefined,
+      customerType: c.customerType,
+    })
+  }
+
+  // ── Duplicate found: offer to use the existing record instead of blocking ──
+  if (existingMatch) {
+    return (
+      <div className="border border-amber-300 dark:border-amber-700 rounded-lg p-3 bg-amber-50 dark:bg-amber-900/10 space-y-2">
+        <p className="text-sm text-amber-800 dark:text-amber-300">
+          <span className="font-medium">{existingMatch.customer.name}</span> is already a customer
+          {existingMatch.isFromOtherBusiness ? <> at <span className="font-medium">{existingMatch.businessName}</span></> : ' here'} — same phone number.
+          Since phone numbers uniquely identify a customer, use their existing record instead of creating a new one.
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleUseExisting}
+            className="flex-1 py-2 px-4 rounded-md text-sm font-medium text-white bg-teal-600 hover:bg-teal-700"
+          >
+            Use {existingMatch.customer.name}
+          </button>
+          <button
+            type="button"
+            onClick={() => setExistingMatch(null)}
+            className="py-2 px-4 rounded-md text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            Back
+          </button>
+        </div>
+      </div>
+    )
   }
 
   // ── Card preview state (after successful creation) ────────────────────────

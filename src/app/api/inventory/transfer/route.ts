@@ -11,6 +11,8 @@ interface TransferItem {
   targetPrice: number
   productName: string
   barcode?: string
+  sourceLocationId?: string       // MBM-268 — shelf/bin the item shipped from
+  destinationLocationId?: string  // MBM-268 — shelf/bin to shelve it on arrival
 }
 
 /**
@@ -37,6 +39,15 @@ async function findOrCreateTargetProduct(
 
     if (targetVariant) {
       targetProduct = targetVariant.business_products
+      // An existing product's location gets set on arrival if the transfer
+      // supplied one — previously left untouched, requiring a manual re-shelve
+      // step every time (MBM-268).
+      if (item.destinationLocationId && targetProduct.locationId !== item.destinationLocationId) {
+        targetProduct = await tx.businessProducts.update({
+          where: { id: targetProduct.id },
+          data: { locationId: item.destinationLocationId }
+        })
+      }
     }
   }
 
@@ -88,6 +99,7 @@ async function findOrCreateTargetProduct(
         basePrice: item.targetPrice,
         costPrice: item.sourcePrice,
         categoryId: targetCategory.id,
+        locationId: item.destinationLocationId || null,
         condition: 'USED',
         isActive: true,
         isAvailable: true,
@@ -167,9 +179,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Source or target business not found' }, { status: 404 })
     }
 
-    // Verify source is clothing business (inventory transfer is clothing-only feature)
-    if (sourceBusiness.type !== 'clothing') {
-      return NextResponse.json({ success: false, error: 'Inventory transfer is only available for clothing businesses' }, { status: 400 })
+    // Inventory transfer started as a clothing-only feature; vehicle_service
+    // added for MBM-268 (parts moved between businesses/branches).
+    if (!['clothing', 'vehicle_service'].includes(sourceBusiness.type)) {
+      return NextResponse.json({ success: false, error: 'Inventory transfer is only available for clothing and vehicle-service businesses' }, { status: 400 })
     }
 
     // Look up employee record for the current user (employeeId FK references employees table, not users)
@@ -419,6 +432,8 @@ export async function POST(request: NextRequest) {
             targetPrice: item.targetPrice,
             productName: item.productName,
             barcode: item.barcode || null,
+            sourceLocationId: item.sourceLocationId || null,
+            destinationLocationId: item.destinationLocationId || null,
           }
         })
 
@@ -462,15 +477,20 @@ export async function POST(request: NextRequest) {
         select: { userId: true }
       })
       if (targetMembers.length > 0) {
-        const targetLink = targetBusiness.type === 'grocery'
+        const isVehicleService = targetBusiness.type === 'vehicle_service'
+        const targetLink = isVehicleService
+          ? '/vehicle-service/parts'
+          : targetBusiness.type === 'grocery'
           ? '/grocery/inventory?tab=bales'
           : '/clothing/inventory?tab=bales'
         await prisma.appNotification.createMany({
           data: targetMembers.map(m => ({
             userId: m.userId,
             type: 'INVENTORY_TRANSFER_RECEIVED',
-            title: 'Bales Received',
-            message: `${result.transferredCount} bale(s) transferred from ${sourceBusiness.name}`,
+            title: isVehicleService ? 'Parts Received' : 'Bales Received',
+            message: isVehicleService
+              ? `${result.transferredCount} part(s) transferred from ${sourceBusiness.name}`
+              : `${result.transferredCount} bale(s) transferred from ${sourceBusiness.name}`,
             linkUrl: targetLink,
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
           }))

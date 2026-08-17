@@ -141,6 +141,8 @@ export async function POST(req: NextRequest) {
           balance: 0,
           lowBalanceThreshold: 500,
           isActive: true,
+          businessId: business.id,
+          accountType: 'GENERAL',
           createdBy: creatorId,
         },
       })

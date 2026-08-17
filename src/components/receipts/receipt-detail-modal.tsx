@@ -252,6 +252,14 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
                         </dd>
                       </div>
                     )}
+                    {order.contractorName && (
+                      <div>
+                        <dt className="text-xs text-gray-500 dark:text-gray-400">Contractor</dt>
+                        <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                          {order.contractorName}
+                        </dd>
+                      </div>
+                    )}
                     {order.employeeName && (
                       <div>
                         <dt className="text-xs text-gray-500 dark:text-gray-400">Served by</dt>

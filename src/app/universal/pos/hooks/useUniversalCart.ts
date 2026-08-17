@@ -29,6 +29,7 @@ export interface UniversalCartItem {
   productId?: string
   variantId?: string
   categoryId?: string
+  categoryEmoji?: string | null
   imageUrl?: string
 
   // Service item

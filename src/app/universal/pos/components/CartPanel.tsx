@@ -77,6 +77,7 @@ export function CartPanel({
                   {/* Item Info */}
                   <div className="flex-1 min-w-0">
                     <h3 className="font-medium text-gray-900 dark:text-white truncate">
+                      {item.categoryEmoji && <span className="mr-1">{item.categoryEmoji}</span>}
                       {item.name}
                     </h3>
                     {item.sku && (
