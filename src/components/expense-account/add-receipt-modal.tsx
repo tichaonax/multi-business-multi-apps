@@ -17,11 +17,37 @@ interface PayeeSearchResult {
   identifier?: string
 }
 
+interface EditReceiptData {
+  id: string
+  receiptDate: string
+  amount: number
+  description: string | null
+  receiptNumber: string | null
+  notes: string | null
+  imageId: string | null
+  payeeType: string | null
+  payeeName: string | null
+  payeePersonId: string | null
+  payeeBusinessId: string | null
+  payeeSupplierId: string | null
+}
+
 interface AddReceiptModalProps {
   paymentId: string
   paymentPayee?: PayeeRef | null
   onClose: () => void
-  onSuccess: (result?: { updatedPayee?: PayeeRef }) => void
+  onSuccess: (result?: { updatedPayment?: PayeeRef }) => void
+  // When provided, the modal edits this receipt (PUT) instead of creating a
+  // new one (POST) — same payee picker (search/create/one-time) either way.
+  editReceipt?: EditReceiptData | null
+}
+
+function payeeRefFromReceipt(r: EditReceiptData): PayeeRef | null {
+  if (r.payeeType === 'PERSON' && r.payeePersonId) return { type: 'PERSON', id: r.payeePersonId, name: r.payeeName ?? '' }
+  if (r.payeeType === 'BUSINESS' && r.payeeBusinessId) return { type: 'BUSINESS', id: r.payeeBusinessId, name: r.payeeName ?? '' }
+  if (r.payeeType === 'SUPPLIER' && r.payeeSupplierId) return { type: 'SUPPLIER', id: r.payeeSupplierId, name: r.payeeName ?? '' }
+  if (r.payeeType === 'FREEFORM') return { type: 'FREEFORM', id: '', name: r.payeeName ?? '' }
+  return null
 }
 
 function typeBadge(type: string) {
@@ -55,11 +81,13 @@ function saveLastPayee(p: PayeeRef) {
   } catch {}
 }
 
-export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess }: AddReceiptModalProps) {
+export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, editReceipt }: AddReceiptModalProps) {
   const today = new Date().toISOString().slice(0, 10)
+  const isEditing = !!editReceipt
+  const initialPayee = editReceipt ? payeeRefFromReceipt(editReceipt) : (paymentPayee ?? null)
 
-  const [selectedPayee, setSelectedPayee] = useState<PayeeRef | null>(paymentPayee ?? null)
-  const [changing, setChanging] = useState(!paymentPayee) // open search immediately if no payee
+  const [selectedPayee, setSelectedPayee] = useState<PayeeRef | null>(initialPayee)
+  const [changing, setChanging] = useState(!initialPayee) // open search immediately if no payee
   const [lastPayee] = useState<PayeeRef | null>(() => getLastPayee())
 
   // Search state
@@ -83,12 +111,12 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess }:
   const [createContractorOpen, setCreateContractorOpen] = useState(false)
   const [initialPayeeName, setInitialPayeeName] = useState<string | undefined>()
 
-  const [receiptDate, setReceiptDate] = useState(today)
-  const [amount, setAmount] = useState('')
-  const [description, setDescription] = useState('')
-  const [notes, setNotes] = useState('')
-  const [receiptNumber, setReceiptNumber] = useState('')
-  const [imageId, setImageId] = useState<string | null>(null)
+  const [receiptDate, setReceiptDate] = useState(editReceipt ? editReceipt.receiptDate.slice(0, 10) : today)
+  const [amount, setAmount] = useState(editReceipt ? String(editReceipt.amount) : '')
+  const [description, setDescription] = useState(editReceipt?.description ?? '')
+  const [notes, setNotes] = useState(editReceipt?.notes ?? '')
+  const [receiptNumber, setReceiptNumber] = useState(editReceipt?.receiptNumber ?? '')
+  const [imageId, setImageId] = useState<string | null>(editReceipt?.imageId ?? null)
   const [uploadingImage, setUploadingImage] = useState(false)
   const [imageError, setImageError] = useState<string | null>(null)
 
@@ -210,18 +238,27 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess }:
         updatePaymentPayee: payeeMismatch ? updatePaymentPayee : false,
       }
       if (selectedPayee) Object.assign(body, payeeTypeToApiFields(selectedPayee))
+      else if (isEditing) Object.assign(body, { payeeType: null })
 
-      const res = await fetch(`/api/expense-account/payments/${paymentId}/receipts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(body),
-      })
+      const res = await fetch(
+        isEditing ? `/api/expense-account/receipts/${editReceipt!.id}` : `/api/expense-account/payments/${paymentId}/receipts`,
+        {
+          method: isEditing ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(body),
+        }
+      )
       if (res.ok) {
         const data = await res.json();
         if (selectedPayee && selectedPayee.type !== 'FREEFORM') saveLastPayee(selectedPayee)
-        // Pass the updated payment object (payee info) to onSuccess
-        onSuccess({ updatedPayment: data.data?.updatedPayment });
+        // Pass the updated payment object (payee info) to onSuccess. The PUT
+        // (edit) response doesn't re-resolve a payee name, so in edit mode
+        // compute it client-side from what's already selected.
+        const updatedPayment = isEditing
+          ? (payeeMismatch && updatePaymentPayee && selectedPayee && selectedPayee.type !== 'FREEFORM' ? selectedPayee : undefined)
+          : data.data?.updatedPayment
+        onSuccess({ updatedPayment });
       } else {
         const data = await res.json()
         setError(data.error || 'Failed to save receipt')
@@ -239,7 +276,7 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess }:
         <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-lg">
           <div className="p-6">
             <div className="flex justify-between items-center mb-5">
-              <h2 className="text-lg font-semibold">Add Receipt</h2>
+              <h2 className="text-lg font-semibold">{isEditing ? 'Edit Receipt' : 'Add Receipt'}</h2>
               <button onClick={onClose} className="text-gray-400 hover:text-gray-600" disabled={submitting}>✕</button>
             </div>
 
@@ -528,7 +565,7 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess }:
                   Cancel
                 </button>
                 <button type="submit" className="btn-primary" disabled={submitting}>
-                  {submitting ? 'Saving...' : 'Save Receipt'}
+                  {submitting ? 'Saving...' : isEditing ? 'Save Changes' : 'Save Receipt'}
                 </button>
               </div>
             </form>

@@ -6,6 +6,7 @@ import { isAccountCashier } from '@/lib/expense-account/receipt-review-access'
 import { createAuditLog } from '@/lib/audit'
 
 const EDITABLE_FIELDS = ['receiptDate', 'amount', 'description', 'receiptNumber', 'imageId', 'notes'] as const
+const PAYEE_FIELDS = ['payeeType', 'payeeName', 'payeePersonId', 'payeeBusinessId', 'payeeSupplierId'] as const
 
 /**
  * PUT /api/expense-account/receipts/[receiptId]
@@ -29,7 +30,15 @@ export async function PUT(
       select: {
         id: true, createdBy: true, receiptDate: true, amount: true, description: true,
         receiptNumber: true, imageId: true, notes: true, expensePaymentId: true,
-        expensePayment: { select: { expenseAccountId: true, receipt_review: { select: { status: true } } } },
+        payeeType: true, payeeName: true, payeePersonId: true, payeeBusinessId: true, payeeSupplierId: true,
+        expensePayment: {
+          select: {
+            expenseAccountId: true,
+            receipt_review: { select: { status: true } },
+            payeeType: true, payeePersonId: true, payeeBusinessId: true, payeeSupplierId: true,
+            payeeUserId: true, payeeEmployeeId: true,
+          },
+        },
       },
     })
     if (!receipt) return NextResponse.json({ error: 'Receipt not found' }, { status: 404 })
@@ -56,11 +65,50 @@ export async function PUT(
         data[field] = field === 'receiptDate' ? new Date(body[field]) : body[field]
       }
     }
-    if (Object.keys(data).length === 0) {
+
+    // Payee change — same shape as the Add Receipt flow, including FREEFORM
+    // (a one-time name, no linked record) and clearing out the other payee-id
+    // columns so a type change doesn't leave a stale cross-type id behind.
+    if ('payeeType' in body) {
+      for (const field of PAYEE_FIELDS) oldValues[field] = (receipt as any)[field]
+      const payeeType = body.payeeType || null
+      data.payeeType = payeeType
+      data.payeeName = payeeType === 'FREEFORM' ? (body.payeeName ?? null) : null
+      data.payeePersonId = payeeType === 'PERSON' ? (body.payeePersonId ?? null) : null
+      data.payeeBusinessId = payeeType === 'BUSINESS' ? (body.payeeBusinessId ?? null) : null
+      data.payeeSupplierId = payeeType === 'SUPPLIER' ? (body.payeeSupplierId ?? null) : null
+    }
+
+    // Optionally also correct the parent payment's own payee — same "does this
+    // also apply to the payment?" choice the Add Receipt flow offers, now
+    // available from Edit too. Only meaningful for a real structured payee.
+    const updatePaymentPayee = body.updatePaymentPayee === true && data.payeeType && data.payeeType !== 'FREEFORM'
+
+    if (Object.keys(data).length === 0 && !updatePaymentPayee) {
       return NextResponse.json({ error: 'No editable fields provided' }, { status: 400 })
     }
 
-    const updated = await prisma.expensePaymentReceipts.update({ where: { id: receiptId }, data })
+    const updated = await prisma.$transaction(async (tx) => {
+      const r = Object.keys(data).length > 0
+        ? await tx.expensePaymentReceipts.update({ where: { id: receiptId }, data })
+        : receipt
+
+      if (updatePaymentPayee) {
+        await tx.expenseAccountPayments.update({
+          where: { id: receipt.expensePaymentId },
+          data: {
+            payeeType: data.payeeType as string,
+            payeePersonId: data.payeeType === 'PERSON' ? (data.payeePersonId as string | null) : null,
+            payeeBusinessId: data.payeeType === 'BUSINESS' ? (data.payeeBusinessId as string | null) : null,
+            payeeSupplierId: data.payeeType === 'SUPPLIER' ? (data.payeeSupplierId as string | null) : null,
+            payeeUserId: null,
+            payeeEmployeeId: null,
+          },
+        })
+      }
+
+      return r
+    })
 
     // Only log an audit entry when a cashier amends someone else's receipt —
     // the requester editing their own draft is normal self-service, not an amendment.
@@ -72,7 +120,7 @@ export async function PUT(
         entityId: receiptId,
         oldValues,
         newValues: data,
-        metadata: { paymentId: updated.expensePaymentId },
+        metadata: { paymentId: receipt.expensePaymentId },
       }).catch(err => console.error('[receipts PUT] audit log error (non-blocking):', err))
     }
 

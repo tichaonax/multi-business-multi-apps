@@ -6164,6 +6164,8 @@ Click the **🧾** badge on any payment row to open the receipts panel. This sho
 - A **✏️ Edit** button — visible to the receipt's creator for as long as it hasn't been approved by a cashier yet (no time limit), or to admins or a reviewing cashier at any time. Once approved, only an admin or cashier can still make corrections.
 - A **✕** delete button — visible to the receipt's creator within 7 days (and, same as edit, never after cashier approval), or to admins or a reviewing cashier at any time
 
+**Editing a receipt** opens the same form used to add one — including the full payee picker. You can search and switch to a different individual/supplier, create a new one on the fly, or mark it a one-time payee, exactly as described in [Attaching the First Receipt](#attaching-the-first-receipt) above. If you change the payee to something other than what's on the payment record, the same **amber mismatch banner** appears, asking whether to update the payment's payee too.
+
 To add another receipt to the same payment, click **+ Add Receipt** at the bottom of the panel.
 
 For payments that require receipt accountability (see the colour-coded badge above), this panel also shows the review status and, when applicable, **Submit to Cashier** and **✅ Approve** buttons — see [Accounting for the Funds — Adding Receipts](#accounting-for-the-funds--adding-receipts) in Section 39 for the full workflow.
