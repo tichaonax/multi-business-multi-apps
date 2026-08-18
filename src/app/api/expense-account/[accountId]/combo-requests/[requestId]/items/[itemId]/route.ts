@@ -71,6 +71,16 @@ export async function PATCH(
             data: { status: 'PAID', paidAt: now },
           })
           await updateExpenseAccountBalanceTx(tx, accountId)
+
+          // MBM-271: start receipt accountability tracking — the amount the
+          // requester now needs to account for is the request's approvedAmount
+          // (plan Decision #2), not the raw payment amount.
+          const expectedAmount = comboRequest.approvedAmount ?? comboRequest.requestedAmount
+          await tx.expensePaymentReceiptReviews.upsert({
+            where: { expensePaymentId: comboRequest.linkedPaymentId },
+            create: { expensePaymentId: comboRequest.linkedPaymentId, expectedAmount },
+            update: {},
+          })
         }
       } else {
         // Transition from APPROVED/PARTIALLY_APPROVED to PARTIALLY_PAID
@@ -115,6 +125,21 @@ export async function PATCH(
         }
       } catch (notifErr) {
         console.error('Notification error (non-blocking):', notifErr)
+      }
+
+      // MBM-271: tell the requester it's their turn to account for the funds
+      try {
+        const expectedAmount = Number(comboRequest.approvedAmount ?? comboRequest.requestedAmount)
+        await emitNotification({
+          userIds: [comboRequest.createdBy],
+          type: 'RECEIPT_REMINDER',
+          title: 'Add receipts for your combo request',
+          message: `You received $${expectedAmount.toFixed(2)} for "${comboRequest.title}" — add receipts to account for it.`,
+          linkUrl: `/expense-accounts/${accountId}`,
+          metadata: { paymentId: comboRequest.linkedPaymentId, accountId },
+        })
+      } catch (notifErr) {
+        console.error('Receipt reminder error (non-blocking):', notifErr)
       }
     }
 

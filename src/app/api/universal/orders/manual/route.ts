@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
       paymentMethod = 'CASH',
       notes,
       items,
+      projectId,
     } = body
 
     // Validate required fields
@@ -129,6 +130,20 @@ export async function POST(request: NextRequest) {
       select: { id: true },
     })
 
+    // Optional project link (MBM-270 Phase 4) — validate it belongs to this business
+    // before trusting it, same check pattern as the expense-payments project link.
+    let validatedProjectId: string | null = null
+    if (projectId) {
+      const project = await prisma.projects.findFirst({
+        where: { id: projectId, businessId },
+        select: { id: true },
+      })
+      if (!project) {
+        return NextResponse.json({ error: 'Project not found for this business' }, { status: 400 })
+      }
+      validatedProjectId = project.id
+    }
+
     // Calculate totals
     const subtotal = items.reduce((sum: number, item: any) => {
       const discount = item.discountAmount || 0
@@ -170,6 +185,7 @@ export async function POST(request: NextRequest) {
           isManualEntry: true,
           manualEntryNote: notes || null,
           processedAt: new Date(transactionDate + 'T12:00:00Z'),
+          projectId: validatedProjectId,
           updatedAt: new Date(),
         },
       })
@@ -204,7 +220,7 @@ export async function POST(request: NextRequest) {
             data: {
               businessId,
               productVariantId: item.productVariantId,
-              movementType: 'SALE',
+              movementType: validatedProjectId ? 'PROJECT_SALE' : 'SALE',
               quantity: -item.quantity,
               unitCost: item.unitPrice,
               reference: orderNumber,
@@ -214,6 +230,7 @@ export async function POST(request: NextRequest) {
                 orderId: newOrder.id,
                 orderType: 'MANUAL_ENTRY',
                 isManualEntry: true,
+                ...(validatedProjectId ? { projectId: validatedProjectId } : {}),
               }
             }
           })
@@ -232,6 +249,7 @@ export async function POST(request: NextRequest) {
         totalAmount: Number(order.totalAmount),
         itemCount: items.length,
         isManualEntry: true,
+        projectId: validatedProjectId,
       },
       message: `Manual order ${order.orderNumber} created for ${transactionDate}`,
     })

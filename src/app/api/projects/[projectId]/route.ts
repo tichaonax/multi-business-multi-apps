@@ -92,6 +92,19 @@ export async function GET(
             expenseAccount: { select: { id: true, accountName: true } },
           },
           orderBy: { paymentDate: 'desc' }
+        },
+        business_orders: {
+          where: { status: { notIn: ['CANCELLED', 'REFUNDED'] } },
+          select: {
+            id: true,
+            orderNumber: true,
+            totalAmount: true,
+            transactionDate: true,
+            createdAt: true,
+            notes: true,
+            businesses: { select: { id: true, name: true } },
+          },
+          orderBy: { createdAt: 'desc' }
         }
       }
     })
@@ -124,11 +137,13 @@ export async function GET(
     // Calculate financial summaries
     const transactions = project.project_transactions
     const expensePayments = project.expense_account_payments
+    const materialSales = project.business_orders
     const totalBudget = project.budget ? Number(project.budget) : 0
     const totalSpent = transactions.reduce((sum, t) => sum + Number(t.amount), 0)
     const contractorPayments = transactions.filter(t => t.transactionType === 'contractor_payment').reduce((sum, t) => sum + Number(t.amount), 0)
     const projectExpenses = transactions.filter(t => t.transactionType === 'project_expense').reduce((sum, t) => sum + Number(t.amount), 0)
     const expensePaymentsTotal = expensePayments.reduce((sum, p) => sum + Number(p.amount), 0)
+    const materialsSoldTotal = materialSales.reduce((sum, o) => sum + Number(o.totalAmount), 0)
 
     // Group contractor payments by contractor
     const contractorSummaries = project.project_contractors.map(contractor => {
@@ -171,23 +186,32 @@ export async function GET(
         amount: Number(p.amount),
         paymentDate: p.paymentDate.toISOString(),
       })),
+      materialSales: materialSales.map((o: any) => ({
+        ...o,
+        totalAmount: Number(o.totalAmount),
+        transactionDate: o.transactionDate ? o.transactionDate.toISOString() : null,
+        createdAt: o.createdAt.toISOString(),
+        business: o.businesses,
+      })),
       contractorSummaries: contractorSummaries.map((c: any) => ({
         ...c,
         person: c.persons
       })),
       financialSummary: {
         totalBudget,
-        totalSpent: totalSpent + expensePaymentsTotal,
-        remainingBudget: totalBudget - totalSpent - expensePaymentsTotal,
+        totalSpent: totalSpent + expensePaymentsTotal + materialsSoldTotal,
+        remainingBudget: totalBudget - totalSpent - expensePaymentsTotal - materialsSoldTotal,
         contractorPayments,
         projectExpenses,
         expensePaymentsTotal,
-        percentageSpent: totalBudget > 0 ? ((totalSpent + expensePaymentsTotal) / totalBudget) * 100 : 0,
+        materialsSoldTotal,
+        percentageSpent: totalBudget > 0 ? ((totalSpent + expensePaymentsTotal + materialsSoldTotal) / totalBudget) * 100 : 0,
         transactionCounts: {
           total: transactions.length,
           contractorPayments: transactions.filter(t => t.transactionType === 'contractor_payment').length,
           projectExpenses: transactions.filter(t => t.transactionType === 'project_expense').length,
           expensePayments: expensePayments.length,
+          materialSales: materialSales.length,
         }
       }
     }

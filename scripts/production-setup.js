@@ -307,11 +307,11 @@ async function seedIdFormatTemplates(options = {}) {
       id: 'zw-national-id',
       name: 'Zimbabwe National ID',
       countryCode: 'ZW',
-      format: '##-######A##',
-      example: '63-123456A78',
-      description: 'Zimbabwe National ID format: DD-DDDDDDADD where D=digit, A=letter',
-      validationRegex: '^\\d{2}-\\d{6}[A-Z]\\d{2}$',
-      pattern: '^\\d{2}-\\d{6}[A-Z]\\d{2}$',
+      format: '##-#######A##',
+      example: '27-2015556G27',
+      description: 'Zimbabwe National ID: 2 digits, dash, 6-7 digits, 1 letter, 2 digits',
+      validationRegex: '^\\d{2}-\\d{6,7}[A-Za-z]\\d{2}$',
+      pattern: '^\\d{2}-\\d{6,7}[A-Za-z]\\d{2}$',
       isActive: true
     },
     {

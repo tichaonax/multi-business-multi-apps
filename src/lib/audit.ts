@@ -30,7 +30,10 @@ export type AuditAction =
   | 'PAYROLL_ACCOUNT_BALANCE_ADJUSTED'
   | 'PAYROLL_BUSINESS_CONTRIBUTION_ADJUSTED'
   | 'BUSINESS_ACCOUNT_BALANCE_ADJUSTED'
-  | 'CASH_BOX_BALANCE_ADJUSTED';
+  | 'CASH_BOX_BALANCE_ADJUSTED'
+  | 'RECEIPT_SUBMITTED'
+  | 'RECEIPT_APPROVED'
+  | 'RECEIPT_AMENDED';
 
 export type AuditEntityType =
   | 'User'
@@ -50,7 +53,8 @@ export type AuditEntityType =
   | 'ExpenseAccount'
   | 'PayrollAccount'
   | 'BusinessAccount'
-  | 'CashBox';
+  | 'CashBox'
+  | 'ExpensePaymentReceipt';
 
 export interface AuditLogEntry {
   userId: string;

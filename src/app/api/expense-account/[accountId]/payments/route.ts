@@ -880,6 +880,15 @@ export async function POST(
           }
         }
 
+        // MBM-271: opt-in "This is an advance — receipts required" flag.
+        // Starts the same submit/review/approve receipt tracking combo pay gets
+        // automatically, for a one-off advance outside the combo-pay flow.
+        if (payment.isAdvance) {
+          await tx.expensePaymentReceiptReviews.create({
+            data: { expensePaymentId: newPayment.id, expectedAmount: Number(payment.amount) },
+          })
+        }
+
         createdPayments.push(newPayment)
 
         // If vehicle expense metadata is present, create a linked VehicleExpense record
@@ -911,6 +920,26 @@ export async function POST(
 
       return { payments: createdPayments }
     })
+
+    // MBM-271: initial reminder for any opt-in advance payments just created
+    try {
+      for (let i = 0; i < paymentsToCreate.length; i++) {
+        const p = paymentsToCreate[i] as any
+        if (!p.isAdvance) continue
+        const created = result.payments[i]
+        const requesterId = p.payeeUserId || user.id
+        await emitNotification({
+          userIds: [requesterId],
+          type: 'RECEIPT_REMINDER',
+          title: 'Add receipts for this advance',
+          message: `You received $${Number(p.amount).toFixed(2)} — add receipts to account for it.`,
+          linkUrl: `/expense-accounts/${accountId}`,
+          metadata: { paymentId: created.id, accountId },
+        })
+      }
+    } catch (notifErr) {
+      console.error('Advance receipt reminder error (non-blocking):', notifErr)
+    }
 
     // Notify reviewers + submitter of new payment request
     // LOAN_REPAYMENT payments are record-keeping only — no cashier action needed, skip notifications

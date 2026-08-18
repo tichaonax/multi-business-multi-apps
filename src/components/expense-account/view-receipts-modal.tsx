@@ -15,12 +15,28 @@ interface Receipt {
   receiptDate: string
   amount: number
   description: string | null
+  receiptNumber: string | null
+  imageUrl: string | null
   payeeName: string | null
   payeeType: string | null
   notes: string | null
   createdBy: string
   createdByName: string
   createdAt: string
+}
+
+interface ReceiptReview {
+  status: string // PENDING | SUBMITTED | APPROVED
+  expectedAmount: number
+  receiptTotal: number
+  remaining: number
+  submittedAt: string | null
+  submittedByName: string | null
+  reviewedAt: string | null
+  reviewedByName: string | null
+  reviewNote: string | null
+  canSubmit: boolean
+  canReview: boolean
 }
 
 interface ViewReceiptsModalProps {
@@ -46,10 +62,14 @@ export function ViewReceiptsModal({
 
   const [receipts, setReceipts] = useState<Receipt[]>([])
   const [currentPayee, setCurrentPayee] = useState<PayeeRef | null>(paymentPayee ?? null)
+  const [review, setReview] = useState<ReceiptReview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [submittingReview, setSubmittingReview] = useState(false)
+  const [approving, setApproving] = useState(false)
+  const [reviewNote, setReviewNote] = useState('')
 
   useEffect(() => {
     loadReceipts()
@@ -66,6 +86,7 @@ export function ViewReceiptsModal({
       if (json.success) {
         setReceipts(json.data.receipts)
         if (json.data.currentPayee) setCurrentPayee(json.data.currentPayee)
+        setReview(json.data.review ?? null)
       } else {
         setError(json.error || 'Failed to load receipts')
       }
@@ -73,6 +94,53 @@ export function ViewReceiptsModal({
       setError('Failed to load receipts')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleSubmitToCashier() {
+    setSubmittingReview(true)
+    try {
+      const res = await fetch(`/api/expense-account/payments/${paymentId}/receipts/submit`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const json = await res.json()
+      if (res.ok) {
+        if (json.data?.mismatch) {
+          alert(`Submitted — note: receipts total $${json.data.receiptTotal.toFixed(2)} but $${json.data.expected.toFixed(2)} was expected. The cashier will review this.`)
+        }
+        await loadReceipts()
+        onReceiptsChanged()
+      } else {
+        alert(json.error || 'Failed to submit receipts')
+      }
+    } catch {
+      alert('Failed to submit receipts')
+    } finally {
+      setSubmittingReview(false)
+    }
+  }
+
+  async function handleApprove() {
+    setApproving(true)
+    try {
+      const res = await fetch(`/api/expense-account/payments/${paymentId}/receipts/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ reviewNote: reviewNote || undefined }),
+      })
+      const json = await res.json()
+      if (res.ok) {
+        await loadReceipts()
+        onReceiptsChanged()
+      } else {
+        alert(json.error || 'Failed to approve receipts')
+      }
+    } catch {
+      alert('Failed to approve receipts')
+    } finally {
+      setApproving(false)
     }
   }
 
@@ -99,6 +167,7 @@ export function ViewReceiptsModal({
 
   function canDelete(r: Receipt): boolean {
     if (isAdmin) return true
+    if (review?.canReview) return true // cashier may delete any receipt during review (MBM-271)
     if (r.createdBy !== currentUserId) return false
     const diffDays = (Date.now() - new Date(r.createdAt).getTime()) / (1000 * 60 * 60 * 24)
     return diffDays <= 7
@@ -127,6 +196,28 @@ export function ViewReceiptsModal({
               </div>
               <button onClick={onClose} className="text-gray-400 hover:text-gray-600 ml-4">✕</button>
             </div>
+
+            {review && (
+              <div className="mt-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/40 text-xs space-y-1">
+                <div className="flex justify-between font-medium">
+                  <span className="text-gray-700 dark:text-gray-200">
+                    {review.status === 'APPROVED' ? '✅ Approved' : review.status === 'SUBMITTED' ? '🟠 Awaiting cashier review' : '⚪ Not yet submitted'}
+                  </span>
+                  <span className={review.remaining > 0.01 ? 'text-amber-600 dark:text-amber-400' : review.remaining < -0.01 ? 'text-blue-600 dark:text-blue-400' : 'text-green-600 dark:text-green-400'}>
+                    Remaining: {fmt(review.remaining)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-gray-500 dark:text-gray-400">
+                  <span>{fmt(review.receiptTotal)} of {fmt(review.expectedAmount)} expected</span>
+                </div>
+                {review.submittedAt && (
+                  <p className="text-gray-400">Submitted by {review.submittedByName} on {fmtDate(review.submittedAt)}</p>
+                )}
+                {review.reviewedAt && (
+                  <p className="text-gray-400">Approved by {review.reviewedByName} on {fmtDate(review.reviewedAt)}{review.reviewNote ? ` — "${review.reviewNote}"` : ''}</p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Body */}
@@ -159,10 +250,20 @@ export function ViewReceiptsModal({
                         {r.description && (
                           <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">{r.description}</p>
                         )}
+                        {r.receiptNumber && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Receipt #{r.receiptNumber}</p>
+                        )}
                         {r.notes && (
                           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 italic">{r.notes}</p>
                         )}
-                        <p className="text-xs text-gray-400 mt-1">Added by {r.createdByName}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-xs text-gray-400">Added by {r.createdByName}</p>
+                          {r.imageUrl && (
+                            <a href={r.imageUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                              📎 Attachment
+                            </a>
+                          )}
+                        </div>
                       </div>
                       {canDelete(r) && (
                         <button
@@ -181,6 +282,19 @@ export function ViewReceiptsModal({
             )}
           </div>
 
+          {/* Cashier review note + approve, shown only when there's something to approve */}
+          {review && review.canReview && review.status === 'SUBMITTED' && (
+            <div className="px-4 pt-3 flex-shrink-0">
+              <input
+                type="text"
+                value={reviewNote}
+                onChange={e => setReviewNote(e.target.value)}
+                placeholder="Review note (optional)"
+                className="input w-full px-3 py-1.5 text-sm"
+              />
+            </div>
+          )}
+
           {/* Footer */}
           <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0 flex justify-between items-center">
             <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -188,12 +302,21 @@ export function ViewReceiptsModal({
             </span>
             <div className="flex gap-3">
               <button onClick={onClose} className="btn-secondary text-sm">Close</button>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="btn-primary text-sm"
-              >
-                + Add Receipt
-              </button>
+              {review?.status !== 'APPROVED' && (
+                <button onClick={() => setShowAddModal(true)} className="btn-primary text-sm">
+                  + Add Receipt
+                </button>
+              )}
+              {review && review.canSubmit && review.status === 'PENDING' && receipts.length > 0 && (
+                <button onClick={handleSubmitToCashier} disabled={submittingReview} className="btn-primary text-sm bg-amber-600 hover:bg-amber-700 disabled:opacity-50">
+                  {submittingReview ? 'Submitting…' : 'Submit to Cashier'}
+                </button>
+              )}
+              {review && review.canReview && review.status === 'SUBMITTED' && (
+                <button onClick={handleApprove} disabled={approving} className="btn-primary text-sm bg-green-600 hover:bg-green-700 disabled:opacity-50">
+                  {approving ? 'Approving…' : '✅ Approve'}
+                </button>
+              )}
             </div>
           </div>
         </div>

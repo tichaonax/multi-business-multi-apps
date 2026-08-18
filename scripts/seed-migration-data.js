@@ -55,10 +55,10 @@ async function seedIdTemplates() {
       id: 'zw-national-id',
       name: 'Zimbabwe National ID',
       countryCode: 'ZW',
-      format: '##-######?##',
-      pattern: '^\\d{2}-\\d{6}[A-Z]\\d{2}$',
-      example: '63-123456A78',
-      description: 'Zimbabwe National Identity Card format',
+      format: '##-#######?##',
+      pattern: '^\\d{2}-\\d{6,7}[A-Za-z]\\d{2}$',
+      example: '27-2015556G27',
+      description: 'Zimbabwe National Identity Card format (6-7 digit district number)',
       isActive: true
     },
     {

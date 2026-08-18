@@ -132,6 +132,10 @@ export async function GET(req: NextRequest) {
           where: { status: { notIn: ['CANCELLED', 'REJECTED'] } },
           select: { id: true, amount: true },
         },
+        business_orders: {
+          where: { status: { notIn: ['CANCELLED', 'REFUNDED'] } },
+          select: { id: true, totalAmount: true },
+        },
         _count: {
           select: {
             project_contractors: true,
@@ -153,6 +157,8 @@ export async function GET(req: NextRequest) {
       const contractorPayments = transactions.filter(t => t.transactionType === 'contractor_payment').reduce((sum, t) => sum + Number(t.amount), 0)
       const projectExpenses = transactions.filter(t => t.transactionType === 'project_expense').reduce((sum, t) => sum + Number(t.amount), 0)
       const expensePaymentsTotal = project.expense_account_payments.reduce((sum, p) => sum + Number(p.amount), 0)
+      const materialsSoldTotal = project.business_orders.reduce((sum, o) => sum + Number(o.totalAmount), 0)
+      const spentPlusMaterials = totalSpent + expensePaymentsTotal + materialsSoldTotal
 
       return {
         ...project,
@@ -163,12 +169,13 @@ export async function GET(req: NextRequest) {
         })),
         financialSummary: {
           totalBudget,
-          totalSpent: totalSpent + expensePaymentsTotal,
-          remainingBudget: totalBudget - totalSpent - expensePaymentsTotal,
+          totalSpent: spentPlusMaterials,
+          remainingBudget: totalBudget - spentPlusMaterials,
           contractorPayments,
           projectExpenses,
           expensePaymentsTotal,
-          percentageSpent: totalBudget > 0 ? ((totalSpent + expensePaymentsTotal) / totalBudget) * 100 : 0
+          materialsSoldTotal,
+          percentageSpent: totalBudget > 0 ? (spentPlusMaterials / totalBudget) * 100 : 0
         }
       }
     })

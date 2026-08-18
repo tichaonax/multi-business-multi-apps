@@ -47,6 +47,154 @@ interface UniversalInventoryItem {
   attributes?: Record<string, any>
 }
 
+// MBM-270: hardware conditional fields, keyed by exact category name (see
+// "Conditional Item Fields" table in 🏬 Hardware & Home Improvement Invento.md).
+// All values still land in the same formData.attributes JSON bag the rest of
+// this form already uses — no new storage mechanism, just category-aware inputs.
+interface HardwareAttrField {
+  key: string
+  label: string
+  type: 'text' | 'number' | 'select'
+  options?: string[]
+  placeholder?: string
+}
+
+const HARDWARE_UNIVERSAL_FIELDS: HardwareAttrField[] = [
+  { key: 'manufacturer', label: 'Manufacturer', type: 'text', placeholder: 'Manufacturer name' },
+  { key: 'model', label: 'Model Number', type: 'text', placeholder: 'Model number' },
+  { key: 'warranty', label: 'Warranty Period', type: 'text', placeholder: 'e.g., 1 year, 5 years' },
+  {
+    key: 'unitOfMeasure', label: 'Unit of Measure', type: 'select',
+    options: ['Piece', 'Bag', 'Box', 'Bundle', 'Metre', 'Litre', 'Kilogram', 'Square Metre', 'Cubic Metre', 'Sheet', 'Roll', 'Pallet', 'Set'],
+  },
+  { key: 'packSize', label: 'Pack Size', type: 'text', placeholder: 'e.g., 50 kg, Box of 100' },
+  { key: 'colour', label: 'Colour / Finish', type: 'text', placeholder: 'e.g., Grey' },
+  { key: 'dimensions', label: 'Dimensions', type: 'text', placeholder: 'e.g., 2440 x 1220 x 12 mm' },
+  { key: 'material', label: 'Material', type: 'text', placeholder: 'e.g., Cement, Steel, PVC, Timber' },
+]
+
+const LIGHTING_FIELDS: HardwareAttrField[] = [
+  { key: 'wattage', label: 'Wattage', type: 'number' },
+  { key: 'voltage', label: 'Voltage', type: 'text' },
+  { key: 'bulbBase', label: 'Bulb Base', type: 'text' },
+  { key: 'colourTemperature', label: 'Colour Temperature', type: 'text' },
+  { key: 'lumens', label: 'Lumens', type: 'number' },
+  { key: 'indoorOutdoor', label: 'Indoor / Outdoor', type: 'select', options: ['Indoor', 'Outdoor', 'Both'] },
+]
+
+const ELECTRICAL_FIELDS: HardwareAttrField[] = [
+  { key: 'voltage', label: 'Voltage', type: 'text' },
+  { key: 'amperage', label: 'Amperage', type: 'text' },
+  { key: 'wireGauge', label: 'Wire Gauge', type: 'text' },
+  { key: 'numberOfCores', label: 'Number of Cores', type: 'number' },
+  { key: 'cableLength', label: 'Cable Length', type: 'text' },
+  { key: 'certification', label: 'Certification', type: 'text' },
+]
+
+const PLUMBING_FIELDS: HardwareAttrField[] = [
+  { key: 'pipeDiameter', label: 'Pipe Diameter', type: 'text' },
+  { key: 'pressureRating', label: 'Pressure Rating', type: 'text' },
+  { key: 'fittingType', label: 'Fitting Type', type: 'text' },
+  { key: 'hotColdSuitability', label: 'Hot / Cold Suitability', type: 'select', options: ['Hot', 'Cold', 'Both'] },
+]
+
+const PAINT_FIELDS: HardwareAttrField[] = [
+  { key: 'finish', label: 'Finish', type: 'select', options: ['Matte', 'Satin', 'Gloss', 'Semi-Gloss'] },
+  { key: 'baseType', label: 'Base Type', type: 'text' },
+  { key: 'volume', label: 'Volume', type: 'text' },
+  { key: 'coverage', label: 'Coverage', type: 'text' },
+  { key: 'interiorExterior', label: 'Interior / Exterior', type: 'select', options: ['Interior', 'Exterior', 'Both'] },
+]
+
+const LUMBER_FIELDS: HardwareAttrField[] = [
+  { key: 'species', label: 'Species', type: 'text' },
+  { key: 'treatment', label: 'Treatment', type: 'text' },
+  { key: 'grade', label: 'Grade', type: 'text' },
+  { key: 'length', label: 'Length', type: 'text' },
+  { key: 'width', label: 'Width', type: 'text' },
+  { key: 'thickness', label: 'Thickness', type: 'text' },
+  { key: 'moistureRating', label: 'Moisture Rating', type: 'text' },
+]
+
+const MASONRY_FIELDS: HardwareAttrField[] = [
+  { key: 'weight', label: 'Weight', type: 'text' },
+  { key: 'strengthClass', label: 'Strength Class', type: 'text' },
+  { key: 'cureTime', label: 'Cure Time', type: 'text' },
+  { key: 'indoorOutdoorSuitability', label: 'Indoor / Outdoor Suitability', type: 'select', options: ['Indoor', 'Outdoor', 'Both'] },
+]
+
+const TOOLS_FIELDS: HardwareAttrField[] = [
+  { key: 'powerSource', label: 'Power Source', type: 'select', options: ['Manual', 'Corded Electric', 'Battery', 'Pneumatic', 'Petrol'] },
+  { key: 'wattage', label: 'Wattage', type: 'number' },
+  { key: 'toolType', label: 'Tool Type', type: 'text' },
+  { key: 'includedAccessories', label: 'Included Accessories', type: 'text' },
+]
+
+const FASTENER_FIELDS: HardwareAttrField[] = [
+  { key: 'diameter', label: 'Diameter', type: 'text' },
+  { key: 'length', label: 'Length', type: 'text' },
+  { key: 'threadType', label: 'Thread Type', type: 'text' },
+  { key: 'coating', label: 'Coating', type: 'text' },
+  { key: 'packQuantity', label: 'Pack Quantity', type: 'number' },
+]
+
+const DOORS_WINDOWS_FIELDS: HardwareAttrField[] = [
+  { key: 'width', label: 'Width', type: 'text' },
+  { key: 'height', label: 'Height', type: 'text' },
+  { key: 'handingOpeningDirection', label: 'Handing / Opening Direction', type: 'select', options: ['Left', 'Right', 'Sliding', 'N/A'] },
+  { key: 'glazingType', label: 'Glazing Type', type: 'text' },
+]
+
+const FLOORING_FIELDS: HardwareAttrField[] = [
+  { key: 'areaCoverage', label: 'Area Coverage', type: 'text' },
+  { key: 'finish', label: 'Finish', type: 'text' },
+  { key: 'waterResistance', label: 'Water Resistance', type: 'select', options: ['Yes', 'No', 'Partial'] },
+  { key: 'installationMethod', label: 'Installation Method', type: 'text' },
+]
+
+const APPLIANCE_FIELDS: HardwareAttrField[] = [
+  { key: 'energyRating', label: 'Energy Rating', type: 'text' },
+  { key: 'capacity', label: 'Capacity', type: 'text' },
+]
+
+const GARDEN_FIELDS: HardwareAttrField[] = [
+  { key: 'plantType', label: 'Plant Type', type: 'text' },
+  { key: 'seedQuantity', label: 'Seed Quantity', type: 'text' },
+  { key: 'coverageArea', label: 'Coverage Area', type: 'text' },
+  { key: 'fertilizerAnalysis', label: 'Fertilizer Analysis', type: 'text' },
+  { key: 'seasonality', label: 'Seasonality', type: 'select', options: ['Spring', 'Summer', 'Fall', 'Winter', 'Year-Round'] },
+]
+
+// Exact category-name lookup — matches the category names seeded in
+// seed-hardware-taxonomy-expansion.js. A category not listed here just gets
+// the universal fields above plus the free-form Specifications field.
+const HARDWARE_CATEGORY_FIELDS: Record<string, HardwareAttrField[]> = {
+  'Lighting': LIGHTING_FIELDS,
+  'Wire, Cable and Conduit': ELECTRICAL_FIELDS,
+  'Electrical Components': ELECTRICAL_FIELDS,
+  'Pipes and Fittings': PLUMBING_FIELDS,
+  'Valves and Water Control': PLUMBING_FIELDS,
+  'Bathroom Fixtures': PLUMBING_FIELDS,
+  'Drainage and Waste': PLUMBING_FIELDS,
+  'Paint': PAINT_FIELDS,
+  'Lumber and Sheet Goods': LUMBER_FIELDS,
+  'Concrete, Cement and Masonry': MASONRY_FIELDS,
+  'General Hand Tools': TOOLS_FIELDS,
+  'General Power Tools': TOOLS_FIELDS,
+  'Workshop Equipment': TOOLS_FIELDS,
+  'Screws, Bolts and Nuts': FASTENER_FIELDS,
+  'Nails, Staples and Rivets': FASTENER_FIELDS,
+  'Anchors and Structural Hardware': FASTENER_FIELDS,
+  'Doors and Door Hardware': DOORS_WINDOWS_FIELDS,
+  'Windows and Window Hardware': DOORS_WINDOWS_FIELDS,
+  'Flooring': FLOORING_FIELDS,
+  'Refrigeration': APPLIANCE_FIELDS,
+  'Kitchen Appliances': APPLIANCE_FIELDS,
+  'Laundry and Cleaning Appliances': APPLIANCE_FIELDS,
+  'Heating and Cooling Appliances': APPLIANCE_FIELDS,
+  'Plants, Seeds and Soil': GARDEN_FIELDS,
+}
+
 interface UniversalInventoryFormProps {
   businessId: string
   businessType: string
@@ -659,6 +807,38 @@ export function UniversalInventoryForm({
     }
   }
 
+  const renderHardwareAttrField = (field: HardwareAttrField) => {
+    const value = formData.attributes?.[field.key]
+    const inputClass = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+    return (
+      <div key={field.key}>
+        <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+          {field.label}
+        </label>
+        {field.type === 'select' ? (
+          <select
+            value={value || ''}
+            onChange={(e) => handleAttributeChange(field.key, e.target.value)}
+            className={inputClass}
+          >
+            <option value="">Select...</option>
+            {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          </select>
+        ) : (
+          <input
+            type={field.type === 'number' ? 'number' : 'text'}
+            value={value ?? ''}
+            onChange={(e) => handleAttributeChange(field.key, field.type === 'number'
+              ? (e.target.value === '' ? undefined : parseFloat(e.target.value))
+              : e.target.value)}
+            className={inputClass}
+            placeholder={field.placeholder}
+          />
+        )}
+      </div>
+    )
+  }
+
   const getBusinessSpecificFields = () => {
     switch (businessType) {
       case 'restaurant':
@@ -922,51 +1102,28 @@ export function UniversalInventoryForm({
           </div>
         )
 
-      case 'hardware':
+      case 'hardware': {
+        const selectedCategoryName = categories.find(c => c.id === formData.categoryId)?.name
+        const categoryFields = selectedCategoryName ? HARDWARE_CATEGORY_FIELDS[selectedCategoryName] : undefined
+
         return (
           <div className="space-y-4">
             <h3 className="font-medium text-gray-900 dark:text-gray-100">Hardware-Specific Fields</h3>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                  Manufacturer
-                </label>
-                <input
-                  type="text"
-                  value={formData.attributes?.manufacturer || ''}
-                  onChange={(e) => handleAttributeChange('manufacturer', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Manufacturer name"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                  Model Number
-                </label>
-                <input
-                  type="text"
-                  value={formData.attributes?.model || ''}
-                  onChange={(e) => handleAttributeChange('model', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Model number"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                  Warranty Period
-                </label>
-                <input
-                  type="text"
-                  value={formData.attributes?.warranty || ''}
-                  onChange={(e) => handleAttributeChange('warranty', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="e.g., 1 year, 5 years"
-                />
-              </div>
+              {HARDWARE_UNIVERSAL_FIELDS.map(field => renderHardwareAttrField(field))}
             </div>
+
+            {categoryFields && (
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {selectedCategoryName} Fields
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  {categoryFields.map(field => renderHardwareAttrField(field))}
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
@@ -986,10 +1143,11 @@ export function UniversalInventoryForm({
                 rows={4}
                 placeholder='{"weight": "5 lbs", "dimensions": "10x5x3 inches"}'
               />
-              <p className="text-xs text-gray-500 mt-1">Enter as JSON format</p>
+              <p className="text-xs text-gray-500 mt-1">Anything not covered above — enter as JSON</p>
             </div>
           </div>
         )
+      }
 
       default:
         return null

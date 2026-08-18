@@ -66,9 +66,7 @@ export function CreateContractorPayeeModal({
       newErrors.fullName = 'Full name must not exceed 100 characters'
     }
 
-    if (!formData.nationalId.trim()) {
-      newErrors.nationalId = 'National ID is required'
-    } else if (formData.nationalId.trim().length > 50) {
+    if (formData.nationalId.trim().length > 50) {
       newErrors.nationalId = 'National ID must not exceed 50 characters'
     }
 
@@ -193,7 +191,7 @@ export function CreateContractorPayeeModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-secondary mb-1">
-                National ID <span className="text-red-500">*</span>
+                National ID <span className="text-xs font-normal text-secondary">(Optional)</span>
               </label>
               <NationalIdInput
                 value={formData.nationalId}

@@ -394,6 +394,7 @@ export function QuickPaymentModal({
   const [saveNote, setSaveNote] = useState(false)
   const [selectedSavedNote, setSelectedSavedNote] = useState<{ id: string; domainId?: string | null; categoryId?: string | null; subcategoryId?: string | null } | null>(null)
   const [requestCashierApproval, setRequestCashierApproval] = useState(false)
+  const [isAdvance, setIsAdvance] = useState(false)
 
   // Repeat-from-history
   const [repeatSource, setRepeatSource] = useState<string | null>(null)
@@ -1248,6 +1249,7 @@ export function QuickPaymentModal({
         isFullPayment: true,
         status: 'SUBMITTED',
         lineItems: lineItems.length > 0 ? lineItems : null,
+        isAdvance,
       }
 
       // Edit mode — PATCH the existing payment instead of creating a new one
@@ -1360,6 +1362,7 @@ export function QuickPaymentModal({
     setSaveNote(false)
     setSelectedSavedNote(null)
     setRequestCashierApproval(false)
+    setIsAdvance(false)
     setIsApplyingSuggestion(false)
     setLineItems([])
     setSuggestions([])
@@ -2348,22 +2351,22 @@ export function QuickPaymentModal({
                 )}
 
                 {noteMode === 'saved' && (
-                  <select
-                    value={formData.notes}
-                    onChange={e => {
-                      const note = e.target.value
-                      setFormData({ ...formData, notes: note })
-                      const matched = savedNotes.find(n => n.note === note)
-                      if (matched) applyPhraseClassification(matched)
-                    }}
-                    className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select a saved phrase...</option>
-                    {savedNotes.map(n => (
-                      <option key={n.id} value={n.note}>{n.note}</option>
-                    ))}
-                    {savedNotes.length === 0 && <option disabled>No saved phrases yet — use "Type a note" to add one</option>}
-                  </select>
+                  savedNotes.length === 0 ? (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 px-1 py-2">
+                      No saved phrases yet — use "Type a note" to add one
+                    </p>
+                  ) : (
+                    <SearchableSelect
+                      value={savedNotes.find(n => n.note === formData.notes)?.id || ''}
+                      options={savedNotes.map(n => ({ id: n.id, label: n.note }))}
+                      onChange={id => {
+                        const matched = savedNotes.find(n => n.id === id)
+                        setFormData({ ...formData, notes: matched?.note || '' })
+                        if (matched) applyPhraseClassification(matched)
+                      }}
+                      placeholder="Select a saved phrase..."
+                    />
+                  )
                 )}
 
                 {noteMode === 'type' && (() => {
@@ -2495,6 +2498,20 @@ export function QuickPaymentModal({
               </label>
             </div>
           )}
+
+          {/* This is an advance — receipts required (MBM-271) */}
+          <div className="flex items-center gap-2 py-1">
+            <input
+              type="checkbox"
+              id="isAdvance"
+              checked={isAdvance}
+              onChange={e => setIsAdvance(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-orange-600"
+            />
+            <label htmlFor="isAdvance" className="text-sm text-secondary select-none cursor-pointer">
+              This is an advance — receipts required
+            </label>
+          </div>
 
           {/* ── Actions — full width ─────────────────────────────────── */}
           <div className="flex justify-end gap-3 pt-2 border-t border-border">

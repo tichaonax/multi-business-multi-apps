@@ -223,6 +223,7 @@ model BusinessOrders {
   createdBy                 String?
   paidAt                    DateTime?
   paidBy                    String?
+  projectId                 String?                   @map("project_id")
   createdAt                 DateTime                  @default(now())
   updatedAt                 DateTime
   business_order_items      BusinessOrderItems[]
@@ -231,6 +232,7 @@ model BusinessOrders {
   employees                 Employees?                @relation(fields: [employeeId], references: [id])
   creator                   Users?                    @relation("BusinessOrderCreator", fields: [createdBy], references: [id])
   payer                     Users?                    @relation("BusinessOrderPayer", fields: [paidBy], references: [id])
+  project                   Projects?                 @relation("ProjectMaterialSales", fields: [projectId], references: [id], onDelete: SetNull)
   reprint_logs              ReprintLog[]
   coupon_usages             CouponUsages[]
   meal_program_transaction  MealProgramTransactions?
@@ -244,6 +246,7 @@ model BusinessOrders {
   @@index([customerId, createdAt(sort: Desc)])
   @@index([businessId, transactionDate])
   @@index([createdBy])
+  @@index([projectId], map: "idx_business_orders_project_id")
   @@map("business_orders")
 }
 
@@ -1750,6 +1753,7 @@ model ExpenseAccountPayments {
   destinationDepositId              String?                          @unique @map("destination_deposit_id")
   destinationDeposit                ExpenseAccountDeposits?          @relation("TransferDestination", fields: [destinationDepositId], references: [id])
   expense_payment_receipts          ExpensePaymentReceipts[]
+  receipt_review                    ExpensePaymentReceiptReviews?
   combo_request                     ComboPaymentRequests?            @relation("ComboLinkedPayment")
   vehicle_service_contractor_payout VehicleServiceContractorPayouts?
 
@@ -1774,7 +1778,10 @@ model ExpensePaymentReceipts {
   receiptDate      DateTime @map("receipt_date")
   amount           Decimal  @db.Decimal(12, 2)
   description      String?
+  receiptNumber    String?  @map("receipt_number") // itemized — distinct from ExpenseAccountPayments.receiptNumber (MBM-271)
+  imageId          String?  @map("image_id") // optional attachment/scan, reuses the shared Images store (MBM-271)
   payeeType        String?  @map("payee_type")
+  payeeName        String?  @map("payee_name") // free-form, one-time payee — used when payeeType = 'FREEFORM' and no Person/Business/Supplier record exists or is wanted
   payeePersonId    String?  @map("payee_person_id")
   payeeBusinessId  String?  @map("payee_business_id")
   payeeSupplierId  String?  @map("payee_supplier_id")
@@ -1788,11 +1795,43 @@ model ExpensePaymentReceipts {
   payeeBusiness  Businesses?            @relation("ReceiptPayeeBusiness", fields: [payeeBusinessId], references: [id])
   payeeSupplier  BusinessSuppliers?     @relation("ReceiptPayeeSupplier", fields: [payeeSupplierId], references: [id])
   creator        Users                  @relation("ReceiptCreator", fields: [createdBy], references: [id])
+  image          Images?                @relation("ReceiptImage", fields: [imageId], references: [id])
 
   @@index([expensePaymentId], map: "idx_expense_payment_receipts_payment_id")
   @@index([payeePersonId], map: "idx_expense_payment_receipts_person_id")
   @@index([payeeBusinessId], map: "idx_expense_payment_receipts_business_id")
   @@map("expense_payment_receipts")
+}
+
+// MBM-271: submit-to-cashier / review / approve lifecycle for advance receipts.
+// One row per ExpenseAccountPayments that requires receipt accountability (combo
+// pay disbursements automatically, other advances via an opt-in flag) — kept
+// separate from the already-large ExpenseAccountPayments model.
+model ExpensePaymentReceiptReviews {
+  id               String              @id @default(uuid())
+  expensePaymentId String              @unique @map("expense_payment_id")
+  status           ReceiptReviewStatus @default(PENDING)
+  expectedAmount   Decimal             @map("expected_amount") @db.Decimal(12, 2)
+  submittedBy      String?             @map("submitted_by")
+  submittedAt      DateTime?           @map("submitted_at")
+  reviewedBy       String?             @map("reviewed_by")
+  reviewedAt       DateTime?           @map("reviewed_at")
+  reviewNote       String?             @map("review_note")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @default(now()) @updatedAt @map("updated_at")
+
+  expensePayment ExpenseAccountPayments @relation(fields: [expensePaymentId], references: [id], onDelete: Cascade)
+  submitter      Users?                 @relation("ReceiptReviewSubmitter", fields: [submittedBy], references: [id])
+  reviewer       Users?                 @relation("ReceiptReviewReviewer", fields: [reviewedBy], references: [id])
+
+  @@index([status])
+  @@map("expense_payment_receipt_reviews")
+}
+
+enum ReceiptReviewStatus {
+  PENDING
+  SUBMITTED
+  APPROVED
 }
 
 // ─── Business Loan Repayment System (MBM-137) ────────────────────────────────
@@ -2170,6 +2209,7 @@ model Images {
   warehouse_items         WarehouseItems[]
   barcode_inventory_items BarcodeInventoryItems[]
   display_product_configs DisplayProductConfig[]  @relation("DisplayAdImage")
+  expense_payment_receipts ExpensePaymentReceipts[] @relation("ReceiptImage")
 
   @@map("images")
 }
@@ -3215,6 +3255,7 @@ model Projects {
   project_stages           ProjectStages[]
   project_transactions     ProjectTransactions[]
   expense_account_payments ExpenseAccountPayments[] @relation("ProjectExpensePayments")
+  business_orders          BusinessOrders[]         @relation("ProjectMaterialSales")
   businesses               Businesses?              @relation(fields: [businessId], references: [id])
   users                    Users?                   @relation(fields: [createdBy], references: [id])
   project_types            ProjectTypes             @relation(fields: [projectTypeId], references: [id])
@@ -3547,6 +3588,8 @@ model Users {
   expense_account_payments_as_payee                               ExpenseAccountPayments[]          @relation("ExpensePaymentPayeeUser")
   expense_account_payments_submitted                              ExpenseAccountPayments[]          @relation("ExpensePaymentSubmitter")
   expense_payment_receipts_created                                ExpensePaymentReceipts[]          @relation("ReceiptCreator")
+  expense_payment_receipt_reviews_submitted                       ExpensePaymentReceiptReviews[]     @relation("ReceiptReviewSubmitter")
+  expense_payment_receipt_reviews_reviewed                        ExpensePaymentReceiptReviews[]     @relation("ReceiptReviewReviewer")
   expense_accounts_created                                        ExpenseAccounts[]                 @relation("ExpenseAccountCreator")
   expense_account_grants_received                                 ExpenseAccountGrants[]            @relation("ExpenseAccountGrantUser")
   expense_account_grants_given                                    ExpenseAccountGrants[]            @relation("ExpenseAccountGrantGrantor")
@@ -5197,6 +5240,8 @@ enum ServiceType {
 enum StockMovementType {
   PURCHASE_RECEIVED
   SALE
+  PROJECT_SALE
+  PROMOTION
   RETURN_IN
   RETURN_OUT
   ADJUSTMENT

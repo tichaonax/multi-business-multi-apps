@@ -5,6 +5,7 @@ import { Lock, CheckCircle, AlertCircle, Trash2, Calendar } from 'lucide-react'
 import type { ManualCartItem } from './manual-entry-tab'
 import { useDateFormat } from '@/contexts/settings-context'
 import { formatDateByFormat } from '@/lib/country-codes'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 
 const MANUAL_ENTRY_LOOKBACK_DAYS = 30
 const DROPDOWN_SHOW_DAYS = 7
@@ -50,6 +51,8 @@ export function ManualOrderSummary({
   const dateInputRef = useRef<HTMLInputElement>(null)
   const [paymentMethod, setPaymentMethod] = useState('CASH')
   const [notes, setNotes] = useState('')
+  const [projectId, setProjectId] = useState('')
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([])
   const [closedDatesSet, setClosedDatesSet] = useState<Set<string>>(new Set())
   const [loadingDates, setLoadingDates] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -93,6 +96,17 @@ export function ManualOrderSummary({
     return () => { cancelled = true }
   }, [businessId])
 
+  // Active projects for this business — optional "Link to Project" field (MBM-270 Phase 4)
+  useEffect(() => {
+    if (!businessId) return
+    fetch(`/api/projects?businessId=${businessId}&status=active`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) setProjects(data.map((p: any) => ({ id: p.id, name: p.name })))
+      })
+      .catch(() => {})
+  }, [businessId])
+
   const availableDates = allDates.filter(d => !closedDatesSet.has(d))
   const dropdownDates = availableDates.slice(0, DROPDOWN_SHOW_DAYS)
 
@@ -121,6 +135,7 @@ export function ManualOrderSummary({
           transactionDate,
           paymentMethod,
           notes: notes || 'Manual entry from book records',
+          projectId: projectId || undefined,
           items: items.map(item => ({
             name: item.name,
             quantity: item.quantity,
@@ -156,6 +171,7 @@ export function ManualOrderSummary({
     setTransactionDate('')
     setPaymentMethod('CASH')
     setNotes('')
+    setProjectId('')
     onClearAll()
   }
 
@@ -344,6 +360,19 @@ export function ManualOrderSummary({
           className="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
         />
       </div>
+
+      {/* Link to Project (optional) — records this sale as materials sold against a project */}
+      {projects.length > 0 && (
+        <div className="mb-3">
+          <SearchableSelect
+            value={projectId}
+            options={projects.map(p => ({ id: p.id, label: p.name }))}
+            onChange={setProjectId}
+            placeholder="Link to Project (optional)"
+            className="text-xs"
+          />
+        </div>
+      )}
 
       {/* Total */}
       <div className="pt-2 border-t border-gray-200 dark:border-gray-700 mb-3">

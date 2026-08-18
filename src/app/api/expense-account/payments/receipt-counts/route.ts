@@ -5,7 +5,9 @@ import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/expense-account/payments/receipt-counts?paymentIds=a,b,c
- * Returns { [paymentId]: count } for badge rendering — avoids N+1 queries.
+ * Returns { [paymentId]: { count, review? } } for badge rendering — avoids N+1
+ * queries. `review` is present only for payments requiring receipt
+ * accountability (MBM-271) — combo-pay disbursements or opt-in advances.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -25,15 +27,53 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, data: {} })
     }
 
-    const counts = await prisma.expensePaymentReceipts.groupBy({
-      by: ['expensePaymentId'],
-      where: { expensePaymentId: { in: paymentIds } },
-      _count: { id: true },
-    })
+    const [counts, sums, reviews] = await Promise.all([
+      prisma.expensePaymentReceipts.groupBy({
+        by: ['expensePaymentId'],
+        where: { expensePaymentId: { in: paymentIds } },
+        _count: { id: true },
+      }),
+      prisma.expensePaymentReceipts.groupBy({
+        by: ['expensePaymentId'],
+        where: { expensePaymentId: { in: paymentIds } },
+        _sum: { amount: true },
+      }),
+      prisma.expensePaymentReceiptReviews.findMany({
+        where: { expensePaymentId: { in: paymentIds } },
+        select: { expensePaymentId: true, status: true, expectedAmount: true, createdAt: true },
+      }),
+    ])
 
-    const result: Record<string, number> = {}
+    const sumByPayment = new Map(sums.map(s => [s.expensePaymentId, Number(s._sum.amount ?? 0)]))
+    const reviewByPayment = new Map(reviews.map(r => [r.expensePaymentId, r]))
+
+    // Need paidAt for "days since disbursed" when a review row exists
+    const reviewedPaymentIds = reviews.map(r => r.expensePaymentId)
+    const paidAtByPayment = new Map<string, Date | null>()
+    if (reviewedPaymentIds.length > 0) {
+      const payments = await prisma.expenseAccountPayments.findMany({
+        where: { id: { in: reviewedPaymentIds } },
+        select: { id: true, paidAt: true },
+      })
+      for (const p of payments) paidAtByPayment.set(p.id, p.paidAt)
+    }
+
+    const result: Record<string, { count: number; review?: { status: string; total: number; expected: number; daysSincePaid: number } }> = {}
     for (const row of counts) {
-      result[row.expensePaymentId] = row._count.id
+      result[row.expensePaymentId] = { count: row._count.id }
+    }
+    for (const paymentId of paymentIds) {
+      if (!result[paymentId]) result[paymentId] = { count: 0 }
+      const review = reviewByPayment.get(paymentId)
+      if (review) {
+        const disbursedAt = paidAtByPayment.get(paymentId) ?? review.createdAt
+        result[paymentId].review = {
+          status: review.status,
+          total: sumByPayment.get(paymentId) ?? 0,
+          expected: Number(review.expectedAmount),
+          daysSincePaid: Math.floor((Date.now() - disbursedAt.getTime()) / (24 * 60 * 60 * 1000)),
+        }
+      }
     }
 
     return NextResponse.json({ success: true, data: result })

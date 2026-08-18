@@ -12,6 +12,7 @@ import { ExpensePaymentVoucherModal, PaymentSummary } from './expense-payment-vo
 import { generatePaymentVoucherPdf } from './payment-voucher-pdf'
 import { AddReceiptModal } from './add-receipt-modal'
 import { ViewReceiptsModal } from './view-receipts-modal'
+import { ReceiptReviewBadge } from './receipt-review-badge'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 
 interface Transaction {
@@ -139,7 +140,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   const [assigning, setAssigning] = useState(false)
 
   // Receipt state
-  const [receiptCountMap, setReceiptCountMap] = useState<Record<string, number>>({}) // paymentId → count
+  type ReceiptReviewInfo = { status: string; total: number; expected: number; daysSincePaid: number }
+  const [receiptCountMap, setReceiptCountMap] = useState<Record<string, { count: number; review?: ReceiptReviewInfo }>>({}) // paymentId → info
   const [receiptModal, setReceiptModal] = useState<{
     paymentId: string
     paymentAmount: number
@@ -931,7 +933,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                         )}
                         {/* Receipt badge — appears on all non-auto PAYMENT rows */}
                         {!isDeposit && !transaction.isAutoTransfer && (() => {
-                          const count = receiptCountMap[transaction.id] ?? 0
+                          const info = receiptCountMap[transaction.id]
+                          const count = info?.count ?? 0
                           const paymentPayee = transaction.payeeEmployee
                             ? { type: 'EMPLOYEE', id: transaction.payeeEmployee.id, name: transaction.payeeEmployee.fullName }
                             : transaction.payeeUser
@@ -943,6 +946,27 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                             : transaction.payeeSupplier
                             ? { type: 'SUPPLIER', id: transaction.payeeSupplier.id, name: transaction.payeeSupplier.name }
                             : null
+
+                          // MBM-271: payments requiring receipt accountability get the
+                          // color-coded status badge instead of the plain count badge.
+                          if (info?.review) {
+                            return (
+                              <ReceiptReviewBadge
+                                status={info.review.status}
+                                total={info.review.total}
+                                expected={info.review.expected}
+                                daysSincePaid={info.review.daysSincePaid}
+                                onClick={() => setReceiptModal({
+                                  paymentId: transaction.id,
+                                  paymentAmount: Math.abs(transaction.amount),
+                                  paymentDescription: transaction.description,
+                                  paymentPayee,
+                                  mode: 'view',
+                                })}
+                              />
+                            )
+                          }
+
                           return count > 0 ? (
                             <button
                               onClick={(e) => {
@@ -1104,7 +1128,12 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
           onClose={() => setReceiptModal(null)}
           onSuccess={(result) => {
             const pid = receiptModal.paymentId;
-            setReceiptCountMap(prev => ({ ...prev, [pid]: (prev[pid] ?? 0) + 1 }));
+            setReceiptCountMap(prev => ({ ...prev, [pid]: { ...prev[pid], count: (prev[pid]?.count ?? 0) + 1 } }));
+            // Full refresh (picks up review total/status) — cheap, single payment
+            fetch(`/api/expense-account/payments/receipt-counts?paymentIds=${pid}`, { credentials: 'include' })
+              .then(r => r.json())
+              .then(json => { if (json.data) setReceiptCountMap(prev => ({ ...prev, ...json.data })) })
+              .catch(() => {})
             setReceiptModal(null);
             // Use the updated payment object from the API to update the row instantly
             if (result && result.updatedPayment) {

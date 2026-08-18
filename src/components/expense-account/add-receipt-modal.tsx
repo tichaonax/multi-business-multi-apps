@@ -28,6 +28,7 @@ function typeBadge(type: string) {
   const labels: Record<string, string> = {
     PERSON: 'Individual', BUSINESS: 'Business', SUPPLIER: 'Supplier',
     CONTRACTOR: 'Contractor', EMPLOYEE: 'Employee', USER: 'User',
+    FREEFORM: 'One-time',
   }
   return labels[type] ?? type
 }
@@ -44,8 +45,10 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess }:
   const [searching, setSearching] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Mismatch detection — also fires when paymentPayee is null (no registered payee on payment)
-  const payeeMismatch = selectedPayee && (
+  // Mismatch detection — also fires when paymentPayee is null (no registered payee on payment).
+  // FREEFORM is a one-time, receipt-only payee with no equivalent on the payment
+  // record itself, so it never triggers the "update payment payee?" prompt.
+  const payeeMismatch = selectedPayee && selectedPayee.type !== 'FREEFORM' && (
     !paymentPayee ||
     selectedPayee.id !== paymentPayee.id ||
     selectedPayee.type !== paymentPayee.type
@@ -61,9 +64,34 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess }:
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
   const [notes, setNotes] = useState('')
+  const [receiptNumber, setReceiptNumber] = useState('')
+  const [imageId, setImageId] = useState<string | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [imageError, setImageError] = useState<string | null>(null)
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  async function handleAttachmentSelected(file: File | undefined) {
+    if (!file) return
+    setImageError(null)
+    setUploadingImage(true)
+    try {
+      const formData = new FormData()
+      formData.append('files', file)
+      const res = await fetch('/api/universal/images', { method: 'POST', body: formData, credentials: 'include' })
+      const json = await res.json()
+      if (res.ok && json.success && json.data?.[0]) {
+        setImageId(json.data[0].filename)
+      } else {
+        setImageError(json.error || 'Failed to upload attachment')
+      }
+    } catch {
+      setImageError('Failed to upload attachment')
+    } finally {
+      setUploadingImage(false)
+    }
+  }
 
   // Debounced search
   useEffect(() => {
@@ -110,6 +138,16 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess }:
     setUpdatePaymentPayee(null)
   }
 
+  // One-time payee, referenced by name only — no Person/Business/Supplier record
+  // created. For an unknown or one-off vendor that isn't worth saving permanently.
+  function selectFreeformPayee(name: string) {
+    setSelectedPayee({ type: 'FREEFORM', id: '', name })
+    setChanging(false)
+    setQuery('')
+    setSearchResults([])
+    setUpdatePaymentPayee(null)
+  }
+
   function cancelChange() {
     setChanging(false)
     setQuery('')
@@ -117,6 +155,9 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess }:
   }
 
   function payeeTypeToApiFields(p: PayeeRef) {
+    if (p.type === 'FREEFORM') {
+      return { payeeType: 'FREEFORM', payeeName: p.name }
+    }
     const apiType = p.type === 'PERSON' ? 'PERSON' : p.type === 'BUSINESS' ? 'BUSINESS' : 'SUPPLIER'
     return {
       payeeType: apiType,
@@ -141,6 +182,8 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess }:
         amount: parseFloat(amount),
         description: description || undefined,
         notes: notes || undefined,
+        receiptNumber: receiptNumber || undefined,
+        imageId: imageId || undefined,
         updatePaymentPayee: payeeMismatch ? updatePaymentPayee : false,
       }
       if (selectedPayee) Object.assign(body, payeeTypeToApiFields(selectedPayee))
@@ -244,7 +287,7 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess }:
                         {!searching && query.trim() && searchResults.length === 0 && (
                           <div className="px-3 py-2 space-y-1">
                             <p className="text-sm text-gray-400 dark:text-gray-500">No results for &ldquo;{query}&rdquo;</p>
-                            <div className="flex gap-2 pt-1">
+                            <div className="flex flex-wrap gap-2 pt-1">
                               <button
                                 type="button"
                                 onClick={() => { setInitialPayeeName(query); setCreateIndividualOpen(true) }}
@@ -258,6 +301,14 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess }:
                                 className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                               >
                                 + Create supplier
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => selectFreeformPayee(query.trim())}
+                                className="text-xs text-teal-600 dark:text-teal-400 hover:underline"
+                                title="Reference this name on the receipt only — no payee record is created"
+                              >
+                                Use &ldquo;{query.trim()}&rdquo; as one-time payee
                               </button>
                             </div>
                           </div>
@@ -279,7 +330,15 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess }:
                           </button>
                         ))}
                         {!searching && query.trim() && searchResults.length > 0 && (
-                          <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-2 flex gap-3">
+                          <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-2 flex flex-wrap gap-3">
+                            <button
+                              type="button"
+                              onClick={() => selectFreeformPayee(query.trim())}
+                              className="text-xs text-teal-600 dark:text-teal-400 hover:underline"
+                              title="Reference this name on the receipt only — no payee record is created"
+                            >
+                              Use &ldquo;{query.trim()}&rdquo; as one-time payee
+                            </button>
                             <button
                               type="button"
                               onClick={() => { setInitialPayeeName(query); setCreateIndividualOpen(true) }}
@@ -365,6 +424,19 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess }:
                 </div>
               </div>
 
+              {/* Receipt number */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Receipt Number</label>
+                <input
+                  type="text"
+                  value={receiptNumber}
+                  onChange={e => setReceiptNumber(e.target.value)}
+                  className="input w-full px-3 py-2"
+                  placeholder="Optional — as printed on the receipt"
+                  disabled={submitting}
+                />
+              </div>
+
               {/* Description */}
               <div>
                 <label className="block text-sm font-medium mb-1">Description</label>
@@ -376,6 +448,31 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess }:
                   placeholder="What was purchased"
                   disabled={submitting}
                 />
+              </div>
+
+              {/* Attachment */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Attachment</label>
+                {imageId ? (
+                  <div className="flex items-center gap-2">
+                    <a href={`/api/images/${imageId}`} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                      View attached image
+                    </a>
+                    <button type="button" onClick={() => setImageId(null)} className="text-xs text-gray-400 hover:text-red-500" disabled={submitting}>
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={e => handleAttachmentSelected(e.target.files?.[0])}
+                    className="input w-full text-sm"
+                    disabled={submitting || uploadingImage}
+                  />
+                )}
+                {uploadingImage && <p className="text-xs text-gray-400 mt-1">Uploading…</p>}
+                {imageError && <p className="text-xs text-red-500 mt-1">{imageError}</p>}
               </div>
 
               {/* Notes */}

@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
+import { isAccountCashier } from '@/lib/expense-account/receipt-review-access'
 
 function resolvePayeeName(receipt: {
   payeeType?: string | null
+  payeeName?: string | null
   payeePerson?: { fullName: string } | null
   payeeBusiness?: { name: string } | null
   payeeSupplier?: { name: string } | null
@@ -12,6 +14,7 @@ function resolvePayeeName(receipt: {
   if (receipt.payeeType === 'PERSON') return receipt.payeePerson?.fullName ?? null
   if (receipt.payeeType === 'BUSINESS') return receipt.payeeBusiness?.name ?? null
   if (receipt.payeeType === 'SUPPLIER') return receipt.payeeSupplier?.name ?? null
+  if (receipt.payeeType === 'FREEFORM') return receipt.payeeName ?? null
   return null
 }
 
@@ -75,6 +78,9 @@ export async function GET(
         payeeSupplierId: true,
         payeeUserId: true,
         payeeEmployeeId: true,
+        expenseAccountId: true,
+        createdBy: true,
+        combo_request: { select: { createdBy: true } },
         payeePerson: { select: { id: true, fullName: true } },
         payeeBusiness: { select: { id: true, name: true } },
         payeeSupplier: { select: { id: true, name: true } },
@@ -86,7 +92,10 @@ export async function GET(
             receiptDate: true,
             amount: true,
             description: true,
+            receiptNumber: true,
+            imageId: true,
             payeeType: true,
+            payeeName: true,
             payeePersonId: true,
             payeeBusinessId: true,
             payeeSupplierId: true,
@@ -100,6 +109,17 @@ export async function GET(
           },
           orderBy: { receiptDate: 'desc' },
         },
+        receipt_review: {
+          select: {
+            status: true,
+            expectedAmount: true,
+            submittedAt: true,
+            reviewedAt: true,
+            reviewNote: true,
+            submitter: { select: { name: true } },
+            reviewer: { select: { name: true } },
+          },
+        },
       },
     })
 
@@ -110,6 +130,9 @@ export async function GET(
       receiptDate: r.receiptDate,
       amount: r.amount,
       description: r.description,
+      receiptNumber: r.receiptNumber,
+      imageId: r.imageId,
+      imageUrl: r.imageId ? `/api/images/${r.imageId}` : null,
       payeeType: r.payeeType,
       payeePersonId: r.payeePersonId,
       payeeBusinessId: r.payeeBusinessId,
@@ -121,11 +144,31 @@ export async function GET(
       createdAt: r.createdAt,
     }))
 
+    const receiptTotal = receipts.reduce((sum, r) => sum + Number(r.amount), 0)
+
+    const isAdmin = user.role === 'admin'
+    const canSubmit =
+      isAdmin || user.id === payment.createdBy || user.id === payment.payeeUserId || user.id === payment.combo_request?.createdBy
+    const canReview = isAdmin || await isAccountCashier(user.id, isAdmin, payment.expenseAccountId)
+
     return NextResponse.json({
       success: true,
       data: {
         receipts,
         currentPayee: resolvePaymentPayee(payment),
+        review: payment.receipt_review ? {
+          status: payment.receipt_review.status,
+          expectedAmount: Number(payment.receipt_review.expectedAmount),
+          receiptTotal,
+          remaining: Number(payment.receipt_review.expectedAmount) - receiptTotal,
+          submittedAt: payment.receipt_review.submittedAt,
+          submittedByName: payment.receipt_review.submitter?.name ?? null,
+          reviewedAt: payment.receipt_review.reviewedAt,
+          reviewedByName: payment.receipt_review.reviewer?.name ?? null,
+          reviewNote: payment.receipt_review.reviewNote,
+          canSubmit,
+          canReview,
+        } : null,
       },
     })
   } catch (error) {
@@ -167,7 +210,10 @@ export async function POST(
       receiptDate,
       amount,
       description,
+      receiptNumber,
+      imageId,
       payeeType,
+      payeeName,
       payeePersonId,
       payeeBusinessId,
       payeeSupplierId,
@@ -186,7 +232,10 @@ export async function POST(
           receiptDate: new Date(receiptDate),
           amount,
           description: description ?? null,
+          receiptNumber: receiptNumber ?? null,
+          imageId: imageId ?? null,
           payeeType: payeeType ?? null,
+          payeeName: payeeType === 'FREEFORM' ? (payeeName ?? null) : null,
           payeePersonId: payeePersonId ?? null,
           payeeBusinessId: payeeBusinessId ?? null,
           payeeSupplierId: payeeSupplierId ?? null,
@@ -195,7 +244,9 @@ export async function POST(
         },
       })
 
-      if (updatePaymentPayee && payeeType) {
+      // FREEFORM has no equivalent on ExpenseAccountPayments (a one-time receipt-level
+      // payee, not a structured record) — never propagate it to the parent payment.
+      if (updatePaymentPayee && payeeType && payeeType !== 'FREEFORM') {
         await tx.expenseAccountPayments.update({
           where: { id: paymentId },
           data: {

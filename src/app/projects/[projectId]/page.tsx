@@ -113,6 +113,15 @@ interface Project {
     payeeBusiness: { id: string; name: string } | null
     expenseAccount: { id: string; accountName: string }
   }[]
+  materialSales: {
+    id: string
+    orderNumber: string
+    totalAmount: number
+    transactionDate: string | null
+    createdAt: string
+    notes: string | null
+    business: { id: string; name: string } | null
+  }[]
   financialSummary: {
     totalBudget: number
     totalSpent: number
@@ -120,12 +129,14 @@ interface Project {
     contractorPayments: number
     projectExpenses: number
     expensePaymentsTotal: number
+    materialsSoldTotal: number
     percentageSpent: number
     transactionCounts: {
       total: number
       contractorPayments: number
       projectExpenses: number
       expensePayments: number
+      materialSales: number
     }
   }
 }
@@ -495,11 +506,12 @@ export default function ProjectDetailPage() {
         <Card>
           <CardContent className="p-0">
             <Tabs defaultValue="financial" className="w-full">
-              <TabsList className="grid w-full grid-cols-5">
+              <TabsList className="grid w-full grid-cols-6">
                 <TabsTrigger value="financial">Financial Summary</TabsTrigger>
                 <TabsTrigger value="contractors">Contractors</TabsTrigger>
                 <TabsTrigger value="transactions">Transactions</TabsTrigger>
                 <TabsTrigger value="expenses">Expense Payments</TabsTrigger>
+                <TabsTrigger value="materials">Materials Sold</TabsTrigger>
                 <TabsTrigger value="stages">Project Stages</TabsTrigger>
               </TabsList>
 
@@ -543,6 +555,20 @@ export default function ProjectDetailPage() {
                           </p>
                           <p className="text-xs text-secondary/60">
                             {project.financialSummary.transactionCounts.expensePayments} payments
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="text-center">
+                          <p className="text-sm font-medium text-secondary/60">Materials Sold</p>
+                          <p className="text-lg font-bold text-primary">
+                            {formatCurrency(project.financialSummary.materialsSoldTotal)}
+                          </p>
+                          <p className="text-xs text-secondary/60">
+                            {project.financialSummary.transactionCounts.materialSales} order(s)
                           </p>
                         </div>
                       </CardContent>
@@ -805,6 +831,49 @@ export default function ProjectDetailPage() {
                         </Card>
                       )
                     })}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="materials" className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-sm text-secondary/60">
+                    {project.materialSales?.length ?? 0} order(s)
+                    {(project.financialSummary.materialsSoldTotal ?? 0) > 0 && ` — Total: ${formatCurrency(project.financialSummary.materialsSoldTotal)}`}
+                  </p>
+                </div>
+
+                {(!project.materialSales || project.materialSales.length === 0) ? (
+                  <div className="text-center py-8">
+                    <DollarSign className="h-12 w-12 text-secondary/40 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-secondary mb-2">No Materials Sold</h3>
+                    <p className="text-secondary/80">Sales linked to this project (via "Link to Project" on the manual order entry form) will appear here.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {project.materialSales.map((order) => (
+                      <Card key={order.id}>
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-medium text-primary truncate">{order.orderNumber}</span>
+                                {order.business && (
+                                  <span className="text-xs text-secondary/60">{order.business.name}</span>
+                                )}
+                              </div>
+                              {order.notes && <p className="text-sm text-secondary/80 truncate">{order.notes}</p>}
+                              <p className="text-xs text-secondary/60 mt-1">
+                                {formatDate(order.transactionDate || order.createdAt)}
+                              </p>
+                            </div>
+                            <div className="text-right ml-4">
+                              <p className="font-bold text-primary">{formatCurrency(order.totalAmount)}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
                   </div>
                 )}
               </TabsContent>

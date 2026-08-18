@@ -23,9 +23,9 @@ async function fixIdPatterns() {
     const templates = [
       {
         id: 'zw-national-id',
-        format: '##-######?##',
-        pattern: '^\\d{2}-\\d{6}[A-Z]\\d{2}$',
-        example: '63-123456A78'
+        format: '##-#######?##',
+        pattern: '^\\d{2}-\\d{6,7}[A-Za-z]\\d{2}$',
+        example: '27-2015556G27'
       },
       {
         id: 'za-id-number',

@@ -128,6 +128,10 @@ export async function GET(
             { payeeBusiness: { name: { contains: search, mode: 'insensitive' } } },
             { payeeSupplier: { name: { contains: search, mode: 'insensitive' } } },
             { category: { name: { contains: search, mode: 'insensitive' } } },
+            // MBM-271: also match itemized receipts (number/description), not just the
+            // single payment-level receiptNumber above
+            { expense_payment_receipts: { some: { receiptNumber: { contains: search, mode: 'insensitive' } } } },
+            { expense_payment_receipts: { some: { description: { contains: search, mode: 'insensitive' } } } },
           ],
         }
       : {}

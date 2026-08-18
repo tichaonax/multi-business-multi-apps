@@ -4629,6 +4629,18 @@ The system ships with a predefined taxonomy for every business type. You do not 
 | 🔩 Fasteners | Bolts & Nuts, Screws & Nails, Anchors & Adhesives |
 | 🛁 Bathroom Fittings | Sanitaryware, Shower Systems |
 
+> This table is a sample — Hardware's full taxonomy covers **30 domains** (Home Depot/Lowe's-style department coverage), including several not shown above: Doors & Windows, Flooring & Tiles, Home Appliances, Adhesives & Sealants, Generators & Power, Workshop Equipment, Hooks/Chains & Rope, Furniture & Home Furnishings, Automotive & Vehicle Supplies, and more. All are already available in the Domain dropdown — nothing needs to be created manually.
+
+#### Category-Specific Fields When Adding a Hardware Item
+
+When you add or edit a hardware product from the main **Inventory** page (not the quick barcode "Add Stock" form above), the form shows extra fields under **Hardware-Specific Fields** based on the category you pick:
+
+- A small set of fields always shows regardless of category: Manufacturer, Model Number, Warranty Period, Unit of Measure, Pack Size, Colour/Finish, Dimensions, Material.
+- Picking certain categories adds more specific fields underneath — for example, **Lighting** adds Wattage, Voltage, Bulb Base, Colour Temperature, Lumens, and Indoor/Outdoor; **Plumbing** categories add Pipe Diameter, Pressure Rating, Fitting Type, and Hot/Cold Suitability; **Lumber and Sheet Goods** adds Species, Treatment, Grade, and dimensions. Categories without a specific set still get the fields above.
+- A **Specifications** box at the bottom accepts free-form JSON for anything not covered by the fields above.
+
+These extra fields are optional — leave any blank if not relevant to the item.
+
 #### Restaurant Domains
 
 | Domain | Example Categories |
@@ -6086,6 +6098,16 @@ On the transaction history table, every payment row has a small receipt icon (�
 | **🧾 N** (green, with a number) | N receipts are already attached — click to view or add more |
 | **🧾** (grey, no number) | No receipt yet — click to attach the first one |
 
+**Payments that require receipt accountability** (combo pay disbursements, and any payment flagged **"This is an advance"** — see [Combo Payment Requests](#39-combo-payment-requests)) show a different, colour-coded version of this badge instead, showing the dollar total of receipts entered so far:
+
+| Badge colour | Meaning |
+|---|---|
+| 🟢 **Green** | Receipts have been reviewed and **approved** by a cashier — fully accounted for |
+| 🟠 **Orange** | Receipts submitted or still being added, less than 7 days since the funds were issued |
+| 🔴 **Red** | Still not approved after 7 days — overdue |
+
+Hovering over this badge shows a small popup with the review status, the total entered so far, the expected amount, and the remaining balance (which reads $0.00 once fully accounted for).
+
 #### The Project Badge
 
 Payment rows also show a **project badge** (📁) when the business has active projects:
@@ -6107,6 +6129,9 @@ Clicking either state opens a compact **inline dropdown** directly on the row. S
 - If no payee is recorded, click **Select** and type to search.
 - As you type, matching individuals, suppliers, and contractors appear in a dropdown. Select the correct one.
 - If the payee does not exist yet, click **+ Create individual** or **+ Create supplier** directly from the search results to add them on the fly.
+- If it's a one-time or unknown vendor not worth saving as a permanent record — click **Use "[name]" as one-time payee** instead. The name is stored on this receipt only; no Person, Business, or Supplier record is created, and it won't offer to update the payment's registered payee.
+
+> **National ID is optional** when creating an individual or contractor payee on the fly — some vendors don't have one. When entered, pick the right **ID Format Template** first (e.g. Zimbabwe National ID vs. Zimbabwe Driver Licence) so the field validates correctly; leave it blank entirely if the vendor has no ID at all.
 
 **Payee mismatch — correcting a wrong payee:**
 
@@ -6123,19 +6148,23 @@ Sometimes a payment is recorded with a placeholder name (the person who collecte
 |---|---|---|
 | Receipt Date | Yes | The date printed on the physical receipt — may differ from the payment date |
 | Amount | Yes | The amount on the receipt — may differ from the payment amount |
+| Receipt Number | No | The number printed on the receipt or invoice, if there is one |
 | Description | No | Brief note of what was purchased (e.g. "Cleaning supplies — March") |
+| Attachment | No | Upload a photo or scan of the physical receipt |
 | Internal Notes | No | Any internal memo that does not need to appear on reports |
 
 3. Click **Save Receipt**.
 
 #### Viewing and Managing Existing Receipts
 
-Click the green **🧾 N** badge on any payment row to open the receipts panel. This shows:
-- Each receipt with its date, amount, payee name, and description
+Click the **🧾** badge on any payment row to open the receipts panel. This shows:
+- Each receipt with its date, amount, receipt number, payee name, description, and an **📎 Attachment** link if one was uploaded
 - Who added the receipt and when
-- A **✕** delete button — visible to the receipt's creator within 7 days, or to admins at any time
+- A **✕** delete button — visible to the receipt's creator within 7 days, or to admins or a reviewing cashier at any time
 
 To add another receipt to the same payment, click **+ Add Receipt** at the bottom of the panel.
+
+For payments that require receipt accountability (see the colour-coded badge above), this panel also shows the review status and, when applicable, **Submit to Cashier** and **✅ Approve** buttons — see [Accounting for the Funds — Adding Receipts](#accounting-for-the-funds--adding-receipts) in Section 39 for the full workflow.
 
 #### Why Attach Receipts?
 
@@ -7023,6 +7052,14 @@ Clicking **✓ Mark as Paid** will open a small popup asking you to select the p
 **If you already provided a payee upfront:**
 
 Clicking **✓ Mark as Paid** opens the standard confirmation dialog and marks the payment immediately.
+
+---
+
+### Flagging a Payment as an Advance
+
+If you're handing over cash before knowing the exact purchase or supplier — the same situation combo pay handles, but for a single one-off payment — tick **"This is an advance — receipts required"** on the Quick Payment form before submitting.
+
+This starts the same receipt-accountability tracking combo pay disbursements get automatically: a reminder to add receipts, a colour-coded badge on the payment row, and a cashier approval step once you submit them. See [Accounting for the Funds — Adding Receipts](#accounting-for-the-funds--adding-receipts) in Section 39 for the full workflow — it applies the same way here.
 
 > **Why is the payee required at this point?** The payment record must have a payee before it is finalised so that expense reports and receipts are accurate. The flexibility to skip it during submission is provided so that approval can start before all details are available — but the name must be captured before funds are confirmed.
 
@@ -9313,7 +9350,7 @@ Click **Export CSV** to download the full log.
 
 > **Who reads this:** Staff who need to request multiple payments in a single bundled request (requesters), and cashiers or managers who approve and process those requests.
 
-A **Combo Payment Request** lets you bundle several payment needs — grocery shopping, school fees, supplier payments, and more — into one structured request. A cashier reviews and approves the request, you spend the money, and then you mark each item paid as you go. Any remaining change is returned through a formal settlement step.
+A **Combo Payment Request** lets you bundle several payment needs — grocery shopping, school fees, supplier payments, and more — into one structured request. A cashier reviews and approves the request, you spend the money, and then you mark each item paid as you go. You'll then need to show receipts accounting for the funds, reviewed and approved by a cashier. Any remaining change is returned through a formal settlement step.
 
 ---
 
@@ -9327,6 +9364,8 @@ Cashier reviews it (SUBMITTED)
 Request is funded (APPROVED)          You correct and re-submit (DRAFT)
     ↓  You spend and mark items paid
 All items paid (PAID)
+    ↓  You add receipts and Submit to Cashier
+Cashier reviews and approves receipts (🟢 badge)
     ↓  You notify cashier of remaining change
 Cashier confirms change received (SETTLED)
 ```
@@ -9459,6 +9498,21 @@ The item is marked as **Paid** and the total paid amount updates. Once all funde
 
 ---
 
+### Accounting for the Funds — Adding Receipts
+
+The moment your request reaches **PAID**, you're expected to show receipts proving how the money was spent. You'll get a bell notification right away, and another reminder once a day for as long as receipts remain outstanding.
+
+1. Find the disbursement in the account's **Transaction History** — it's the payment row tagged **COMBO PAY** — and click the colour-coded receipt badge (see [Attaching Receipts to Expense Payments](#attaching-receipts-to-expense-payments) in Section 17 for what each colour means).
+2. Add one or more receipts covering the full **approved amount** — each with a date, amount, and optionally a receipt number, description, and photo/scan attachment.
+3. Once the total looks right, click **Submit to Cashier**. If your receipts don't quite add up to the approved amount, you can still submit — a warning is shown, but the cashier does the actual checking, not the form.
+4. A cashier reviews your receipts, may correct amounts or details if something was entered wrong, and clicks **✅ Approve**. The badge turns green and the reminders stop.
+
+If receipts are still outstanding **7 days** after the funds were issued, the badge turns red and the cashier group is notified so they can follow up.
+
+> This same accountability flow can also be turned on for a one-off payment outside combo pay — tick **"This is an advance — receipts required"** when creating a Quick Payment.
+
+---
+
 ### Requester — Requesting Settlement (Returning Change)
 
 If you were approved for more than you actually spent, you must notify the cashier so they can collect the remaining change.
@@ -9527,6 +9581,8 @@ The request is marked **CANCELLED**. All cashiers and admins are notified, and i
 | Submit | Request creator; Admin |
 | Approve / Return for Edits | Cashiers with expense payment permissions; Admin |
 | Mark items as paid | Request creator; Admin |
+| Add / submit receipts | Request creator; Admin |
+| Approve receipts (edit or delete any receipt during review) | Cashiers with expense payment permissions; Admin |
 | Request settlement | Request creator (PAID status, remaining balance > $0); Admin |
 | Confirm settlement | Cashiers with expense payment permissions; Admin (not the creator) |
 | Cancel | Request creator; Cashiers; Admin |
@@ -9554,6 +9610,10 @@ The request is marked **CANCELLED**. All cashiers and admins are notified, and i
 
 **Confirm Change Received button not visible:**
 - You created this request. The settlement confirmation must be done by a different cashier or admin.
+
+**Receipt badge is orange or red and I've already submitted receipts:**
+- Orange means submitted-but-not-yet-approved by a cashier, or still within the first 7 days — this is expected until a cashier clicks **✅ Approve**.
+- Red means it's been more than 7 days since the funds were issued and it's still not approved — the cashier group has been notified, but you can also follow up directly.
 
 ---
 
@@ -10154,6 +10214,12 @@ Group (e.g. "Transport & Logistics")
 - When adding or editing a **Supplier** — you can assign a supplier category from the drop-down.
 - When adding or editing a **Contractor** (person/payee) — you can assign a contractor category.
 - When adding or editing a **Payee** — you can assign a payee category.
+
+Start typing in the category picker and matching groups/categories are suggested as you type (e.g. typing "Electrician" suggests **🏗️ Construction, Hardware and Trades → Electrician**).
+
+### Category Coverage
+
+All three areas share a broad, general-purpose taxonomy — 16 domains covering food and beverage, retail, construction and trades, automotive, personal care, health, technology, education, professional services, agriculture, manufacturing, cleaning, events, utilities, and community/public services. Contractors additionally keep their original, more specific construction-and-trades-only groups (General Construction, Plumbing Services, Electrical Services, etc.) alongside the general set, so a search for a trade-specific category still finds the more precise option first.
 
 ### Managing Categories
 

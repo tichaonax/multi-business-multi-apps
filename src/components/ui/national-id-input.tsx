@@ -61,7 +61,12 @@ export function NationalIdInput({
         const defaultTemplate = idTemplates.find(t => t.id === settings.defaultIdFormatTemplateId)
         if (defaultTemplate) { onChange(value, defaultTemplate.id); return }
       }
-      const zimTemplate = idTemplates.find(t => t.countryCode === 'ZW')
+      // Prefer the actual "National ID" template over other ZW documents (e.g.
+      // Driver Licence) that happen to sort first — national ID is the far more
+      // common default, not whichever ZW-tagged template comes first in the list.
+      const zimTemplate =
+        idTemplates.find(t => t.countryCode === 'ZW' && /national id/i.test(t.name)) ??
+        idTemplates.find(t => t.countryCode === 'ZW')
       if (zimTemplate) onChange(value, zimTemplate.id)
     }
   }, [idTemplates, settings.defaultIdFormatTemplateId])
@@ -116,7 +121,7 @@ export function NationalIdInput({
     
     for (const formatChar of formatChars) {
       if (valueIndex >= cleanValue.length) break
-      
+
       if (formatChar.isLiteral) {
         // Add literal character (like - or space)
         formatted += formatChar.char
@@ -128,7 +133,16 @@ export function NationalIdInput({
         }
       }
     }
-    
+
+    // The example may be shorter than a valid value (e.g. Zimbabwe National ID's
+    // variable 6-7 digit run — the example only shows 6). Once every example
+    // position is consumed, pass through any remaining input as-is rather than
+    // silently dropping it — losing the last digit turned valid 7-digit IDs into
+    // invalid ones.
+    if (valueIndex < cleanValue.length) {
+      formatted += cleanValue.slice(valueIndex)
+    }
+
     return formatted
   }
 
