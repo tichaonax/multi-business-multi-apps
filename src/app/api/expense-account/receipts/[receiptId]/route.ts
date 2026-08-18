@@ -28,8 +28,8 @@ export async function PUT(
       where: { id: receiptId },
       select: {
         id: true, createdBy: true, receiptDate: true, amount: true, description: true,
-        receiptNumber: true, imageId: true, notes: true,
-        expensePayment: { select: { expenseAccountId: true } },
+        receiptNumber: true, imageId: true, notes: true, expensePaymentId: true,
+        expensePayment: { select: { expenseAccountId: true, receipt_review: { select: { status: true } } } },
       },
     })
     if (!receipt) return NextResponse.json({ error: 'Receipt not found' }, { status: 404 })
@@ -40,6 +40,12 @@ export async function PUT(
 
     if (!isOwner && !isCashier) {
       return NextResponse.json({ error: 'You do not have permission to edit this receipt' }, { status: 403 })
+    }
+
+    // Once a cashier has approved the receipt set, the submitter can no longer
+    // edit it — only the cashier/admin can, during a re-review (MBM-271 follow-up).
+    if (isOwner && !isCashier && receipt.expensePayment.receipt_review?.status === 'APPROVED') {
+      return NextResponse.json({ error: 'This receipt has already been approved by the cashier and can no longer be edited' }, { status: 403 })
     }
 
     const oldValues: Record<string, unknown> = {}
@@ -101,7 +107,7 @@ export async function DELETE(
       where: { id: receiptId },
       select: {
         id: true, createdBy: true, amount: true, receiptDate: true, description: true, expensePaymentId: true,
-        expensePayment: { select: { expenseAccountId: true } },
+        expensePayment: { select: { expenseAccountId: true, receipt_review: { select: { status: true } } } },
       },
     })
 
@@ -113,6 +119,12 @@ export async function DELETE(
 
     if (!isAdmin && !isOwner && !isCashier) {
       return NextResponse.json({ error: 'You can only delete receipts you created' }, { status: 403 })
+    }
+
+    // Once a cashier has approved the receipt set, the submitter can no longer
+    // delete it — only the cashier/admin can (MBM-271 follow-up).
+    if (isOwner && !isAdmin && receipt.expensePayment.receipt_review?.status === 'APPROVED') {
+      return NextResponse.json({ error: 'This receipt has already been approved by the cashier and can no longer be deleted' }, { status: 403 })
     }
 
     await prisma.expensePaymentReceipts.delete({ where: { id: receiptId } })

@@ -33,11 +33,34 @@ function typeBadge(type: string) {
   return labels[type] ?? type
 }
 
+// Remembers whichever real (non-FREEFORM) payee was used last, on this device,
+// so the next receipt — often for the same vendor — is one click instead of a
+// re-search. Deliberately client-only (localStorage), not synced anywhere.
+const LAST_PAYEE_KEY = 'mbm:lastReceiptPayee'
+
+function getLastPayee(): PayeeRef | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(LAST_PAYEE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+function saveLastPayee(p: PayeeRef) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(LAST_PAYEE_KEY, JSON.stringify(p))
+  } catch {}
+}
+
 export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess }: AddReceiptModalProps) {
   const today = new Date().toISOString().slice(0, 10)
 
   const [selectedPayee, setSelectedPayee] = useState<PayeeRef | null>(paymentPayee ?? null)
   const [changing, setChanging] = useState(!paymentPayee) // open search immediately if no payee
+  const [lastPayee] = useState<PayeeRef | null>(() => getLastPayee())
 
   // Search state
   const [query, setQuery] = useState('')
@@ -196,6 +219,7 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess }:
       })
       if (res.ok) {
         const data = await res.json();
+        if (selectedPayee && selectedPayee.type !== 'FREEFORM') saveLastPayee(selectedPayee)
         // Pass the updated payment object (payee info) to onSuccess
         onSuccess({ updatedPayment: data.data?.updatedPayment });
       } else {
@@ -229,6 +253,17 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess }:
               {/* Payee section */}
               <div>
                 <label className="block text-sm font-medium mb-1">Payee</label>
+
+                {lastPayee && (!selectedPayee || selectedPayee.id !== lastPayee.id || selectedPayee.type !== lastPayee.type) && (
+                  <button
+                    type="button"
+                    onClick={() => selectPayee({ id: lastPayee.id, type: lastPayee.type, name: lastPayee.name })}
+                    className="mb-2 text-xs px-2 py-1 rounded border border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20"
+                    disabled={submitting}
+                  >
+                    ↻ Use last payee: {lastPayee.name}
+                  </button>
+                )}
 
                 {/* Static read-only display */}
                 {!changing && (

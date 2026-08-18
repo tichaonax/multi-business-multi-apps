@@ -70,6 +70,9 @@ export function ViewReceiptsModal({
   const [submittingReview, setSubmittingReview] = useState(false)
   const [approving, setApproving] = useState(false)
   const [reviewNote, setReviewNote] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ amount: '', receiptDate: '', receiptNumber: '', description: '', notes: '' })
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     loadReceipts()
@@ -169,8 +172,65 @@ export function ViewReceiptsModal({
     if (isAdmin) return true
     if (review?.canReview) return true // cashier may delete any receipt during review (MBM-271)
     if (r.createdBy !== currentUserId) return false
+    if (review && review.status === 'APPROVED') return false // locked once the cashier signs off
     const diffDays = (Date.now() - new Date(r.createdAt).getTime()) / (1000 * 60 * 60 * 24)
     return diffDays <= 7
+  }
+
+  // The submitter can edit their own receipt for as long as it hasn't been
+  // approved yet — no 7-day cutoff for editing, only for deleting (MBM-271 follow-up).
+  function canEdit(r: Receipt): boolean {
+    if (isAdmin) return true
+    if (review?.canReview) return true // cashier may edit any receipt during review
+    if (r.createdBy !== currentUserId) return false
+    if (review && review.status === 'APPROVED') return false
+    return true
+  }
+
+  function startEdit(r: Receipt) {
+    setEditingId(r.id)
+    setEditForm({
+      amount: String(r.amount),
+      receiptDate: r.receiptDate.slice(0, 10),
+      receiptNumber: r.receiptNumber ?? '',
+      description: r.description ?? '',
+      notes: r.notes ?? '',
+    })
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+  }
+
+  async function saveEdit(receiptId: string) {
+    if (!editForm.amount || isNaN(parseFloat(editForm.amount))) { alert('Amount is required'); return }
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/expense-account/receipts/${receiptId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          amount: parseFloat(editForm.amount),
+          receiptDate: editForm.receiptDate,
+          receiptNumber: editForm.receiptNumber || null,
+          description: editForm.description || null,
+          notes: editForm.notes || null,
+        }),
+      })
+      const json = await res.json()
+      if (res.ok) {
+        setEditingId(null)
+        await loadReceipts()
+        onReceiptsChanged()
+      } else {
+        alert(json.error || 'Failed to update receipt')
+      }
+    } catch {
+      alert('Failed to update receipt')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const fmt = (n: number) => `$${Number(n).toFixed(2)}`
@@ -234,6 +294,56 @@ export function ViewReceiptsModal({
               <div className="space-y-3">
                 {receipts.map(r => (
                   <div key={r.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                    {editingId === r.id ? (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="date"
+                            value={editForm.receiptDate}
+                            onChange={e => setEditForm({ ...editForm, receiptDate: e.target.value })}
+                            className="input px-2 py-1.5 text-sm"
+                          />
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={editForm.amount}
+                            onChange={e => setEditForm({ ...editForm, amount: e.target.value })}
+                            className="input px-2 py-1.5 text-sm"
+                            placeholder="Amount"
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          value={editForm.receiptNumber}
+                          onChange={e => setEditForm({ ...editForm, receiptNumber: e.target.value })}
+                          className="input w-full px-2 py-1.5 text-sm"
+                          placeholder="Receipt number (optional)"
+                        />
+                        <input
+                          type="text"
+                          value={editForm.description}
+                          onChange={e => setEditForm({ ...editForm, description: e.target.value })}
+                          className="input w-full px-2 py-1.5 text-sm"
+                          placeholder="What was purchased"
+                        />
+                        <textarea
+                          value={editForm.notes}
+                          onChange={e => setEditForm({ ...editForm, notes: e.target.value })}
+                          className="input w-full px-2 py-1.5 text-sm"
+                          rows={2}
+                          placeholder="Internal memo"
+                        />
+                        <div className="flex justify-end gap-2 pt-1">
+                          <button type="button" onClick={cancelEdit} className="text-xs px-3 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300" disabled={saving}>
+                            Cancel
+                          </button>
+                          <button type="button" onClick={() => saveEdit(r.id)} className="text-xs px-3 py-1 rounded bg-blue-600 text-white disabled:opacity-50" disabled={saving}>
+                            {saving ? 'Saving…' : 'Save'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
                     <div className="flex justify-between items-start gap-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -265,17 +375,29 @@ export function ViewReceiptsModal({
                           )}
                         </div>
                       </div>
-                      {canDelete(r) && (
-                        <button
-                          onClick={() => handleDelete(r.id)}
-                          disabled={deletingId === r.id}
-                          className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50 flex-shrink-0 px-1"
-                          title="Delete receipt"
-                        >
-                          {deletingId === r.id ? '...' : '✕'}
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {canEdit(r) && (
+                          <button
+                            onClick={() => startEdit(r)}
+                            className="text-xs text-gray-400 hover:text-blue-500 px-1"
+                            title="Edit receipt"
+                          >
+                            ✏️
+                          </button>
+                        )}
+                        {canDelete(r) && (
+                          <button
+                            onClick={() => handleDelete(r.id)}
+                            disabled={deletingId === r.id}
+                            className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50 px-1"
+                            title="Delete receipt"
+                          >
+                            {deletingId === r.id ? '...' : '✕'}
+                          </button>
+                        )}
+                      </div>
                     </div>
+                    )}
                   </div>
                 ))}
               </div>

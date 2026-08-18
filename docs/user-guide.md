@@ -6128,8 +6128,9 @@ Clicking either state opens a compact **inline dropdown** directly on the row. S
 - If the payment already has a known payee, their name is shown and pre-selected. Click **Change** if the receipt is from a different person or supplier.
 - If no payee is recorded, click **Select** and type to search.
 - As you type, matching individuals, suppliers, and contractors appear in a dropdown. Select the correct one.
-- If the payee does not exist yet, click **+ Create individual** or **+ Create supplier** directly from the search results to add them on the fly.
+- If the payee does not exist yet, click **+ Create individual** or **+ Create supplier** directly from the search results to add them on the fly — the newly created payee is attached to this receipt automatically, no extra selection step needed.
 - If it's a one-time or unknown vendor not worth saving as a permanent record — click **Use "[name]" as one-time payee** instead. The name is stored on this receipt only; no Person, Business, or Supplier record is created, and it won't offer to update the payment's registered payee.
+- **↻ Use last payee** — when you've entered a receipt before on this device, this button appears offering to reuse that same payee with one click. Handy when adding several receipts in a row for the same vendor.
 
 > **National ID is optional** when creating an individual or contractor payee on the fly — some vendors don't have one. When entered, pick the right **ID Format Template** first (e.g. Zimbabwe National ID vs. Zimbabwe Driver Licence) so the field validates correctly; leave it blank entirely if the vendor has no ID at all.
 
@@ -6160,7 +6161,8 @@ Sometimes a payment is recorded with a placeholder name (the person who collecte
 Click the **🧾** badge on any payment row to open the receipts panel. This shows:
 - Each receipt with its date, amount, receipt number, payee name, description, and an **📎 Attachment** link if one was uploaded
 - Who added the receipt and when
-- A **✕** delete button — visible to the receipt's creator within 7 days, or to admins or a reviewing cashier at any time
+- A **✏️ Edit** button — visible to the receipt's creator for as long as it hasn't been approved by a cashier yet (no time limit), or to admins or a reviewing cashier at any time. Once approved, only an admin or cashier can still make corrections.
+- A **✕** delete button — visible to the receipt's creator within 7 days (and, same as edit, never after cashier approval), or to admins or a reviewing cashier at any time
 
 To add another receipt to the same payment, click **+ Add Receipt** at the bottom of the panel.
 
