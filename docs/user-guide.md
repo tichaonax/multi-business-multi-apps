@@ -32,6 +32,7 @@
 12. [Driver & Vehicle Log](#12-driver--vehicle-log)
 13. [WiFi Token Sales — ESP32 and R710](#13-wifi-token-sales--esp32-and-r710)
     - [Device Registry — Admin Setup & Fixing a Mixed-Up IP Address](#device-registry--admin-setup--fixing-a-mixed-up-ip-address)
+    - [Remote Sites — R710 via Local Agent](#remote-sites--r710-via-local-agent)
 14. [Inventory & Barcode Labels](#14-inventory--barcode-labels)
     - [Predefined Domains & Category Taxonomy](#predefined-domains-categories--sub-categories--all-business-types)
     - [Custom Bulk Products](#custom-bulk-products--complete-guide)
@@ -4109,6 +4110,45 @@ Each physical R710 router is registered once in a global **Device Registry**, th
 5. Click **Test** on both devices afterward to confirm each one now connects correctly.
 
 > The devices list also shows which businesses each device is actually serving underneath the business count — worth a glance after any setup change, since a device serving the wrong business's WLAN is usually visible at a glance once you can see the names.
+
+---
+
+#### Remote Sites — R710 via Local Agent
+
+**Who reads this:** System administrators setting up an R710 device at a branch or site that is not on the same local network as the application server (connected only via Tailscale or a similar VPN).
+
+Normally the application server talks to an R710 device directly over the local network. A device at a remote site can't be reached that way — instead, a small **local agent** program runs on a workstation at that site (on the same network as the R710) and relays requests between the app and the device. This works the same way local receipt printers do: the agent runs quietly in the system tray, and once paired, everything else works exactly like a normal R710 device — selling tokens, generating stock, admin management — with no extra steps for staff.
+
+**Registering a remote device:**
+1. Go to **R710 Portal → Devices → Register Device**.
+2. Under **Connection Mode**, choose **Remote Agent** instead of Direct.
+   > Selecting Remote Agent skips the "Test Connection" requirement — the app server genuinely cannot reach a remote device directly, so there is nothing to test yet. Connectivity is verified later, from the Agent panel, once a workstation is paired.
+3. Enter the device's **IP address** (as it appears on the remote site's own network) and **admin username/password**, plus an optional description.
+4. Click **Register Device**. You're taken straight to the new device's **Agent** panel to pair a workstation.
+
+> If you accidentally try to test-connect to a device that's actually remote, the failure message includes a **"switch to Remote Agent mode"** link that flips the form over for you — no need to start again.
+
+**Installing the local agent (one time, on a workstation at the remote site):**
+1. From the device's **Agent** panel (**R710 Portal → Devices → Agent** button, or via the link shown right after registering), click **Download r710-agent.zip**.
+2. Copy the zip to the workstation at the remote site — the one that's on the same local network as the R710 and stays logged in.
+3. Unzip it and double-click **r710-agent.exe**. No installer, no Node.js, nothing else to set up — it's a single self-contained program. A tray icon appears showing it's running and waiting to be paired.
+4. Set it to start automatically so it survives reboots — most Windows setups pin a shortcut to it in the Startup folder, same as any other always-on tray app.
+
+**Pairing the workstation to the device:**
+1. On that same workstation, open the app in a browser and log in as an administrator.
+2. Go to the device's **Agent** panel.
+3. The page checks for the local agent automatically — once it shows **"Local agent detected and waiting to be paired,"** enter a label for this workstation (e.g. "Front Desk PC — Bulawayo Branch") and click **Pair this machine**.
+4. The tray icon switches to **🟢 Connected**. The Agent panel now shows live status instead of the pairing instructions.
+
+> **Pairing must be done from the workstation itself** — the "Pair this machine" button only works when the agent it's talking to is running on the same computer as the browser. If you open the Agent panel from a different machine (e.g. head office), no Pair button appears, only install instructions — that's expected, not a bug. An administrator can otherwise manage everything else about R710 — registering devices, editing settings, viewing sales — from anywhere they can log into the app.
+
+**Using the Agent panel day-to-day:**
+- **Status**: shows 🟢 Connected / 🔴 Offline, which workstation is paired, its agent version, and when it was last seen — refreshes automatically.
+- **Test Connection**: sends a real round-trip request through the agent to the device and reports success or the specific failure.
+- **Recent Activity**: a log of every request relayed through the agent — token generation, health checks — with who requested it (or "Background job" for automatic top-ups) and how long it took.
+- **Revoke Pairing**: disconnects the agent immediately and permanently for that pairing. Use this if a workstation is being retired or replaced — you'll need to pair a new (or the same, reinstalled) machine afterward before the device is reachable again.
+
+**If the agent goes offline:** everything that would normally happen automatically for this device — selling a token at POS, background stock top-ups — will fail with a clear **"Remote Wi-Fi device unavailable — the local agent is offline, contact IT"** message instead of a generic error, so staff and support can tell immediately that it's the agent (not the R710 itself, and not a wrong password) that needs attention. Check the tray icon on the paired workstation first — if it's not running, restart it; if it shows 🔴, the workstation likely lost its network connection to the app server.
 
 ---
 
