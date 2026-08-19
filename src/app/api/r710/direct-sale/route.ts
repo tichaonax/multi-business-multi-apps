@@ -59,8 +59,13 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('[R710 Direct Sale] POST error:', error)
+    const code = (error as any)?.code
     return NextResponse.json(
-      { error: 'Failed to complete sale', details: error instanceof Error ? error.message : 'Unknown error' },
+      {
+        error: code === 'AGENT_OFFLINE' || code === 'TIMEOUT' ? error instanceof Error ? error.message : 'Device unavailable' : 'Failed to complete sale',
+        code,
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     )
   }

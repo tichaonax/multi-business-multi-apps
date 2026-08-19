@@ -8,7 +8,8 @@
 
 import { prisma } from '@/lib/prisma';
 import { decrypt } from '@/lib/encryption';
-import { getR710SessionManager } from '@/lib/r710-session-manager';
+import { getR710Executor } from '@/lib/r710/executors';
+import type { R710TokenStatus } from '@prisma/client';
 
 interface TokenSyncResult {
   success: boolean;
@@ -30,8 +31,8 @@ interface TokenSyncResult {
 
 interface TokenStatusUpdate {
   tokenId: string;
-  oldStatus: string;
-  newStatus: string;
+  oldStatus: R710TokenStatus;
+  newStatus: R710TokenStatus;
   connectedMac?: string | null;
   firstUsedAt?: Date | null;
 }
@@ -64,7 +65,7 @@ export async function runTokenSync(): Promise<TokenSyncResult> {
         businesses: {
           select: {
             id: true,
-            businessName: true
+            name: true
           }
         }
       }
@@ -83,10 +84,10 @@ export async function runTokenSync(): Promise<TokenSyncResult> {
           result.tokensProcessed += syncDetail.tokensChecked;
           result.tokensUpdated += syncDetail.tokensUpdated;
         } else if (syncDetail.status === 'ERROR') {
-          result.errors.push(`${integration.businesses.businessName}: ${syncDetail.errorMessage}`);
+          result.errors.push(`${integration.businesses.name}: ${syncDetail.errorMessage}`);
         }
       } catch (error) {
-        const errorMsg = `Business ${integration.businesses.businessName}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        const errorMsg = `Business ${integration.businesses.name}: ${error instanceof Error ? error.message : 'Unknown error'}`;
         console.error(`[R710 Token Sync] ${errorMsg}`);
         result.errors.push(errorMsg);
 
@@ -107,7 +108,7 @@ export async function runTokenSync(): Promise<TokenSyncResult> {
 
         result.syncDetails.push({
           businessId: integration.businessId,
-          businessName: integration.businesses.businessName,
+          businessName: integration.businesses.name,
           deviceIp: integration.device_registry.ipAddress,
           tokensChecked: 0,
           tokensUpdated: 0,
@@ -142,7 +143,7 @@ export async function runTokenSync(): Promise<TokenSyncResult> {
  */
 async function syncBusinessTokens(integration: any): Promise<TokenSyncResult['syncDetails'][0]> {
   const businessId = integration.businessId;
-  const businessName = integration.businesses.businessName;
+  const businessName = integration.businesses.name;
   const device = integration.device_registry;
   const syncStartTime = Date.now();
 
@@ -182,25 +183,28 @@ async function syncBusinessTokens(integration: any): Promise<TokenSyncResult['sy
     };
   }
 
-  // Get session for R710 device
-  const sessionManager = getR710SessionManager();
+  const executor = getR710Executor(device.connectionMode);
   const adminPassword = decrypt(device.encryptedAdminPassword);
 
-  const r710Service = await sessionManager.getSession({
+  // Query all tokens from R710 device
+  const queryResult = await executor.queryAllTokens({
+    deviceRegistryId: integration.deviceRegistryId,
     ipAddress: device.ipAddress,
     adminUsername: device.adminUsername,
     adminPassword
   });
+  if (!queryResult.success || !queryResult.tokens) {
+    throw new Error(queryResult.error || 'Failed to query tokens from R710 device');
+  }
+  const r710TokenMap = new Map(queryResult.tokens.map(token => [token.username, token]));
 
-  // Query all tokens from R710 device
-  const r710Tokens = await r710Service.queryAllTokens();
-  const r710TokenMap = new Map(r710Tokens.map(token => [token.username, token]));
-
-  // Get all tokens for this business from database
+  // Get all tokens for this business from database. R710Tokens has no
+  // deviceRegistryId column directly — the device is reached via the WLAN
+  // relation, so filter through r710_wlans instead.
   const dbTokens = await prisma.r710Tokens.findMany({
     where: {
       businessId,
-      deviceRegistryId: integration.deviceRegistryId,
+      r710_wlans: { deviceRegistryId: integration.deviceRegistryId },
       status: {
         in: ['AVAILABLE', 'SOLD', 'ACTIVE']
       }
@@ -227,10 +231,10 @@ async function syncBusinessTokens(integration: any): Promise<TokenSyncResult['sy
     }
 
     // Determine new status based on R710 data
-    const isExpired = r710Token.timeLeft <= 0;
-    const isActive = r710Token.status === 1 && r710Token.deviceMac;
+    const isExpired = r710Token.expired;
+    const isActive = r710Token.active && !!r710Token.connectedMac;
 
-    let newStatus = dbToken.status;
+    let newStatus: TokenStatusUpdate['newStatus'] = dbToken.status;
     let connectedMac = dbToken.connectedMac;
     let firstUsedAt = dbToken.firstUsedAt;
 
@@ -239,7 +243,7 @@ async function syncBusinessTokens(integration: any): Promise<TokenSyncResult['sy
       connectedMac = null;
     } else if (isActive) {
       newStatus = 'ACTIVE';
-      connectedMac = r710Token.deviceMac || null;
+      connectedMac = r710Token.connectedMac || null;
       firstUsedAt = firstUsedAt || now;
     } else if (dbToken.status === 'ACTIVE' && !isActive) {
       // Was active but no longer connected
@@ -334,7 +338,7 @@ export async function getTokenSyncStats() {
       businessId: true,
       businesses: {
         select: {
-          businessName: true
+          name: true
         }
       },
       device_registry: {
@@ -370,7 +374,7 @@ export async function getTokenSyncStats() {
 
     stats.push({
       businessId: integration.businessId,
-      businessName: integration.businesses.businessName,
+      businessName: integration.businesses.name,
       deviceIp: integration.device_registry.ipAddress,
       deviceAccessible: isAccessible,
       tokenCounts: {

@@ -9,20 +9,13 @@
  *  2. Save token + sale to DB (uses provided tx handle)
  */
 
-import { R710SessionManager } from '@/lib/r710-session-manager'
+import { getR710Executor } from '@/lib/r710/executors'
+import { AgentDispatchError } from '@/lib/r710/agent-hub'
 import { generateDirectSaleUsername } from '@/lib/r710/username-generator'
 import { getOrCreateR710ExpenseAccount } from '@/lib/r710-expense-account-utils'
 import { decrypt } from '@/lib/encryption'
 import { prisma } from '@/lib/prisma'
-
-const sessionManager = new R710SessionManager()
-
-// Duration unit mapping from DB format to API format
-const durationUnitMap: Record<string, 'hour' | 'day' | 'week'> = {
-  'hour_Hours': 'hour',
-  'day_Days': 'day',
-  'week_Weeks': 'week'
-}
+import { durationUnitMap } from '@/lib/r710/duration-unit-map'
 
 export interface GenerateAndSellTokenParams {
   businessId: string
@@ -109,37 +102,43 @@ export async function generateAndSellR710Token(
   const apiDurationUnit = durationUnitMap[tokenConfig.durationUnit] || 'hour'
   const decryptedPassword = decrypt(deviceRegistry.encryptedAdminPassword)
 
-  const deviceConfig = {
-    ipAddress: deviceRegistry.ipAddress,
-    adminUsername: deviceRegistry.adminUsername,
-    adminPassword: decryptedPassword
-  }
+  // MBM-272: DIRECT devices call the R710 from this process, same as always;
+  // AGENT devices dispatch the same request over the persistent agent<->server
+  // channel to whichever workstation is paired to that remote device.
+  const executor = getR710Executor(deviceRegistry.connectionMode)
 
-  let tokenResult: { success: boolean; token?: { username: string; password: string; expiresAt: Date }; error?: string }
+  let tokenResult
   try {
-    tokenResult = await sessionManager.withSession(
-      deviceConfig,
-      async (r710Service) => {
-        return await r710Service.generateSingleGuestPass({
-          wlanName: tokenConfig.r710_wlans?.ssid || '',
-          username: customUsername,
-          duration: tokenConfig.durationValue,
-          durationUnit: apiDurationUnit,
-          deviceLimit: tokenConfig.deviceLimit || 2
-        })
-      }
+    tokenResult = await executor.generateGuestPass(
+      {
+        deviceRegistryId: deviceRegistry.id,
+        ipAddress: deviceRegistry.ipAddress,
+        adminUsername: deviceRegistry.adminUsername,
+        adminPassword: decryptedPassword
+      },
+      {
+        wlanName: tokenConfig.r710_wlans?.ssid || '',
+        username: customUsername,
+        duration: tokenConfig.durationValue,
+        durationUnit: apiDurationUnit,
+        deviceLimit: tokenConfig.deviceLimit || 2
+      },
+      { requestedBy: soldBy }
     )
-  } catch (deviceError) {
-    // Invalidate the cached session so the next sale attempt re-authenticates
-    // instead of reusing a stale/broken session (e.g. after device reboot).
-    await sessionManager.invalidateSession(deviceRegistry.ipAddress).catch(() => {})
-    throw deviceError
+  } catch (error) {
+    // Give AGENT-mode dispatch failures a distinct, checkoutable error
+    // shape so the POS can tell "the remote agent isn't running" apart
+    // from a generic device fault (MBM-272).
+    if (error instanceof AgentDispatchError) {
+      const message = error.code === 'AGENT_OFFLINE'
+        ? 'Remote Wi-Fi device unavailable — the local agent is offline. Contact IT.'
+        : 'The remote Wi-Fi device did not respond in time. Please try again.'
+      throw Object.assign(new Error(message), { code: error.code })
+    }
+    throw error
   }
 
-  // generateSingleGuestPass returns { success: false } on device-side errors (not throws).
-  // Invalidate session in that case too so we don't keep a potentially stale auth.
   if (!tokenResult.success || !tokenResult.token) {
-    await sessionManager.invalidateSession(deviceRegistry.ipAddress).catch(() => {})
     throw new Error(tokenResult.error || 'Failed to generate token on R710 device')
   }
 

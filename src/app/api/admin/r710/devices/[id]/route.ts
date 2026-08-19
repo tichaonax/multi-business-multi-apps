@@ -74,6 +74,9 @@ export async function GET(
             r710_business_integrations: true,
             r710_wlans: true
           }
+        },
+        remote_agent: {
+          select: { id: true, label: true, connectionStatus: true, lastSeenAt: true, revokedAt: true }
         }
       }
     });
@@ -122,6 +125,13 @@ export async function GET(
         lastHealthCheck: device.lastHealthCheck,
         lastConnectedAt: device.lastConnectedAt,
         lastError: device.lastError,
+        connectionMode: device.connectionMode,
+        remoteAgent: device.remote_agent && !device.remote_agent.revokedAt ? {
+          id: device.remote_agent.id,
+          label: device.remote_agent.label,
+          connectionStatus: device.remote_agent.connectionStatus,
+          lastSeenAt: device.remote_agent.lastSeenAt,
+        } : null,
         createdBy: {
           id: device.creator.id,
           name: device.creator.name,

@@ -59,6 +59,10 @@ export async function GET(request: NextRequest) {
         connectionStatus: true,
         lastConnectedAt: true,
         lastError: true,
+        connectionMode: true,
+        remote_agent: {
+          select: { id: true, label: true, connectionStatus: true, lastSeenAt: true, revokedAt: true }
+        },
         createdBy: true,
         createdAt: true,
         updatedAt: true,
@@ -99,6 +103,13 @@ export async function GET(request: NextRequest) {
       lastHealthCheck: device.lastHealthCheck,
       lastConnectedAt: device.lastConnectedAt,
       lastError: device.lastError,
+      connectionMode: device.connectionMode,
+      remoteAgent: device.remote_agent && !device.remote_agent.revokedAt ? {
+        id: device.remote_agent.id,
+        label: device.remote_agent.label,
+        connectionStatus: device.remote_agent.connectionStatus,
+        lastSeenAt: device.remote_agent.lastSeenAt,
+      } : null,
       businessCount: device._count.r710_business_integrations,
       businessNames: device.r710_business_integrations.map(i => i.businesses?.name).filter(Boolean),
       wlanCount: device._count.r710_wlans,
@@ -164,7 +175,8 @@ export async function POST(request: NextRequest) {
       ipAddress,
       adminUsername,
       adminPassword,
-      description
+      description,
+      connectionMode = 'DIRECT'
     } = body;
 
     // Validate required fields
@@ -208,95 +220,123 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Test device connectivity
-    console.log(`[R710 Registration] Testing connectivity to ${ipAddress}...`);
-
-    const r710Service = new RuckusR710ApiService({
-      ipAddress,
-      adminUsername,
-      adminPassword,
-      timeout: 30000
-    });
-
-    const connectivityTest = await r710Service.testConnection();
-
-    if (!connectivityTest.online) {
-      return NextResponse.json(
-        {
-          error: 'Device unreachable',
-          message: `Cannot connect to R710 device at ${ipAddress}`,
-          details: connectivityTest.error
-        },
-        { status: 503 }
-      );
-    }
-
-    // Test authentication
-    console.log(`[R710 Registration] Device is online, testing authentication...`);
-    const loginResult = await r710Service.login();
-
-    if (!loginResult.success) {
-      return NextResponse.json(
-        {
-          error: 'Authentication failed',
-          message: 'Invalid admin credentials for R710 device',
-          details: loginResult.error
-        },
-        { status: 401 }
-      );
-    }
-
-    console.log(`[R710 Registration] Authentication successful`);
-
-    // Fetch system info
-    console.log(`[R710 Registration] Fetching system info from ${ipAddress}...`);
-
-    let systemInfo;
-    try {
-      systemInfo = await r710Service.getSystemInfo();
-    } catch (error) {
-      console.error('[R710 Registration] Failed to fetch system info:', error);
-      return NextResponse.json(
-        {
-          error: 'Failed to fetch system info',
-          message: 'Device is online but system info could not be retrieved',
-          details: error instanceof Error ? error.message : 'Unknown error'
-        },
-        { status: 500 }
-      );
-    }
-
-    // Validate firmware version (optional check)
-    console.log(`[R710 Registration] Firmware version: ${systemInfo.firmwareVersion}`);
-
     // Encrypt password
     const encryptedPassword = encrypt(adminPassword);
 
-    // Create device registry entry
-    const device = await prisma.r710DeviceRegistry.create({
-      data: {
+    let device;
+
+    if (connectionMode === 'AGENT') {
+      // MBM-272: the server has no path to a remote device by design — it's
+      // only reachable through a paired local agent. Skip the direct
+      // connectivity/auth checks entirely; verification happens later from
+      // the device's Agent panel, via the agent's own Test Connection.
+      console.log(`[R710 Registration] AGENT mode — registering ${ipAddress} without a direct connectivity check.`);
+
+      device = await prisma.r710DeviceRegistry.create({
+        data: {
+          ipAddress,
+          adminUsername,
+          encryptedAdminPassword: encryptedPassword,
+          model: 'R710',
+          description: description || null,
+          isActive: true,
+          connectionMode: 'AGENT',
+          connectionStatus: 'DISCONNECTED',
+          createdBy: user.id
+        },
+        include: {
+          creator: { select: { id: true, name: true, username: true } }
+        }
+      });
+    } else {
+      // Test device connectivity
+      console.log(`[R710 Registration] Testing connectivity to ${ipAddress}...`);
+
+      const r710Service = new RuckusR710ApiService({
         ipAddress,
         adminUsername,
-        encryptedAdminPassword: encryptedPassword,
-        firmwareVersion: systemInfo.firmwareVersion || null,
-        model: systemInfo.model || 'R710',
-        description: description || null,
-        isActive: true,
-        connectionStatus: 'CONNECTED',
-        lastHealthCheck: new Date(),
-        lastConnectedAt: new Date(),
-        createdBy: user.id
-      },
-      include: {
-        creator: {
-          select: {
-            id: true,
-            name: true,
-            username: true
+        adminPassword,
+        timeout: 30000
+      });
+
+      const connectivityTest = await r710Service.testConnection();
+
+      if (!connectivityTest.online) {
+        return NextResponse.json(
+          {
+            error: 'Device unreachable',
+            message: `Cannot connect to R710 device at ${ipAddress}`,
+            details: connectivityTest.error
+          },
+          { status: 503 }
+        );
+      }
+
+      // Test authentication
+      console.log(`[R710 Registration] Device is online, testing authentication...`);
+      const loginResult = await r710Service.login();
+
+      if (!loginResult.success) {
+        return NextResponse.json(
+          {
+            error: 'Authentication failed',
+            message: 'Invalid admin credentials for R710 device',
+            details: loginResult.error
+          },
+          { status: 401 }
+        );
+      }
+
+      console.log(`[R710 Registration] Authentication successful`);
+
+      // Fetch system info
+      console.log(`[R710 Registration] Fetching system info from ${ipAddress}...`);
+
+      let systemInfo;
+      try {
+        systemInfo = await r710Service.getSystemInfo();
+      } catch (error) {
+        console.error('[R710 Registration] Failed to fetch system info:', error);
+        return NextResponse.json(
+          {
+            error: 'Failed to fetch system info',
+            message: 'Device is online but system info could not be retrieved',
+            details: error instanceof Error ? error.message : 'Unknown error'
+          },
+          { status: 500 }
+        );
+      }
+
+      // Validate firmware version (optional check)
+      console.log(`[R710 Registration] Firmware version: ${systemInfo.firmwareVersion}`);
+
+      // Create device registry entry
+      device = await prisma.r710DeviceRegistry.create({
+        data: {
+          ipAddress,
+          adminUsername,
+          encryptedAdminPassword: encryptedPassword,
+          firmwareVersion: systemInfo.firmwareVersion || null,
+          model: systemInfo.model || 'R710',
+          description: description || null,
+          isActive: true,
+          connectionMode: 'DIRECT',
+          connectionStatus: 'CONNECTED',
+          lastHealthCheck: new Date(),
+          lastConnectedAt: new Date(),
+          createdBy: user.id
+        },
+        include: {
+          creator: {
+            select: {
+              id: true,
+              name: true,
+              username: true
+            }
           }
         }
-      }
-    });
+      });
+    }
 
     console.log(`[R710 Registration] Device registered: ${device.id} (${ipAddress})`);
 

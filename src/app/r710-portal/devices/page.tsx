@@ -22,6 +22,8 @@ interface R710Device {
   lastConnectedAt: Date | null
   lastError: string | null
   isActive: boolean
+  connectionMode?: 'DIRECT' | 'AGENT'
+  remoteAgent?: { id: string; label: string; connectionStatus: 'ONLINE' | 'OFFLINE'; lastSeenAt: string | null } | null
   businessCount: number
   businessNames: string[]
   createdAt: Date
@@ -308,6 +310,17 @@ function R710DevicesContent() {
                         <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                           {device.model} {device.firmwareVersion && `• v${device.firmwareVersion}`}
                         </div>
+                        {device.connectionMode === 'AGENT' && (
+                          <div className="text-xs mt-1">
+                            {device.remoteAgent ? (
+                              <span className={device.remoteAgent.connectionStatus === 'ONLINE' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                                {device.remoteAgent.connectionStatus === 'ONLINE' ? '🟢' : '🔴'} Agent: {device.remoteAgent.label}
+                              </span>
+                            ) : (
+                              <span className="text-amber-600 dark:text-amber-400">⚪ Agent mode — not yet paired</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </td>
@@ -335,6 +348,14 @@ function R710DevicesContent() {
                     )}
                   </td>
                   <td className="px-6 py-4 text-right space-x-2">
+                    {device.connectionMode === 'AGENT' ? (
+                      <Link
+                        href={`/r710-portal/devices/${device.id}/agent`}
+                        className="inline-flex items-center px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
+                      >
+                        Agent
+                      </Link>
+                    ) : (
                     <button
                       onClick={() => testDeviceConnectivity(device.id)}
                       disabled={testingDevice === device.id}
@@ -357,6 +378,7 @@ function R710DevicesContent() {
                         </>
                       )}
                     </button>
+                    )}
                     <Link
                       href={`/r710-portal/devices/${device.id}`}
                       className="inline-flex items-center px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"

@@ -12,6 +12,7 @@ import { join } from 'path'
 import { parse } from 'url'
 import next from 'next'
 import { initSocketServer } from './src/lib/customer-display/socket-server'
+import { r710AgentHub } from './src/lib/r710/agent-hub'
 
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = '0.0.0.0'
@@ -65,6 +66,10 @@ app.prepare().then(() => {
   // Initialize Socket.io on the server
   const io = initSocketServer(httpServer)
   console.log('[Server] Socket.io server initialized')
+
+  // MBM-272: R710 remote agents dial out and connect on this same Socket.io
+  // instance (no separate port/server needed).
+  r710AgentHub.attach(io)
 
   // Start listening
   httpServer.listen(port, () => {

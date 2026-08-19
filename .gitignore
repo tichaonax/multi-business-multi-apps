@@ -13,6 +13,11 @@ package-lock.json
 # testing
 /coverage
 
+# MBM-272: R710 local agent build output (68MB+ standalone .exe) and its
+# separate node_modules — built via `npm run build` in agent/r710-local-agent
+agent/r710-local-agent/node_modules/
+agent/r710-local-agent/dist/
+
 # next.js
 /.next/
 /out/

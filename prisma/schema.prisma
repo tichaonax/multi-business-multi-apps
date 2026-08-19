@@ -3626,6 +3626,7 @@ model Users {
   project_transactions_project_transactions_createdByTousers      ProjectTransactions[]             @relation("project_transactions_createdByTousers")
   projects                                                        Projects[]
   r710_device_registry                                            R710DeviceRegistry[]              @relation("R710DeviceCreator")
+  r710_remote_agents_paired                                       R710RemoteAgents[]                @relation("R710AgentPairedBy")
   r710_token_sales                                                R710TokenSales[]                  @relation("R710TokenSaleSeller")
   reprint_logs                                                    ReprintLog[]
   saved_reports                                                   SavedReports[]
@@ -4306,6 +4307,7 @@ model R710DeviceRegistry {
   connectionStatus           R710ConnectionStatus       @default(DISCONNECTED)
   lastConnectedAt            DateTime?
   lastError                  String?
+  connectionMode             R710ConnectionMode         @default(DIRECT)
   createdBy                  String
   createdAt                  DateTime                   @default(now())
   updatedAt                  DateTime                   @default(now()) @updatedAt
@@ -4314,6 +4316,7 @@ model R710DeviceRegistry {
   creator                    Users                      @relation("R710DeviceCreator", fields: [createdBy], references: [id])
   r710_sync_logs             R710SyncLogs[]
   r710_wlans                 R710Wlans[]
+  remote_agent               R710RemoteAgents?
 
   @@index([ipAddress])
   @@index([connectionStatus])
@@ -4516,6 +4519,53 @@ model R710SyncLogs {
   @@index([status])
   @@index([syncType])
   @@map("r710_sync_logs")
+}
+
+// MBM-272: remote R710 device support via a local agent process (persistent
+// agent<->server channel). One row per paired workstation agent.
+model R710RemoteAgents {
+  id               String                     @id @default(uuid())
+  deviceRegistryId String                     @unique
+  label            String
+  agentTokenHash   String
+  hostLabel        String?
+  agentVersion     String?
+  connectionStatus R710AgentConnectionStatus  @default(OFFLINE)
+  lastConnectedAt  DateTime?
+  lastSeenAt       DateTime?
+  lastError        String?
+  pairedBy         String
+  createdAt        DateTime                   @default(now())
+  revokedAt        DateTime?
+  revokedBy        String?
+  device_registry  R710DeviceRegistry         @relation(fields: [deviceRegistryId], references: [id], onDelete: Cascade)
+  pairer           Users                      @relation("R710AgentPairedBy", fields: [pairedBy], references: [id])
+  request_logs     R710AgentRequestLog[]
+
+  @@index([connectionStatus])
+  @@map("r710_remote_agents")
+}
+
+// MBM-272: audit trail of every job dispatched to a remote agent (both
+// checkout-triggered and background jobs).
+model R710AgentRequestLog {
+  id                String              @id @default(uuid())
+  jobId             String              @unique
+  agentId           String
+  deviceRegistryId  String
+  jobType           R710AgentJobType
+  requestedBy       String?
+  status            R710AgentJobStatus
+  durationMs        Int?
+  resultTokenId     String?
+  errorMessage      String?
+  createdAt         DateTime            @default(now())
+  agent             R710RemoteAgents    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([deviceRegistryId])
+  @@index([createdAt])
+  @@map("r710_agent_request_logs")
 }
 
 model DeviceRegistry {
@@ -5304,6 +5354,35 @@ enum R710TokenStatus {
 enum R710ConnectionStatus {
   CONNECTED
   DISCONNECTED
+  ERROR
+}
+
+// MBM-272: how the server reaches this device — directly (same LAN) or via
+// a paired local agent at a remote site.
+enum R710ConnectionMode {
+  DIRECT
+  AGENT
+}
+
+enum R710AgentConnectionStatus {
+  ONLINE
+  OFFLINE
+}
+
+enum R710AgentJobType {
+  TOKEN_GENERATE
+  HEALTH_CHECK
+  TEST_CONNECTION
+  CONNECTED_CLIENTS_QUERY
+  AUTO_GENERATE
+  TOKEN_SYNC
+}
+
+enum R710AgentJobStatus {
+  SUCCESS
+  TIMEOUT
+  AGENT_OFFLINE
+  DEVICE_UNREACHABLE
   ERROR
 }
 
