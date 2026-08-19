@@ -1269,7 +1269,14 @@ class HybridServiceWrapper extends EventEmitter {
         console.log(`🔐 NODE_EXTRA_CA_CERTS set to ${rootCaPath}`);
       }
 
-      this.appProcess = spawn('node', [serverScript], {
+      // dist/server.js (and files it requires, e.g. src/lib/r710/agent-hub.js)
+      // contain unresolved "@/..." path-alias imports — tsc doesn't rewrite
+      // those in its emitted JS. tsconfig-paths/register resolves them at
+      // runtime; TS_NODE_BASEURL redirects "@/*" to the compiled dist/src
+      // output instead of the source tree. Without this, the spawned
+      // process crashes immediately with "Cannot find module '@/...'" and
+      // the service silently has no working web interface.
+      this.appProcess = spawn('node', ['-r', 'tsconfig-paths/register', serverScript], {
         cwd: this.appRoot,
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: false,
@@ -1277,6 +1284,8 @@ class HybridServiceWrapper extends EventEmitter {
           ...process.env,
           NODE_ENV: 'production',
           PORT: appPort,
+          TS_NODE_PROJECT: path.join(this.appRoot, 'tsconfig.server.json'),
+          TS_NODE_BASEURL: path.join(this.appRoot, 'dist'),
           ...(nodeExtraCaCerts ? { NODE_EXTRA_CA_CERTS: nodeExtraCaCerts } : {}),
         },
       });
