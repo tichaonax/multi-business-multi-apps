@@ -3937,6 +3937,19 @@ The system supports two separate WiFi hardware integrations. They work different
 
 ### R710 System — Full Guide
 
+#### Which Businesses Can Sell R710 WiFi
+
+R710 WiFi token sales are available to these business types: **restaurant, grocery, clothing, hardware, services,** and **vehicle service**. Every other business type does not show WiFi options at all — this is by design, not a bug or something to request a workaround for.
+
+#### Making Packages Available for Sale — Menu Config
+
+Owning a WiFi package (a "1 Hour", "Daily Pass", etc.) and having it actually appear for sale at a business are two separate steps:
+
+1. **The package itself** — created directly, or **cloned** from another business's package list (System Admin → R710 Portal → Token Management → Clone). Cloning creates a fully independent copy owned by the target business — it does not stay linked to the original.
+2. **Turning it on for sale** — go to **R710 Menu Config** in the sidebar (under the business's WiFi section). Every package the business owns is listed with an on/off toggle and an editable price. A package is only visible on the POS or the **R710 Portal → Sales** page once it's toggled **on** here.
+
+> **This is the most common setup mistake:** cloning a package makes it exist for the new business, but it does **not** automatically make it sellable. If a freshly cloned package doesn't show up anywhere, check **R710 Menu Config** first — it's almost always just sitting there switched off.
+
 #### How R710 Tokens Are Created
 
 Tokens are **pre-generated** before any sale happens. A pool of AVAILABLE tokens is maintained per package. When a sale occurs at the POS, the next AVAILABLE token is marked as SOLD and printed on the receipt.
@@ -4131,13 +4144,15 @@ Normally the application server talks to an R710 device directly over the local 
 **Installing the local agent (one time, on a workstation at the remote site):**
 1. From the device's **Agent** panel (**R710 Portal → Devices → Agent** button, or via the link shown right after registering), click **Download r710-agent.zip**.
 2. Copy the zip to the workstation at the remote site — the one that's on the same local network as the R710 and stays logged in.
-3. Unzip it and double-click **r710-agent.exe**. No installer, no Node.js, nothing else to set up — it's a single self-contained program. A tray icon appears showing it's running and waiting to be paired.
+3. Unzip it and double-click **r710-agent.exe**. No installer, no Node.js, nothing else to set up — it's a single self-contained program. A tray icon appears showing it's running and waiting to be paired. Hover over it any time to see this workstation's name and its current connection status; right-click it for **Restart** and **Quit**.
 4. Set it to start automatically so it survives reboots — most Windows setups pin a shortcut to it in the Startup folder, same as any other always-on tray app.
+
+> **If the agent seems stuck** (e.g. it won't start, or the tray icon is missing but you suspect it's still running) — run **`Stop R710 Agent.bat`**, included in the same unzipped folder, then double-click `r710-agent.exe` again. This forcibly closes any running copy without needing Task Manager.
 
 **Pairing the workstation to the device:**
 1. On that same workstation, open the app in a browser and log in as an administrator.
-2. Go to the device's **Agent** panel.
-3. The page checks for the local agent automatically — once it shows **"Local agent detected and waiting to be paired,"** enter a label for this workstation (e.g. "Front Desk PC — Bulawayo Branch") and click **Pair this machine**.
+2. Go to the device's **Agent** panel. If you got here right after downloading and running the agent, no need to reload the page — it checks for the local agent automatically every couple of seconds.
+3. Once it shows **"Local agent detected and waiting to be paired,"** enter a label for this workstation (e.g. "Front Desk PC — Bulawayo Branch") and click **Pair this machine**.
 4. The tray icon switches to **🟢 Connected**. The Agent panel now shows live status instead of the pairing instructions.
 
 > **Pairing must be done from the workstation itself** — the "Pair this machine" button only works when the agent it's talking to is running on the same computer as the browser. If you open the Agent panel from a different machine (e.g. head office), no Pair button appears, only install instructions — that's expected, not a bug. An administrator can otherwise manage everything else about R710 — registering devices, editing settings, viewing sales — from anywhere they can log into the app.
@@ -4146,7 +4161,7 @@ Normally the application server talks to an R710 device directly over the local 
 - **Status**: shows 🟢 Connected / 🔴 Offline, which workstation is paired, its agent version, and when it was last seen — refreshes automatically.
 - **Test Connection**: sends a real round-trip request through the agent to the device and reports success or the specific failure.
 - **Recent Activity**: a log of every request relayed through the agent — token generation, health checks — with who requested it (or "Background job" for automatic top-ups) and how long it took.
-- **Revoke Pairing**: disconnects the agent immediately and permanently for that pairing. Use this if a workstation is being retired or replaced — you'll need to pair a new (or the same, reinstalled) machine afterward before the device is reachable again.
+- **Revoke Pairing**: disconnects the agent immediately for that pairing. The agent running on that workstation notices within a few seconds, automatically clears its old pairing, and goes back to waiting-to-be-paired on its own — there is no need to reinstall or restart anything on the workstation. Use this when a device needs to be re-paired (e.g. its IP address changed) or a workstation is being retired: just open the Agent panel again and click **Pair this machine** once the tray icon is showing "not paired."
 
 **If the agent goes offline:** everything that would normally happen automatically for this device — selling a token at POS, background stock top-ups — will fail with a clear **"Remote Wi-Fi device unavailable — the local agent is offline, contact IT"** message instead of a generic error, so staff and support can tell immediately that it's the agent (not the R710 itself, and not a wrong password) that needs attention. Check the tray icon on the paired workstation first — if it's not running, restart it; if it shows 🔴, the workstation likely lost its network connection to the app server.
 
