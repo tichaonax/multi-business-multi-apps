@@ -112,6 +112,7 @@ export async function POST(request: NextRequest) {
       'hardware',
       'construction',
       'vehicles',
+      'vehicle_service',
       'consulting',
       'retail',
       'services',

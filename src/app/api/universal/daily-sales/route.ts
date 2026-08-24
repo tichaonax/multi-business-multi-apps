@@ -136,17 +136,41 @@ export async function GET(request: NextRequest) {
       },
     }
 
-    // Query orders for the period
-    // Try transactionDate OR filter first (for backdated manual entries)
-    // Falls back to createdAt-only if transactionDate field not yet available in Prisma client
+    // Query orders for the period.
+    //
+    // Vehicle service jobs use two-step billing (bill now, collect payment
+    // later — see /api/vehicle-service/jobs/[jobId]/bill and
+    // .../collect-payment): an order can be created (billed) on one day and
+    // actually paid days later, setting `paidAt` at that point. For a CASH
+    // reconciliation report, an order belongs to the day money actually
+    // moved, not the day it was created — so an order with paidAt set
+    // belongs to the day paidAt falls on, full stop, regardless of when
+    // this report is viewed (this must be a pure function of the order's
+    // own final state, not "was it already fetched under the old
+    // createdAt-based query" — an earlier version of this fix filtered
+    // unpaid vehicle_service orders out by their CURRENT paymentStatus,
+    // which double-counted them once paid: re-viewing the billing day's
+    // report after payment was collected would show it again there too,
+    // since paymentStatus was PAID by then). An order with no paidAt is
+    // either a synchronous-payment order (every other business type, where
+    // paidAt is never set) or a vehicle_service order that's been billed
+    // but genuinely never paid — the latter is excluded entirely, since no
+    // cash has moved for it on any day yet.
     let orders: any[]
     try {
       orders = await prisma.businessOrders.findMany({
         where: {
           ...baseWhere,
           OR: [
-            { transactionDate: { gte: start, lt: end } },
-            { transactionDate: null, createdAt: { gte: start, lt: end } },
+            { paidAt: { gte: start, lt: end } },
+            {
+              paidAt: null,
+              NOT: { AND: [{ businessType: 'vehicle_service' }, { paymentStatus: { not: 'PAID' } }] },
+              OR: [
+                { transactionDate: { gte: start, lt: end } },
+                { transactionDate: null, createdAt: { gte: start, lt: end } },
+              ],
+            },
           ],
         },
         include: orderInclude,
@@ -155,7 +179,14 @@ export async function GET(request: NextRequest) {
       orders = await prisma.businessOrders.findMany({
         where: {
           ...baseWhere,
-          createdAt: { gte: start, lt: end },
+          OR: [
+            { paidAt: { gte: start, lt: end } },
+            {
+              paidAt: null,
+              NOT: { AND: [{ businessType: 'vehicle_service' }, { paymentStatus: { not: 'PAID' } }] },
+              createdAt: { gte: start, lt: end },
+            },
+          ],
         },
         include: orderInclude,
       })
@@ -217,7 +248,7 @@ export async function GET(request: NextRequest) {
     // (e.g., restaurant POS orders that store productId in attributes)
     const noVariantProductIds = new Set<string>()
     regularOrders.forEach(order => {
-      order.business_order_items.forEach(item => {
+      order.business_order_items.forEach((item: any) => {
         if (!item.product_variants) {
           const attrs = item.attributes as any
           if (attrs?.productId) noVariantProductIds.add(attrs.productId as string)
@@ -266,7 +297,7 @@ export async function GET(request: NextRequest) {
         })
       } else {
         // Product-based category lookup
-        order.business_order_items.forEach(item => {
+        order.business_order_items.forEach((item: any) => {
           let product = item.product_variants?.business_products
           let category = product?.business_categories
 

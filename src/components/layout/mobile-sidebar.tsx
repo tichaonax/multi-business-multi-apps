@@ -246,6 +246,7 @@ export function MobileSidebar() {
         return (
           <>
             {navLink('/universal/pos', '🚗', 'POS System')}
+            {canReport && navLink('/vehicle-service/reports', '📊', 'Sales Reports')}
             {navLink('/vehicle-service/jobs', '🛠️', 'Jobs')}
             {navLink('/vehicle-service/customers', '🧑‍🤝‍🧑', 'Customers')}
             {navLink('/vehicle-service/parts', '🧰', 'Parts Inventory')}

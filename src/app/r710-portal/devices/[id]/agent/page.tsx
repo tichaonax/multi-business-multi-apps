@@ -64,6 +64,7 @@ function AgentPanelContent() {
   const [device, setDevice] = useState<DeviceInfo | null>(null)
   const [agentStatus, setAgentStatus] = useState<AgentStatus | null>(null)
   const [logs, setLogs] = useState<RequestLog[]>([])
+  const [latestAgentVersion, setLatestAgentVersion] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [testing, setTesting] = useState(false)
   const [revoking, setRevoking] = useState(false)
@@ -105,6 +106,16 @@ function AgentPanelContent() {
     const interval = setInterval(() => loadAgentStatus(device.remoteAgent!.id), 10000)
     return () => clearInterval(interval)
   }, [device?.remoteAgent?.id, loadAgentStatus])
+
+  // Fetched once — this doesn't change while the page is open, unlike agent
+  // status which polls for live connection state.
+  useEffect(() => {
+    if (!device?.remoteAgent) return
+    fetch('/api/admin/r710/agents/latest-version', { credentials: 'include' })
+      .then(res => res.ok ? res.json() : null)
+      .then(json => { if (json?.success) setLatestAgentVersion(json.data.version) })
+      .catch(() => { /* non-critical — just skip the update banner */ })
+  }, [device?.remoteAgent])
 
   // Probe the local agent on THIS browser's machine — only meaningful when
   // an admin opens this page from the workstation that should be paired.
@@ -343,6 +354,17 @@ function AgentPanelContent() {
                 </span>
               )}
             </div>
+
+            {agentStatus?.agentVersion && latestAgentVersion && agentStatus.agentVersion !== latestAgentVersion && (
+              <div className="mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3">
+                <p className="text-sm text-amber-800 dark:text-amber-300">
+                  <strong>⚠️ Update available</strong> — this workstation is running agent v{agentStatus.agentVersion}, current is v{latestAgentVersion}.
+                  {' '}<a href="/api/admin/r710/agents/download" className="underline hover:no-underline">Download the latest r710-agent.zip</a>,
+                  {' '}run <code className="text-xs bg-amber-100 dark:bg-amber-900/40 px-1 rounded">Stop R710 Agent.bat</code> on the workstation, then run the new <code className="text-xs bg-amber-100 dark:bg-amber-900/40 px-1 rounded">r710-agent.exe</code>.
+                  {' '}This pairing stays intact — no need to re-pair or re-register the device's IP.
+                </p>
+              </div>
+            )}
 
             <dl className="grid grid-cols-2 gap-4 text-sm">
               <div>

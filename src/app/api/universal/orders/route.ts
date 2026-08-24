@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { hasPermission, isSystemAdmin, getUserRoleInBusiness } from '@/lib/permission-utils'
 import { processBusinessTransaction, initializeBusinessAccount } from '@/lib/business-balance-utils'
-import { generateAndSellR710Token } from '@/lib/r710/generate-and-sell-token'
+import { generateAndSellR710Token, sellExistingR710Token } from '@/lib/r710/generate-and-sell-token'
 import { randomBytes } from 'crypto';
 import { getServerUser } from '@/lib/get-server-user'
 // Validation schemas
@@ -63,6 +63,7 @@ const CreateOrderSchema = z.object({
   businessType: z.string().min(1),
   attributes: z.record(z.string(), z.any()).optional(), // Business-specific order data
   notes: z.string().optional(),
+  rewardId: z.string().optional(), // CustomerRewards.id being redeemed on this order, if any
   // EcoCash top-level fields (sent by POS as top-level, merged into attributes before save)
   ecocashTransactionCode: z.string().optional(),
   ecocashFeeAmount: z.number().optional(),
@@ -881,16 +882,39 @@ export async function POST(request: NextRequest) {
 
           for (let i = 0; i < item.quantity; i++) {
             try {
-              // Reuse shared generate-and-sell utility (same as /api/r710/direct-sale)
-              // Passing tx so DB writes participate in this transaction
-              const saleResult = await generateAndSellR710Token({
-                businessId: orderData.businessId,
-                tokenConfigId,
-                saleAmount: item.unitPrice,
-                paymentMethod: orderData.paymentMethod || 'CASH',
-                soldBy: user.id,
-                saleChannel: 'POS'
-              }, tx)
+              // Check the pre-generated pool first — same order restaurant's
+              // own order route already uses, and what the catalog's
+              // "available" count on the POS is actually counting. Without
+              // this, checkout always did fresh on-the-fly generation
+              // instead, which never touches (or decrements) that pool at
+              // all — the count staying unchanged after a sale wasn't a
+              // display bug, it was genuinely consuming nothing from it.
+              const pooledToken = await tx.r710Tokens.findFirst({
+                where: {
+                  businessId: orderData.businessId,
+                  tokenConfigId,
+                  status: 'AVAILABLE',
+                  r710_token_sales: { none: {} },
+                },
+                orderBy: { createdAt: 'asc' },
+              })
+
+              const saleResult = pooledToken
+                ? await sellExistingR710Token({
+                    businessId: orderData.businessId,
+                    tokenId: pooledToken.id,
+                    saleAmount: item.unitPrice,
+                    paymentMethod: orderData.paymentMethod || 'CASH',
+                    soldBy: user.id,
+                  }, tx)
+                : await generateAndSellR710Token({
+                    businessId: orderData.businessId,
+                    tokenConfigId,
+                    saleAmount: item.unitPrice,
+                    paymentMethod: orderData.paymentMethod || 'CASH',
+                    soldBy: user.id,
+                    saleChannel: 'POS'
+                  }, tx)
 
               generatedR710Tokens.push({
                 itemName: item.attributes?.productName || 'R710 WiFi Token',
@@ -913,6 +937,99 @@ export async function POST(request: NextRequest) {
               })
             }
           }
+        }
+      }
+
+      // Reward redemption (mark REDEEMED, generate its free WiFi token, add its free
+      // product item) — ported from restaurant's dedicated rewardId handler
+      // (src/app/api/restaurant/orders/route.ts), which is the only other place in
+      // the app that actually implements this correctly. Previously, every other
+      // business type on Universal POS (grocery, hardware, vehicle_service, ...) had
+      // no equivalent at all: the client only faked a disguised cart item to trick
+      // the generic WiFi-purchase code above into running, with no server-side
+      // verification that the reward was real, unredeemed, or tied to this order.
+      if (orderData.rewardId) {
+        try {
+          const reward = await tx.customerRewards.findUnique({
+            where: { id: orderData.rewardId },
+            select: { id: true, status: true, rewardType: true, rewardAmount: true, rewardProductId: true, wifiTokenConfigId: true, couponCode: true }
+          })
+
+          if (reward && reward.status === 'ISSUED') {
+            await tx.customerRewards.update({
+              where: { id: reward.id },
+              data: { status: 'REDEEMED', redeemedAt: new Date(), redeemedOrderId: order.id }
+            })
+
+            await tx.businessOrders.update({
+              where: { id: order.id },
+              data: {
+                attributes: {
+                  ...(order.attributes as any || {}),
+                  rewardCouponCode: reward.couponCode
+                }
+              }
+            })
+
+            if (reward.wifiTokenConfigId) {
+              try {
+                const tokenResult = await generateAndSellR710Token({
+                  businessId: orderData.businessId,
+                  tokenConfigId: reward.wifiTokenConfigId,
+                  saleAmount: 0,
+                  paymentMethod: orderData.paymentMethod || 'CASH',
+                  soldBy: user.id,
+                  saleChannel: 'POS'
+                }, tx)
+                generatedR710Tokens.push({
+                  itemName: 'Free WiFi (Reward)',
+                  username: tokenResult.token.username,
+                  password: tokenResult.token.password,
+                  packageName: tokenResult.token.tokenConfig.name || 'Reward WiFi',
+                  durationValue: tokenResult.token.tokenConfig.durationValue || 0,
+                  durationUnit: tokenResult.token.tokenConfig.durationUnit || 'hour_Hours',
+                  expiresAt: tokenResult.token.expiresAt,
+                  ssid: tokenResult.wlanSsid,
+                  success: true
+                })
+              } catch (wifiErr) {
+                // Non-critical — matches restaurant's behavior: the order still
+                // completes without the token rather than failing the whole sale.
+                console.warn('[Universal Orders] Free WiFi reward token generation failed (non-critical):', wifiErr)
+              }
+            }
+
+            if (reward.rewardProductId) {
+              try {
+                const freeProduct = await tx.businessProducts.findUnique({
+                  where: { id: reward.rewardProductId },
+                  select: { id: true, name: true, sku: true }
+                })
+                if (freeProduct) {
+                  await tx.businessOrderItems.create({
+                    data: {
+                      orderId: order.id,
+                      productVariantId: null,
+                      quantity: 1,
+                      unitPrice: 0,
+                      discountAmount: 0,
+                      totalPrice: 0,
+                      attributes: {
+                        productId: freeProduct.id,
+                        productName: freeProduct.name,
+                        category: 'promo-free-item',
+                        rewardCouponCode: reward.couponCode
+                      }
+                    }
+                  })
+                }
+              } catch (productErr) {
+                console.warn('[Universal Orders] Free reward product item creation failed (non-critical):', productErr)
+              }
+            }
+          }
+        } catch (rewardErr) {
+          console.warn('[Universal Orders] Reward redemption failed (non-critical):', rewardErr)
         }
       }
 

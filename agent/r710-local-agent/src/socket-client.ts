@@ -10,8 +10,17 @@ import os from 'os'
 import { io, Socket } from 'socket.io-client'
 import type { AgentConfig } from './config'
 import { handleJob, type AgentJob, type AgentJobResult } from './job-handler'
+import packageJson from '../package.json'
 
-const AGENT_VERSION = '0.1.0'
+// Single source of truth: package.json's version, not a separately hardcoded
+// constant. This was previously '0.1.0' hardcoded here, never bumped despite
+// several real fixes shipping across sessions — making it useless as a
+// signal for whether a workstation's agent is running current code. Reading
+// it from package.json means bumping the version in one place (when
+// building a release) automatically flows through to what the agent reports
+// on every connect, which the admin panel compares against to show an
+// "update available" prompt (see /api/admin/r710/agents/latest-version).
+const AGENT_VERSION = packageJson.version
 
 export type AgentConnectionState = 'connecting' | 'connected' | 'disconnected' | 'rejected'
 

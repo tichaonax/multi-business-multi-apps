@@ -184,8 +184,22 @@ export function usePaymentProcessor(
           customerPhone: checkoutData.customerPhone,
           customerEmail: checkoutData.customerEmail,
           notes: checkoutData.notes,
+          // Server-side reward redemption (mark REDEEMED, generate any free WiFi
+          // token, add any free product) — see /api/universal/orders. page.tsx
+          // already puts this in attributes.rewardId for display purposes; promote
+          // it to a top-level field here since that's what the order API reads.
+          rewardId: checkoutData.attributes?.rewardId,
           attributes: {
             ...checkoutData.attributes,
+            // Required by /api/universal/orders for the order to be created as
+            // COMPLETED/PAID instead of PENDING — grocery/pos, clothing's
+            // advanced-pos, and the shared pos-system.tsx all already set this;
+            // this hook (used by src/app/universal/pos/page.tsx, i.e. every
+            // other business type on Universal POS — vehicle_service, hardware,
+            // services, ...) never did, so every sale through it stayed
+            // PENDING/unpaid in the database regardless of payment actually
+            // being collected at checkout.
+            posOrder: true,
             ...(checkoutData.paymentMethod === 'ecocash' ? {
               ecocashTransactionCode: checkoutData.ecocashTransactionCode,
               ecocashFeeAmount: checkoutData.ecocashFeeAmount

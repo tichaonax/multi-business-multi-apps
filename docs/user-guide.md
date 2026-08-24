@@ -530,12 +530,13 @@ Every rounding event — whether from the AYLI modal or the payment panel — is
 
 After payment is processed:
 
-1. A **receipt preview modal** appears showing the full receipt.
-2. Choose your print method from the dropdown:
+1. On business types that share the universal POS screen (vehicle service, hardware, services, construction, consulting, retail, and any other type without its own dedicated POS page — restaurant, grocery, and clothing each have their own), an **Order Complete** confirmation appears first — order number, items, and (for a WiFi sale) the token/credentials or a clear error if generation failed — with **Print Receipt** and **Close** buttons. Clicking **Print Receipt** opens the receipt preview described below; **Close** skips printing without affecting the sale, which is already recorded either way.
+2. A **receipt preview modal** appears showing the full receipt.
+3. Choose your print method from the dropdown:
    - **QZ Tray Printer** — sends directly to your saved local printer (fastest, no dialog). Requires QZ Tray to be running and a printer saved via **Profile → Printer Setup**.
    - **Browser Print** — opens the browser's print dialog. Works on any machine but may need margin adjustments.
-3. Click **Print Receipt**.
-4. If the sale includes a WiFi token, the token details (username and password) are printed on the receipt automatically.
+4. Click **Print Receipt**.
+5. If the sale includes a WiFi token, the token details (username and password) are printed on the receipt automatically.
 
 > **Tip:** If the customer does not need a printed receipt, click **Skip**.
 
@@ -3988,10 +3989,12 @@ This means:
 #### Checking and Restocking Token Availability
 
 On the POS product card, the available count is displayed. When availability drops below 5:
-- A **"Request 5 More"** button appears on the product card.
-- Click it — 5 new tokens are generated in seconds and the count updates.
+- A **"Request 5 More"** button appears on the product card. Click it — 5 new tokens are generated in seconds and the count updates.
+- If availability actually reaches **zero**, the **Add to Cart** button itself becomes disabled and shows **"Sold Out"** instead — a package with nothing left can't be added to the cart at all, rather than failing later at checkout.
 
-To generate tokens in larger batches:
+**Automatic top-up:** separately from the button above, the system checks every package's stock every 10 minutes and tops it up on its own — using each package's own configured threshold and refill quantity (set per package in **R710 Portal → Token Management**, defaulting to "top up 20 when below 5") — so in normal operation a package shouldn't need the manual button at all. It exists for the rare case where a sudden rush of sales empties a package in between those automatic checks.
+
+To generate tokens in larger batches manually:
 1. Go to **R710 Portal → Token Management**.
 2. Select the package.
 3. Click **Generate Tokens** and enter the quantity.
@@ -4164,6 +4167,13 @@ Normally the application server talks to an R710 device directly over the local 
 - **Revoke Pairing**: disconnects the agent immediately for that pairing. The agent running on that workstation notices within a few seconds, automatically clears its old pairing, and goes back to waiting-to-be-paired on its own — there is no need to reinstall or restart anything on the workstation. Use this when a device needs to be re-paired (e.g. its IP address changed) or a workstation is being retired: just open the Agent panel again and click **Pair this machine** once the tray icon is showing "not paired."
 
 **If the agent goes offline:** everything that would normally happen automatically for this device — selling a token at POS, background stock top-ups — will fail with a clear **"Remote Wi-Fi device unavailable — the local agent is offline, contact IT"** message instead of a generic error, so staff and support can tell immediately that it's the agent (not the R710 itself, and not a wrong password) that needs attention. Check the tray icon on the paired workstation first — if it's not running, restart it; if it shows 🔴, the workstation likely lost its network connection to the app server.
+
+**Updating the agent to a newer version:** the Agent panel automatically compares the connected workstation's reported version against the latest one available and shows an **⚠️ Update available** banner when they differ, with a direct download link. To update:
+1. Click the **Download the latest r710-agent.zip** link in the banner (same link as the original install).
+2. On the workstation, run **`Stop R710 Agent.bat`** from the old unzipped folder (or right-click the tray icon → **Quit**).
+3. Unzip the new download and double-click the new **`r710-agent.exe`**.
+
+**The pairing survives an update automatically — there is no need to re-pair or re-register the device's IP address.** The agent's pairing (which server, which device, its login token) is stored in a fixed location on the workstation itself, completely separate from the `.exe` file — replacing the program and starting the new one just picks the existing pairing back up. Skipping an update isn't dangerous, but any fix shipped in a newer version — including bug fixes for token generation — only takes effect once the new `.exe` is actually running in place of the old one.
 
 ---
 
@@ -12547,6 +12557,25 @@ This submits a payment request through the **same cashier-approval queue** used 
 - **Overdue** — anything from either of the above that's more than 7 days past its due date (jobs still unsubmitted past the end of the month they were done in, or vouchers still unpaid past their due date), red-highlighted.
 
 Each tab has the same search-and-date-filter bar used throughout the app (search by contractor, vehicle, order number, or voucher number; filter by date preset or a custom range), summary tiles for count/total/overdue-count, and **CSV Export** / **Print / Save PDF** buttons.
+
+### Sales Reports and End-of-Day
+
+**Sales Reports** in the sidebar opens a reports hub with four options: **Visual Analytics Dashboard**, **Sales Analytics Report**, **Today's End-of-Day Report**, and **Report History** — the same underlying reports every other business type uses (see [Section 3 — Cash Office & End of Day](#3-cash-office--cash-handling--end-of-day) for the full EOD walkthrough: rent transfer, auto-deposits, payroll contribution, manager cash count, save & lock). A few restaurant-only reports (Meal Program, Prep Inventory, Delivery Reports) aren't shown here since they don't apply to a repair shop.
+
+**How direct sales and job billing combine on one report:** a vehicle service business makes money two ways — parts/WiFi sold directly at the POS, and labour/parts billed through a job (see [Billing a Job](#billing-a-job--two-steps-invoice-then-payment) above). Both land in the same sales figures automatically; there's nothing separate to reconcile.
+
+**One thing to know about EOD and two-step billing:** because billing a job (Step 1, generating the invoice) and collecting payment (Step 2) can happen on completely different days, the sales/cash figures follow the **payment date**, not the billing date. A job billed today but paid three days from now doesn't count as today's sales — it counts on the day it's actually paid. This keeps the EOD cash count accurate (an unpaid invoice isn't cash yet), but it does mean a job's total won't appear anywhere in the daily figures until someone actually collects payment for it.
+
+That's exactly what the next report is for.
+
+### Billed but Unpaid Jobs
+
+**Sales Reports → ⏳ Billed but Unpaid Jobs** lists every invoiced job still waiting on payment — the counterpart to the EOD behavior above, so an outstanding invoice is always visible somewhere even though it doesn't show up as "sales" until it's paid.
+
+- The same date-range toolbar used throughout the app's reports (Today, Yesterday, Last 7/30/90 Days, Custom Range, or a specific month) plus a free-text search across customer name, vehicle, plate, and order number.
+- Each row shows the order number, billed date, customer, vehicle, amount, and **days outstanding** — turning amber at 3+ days and red at 7+ days so aging invoices stand out.
+- **Find in Jobs** jumps to the Jobs list pre-searched for that customer/vehicle so you can open the job and collect payment from there.
+- Summary tiles at the top show the outstanding count and total dollar amount across the current filter.
 
 ### Service Customers
 

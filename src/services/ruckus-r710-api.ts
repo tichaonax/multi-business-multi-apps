@@ -1317,7 +1317,7 @@ By accepting this agreement and accessing the wireless network, you acknowledge 
       if (!gsMatch) {
         // Debug: log what guest services ARE in the response
         const allIds = responseText.match(/guestservice[^>]*id=["']?(\d+)["']?/gi);
-        console.log(`[R710] Guest Service ${guestServiceId} not found. Available IDs in response:`, allIds?.map(m => m.match(/id=["']?(\d+)["']?/)?.[1]) || 'none');
+        console.log(`[R710] Guest Service ${guestServiceId} not found. Available IDs in response:`, allIds?.map((m: string) => m.match(/id=["']?(\d+)["']?/)?.[1]) || 'none');
         console.log(`[R710] Response snippet (first 500 chars):`, responseText.substring(0, 500));
         return null;
       }
@@ -1364,6 +1364,22 @@ By accepting this agreement and accessing the wireless network, you acknowledge 
   }
 
   async generateTokens(config: R710TokenConfig): Promise<{ success: boolean; tokens?: R710Token[]; error?: string }> {
+    return this.generateTokensAttempt(config, true);
+  }
+
+  // Sessions are cached and reused for up to 15 minutes (see
+  // R710SessionManager) without re-verifying the router still considers
+  // them valid — this.isAuthenticated only reflects what THIS client last
+  // knew, not the router's actual current session state. If the router-side
+  // session expired independently (idle timeout, another admin's login
+  // kicking it, a reboot), it responds to this POST with a login/error page
+  // instead of the expected guest-creation result, and the naive
+  // first-`{...}`-match regex below latches onto unrelated JSON-looking
+  // content on that page (e.g. inline CSS), producing a cryptic JSON.parse
+  // failure instead of a clear "session expired" error. allowRetry forces
+  // one fresh login + resubmit before giving up, self-healing the common
+  // case automatically instead of surfacing a raw parse error to the user.
+  private async generateTokensAttempt(config: R710TokenConfig, allowRetry: boolean): Promise<{ success: boolean; tokens?: R710Token[]; error?: string }> {
     try {
       if (!this.isAuthenticated) {
         const loginResult = await this.login();
@@ -1387,7 +1403,7 @@ By accepting this agreement and accessing the wireless network, you acknowledge 
       formParams.append('remarks', '');
       formParams.append('duration', config.duration.toString());
       formParams.append('duration-unit', `${config.durationUnit}_${config.durationUnit.charAt(0).toUpperCase() + config.durationUnit.slice(1)}s`);
-      formParams.append('key', sessionKey);
+      formParams.append('key', sessionKey || '');
       formParams.append('createToNum', config.count.toString());
       formParams.append('batchpass', '');
       formParams.append('guest-wlan', config.wlanName);
@@ -1417,7 +1433,18 @@ By accepting this agreement and accessing the wireless network, you acknowledge 
         // Extract JSON result from response
         const jsonMatch = responseText.match(/\{[^}]+\}/);
         if (jsonMatch) {
-          const jsonData = JSON.parse(jsonMatch[0]);
+          let jsonData: any;
+          try {
+            jsonData = JSON.parse(jsonMatch[0]);
+          } catch (parseError) {
+            console.error(`[R710] Token generation response was not valid JSON (likely a stale/expired router session) — first 500 chars: ${responseText.slice(0, 500)}`);
+            if (allowRetry) {
+              console.log('[R710] Forcing a fresh login and retrying token generation once...');
+              this.isAuthenticated = false;
+              return this.generateTokensAttempt(config, false);
+            }
+            return { success: false, error: 'R710 session expired or returned an unexpected response. Please try again.' };
+          }
 
           if (jsonData.result === 'OK') {
             console.log(`[R710] Token creation successful! IDs: ${jsonData.ids}`);
@@ -1464,7 +1491,12 @@ By accepting this agreement and accessing the wireless network, you acknowledge 
           }
         }
 
-        console.error('[R710] Could not parse response');
+        console.error(`[R710] Could not find a JSON result in the token generation response — first 500 chars: ${responseText.slice(0, 500)}`);
+        if (allowRetry) {
+          console.log('[R710] Forcing a fresh login and retrying token generation once...');
+          this.isAuthenticated = false;
+          return this.generateTokensAttempt(config, false);
+        }
         return { success: false, error: 'Could not parse response' };
       }
 
@@ -1493,6 +1525,22 @@ By accepting this agreement and accessing the wireless network, you acknowledge 
     durationUnit: string;
     deviceLimit?: number;
   }): Promise<{ success: boolean; token?: { username: string; password: string; expiresAt: Date }; error?: string }> {
+    return this.generateSingleGuestPassAttempt(config, true);
+  }
+
+  // Same stale-session issue as generateTokensAttempt() above (see that
+  // comment) — a router-side session expiry the client doesn't know about
+  // makes this endpoint return something other than the expected
+  // {result:'DONE', ...} JSON, which previously landed here as a generic,
+  // undiagnosable "Token creation failed" with no indication it was a
+  // session problem. One forced re-login + retry before giving up.
+  private async generateSingleGuestPassAttempt(config: {
+    wlanName: string;
+    username: string;
+    duration: number;
+    durationUnit: string;
+    deviceLimit?: number;
+  }, allowRetry: boolean): Promise<{ success: boolean; token?: { username: string; password: string; expiresAt: Date }; error?: string }> {
     try {
       if (!this.isAuthenticated) {
         const loginResult = await this.login();
@@ -1516,7 +1564,7 @@ By accepting this agreement and accessing the wireless network, you acknowledge 
       formParams.append('remarks', '');
       formParams.append('duration', config.duration.toString());
       formParams.append('duration-unit', `${config.durationUnit}_${config.durationUnit.charAt(0).toUpperCase() + config.durationUnit.slice(1)}s`);
-      formParams.append('key', sessionKey);
+      formParams.append('key', sessionKey || '');
       formParams.append('createToNum', ''); // ← Empty for single
       formParams.append('batchpass', '');
       formParams.append('guest-wlan', config.wlanName);
@@ -1557,9 +1605,22 @@ By accepting this agreement and accessing the wireless network, you acknowledge 
               expiresAt: new Date(parseInt(jsonData.expiretime) * 1000)
             }
           };
-        } else {
+        } else if (jsonData.errorMsg) {
           console.error(`[R710] Single guest pass creation failed: ${jsonData.errorMsg}`);
-          return { success: false, error: jsonData.errorMsg || 'Token creation failed' };
+          return { success: false, error: jsonData.errorMsg };
+        } else {
+          // No 'DONE' result and no errorMsg either — the router returned
+          // something other than the expected guest-pass JSON entirely
+          // (e.g. a login/error page), not a normal application-level
+          // failure. Same stale-session treatment as above.
+          const raw = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+          console.error(`[R710] Unexpected response creating single guest pass (likely a stale/expired router session) — first 500 chars: ${raw.slice(0, 500)}`);
+          if (allowRetry) {
+            console.log('[R710] Forcing a fresh login and retrying single guest pass creation once...');
+            this.isAuthenticated = false;
+            return this.generateSingleGuestPassAttempt(config, false);
+          }
+          return { success: false, error: 'R710 session expired or returned an unexpected response. Please try again.' };
         }
       }
 

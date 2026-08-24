@@ -1110,6 +1110,12 @@ export function Sidebar() {
                   <span className="text-lg">🚗</span>
                   <span>POS System</span>
                 </Link>
+                {(isSystemAdmin(currentUser) || hasPermission('canViewWifiReports') || hasPermission('canAccessFinancialData')) && (
+                  <Link href="/vehicle-service/reports" className={getLinkClasses('/vehicle-service/reports')}>
+                    <span className="text-lg">📊</span>
+                    <span>Sales Reports</span>
+                  </Link>
+                )}
                 <Link href="/vehicle-service/jobs" className={getLinkClasses('/vehicle-service/jobs')}>
                   <span className="text-lg">🛠️</span>
                   <span>Jobs</span>

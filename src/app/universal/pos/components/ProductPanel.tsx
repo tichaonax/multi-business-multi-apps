@@ -333,7 +333,8 @@ export function ProductPanel({
                       </div>
                       <button
                         onClick={() => handleAddToCart(product)}
-                        className="w-full text-left"
+                        disabled={remaining !== undefined && remaining <= 0}
+                        className="w-full text-left disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {product.imageUrl && (
                           <img
@@ -388,7 +389,7 @@ export function ProductPanel({
                           <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block ${
                             (product.soldToday || 0) > 0
                               ? 'text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50'
-                              : 'text-gray-500 dark:text-gray-500 bg-gray-100 dark:bg-gray-800'
+                              : 'text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800'
                           }`}>
                             <span className={(product.soldToday || 0) > 0 ? 'text-yellow-300 font-bold' : ''}>{product.soldToday || 0}</span> sold today
                           </span>
@@ -460,7 +461,7 @@ export function ProductPanel({
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block ${
                           (product.soldToday || 0) > 0
                             ? 'text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50'
-                            : 'text-gray-500 dark:text-gray-500 bg-gray-100 dark:bg-gray-800'
+                            : 'text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800'
                         }`}>
                           <span className={(product.soldToday || 0) > 0 ? 'text-yellow-300 font-bold' : ''}>{product.soldToday || 0}</span> sold today
                         </span>
@@ -525,7 +526,7 @@ export function ProductPanel({
                             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block ${
                               (product.soldToday || 0) > 0
                                 ? 'text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50'
-                                : 'text-gray-500 dark:text-gray-500 bg-gray-100 dark:bg-gray-800'
+                                : 'text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800'
                             }`}>
                               <span className={(product.soldToday || 0) > 0 ? 'text-yellow-300 font-bold' : ''}>{product.soldToday || 0}</span> sold today
                             </span>
@@ -535,9 +536,10 @@ export function ProductPanel({
                         <div className="ml-3 flex flex-col items-end gap-2">
                           <button
                             onClick={() => handleAddToCart(product)}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium"
+                            disabled={remaining !== undefined && remaining <= 0}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-md font-medium"
                           >
-                            Add to Cart
+                            {remaining !== undefined && remaining <= 0 ? 'Sold Out' : 'Add to Cart'}
                           </button>
                           {/* Request more tokens button */}
                           {product.isWiFiToken && (product.availableQuantity || 0) < 5 && businessId && (

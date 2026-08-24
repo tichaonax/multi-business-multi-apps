@@ -35,7 +35,11 @@ export default function ReportsHistory() {
   } = useBusinessPermissionsContext()
 
   const businessType = currentBusiness?.businessType || 'restaurant'
-  const posLink = `/${businessType}/pos`
+  // Only restaurant/grocery/clothing/hardware have their own /{type}/pos —
+  // every other type shares /universal/pos. This page is reused across
+  // several of those types via re-export (see vehicle-service/reports/).
+  const typesWithOwnPosPage = ['restaurant', 'grocery', 'clothing', 'hardware']
+  const posLink = typesWithOwnPosPage.includes(businessType) ? `/${businessType}/pos` : '/universal/pos'
   const limit = 20
 
   // Debounce manager search

@@ -60,9 +60,16 @@ export default function EndOfDayReport() {
     isAuthenticated,
   } = useBusinessPermissionsContext()
 
-  // Determine POS link based on business type
+  // Determine POS link based on business type. Only restaurant, grocery,
+  // clothing, and hardware have their own dedicated /{type}/pos page —
+  // every other type (vehicle_service, services, construction, consulting,
+  // retail, other) shares /universal/pos instead. This page itself is
+  // reused across several of those types via re-export (see
+  // src/app/vehicle-service/reports/end-of-day/page.tsx), so this can't
+  // just assume the current type has its own route.
   const businessType = currentBusiness?.businessType || 'clothing'
-  const posLink = `/${businessType}/pos`
+  const typesWithOwnPosPage = ['restaurant', 'grocery', 'clothing', 'hardware']
+  const posLink = typesWithOwnPosPage.includes(businessType) ? `/${businessType}/pos` : '/universal/pos'
 
   // Load daily sales data
   useEffect(() => {

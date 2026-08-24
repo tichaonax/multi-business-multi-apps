@@ -140,9 +140,14 @@ async function processBusinessAutoGeneration(
     return;
   }
 
-  // Get all active token configurations
+  // Get this business's active token configurations. Missing the businessId
+  // filter here (as this previously-dormant code did before it was ever
+  // wired to a real scheduler) would check every OTHER business's configs
+  // against THIS business's token pool too — always reading as "0
+  // available" for those and generating tokens under the wrong
+  // business/WLAN/config combination.
   const configs = await prisma.r710TokenConfigs.findMany({
-    where: { isActive: true }
+    where: { isActive: true, businessId }
   });
 
   // Check inventory for each config
@@ -159,10 +164,12 @@ async function processBusinessAutoGeneration(
       }
     });
 
-    // Default threshold: 5 tokens
-    const threshold = 5;
-    // Default quantity to generate: 20 tokens
-    const quantityToGenerate = 20;
+    // Per-package config, not a hardcoded default — each package can have
+    // its own threshold/quantity (both already default to 5/20 in the
+    // schema, which is why this bug was invisible until an admin actually
+    // customized a package's values).
+    const threshold = config.autoGenerateThreshold;
+    const quantityToGenerate = config.autoGenerateQuantity;
 
     if (availableCount < threshold) {
       console.log(
@@ -237,7 +244,7 @@ async function generateTokensForConfig(
       count: quantity,
       duration: config.durationValue,
       durationUnit: apiDurationUnit,
-      deviceLimit: 2 // Default device limit
+      deviceLimit: config.deviceLimit || 2
     }
   );
 

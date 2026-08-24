@@ -60,6 +60,13 @@ export default function UniversalPOS() {
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
   const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null)
+  // Order Complete confirmation — shown immediately after checkout, before
+  // the print-preview modal, matching restaurant/grocery's own POS pages
+  // (each has their own dedicated bespoke page, unlike vehicle_service and
+  // other types which share this one). This was the one thing genuinely
+  // missing here: checkout used to jump straight to the print-preview
+  // modal, with no confirmation step showing WiFi/R710 token results first.
+  const [showOrderComplete, setShowOrderComplete] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelTarget, setCancelTarget] = useState<CancelOrderSummary | null>(null)
   const printInFlightRef = useRef(false)
@@ -239,20 +246,16 @@ export default function UniversalPOS() {
         productId: reward.rewardProductId!,
       })
     }
-    if (reward.wifiConfig) {
-      addToCart({
-        id: `r710_reward_wifi_${reward.id}`,
-        name: `${reward.wifiConfig.name} WiFi (Free Reward)`,
-        quantity: 1,
-        unitPrice: 0,
-        isWiFiToken: true,
-        isR710Token: true,
-        tokenConfigId: reward.wifiTokenConfigId!,
-        packageName: reward.wifiConfig.name,
-        duration: reward.wifiConfig.durationValue,
-        durationUnit: reward.wifiConfig.durationUnit.split('_')[0],
-      })
-    }
+    // A reward's free WiFi token is no longer faked as a disguised cart item —
+    // the server generates it during order creation from rewardId (see
+    // /api/universal/orders and the attributes.rewardId sent in handleCheckout
+    // below), the same way restaurant's own order API has always done it. The
+    // old approach (a cart item named `r710_reward_wifi_...` with an
+    // isR710Token flag that isn't even part of UniversalCartItem's type)
+    // depended on a generic WiFi-purchase code path that never actually wired
+    // the reward's redemption status, and silently produced no token at all
+    // for any business type other than restaurant/clothing, which don't use
+    // this fabricated-cart-item mechanism in the first place.
   }
 
   const handleRemoveReward = () => {
@@ -261,7 +264,6 @@ export default function UniversalPOS() {
         setDiscount(appliedCoupon ? appliedCoupon.discountAmount : 0)
       }
       if (appliedReward.rewardProduct) removeFromCart(`reward_item_${appliedReward.id}`)
-      if (appliedReward.wifiConfig) removeFromCart(`r710_reward_wifi_${appliedReward.id}`)
     }
     setAppliedReward(null)
   }
@@ -300,8 +302,6 @@ export default function UniversalPOS() {
       onSuccess: async (orderId, receiptData) => {
         console.log('✅ Order completed:', orderId)
 
-        // Redeem the applied reward now that we have the orderId
-        const rewardToRedeem = appliedReward
         const customerForReward = selectedCustomer
 
         clearCart()
@@ -310,20 +310,11 @@ export default function UniversalPOS() {
         reloadProducts()
         setFinancialRefreshKey(k => k + 1)
 
-        // Reset customer reward state
+        // Reset customer reward state — redemption itself (marking REDEEMED,
+        // generating any free WiFi token, adding any free product) already
+        // happened server-side, atomically, as part of order creation via
+        // attributes.rewardId sent in handleCheckout (see /api/universal/orders).
         setAppliedReward(null)
-
-        if (rewardToRedeem && customerForReward) {
-          try {
-            await fetch('/api/customer-rewards/redeem', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ rewardId: rewardToRedeem.id, customerId: customerForReward.id, orderId })
-            })
-          } catch {
-            // Non-critical — order already completed
-          }
-        }
 
         // Post-checkout: run campaign eligibility check if customer attached
         if (customerForReward && currentBusinessId) {
@@ -353,10 +344,12 @@ export default function UniversalPOS() {
           }
         }
 
-        // Show receipt preview modal
+        // Show the Order Complete confirmation first (order number, items,
+        // WiFi/R710 token success or error) — the print-preview modal only
+        // opens once the user clicks "Print Receipt" inside it.
         setPendingReceiptData(receiptData)
         setPendingOrderId(orderId)
-        setShowReceiptPreview(true)
+        setShowOrderComplete(true)
       },
       onError: (error) => {
         console.error('❌ Checkout error:', error)
@@ -764,6 +757,131 @@ export default function UniversalPOS() {
             }}
             onAborted={() => setShowCancelModal(false)}
           />
+        )}
+
+        {showOrderComplete && pendingReceiptData && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] flex flex-col">
+              <div className="px-6 pt-6 pb-3 flex-shrink-0 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold text-green-600 dark:text-green-400">✅ Order Complete!</h2>
+                  <button
+                    onClick={() => {
+                      setShowOrderComplete(false)
+                      setPendingReceiptData(null)
+                      setPendingOrderId(null)
+                    }}
+                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-y-auto flex-1 px-6">
+                <div className="space-y-4 py-4">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Order Number</div>
+                    <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                      {pendingReceiptData.receiptNumber?.formattedNumber || pendingReceiptData.transactionId}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold mb-2 text-gray-700 dark:text-gray-300">Items:</h3>
+                    <div className="space-y-2">
+                      {pendingReceiptData.items.map((item, index) => (
+                        <div key={index} className="flex justify-between text-sm">
+                          <span className="text-gray-600 dark:text-gray-400">{item.quantity}x {item.name}</span>
+                          <span className="font-medium text-gray-900 dark:text-gray-100">${item.totalPrice.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {pendingReceiptData.wifiTokens && pendingReceiptData.wifiTokens.length > 0 && (
+                    <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg border-2 border-purple-200 dark:border-purple-700">
+                      <h3 className="font-semibold mb-3 text-purple-700 dark:text-purple-300 flex items-center gap-2">📶 WiFi Access Tokens</h3>
+                      {pendingReceiptData.wifiTokens.map((token: any, index: number) => (
+                        token.success === false || token.error ? (
+                          <div key={index} className="mb-3 last:mb-0 bg-red-50 dark:bg-red-900/20 p-3 rounded border border-red-200 dark:border-red-800">
+                            <div className="text-sm font-medium text-red-700 dark:text-red-300">{token.itemName || token.packageName || 'WiFi Token'}</div>
+                            <div className="text-sm text-red-600 dark:text-red-400 mt-1">⚠️ {token.error || 'Token unavailable'}</div>
+                          </div>
+                        ) : (
+                          <div key={index} className="mb-3 last:mb-0 bg-white dark:bg-gray-800 p-3 rounded">
+                            <div className="text-sm text-gray-600 dark:text-gray-400">{token.packageName}</div>
+                            <div className="text-lg font-mono font-bold text-purple-600 dark:text-purple-400">{token.tokenCode}</div>
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  )}
+
+                  {pendingReceiptData.r710Tokens && pendingReceiptData.r710Tokens.length > 0 && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border-2 border-blue-200 dark:border-blue-700">
+                      <h3 className="font-semibold mb-3 text-blue-700 dark:text-blue-300 flex items-center gap-2">📶 R710 WiFi Access</h3>
+                      {pendingReceiptData.r710Tokens.map((token: any, index: number) => (
+                        token.success === false || token.error ? (
+                          <div key={index} className="mb-3 last:mb-0 bg-red-50 dark:bg-red-900/20 p-3 rounded border border-red-200 dark:border-red-800">
+                            <div className="text-sm font-medium text-red-700 dark:text-red-300">{token.itemName || token.packageName || 'R710 WiFi Token'}</div>
+                            <div className="text-sm text-red-600 dark:text-red-400 mt-1">⚠️ {token.error || 'Token unavailable'}</div>
+                          </div>
+                        ) : (
+                          <div key={index} className="mb-3 last:mb-0 bg-white dark:bg-gray-800 p-3 rounded">
+                            <div className="text-sm text-gray-600 dark:text-gray-400">{token.packageName}</div>
+                            <div className="text-lg font-mono font-bold text-blue-600 dark:text-blue-400">{token.password}</div>
+                            {token.durationValue && token.durationUnit && (
+                              <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                Duration: {token.durationValue} {token.durationUnit.split('_')[1] || token.durationUnit}
+                              </div>
+                            )}
+                            {token.ssid && (
+                              <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 italic">
+                                Connect to WiFi "{token.ssid}" and use password above to log in
+                              </div>
+                            )}
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+                    <div className="flex justify-between text-lg font-bold">
+                      <span className="text-gray-700 dark:text-gray-300">Total:</span>
+                      <span className="text-gray-900 dark:text-gray-100">${Number(pendingReceiptData.total).toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="px-6 pb-6 pt-3 space-y-2 flex-shrink-0 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={() => {
+                    setShowOrderComplete(false)
+                    setShowReceiptPreview(true)
+                  }}
+                  className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  🖨️ Print Receipt
+                </button>
+                {((pendingReceiptData.wifiTokens && pendingReceiptData.wifiTokens.length > 0) || (pendingReceiptData.r710Tokens && pendingReceiptData.r710Tokens.length > 0)) && (
+                  <p className="w-full py-2 text-center text-xs text-gray-400 border border-gray-200 dark:border-gray-600 rounded-lg">
+                    📶 Orders with WiFi tokens cannot be cancelled
+                  </p>
+                )}
+                <button
+                  onClick={() => {
+                    setShowOrderComplete(false)
+                    setPendingReceiptData(null)
+                    setPendingOrderId(null)
+                  }}
+                  className="w-full py-3 bg-gray-500 text-white font-medium rounded-lg hover:bg-gray-600 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         <UnifiedReceiptPreviewModal

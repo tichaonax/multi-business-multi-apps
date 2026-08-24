@@ -90,6 +90,18 @@ export async function GET(request: NextRequest) {
           // Combo items — key must match the front-end id format: 'combo-{comboId}'
           productId = `combo-${attrs.comboId}`
           productName = attrs.productName || 'Combo'
+        } else if (attrs.r710Token && attrs.tokenConfigId) {
+          // WiFi/R710 token items have neither a product-variant linkage nor
+          // attributes.productId (they carry tokenConfigId instead) — every
+          // WiFi token sale was silently invisible to this endpoint before
+          // this branch existed, always reading as "0 sold today" no matter
+          // how many actually sold. Key must match the catalog card's id
+          // format from useProductLoader.ts: `r710_${config.id}`.
+          productId = `r710_${attrs.tokenConfigId}`
+          productName = attrs.productName || attrs.packageName || 'R710 WiFi Token'
+        } else if (attrs.wifiToken && attrs.tokenConfigId) {
+          productId = `wifi_${attrs.tokenConfigId}`
+          productName = attrs.productName || attrs.packageName || 'WiFi Token'
         } else if (attrs.productId) {
           productId = attrs.productId
           productName = attrs.productName || 'Unknown'
@@ -129,6 +141,8 @@ export async function GET(request: NextRequest) {
       if (!productId && item.attributes) {
         const attrs = item.attributes as Record<string, any>
         if (attrs.isCombo && attrs.comboId) productId = `combo-${attrs.comboId}`
+        else if (attrs.r710Token && attrs.tokenConfigId) productId = `r710_${attrs.tokenConfigId}`
+        else if (attrs.wifiToken && attrs.tokenConfigId) productId = `wifi_${attrs.tokenConfigId}`
         else if (attrs.productId) productId = attrs.productId
       }
       if (!productId) return
