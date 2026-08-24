@@ -252,6 +252,9 @@ export function MobileSidebar() {
             {(isAdmin || hasBusinessPermission('canManageEmployees')) && navLink('/vehicle-service/contractors', '🔧', 'Contractors')}
             {(isAdmin || hasBusinessPermission('canManageInventory')) && navLink('/vehicle-service/parts-requests', '📦', 'Parts Requests')}
             {(isAdmin || hasBusinessPermission('canAccessFinancialData')) && navLink('/vehicle-service/labour-rates', '💵', 'Labour Rates')}
+            {/* R710-only (no ESP32) — vehicle_service is a new type with no ESP32 use case */}
+            {canConfigWifi && r710IntegrationEnabled && navLink('/vehicle-service/r710-tokens', '📶', 'R710 Menu Config')}
+            {canSellWifi && r710IntegrationEnabled && navLink('/r710-portal/sales', '💵', 'R710 WiFi Sales')}
           </>
         )
       default:

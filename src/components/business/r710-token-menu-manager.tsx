@@ -29,7 +29,7 @@ interface BusinessTokenMenuItem {
 
 interface R710TokenMenuManagerProps {
   businessId: string
-  businessType: 'restaurant' | 'grocery'
+  businessType: 'restaurant' | 'grocery' | 'clothing' | 'hardware' | 'services' | 'vehicle_service'
 }
 
 export function R710TokenMenuManager({ businessId, businessType }: R710TokenMenuManagerProps) {

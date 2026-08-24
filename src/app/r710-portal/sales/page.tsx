@@ -148,7 +148,7 @@ export default function R710SalesPage() {
 
   useEffect(() => {
     if (businessLoading || !currentBusinessId) return
-    if (!['restaurant', 'grocery', 'clothing', 'services'].includes(currentBusiness?.businessType || '')) {
+    if (!['restaurant', 'grocery', 'clothing', 'hardware', 'services', 'vehicle_service'].includes(currentBusiness?.businessType || '')) {
       setLoading(false)
       return
     }
@@ -539,11 +539,11 @@ export default function R710SalesPage() {
     )
   }
 
-  if (!['restaurant', 'grocery', 'clothing', 'services'].includes(currentBusiness?.businessType || '')) {
+  if (!['restaurant', 'grocery', 'clothing', 'hardware', 'services', 'vehicle_service'].includes(currentBusiness?.businessType || '')) {
     return (
       <ContentLayout title="R710 WiFi Token Sales">
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-yellow-800">R710 WiFi token sales are only available for restaurant, grocery, clothing, and services businesses.</p>
+          <p className="text-yellow-800">R710 WiFi token sales are only available for restaurant, grocery, clothing, hardware, services, and vehicle service businesses.</p>
         </div>
       </ContentLayout>
     )

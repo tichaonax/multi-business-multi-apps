@@ -750,6 +750,50 @@ function generateHardwareReceipt(data: ReceiptData): string {
   // Payment
   receipt += formatPaymentLines(data);
 
+  // R710 WiFi tokens — mirrors the section in generateStandardReceipt();
+  // hardware doesn't route through that shared generator, so it needs its
+  // own copy (same as vehicle_service, see that template for the rationale).
+  if (data.r710Tokens && data.r710Tokens.length > 0) {
+    const isCustomerCopy = data.receiptType === 'customer';
+    receipt += line('-') + LF;
+    receipt += ALIGN_CENTER;
+    receipt += 'R710 WiFi ACCESS' + LF;
+    receipt += ALIGN_LEFT;
+    receipt += line('-') + LF;
+
+    data.r710Tokens.forEach((token: any) => {
+      if (token.success === false || token.error) {
+        receipt += ALIGN_CENTER;
+        receipt += `Package: ${stripEmojis(token.packageName)}` + LF;
+        receipt += `*** ERROR ***` + LF;
+        receipt += `${stripEmojis(token.error || 'Token unavailable')}` + LF;
+        receipt += ALIGN_LEFT;
+        return;
+      }
+
+      receipt += `Package: ${stripEmojis(token.packageName)}` + LF;
+      receipt += `Password: ${token.password}` + LF;
+
+      if (token.durationValue && token.durationUnit) {
+        const durationUnit = token.durationUnit.split('_')[1] || token.durationUnit;
+        receipt += `Duration: ${token.durationValue} ${durationUnit}` + LF;
+      }
+
+      if (token.expiresAt) {
+        receipt += `Expires: ${formatDateTime(new Date(token.expiresAt))}` + LF;
+      }
+
+      if (isCustomerCopy && token.ssid) {
+        receipt += `Network: ${stripEmojis(token.ssid)}` + LF;
+      }
+
+      if (isCustomerCopy) {
+        receipt += `1. Connect to WiFi network above` + LF;
+        receipt += `2. Use password to log in` + LF;
+      }
+    });
+  }
+
   // Return policy (always print - use default if not configured)
   const hardwareReturnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';
   receipt += LF;
@@ -1088,6 +1132,52 @@ function generateVehicleServiceReceipt(data: ReceiptData): string {
 
   // Payment
   receipt += formatPaymentLines(data);
+
+  // R710 WiFi tokens (vehicle_service businesses that sell WiFi packages use
+  // this same job-receipt template for token-sale receipts too — there's no
+  // separate template for that case, unlike restaurant/grocery/clothing/
+  // services which all route through generateStandardReceipt()'s built-in
+  // WiFi section). Mirrors that section's rendering exactly.
+  if (data.r710Tokens && data.r710Tokens.length > 0) {
+    const isCustomerCopy = data.receiptType === 'customer';
+    receipt += line('-') + LF;
+    receipt += ALIGN_CENTER;
+    receipt += 'R710 WiFi ACCESS' + LF;
+    receipt += ALIGN_LEFT;
+    receipt += line('-') + LF;
+
+    data.r710Tokens.forEach((token: any) => {
+      if (token.success === false || token.error) {
+        receipt += ALIGN_CENTER;
+        receipt += `Package: ${stripEmojis(token.packageName)}` + LF;
+        receipt += `*** ERROR ***` + LF;
+        receipt += `${stripEmojis(token.error || 'Token unavailable')}` + LF;
+        receipt += ALIGN_LEFT;
+        return;
+      }
+
+      receipt += `Package: ${stripEmojis(token.packageName)}` + LF;
+      receipt += `Password: ${token.password}` + LF;
+
+      if (token.durationValue && token.durationUnit) {
+        const durationUnit = token.durationUnit.split('_')[1] || token.durationUnit;
+        receipt += `Duration: ${token.durationValue} ${durationUnit}` + LF;
+      }
+
+      if (token.expiresAt) {
+        receipt += `Expires: ${formatDateTime(new Date(token.expiresAt))}` + LF;
+      }
+
+      if (isCustomerCopy && token.ssid) {
+        receipt += `Network: ${stripEmojis(token.ssid)}` + LF;
+      }
+
+      if (isCustomerCopy) {
+        receipt += `1. Connect to WiFi network above` + LF;
+        receipt += `2. Use password to log in` + LF;
+      }
+    });
+  }
 
   // Return policy (always print - use default if not configured)
   const vehicleServiceReturnPolicy = data.returnPolicy || 'All sales are final, returns not accepted';

@@ -189,7 +189,8 @@ export const BUSINESS_TYPE_CONFIGS: Record<string, BusinessTypeConfig> = {
       barcodeScan: true,
       businessServices: true,
       contractorJobs: true,
-      coupons: true
+      coupons: true,
+      wifiTokens: true
     },
     receiptType: 'vehicle_service',
     quickActionsEnabled: true

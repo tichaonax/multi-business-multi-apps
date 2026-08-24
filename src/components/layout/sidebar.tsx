@@ -1140,6 +1140,20 @@ export function Sidebar() {
                     <span>Labour Rates</span>
                   </Link>
                 )}
+                {/* R710 Menu Config - Requires canConfigureWifiTokens. R710-only (no ESP32) — vehicle_service is a new type with no ESP32 use case. */}
+                {(isSystemAdmin(currentUser) || hasPermission('canConfigureWifiTokens')) && r710IntegrationEnabled && (
+                  <Link href="/vehicle-service/r710-tokens" className={getLinkClasses('/vehicle-service/r710-tokens')}>
+                    <span className="text-lg">📶</span>
+                    <span>R710 Menu Config</span>
+                  </Link>
+                )}
+                {/* R710 WiFi Sales - For users who can sell tokens; only when menu items configured */}
+                {(isSystemAdmin(currentUser) || hasPermission('canSellWifiTokens')) && r710IntegrationEnabled && r710HasMenuItems && (
+                  <Link href="/r710-portal/sales" className={getLinkClasses('/r710-portal/sales')}>
+                    <span className="text-lg">💵</span>
+                    <span>R710 WiFi Sales</span>
+                  </Link>
+                )}
               </>
             )}
 

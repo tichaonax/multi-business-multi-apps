@@ -361,7 +361,7 @@ export function UnifiedReceiptPreviewModal({
   const isLocalSelected = selectedPrinterId === LOCAL_PRINTER_ID
   const isQzSelected = selectedPrinterId?.startsWith(QZ_PRINTER_PREFIX) ?? false
   const isRestaurant = businessType === 'restaurant'
-  const supportsCustomerCopy = !hideCustomerCopy && ['restaurant', 'grocery', 'clothing', 'services'].includes(businessType)
+  const supportsCustomerCopy = !hideCustomerCopy && ['restaurant', 'grocery', 'clothing', 'hardware', 'services', 'vehicle_service'].includes(businessType)
   const copyLabel = title.includes('Voucher') ? 'Vendor Copy' : 'Customer Copy'
   const hasPrintersOrLocal = printers.length > 0 || hasLocalPrinter || qzPrinters.length > 0
 
