@@ -230,6 +230,8 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
       ],
       vehicle_service: [
         { href: '/universal/pos', icon: '🚗', label: 'POS System' },
+        { href: '/vehicle-service/reports', icon: '📊', label: 'Sales Reports', permissions: ['canViewWifiReports', 'canAccessFinancialData'] },
+        { href: '/vehicle-service/reports/sales-analytics', icon: '📈', label: 'Sales Analytics', permissions: ['canViewWifiReports', 'canAccessFinancialData'] },
         { href: '/vehicle-service/jobs', icon: '🛠️', label: 'Jobs' },
         { href: '/vehicle-service/customers', icon: '🧑‍🤝‍🧑', label: 'Customers' },
         { href: '/vehicle-service/parts', icon: '🧰', label: 'Parts Inventory' },
