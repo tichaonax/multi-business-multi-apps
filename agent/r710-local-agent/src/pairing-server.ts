@@ -64,6 +64,7 @@ export function startPairingServer(onPaired: (config: AgentConfig) => void): Ser
           agentToken: parsed.agentToken,
           deviceRegistryId: parsed.deviceRegistryId,
           label: parsed.label,
+          ...(parsed.caCert ? { caCert: parsed.caCert } : {}),
         }
         saveConfig(config)
 

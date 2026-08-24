@@ -37,32 +37,107 @@ function loadSysTray(): any {
   return mod.default ?? mod
 }
 
-// TODO(Phase 3): this is NOT a real icon — placeholder only, not validated
-// against systray2's expected ICO format. A real base64-encoded .ico asset
-// (ideally distinct connected/disconnected/unpaired variants) must be
-// substituted before this is run against a real tray. startTray() below is
-// called defensively (wrapped in try/catch by index.ts) specifically
-// because this placeholder may not be accepted by the native tray helper.
+// TODO(Phase 3): generic solid-color circle, not a branded asset — swap for
+// a real logo (ideally distinct connected/disconnected/unpaired variants)
+// before this ships to a real site. It IS a valid 32x32 32bpp .ico, verified
+// against Windows' own System.Drawing.Icon parser, so startTray() no longer
+// fails on the icon itself — it's still called defensively (wrapped in
+// try/catch by index.ts) in case the native tray helper rejects it for some
+// other environment-specific reason.
 const PLACEHOLDER_ICON_BASE64 =
-  'AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAABMLAAATCwAAAAAAAAAAAAA='
+  'AAABAAEAICAAAAEAIACoEAAAFgAAACgAAAAgAAAAQAAAAAEAIAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIqGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIqGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIqGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAIqGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf8AAAAAAAAAAAAAAAAAAAAAioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/wAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAIqGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf8AAAAAAAAAAAAAAAAAAAAAioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/wAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAIqGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf8AAAAAAAAAAAAAAAAAAAAAioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/wAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIqGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIqGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIqGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA////////////4Af//4AB//4AAH/8AAA/+AAAH/AAAA/wAAAP4AAAB+AAAAfAAAADwAAAA8AAAAPAAAADwAAAA8AAAAPAAAADwAAAA8AAAAPAAAAD4AAAB+AAAAfwAAAP8AAAD/gAAB/8AAA//gAAf/+AAf//4Af///////////8='
 
 let systray: any = null
 
-export function startTray(onQuit: () => void, onRestart: () => void): void {
+// The workstation's own paired label (e.g. "Front Desk PC — Bulawayo
+// Branch"), set once from config in startTray(). Windows shows only the
+// tray icon's hover tooltip, not the `title` field (that's macOS menu-bar
+// text) — so identifying which tray icon is this agent, among however many
+// others are running, depends entirely on that tooltip being specific and
+// current rather than stuck on whatever it said at startup.
+let currentLabel: string | null = null
+let currentStatusLine = 'Starting…'
+
+function buildTooltip(): string {
+  const identity = currentLabel ? `R710 Local Agent — ${currentLabel}` : 'R710 Local Agent'
+  return `${identity}\n${currentStatusLine}`
+}
+
+function buildItems() {
+  return [
+    { title: `Status: ${currentStatusLine}`, tooltip: '', checked: false, enabled: false },
+    { title: 'Restart', tooltip: 'Restart the agent', checked: false, enabled: true },
+    { title: 'Quit', tooltip: 'Stop the agent', checked: false, enabled: true },
+  ]
+}
+
+// Pushes both the hover tooltip and the "Status: ..." menu item in one call.
+// Must always include the full items array — systray2's 'update-menu'
+// handler dereferences action.menu.items unconditionally, throwing (and
+// taking the whole process down) if it's omitted from a partial update.
+//
+// sendAction() never awaits the tray's own readiness internally — it writes
+// straight to `_process.stdin`, which is still null until the native helper
+// has actually spawned. The socket client's first 'connecting' state event
+// can fire well before that (spawning + copying the helper binary takes
+// real time), so calling sendAction too early throws "Cannot read
+// properties of null (reading 'stdin')". Deferring on ready() queues the
+// update correctly whether it's already resolved or still pending, and
+// buildTooltip()/buildItems() re-read the *current* state at the time this
+// callback actually runs, so a burst of rapid state changes before the tray
+// is ready collapses to just the latest one being sent, not each state.
+function pushMenuUpdate(): void {
+  if (!systray) return
+  systray.ready().then(() => {
+    systray.sendAction({
+      type: 'update-menu',
+      menu: {
+        icon: PLACEHOLDER_ICON_BASE64,
+        title: 'R710 Local Agent',
+        tooltip: buildTooltip(),
+        items: buildItems(),
+      },
+    })
+  }).catch(() => { /* tray failed to start — already logged elsewhere, nothing to update */ })
+}
+
+export function startTray(onQuit: () => void, onRestart: () => void, label?: string): void {
+  currentLabel = label ?? null
   const SysTray = loadSysTray()
   systray = new SysTray({
     menu: {
       icon: PLACEHOLDER_ICON_BASE64,
       title: 'R710 Local Agent',
-      tooltip: 'R710 Local Agent — starting…',
-      items: [
-        { title: 'Status: starting…', tooltip: '', checked: false, enabled: false },
-        { title: 'Restart', tooltip: 'Restart the agent', checked: false, enabled: true },
-        { title: 'Quit', tooltip: 'Stop the agent', checked: false, enabled: true },
-      ],
+      tooltip: buildTooltip(),
+      items: buildItems(),
     },
     debug: false,
     copyDir: true,
+  })
+
+  // systray2's native helper spawns asynchronously — a failure there (bad
+  // icon, missing binary, blocked by AV, ...) doesn't throw synchronously
+  // out of startTray(), so without this it fails completely silently.
+  // ready() resolves only once the native process is confirmed up (its
+  // internal `_process` field, which onError/onExit need, is guaranteed set
+  // by then) and rejects if the spawn itself failed — attaching onError/
+  // onExit any earlier throws because _process is still null at that point.
+  systray.ready().then(() => {
+    systray.onError((error: unknown) => {
+      console.error('[R710 Agent] Tray helper process error:', error)
+    })
+    systray.onExit((code: number | null, signal: string | null) => {
+      console.error('[R710 Agent] Tray helper process exited unexpectedly:', { code, signal })
+    })
+    // DIAGNOSTIC (temporary): systray2's own readline wrapper only surfaces
+    // lines matching its {"type":"ready"} envelope and silently drops
+    // anything else the native helper prints — including a likely error
+    // right before an unexplained exit. Dump both raw streams to find it.
+    const proc = systray.process
+    proc?.stdout?.on('data', (chunk: Buffer) => console.error('[R710 Agent] [tray stdout]', chunk.toString()))
+    proc?.stderr?.on('data', (chunk: Buffer) => console.error('[R710 Agent] [tray stderr]', chunk.toString()))
+  }).catch((error: unknown) => {
+    console.error('[R710 Agent] Tray helper failed to start (continuing headless):', error)
   })
 
   systray.onClick((action: { seq_id: number; item: { title: string } }) => {
@@ -83,23 +158,21 @@ const STATUS_LABEL: Record<AgentConnectionState, string> = {
 }
 
 export function setTrayStatus(state: AgentConnectionState): void {
-  if (!systray) return
-  // Only ever send 'update-item' — systray2's 'update-menu' handler
-  // dereferences action.menu.items unconditionally even for a partial
-  // update, throwing (and taking the whole process down) if items is
-  // omitted. update-item alone is enough to reflect connection state.
-  systray.sendAction({
-    type: 'update-item',
-    item: { title: `Status: ${STATUS_LABEL[state]}`, tooltip: '', enabled: false, checked: false },
-    seq_id: 0,
-  })
+  currentStatusLine = STATUS_LABEL[state]
+  pushMenuUpdate()
 }
 
 export function setTrayUnpaired(): void {
-  if (!systray) return
-  systray.sendAction({
-    type: 'update-item',
-    item: { title: 'Status: ⚪ Not paired — open the admin panel to pair this machine', tooltip: '', enabled: false, checked: false },
-    seq_id: 0,
-  })
+  currentStatusLine = '⚪ Not paired — open the admin panel to pair this machine'
+  pushMenuUpdate()
+}
+
+// A connection that never succeeds even once never fires 'connect' or
+// 'disconnect' — there's nothing to disconnect from — so without this the
+// tray just sits on "Connecting…" forever with no clue why. Truncated to
+// keep the tooltip/menu item readable; the full message is still logged.
+export function setTrayConnectError(message: string): void {
+  const truncated = message.length > 80 ? `${message.slice(0, 80)}…` : message
+  currentStatusLine = `🔴 Connection error: ${truncated}`
+  pushMenuUpdate()
 }

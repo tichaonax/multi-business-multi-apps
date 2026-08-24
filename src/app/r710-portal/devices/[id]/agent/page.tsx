@@ -108,11 +108,21 @@ function AgentPanelContent() {
 
   // Probe the local agent on THIS browser's machine — only meaningful when
   // an admin opens this page from the workstation that should be paired.
+  // Polls every 2s rather than probing once on mount: the admin's normal
+  // flow is download -> unzip -> run the exe -> come back to this
+  // already-open tab, which used to require a manual page reload before
+  // the "Pair" button would ever appear.
   useEffect(() => {
     if (device?.remoteAgent) return
-    fetch(`http://127.0.0.1:${PAIRING_PORT}/probe`, { signal: AbortSignal.timeout(2500) })
-      .then(res => setLocalAgentDetected(res.ok))
-      .catch(() => setLocalAgentDetected(false))
+    let cancelled = false
+    const probe = () => {
+      fetch(`http://127.0.0.1:${PAIRING_PORT}/probe`, { signal: AbortSignal.timeout(2500) })
+        .then(res => { if (!cancelled) setLocalAgentDetected(res.ok) })
+        .catch(() => { if (!cancelled) setLocalAgentDetected(false) })
+    }
+    probe()
+    const interval = setInterval(probe, 2000)
+    return () => { cancelled = true; clearInterval(interval) }
   }, [device?.remoteAgent])
 
   const handlePair = async () => {
@@ -139,6 +149,12 @@ function AgentPanelContent() {
           agentToken: mintData.data.agentToken,
           deviceRegistryId: device.id,
           label: pairLabel.trim(),
+          // Lets the agent trust this server's self-signed cert when it has
+          // one — otherwise an https:// serverUrl fails TLS validation on
+          // every connection attempt, silently, forever (Node doesn't trust
+          // a custom CA by default). Absent/null when the server runs plain
+          // HTTP or a real publicly-trusted cert.
+          caCert: mintData.data.caCert ?? undefined,
         }),
       })
 
@@ -268,7 +284,7 @@ function AgentPanelContent() {
                 Download r710-agent.zip
               </a>
             </li>
-            <li>Unzip it and double-click <code className="text-xs bg-gray-100 dark:bg-gray-900 px-1 rounded">r710-agent.exe</code> — a tray icon will appear.</li>
+            <li>Unzip it and double-click <code className="text-xs bg-gray-100 dark:bg-gray-900 px-1 rounded">r710-agent.exe</code> — a tray icon will appear (right-click it any time to Restart or Quit the agent).</li>
             <li>Open this page in a browser <strong>on that same workstation</strong>, then click Pair below.</li>
           </ol>
 
@@ -280,6 +296,9 @@ function AgentPanelContent() {
               <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3">
                 No local agent detected on this machine (http://127.0.0.1:{PAIRING_PORT}). Install and run it first,
                 then reload this page — from the workstation itself, not remotely.
+                {' '}If it's stuck (e.g. this port is already in use by a previous run), run{' '}
+                <code className="text-xs bg-amber-100 dark:bg-amber-900/40 px-1 rounded">Stop R710 Agent.bat</code>{' '}
+                from the unzipped folder, then start <code className="text-xs bg-amber-100 dark:bg-amber-900/40 px-1 rounded">r710-agent.exe</code> again.
               </p>
             )}
             {localAgentDetected === true && (

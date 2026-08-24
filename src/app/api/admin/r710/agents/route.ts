@@ -9,11 +9,27 @@
  */
 
 import { randomBytes } from 'crypto'
+import { existsSync, readFileSync } from 'fs'
+import { join } from 'path'
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
+
+// Same self-signed cert server.ts loads from ./certs/ for HTTPS (see its
+// comment: "enables HTTPS for QZ Tray Chrome compatibility"). The admin's
+// browser trusts it (installed in the OS/browser store), but the R710 agent
+// runs on a separate workstation with no access to this file — without it,
+// the agent's outbound socket.io connection to an https:// serverUrl fails
+// TLS validation silently (Node doesn't trust a custom CA by default; see
+// the same problem already solved for the main app process itself via
+// NODE_EXTRA_CA_CERTS in windows-service/service-wrapper-hybrid.js). Handed
+// to the agent once at pairing time so it can trust this specific CA.
+function readRootCaCert(): string | null {
+  const rootCaPath = join(process.cwd(), 'certs', 'rootCA.pem')
+  return existsSync(rootCaPath) ? readFileSync(rootCaPath, 'utf-8') : null
+}
 
 export async function GET(request: NextRequest) {
   const user = await getServerUser()
@@ -84,7 +100,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: { agentId: agent.id, deviceRegistryId, agentToken: rawToken },
+      data: { agentId: agent.id, deviceRegistryId, agentToken: rawToken, caCert: readRootCaCert() },
     })
   } catch (error) {
     console.error('Error creating R710 remote agent pairing:', error)

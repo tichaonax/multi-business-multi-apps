@@ -17,13 +17,30 @@
 
 import { build } from 'esbuild'
 import { execFileSync } from 'child_process'
-import { copyFileSync, mkdirSync, existsSync, writeFileSync, cpSync, createWriteStream } from 'fs'
+import { copyFileSync, mkdirSync, existsSync, writeFileSync, readFileSync, cpSync, createWriteStream } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { ZipArchive } from 'archiver'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const distDir = join(__dirname, 'dist')
+
+// npm hoists transitive deps flat into this package's own node_modules
+// (no nested node_modules/systray2/node_modules/fs-extra) — so copying just
+// the systray2 folder leaves its runtime deps (fs-extra, debug, ...) behind,
+// and the packaged .exe throws MODULE_NOT_FOUND the first time it requires
+// them. Walk each package.json's "dependencies" to find the full closure.
+function collectDependencyClosure(pkgName, nodeModulesDir, seen = new Set()) {
+  if (seen.has(pkgName)) return seen
+  seen.add(pkgName)
+  const pkgJsonPath = join(nodeModulesDir, pkgName, 'package.json')
+  if (!existsSync(pkgJsonPath)) return seen
+  const pkg = JSON.parse(readFileSync(pkgJsonPath, 'utf8'))
+  for (const dep of Object.keys(pkg.dependencies || {})) {
+    collectDependencyClosure(dep, nodeModulesDir, seen)
+  }
+  return seen
+}
 
 async function main() {
   if (!existsSync(distDir)) mkdirSync(distDir, { recursive: true })
@@ -41,10 +58,15 @@ async function main() {
     external: ['systray2'],
   })
 
-  // systray2's own node_modules (including its native helper binaries) must
-  // travel alongside the bundle since it's external, not inlined.
-  console.log('[build] Copying systray2 (external, has native helper binaries)…')
-  cpSync(join(__dirname, 'node_modules', 'systray2'), join(distDir, 'node_modules', 'systray2'), { recursive: true })
+  // systray2 (external, has native helper binaries) and its runtime
+  // dependency closure must travel alongside the bundle since none of it is
+  // inlined by esbuild.
+  const nodeModulesDir = join(__dirname, 'node_modules')
+  const systrayClosure = collectDependencyClosure('systray2', nodeModulesDir)
+  console.log(`[build] Copying systray2 + runtime deps: ${[...systrayClosure].join(', ')}`)
+  for (const pkgName of systrayClosure) {
+    cpSync(join(nodeModulesDir, pkgName), join(distDir, 'node_modules', pkgName), { recursive: true })
+  }
 
   console.log('[build] Writing Node SEA config…')
   const seaConfigPath = join(distDir, 'sea-config.json')
@@ -84,12 +106,36 @@ async function main() {
 
   console.log(`[build] Done. Standalone agent at: ${exePath}`)
 
-  console.log('[build] Zipping exe + systray2 helper folder for a single-file download…')
-  await zipDist(exePath, join(distDir, 'node_modules', 'systray2'), join(distDir, 'r710-agent.zip'))
+  // The agent has no Windows Service / tray-Quit guaranteed to work (tray
+  // start can itself fail — see the fs-extra bug this shipped alongside),
+  // and a second double-click just fails silently on EADDRINUSE without
+  // stopping the first instance. A plain double-clickable .bat is the
+  // simplest "stop it" affordance that doesn't require the user to know
+  // Task Manager or PowerShell.
+  const stopBatPath = join(distDir, 'Stop R710 Agent.bat')
+  console.log('[build] Writing Stop R710 Agent.bat…')
+  writeFileSync(
+    stopBatPath,
+    [
+      '@echo off',
+      'echo Stopping R710 Local Agent...',
+      'taskkill /IM r710-agent.exe /F >nul 2>&1',
+      'if %ERRORLEVEL%==0 (',
+      '  echo R710 Agent stopped.',
+      ') else (',
+      '  echo R710 Agent was not running.',
+      ')',
+      'pause',
+      '',
+    ].join('\r\n')
+  )
+
+  console.log('[build] Zipping exe + stop script + systray2 helper folder + its runtime deps for a single-file download…')
+  await zipDist(exePath, stopBatPath, join(distDir, 'node_modules'), join(distDir, 'r710-agent.zip'))
   console.log(`[build] Download bundle at: ${join(distDir, 'r710-agent.zip')}`)
 }
 
-function zipDist(exePath, systrayDir, zipPath) {
+function zipDist(exePath, stopBatPath, nodeModulesDir, zipPath) {
   return new Promise((resolve, reject) => {
     const output = createWriteStream(zipPath)
     const archive = new ZipArchive({ zlib: { level: 9 } })
@@ -97,7 +143,8 @@ function zipDist(exePath, systrayDir, zipPath) {
     archive.on('error', reject)
     archive.pipe(output)
     archive.file(exePath, { name: 'r710-agent.exe' })
-    archive.directory(systrayDir, 'node_modules/systray2')
+    archive.file(stopBatPath, { name: 'Stop R710 Agent.bat' })
+    archive.directory(nodeModulesDir, 'node_modules')
     archive.finalize()
   })
 }

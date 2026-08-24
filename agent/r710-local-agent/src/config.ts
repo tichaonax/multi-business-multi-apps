@@ -5,7 +5,7 @@
  * written once by that handshake and read on every subsequent start.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import os from 'os'
 
@@ -14,6 +14,10 @@ export interface AgentConfig {
   agentToken: string
   deviceRegistryId: string
   label: string
+  // The server's self-signed CA cert (PEM), when it runs HTTPS with one —
+  // see the comment on readRootCaCert() in the pairing route. Absent when
+  // the server uses plain HTTP or a real publicly-trusted cert.
+  caCert?: string
 }
 
 function configDir(): string {
@@ -43,4 +47,15 @@ export function saveConfig(config: AgentConfig): void {
 
 export function isPaired(): boolean {
   return loadConfig() !== null
+}
+
+// Used when the server rejects this agent's token (revoked from the admin
+// panel, most commonly) — there was previously no way back to pairing mode
+// short of manually finding and deleting this file by hand.
+export function clearConfig(): void {
+  try {
+    unlinkSync(configPath())
+  } catch {
+    // Already gone — fine.
+  }
 }

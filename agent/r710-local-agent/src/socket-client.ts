@@ -30,8 +30,24 @@ export class AgentSocketClient extends EventEmitter {
       reconnection: true,
       reconnectionDelay: 2000,
       reconnectionDelayMax: 30000,
+      // Trusts the server's own self-signed cert (see readRootCaCert() on
+      // the pairing route) when it has one, in addition to Node's normal
+      // trusted CA list — without this, an https:// serverUrl with a
+      // self-signed cert fails TLS validation on every attempt, forever,
+      // with nothing surfacing beyond the generic 'connect_error' below.
+      ...(this.config.caCert ? { ca: this.config.caCert } : {}),
     })
     this.socket = socket
+
+    // Without this, a connection that never succeeds even once — wrong
+    // serverUrl, untrusted cert, firewalled port, DNS failure — is
+    // completely silent: no 'connect' to report, no 'disconnect' since
+    // nothing ever connected. The agent just sits at "connecting" forever
+    // with zero indication of why. This is the single most useful line for
+    // diagnosing "it's not pairing" reports.
+    socket.on('connect_error', (error: Error) => {
+      this.emit('connect_error', error.message)
+    })
 
     socket.on('connect', () => {
       socket.emit(
@@ -50,8 +66,18 @@ export class AgentSocketClient extends EventEmitter {
       )
     })
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
       this.emit('state', 'disconnected' satisfies AgentConnectionState)
+      // socket.io-client deliberately does NOT auto-reconnect when the
+      // *server* initiates the disconnect (reason 'io server disconnect') —
+      // that's exactly what agent-hub.ts's disconnectAgent() does when an
+      // admin revokes this pairing. Without reconnecting ourselves here,
+      // a revoked agent would just go silent forever instead of ever
+      // re-attempting the r710-agent:connect handshake, getting rejected,
+      // and recovering into pairing mode (see index.ts).
+      if (reason === 'io server disconnect') {
+        socket.connect()
+      }
     })
 
     socket.on('r710-agent:job', async (job: AgentJob) => {
