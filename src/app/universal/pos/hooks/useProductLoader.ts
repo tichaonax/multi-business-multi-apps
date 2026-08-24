@@ -181,8 +181,11 @@ export function useProductLoader(
 
           if (r710Data.menuItems && r710Data.menuItems.length > 0) {
             // Transform R710 menu items to products
+            // Admin-issued (long-term, zero-fee) configs never appear in the
+            // regular product grid — they're only issuable via the dedicated
+            // admin "Issue Long-Term Access" panel (MBM-274).
             r710TokenProducts = r710Data.menuItems
-              .filter((item: any) => item.isActive && item.tokenConfig?.isActive)
+              .filter((item: any) => item.isActive && item.tokenConfig?.isActive && !item.tokenConfig?.isAdminIssued)
               .map((item: any) => {
                 const config = item.tokenConfig
                 const durationUnit = (config.durationUnit || '').replace('day_', '').replace('week_', '').replace('month_', '')

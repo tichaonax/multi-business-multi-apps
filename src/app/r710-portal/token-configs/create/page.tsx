@@ -46,7 +46,8 @@ function CreateTokenConfigContent() {
     autoGenerateThreshold: 5,
     autoGenerateQuantity: 20,
     displayOrder: 0,
-    isActive: true
+    isActive: true,
+    isAdminIssued: false
   })
 
   const [wlanId, setWlanId] = useState<string | null>(null)
@@ -299,6 +300,26 @@ function CreateTokenConfigContent() {
                 Time unit for access duration
               </p>
             </div>
+          </div>
+
+          {/* Admin-Issued (long-term, zero-fee) */}
+          <div className="flex items-start space-x-3 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-md">
+            <input
+              type="checkbox"
+              name="isAdminIssued"
+              id="isAdminIssued"
+              checked={formData.isAdminIssued}
+              onChange={handleChange}
+              className="mt-1 h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+            />
+            <label htmlFor="isAdminIssued" className="text-sm text-gray-700 dark:text-gray-300">
+              <span className="font-medium">Admin-issued (long-term, zero-fee)</span>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Never appears in the regular POS product grid or Direct Sale. Only issuable by a
+                system admin or that business's owner from the "Issue Long-Term Access" panel —
+                e.g. a 5-year workstation credential (260 weeks). Set Base Price to $0.00 below.
+              </p>
+            </label>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

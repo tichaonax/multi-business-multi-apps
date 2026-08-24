@@ -880,6 +880,22 @@ export async function POST(request: NextRequest) {
             continue
           }
 
+          // Admin-issued (long-term, zero-fee) configs must never be sellable
+          // through the regular cart/checkout — they're only issuable via the
+          // dedicated admin "Issue Long-Term Access" panel (MBM-274).
+          const tokenConfigForCheck = await tx.r710TokenConfigs.findUnique({
+            where: { id: tokenConfigId },
+            select: { isAdminIssued: true }
+          })
+          if (tokenConfigForCheck?.isAdminIssued) {
+            generatedR710Tokens.push({
+              itemName: item.attributes?.productName || 'R710 WiFi Token',
+              success: false,
+              error: 'This WiFi package is admin-issued only and cannot be sold through checkout'
+            })
+            continue
+          }
+
           for (let i = 0; i < item.quantity; i++) {
             try {
               // Check the pre-generated pool first — same order restaurant's

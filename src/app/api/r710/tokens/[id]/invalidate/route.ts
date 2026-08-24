@@ -9,6 +9,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { prisma } from '@/lib/prisma';
 import { getServerUser } from '@/lib/get-server-user'
+import { getR710SessionManager } from '@/lib/r710-session-manager'
+import { decrypt } from '@/lib/encryption'
 
 export async function POST(
   request: NextRequest,
@@ -26,7 +28,7 @@ export async function POST(
     // Fetch token
     const token = await prisma.r710Tokens.findUnique({
       where: { id: tokenId },
-      select: { id: true, businessId: true, status: true }
+      select: { id: true, businessId: true, status: true, connectedMac: true }
     });
 
     if (!token) {
@@ -66,13 +68,80 @@ export async function POST(
 
     console.log(`[R710 Token] Invalidated token ${tokenId}`);
 
+    // MBM-274: if the token is currently connected (has a known MAC), also
+    // block that MAC on the R710 device's guest WLAN so revocation actually
+    // disconnects the workstation immediately — DB-only invalidation alone
+    // does not affect an already-connected device. Best-effort: a failure
+    // here doesn't roll back the invalidation, since the token is unusable
+    // in our own system either way; it's surfaced so the admin knows the
+    // device-side block may need doing manually.
+    let deviceBlockResult: { attempted: boolean; success: boolean; error?: string } = {
+      attempted: false,
+      success: false
+    }
+
+    if (token.connectedMac) {
+      deviceBlockResult.attempted = true
+      try {
+        const integration = await prisma.r710BusinessIntegrations.findFirst({
+          where: { businessId: token.businessId, isActive: true },
+          include: { device_registry: true }
+        })
+
+        if (integration?.device_registry) {
+          const device = integration.device_registry
+          const adminPassword = decrypt(device.encryptedAdminPassword)
+          const sessionManager = getR710SessionManager()
+          const normalizedMac = token.connectedMac.toUpperCase().replace(/[:-]/g, ':')
+
+          await sessionManager.withSession(
+            { ipAddress: device.ipAddress, adminUsername: device.adminUsername, adminPassword },
+            async (service) => {
+              const aclLists = await service.listAclLists()
+              const blockedAcl = aclLists.find(
+                (acl) => acl.name === 'Blocked Devices' && acl.defaultMode === 'allow'
+              )
+
+              if (!blockedAcl) {
+                await service.createAclList({
+                  name: 'Blocked Devices',
+                  description: 'Devices blocked by administrators',
+                  mode: 'allow',
+                  macs: [{ mac: normalizedMac, macComment: `Revoked token ${tokenId}` }]
+                })
+              } else {
+                const updatedMacs = [
+                  ...blockedAcl.denyMacs,
+                  { mac: normalizedMac, macComment: `Revoked token ${tokenId}` }
+                ]
+                await service.updateAclList(blockedAcl.id, {
+                  name: 'Blocked Devices',
+                  description: 'Devices blocked by administrators',
+                  mode: 'allow',
+                  macs: updatedMacs
+                })
+              }
+            }
+          )
+
+          deviceBlockResult.success = true
+        } else {
+          deviceBlockResult.error = 'No active R710 integration found for this business'
+        }
+      } catch (error) {
+        console.error('[R710 Token Invalidate] Failed to block MAC on device:', error)
+        deviceBlockResult.error = error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Token invalidated successfully',
       token: {
         id: updatedToken.id,
         status: updatedToken.status
-      }
+      },
+      deviceBlock: deviceBlockResult
     });
 
   } catch (error) {

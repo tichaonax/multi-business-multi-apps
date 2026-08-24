@@ -31,6 +31,7 @@
 11. [Construction & Projects](#11-construction--projects)
 12. [Driver & Vehicle Log](#12-driver--vehicle-log)
 13. [WiFi Token Sales — ESP32 and R710](#13-wifi-token-sales--esp32-and-r710)
+    - [Admin-Issued Long-Term Tokens (Workstation Access)](#admin-issued-long-term-tokens-workstation-access)
     - [Device Registry — Admin Setup & Fixing a Mixed-Up IP Address](#device-registry--admin-setup--fixing-a-mixed-up-ip-address)
     - [Remote Sites — R710 via Local Agent](#remote-sites--r710-via-local-agent)
 14. [Inventory & Barcode Labels](#14-inventory--barcode-labels)
@@ -4104,6 +4105,46 @@ Go to **R710 Portal → Sales History** to see:
 
 ---
 
+#### Admin-Issued Long-Term Tokens (Workstation Access)
+
+**Who reads this:** System administrators and business owners.
+
+Normal WiFi tokens are meant for customers and expire in hours or days. For **workstations that need to stay connected long-term** (a till, an office PC, a back-office printer), sharing the guest network's admin password with everyone who sets one up is a security risk. Instead, an admin can issue a **long-term, zero-fee token** — up to **5 years (260 weeks)** — as that workstation's own login, without ever exposing the AP password itself.
+
+**Setting up a long-term package (one time, System Admin):**
+1. Go to **R710 Portal → Token Configurations → Create** (or edit an existing package).
+2. Set the **Duration** to whatever length is needed — for 5 years, enter **260** and choose **Weeks**.
+3. Set **Base Price** to **$0.00**.
+4. Check **Admin-issued (long-term, zero-fee)**. This is the setting that makes everything below work — it hides the package from the regular POS and Direct Sale screens entirely, and restricts who can hand one out.
+5. Save.
+
+> A package flagged this way can never be added to a cart or sold like a normal WiFi package, even at $0 — this isn't optional per-cashier behavior, it's enforced by the system regardless of who's logged in.
+
+**Issuing a token to a workstation:**
+1. Go to that business's **R710 Menu Config** page (same place packages are normally toggled on/off for sale).
+2. If the business owns any admin-issued packages, a **🔐 Issue Long-Term Access** panel appears at the top — but only if you're logged in as a System Admin or that business's owner. Anyone else won't see this panel at all, even though they can see the rest of the page.
+3. Click **Issue "[package name]"** for the package you want.
+4. The credentials (network name, username, password, expiry date) appear on screen once, with a **📋 Copy** button. Enter these directly into the workstation's WiFi settings.
+
+> Credentials are shown only once at issuance time — there's no receipt printed and no customer-facing step, since this isn't a sale. If you need to see them again later, they're not retrievable in plaintext after this point (same as any other WiFi token) — you'd need to revoke and re-issue.
+
+**Revoking a workstation's access:** use the normal **Invalidate** action on the token (from **R710 Portal → Tokens**, same as invalidating any WiFi token). For a long-term token this does more than just mark it unusable in this system:
+- If the workstation is **currently connected**, the router itself blocks that device's MAC address immediately — the workstation is disconnected right away, not just left to expire on its own.
+- If the token was **issued but never actually connected yet**, only the system-side record is invalidated. The credentials could theoretically still work directly against the router until first use — if that matters (e.g. a workstation was decommissioned before ever being set up), treat the physical device as compromised until confirmed otherwise, since a device-side block only kicks in once there's a connection to block.
+
+**Checking what's been issued:** click **📊 View Admin-Issued Tokens Report** on the same Issue Long-Term Access panel (or go to **[business]/r710-tokens/admin-issued** directly). Every admin-issued token for that business is listed with a status:
+
+| Status | Meaning |
+|---|---|
+| **Not Yet Redeemed** | Issued, but the workstation hasn't connected with it yet |
+| **Used** | Has connected at least once (shows the current device's MAC if connected right now) |
+| **Expired** | Past its validity period |
+| **Revoked** | Manually invalidated |
+
+Summary counts for each status appear at the top of the report, so a quick glance shows whether, say, three "issued" workstations are all actually in use or one was never set up.
+
+---
+
 #### Device Registry — Admin Setup & Fixing a Mixed-Up IP Address
 
 **Who reads this:** System administrators managing the physical R710 access points.
@@ -6042,6 +6083,12 @@ CHECK AVAILABILITY
 
 DIRECT SALE (not via POS)
   R710 Portal → Sales → New Direct Sale
+
+ADMIN-ISSUED LONG-TERM TOKEN (workstations, not customers)
+  Package must be flagged "Admin-issued" + $0 price
+  [Business] → R710 Menu Config → 🔐 Issue Long-Term Access
+  System Admin or that business's owner only
+  Revoke = Invalidate (blocks device's MAC if connected)
 ```
 
 ---

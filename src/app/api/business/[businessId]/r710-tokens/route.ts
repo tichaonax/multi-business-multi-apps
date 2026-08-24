@@ -87,6 +87,7 @@ export async function GET(
             basePrice: true,
             isActive: true,
             deviceLimit: true,
+            isAdminIssued: true,
           },
         },
       },
@@ -154,6 +155,7 @@ export async function GET(
           basePrice: item.r710_token_configs.basePrice,
           isActive: item.r710_token_configs.isActive,
           deviceLimit: item.r710_token_configs.deviceLimit,
+          isAdminIssued: item.r710_token_configs.isAdminIssued,
         },
       })),
     });

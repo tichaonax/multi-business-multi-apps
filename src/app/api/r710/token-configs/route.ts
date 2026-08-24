@@ -87,6 +87,7 @@ export async function GET(request: NextRequest) {
         autoGenerateQuantity: config.autoGenerateQuantity,
         displayOrder: config.displayOrder,
         isActive: config.isActive,
+        isAdminIssued: config.isAdminIssued,
         createdAt: config.createdAt,
         wlan: config.r710_wlans
       })),
@@ -127,7 +128,8 @@ export async function POST(request: NextRequest) {
       basePrice,
       autoGenerateThreshold,
       autoGenerateQuantity,
-      displayOrder
+      displayOrder,
+      isAdminIssued
     } = body;
 
     // Validate required fields
@@ -188,7 +190,8 @@ export async function POST(request: NextRequest) {
         autoGenerateThreshold: autoGenerateThreshold ?? 5,
         autoGenerateQuantity: autoGenerateQuantity ?? 20,
         displayOrder: displayOrder ?? 0,
-        isActive: true
+        isActive: true,
+        isAdminIssued: isAdminIssued === true
       }
     });
 
@@ -211,6 +214,7 @@ export async function POST(request: NextRequest) {
         autoGenerateQuantity: config.autoGenerateQuantity,
         displayOrder: config.displayOrder,
         isActive: config.isActive,
+        isAdminIssued: config.isAdminIssued,
         createdAt: config.createdAt
       }
     }, { status: 201 });

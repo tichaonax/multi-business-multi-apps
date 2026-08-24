@@ -62,6 +62,7 @@ export async function GET(
         autoGenerateQuantity: config.autoGenerateQuantity,
         displayOrder: config.displayOrder,
         isActive: config.isActive,
+        isAdminIssued: config.isAdminIssued,
         createdAt: config.createdAt,
         updatedAt: config.updatedAt
       }
@@ -124,7 +125,8 @@ export async function PUT(
       autoGenerateThreshold,
       autoGenerateQuantity,
       displayOrder,
-      isActive
+      isActive,
+      isAdminIssued
     } = body;
 
     // Validate numeric fields if provided
@@ -173,6 +175,7 @@ export async function PUT(
     if (autoGenerateQuantity !== undefined) updateData.autoGenerateQuantity = autoGenerateQuantity;
     if (displayOrder !== undefined) updateData.displayOrder = displayOrder;
     if (isActive !== undefined) updateData.isActive = isActive;
+    if (isAdminIssued !== undefined) updateData.isAdminIssued = isAdminIssued;
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(
@@ -206,6 +209,7 @@ export async function PUT(
         autoGenerateQuantity: updatedConfig.autoGenerateQuantity,
         displayOrder: updatedConfig.displayOrder,
         isActive: updatedConfig.isActive,
+        isAdminIssued: updatedConfig.isAdminIssued,
         updatedAt: updatedConfig.updatedAt
       }
     });

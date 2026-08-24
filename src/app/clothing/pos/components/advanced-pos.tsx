@@ -717,8 +717,11 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             if (r710Response.ok) {
               const r710Data = await r710Response.json()
               if (r710Data.menuItems && r710Data.menuItems.length > 0) {
+                // Admin-issued (long-term, zero-fee) configs never appear in the
+                // regular product grid — issuable only via the admin
+                // "Issue Long-Term Access" panel (MBM-274).
                 loadedWifiTokens = r710Data.menuItems
-                  .filter((item: any) => item.isActive && item.tokenConfig?.isActive)
+                  .filter((item: any) => item.isActive && item.tokenConfig?.isActive && !item.tokenConfig?.isAdminIssued)
                   .map((item: any) => {
                     const config = item.tokenConfig
                     return {

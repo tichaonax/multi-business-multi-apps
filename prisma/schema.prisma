@@ -4387,6 +4387,7 @@ model R710TokenConfigs {
   autoGenerateQuantity           Int                          @default(20)
   isActive                       Boolean                      @default(true)
   displayOrder                   Int                          @default(0)
+  isAdminIssued                  Boolean                      @default(false)
   createdAt                      DateTime                     @default(now())
   updatedAt                      DateTime                     @default(now()) @updatedAt
   r710_business_token_menu_items R710BusinessTokenMenuItems[]

@@ -43,6 +43,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Admin-issued (long-term, zero-fee) configs are only issuable via the
+    // dedicated /api/r710/tokens/issue-admin endpoint (MBM-274).
+    const tokenConfig = await prisma.r710TokenConfigs.findUnique({
+      where: { id: tokenConfigId },
+      select: { isAdminIssued: true }
+    })
+    if (tokenConfig?.isAdminIssued) {
+      return NextResponse.json(
+        { error: 'This WiFi package is admin-issued only and cannot be sold through Direct Sale' },
+        { status: 400 }
+      )
+    }
+
     // Use shared utility to generate and sell token
     const result = await generateAndSellR710Token({
       businessId,

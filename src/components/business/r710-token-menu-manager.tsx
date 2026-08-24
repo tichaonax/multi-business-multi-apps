@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { formatCurrency } from '@/lib/format-currency'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { generateWifiFlierPdf, WifiFlierData } from '@/lib/wifi-flier-pdf'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { AdminTokenIssuer } from '@/components/business/r710-admin-token-issuer'
 
 interface TokenConfig {
   id: string
@@ -14,6 +16,7 @@ interface TokenConfig {
   deviceLimit: number
   basePrice: number
   isActive: boolean
+  isAdminIssued?: boolean
   availableQuantity?: number
 }
 
@@ -34,10 +37,13 @@ interface R710TokenMenuManagerProps {
 
 export function R710TokenMenuManager({ businessId, businessType }: R710TokenMenuManagerProps) {
   const alert = useAlert()
+  const { isSystemAdmin, isBusinessOwner } = useBusinessPermissionsContext()
+  const isBusinessAdmin = isSystemAdmin || isBusinessOwner
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   const [tokenConfigs, setTokenConfigs] = useState<TokenConfig[]>([])
+  const [adminIssuedConfigs, setAdminIssuedConfigs] = useState<TokenConfig[]>([])
   const [businessMenuItems, setBusinessMenuItems] = useState<BusinessTokenMenuItem[]>([])
   const [editingPrices, setEditingPrices] = useState<Record<string, string>>({})
   const [showFlierModal, setShowFlierModal] = useState(false)
@@ -67,10 +73,14 @@ export function R710TokenMenuManager({ businessId, businessType }: R710TokenMenu
         if (unit.includes('hour')) return v * 60
         return v
       }
-      const activeConfigs = (configsData.configs || [])
+      const allActiveConfigs: TokenConfig[] = (configsData.configs || [])
         .filter((c: TokenConfig) => c.isActive)
         .sort((a: TokenConfig, b: TokenConfig) => toMins(a.durationValue, a.durationUnit) - toMins(b.durationValue, b.durationUnit))
+      // Admin-issued (long-term, zero-fee) configs never go through the
+      // regular menu toggle — they get their own issuance panel (MBM-274).
+      const activeConfigs = allActiveConfigs.filter(c => !c.isAdminIssued)
       setTokenConfigs(activeConfigs)
+      setAdminIssuedConfigs(allActiveConfigs.filter(c => c.isAdminIssued))
 
       // Fetch available quantities for each config
       await fetchAvailableQuantities(activeConfigs)
@@ -291,7 +301,7 @@ export function R710TokenMenuManager({ businessId, businessType }: R710TokenMenu
     )
   }
 
-  if (tokenConfigs.length === 0) {
+  if (tokenConfigs.length === 0 && adminIssuedConfigs.length === 0) {
     return (
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
         <h3 className="font-medium text-blue-900 mb-2">No Token Configurations</h3>
@@ -310,6 +320,23 @@ export function R710TokenMenuManager({ businessId, businessType }: R710TokenMenu
 
   return (
     <div className="space-y-6">
+      {/* Admin-Issued Long-Term Access (MBM-274) — only visible to a system
+          admin or this business's owner; the real gate is server-side on
+          /api/r710/tokens/issue-admin, this is just UX. */}
+      {isBusinessAdmin && adminIssuedConfigs.length > 0 && (
+        <>
+          <AdminTokenIssuer businessId={businessId} configs={adminIssuedConfigs} />
+          <a
+            href={`/${businessType === 'vehicle_service' ? 'vehicle-service' : businessType}/r710-tokens/admin-issued`}
+            className="inline-block text-sm text-purple-700 dark:text-purple-400 hover:underline"
+          >
+            📊 View Admin-Issued Tokens Report →
+          </a>
+        </>
+      )}
+
+      {tokenConfigs.length === 0 ? null : (
+      <>
       {/* Instructions */}
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
         <div className="flex items-start justify-between gap-4">
@@ -486,6 +513,8 @@ export function R710TokenMenuManager({ businessId, businessType }: R710TokenMenu
           )
         })}
       </div>
+      </>
+      )}
     </div>
   )
 }

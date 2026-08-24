@@ -978,8 +978,11 @@ function GroceryPOSContent() {
 
                       console.log('✅ R710 availability map:', r710AvailabilityMap)
 
+                      // Admin-issued (long-term, zero-fee) configs never appear in the
+                      // regular product grid — issuable only via the admin
+                      // "Issue Long-Term Access" panel (MBM-274).
                       const r710TokenPOSItems = r710MenuItems
-                        .filter((item: any) => item.isActive)
+                        .filter((item: any) => item.isActive && !item.tokenConfig?.isAdminIssued)
                         .map((item: any) => ({
                           id: `r710-token-${item.id}`,
                           name: `📶 ${item.tokenConfig.name}`,
