@@ -4109,22 +4109,33 @@ Go to **R710 Portal → Sales History** to see:
 
 **Who reads this:** System administrators and business owners.
 
-Normal WiFi tokens are meant for customers and expire in hours or days. For **workstations that need to stay connected long-term** (a till, an office PC, a back-office printer), sharing the guest network's admin password with everyone who sets one up is a security risk. Instead, an admin can issue a **long-term, zero-fee token** — up to **5 years (260 weeks)** — as that workstation's own login, without ever exposing the AP password itself.
+Normal WiFi tokens are meant for customers and expire in hours or days. For **workstations that need to stay connected long-term** (a till, an office PC, a back-office printer), sharing the guest network's admin password with everyone who sets one up is a security risk. Instead, an admin can issue a **long-term, zero-fee token** as that workstation's own login, without ever exposing the AP password itself.
+
+> **The real ceiling is 1 year, not longer.** The R710 device's guest-pass validity tops out at **365 days** — this is a hard limit of the router itself, not a setting this app can raise. There is no way to issue a token that genuinely lasts 5 years; the most a workstation credential can be valid for is 1 year, after which it needs to be reissued.
+
+**What actually controls the expiry — two settings, not one:**
+1. The **package's own Duration** (set when creating/editing the package).
+2. The **WLAN's "Token Validity (Days)"** setting (**R710 Portal → WLANs → [that WLAN]**) — this is a per-WLAN ceiling that applies to *every* token issued on it, admin-issued or not. If this is set lower than the package's Duration (e.g. it's still at its default of a few days), **the WLAN setting wins** — the device silently clamps the token to whatever the WLAN allows, regardless of what the package says. Always check this setting is raised (up to 365) before issuing a long-term token, or the token will expire far sooner than expected.
 
 **Setting up a long-term package (one time, System Admin):**
 1. Go to **R710 Portal → Token Configurations → Create** (or edit an existing package).
-2. Set the **Duration** to whatever length is needed — for 5 years, enter **260** and choose **Weeks**.
+2. Set the **Duration** to whatever length is needed, up to **52 weeks (1 year)**.
 3. Set **Base Price** to **$0.00**.
 4. Check **Admin-issued (long-term, zero-fee)**. This is the setting that makes everything below work — it hides the package from the regular POS and Direct Sale screens entirely, and restricts who can hand one out.
 5. Save.
+6. Separately, confirm the WLAN's **Token Validity (Days)** (see above) is set to **365** — otherwise the token will still expire early no matter what Duration was entered on the package.
 
 > A package flagged this way can never be added to a cart or sold like a normal WiFi package, even at $0 — this isn't optional per-cashier behavior, it's enforced by the system regardless of who's logged in.
+
+**Finding an admin-issued package later:** on **R710 Portal → Token Configurations**, packages flagged this way carry a **🔐 Admin-Issued** badge in the top corner of their card, so they don't get lost among the regular packages in the list (they tend to sort toward the end, since they usually have the longest duration).
 
 **Issuing a token to a workstation:**
 1. Go to that business's **R710 Menu Config** page (same place packages are normally toggled on/off for sale).
 2. If the business owns any admin-issued packages, a **🔐 Issue Long-Term Access** panel appears at the top — but only if you're logged in as a System Admin or that business's owner. Anyone else won't see this panel at all, even though they can see the rest of the page.
 3. Click **Issue "[package name]"** for the package you want.
 4. The credentials (network name, username, password, expiry date) appear on screen once, with a **📋 Copy** button. Enter these directly into the workstation's WiFi settings.
+
+> **Need to change the package itself** (duration, price, description)? Click **✏️ Edit Package** right next to the Issue button in this same panel — it jumps straight to that package's settings in R710 Portal → Token Configurations. This link only appears for System Admins, since editing any package (admin-issued or not) has always been a System Admin-only action in this app. Editing the package only affects *future* tokens issued from it — an already-issued token's credentials and expiry are fixed on the device and can't be changed after the fact (see Revoking below).
 
 > Credentials are shown only once at issuance time — there's no receipt printed and no customer-facing step, since this isn't a sale. If you need to see them again later, they're not retrievable in plaintext after this point (same as any other WiFi token) — you'd need to revoke and re-issue.
 
@@ -6086,6 +6097,8 @@ DIRECT SALE (not via POS)
 
 ADMIN-ISSUED LONG-TERM TOKEN (workstations, not customers)
   Package must be flagged "Admin-issued" + $0 price
+  Max 1 year (365 days) — R710 device hard limit, not adjustable
+  Check WLAN's own "Token Validity (Days)" too — it can override the package
   [Business] → R710 Menu Config → 🔐 Issue Long-Term Access
   System Admin or that business's owner only
   Revoke = Invalidate (blocks device's MAC if connected)

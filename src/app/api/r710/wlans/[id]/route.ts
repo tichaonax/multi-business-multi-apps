@@ -122,6 +122,8 @@ export async function PUT(
       return NextResponse.json({ error: 'SSID cannot be empty' }, { status: 400 });
     }
 
+    // 365 is the R710's real device-side ceiling for guest pass validity —
+    // confirmed not raisable further (see MBM-274 discussion).
     if (validDays !== undefined && (validDays < 1 || validDays > 365)) {
       return NextResponse.json({ error: 'Valid days must be between 1 and 365' }, { status: 400 });
     }

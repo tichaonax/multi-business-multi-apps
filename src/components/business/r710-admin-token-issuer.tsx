@@ -2,7 +2,8 @@
 
 /**
  * Admin-only panel for issuing long-term, zero-fee R710 WiFi tokens
- * (e.g. a 5-year workstation credential) — MBM-274.
+ * (e.g. a 1-year workstation credential — the R710's own guest-pass
+ * validity cap tops out at 365 days) — MBM-274.
  *
  * Only rendered by R710TokenMenuManager when the current user is a system
  * admin or this business's owner, and only lists configs flagged
@@ -11,6 +12,7 @@
  */
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useAlert } from '@/components/ui/confirm-modal'
 
 interface AdminIssuableConfig {
@@ -33,9 +35,12 @@ interface IssuedCredential {
 interface AdminTokenIssuerProps {
   businessId: string
   configs: AdminIssuableConfig[]
+  /** Edit Package links only work for system admins — /r710-portal/token-configs/[id]
+   *  redirects everyone else away, so they're hidden rather than shown as a dead end. */
+  canEditConfig?: boolean
 }
 
-export function AdminTokenIssuer({ businessId, configs }: AdminTokenIssuerProps) {
+export function AdminTokenIssuer({ businessId, configs, canEditConfig }: AdminTokenIssuerProps) {
   const alert = useAlert()
   const [issuing, setIssuing] = useState<string | null>(null)
   const [issued, setIssued] = useState<IssuedCredential | null>(null)
@@ -102,16 +107,25 @@ export function AdminTokenIssuer({ businessId, configs }: AdminTokenIssuerProps)
         it directly to the device instead of sharing the AP password.
       </p>
 
-      <div className="flex flex-wrap gap-2 mb-2">
+      <div className="flex flex-col gap-2 mb-2">
         {configs.map(config => (
-          <button
-            key={config.id}
-            onClick={() => handleIssue(config)}
-            disabled={issuing !== null}
-            className="px-3 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {issuing === config.id ? 'Issuing…' : `Issue "${config.name}" (${formatDuration(config.durationValue, config.durationUnit)})`}
-          </button>
+          <div key={config.id} className="flex items-center gap-2">
+            <button
+              onClick={() => handleIssue(config)}
+              disabled={issuing !== null}
+              className="px-3 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {issuing === config.id ? 'Issuing…' : `Issue "${config.name}" (${formatDuration(config.durationValue, config.durationUnit)})`}
+            </button>
+            {canEditConfig && (
+              <Link
+                href={`/r710-portal/token-configs/${config.id}`}
+                className="px-3 py-2 border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-400 text-sm rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/40"
+              >
+                ✏️ Edit Package
+              </Link>
+            )}
+          </div>
         ))}
       </div>
 

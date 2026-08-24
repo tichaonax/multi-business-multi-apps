@@ -338,7 +338,8 @@ function WLANDetailContent({ id }: { id: string }) {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  How many days tokens remain valid
+                  How many days tokens remain valid — this caps every token on this WLAN,
+                  including admin-issued long-term ones. 365 (1 year) is the device's real maximum.
                 </p>
               </div>
 

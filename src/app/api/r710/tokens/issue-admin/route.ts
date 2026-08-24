@@ -1,8 +1,9 @@
 /**
  * R710 Admin-Issued Long-Term Token API
  *
- * Issues a zero-fee, long-duration WiFi token (e.g. a 5-year workstation
- * credential) so admins can stop sharing the AP password directly.
+ * Issues a zero-fee, long-duration WiFi token (up to 1 year — the R710's
+ * own guest-pass validity cap tops out at 365 days) so admins can stop
+ * sharing the AP password directly.
  * Restricted to: system admins, or the business-owner of the target
  * business — and only for token configs explicitly flagged isAdminIssued.
  * See ai-contexts/project-plans/review/projectplan-MBM-274-r710-admin-long-term-tokens-2026-08-24.md

@@ -325,7 +325,7 @@ export function R710TokenMenuManager({ businessId, businessType }: R710TokenMenu
           /api/r710/tokens/issue-admin, this is just UX. */}
       {isBusinessAdmin && adminIssuedConfigs.length > 0 && (
         <>
-          <AdminTokenIssuer businessId={businessId} configs={adminIssuedConfigs} />
+          <AdminTokenIssuer businessId={businessId} configs={adminIssuedConfigs} canEditConfig={isSystemAdmin} />
           <a
             href={`/${businessType === 'vehicle_service' ? 'vehicle-service' : businessType}/r710-tokens/admin-issued`}
             className="inline-block text-sm text-purple-700 dark:text-purple-400 hover:underline"

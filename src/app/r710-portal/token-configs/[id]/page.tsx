@@ -365,6 +365,8 @@ function EditTokenConfigContent() {
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Never appears in the regular POS product grid or Direct Sale. Only issuable by a
                 system admin or that business's owner from the "Issue Long-Term Access" panel.
+                Note: the WLAN's own "Token Validity (Days)" setting caps every token at 365 days
+                max, regardless of the duration entered here.
               </p>
             </label>
           </div>

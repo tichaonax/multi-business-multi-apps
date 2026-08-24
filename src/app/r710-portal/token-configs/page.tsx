@@ -24,6 +24,7 @@ interface TokenConfig {
   autoGenerateQuantity: number
   displayOrder: number
   isActive: boolean
+  isAdminIssued?: boolean
   inventory?: {
     available: number
     sold: number
@@ -179,11 +180,18 @@ function TokenConfigsContent() {
                       <p className="text-blue-100 text-sm">{config.description}</p>
                     )}
                   </div>
-                  {!config.isActive && (
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-700">
-                      Inactive
-                    </span>
-                  )}
+                  <div className="flex flex-col items-end gap-1">
+                    {config.isAdminIssued && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-200 text-purple-800">
+                        🔐 Admin-Issued
+                      </span>
+                    )}
+                    {!config.isActive && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-700">
+                        Inactive
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Price */}
