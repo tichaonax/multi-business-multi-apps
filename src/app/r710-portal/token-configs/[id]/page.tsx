@@ -88,8 +88,8 @@ function EditTokenConfigContent() {
         durationUnit: config.durationUnit || 'hour_Hours',
         deviceLimit: config.deviceLimit || 1,
         basePrice: config.basePrice || 0,
-        autoGenerateThreshold: config.autoGenerateThreshold || 5,
-        autoGenerateQuantity: config.autoGenerateQuantity || 20,
+        autoGenerateThreshold: config.autoGenerateThreshold ?? 5,
+        autoGenerateQuantity: config.autoGenerateQuantity ?? 20,
         displayOrder: config.displayOrder || 0,
         isActive: config.isActive !== false,
         isAdminIssued: config.isAdminIssued === true
