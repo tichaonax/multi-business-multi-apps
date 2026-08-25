@@ -109,7 +109,7 @@ export function Sidebar() {
   // Get global cart for real-time sidebar badge updates
   const { getCartItemCount: getGlobalCartCount } = useGlobalCart()
 
-  const { isElectron, status: scaleStatus } = useScale()
+  const { isAvailable: isScaleAvailable, status: scaleStatus } = useScale()
   // Always show Livestock Purchase — the page handles scale setup when not connected
   const showLivestock = true
 
@@ -850,7 +850,7 @@ export function Sidebar() {
                   <Link href="/restaurant/livestock-purchase" className={getLinkClasses('/restaurant/livestock-purchase')}>
                     <span className="text-lg">⚖️</span>
                     <span>Vendor Purchase</span>
-                    {isElectron && scaleStatus.status !== 'connected' && (
+                    {isScaleAvailable && scaleStatus.status !== 'connected' && (
                       <span className="ml-auto w-2 h-2 rounded-full bg-yellow-400 shrink-0" title="Scale not connected" />
                     )}
                   </Link>
@@ -937,7 +937,7 @@ export function Sidebar() {
                   <Link href="/grocery/livestock-purchase" className={getLinkClasses('/grocery/livestock-purchase')}>
                     <span className="text-lg">⚖️</span>
                     <span>Vendor Purchase</span>
-                    {isElectron && scaleStatus.status !== 'connected' && (
+                    {isScaleAvailable && scaleStatus.status !== 'connected' && (
                       <span className="ml-auto w-2 h-2 rounded-full bg-yellow-400 shrink-0" title="Scale not connected" />
                     )}
                   </Link>
@@ -1905,6 +1905,17 @@ export function Sidebar() {
           >
             <span className="text-lg">📶</span>
             <span>R710 WiFi Portal</span>
+          </Link>
+        )}
+
+        {/* Printer Connection Mode (MBM-275) - system admin only, printers are a global resource */}
+        {isSystemAdmin(currentUser) && (
+          <Link
+            href="/admin/network-printers"
+            className={getLinkClasses('/admin/network-printers')}
+          >
+            <span className="text-lg">🖨️</span>
+            <span>Printer Connection Mode</span>
           </Link>
         )}
 

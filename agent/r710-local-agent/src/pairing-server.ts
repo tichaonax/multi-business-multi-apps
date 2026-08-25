@@ -1,17 +1,21 @@
 /**
  * MBM-272: one-time local pairing handshake.
+ * MBM-275: generalized to also accept the workstation-agent pairing (scale
+ * + printer relay) on the same port/endpoint, distinguished by a
+ * `pairingType` field — one pairing server, either or both capabilities.
  *
  * While unpaired, the agent listens on 127.0.0.1 only (never the LAN) for a
  * single POST /pair call from the browser open on this same workstation —
  * the browser already holds an authenticated app session and fetched a
  * fresh agent token from the central server on the admin's behalf. Nothing
- * is ever typed by hand. Once a pairing succeeds, this listener shuts
- * itself down permanently for the life of the process, closing the window
- * during which anything else on the machine could attempt to pair it.
+ * is ever typed by hand. A pairing type only shuts down once it succeeds;
+ * if only one of the two types has paired so far, the server stays up so
+ * the other can still be paired later without restarting the agent.
  */
 
 import { createServer, type Server } from 'http'
 import { saveConfig, type AgentConfig } from './config'
+import { saveWorkstationConfig, type WorkstationAgentConfig } from './workstation-config'
 
 export const PAIRING_PORT = 47710
 
@@ -28,7 +32,12 @@ function withCors(res: import('http').ServerResponse): void {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 }
 
-export function startPairingServer(onPaired: (config: AgentConfig) => void): Server {
+export interface PairingCallbacks {
+  onR710Paired: (config: AgentConfig) => void
+  onWorkstationPaired: (config: WorkstationAgentConfig) => void
+}
+
+export function startPairingServer(callbacks: PairingCallbacks): Server {
   const server = createServer((req, res) => {
     withCors(res)
 
@@ -53,7 +62,32 @@ export function startPairingServer(onPaired: (config: AgentConfig) => void): Ser
     req.on('data', (chunk) => { body += chunk })
     req.on('end', () => {
       try {
-        const parsed = JSON.parse(body) as Partial<AgentConfig>
+        const parsed = JSON.parse(body) as Partial<AgentConfig> & Partial<WorkstationAgentConfig> & { pairingType?: 'r710' | 'workstation' }
+
+        // Default 'r710' — the admin UI predating MBM-275 never sends
+        // pairingType at all, and must keep pairing R710 devices exactly
+        // as before.
+        const pairingType = parsed.pairingType || 'r710'
+
+        if (pairingType === 'workstation') {
+          if (!parsed.serverUrl || !parsed.agentToken || !parsed.workstationAgentId || !parsed.label) {
+            res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Missing fields' }))
+            return
+          }
+          const config: WorkstationAgentConfig = {
+            serverUrl: parsed.serverUrl,
+            agentToken: parsed.agentToken,
+            workstationAgentId: parsed.workstationAgentId,
+            label: parsed.label,
+            ...(parsed.caCert ? { caCert: parsed.caCert } : {}),
+          }
+          saveWorkstationConfig(config)
+          res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true }))
+          server.close()
+          callbacks.onWorkstationPaired(config)
+          return
+        }
+
         if (!parsed.serverUrl || !parsed.agentToken || !parsed.deviceRegistryId || !parsed.label) {
           res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Missing fields' }))
           return
@@ -72,7 +106,7 @@ export function startPairingServer(onPaired: (config: AgentConfig) => void): Ser
 
         // Stop accepting further pairing attempts — this process is paired now.
         server.close()
-        onPaired(config)
+        callbacks.onR710Paired(config)
       } catch {
         res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Invalid request body' }))
       }

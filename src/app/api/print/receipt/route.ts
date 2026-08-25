@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     // rawEscPos shortcut: pre-built ESC/POS bytes (base64), skips template generation
     if (data.rawEscPos) {
-      const { printRawData } = await import('@/lib/printing/windows-raw-printer');
+      const { printViaConnectionMode } = await import('@/lib/printing/print-dispatch');
       const { checkPrinterConnectivity } = await import('@/lib/printing/printer-service');
       const { prisma } = await import('@/lib/prisma');
       const { queuePrintJob, markJobAsProcessing, markJobAsCompleted, markJobAsFailed } = await import('@/lib/printing/print-job-queue');
@@ -85,10 +85,15 @@ export async function POST(request: NextRequest) {
       await markJobAsProcessing(printJob.id);
 
       try {
-        const isOnline = await checkPrinterConnectivity(printer.id);
-        if (!isOnline) throw new Error(`Printer "${printer.printerName}" is offline`);
+        // Connectivity check is DIRECT-mode only — an AGENT-mode printer's
+        // "online" state is whatever the paired workstation reports at
+        // dispatch time, not something the server can check independently.
+        if (printer.connectionMode !== 'AGENT') {
+          const isOnline = await checkPrinterConnectivity(printer.id);
+          if (!isOnline) throw new Error(`Printer "${printer.printerName}" is offline`);
+        }
         const printContent = Buffer.from(data.rawEscPos, 'base64').toString('binary');
-        await printRawData(printContent, { printerName: printer.printerName, copies: 1 });
+        await printViaConnectionMode(printer, printContent, 1, user.id);
         await markJobAsCompleted(printJob.id);
         return NextResponse.json({ success: true, jobId: printJob.id });
       } catch (err: any) {
@@ -242,7 +247,7 @@ export async function POST(request: NextRequest) {
 
     // IMMEDIATELY print the receipt (don't wait for queue worker)
     try {
-      const { printRawData } = await import('@/lib/printing/windows-raw-printer');
+      const { printViaConnectionMode } = await import('@/lib/printing/print-dispatch');
       const { checkPrinterConnectivity } = await import('@/lib/printing/printer-service');
       const { markJobAsProcessing, markJobAsCompleted, markJobAsFailed } = await import('@/lib/printing/print-job-queue');
       const { prisma } = await import('@/lib/prisma');
@@ -264,11 +269,14 @@ export async function POST(request: NextRequest) {
 
       console.log(`📄 Printing to: ${printer.printerName}`);
 
-      // Check printer connectivity
-      const isOnline = await checkPrinterConnectivity(printer.id);
-      if (!isOnline) {
-        console.error(`❌ Printer offline: ${printer.printerName}`);
-        throw new Error(`Printer "${printer.printerName}" is offline or unreachable`);
+      // Check printer connectivity — DIRECT-mode only, see the rawEscPos
+      // branch above for why AGENT-mode skips this.
+      if (printer.connectionMode !== 'AGENT') {
+        const isOnline = await checkPrinterConnectivity(printer.id);
+        if (!isOnline) {
+          console.error(`❌ Printer offline: ${printer.printerName}`);
+          throw new Error(`Printer "${printer.printerName}" is offline or unreachable`);
+        }
       }
 
       // Decode receipt text from base64
@@ -277,11 +285,9 @@ export async function POST(request: NextRequest) {
 
       console.log(`📊 Print content size: ${printContent.length} bytes`);
 
-      // Send to printer using Windows RAW printer service
-      await printRawData(printContent, {
-        printerName: printer.printerName,
-        copies: printJobData.copies || 1,
-      });
+      // Send to printer — DIRECT (unchanged Windows Spooler call) or AGENT
+      // (relayed to the paired workstation), per printer.connectionMode.
+      await printViaConnectionMode(printer, printContent, printJobData.copies || 1, user.id);
 
       // Mark job as completed
       await markJobAsCompleted(printJob.id);

@@ -13,6 +13,7 @@ import { parse } from 'url'
 import next from 'next'
 import { initSocketServer } from './src/lib/customer-display/socket-server'
 import { r710AgentHub } from './src/lib/r710/agent-hub'
+import { workstationAgentHub } from './src/lib/workstation-agents/agent-hub'
 import { startAutoGenerateScheduler } from './src/lib/r710/auto-generate-scheduler'
 
 const dev = process.env.NODE_ENV !== 'production'
@@ -71,6 +72,10 @@ app.prepare().then(() => {
   // MBM-272: R710 remote agents dial out and connect on this same Socket.io
   // instance (no separate port/server needed).
   r710AgentHub.attach(io)
+
+  // MBM-275: workstation agents (scale + printer relay) — a separate
+  // pairing from R710's, same shared Socket.io instance.
+  workstationAgentHub.attach(io)
 
   // Keeps every business's WiFi token pool topped up automatically —
   // previously existed as dead code with no scheduler ever calling it.

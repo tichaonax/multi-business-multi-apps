@@ -9,5 +9,5 @@
     "noEmit": true,
     "resolveJsonModule": true
   },
-  "include": ["src/**/*.ts", "../../src/services/ruckus-r710-api.ts"]
+  "include": ["src/**/*.ts", "../../src/services/ruckus-r710-api.ts", "../../src/lib/printing/windows-raw-printer.ts"]
 }

@@ -285,7 +285,7 @@ function ScaleMeatPanel({ onCapture, capturedSizes }: {
   onCapture: (sizeName: string, kg: number) => void
   capturedSizes: Record<string, string>
 }) {
-  const { weight, status, tare, isElectron } = useScale()
+  const { weight, status, tare, isAvailable } = useScale()
   const [panelStep, setPanelStep] = useState<'tare' | 'reading'>('tare')
   const [activeSize, setActiveSize] = useState('small')
   const tareTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -309,7 +309,7 @@ function ScaleMeatPanel({ onCapture, capturedSizes }: {
     return () => { if (tareTimerRef.current) { clearTimeout(tareTimerRef.current); tareTimerRef.current = null } }
   }, [panelStep, isStable, liveWeight, doTare])
 
-  if (!isElectron || !connected) return null
+  if (!isAvailable || !connected) return null
 
   return (
     <div className="mt-3 border border-blue-200 dark:border-blue-700 rounded-lg p-3 bg-blue-50 dark:bg-blue-950/30">
@@ -398,7 +398,7 @@ function ComboModal({
   const [saving, setSaving] = useState(false)
   const [showScalePanel, setShowScalePanel] = useState(false)
   const toast = useToastContext()
-  const { isElectron, isConnected } = useScale()
+  const { isAvailable, isConnected } = useScale()
 
   const toggleItem = (id: string) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
@@ -488,7 +488,7 @@ function ComboModal({
                 ))}
               </div>
               {/* Optional scale-assisted meat threshold entry */}
-              {isElectron && isConnected && (
+              {isAvailable && isConnected && (
                 <div className="mt-2">
                   <button type="button" onClick={() => setShowScalePanel(p => !p)}
                     className="text-xs text-blue-600 dark:text-blue-400 hover:underline">

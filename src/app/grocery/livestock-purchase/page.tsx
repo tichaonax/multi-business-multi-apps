@@ -19,7 +19,7 @@ const TABS: { key: PurchaseType; label: string; emoji: string; description: stri
 
 export default function GroceryLivestockPurchasePage() {
   const { currentBusinessId, currentBusiness } = useBusinessPermissionsContext()
-  const { isElectron, isConnected } = useScale()
+  const { isAvailable, isConnected } = useScale()
   const [showWizard, setShowWizard] = useState(false)
   const [activeTab, setActiveTab] = useState<PurchaseType>('LIVESTOCK')
   const [historyKey, setHistoryKey] = useState(0)
@@ -34,8 +34,8 @@ export default function GroceryLivestockPurchasePage() {
     )
   }
 
-  // In Electron: scale must be connected to weigh
-  if (isElectron && !isConnected) {
+  // Scale must be connected to weigh, whether it's Electron-local or agent-relayed
+  if (isAvailable && !isConnected) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6">
         <div className="mb-6 flex items-center gap-4">

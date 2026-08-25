@@ -13,6 +13,11 @@
  * `systray2` spawns a small prebuilt native helper process rather than
  * shipping a compiled Node addon, so it's left external (not bundled) and
  * copied alongside the .exe — see the packaging-risk note in the plan.
+ *
+ * MBM-275: `serialport` (via @serialport/bindings-cpp) ships a prebuilt
+ * native .node addon (win32-x64), same story — external, copied whole
+ * rather than bundled, so node-gyp-build can still resolve the prebuilt
+ * binary relative to the package's own on-disk location at runtime.
  */
 
 import { build } from 'esbuild'
@@ -55,16 +60,19 @@ async function main() {
     outfile: join(distDir, 'bundle.js'),
     // Native/spawned-helper packages stay external — bundling them as JS
     // would break their runtime binary-resolution logic.
-    external: ['systray2'],
+    external: ['systray2', 'serialport'],
   })
 
-  // systray2 (external, has native helper binaries) and its runtime
-  // dependency closure must travel alongside the bundle since none of it is
-  // inlined by esbuild.
+  // systray2 and serialport (both external, both have native binaries) plus
+  // their runtime dependency closures must travel alongside the bundle
+  // since none of it is inlined by esbuild.
   const nodeModulesDir = join(__dirname, 'node_modules')
-  const systrayClosure = collectDependencyClosure('systray2', nodeModulesDir)
-  console.log(`[build] Copying systray2 + runtime deps: ${[...systrayClosure].join(', ')}`)
-  for (const pkgName of systrayClosure) {
+  const nativeClosure = new Set()
+  for (const pkgName of ['systray2', 'serialport']) {
+    collectDependencyClosure(pkgName, nodeModulesDir, nativeClosure)
+  }
+  console.log(`[build] Copying systray2 + serialport + runtime deps: ${[...nativeClosure].join(', ')}`)
+  for (const pkgName of nativeClosure) {
     cpSync(join(nodeModulesDir, pkgName), join(distDir, 'node_modules', pkgName), { recursive: true })
   }
 

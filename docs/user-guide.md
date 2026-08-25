@@ -34,6 +34,7 @@
     - [Admin-Issued Long-Term Tokens (Workstation Access)](#admin-issued-long-term-tokens-workstation-access)
     - [Device Registry — Admin Setup & Fixing a Mixed-Up IP Address](#device-registry--admin-setup--fixing-a-mixed-up-ip-address)
     - [Remote Sites — R710 via Local Agent](#remote-sites--r710-via-local-agent)
+    - [The Same Agent Now Also Relays a Scale and a Printer (MBM-275)](#the-same-agent-now-also-relays-a-scale-and-a-printer-mbm-275)
 14. [Inventory & Barcode Labels](#14-inventory--barcode-labels)
     - [Predefined Domains & Category Taxonomy](#predefined-domains-categories--sub-categories--all-business-types)
     - [Custom Bulk Products](#custom-bulk-products--complete-guide)
@@ -140,6 +141,7 @@
     - [Restore Progress & Warnings](#restore-progress--warnings)
 53. [Scale Integration — Star Micronics MG-S8200](#53-scale-integration--star-micronics-mg-s8200)
     - [Connecting the Scale](#connecting-the-scale)
+    - [Remote Workstation Scale (MBM-275)](#remote-workstation-scale-mbm-275)
     - [Scale Status Panel — Live Weight Display](#scale-status-panel--live-weight-display)
     - [Scale Integration Toggle (Enable / Disable)](#scale-integration-toggle-enable--disable)
     - [POS Settings — Scale & Weighing Tab](#pos-settings--scale--weighing-tab)
@@ -4229,6 +4231,37 @@ Normally the application server talks to an R710 device directly over the local 
 
 ---
 
+#### The Same Agent Now Also Relays a Scale and a Printer (MBM-275)
+
+**Who reads this:** System administrators and business owners setting up a workstation whose MG-S8200 scale or receipt printer is not physically attached to the machine running the application server.
+
+The `r710-agent.exe` downloaded above is not R710-only — the exact same program, the exact same download, can independently carry **two separate pairings** at once:
+- The **R710 pairing** described above (per-device, from a device's own Agent panel).
+- A **Workstation pairing**, which relays that workstation's MG-S8200 scale and/or its locally-installed receipt printer back to the app, the same way the R710 pairing relays a WiFi device.
+
+A workstation only needs one download and one running `r710-agent.exe` no matter how many of R710 / Scale / Printer it ends up covering — pair it for whichever it has attached. A workstation with only a scale never touches the R710 pairing at all, and vice versa.
+
+**Pairing a workstation for Scale and/or Printer:**
+1. Go to **Settings → POS Settings → ⚖️ Scale & Weighing**, then follow the **"Workstation Agents"** link near the bottom of the Scale Hardware section (or go directly to `/admin/workstation-agents` for the current business).
+2. With the local agent already downloaded and running on the target workstation (see the download/install steps above — same file, same steps), open this page **from that workstation** and click **Pair this machine**, giving it a label like "Front Desk PC — Bulawayo Branch".
+3. Once paired, use the same page's **MG-S8200 Scale Setup** section to pick the COM port (with a **List Ports** button, and a **Detect Baud** button so you don't have to know the scale's baud rate) and save — see Section 53 for the full weighing workflow once this is done.
+4. For printers, a **system admin** configures which printer relays through which paired workstation separately, at **Printer Connection Mode** in the sidebar (`/admin/network-printers`) — see Section 26 for details. This is a different, admin-only screen because printers in this app are a shared resource, not owned by one business.
+
+**The tray icon now shows three status lines, not one** — hover over it (or right-click for the same detail in the menu):
+| Line | What it means |
+|---|---|
+| **R710** | Same meaning as the "Using the Agent panel day-to-day" status above |
+| **Printer relay** | Whether this workstation's printer-relay pairing is currently reachable by the server. Print jobs can only be relayed while this shows Ready. |
+| **Scale** | The physical scale's own connection state (Connected on COMx / Not connected / Error) — sourced directly from the scale hardware itself, so it stays accurate even if, separately, the Printer relay line shows offline. |
+
+**Recent Activity** for the Scale/Printer pairing works the same way as R710's — click **Recent Activity** next to a paired workstation on the Workstation Agents page to see its last 50 scale/print jobs, who requested each one, how long it took, and any error.
+
+**Offline behavior**: if the workstation's agent is offline, a scale connection attempt or a relayed print job fails with a clear "the local agent is offline — contact IT" message rather than a silent failure or a generic error, matching the R710 pairing's existing behavior described above.
+
+**Nothing about existing setups changes.** A scale connected via the desktop (Electron) app, or a printer already working through QZ Tray or a direct network connection, needs no changes and keeps working exactly as before — the workstation-agent pairing is purely an additional option for hardware that the central server can no longer reach directly.
+
+---
+
 ### ESP32 System — Captive Portal Integration
 
 #### How ESP32 Tokens Work
@@ -7738,6 +7771,24 @@ If a printer is stuck or printing the same job on repeat, open the **Test Print*
 
 ---
 
+### Printer Connection Mode — Remote-Workstation Printing (MBM-275)
+
+**This is a separate, admin-only mechanism from QZ Tray above — most users never touch this page.** QZ Tray (Steps 1–4 above) is per-user: each person's own browser talks to their own installed QZ Tray, which is inherently local to whoever is using it and needs no change when the app server moves. This section covers a different, lower-level path: a shared, business-configured printer that the application **server itself** sends print jobs to directly (used for automatic/background printing, not the per-user QZ Tray flow). If the server moves to a central location and that shared printer is USB-attached to a workstation the server can no longer reach, it needs to be re-pointed through a paired local agent instead.
+
+**Who reads this:** System administrators only. Printers configured here are a shared resource across the whole system, not owned by one business, so this lives in the global admin area rather than per-business settings.
+
+1. A **local agent** must already be paired to the workstation the printer is attached to — see Section 13's **"Remote Sites — R710 via Local Agent"** for the download/install steps, and the **"Same Agent Now Also Relays a Scale and a Printer"** subsection there for pairing it as a Workstation Agent (the same agent download used for R710 and the scale).
+2. Go to **Printer Connection Mode** in the sidebar (`/admin/network-printers`).
+3. Find the printer and click **Configure**.
+4. Choose **AGENT — relay through a paired workstation**, select the paired workstation from the dropdown, then click **List Printers** to pull the actual printer names installed there and pick the correct one — this avoids typos and confirms the agent can actually see that printer.
+5. Click **Save**.
+
+Printers left on **DIRECT** (the default for every printer that existed before this feature) are completely unaffected — this page changes nothing about them.
+
+> **Recent Activity** for a printer's relayed jobs shows up on the **Workstation Agents** page (`/admin/workstation-agents`) under that workstation's own activity log, alongside its scale jobs — there's no separate log per printer.
+
+---
+
 ## 27. Stock Velocity & Reorder Reports
 
 These two reports help grocery and retail businesses understand how quickly products are moving and which items need restocking. Both are available to **all salespersons** — no admin permission required. Access them from **Reports → Fast & Slow Moving Stock** or **Reports → Reorder Suggestions**.
@@ -11073,7 +11124,7 @@ The system supports a **Star Micronics MG-S8200 RS-232 weighing scale** for two 
 1. **Selling by weight** — products priced per kg (e.g. deli meat, loose spices). The scale reading is captured at the POS and the item price is calculated automatically.
 2. **Livestock purchase** — buying live animals from a vendor. Each animal category is weighed in turn, the total is calculated, and an expense payment voucher is printed at the end.
 
-> **Desktop app only.** Scale integration is only available when running the Electron desktop application. It will not appear in a standard browser session.
+> **Two ways to connect the scale.** The steps below cover the original setup — the scale is physically attached to the same PC running the desktop (Electron) app. If the scale is attached to a *different* workstation than wherever the app server runs, see **"Remote Workstation Scale"** further down instead — the scale panel, tap-to-weigh cards, and everything else on this page work identically either way once connected.
 
 ---
 
@@ -11102,6 +11153,21 @@ The selected COM port is saved locally on this PC only — it is not synced to t
 | Red dot | Error — check cable and COM port |
 
 The scale service auto-reconnects every 5 seconds if the cable is briefly disconnected.
+
+---
+
+### Remote Workstation Scale (MBM-275)
+
+Use this instead of the steps above when the scale is attached to a workstation that is **not** the same machine as the application server — for example, the server has moved to a central/cloud location, but the scale still needs to stay at the branch.
+
+1. A **local agent** must already be downloaded and running on the workstation with the scale attached — see **"Remote Sites — R710 via Local Agent"** in Section 13 for the download/install steps (it's the same agent program used for R710; you do not need R710 to use it for a scale).
+2. From that same workstation, open **Settings → POS Settings → ⚖️ Scale & Weighing** and follow the **Workstation Agents** link (or go to `/admin/workstation-agents`), then **Pair this machine**.
+3. Under **MG-S8200 Scale Setup**, pick the workstation you just paired, click **List Ports** to see its available COM ports, select the correct one, and click **Detect Baud** if you don't already know the scale's baud rate.
+4. Click **Save Scale Configuration**. The scale connects automatically from then on — including every time this business is opened in a browser on any machine, not just the one with the scale attached, since the connection is now relayed through the paired workstation.
+
+Everything documented above and below on this page — the scale status panel, tap-to-weigh cards, AYLI weight-based combos (Section 54) — works identically once connected this way. The only difference from the desktop-app path is *how* the connection reaches the physical scale.
+
+**Checking status:** the paired workstation's tray icon shows a live **Scale** status line (Connected on COMx / Not connected / Error) — see Section 13's tray reference. If the scale shows unavailable anywhere in the app, check that workstation's tray icon first.
 
 ---
 

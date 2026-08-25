@@ -50,6 +50,8 @@ export async function GET(request: NextRequest) {
         receiptWidth: true,
         capabilities: true,
         lastSeen: true,
+        connectionMode: true,
+        workstationAgentId: true,
       },
       orderBy: [
         { isOnline: 'desc' }, // Online printers first
@@ -71,6 +73,8 @@ export async function GET(request: NextRequest) {
       receiptWidth: printer.receiptWidth,
       capabilities: printer.capabilities,
       lastSeen: printer.lastSeen,
+      connectionMode: printer.connectionMode,
+      workstationAgentId: printer.workstationAgentId,
     }));
 
     return NextResponse.json({

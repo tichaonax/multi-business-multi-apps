@@ -165,7 +165,13 @@ export function ScaleSettings({ businessId, scaleEnabled = false, onToggleScale 
       {scaleEnabled && !isElectron && (
         <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800/50">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Scale integration is only available in the desktop (Electron) app.
+            This local COM-port setup only applies to the desktop (Electron) app, running on the same
+            machine as the scale. If the scale is attached to a different workstation than the app
+            server, use{' '}
+            <a href="/admin/workstation-agents" className="text-blue-600 dark:text-blue-400 hover:underline">
+              Workstation Agents
+            </a>{' '}
+            instead (MBM-275).
           </p>
         </div>
       )}

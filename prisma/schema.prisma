@@ -413,7 +413,7 @@ model BusinessSuppliers {
 }
 
 model BusinessLocations {
-  id                      String                  @id @default(uuid())
+  id                      String                   @id @default(uuid())
   businessId              String
   locationCode            String
   name                    String
@@ -421,15 +421,15 @@ model BusinessLocations {
   description             String?
   locationType            String?
   capacity                Int?
-  isActive                Boolean                 @default(true)
+  isActive                Boolean                  @default(true)
   parentLocationId        String?
   attributes              Json?
-  createdAt               DateTime                @default(now())
+  createdAt               DateTime                 @default(now())
   updatedAt               DateTime
-  businesses              Businesses              @relation(fields: [businessId], references: [id])
-  parent_location         BusinessLocations?      @relation("LocationHierarchy", fields: [parentLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  child_locations         BusinessLocations[]     @relation("LocationHierarchy")
-  business_products       BusinessProducts[]      @relation("ProductLocation")
+  businesses              Businesses               @relation(fields: [businessId], references: [id])
+  parent_location         BusinessLocations?       @relation("LocationHierarchy", fields: [parentLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  child_locations         BusinessLocations[]      @relation("LocationHierarchy")
+  business_products       BusinessProducts[]       @relation("ProductLocation")
   barcode_inventory_items BarcodeInventoryItems[]
   transfer_items_from     InventoryTransferItems[] @relation("TransferItemSourceLocation")
   transfer_items_to       InventoryTransferItems[] @relation("TransferItemDestinationLocation")
@@ -577,6 +577,8 @@ model Businesses {
   r710_wlans                                                               R710Wlans[]                       @relation("R710WlanToBusiness")
   reprint_logs                                                             ReprintLog[]
   saved_reports                                                            SavedReports[]
+  scale_device_configs                                                     ScaleDeviceConfigs[]              @relation("ScaleDeviceConfigToBusiness")
+  workstation_agents                                                       WorkstationAgents[]               @relation("WorkstationAgentToBusiness")
   seed_data_templates                                                      SeedDataTemplates[]
   sku_sequences                                                            sku_sequences[]
   vehicle_expenses                                                         VehicleExpenses[]
@@ -2199,16 +2201,16 @@ model EmojiLookup {
 }
 
 model Images {
-  id                      String                  @id @default(uuid())
-  data                    Bytes
-  mimeType                String                  @default("image/jpeg")
-  size                    Int
-  expiresAt               DateTime?
-  createdAt               DateTime                @default(now())
-  product_images          ProductImages[]
-  warehouse_items         WarehouseItems[]
-  barcode_inventory_items BarcodeInventoryItems[]
-  display_product_configs DisplayProductConfig[]  @relation("DisplayAdImage")
+  id                       String                   @id @default(uuid())
+  data                     Bytes
+  mimeType                 String                   @default("image/jpeg")
+  size                     Int
+  expiresAt                DateTime?
+  createdAt                DateTime                 @default(now())
+  product_images           ProductImages[]
+  warehouse_items          WarehouseItems[]
+  barcode_inventory_items  BarcodeInventoryItems[]
+  display_product_configs  DisplayProductConfig[]   @relation("DisplayAdImage")
   expense_payment_receipts ExpensePaymentReceipts[] @relation("ReceiptImage")
 
   @@map("images")
@@ -3506,12 +3508,20 @@ model NetworkPrinters {
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @default(now()) @updatedAt
   receiptWidth       Int?               @default(48)
+  // MBM-275: DIRECT (existing behavior — server calls printRawData() itself,
+  // unchanged for every printer that exists today) vs AGENT (new — job is
+  // relayed to the paired workstation agent, which prints locally). Every
+  // pre-existing row defaults to DIRECT; AGENT is opt-in per printer.
+  connectionMode     String             @default("DIRECT")
+  workstationAgentId String?
   barcode_print_jobs BarcodePrintJobs[]
   sync_nodes         SyncNodes          @relation(fields: [nodeId], references: [nodeId])
   print_jobs         PrintJobs[]
+  workstation_agent  WorkstationAgents? @relation(fields: [workstationAgentId], references: [id])
 
   @@index([nodeId])
   @@index([printerType])
+  @@index([workstationAgentId])
   @@map("network_printers")
 }
 
@@ -3588,8 +3598,8 @@ model Users {
   expense_account_payments_as_payee                               ExpenseAccountPayments[]          @relation("ExpensePaymentPayeeUser")
   expense_account_payments_submitted                              ExpenseAccountPayments[]          @relation("ExpensePaymentSubmitter")
   expense_payment_receipts_created                                ExpensePaymentReceipts[]          @relation("ReceiptCreator")
-  expense_payment_receipt_reviews_submitted                       ExpensePaymentReceiptReviews[]     @relation("ReceiptReviewSubmitter")
-  expense_payment_receipt_reviews_reviewed                        ExpensePaymentReceiptReviews[]     @relation("ReceiptReviewReviewer")
+  expense_payment_receipt_reviews_submitted                       ExpensePaymentReceiptReviews[]    @relation("ReceiptReviewSubmitter")
+  expense_payment_receipt_reviews_reviewed                        ExpensePaymentReceiptReviews[]    @relation("ReceiptReviewReviewer")
   expense_accounts_created                                        ExpenseAccounts[]                 @relation("ExpenseAccountCreator")
   expense_account_grants_received                                 ExpenseAccountGrants[]            @relation("ExpenseAccountGrantUser")
   expense_account_grants_given                                    ExpenseAccountGrants[]            @relation("ExpenseAccountGrantGrantor")
@@ -3629,6 +3639,7 @@ model Users {
   r710_remote_agents_paired                                       R710RemoteAgents[]                @relation("R710AgentPairedBy")
   r710_token_sales                                                R710TokenSales[]                  @relation("R710TokenSaleSeller")
   reprint_logs                                                    ReprintLog[]
+  workstation_agents_paired                                       WorkstationAgents[]               @relation("WorkstationAgentPairedBy")
   saved_reports                                                   SavedReports[]
   cash_counted_amendments                                         SavedReports[]                    @relation("CashCountedAmendment")
   seed_data_templates                                             SeedDataTemplates[]
@@ -3645,7 +3656,7 @@ model Users {
   meal_program_transactions_sold                                  MealProgramTransactions[]         @relation("MealProgramSoldByUser")
   meal_program_eligible_items_created                             MealProgramEligibleItems[]        @relation("MealProgramEligibleItemCreator")
   business_orders_created                                         BusinessOrders[]                  @relation("BusinessOrderCreator")
-  business_orders_paid                                             BusinessOrders[]                  @relation("BusinessOrderPayer")
+  business_orders_paid                                            BusinessOrders[]                  @relation("BusinessOrderPayer")
   outgoing_loans_created                                          AccountOutgoingLoans[]            @relation("OutgoingLoanCreator")
   outgoing_loans_contracts_signed                                 AccountOutgoingLoans[]            @relation("OutgoingLoanContractSigner")
   outgoing_loan_payments_recorded                                 AccountOutgoingLoanPayments[]     @relation("OutgoingLoanPaymentRecorder")
@@ -3733,7 +3744,7 @@ model Users {
   vehicle_service_contractor_account                              VehicleServiceContractors?        @relation("VehicleServiceContractorUser")
   vehicle_service_contractors_created                             VehicleServiceContractors[]       @relation("VehicleServiceContractorCreator")
   vehicle_service_jobs_created                                    VehicleServiceJobs[]
-  vehicle_service_labour_rates_created                            VehicleServiceLabourRates[]        @relation("VehicleServiceLabourRateCreator")
+  vehicle_service_labour_rates_created                            VehicleServiceLabourRates[]       @relation("VehicleServiceLabourRateCreator")
   vehicle_service_contractor_payouts_created                      VehicleServiceContractorPayouts[]
   vehicle_service_jobs_released                                   VehicleServiceJobs[]              @relation("VehicleServiceJobReleasedBy")
   vehicle_service_parts_requests_reviewed                         VehicleServicePartsRequests[]     @relation("PartsRequestReviewer")
@@ -4522,25 +4533,101 @@ model R710SyncLogs {
   @@map("r710_sync_logs")
 }
 
-// MBM-272: remote R710 device support via a local agent process (persistent
-// agent<->server channel). One row per paired workstation agent.
-model R710RemoteAgents {
-  id               String                     @id @default(uuid())
-  deviceRegistryId String                     @unique
+// MBM-275: a workstation-local device agent, generalized from the R710
+// agent pattern (MBM-272) to also relay scale and printer access. One row
+// per paired physical workstation — NOT per device, so a single pairing
+// can serve multiple device types on that machine (scale + printer today;
+// R710 pairing is intentionally left on its own R710RemoteAgents row for
+// now, see MBM-275 plan Section 5a, to avoid touching stable R710 code).
+model WorkstationAgents {
+  id               String                           @id @default(uuid())
+  businessId       String
   label            String
   agentTokenHash   String
-  hostLabel        String?
   agentVersion     String?
-  connectionStatus R710AgentConnectionStatus  @default(OFFLINE)
+  connectionStatus WorkstationAgentConnectionStatus @default(OFFLINE)
   lastConnectedAt  DateTime?
   lastSeenAt       DateTime?
   lastError        String?
   pairedBy         String
-  createdAt        DateTime                   @default(now())
+  createdAt        DateTime                         @default(now())
   revokedAt        DateTime?
   revokedBy        String?
-  device_registry  R710DeviceRegistry         @relation(fields: [deviceRegistryId], references: [id], onDelete: Cascade)
-  pairer           Users                      @relation("R710AgentPairedBy", fields: [pairedBy], references: [id])
+  businesses       Businesses                       @relation("WorkstationAgentToBusiness", fields: [businessId], references: [id], onDelete: Cascade)
+  pairer           Users                            @relation("WorkstationAgentPairedBy", fields: [pairedBy], references: [id])
+  scale_configs    ScaleDeviceConfigs[]
+  network_printers NetworkPrinters[]
+  request_logs     WorkstationAgentRequestLog[]
+
+  @@index([businessId])
+  @@index([connectionStatus])
+  @@map("workstation_agents")
+}
+
+// MBM-275 Phase 5: audit trail of every scale/print job dispatched to a
+// workstation agent — mirrors R710AgentRequestLog (src/lib/r710/executors/
+// remote-agent-executor.ts's logAgentRequest()), same rationale: visibility
+// into what was actually asked of a workstation and how it went, for the
+// same "Recent Activity" purpose the R710 Agent panel already has.
+model WorkstationAgentRequestLog {
+  id                 String                    @id @default(uuid())
+  jobId              String                    @unique
+  workstationAgentId String
+  jobType            WorkstationAgentJobType
+  requestedBy        String?
+  status             WorkstationAgentJobStatus
+  durationMs         Int?
+  errorMessage       String?
+  createdAt          DateTime                  @default(now())
+  workstation_agent  WorkstationAgents         @relation(fields: [workstationAgentId], references: [id], onDelete: Cascade)
+
+  @@index([workstationAgentId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("workstation_agent_request_logs")
+}
+
+// MBM-275: per-business scale configuration for a workstation-agent-relayed
+// MG-S8200. A row here always means AGENT mode (relayed through a paired
+// WorkstationAgents) — the existing Electron-local (DIRECT) path continues
+// to use electron-store + Businesses.settings.scaleConfig unchanged, and
+// never creates a row here.
+model ScaleDeviceConfigs {
+  id                 String            @id @default(uuid())
+  businessId         String
+  workstationAgentId String
+  comPort            String?
+  baudRate           Int?
+  isActive           Boolean           @default(true)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @default(now()) @updatedAt
+  businesses         Businesses        @relation("ScaleDeviceConfigToBusiness", fields: [businessId], references: [id], onDelete: Cascade)
+  workstation_agent  WorkstationAgents @relation(fields: [workstationAgentId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([workstationAgentId])
+  @@map("scale_device_configs")
+}
+
+// MBM-272: remote R710 device support via a local agent process (persistent
+// agent<->server channel). One row per paired workstation agent.
+model R710RemoteAgents {
+  id               String                    @id @default(uuid())
+  deviceRegistryId String                    @unique
+  label            String
+  agentTokenHash   String
+  hostLabel        String?
+  agentVersion     String?
+  connectionStatus R710AgentConnectionStatus @default(OFFLINE)
+  lastConnectedAt  DateTime?
+  lastSeenAt       DateTime?
+  lastError        String?
+  pairedBy         String
+  createdAt        DateTime                  @default(now())
+  revokedAt        DateTime?
+  revokedBy        String?
+  device_registry  R710DeviceRegistry        @relation(fields: [deviceRegistryId], references: [id], onDelete: Cascade)
+  pairer           Users                     @relation("R710AgentPairedBy", fields: [pairedBy], references: [id])
   request_logs     R710AgentRequestLog[]
 
   @@index([connectionStatus])
@@ -4550,18 +4637,18 @@ model R710RemoteAgents {
 // MBM-272: audit trail of every job dispatched to a remote agent (both
 // checkout-triggered and background jobs).
 model R710AgentRequestLog {
-  id                String              @id @default(uuid())
-  jobId             String              @unique
-  agentId           String
-  deviceRegistryId  String
-  jobType           R710AgentJobType
-  requestedBy       String?
-  status            R710AgentJobStatus
-  durationMs        Int?
-  resultTokenId     String?
-  errorMessage      String?
-  createdAt         DateTime            @default(now())
-  agent             R710RemoteAgents    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  id               String             @id @default(uuid())
+  jobId            String             @unique
+  agentId          String
+  deviceRegistryId String
+  jobType          R710AgentJobType
+  requestedBy      String?
+  status           R710AgentJobStatus
+  durationMs       Int?
+  resultTokenId    String?
+  errorMessage     String?
+  createdAt        DateTime           @default(now())
+  agent            R710RemoteAgents   @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
   @@index([agentId])
   @@index([deviceRegistryId])
@@ -5358,6 +5445,34 @@ enum R710ConnectionStatus {
   ERROR
 }
 
+// MBM-275: connection status of a paired workstation agent (scale/printer
+// relay) — mirrors R710AgentConnectionStatus but kept separate since this
+// enum isn't R710-specific.
+enum WorkstationAgentConnectionStatus {
+  ONLINE
+  OFFLINE
+}
+
+// MBM-275 Phase 5: mirrors R710AgentJobType/R710AgentJobStatus in shape —
+// see WorkstationAgentRequestLog above for why these are kept separate
+// rather than reusing the R710-named enums.
+enum WorkstationAgentJobType {
+  SCALE_LIST_PORTS
+  SCALE_CONNECT
+  SCALE_DISCONNECT
+  SCALE_TARE
+  SCALE_DETECT_BAUD
+  PRINT_RECEIPT
+  PRINT_LIST_PRINTERS
+}
+
+enum WorkstationAgentJobStatus {
+  SUCCESS
+  TIMEOUT
+  AGENT_OFFLINE
+  ERROR
+}
+
 // MBM-272: how the server reaches this device — directly (same LAN) or via
 // a paired local agent at a remote site.
 enum R710ConnectionMode {
@@ -5553,18 +5668,18 @@ model InventoryTransfers {
 }
 
 model InventoryTransferItems {
-  id                     String   @id @default(uuid())
-  transferId             String
-  productVariantId       String?
-  quantity               Int
-  sourcePrice            Decimal  @db.Decimal(10, 2)
-  targetPrice            Decimal  @db.Decimal(10, 2)
-  productName            String
-  barcode                String?
-  baleId                 String?
-  sourceLocationId       String?
-  destinationLocationId  String?
-  createdAt              DateTime @default(now())
+  id                    String   @id @default(uuid())
+  transferId            String
+  productVariantId      String?
+  quantity              Int
+  sourcePrice           Decimal  @db.Decimal(10, 2)
+  targetPrice           Decimal  @db.Decimal(10, 2)
+  productName           String
+  barcode               String?
+  baleId                String?
+  sourceLocationId      String?
+  destinationLocationId String?
+  createdAt             DateTime @default(now())
 
   transfer            InventoryTransfers @relation(fields: [transferId], references: [id])
   productVariants     ProductVariants?   @relation(fields: [productVariantId], references: [id])
@@ -7966,8 +8081,8 @@ model VehicleServiceJobs {
   creator            Users?                     @relation(fields: [createdBy], references: [id])
   primaryContractor  VehicleServiceContractors? @relation("JobPrimaryContractor", fields: [primaryContractorId], references: [id])
   vehicleReleasedBy  Users?                     @relation("VehicleServiceJobReleasedBy", fields: [vehicleReleasedById], references: [id])
-  reworkOfJob         VehicleServiceJobs?        @relation("JobRework", fields: [reworkOfJobId], references: [id])
-  reworkJobs          VehicleServiceJobs[]       @relation("JobRework")
+  reworkOfJob        VehicleServiceJobs?        @relation("JobRework", fields: [reworkOfJobId], references: [id])
+  reworkJobs         VehicleServiceJobs[]       @relation("JobRework")
 
   tasks         VehicleServiceTasks[]
   partsRequests VehicleServicePartsRequests[]

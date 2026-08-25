@@ -154,6 +154,15 @@ export function POSSettingsHub({ businessId, businessType, posLink }: POSSetting
               scaleEnabled={scaleEnabled}
               onToggleScale={canSeeScale ? handleToggleScale : undefined}
             />
+            {canSeeScale && (
+              <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                Scale attached to a different workstation than the app server? See{' '}
+                <a href="/admin/workstation-agents" className="text-blue-600 dark:text-blue-400 hover:underline">
+                  Workstation Agents
+                </a>{' '}
+                to pair that workstation and connect its scale remotely (MBM-275).
+              </p>
+            )}
           </section>
 
           <hr className="border-gray-200 dark:border-gray-700" />

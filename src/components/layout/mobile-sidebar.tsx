@@ -46,7 +46,7 @@ export function MobileSidebar() {
     isSystemAdmin: isAdmin,
   } = useBusinessPermissionsContext()
 
-  const { isElectron, status: scaleStatus } = useScale()
+  const { isAvailable: isScaleAvailable, status: scaleStatus } = useScale()
   const showLivestock = true  // page handles scale setup when not connected
 
   // Check WiFi integrations for current business
@@ -160,7 +160,7 @@ export function MobileSidebar() {
               <Link href="/restaurant/livestock-purchase" className={linkClass} onClick={close}>
                 <span>⚖️</span>
                 <span>Vendor Purchase</span>
-                {isElectron && scaleStatus.status !== 'connected' && (
+                {isScaleAvailable && scaleStatus.status !== 'connected' && (
                   <span className="ml-auto w-2 h-2 rounded-full bg-yellow-400 shrink-0" title="Scale not connected" />
                 )}
               </Link>
@@ -184,7 +184,7 @@ export function MobileSidebar() {
               <Link href="/grocery/livestock-purchase" className={linkClass} onClick={close}>
                 <span>⚖️</span>
                 <span>Vendor Purchase</span>
-                {isElectron && scaleStatus.status !== 'connected' && (
+                {isScaleAvailable && scaleStatus.status !== 'connected' && (
                   <span className="ml-auto w-2 h-2 rounded-full bg-yellow-400 shrink-0" title="Scale not connected" />
                 )}
               </Link>
@@ -521,6 +521,10 @@ export function MobileSidebar() {
 
               {(isAdmin || hasBusinessPermission('canSetupPortalIntegration')) && (
                 <Link href="/r710-portal" className={sectionLinkClass} onClick={close}>📶 R710 WiFi Portal</Link>
+              )}
+
+              {isAdmin && (
+                <Link href="/admin/network-printers" className={sectionLinkClass} onClick={close}>🖨️ Printer Connection Mode</Link>
               )}
 
               {(isAdmin || hasBusinessPermission('canManageBusinessSettings') || hasBusinessPermission('canManageAllBusinesses') || hasBusinessPermission('canAccessFinancialData') || hasBusinessPermission('canManageEmployees')) && (
