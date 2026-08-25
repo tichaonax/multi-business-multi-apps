@@ -26,6 +26,7 @@ interface AgentStatus {
   label: string
   hostLabel: string | null
   agentVersion: string | null
+  autoStartEnabled: boolean | null
   connectionStatus: 'ONLINE' | 'OFFLINE'
   lastConnectedAt: string | null
   lastSeenAt: string | null
@@ -68,6 +69,7 @@ function AgentPanelContent() {
   const [loading, setLoading] = useState(true)
   const [testing, setTesting] = useState(false)
   const [revoking, setRevoking] = useState(false)
+  const [togglingAutoStart, setTogglingAutoStart] = useState(false)
 
   // Pairing flow state — only relevant while unpaired
   const [localAgentDetected, setLocalAgentDetected] = useState<boolean | null>(null)
@@ -127,7 +129,7 @@ function AgentPanelContent() {
     if (device?.remoteAgent) return
     let cancelled = false
     const probe = () => {
-      fetch(`http://127.0.0.1:${PAIRING_PORT}/probe`, { signal: AbortSignal.timeout(2500) })
+      fetch(`http://127.0.0.1:${PAIRING_PORT}/probe?serverUrl=${encodeURIComponent(window.location.origin)}`, { signal: AbortSignal.timeout(2500) })
         .then(res => { if (!cancelled) setLocalAgentDetected(res.ok) })
         .catch(() => { if (!cancelled) setLocalAgentDetected(false) })
     }
@@ -206,6 +208,30 @@ function AgentPanelContent() {
     } finally {
       setTesting(false)
       await loadAgentStatus(device.remoteAgent.id)
+    }
+  }
+
+  const handleToggleAutoStart = async () => {
+    if (!device?.remoteAgent || !agentStatus) return
+    const enabled = !agentStatus.autoStartEnabled
+    setTogglingAutoStart(true)
+    try {
+      const res = await fetch(`/api/admin/r710/agents/${device.remoteAgent.id}/auto-start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ enabled }),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setAgentStatus(prev => prev ? { ...prev, autoStartEnabled: data.data?.autoStartEnabled ?? enabled } : prev)
+      } else {
+        showError(data.error || 'Failed to update auto-start setting', '❌ Update Failed')
+      }
+    } catch {
+      showError('Unable to reach the server. Please try again.', '❌ Update Failed')
+    } finally {
+      setTogglingAutoStart(false)
     }
   }
 
@@ -388,6 +414,24 @@ function AgentPanelContent() {
             {agentStatus?.lastError && (
               <p className="mt-4 text-xs text-red-600 dark:text-red-400">Last error: {agentStatus.lastError}</p>
             )}
+
+            <div className="mt-4 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 pt-4">
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">Start with Windows</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Applies to this whole workstation's agent, not just this pairing — it also covers any other server this machine is paired to.
+                </p>
+              </div>
+              <button
+                onClick={handleToggleAutoStart}
+                disabled={togglingAutoStart || !agentStatus}
+                role="switch"
+                aria-checked={!!agentStatus?.autoStartEnabled}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${agentStatus?.autoStartEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${agentStatus?.autoStartEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
 
             <div className="mt-6 flex gap-3">
               <button

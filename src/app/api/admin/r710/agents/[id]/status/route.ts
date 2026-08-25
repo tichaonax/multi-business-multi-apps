@@ -27,6 +27,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       label: true,
       hostLabel: true,
       agentVersion: true,
+      autoStartEnabled: true,
       connectionStatus: true,
       lastConnectedAt: true,
       lastSeenAt: true,

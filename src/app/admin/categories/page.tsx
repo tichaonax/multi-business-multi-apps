@@ -175,7 +175,7 @@ function CategoriesContent() {
   return (
     <ContentLayout
       title="Category Management"
-      breadcrumbs={[
+      breadcrumb={[
         { label: 'Admin', href: '/admin' },
         { label: 'Categories', isActive: true },
       ]}

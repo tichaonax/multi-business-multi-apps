@@ -21,6 +21,7 @@ interface WorkstationAgent {
   id: string
   label: string
   agentVersion: string | null
+  autoStartEnabled: boolean | null
   connectionStatus: 'ONLINE' | 'OFFLINE'
   lastConnectedAt: string | null
   lastSeenAt: string | null
@@ -58,6 +59,7 @@ export default function WorkstationAgentsPage() {
   const [pairLabel, setPairLabel] = useState('')
   const [pairing, setPairing] = useState(false)
   const [localAgentDetected, setLocalAgentDetected] = useState(false)
+  const [togglingAutoStartId, setTogglingAutoStartId] = useState<string | null>(null)
 
   // Scale setup state
   const [selectedAgentId, setSelectedAgentId] = useState('')
@@ -123,7 +125,7 @@ export default function WorkstationAgentsPage() {
   useEffect(() => {
     let cancelled = false
     const probe = () => {
-      fetch(`http://127.0.0.1:${PAIRING_PORT}/probe`, { signal: AbortSignal.timeout(2500) })
+      fetch(`http://127.0.0.1:${PAIRING_PORT}/probe?serverUrl=${encodeURIComponent(window.location.origin)}`, { signal: AbortSignal.timeout(2500) })
         .then(res => { if (!cancelled) setLocalAgentDetected(res.ok) })
         .catch(() => { if (!cancelled) setLocalAgentDetected(false) })
     }
@@ -185,6 +187,29 @@ export default function WorkstationAgentsPage() {
     const res = await fetch(`/api/admin/workstation-agents/${agentId}`, { method: 'DELETE', credentials: 'include' })
     if (res.ok) await load()
     else await alert({ title: 'Error', description: 'Failed to revoke workstation' })
+  }
+
+  const handleToggleAutoStart = async (agent: WorkstationAgent) => {
+    const enabled = !agent.autoStartEnabled
+    setTogglingAutoStartId(agent.id)
+    try {
+      const res = await fetch(`/api/admin/workstation-agents/${agent.id}/auto-start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ enabled }),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setAgents(prev => prev.map(a => a.id === agent.id ? { ...a, autoStartEnabled: data.data?.autoStartEnabled ?? enabled } : a))
+      } else {
+        await alert({ title: '❌ Update Failed', description: data.error || 'Failed to update auto-start setting' })
+      }
+    } catch {
+      await alert({ title: '❌ Update Failed', description: 'Unable to reach the server. Please try again.' })
+    } finally {
+      setTogglingAutoStartId(null)
+    }
   }
 
   const handleListPorts = async () => {
@@ -325,6 +350,21 @@ export default function WorkstationAgentsPage() {
                       {agent.agentVersion && <span className="ml-2 text-xs text-gray-500">v{agent.agentVersion}</span>}
                     </div>
                     <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => handleToggleAutoStart(agent)}
+                        disabled={togglingAutoStartId === agent.id}
+                        title="Start this workstation's agent automatically when Windows signs in (applies to the whole agent, not just this pairing)"
+                        className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-50"
+                      >
+                        <span
+                          role="switch"
+                          aria-checked={!!agent.autoStartEnabled}
+                          className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${agent.autoStartEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                        >
+                          <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${agent.autoStartEnabled ? 'translate-x-4' : 'translate-x-1'}`} />
+                        </span>
+                        Start with Windows
+                      </button>
                       <button onClick={() => toggleActivity(agent.id)} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
                         {expandedAgentId === agent.id ? 'Hide Activity' : 'Recent Activity'}
                       </button>

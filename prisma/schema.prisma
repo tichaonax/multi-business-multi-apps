@@ -4545,6 +4545,7 @@ model WorkstationAgents {
   label            String
   agentTokenHash   String
   agentVersion     String?
+  autoStartEnabled Boolean?
   connectionStatus WorkstationAgentConnectionStatus @default(OFFLINE)
   lastConnectedAt  DateTime?
   lastSeenAt       DateTime?
@@ -4618,6 +4619,7 @@ model R710RemoteAgents {
   agentTokenHash   String
   hostLabel        String?
   agentVersion     String?
+  autoStartEnabled Boolean?
   connectionStatus R710AgentConnectionStatus @default(OFFLINE)
   lastConnectedAt  DateTime?
   lastSeenAt       DateTime?
@@ -5460,10 +5462,12 @@ enum WorkstationAgentJobType {
   SCALE_LIST_PORTS
   SCALE_CONNECT
   SCALE_DISCONNECT
+  SCALE_RELEASE
   SCALE_TARE
   SCALE_DETECT_BAUD
   PRINT_RECEIPT
   PRINT_LIST_PRINTERS
+  AGENT_SET_AUTO_START
 }
 
 enum WorkstationAgentJobStatus {
@@ -5492,6 +5496,7 @@ enum R710AgentJobType {
   CONNECTED_CLIENTS_QUERY
   AUTO_GENERATE
   TOKEN_SYNC
+  AGENT_SET_AUTO_START
 }
 
 enum R710AgentJobStatus {

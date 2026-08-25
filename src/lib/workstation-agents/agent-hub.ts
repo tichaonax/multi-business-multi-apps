@@ -29,10 +29,12 @@ export type WorkstationAgentJobType =
   | 'SCALE_LIST_PORTS'
   | 'SCALE_CONNECT'
   | 'SCALE_DISCONNECT'
+  | 'SCALE_RELEASE'
   | 'SCALE_TARE'
   | 'SCALE_DETECT_BAUD'
   | 'PRINT_RECEIPT'
   | 'PRINT_LIST_PRINTERS'
+  | 'AGENT_SET_AUTO_START'
 
 export interface WorkstationAgentJobPayload {
   jobType: WorkstationAgentJobType
@@ -82,6 +84,7 @@ class WorkstationAgentHub {
       socket.on('workstation-agent:result', (data) => this.handleAgentResult(data))
       socket.on('workstation-agent:scale-weight', (data) => this.handleScaleWeight(socket, data))
       socket.on('workstation-agent:scale-status', (data) => this.handleScaleStatus(socket, data))
+      socket.on('workstation-agent:status-update', (data) => this.handleStatusUpdate(socket, data))
       socket.on('disconnect', () => this.handleDisconnect(socket))
     })
 
@@ -90,7 +93,7 @@ class WorkstationAgentHub {
 
   private async handleAgentConnect(
     socket: Socket,
-    data: { agentToken?: string; hostLabel?: string; agentVersion?: string },
+    data: { agentToken?: string; hostLabel?: string; agentVersion?: string; autoStartEnabled?: boolean },
     ack?: (res: { success: boolean; error?: string }) => void
   ): Promise<void> {
     try {
@@ -132,6 +135,7 @@ class WorkstationAgentHub {
           lastConnectedAt: new Date(),
           lastSeenAt: new Date(),
           agentVersion: data.agentVersion ?? undefined,
+          autoStartEnabled: data.autoStartEnabled ?? undefined,
           lastError: null,
         },
       })
@@ -142,6 +146,16 @@ class WorkstationAgentHub {
       console.error('[WorkstationAgentHub] Error handling agent connect:', error)
       ack?.({ success: false, error: 'Internal error' })
     }
+  }
+
+  // One-way, agent-initiated — mirrors R710AgentHub's handleStatusUpdate().
+  private async handleStatusUpdate(socket: Socket, data: { autoStartEnabled?: boolean }): Promise<void> {
+    const workstationAgentId = (socket.data as any)?.workstationAgentId as string | undefined
+    if (!workstationAgentId || data.autoStartEnabled === undefined) return
+    await prisma.workstationAgents.update({
+      where: { id: workstationAgentId },
+      data: { autoStartEnabled: data.autoStartEnabled },
+    }).catch(() => {})
   }
 
   private handleAgentResult(data: { jobId: string; success: boolean; data?: unknown; error?: string }): void {

@@ -8,6 +8,13 @@ interface ContentLayoutProps {
   children: React.ReactNode
   title?: string
   subtitle?: string
+  // Alias for `subtitle` — a large number of call sites across the app pass
+  // `description` instead (the more natural name at the call site), which
+  // this component silently ignored since it only ever destructured
+  // `subtitle`: every one of those pages' intended subheading text never
+  // rendered. Accepting both here fixes all of them at once rather than
+  // renaming every call site.
+  description?: string
   breadcrumb?: Array<{
     label: string
     href?: string
@@ -22,11 +29,13 @@ export function ContentLayout({
   children,
   title,
   subtitle,
+  description,
   breadcrumb,
   headerActions,
   maxWidth = 'full',
   showBackButton = true
 }: ContentLayoutProps) {
+  const resolvedSubtitle = subtitle ?? description
   const router = useRouter()
   const [shouldShowBackButton, setShouldShowBackButton] = useState(showBackButton)
 
@@ -112,9 +121,9 @@ export function ContentLayout({
                   {title}
                 </h1>
               )}
-              {subtitle && (
+              {resolvedSubtitle && (
                 <p className="mt-0.5 text-sm text-secondary break-words">
-                  {subtitle}
+                  {resolvedSubtitle}
                 </p>
               )}
             </div>

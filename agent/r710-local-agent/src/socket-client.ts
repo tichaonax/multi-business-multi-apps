@@ -10,6 +10,7 @@ import os from 'os'
 import { io, Socket } from 'socket.io-client'
 import type { AgentConfig } from './config'
 import { handleJob, type AgentJob, type AgentJobResult } from './job-handler'
+import { isAutoStartEnabled } from './tray'
 import packageJson from '../package.json'
 
 // Single source of truth: package.json's version, not a separately hardcoded
@@ -27,12 +28,26 @@ export type AgentConnectionState = 'connecting' | 'connected' | 'disconnected' |
 export class AgentSocketClient extends EventEmitter {
   private socket: Socket | null = null
 
-  constructor(private readonly config: AgentConfig) {
+  // MBM-276: tracked internally (not just via the 'state' event) so
+  // index.ts's tray snapshot can always read the current state directly,
+  // regardless of listener registration timing.
+  lastState: AgentConnectionState | undefined
+
+  // Identifies which profile this connection belongs to — R710 has no
+  // ownership/exclusivity concern (see profile-store.ts's header), so this
+  // is purely for the tray/registry to know which profile a given running
+  // connection is, not used in any connection logic here.
+  constructor(readonly profileId: string, private readonly config: AgentConfig) {
     super()
   }
 
+  private setState(state: AgentConnectionState): void {
+    this.lastState = state
+    this.emit('state', state)
+  }
+
   start(): void {
-    this.emit('state', 'connecting' satisfies AgentConnectionState)
+    this.setState('connecting')
 
     const socket = io(this.config.serverUrl, {
       transports: ['websocket', 'polling'],
@@ -61,13 +76,13 @@ export class AgentSocketClient extends EventEmitter {
     socket.on('connect', () => {
       socket.emit(
         'r710-agent:connect',
-        { agentToken: this.config.agentToken, hostLabel: os.hostname(), agentVersion: AGENT_VERSION },
+        { agentToken: this.config.agentToken, hostLabel: os.hostname(), agentVersion: AGENT_VERSION, autoStartEnabled: isAutoStartEnabled() },
         (ack: { success: boolean; error?: string }) => {
           if (ack.success) {
-            this.emit('state', 'connected' satisfies AgentConnectionState)
+            this.setState('connected')
           } else {
             // Invalid/revoked token — no point retrying with the same one.
-            this.emit('state', 'rejected' satisfies AgentConnectionState)
+            this.setState('rejected')
             this.emit('rejected', ack.error)
             socket.disconnect()
           }
@@ -76,7 +91,7 @@ export class AgentSocketClient extends EventEmitter {
     })
 
     socket.on('disconnect', (reason) => {
-      this.emit('state', 'disconnected' satisfies AgentConnectionState)
+      this.setState('disconnected')
       // socket.io-client deliberately does NOT auto-reconnect when the
       // *server* initiates the disconnect (reason 'io server disconnect') —
       // that's exactly what agent-hub.ts's disconnectAgent() does when an
@@ -98,5 +113,13 @@ export class AgentSocketClient extends EventEmitter {
   stop(): void {
     this.socket?.disconnect()
     this.socket = null
+  }
+
+  // One-way, agent-initiated notification — used when auto-start is toggled
+  // locally (tray) or by a different profile's remote job while THIS
+  // profile stays connected, so its server's DB row never goes stale
+  // without requiring a reconnect. See tray.ts's setOnAutoStartChanged().
+  reportAutoStart(enabled: boolean): void {
+    this.socket?.emit('r710-agent:status-update', { autoStartEnabled: enabled })
   }
 }

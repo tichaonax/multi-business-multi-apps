@@ -4208,8 +4208,8 @@ Normally the application server talks to an R710 device directly over the local 
 **Installing the local agent (one time, on a workstation at the remote site):**
 1. From the device's **Agent** panel (**R710 Portal → Devices → Agent** button, or via the link shown right after registering), click **Download r710-agent.zip**.
 2. Copy the zip to the workstation at the remote site — the one that's on the same local network as the R710 and stays logged in.
-3. Unzip it and double-click **r710-agent.exe**. No installer, no Node.js, nothing else to set up — it's a single self-contained program. A tray icon appears showing it's running and waiting to be paired. Hover over it any time to see this workstation's name and its current connection status; right-click it for **Restart** and **Quit**.
-4. Set it to start automatically so it survives reboots — most Windows setups pin a shortcut to it in the Startup folder, same as any other always-on tray app.
+3. Unzip it and double-click **r710-agent.exe**. No installer, no Node.js, nothing else to set up — it's a single self-contained program. A tray icon appears showing it's running and waiting to be paired. Right-click it any time to see every server this workstation is currently paired to (each its own line, with its own status), plus **Preferences**, **Restart**, and **Quit**.
+4. Set it to start automatically so it survives reboots: right-click the tray icon → **Preferences → Start with Windows**. This flips a per-user Windows setting (no administrator elevation needed to toggle it later) — no shortcuts or Startup folder to manage by hand. The same toggle is also available from the **Manage Profiles** page (see below) and, once paired, from that device's Agent panel in the browser.
 
 > **If the agent seems stuck** (e.g. it won't start, or the tray icon is missing but you suspect it's still running) — run **`Stop R710 Agent.bat`**, included in the same unzipped folder, then double-click `r710-agent.exe` again. This forcibly closes any running copy without needing Task Manager.
 
@@ -4225,6 +4225,7 @@ Normally the application server talks to an R710 device directly over the local 
 - **Status**: shows 🟢 Connected / 🔴 Offline, which workstation is paired, its agent version, and when it was last seen — refreshes automatically.
 - **Test Connection**: sends a real round-trip request through the agent to the device and reports success or the specific failure.
 - **Recent Activity**: a log of every request relayed through the agent — token generation, health checks — with who requested it (or "Background job" for automatic top-ups) and how long it took.
+- **Start with Windows**: a toggle that reaches across to the workstation and flips the same auto-start setting as the tray's Preferences menu — since it's one setting for the whole agent, not per pairing, changing it here also updates it for any other server that workstation happens to be paired to, and vice versa.
 - **Revoke Pairing**: disconnects the agent immediately for that pairing. The agent running on that workstation notices within a few seconds, automatically clears its old pairing, and goes back to waiting-to-be-paired on its own — there is no need to reinstall or restart anything on the workstation. Use this when a device needs to be re-paired (e.g. its IP address changed) or a workstation is being retired: just open the Agent panel again and click **Pair this machine** once the tray icon is showing "not paired."
 
 **If the agent goes offline:** everything that would normally happen automatically for this device — selling a token at POS, background stock top-ups — will fail with a clear **"Remote Wi-Fi device unavailable — the local agent is offline, contact IT"** message instead of a generic error, so staff and support can tell immediately that it's the agent (not the R710 itself, and not a wrong password) that needs attention. Check the tray icon on the paired workstation first — if it's not running, restart it; if it shows 🔴, the workstation likely lost its network connection to the app server.
@@ -4235,6 +4236,12 @@ Normally the application server talks to an R710 device directly over the local 
 3. Unzip the new download and double-click the new **`r710-agent.exe`**.
 
 **The pairing survives an update automatically — there is no need to re-pair or re-register the device's IP address.** The agent's pairing (which server, which device, its login token) is stored in a fixed location on the workstation itself, completely separate from the `.exe` file — replacing the program and starting the new one just picks the existing pairing back up. Skipping an update isn't dangerous, but any fix shipped in a newer version — including bug fixes for token generation — only takes effect once the new `.exe` is actually running in place of the old one.
+
+**One agent, many servers at once (MBM-276):** the same `r710-agent.exe` can be paired to more than one application server from the same workstation — for example, a technician's laptop used to test devices against both a staging server and production, or a workstation that happens to sit on the network for two unrelated sites. Each server gets its own completely isolated **profile** on disk (its own credentials, its own connection, its own device registrations); pairing to a second server never touches or overwrites the first one's pairing, and both stay connected simultaneously — there is no "switch active server" step. Right-click the tray icon to see every paired profile listed by the label you gave it when pairing, each with its own live status.
+
+> **Upgrading from an older agent:** if this workstation was already paired under a previous version of the agent, the very first launch of the new `r710-agent.exe` automatically converts that existing pairing into a profile — nothing needs to be re-paired, and no action is required.
+
+**The Manage Profiles page:** open **http://127.0.0.1:47710** in a browser on the workstation itself (not from a remote machine) to see the same information as the tray, laid out as a page — every paired server with its live R710/Printer status, the scale's current owner (see below) with a **Release** button, the **Start with Windows** toggle, a manual **Unpair** button per profile (removes that profile's saved credentials from this machine — re-pair from that server's Agent panel to reconnect), and a **Restart Agent** button.
 
 ---
 
@@ -4254,12 +4261,14 @@ A workstation only needs one download and one running `r710-agent.exe` no matter
 3. Once paired, use the same page's **MG-S8200 Scale Setup** section to pick the COM port (with a **List Ports** button, and a **Detect Baud** button so you don't have to know the scale's baud rate) and save — see Section 53 for the full weighing workflow once this is done.
 4. For printers, a **system admin** configures which printer relays through which paired workstation separately, at **Printer Connection Mode** in the sidebar (`/admin/network-printers`) — see Section 26 for details. This is a different, admin-only screen because printers in this app are a shared resource, not owned by one business.
 
-**The tray icon now shows three status lines, not one** — hover over it (or right-click for the same detail in the menu):
+Each paired workstation row on this page also has a **Start with Windows** toggle — same auto-start setting as the tray and the R710 Agent panel's version of it, described above.
+
+**Each paired profile in the tray now shows its own R710/Printer/Scale lines** (right-click the tray icon, then open a specific profile's submenu):
 | Line | What it means |
 |---|---|
 | **R710** | Same meaning as the "Using the Agent panel day-to-day" status above |
-| **Printer relay** | Whether this workstation's printer-relay pairing is currently reachable by the server. Print jobs can only be relayed while this shows Ready. |
-| **Scale** | The physical scale's own connection state (Connected on COMx / Not connected / Error) — sourced directly from the scale hardware itself, so it stays accurate even if, separately, the Printer relay line shows offline. |
+| **Printer** | Whether this profile's printer-relay pairing is currently reachable by its server. Print jobs can only be relayed while this shows Ready. Multiple profiles can print at the same time with no restriction — jobs simply queue on the printer like any other application's print jobs would. |
+| **Scale** | Only one profile can hold the physical scale connection at a time (it's a single serial port, not something two programs can share). The profile currently connected to it shows its live reading (Connected on COMx / Not connected / Error); every *other* profile's Scale line instead shows **"in use by \<label\> — Release,"** letting you explicitly hand the scale over rather than it being silently stolen. This only comes up on a workstation paired to more than one server for a scale — most setups only ever pair one. |
 
 **Recent Activity** for the Scale/Printer pairing works the same way as R710's — click **Recent Activity** next to a paired workstation on the Workstation Agents page to see its last 50 scale/print jobs, who requested each one, how long it took, and any error.
 

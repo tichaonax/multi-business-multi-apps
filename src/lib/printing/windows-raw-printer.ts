@@ -6,6 +6,7 @@
  */
 
 import { execSync } from 'child_process';
+import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -30,9 +31,13 @@ export async function printRawData(
   // Convert content to bytes using IBM437 encoding (standard for ESC/POS)
   const bytes = Buffer.from(content, 'binary');
 
-  // Create temp file for the print data
+  // Create temp file for the print data. Named with a UUID, not Date.now()
+  // — under MBM-276, multiple profiles on the same agent can print
+  // concurrently, and millisecond-precision timestamps collide easily
+  // enough under real concurrent load to have two jobs clobber each other's
+  // temp file mid-write.
   const tempDir = process.env.TEMP || os.tmpdir();
-  const tempFile = path.join(tempDir, `print-${Date.now()}.prn`);
+  const tempFile = path.join(tempDir, `print-${randomUUID()}.prn`);
 
   try {
     // Write binary content to temp file
@@ -81,7 +86,7 @@ async function printSingleCopy(
   dataSize: number
 ): Promise<void> {
   const tempDir = process.env.TEMP || os.tmpdir();
-  const psScriptFile = path.join(tempDir, `print-script-${Date.now()}.ps1`);
+  const psScriptFile = path.join(tempDir, `print-script-${randomUUID()}.ps1`);
 
   // PowerShell script that uses Windows Spooler API P/Invoke
   // This is the EXACT method that successfully printed in our tests

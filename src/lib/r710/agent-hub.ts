@@ -26,10 +26,13 @@ export type R710AgentJobType =
   | 'CONNECTED_CLIENTS_QUERY'
   | 'AUTO_GENERATE'
   | 'TOKEN_SYNC'
+  | 'AGENT_SET_AUTO_START'
 
 export interface AgentJobPayload {
   jobType: R710AgentJobType
-  device: { ipAddress: string; adminUsername: string; adminPassword: string }
+  // Every device-specific job type needs this; AGENT_SET_AUTO_START is a
+  // process-level control action with no device involved, hence optional.
+  device?: { ipAddress: string; adminUsername: string; adminPassword: string }
   params?: unknown
 }
 
@@ -70,6 +73,7 @@ class R710AgentHub {
     io.on('connection', (socket) => {
       socket.on('r710-agent:connect', (data, ack) => this.handleAgentConnect(socket, data, ack))
       socket.on('r710-agent:result', (data) => this.handleAgentResult(data))
+      socket.on('r710-agent:status-update', (data) => this.handleStatusUpdate(socket, data))
       socket.on('disconnect', () => this.handleDisconnect(socket))
     })
 
@@ -78,7 +82,7 @@ class R710AgentHub {
 
   private async handleAgentConnect(
     socket: Socket,
-    data: { agentToken?: string; hostLabel?: string; agentVersion?: string },
+    data: { agentToken?: string; hostLabel?: string; agentVersion?: string; autoStartEnabled?: boolean },
     ack?: (res: { success: boolean; error?: string }) => void
   ): Promise<void> {
     try {
@@ -124,6 +128,7 @@ class R710AgentHub {
           lastSeenAt: new Date(),
           hostLabel: data.hostLabel ?? undefined,
           agentVersion: data.agentVersion ?? undefined,
+          autoStartEnabled: data.autoStartEnabled ?? undefined,
           lastError: null,
         },
       })
@@ -134,6 +139,19 @@ class R710AgentHub {
       console.error('[R710AgentHub] Error handling agent connect:', error)
       ack?.({ success: false, error: 'Internal error' })
     }
+  }
+
+  // One-way, agent-initiated: the agent proactively reports a change (auto-
+  // start toggled from the tray, or by a different profile's remote job)
+  // without a request/response round trip — see socket-client.ts's
+  // reportAutoStart(). No ack: nothing for the agent to act on either way.
+  private async handleStatusUpdate(socket: Socket, data: { autoStartEnabled?: boolean }): Promise<void> {
+    const agentId = (socket.data as any)?.r710AgentId as string | undefined
+    if (!agentId || data.autoStartEnabled === undefined) return
+    await prisma.r710RemoteAgents.update({
+      where: { id: agentId },
+      data: { autoStartEnabled: data.autoStartEnabled },
+    }).catch(() => {})
   }
 
   private handleAgentResult(data: { jobId: string; success: boolean; data?: unknown; error?: string }): void {

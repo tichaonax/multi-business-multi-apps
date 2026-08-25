@@ -2,15 +2,16 @@
  * MBM-272: tray icon — day-one requirement per plan §5. Shows connection
  * state at a glance and offers Restart/Quit, mirroring QZ Tray's presence.
  * MBM-275 Phase 5: extended to show three independent status lines — R710,
- * Scale, and Printer — since this one agent process now carries two
- * separate pairings (R710's own, and the workstation-agent pairing that
- * covers both Scale and Printer relay). Scale and Printer share the same
- * underlying socket connection but are shown as their own lines because
- * they're operationally distinct concerns to whoever is glancing at the
- * tray: Scale's line reflects the physical serial connection itself
- * (sourced directly from scaleDriver's own events, independent of the
- * relay socket's state), while Printer's line reflects whether the relay
- * channel print jobs travel over is currently up.
+ * Scale, and Printer.
+ * MBM-276: rewritten around a per-profile model. This agent process now
+ * carries a list of independently-configured server profiles (one per
+ * paired server, see profile-store.ts), most of which run fully
+ * concurrently with no restriction (R710, Printer relay — see plan Section
+ * 2a). The tray shows every profile's own R710/Printer status, and a
+ * single scale line reflecting whichever profile currently owns the
+ * physical serial connection (scale-owner.ts) — with a **Release** action
+ * on every OTHER profile's scale line so ownership can be explicitly,
+ * visibly handed off rather than silently stolen.
  *
  * Uses `systray2`, which spawns a small prebuilt native helper executable
  * over stdio rather than shipping a compiled Node addon — this was chosen
@@ -22,6 +23,7 @@
 
 import { join, dirname } from 'path'
 import { existsSync } from 'fs'
+import { execSync } from 'child_process'
 import { createRequire } from 'module'
 import type { AgentConnectionState } from './socket-client'
 import type { WorkstationAgentConnectionState } from './workstation-socket-client'
@@ -61,50 +63,164 @@ const PLACEHOLDER_ICON_BASE64 =
 
 let systray: any = null
 
-// The workstation's own paired label (e.g. "Front Desk PC — Bulawayo
-// Branch"), set once from config in startTray(). Windows shows only the
-// tray icon's hover tooltip, not the `title` field (that's macOS menu-bar
-// text) — so identifying which tray icon is this agent, among however many
-// others are running, depends entirely on that tooltip being specific and
-// current rather than stuck on whatever it said at startup.
-let currentLabel: string | null = null
+export interface ProfileTrayInfo {
+  profileId: string
+  label: string
+  r710State?: AgentConnectionState
+  workstationState?: WorkstationAgentConnectionState
+}
 
-// Three independent status lines — see the file header comment for why
-// these are tracked separately rather than collapsed into one.
-let r710StatusLine = '⚪ R710: Not paired'
-let printerStatusLine = '⚪ Printer relay: Not paired'
-let scaleStatusLine = '⚪ Scale: Not paired'
+export interface TrayState {
+  profiles: ProfileTrayInfo[]
+  scaleStatus: ScaleStatus
+  scaleOwnerProfileId: string | null
+  scaleOwnerLabel: string | null
+}
+
+let currentState: TrayState = { profiles: [], scaleStatus: { status: 'disconnected', comPort: null }, scaleOwnerProfileId: null, scaleOwnerLabel: null }
+let onReleaseScaleCallback: (() => void) | null = null
+let onAutoStartChangedCallback: ((enabled: boolean) => void) | null = null
+
+const R710_STATUS_LABEL: Record<AgentConnectionState, string> = {
+  connecting: '🟡 Connecting…',
+  connected: '🟢 Connected',
+  disconnected: '🔴 Disconnected — retrying…',
+  rejected: '🔴 Pairing rejected — re-pair from the admin panel',
+}
+
+const WORKSTATION_STATUS_LABEL: Record<WorkstationAgentConnectionState, string> = {
+  connecting: '🟡 Connecting…',
+  connected: '🟢 Ready',
+  disconnected: '🔴 Offline — retrying…',
+  rejected: '🔴 Pairing rejected — re-pair from the admin panel',
+}
+
+// Sourced directly from scaleDriver's own 'status' events inside this same
+// process — not from anything relayed over a socket — so this stays
+// accurate to the physical serial connection regardless of any profile's
+// relay state.
+const SCALE_STATUS_LABEL: Record<ScaleStatus['status'], (comPort: string | null, error?: string) => string> = {
+  connecting: (comPort) => `Connecting${comPort ? ` (${comPort})` : ''}…`,
+  connected: (comPort) => `Connected${comPort ? ` on ${comPort}` : ''}`,
+  disconnected: () => 'Not connected',
+  error: (comPort, error) => `Error${comPort ? ` on ${comPort}` : ''}: ${error ? (error.length > 40 ? `${error.slice(0, 40)}…` : error) : 'unknown'}`,
+}
+
+function truncate(message: string, max = 60): string {
+  return message.length > max ? `${message.slice(0, max)}…` : message
+}
 
 function buildTooltip(): string {
-  const identity = currentLabel ? `MBM Local Agent — ${currentLabel}` : 'MBM Local Agent'
-  return `${identity}\n${r710StatusLine}\n${printerStatusLine}\n${scaleStatusLine}`
+  const n = currentState.profiles.length
+  if (n === 0) return 'MBM Local Agent — no profiles paired yet'
+  const connected = currentState.profiles.filter(p =>
+    p.r710State === 'connected' || p.workstationState === 'connected'
+  ).length
+  return `MBM Local Agent — ${n} profile${n === 1 ? '' : 's'} (${connected} connected)`
 }
 
-function buildItems() {
-  return [
-    { title: r710StatusLine, tooltip: '', checked: false, enabled: false },
-    { title: printerStatusLine, tooltip: '', checked: false, enabled: false },
-    { title: scaleStatusLine, tooltip: '', checked: false, enabled: false },
-    { title: 'Restart', tooltip: 'Restart the agent', checked: false, enabled: true },
-    { title: 'Quit', tooltip: 'Stop the agent', checked: false, enabled: true },
-  ]
+// Every configured profile gets its own R710/Printer status line (both can
+// be simultaneously ✓ across multiple profiles — no exclusivity to
+// represent, see plan Section 2a). The scale line only ever shows a real
+// reading under whichever profile currently owns it; every other profile's
+// scale line shows who has it, with a Release action to hand it off.
+function buildProfileSubmenu(profile: ProfileTrayInfo): any[] {
+  const items: any[] = []
+
+  if (profile.r710State) {
+    items.push({ title: `R710: ${R710_STATUS_LABEL[profile.r710State]}`, tooltip: '', checked: false, enabled: false })
+  }
+  if (profile.workstationState) {
+    items.push({ title: `Printer: ${WORKSTATION_STATUS_LABEL[profile.workstationState]}`, tooltip: '', checked: false, enabled: false })
+
+    const isOwner = currentState.scaleOwnerProfileId === profile.profileId
+    if (isOwner) {
+      items.push({
+        title: `Scale: ${SCALE_STATUS_LABEL[currentState.scaleStatus.status](currentState.scaleStatus.comPort, currentState.scaleStatus.error)}`,
+        tooltip: '', checked: false, enabled: false,
+      })
+    } else if (currentState.scaleOwnerProfileId) {
+      items.push({
+        title: `Scale: in use by ${currentState.scaleOwnerLabel || currentState.scaleOwnerProfileId} — Release`,
+        tooltip: 'Force-release the scale from the other profile so it can be used here',
+        checked: false, enabled: true,
+        click: () => onReleaseScaleCallback?.(),
+      })
+    } else {
+      items.push({ title: 'Scale: not connected', tooltip: '', checked: false, enabled: false })
+    }
+  }
+
+  return items
 }
 
-// Pushes both the hover tooltip and the status menu items in one call.
-// Must always include the full items array — systray2's 'update-menu'
-// handler dereferences action.menu.items unconditionally, throwing (and
-// taking the whole process down) if it's omitted from a partial update.
+function buildItems(): any[] {
+  const items: any[] = []
+
+  if (currentState.profiles.length === 0) {
+    items.push({ title: 'No profiles paired yet', tooltip: '', checked: false, enabled: false })
+  } else {
+    for (const profile of [...currentState.profiles].sort((a, b) => a.label.localeCompare(b.label))) {
+      items.push({
+        title: profile.label,
+        tooltip: '',
+        checked: false,
+        enabled: true,
+        items: buildProfileSubmenu(profile),
+      })
+    }
+  }
+
+  items.push(SysTraySeparator())
+  items.push({
+    title: 'Preferences',
+    tooltip: '',
+    checked: false,
+    enabled: true,
+    items: [
+      {
+        title: 'Start with Windows',
+        tooltip: 'Launch this agent automatically when you sign in',
+        checked: isAutoStartEnabled(),
+        enabled: true,
+        click: () => {
+          setAutoStart(!isAutoStartEnabled())
+          pushMenuUpdate()
+        },
+      },
+    ],
+  })
+  items.push({ title: 'Restart', tooltip: 'Restart the agent', checked: false, enabled: true, click: () => onRestartCallback?.() })
+  items.push({ title: 'Quit', tooltip: 'Stop the agent', checked: false, enabled: true, click: () => { systray?.kill(); onQuitCallback?.() } })
+
+  return items
+}
+
+// systray2's own separator sentinel (SysTray.separator — a MenuItem with
+// title '<SEPARATOR>'), reproduced by hand here since loadSysTray() may
+// return the class before we've captured a live reference to it elsewhere.
+function SysTraySeparator() {
+  return { title: '<SEPARATOR>', tooltip: '', checked: false, enabled: false }
+}
+
+let onRestartCallback: (() => void) | null = null
+let onQuitCallback: (() => void) | null = null
+
+// Pushes both the hover tooltip and the full menu tree in one call. Must
+// always include the full items array — systray2's 'update-menu' handler
+// dereferences action.menu.items unconditionally, throwing (and taking the
+// whole process down) if it's omitted from a partial update.
 //
 // sendAction() never awaits the tray's own readiness internally — it writes
 // straight to `_process.stdin`, which is still null until the native helper
-// has actually spawned. The socket clients' first 'connecting' state event
-// can fire well before that (spawning + copying the helper binary takes
-// real time), so calling sendAction too early throws "Cannot read
-// properties of null (reading 'stdin')". Deferring on ready() queues the
-// update correctly whether it's already resolved or still pending, and
-// buildTooltip()/buildItems() re-read the *current* state at the time this
-// callback actually runs, so a burst of rapid state changes before the tray
-// is ready collapses to just the latest one being sent, not each state.
+// has actually spawned. Connection state can change well before that
+// (spawning + copying the helper binary takes real time), so calling
+// sendAction too early throws "Cannot read properties of null (reading
+// 'stdin')". Deferring on ready() queues the update correctly whether it's
+// already resolved or still pending, and buildTooltip()/buildItems()
+// re-read the *current* state at the time this callback actually runs, so a
+// burst of rapid state changes before the tray is ready collapses to just
+// the latest one being sent, not each state.
 function pushMenuUpdate(): void {
   if (!systray) return
   systray.ready().then(() => {
@@ -120,8 +236,30 @@ function pushMenuUpdate(): void {
   }).catch(() => { /* tray failed to start — already logged elsewhere, nothing to update */ })
 }
 
-export function startTray(onQuit: () => void, onRestart: () => void, label?: string): void {
-  currentLabel = label ?? null
+/** Replaces the entire tray state and re-renders. The single entry point index.ts uses for every change. */
+export function updateTrayState(state: TrayState): void {
+  currentState = state
+  pushMenuUpdate()
+}
+
+export function setOnReleaseScale(callback: () => void): void {
+  onReleaseScaleCallback = callback
+}
+
+// Fires whenever auto-start is toggled from ANY source — the tray's own
+// Preferences item (below) or a remote AGENT_SET_AUTO_START job dispatched
+// from a paired server's admin UI (job-handler.ts / workstation-job-
+// handler.ts both call setAutoStart() directly, not this tray menu item) —
+// so index.ts can broadcast the new value to every connected profile's
+// server exactly once, from a single call site, regardless of what
+// triggered the change.
+export function setOnAutoStartChanged(callback: (enabled: boolean) => void): void {
+  onAutoStartChangedCallback = callback
+}
+
+export function startTray(onQuit: () => void, onRestart: () => void): void {
+  onQuitCallback = onQuit
+  onRestartCallback = onRestart
   const SysTray = loadSysTray()
   systray = new SysTray({
     menu: {
@@ -148,10 +286,6 @@ export function startTray(onQuit: () => void, onRestart: () => void, label?: str
     systray.onExit((code: number | null, signal: string | null) => {
       console.error('[Agent] Tray helper process exited unexpectedly:', { code, signal })
     })
-    // DIAGNOSTIC (temporary): systray2's own readline wrapper only surfaces
-    // lines matching its {"type":"ready"} envelope and silently drops
-    // anything else the native helper prints — including a likely error
-    // right before an unexplained exit. Dump both raw streams to find it.
     const proc = systray.process
     proc?.stdout?.on('data', (chunk: Buffer) => console.error('[Agent] [tray stdout]', chunk.toString()))
     proc?.stderr?.on('data', (chunk: Buffer) => console.error('[Agent] [tray stderr]', chunk.toString()))
@@ -159,94 +293,46 @@ export function startTray(onQuit: () => void, onRestart: () => void, label?: str
     console.error('[Agent] Tray helper failed to start (continuing headless):', error)
   })
 
-  systray.onClick((action: { seq_id: number; item: { title: string } }) => {
-    if (action.item.title === 'Quit') {
-      systray.kill()
-      onQuit()
-    } else if (action.item.title === 'Restart') {
-      onRestart()
-    }
+  // Per systray2's own documented pattern: menu items carry their own
+  // click closures (built fresh into every buildItems() call, so they
+  // always capture the current profile/callback references, never stale
+  // ones from an earlier render) — the top-level handler just invokes
+  // whichever one fired. Nested submenu items are dispatched the same way.
+  systray.onClick((action: { item: { click?: () => void } }) => {
+    action.item.click?.()
   })
 }
 
-const R710_STATUS_LABEL: Record<AgentConnectionState, string> = {
-  connecting: '🟡 Connecting…',
-  connected: '🟢 Connected',
-  disconnected: '🔴 Disconnected — retrying…',
-  rejected: '🔴 Pairing rejected — re-pair from the admin panel',
-}
+// ── Auto-start (MBM-276) — replaces the old "drag a shortcut into the
+// Startup folder" manual step. Per-user HKCU Run key: no elevation
+// required (unlike HKLM or a Scheduled Task), consistent with "an
+// administrator does initial setup, but toggling this shouldn't need
+// re-elevating every time." Implemented via `reg` (already how
+// windows-raw-printer.ts shells out to Windows tools) rather than adding a
+// registry-access dependency.
+const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run'
+const RUN_VALUE_NAME = 'MBMLocalAgent'
 
-export function setTrayR710Status(state: AgentConnectionState): void {
-  r710StatusLine = `R710: ${R710_STATUS_LABEL[state]}`
-  pushMenuUpdate()
-}
-
-export function setTrayR710Unpaired(): void {
-  r710StatusLine = '⚪ R710: Not paired'
-  pushMenuUpdate()
-}
-
-// A connection that never succeeds even once never fires 'connect' or
-// 'disconnect' — there's nothing to disconnect from — so without this the
-// tray just sits on "Connecting…" forever with no clue why. Truncated to
-// keep the tooltip/menu item readable; the full message is still logged.
-export function setTrayR710ConnectError(message: string): void {
-  const truncated = message.length > 60 ? `${message.slice(0, 60)}…` : message
-  r710StatusLine = `R710: 🔴 Connection error: ${truncated}`
-  pushMenuUpdate()
-}
-
-// The workstation-agent (relay) connection state drives the Printer line
-// directly — print jobs can only be relayed while this channel is up, and
-// there's no further per-printer state to layer on top of that (each print
-// job is a discrete, stateless request, unlike the scale's persistent
-// serial connection).
-const WORKSTATION_STATUS_LABEL: Record<WorkstationAgentConnectionState, string> = {
-  connecting: '🟡 Connecting…',
-  connected: '🟢 Ready',
-  disconnected: '🔴 Offline — retrying…',
-  rejected: '🔴 Pairing rejected — re-pair from the admin panel',
-}
-
-export function setTrayPrinterStatus(state: WorkstationAgentConnectionState): void {
-  printerStatusLine = `Printer relay: ${WORKSTATION_STATUS_LABEL[state]}`
-  // The physical scale connection is independent of the relay socket (it's
-  // driven directly by scaleDriver's own events, see setTrayScaleStatus),
-  // but if the relay itself just went down, a scale line still claiming
-  // "Connected" would be misleading — the agent has lost the channel a
-  // browser would use to control it. Only touch the scale line on the way
-  // down, never on the way up (connecting/connected doesn't imply anything
-  // about the scale's own state, which reports itself independently).
-  if (state === 'disconnected' || state === 'rejected') {
-    scaleStatusLine = '⚪ Scale: Relay offline'
+export function isAutoStartEnabled(): boolean {
+  try {
+    execSync(`reg query "${RUN_KEY}" /v ${RUN_VALUE_NAME}`, { stdio: ['ignore', 'ignore', 'ignore'] })
+    return true
+  } catch {
+    return false // reg query exits non-zero when the value doesn't exist
   }
-  pushMenuUpdate()
 }
 
-export function setTrayWorkstationUnpaired(): void {
-  printerStatusLine = '⚪ Printer relay: Not paired'
-  scaleStatusLine = '⚪ Scale: Not paired'
-  pushMenuUpdate()
-}
-
-export function setTrayWorkstationConnectError(message: string): void {
-  const truncated = message.length > 60 ? `${message.slice(0, 60)}…` : message
-  printerStatusLine = `Printer relay: 🔴 Connection error: ${truncated}`
-  pushMenuUpdate()
-}
-
-// Sourced directly from scaleDriver's own 'status' events inside this same
-// process — not from anything relayed over the socket — so this line stays
-// accurate to the physical serial connection even if the relay to the
-// central server is what's currently down.
-const SCALE_STATUS_LABEL: Record<ScaleStatus['status'], (comPort: string | null, error?: string) => string> = {
-  connecting: (comPort) => `🟡 Connecting${comPort ? ` (${comPort})` : ''}…`,
-  connected: (comPort) => `🟢 Connected${comPort ? ` on ${comPort}` : ''}`,
-  disconnected: () => '⚪ Not connected',
-  error: (comPort, error) => `🔴 Error${comPort ? ` on ${comPort}` : ''}: ${error ? (error.length > 40 ? `${error.slice(0, 40)}…` : error) : 'unknown'}`,
-}
-
-export function setTrayScaleStatus(status: ScaleStatus): void {
-  scaleStatusLine = `Scale: ${SCALE_STATUS_LABEL[status.status](status.comPort, status.error)}`
-  pushMenuUpdate()
+export function setAutoStart(enabled: boolean): void {
+  try {
+    if (enabled) {
+      // No arguments needed — every profile is self-discovered from the
+      // profiles directory at startup (see profile-store.ts / index.ts).
+      execSync(`reg add "${RUN_KEY}" /v ${RUN_VALUE_NAME} /t REG_SZ /d "\\"${process.execPath}\\"" /f`, { stdio: ['ignore', 'ignore', 'ignore'] })
+    } else {
+      execSync(`reg delete "${RUN_KEY}" /v ${RUN_VALUE_NAME} /f`, { stdio: ['ignore', 'ignore', 'ignore'] })
+    }
+    onAutoStartChangedCallback?.(enabled)
+  } catch (error) {
+    console.error('[Agent] Failed to update auto-start registry setting:', error)
+  }
 }

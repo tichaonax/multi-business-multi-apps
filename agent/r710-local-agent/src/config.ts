@@ -1,13 +1,15 @@
 /**
- * MBM-272: local agent config — where it stores the server URL and the
- * pairing token it received during the one-time loopback pairing handshake
- * (see pairing-server.ts). No secrets are ever typed by hand; this file is
- * written once by that handshake and read on every subsequent start.
+ * MBM-272: R710 pairing config.
+ * MBM-276: now profile-scoped — one r710.json per paired server (see
+ * profile-store.ts), instead of a single fixed-path config.json shared by
+ * every server this workstation has ever been paired to. Callers resolve
+ * a profileId (via profile-store.ts's deriveProfileId/ensureProfile) and
+ * pass it in; this module no longer owns any single global file path.
  */
 
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
-import { join } from 'path'
-import os from 'os'
+import { readProfileFile, writeProfileFile, deleteProfileFile } from './profile-store'
+
+const FILE_NAME = 'r710.json'
 
 export interface AgentConfig {
   serverUrl: string
@@ -20,42 +22,18 @@ export interface AgentConfig {
   caCert?: string
 }
 
-function configDir(): string {
-  // %LOCALAPPDATA%\MBM\R710Agent on Windows; a sane fallback elsewhere for dev.
-  const base = process.env.LOCALAPPDATA || join(os.homedir(), '.local', 'share')
-  return join(base, 'MBM', 'R710Agent')
+export function loadConfig(profileId: string): AgentConfig | null {
+  return readProfileFile<AgentConfig>(profileId, FILE_NAME)
 }
 
-function configPath(): string {
-  return join(configDir(), 'config.json')
+export function saveConfig(profileId: string, config: AgentConfig): void {
+  writeProfileFile(profileId, FILE_NAME, config)
 }
 
-export function loadConfig(): AgentConfig | null {
-  try {
-    const raw = readFileSync(configPath(), 'utf-8')
-    return JSON.parse(raw) as AgentConfig
-  } catch {
-    return null
-  }
-}
-
-export function saveConfig(config: AgentConfig): void {
-  const dir = configDir()
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  writeFileSync(configPath(), JSON.stringify(config, null, 2), { mode: 0o600 })
-}
-
-export function isPaired(): boolean {
-  return loadConfig() !== null
-}
-
-// Used when the server rejects this agent's token (revoked from the admin
-// panel, most commonly) — there was previously no way back to pairing mode
-// short of manually finding and deleting this file by hand.
-export function clearConfig(): void {
-  try {
-    unlinkSync(configPath())
-  } catch {
-    // Already gone — fine.
-  }
+// Used when the server rejects this profile's token (revoked from the admin
+// panel, most commonly) — clears just this profile's R710 pairing, leaving
+// every other profile (and this profile's Workstation pairing, if any)
+// untouched.
+export function clearConfig(profileId: string): void {
+  deleteProfileFile(profileId, FILE_NAME)
 }

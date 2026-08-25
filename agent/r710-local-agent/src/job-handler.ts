@@ -7,6 +7,7 @@
  */
 
 import { RuckusR710ApiService } from '../../../src/services/ruckus-r710-api'
+import { isAutoStartEnabled, setAutoStart } from './tray'
 
 export type R710AgentJobType =
   | 'TOKEN_GENERATE'
@@ -15,11 +16,14 @@ export type R710AgentJobType =
   | 'CONNECTED_CLIENTS_QUERY'
   | 'AUTO_GENERATE'
   | 'TOKEN_SYNC'
+  | 'AGENT_SET_AUTO_START'
 
 export interface AgentJob {
   jobId: string
   jobType: R710AgentJobType
-  device: { ipAddress: string; adminUsername: string; adminPassword: string }
+  // Every device-specific job type needs this; AGENT_SET_AUTO_START is a
+  // process-level control action with no device involved, hence optional.
+  device?: { ipAddress: string; adminUsername: string; adminPassword: string }
   params?: unknown
 }
 
@@ -35,7 +39,7 @@ export interface AgentJobResult {
 // agent has been asked to reach (in practice, exactly one).
 const sessions = new Map<string, RuckusR710ApiService>()
 
-async function getSession(device: AgentJob['device']): Promise<RuckusR710ApiService> {
+async function getSession(device: NonNullable<AgentJob['device']>): Promise<RuckusR710ApiService> {
   const existing = sessions.get(device.ipAddress)
   if (existing) return existing
 
@@ -59,7 +63,7 @@ export async function handleJob(job: AgentJob): Promise<AgentJobResult> {
   try {
     switch (job.jobType) {
       case 'TOKEN_GENERATE': {
-        const service = await getSession(job.device)
+        const service = await getSession(job.device!)
         const params = job.params as {
           wlanName: string
           username: string
@@ -69,37 +73,43 @@ export async function handleJob(job: AgentJob): Promise<AgentJobResult> {
         }
         try {
           const result = await service.generateSingleGuestPass(params)
-          if (!result.success) invalidateSession(job.device.ipAddress)
+          if (!result.success) invalidateSession(job.device!.ipAddress)
           return { jobId: job.jobId, success: true, data: result }
         } catch (deviceError) {
-          invalidateSession(job.device.ipAddress)
+          invalidateSession(job.device!.ipAddress)
           throw deviceError
         }
       }
 
       case 'HEALTH_CHECK':
       case 'TEST_CONNECTION': {
-        const service = await getSession(job.device)
+        const service = await getSession(job.device!)
         const info = await service.getSystemInfo()
         return { jobId: job.jobId, success: true, data: { reachable: true, systemInfo: info } }
       }
 
       case 'AUTO_GENERATE': {
-        const service = await getSession(job.device)
+        const service = await getSession(job.device!)
         try {
           const result = await service.generateTokens(job.params as Parameters<typeof service.generateTokens>[0])
-          if (!result.success) invalidateSession(job.device.ipAddress)
+          if (!result.success) invalidateSession(job.device!.ipAddress)
           return { jobId: job.jobId, success: true, data: result }
         } catch (deviceError) {
-          invalidateSession(job.device.ipAddress)
+          invalidateSession(job.device!.ipAddress)
           throw deviceError
         }
       }
 
       case 'TOKEN_SYNC': {
-        const service = await getSession(job.device)
+        const service = await getSession(job.device!)
         const tokens = await service.queryAllTokens()
         return { jobId: job.jobId, success: true, data: { success: true, tokens } }
+      }
+
+      case 'AGENT_SET_AUTO_START': {
+        const params = job.params as { enabled: boolean }
+        setAutoStart(params.enabled)
+        return { jobId: job.jobId, success: true, data: { autoStartEnabled: isAutoStartEnabled() } }
       }
 
       // Not yet wired — no caller in the main app dispatches this job type

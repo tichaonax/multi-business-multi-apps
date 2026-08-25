@@ -1,15 +1,15 @@
 /**
- * MBM-275: local storage for the workstation-agent pairing (scale + printer
- * relay), independent of the R710 pairing in config.ts. Kept as a separate
- * file/config so pairing one capability never disturbs the other — a
- * workstation can be paired for R710 only, scale/print only, or both, all
- * within the same running agent process. See config.ts for the R710
- * equivalent this deliberately mirrors.
+ * MBM-275: Scale/Printer relay pairing config.
+ * MBM-276: now profile-scoped — one workstation.json per paired server (see
+ * profile-store.ts / config.ts's equivalent header comment for the
+ * rationale). A workstation can hold a Workstation pairing for server A and
+ * a completely separate one for server B without either affecting the
+ * other.
  */
 
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
-import { join } from 'path'
-import os from 'os'
+import { readProfileFile, writeProfileFile, deleteProfileFile } from './profile-store'
+
+const FILE_NAME = 'workstation.json'
 
 export interface WorkstationAgentConfig {
   serverUrl: string
@@ -19,37 +19,14 @@ export interface WorkstationAgentConfig {
   caCert?: string
 }
 
-function configDir(): string {
-  // Same MBM app-data root as the R710 agent config — this is genuinely one
-  // agent installation with two independent pairing files inside it, not a
-  // separate program.
-  const base = process.env.LOCALAPPDATA || join(os.homedir(), '.local', 'share')
-  return join(base, 'MBM', 'R710Agent')
+export function loadWorkstationConfig(profileId: string): WorkstationAgentConfig | null {
+  return readProfileFile<WorkstationAgentConfig>(profileId, FILE_NAME)
 }
 
-function configPath(): string {
-  return join(configDir(), 'workstation-config.json')
+export function saveWorkstationConfig(profileId: string, config: WorkstationAgentConfig): void {
+  writeProfileFile(profileId, FILE_NAME, config)
 }
 
-export function loadWorkstationConfig(): WorkstationAgentConfig | null {
-  try {
-    const raw = readFileSync(configPath(), 'utf-8')
-    return JSON.parse(raw) as WorkstationAgentConfig
-  } catch {
-    return null
-  }
-}
-
-export function saveWorkstationConfig(config: WorkstationAgentConfig): void {
-  const dir = configDir()
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  writeFileSync(configPath(), JSON.stringify(config, null, 2), { mode: 0o600 })
-}
-
-export function clearWorkstationConfig(): void {
-  try {
-    unlinkSync(configPath())
-  } catch {
-    // Already gone — fine.
-  }
+export function clearWorkstationConfig(profileId: string): void {
+  deleteProfileFile(profileId, FILE_NAME)
 }

@@ -1,0 +1,6 @@
+-- AlterEnum
+ALTER TYPE "WorkstationAgentJobType" ADD VALUE 'SCALE_RELEASE';
+ALTER TYPE "WorkstationAgentJobType" ADD VALUE 'AGENT_SET_AUTO_START';
+
+-- AlterEnum
+ALTER TYPE "R710AgentJobType" ADD VALUE 'AGENT_SET_AUTO_START';

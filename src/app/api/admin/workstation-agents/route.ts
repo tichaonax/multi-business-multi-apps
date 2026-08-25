@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
       id: true,
       label: true,
       agentVersion: true,
+      autoStartEnabled: true,
       connectionStatus: true,
       lastConnectedAt: true,
       lastSeenAt: true,
