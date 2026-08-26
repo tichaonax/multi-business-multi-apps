@@ -162,6 +162,18 @@ export default function NetworkPrintersPage() {
                   <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-medium ${(printer.connectionMode || 'DIRECT') === 'AGENT' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600'}`}>
                     {(printer.connectionMode || 'DIRECT') === 'AGENT' ? 'AGENT (relayed)' : 'DIRECT'}
                   </span>
+                  {(printer.connectionMode || 'DIRECT') === 'AGENT' && (() => {
+                    const via = agents.find(a => a.id === printer.workstationAgentId)
+                    return via ? (
+                      <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                        via <span className="font-medium text-gray-700 dark:text-gray-300">{via.label}</span> ({via.businessName})
+                      </span>
+                    ) : printer.workstationAgentId ? (
+                      <span className="ml-2 text-xs text-red-500 dark:text-red-400" title={printer.workstationAgentId}>
+                        via an unknown/revoked workstation
+                      </span>
+                    ) : null
+                  })()}
                 </div>
                 {editingId !== printer.id && (
                   <button onClick={() => startEdit(printer)} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">

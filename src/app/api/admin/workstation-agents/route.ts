@@ -19,6 +19,7 @@ import { randomBytes } from 'crypto'
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { workstationAgentHub } from '@/lib/workstation-agents/agent-hub'
+import { getAgentRelayedPrinters, getQzPrinterName } from '@/lib/workstation-agents/printer-status'
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
@@ -68,10 +69,19 @@ export async function GET(request: NextRequest) {
   // indefinitely. Override with the hub's live in-memory truth on every
   // request, exactly like R710's status route already does, so a paired
   // workstation is never reported connected unless it verifiably still is.
-  const data = agents.map(agent => ({
+  //
+  // Also includes the same "what's actually configured" facts the agent's
+  // own tray shows (configuredPrinters, qzPrinterName) — a straight
+  // database read, not anything that needs the agent's live connection —
+  // so the Workstation Agents page can show admins a real status summary
+  // instead of always presenting generic "here's how to set this up"
+  // instructions regardless of whether it's already done.
+  const data = await Promise.all(agents.map(async agent => ({
     ...agent,
     connectionStatus: workstationAgentHub.isAgentConnected(agent.id) ? 'ONLINE' as const : 'OFFLINE' as const,
-  }))
+    configuredPrinters: await getAgentRelayedPrinters(agent.id),
+    qzPrinterName: await getQzPrinterName(businessId, agent.id),
+  })))
 
   return NextResponse.json({ success: true, data })
 }

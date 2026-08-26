@@ -25,6 +25,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/get-server-user'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin } from '@/lib/permission-utils'
+import { workstationAgentHub } from '@/lib/workstation-agents/agent-hub'
 
 function hasBusinessAccess(user: Awaited<ReturnType<typeof getServerUser>>, businessId: string): boolean {
   if (!user) return false
@@ -83,6 +84,21 @@ export async function POST(request: NextRequest) {
       : await prisma.qzPrinterConfigs.create({
           data: { businessId, workstationAgentId: workstationAgentId ?? null, printerName: printerName.trim(), updatedBy: user.id },
         })
+
+    // Without this, a connected agent (and its tray/Manage Profiles page)
+    // keeps showing whatever it learned at its last periodic sync — up to
+    // 10 minutes stale — even though this was just saved right now. Same
+    // fix as the printer connection-mode route already has.
+    if (workstationAgentId) {
+      workstationAgentHub.requestSync(workstationAgentId)
+    } else {
+      // A business-wide default was just saved (or changed) — any of this
+      // business's connected agents that don't have their own
+      // workstation-specific row fall back to this one, so all of them
+      // need to hear about it, not just one.
+      const agents = await prisma.workstationAgents.findMany({ where: { businessId, revokedAt: null }, select: { id: true } })
+      for (const agent of agents) workstationAgentHub.requestSync(agent.id)
+    }
 
     return NextResponse.json({ success: true, config: { printerName: config.printerName } })
   } catch (error) {

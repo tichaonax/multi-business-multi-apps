@@ -22,6 +22,7 @@ import type { Server as SocketIOServer, Socket } from 'socket.io'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { emitToRoom } from '@/lib/customer-display/socket-server'
+import { getAgentRelayedPrinters, getQzPrinterName } from './printer-status'
 
 const JOB_TIMEOUT_MS = 20_000
 
@@ -168,29 +169,22 @@ class WorkstationAgentHub {
 
     const [agent, printers, scaleConfig] = await Promise.all([
       prisma.workstationAgents.findUnique({ where: { id: workstationAgentId }, select: { businessId: true, businesses: { select: { name: true } } } }),
-      prisma.networkPrinters.findMany({ where: { workstationAgentId, connectionMode: 'AGENT' }, select: { printerName: true } }),
+      getAgentRelayedPrinters(workstationAgentId),
       prisma.scaleDeviceConfigs.findFirst({ where: { workstationAgentId, isActive: true }, select: { comPort: true, baudRate: true } }),
     ])
 
-    // Separate print path from the AGENT-relay `printers` list above — this
-    // is whichever printer QZ Tray (a completely different program, running
-    // directly in a user's browser) has been set up to use on THIS machine,
-    // if any. Prefers this exact workstation's own QZ config over the
-    // business-wide default — see qz-config/route.ts's GET for the same
-    // fallback shape. Purely informational for the tray; never used to
-    // route an actual AGENT print job.
-    const qzConfig = agent
-      ? await prisma.qzPrinterConfigs.findFirst({ where: { businessId: agent.businessId, workstationAgentId } })
-        ?? await prisma.qzPrinterConfigs.findFirst({ where: { businessId: agent.businessId, workstationAgentId: null } })
-      : null
+    // Separate print path from the AGENT-relay `printers` list above — see
+    // printer-status.ts's getQzPrinterName() comment. Purely informational
+    // for the tray; never used to route an actual AGENT print job.
+    const qzPrinterName = agent ? await getQzPrinterName(agent.businessId, workstationAgentId) : undefined
 
     ack?.({
       success: true,
       businessName: agent?.businesses?.name,
-      printers: printers.map(p => p.printerName),
+      printers,
       scaleComPort: scaleConfig?.comPort ?? undefined,
       scaleBaudRate: scaleConfig?.baudRate ?? undefined,
-      qzPrinterName: qzConfig?.printerName,
+      qzPrinterName,
     })
   }
 

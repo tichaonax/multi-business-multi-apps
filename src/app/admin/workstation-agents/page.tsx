@@ -32,6 +32,11 @@ interface WorkstationAgent {
   lastSeenAt: string | null
   lastError: string | null
   createdAt: string
+  // What's actually configured for this workstation right now — a direct
+  // database read (see printer-status.ts), not anything that needs a live
+  // agent connection, so this is accurate even while the agent is offline.
+  configuredPrinters: string[]
+  qzPrinterName?: string
 }
 
 interface ActivityEntry {
@@ -622,32 +627,77 @@ export default function WorkstationAgentsPage() {
           {agents.length === 0 ? (
             <p className="text-gray-500 dark:text-gray-400">Pair a workstation first.</p>
           ) : (
-            <div className="space-y-3">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Routing a printer through a paired workstation is two steps, on two different pages:
-              </p>
-              <ol className="text-sm text-gray-600 dark:text-gray-400 list-decimal list-inside space-y-2">
-                <li>
-                  <strong>Register the printer</strong> — a one-time entry for the physical printer itself, if it isn't already registered.
-                  {' '}
-                  <Link href="/admin/printers" className="text-blue-600 dark:text-blue-400 hover:underline">
-                    Register a printer →
-                  </Link>
-                </li>
-                <li>
-                  <strong>Route it through this workstation</strong> — set that printer's connection mode to relay through one of the workstations paired above, and pick the exact printer name from what this workstation's agent detects.
-                  {' '}
-                  {isSystemAdmin ? (
-                    <Link href="/admin/network-printers" className="text-blue-600 dark:text-blue-400 hover:underline">
-                      Printer Connection Mode →
-                    </Link>
-                  ) : (
-                    <span className="text-gray-500 dark:text-gray-500 italic">
-                      System admin only — ask a system admin to complete this step for {agents.map(a => `"${a.label}"`).join(', ')}.
-                    </span>
+            <div className="space-y-4">
+              {agents.some(a => a.configuredPrinters.length > 0 || a.qzPrinterName) && (
+                // Current-state summary — shown first and unconditionally
+                // whenever anything is actually set up, so an admin never
+                // has to guess "is this already done?" from setup
+                // instructions alone. Both print paths are genuinely
+                // independent (see the tray's own explanation) — a
+                // workstation can have either, both, or neither.
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Current configuration for this business:</p>
+                  {agents.map(agent => {
+                    const hasRelay = agent.configuredPrinters.length > 0
+                    const hasQz = !!agent.qzPrinterName
+                    if (!hasRelay && !hasQz) return null
+                    return (
+                      <div key={agent.id} className="text-sm bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md p-3">
+                        <p className="font-medium text-green-800 dark:text-green-300 mb-1">✅ {agent.label}</p>
+                        {hasRelay && (
+                          <p className="text-green-700 dark:text-green-400">
+                            Agent-relayed: <strong>{agent.configuredPrinters.join(', ')}</strong> (server → this workstation)
+                          </p>
+                        )}
+                        {hasQz && (
+                          <p className="text-green-700 dark:text-green-400">
+                            QZ Tray (this machine's browser): <strong>{agent.qzPrinterName}</strong>
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {agents.some(a => a.configuredPrinters.length === 0 && !a.qzPrinterName) && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Not yet configured: {agents.filter(a => a.configuredPrinters.length === 0 && !a.qzPrinterName).map(a => `"${a.label}"`).join(', ')}
+                    </p>
                   )}
-                </li>
-              </ol>
+                </div>
+              )}
+
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {agents.some(a => a.configuredPrinters.length > 0 || a.qzPrinterName)
+                    ? 'To add or change an agent-relayed printer, it\'s two steps, on two different pages:'
+                    : 'Routing a printer through a paired workstation is two steps, on two different pages:'}
+                </p>
+                <ol className="text-sm text-gray-600 dark:text-gray-400 list-decimal list-inside space-y-2 mt-2">
+                  <li>
+                    <strong>Register the printer</strong> — a one-time entry for the physical printer itself, if it isn't already registered.
+                    {' '}
+                    <Link href="/admin/printers" className="text-blue-600 dark:text-blue-400 hover:underline">
+                      Register a printer →
+                    </Link>
+                  </li>
+                  <li>
+                    <strong>Route it through this workstation</strong> — set that printer's connection mode to relay through one of the workstations paired above, and pick the exact printer name from what this workstation's agent detects.
+                    {' '}
+                    {isSystemAdmin ? (
+                      <Link href="/admin/network-printers" className="text-blue-600 dark:text-blue-400 hover:underline">
+                        Printer Connection Mode →
+                      </Link>
+                    ) : (
+                      <span className="text-gray-500 dark:text-gray-500 italic">
+                        System admin only — ask a system admin to complete this step for {agents.map(a => `"${a.label}"`).join(', ')}.
+                      </span>
+                    )}
+                  </li>
+                </ol>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  Prefer QZ Tray instead? That's set up separately, per browser/machine, at{' '}
+                  <Link href="/admin/printers" className="text-blue-600 dark:text-blue-400 hover:underline">👤 Profile → Printer Setup</Link> — see Section 26 of the user guide.
+                </p>
+              </div>
             </div>
           )}
         </div>
