@@ -18,6 +18,14 @@ interface SourceConfig {
   basePrice: number
 }
 
+interface ClonedConfig {
+  id: string
+  name: string
+  basePrice: number
+  durationValue: number
+  durationUnit: string
+}
+
 interface CloneTokenConfigsModalProps {
   isOpen: boolean
   onClose: () => void
@@ -43,6 +51,8 @@ export function CloneTokenConfigsModal({
   const [cloning, setCloning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [clonedConfigs, setClonedConfigs] = useState<ClonedConfig[]>([])
+  const [removingId, setRemovingId] = useState<string | null>(null)
 
   useEffect(() => {
     if (isOpen) {
@@ -51,6 +61,7 @@ export function CloneTokenConfigsModal({
       setSelectedConfigIds(new Set())
       setError(null)
       setSuccessMessage(null)
+      setClonedConfigs([])
       loadBusinesses()
       loadTargetWlan()
     }
@@ -132,6 +143,7 @@ export function CloneTokenConfigsModal({
     setConfigs([])
     setSelectedConfigIds(new Set())
     setSuccessMessage(null)
+    setClonedConfigs([])
     if (businessId) {
       loadConfigs(businessId)
     }
@@ -180,6 +192,7 @@ export function CloneTokenConfigsModal({
 
       if (response.ok && data.success) {
         setSuccessMessage(data.message)
+        setClonedConfigs(data.configs || [])
         setSelectedConfigIds(new Set())
         onCloned()
       } else {
@@ -190,6 +203,32 @@ export function CloneTokenConfigsModal({
       setError('Failed to clone configurations')
     } finally {
       setCloning(false)
+    }
+  }
+
+  const handleRemoveCloned = async (configId: string) => {
+    try {
+      setRemovingId(configId)
+      setError(null)
+
+      const response = await fetch(`/api/r710/token-configs/${configId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        setClonedConfigs(prev => prev.filter(c => c.id !== configId))
+        onCloned()
+      } else {
+        setError(data.message || data.error || 'Failed to remove package')
+      }
+    } catch (err) {
+      console.error('Failed to remove cloned package:', err)
+      setError('Failed to remove package')
+    } finally {
+      setRemovingId(null)
     }
   }
 
@@ -277,45 +316,19 @@ export function CloneTokenConfigsModal({
             )}
           </div>
 
-          {/* Loading Configs */}
-          {loadingConfigs && (
-            <div className="flex items-center justify-center py-8 text-sm text-gray-500 dark:text-gray-400">
-              <div className="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-primary mr-2"></div>
-              Loading token packages...
-            </div>
-          )}
-
-          {/* Config List */}
-          {!loadingConfigs && configs.length > 0 && (
+          {/* Cloned packages — shown instead of the picker once cloning succeeds,
+              so the UI doesn't imply the same source packages can be selected again. */}
+          {successMessage && clonedConfigs.length > 0 && (
             <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Select packages to clone ({selectedConfigIds.size} of {configs.length} selected)
-                </span>
-                <button
-                  onClick={toggleAll}
-                  className="text-sm text-primary hover:text-primary/80"
-                >
-                  {selectedConfigIds.size === configs.length ? 'Deselect All' : 'Select All'}
-                </button>
-              </div>
-
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                Cloned into this business — remove any added by mistake:
+              </p>
               <div className="space-y-2">
-                {configs.map(config => (
-                  <label
+                {clonedConfigs.map(config => (
+                  <div
                     key={config.id}
-                    className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
-                      selectedConfigIds.has(config.id)
-                        ? 'border-primary bg-primary/5 dark:bg-primary/10'
-                        : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                    }`}
+                    className="flex items-center justify-between p-3 border rounded-lg border-gray-200 dark:border-gray-700"
                   >
-                    <input
-                      type="checkbox"
-                      checked={selectedConfigIds.has(config.id)}
-                      onChange={() => toggleConfig(config.id)}
-                      className="w-4 h-4 text-primary focus:ring-primary border-gray-300 rounded mr-3 flex-shrink-0"
-                    />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">
@@ -327,22 +340,91 @@ export function CloneTokenConfigsModal({
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                         {formatDuration(config.durationValue, config.durationUnit)}
-                        {' · '}
-                        {config.deviceLimit} device{config.deviceLimit !== 1 ? 's' : ''}
-                        {config.description && ` · ${config.description}`}
                       </div>
                     </div>
-                  </label>
+                    <button
+                      onClick={() => handleRemoveCloned(config.id)}
+                      disabled={removingId === config.id}
+                      className="ml-3 text-sm text-red-600 hover:text-red-700 disabled:opacity-50 flex-shrink-0"
+                    >
+                      {removingId === config.id ? 'Removing...' : 'Remove'}
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* No configs found */}
-          {!loadingConfigs && selectedBusinessId && configs.length === 0 && (
-            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-              No active token packages found for this business.
-            </p>
+          {!successMessage && (
+            <>
+              {/* Loading Configs */}
+              {loadingConfigs && (
+                <div className="flex items-center justify-center py-8 text-sm text-gray-500 dark:text-gray-400">
+                  <div className="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-primary mr-2"></div>
+                  Loading token packages...
+                </div>
+              )}
+
+              {/* Config List */}
+              {!loadingConfigs && configs.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Select packages to clone ({selectedConfigIds.size} of {configs.length} selected)
+                    </span>
+                    <button
+                      onClick={toggleAll}
+                      className="text-sm text-primary hover:text-primary/80"
+                    >
+                      {selectedConfigIds.size === configs.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {configs.map(config => (
+                      <label
+                        key={config.id}
+                        className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
+                          selectedConfigIds.has(config.id)
+                            ? 'border-primary bg-primary/5 dark:bg-primary/10'
+                            : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedConfigIds.has(config.id)}
+                          onChange={() => toggleConfig(config.id)}
+                          className="w-4 h-4 text-primary focus:ring-primary border-gray-300 rounded mr-3 flex-shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">
+                              {config.name}
+                            </span>
+                            <span className="text-sm font-semibold text-gray-900 dark:text-white ml-2">
+                              {formatCurrency(config.basePrice)}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            {formatDuration(config.durationValue, config.durationUnit)}
+                            {' · '}
+                            {config.deviceLimit} device{config.deviceLimit !== 1 ? 's' : ''}
+                            {config.description && ` · ${config.description}`}
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* No configs found */}
+              {!loadingConfigs && selectedBusinessId && configs.length === 0 && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                  No active token packages found for this business.
+                </p>
+              )}
+            </>
           )}
         </div>
 

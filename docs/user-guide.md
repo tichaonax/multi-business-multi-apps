@@ -4306,6 +4306,8 @@ None of this is a one-time snapshot from when you paired — the agent quietly r
 
 **Offline behavior**: if the workstation's agent is offline, a scale connection attempt or a relayed print job fails with a clear "the local agent is offline — contact IT" message rather than a silent failure or a generic error, matching the R710 pairing's existing behavior described above.
 
+**A shared printer only routes to one business at a time (MBM-277).** A physical printer (`Printer Connection Mode`, Section 26) can only be AGENT-relayed through one business's workstation pairing at once — if two businesses run from the same physical till, only whichever business's pairing that printer is currently routed to can print through it; the other gets the "local agent is offline" message above even though the workstation's agent itself is online, because it's simply routed elsewhere right now. A system admin re-points it on **Printer Connection Mode** (Section 26) — this is a one-time setup choice, not something that needs live hand-off, since only one business is ever actually operating from a given till at a time. Each business also keeps its **own** "default printer" preference (**POS Settings → Printer Preferences**) — picking a default printer while working one business no longer carries over as the default when you switch to a different business on the same browser/PC.
+
 **Nothing about existing setups changes.** A scale connected via the desktop (Electron) app, or a printer already working through QZ Tray or a direct network connection, needs no changes and keeps working exactly as before — the workstation-agent pairing is purely an additional option for hardware that the central server can no longer reach directly.
 
 ---
@@ -11215,6 +11217,7 @@ Use this instead of the steps above when the scale is attached to a workstation 
 2. From that same workstation, open **Settings → POS Settings → ⚖️ Scale & Weighing** and follow the **Workstation Agents** link (or go to `/admin/workstation-agents`), then **Pair this machine**.
 3. Under **MG-S8200 Scale Setup**, pick the workstation you just paired, click **List Ports** to see its available COM ports, select the correct one, and click **Detect Baud** if you don't already know the scale's baud rate.
 4. Click **Save Scale Configuration**. The scale connects automatically from then on — including every time this business is opened in a browser on any machine, not just the one with the scale attached, since the connection is now relayed through the paired workstation.
+5. A **Test Scale** panel appears right below the saved configuration on this same Workstation Agents page (MBM-277) — no need to open the POS just to check it worked. It shows a live weight reading and unit, stability/overload/error flags, connection status, when the reading last updated, and a **Tare** button, all scoped to whichever business you have this page open for. Every test read or tare shows up in that workstation's **Recent Activity** log just like a real POS reading would.
 
 Everything documented above and below on this page — the scale status panel, tap-to-weigh cards, AYLI weight-based combos (Section 54) — works identically once connected this way. The only difference from the desktop-app path is *how* the connection reaches the physical scale.
 

@@ -17,6 +17,7 @@ export const dynamic = 'force-dynamic'
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { useScale } from '@/contexts/ScaleContext'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useAlert } from '@/components/ui/confirm-modal'
 
@@ -55,6 +56,83 @@ interface ScaleConfig {
   comPort: string | null
   baudRate: number | null
   workstation_agent: { id: string; label: string; connectionStatus: string }
+}
+
+// MBM-277: live scale test for the currently active business — reuses
+// ScaleContext exactly as-is (already resolves the scale via
+// /api/scale/device-config?businessId=<currentBusinessId>, so this is
+// automatically scoped to whichever business this page is open for, with no
+// new wiring). A reading here shows up in WorkstationAgentRequestLog like any
+// other SCALE_CONNECT/SCALE_TARE job, so it's diagnosable the same way
+// without a separate logging path.
+function TestScalePanel() {
+  const { weight, status, isAvailable, isConfigured, tare } = useScale()
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
+  const [taring, setTaring] = useState(false)
+
+  useEffect(() => {
+    setLastUpdatedAt(new Date())
+  }, [weight, status])
+
+  const handleTare = async () => {
+    setTaring(true)
+    try {
+      await tare()
+    } finally {
+      setTaring(false)
+    }
+  }
+
+  const statusLabel: Record<typeof status.status, string> = {
+    connected: '🟢 Connected',
+    connecting: '🟡 Connecting…',
+    disconnected: '⚪ Disconnected',
+    error: '🔴 Error',
+  }
+
+  if (!isConfigured) {
+    return (
+      <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+        Save a scale configuration above, then this panel will let you test a live reading.
+      </p>
+    )
+  }
+
+  return (
+    <div className="mt-3 border-t border-gray-200 dark:border-gray-700 pt-3">
+      <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Test Scale (this business)</p>
+      <div className="bg-gray-50 dark:bg-gray-900/40 rounded-md p-4 space-y-2">
+        <div className="flex items-baseline justify-between">
+          <span className="text-2xl font-mono font-semibold text-gray-900 dark:text-white">
+            {weight ? `${weight.weight.toFixed(3)} ${weight.unit}` : '—'}
+          </span>
+          <span className="text-sm">{statusLabel[status.status]}</span>
+        </div>
+        {weight && (
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {weight.stable ? 'Stable' : 'Settling…'}
+            {weight.overload ? ' · Overload' : ''}
+            {weight.error ? ' · Reading error' : ''}
+          </p>
+        )}
+        {status.error && (
+          <p className="text-xs text-red-600 dark:text-red-400">⚠️ {status.error}</p>
+        )}
+        <div className="flex items-center justify-between pt-1">
+          <span className="text-xs text-gray-400 dark:text-gray-500">
+            {lastUpdatedAt ? `Last updated ${lastUpdatedAt.toLocaleTimeString()}` : 'Waiting for a reading…'}
+          </span>
+          <button
+            onClick={handleTare}
+            disabled={!isAvailable || status.status !== 'connected' || taring}
+            className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
+          >
+            {taring ? 'Taring…' : 'Tare'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function WorkstationAgentsPage() {
@@ -606,9 +684,12 @@ export default function WorkstationAgentsPage() {
               </button>
 
               {scaleConfig && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Currently active: {scaleConfig.comPort} on "{scaleConfig.workstation_agent.label}"
-                </p>
+                <>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Currently active: {scaleConfig.comPort} on "{scaleConfig.workstation_agent.label}"
+                  </p>
+                  <TestScalePanel />
+                </>
               )}
             </div>
           )}
