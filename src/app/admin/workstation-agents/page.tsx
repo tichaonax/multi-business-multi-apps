@@ -77,6 +77,13 @@ export default function WorkstationAgentsPage() {
   // second WorkstationAgents row for a machine that's already paired here.
   const [existingWorkstationAgentId, setExistingWorkstationAgentId] = useState<string | undefined>(undefined)
   const [existingProfileLabel, setExistingProfileLabel] = useState<string | undefined>(undefined)
+  // True when this machine already has an R710 pairing to this exact
+  // server but no workstation pairing yet — the common "same machine,
+  // second capability" case (e.g. a machine already relaying R710 that now
+  // also needs its printer/scale paired). Drives pre-filling the label
+  // field with the existing profile's own name and a shortcut message,
+  // instead of treating this like a completely unknown machine.
+  const [hasExistingR710Only, setHasExistingR710Only] = useState(false)
   const existingAgentInThisBusiness = agents.find(a => a.id === existingWorkstationAgentId)
   const [togglingAutoStartId, setTogglingAutoStartId] = useState<string | null>(null)
 
@@ -171,16 +178,27 @@ export default function WorkstationAgentsPage() {
         .then(async res => {
           if (cancelled) return
           setLocalAgentDetected(res.ok)
-          if (!res.ok) { setExistingWorkstationAgentId(undefined); return }
+          if (!res.ok) { setExistingWorkstationAgentId(undefined); setHasExistingR710Only(false); return }
           const data = await res.json().catch(() => null)
           if (data?.profile?.hasWorkstation) {
             setExistingWorkstationAgentId(data.profile.workstationAgentId)
             setExistingProfileLabel(data.profile.label)
+            setHasExistingR710Only(false)
+          } else if (data?.profile?.hasR710) {
+            // This machine is already known to this server — just not for
+            // printer/scale yet. Pre-fill (never overwrite something
+            // already typed) rather than leaving the field blank as if
+            // this were a totally unfamiliar machine.
+            setExistingWorkstationAgentId(undefined)
+            setExistingProfileLabel(data.profile.label)
+            setHasExistingR710Only(true)
+            if (data.profile.label) setPairLabel(prev => prev || data.profile.label)
           } else {
             setExistingWorkstationAgentId(undefined)
+            setHasExistingR710Only(false)
           }
         })
-        .catch(() => { if (!cancelled) { setLocalAgentDetected(false); setExistingWorkstationAgentId(undefined) } })
+        .catch(() => { if (!cancelled) { setLocalAgentDetected(false); setExistingWorkstationAgentId(undefined); setHasExistingR710Only(false) } })
     }
     probe()
     const interval = setInterval(probe, 2000)
@@ -386,9 +404,19 @@ export default function WorkstationAgentsPage() {
                   ⚠️ This machine already has a workstation pairing to this server (as "{existingProfileLabel}"), but it isn't part of <strong>this</strong> business's paired list — it likely belongs to a different business, or that pairing was revoked. Pairing below will create an <strong>additional, separate</strong> pairing for this business, not reuse the existing one. If that's not what you want, check the other business first.
                 </p>
               )}
-              <div className="mb-4 text-sm px-3 py-2 rounded-md bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300">
-                🟢 Local agent detected on this machine and waiting to be paired.
-              </div>
+              {hasExistingR710Only ? (
+                // This exact machine is already paired to this server for
+                // R710, just not for printer/scale yet — no need to make
+                // this feel like a brand new, unfamiliar machine. The label
+                // below is pre-filled from the R710 pairing's own name.
+                <div className="mb-4 text-sm px-3 py-2 rounded-md bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300">
+                  ✅ This machine is already connected to this server as <strong>"{existingProfileLabel}"</strong> (R710). Add the printer/scale to that same connection below.
+                </div>
+              ) : (
+                <div className="mb-4 text-sm px-3 py-2 rounded-md bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300">
+                  🟢 Local agent detected on this machine and waiting to be paired.
+                </div>
+              )}
             </>
           ) : (
             <p className="mb-4 text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3">
