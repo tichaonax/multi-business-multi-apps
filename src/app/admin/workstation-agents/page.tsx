@@ -3,14 +3,19 @@
 // MBM-275: pairing + scale setup for the workstation agent (scale + printer
 // relay). Mirrors the R710 Agent panel's pairing UX (src/app/r710-portal/
 // devices/[id]/agent/page.tsx) as closely as possible so admins learn one
-// pairing workflow across device types. Printer connection-mode setup has
-// no dedicated UI yet (see PATCH /api/admin/network-printers/[id]/
-// connection-mode) — this page covers pairing + scale, the primary
-// deliverable for this phase; printer setup is a fast-follow.
+// pairing workflow across device types.
+//
+// One pairing here covers BOTH capabilities a workstation can offer — its
+// physically-attached scale (configured right on this page) and any local
+// receipt printer (registered + routed on two other admin pages, since
+// printers are a shared, cross-business resource — see the Receipt Printer
+// Setup card below, which links there directly rather than requiring the
+// admin to already know those pages exist).
 
 export const dynamic = 'force-dynamic'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useAlert } from '@/components/ui/confirm-modal'
@@ -299,16 +304,19 @@ export default function WorkstationAgentsPage() {
   return (
     <ContentLayout
       title="Workstation Agents"
-      description="Pair a workstation so its locally-connected scale and printer can be reached by this centrally-hosted app (MBM-275)"
+      description="Pair a workstation once, then use that single pairing for BOTH its locally-connected scale and its receipt printer (MBM-275)"
     >
       <div className="space-y-6">
         {/* Pairing */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
           <h3 className="font-medium text-gray-900 dark:text-white mb-2">Pair This Workstation</h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Open this page from the workstation you want to pair (the one with the scale/printer physically attached).
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+            Open this page from the workstation you want to pair (the one with the scale and/or printer physically attached).
             {' '}<a href="/api/admin/r710/agents/download" className="text-blue-600 dark:text-blue-400 hover:underline">Download r710-agent.zip</a>{' '}
             (same agent used for R710) and run it there first if it isn't already running.
+          </p>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            ⚖️ 🖨️ <strong>One pairing covers both</strong> — you don't pair separately for the scale and the printer. Pair once here, then configure whichever of the two this workstation actually has: scale setup is right below, printer setup is one click away in the card underneath it.
           </p>
           <div className={`mb-4 text-sm px-3 py-2 rounded-md ${localAgentDetected ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300' : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}>
             {localAgentDetected ? '🟢 Local agent detected on this machine and waiting to be paired.' : '⚪ No local agent detected on this machine yet.'}
@@ -424,7 +432,7 @@ export default function WorkstationAgentsPage() {
 
         {/* Scale setup */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
-          <h3 className="font-medium text-gray-900 dark:text-white mb-4">MG-S8200 Scale Setup</h3>
+          <h3 className="font-medium text-gray-900 dark:text-white mb-4">⚖️ MG-S8200 Scale Setup</h3>
           {agents.length === 0 ? (
             <p className="text-gray-500 dark:text-gray-400">Pair a workstation first.</p>
           ) : (
@@ -488,6 +496,48 @@ export default function WorkstationAgentsPage() {
                   Currently active: {scaleConfig.comPort} on "{scaleConfig.workstation_agent.label}"
                 </p>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* Printer setup — two separate admin pages, linked directly here so this
+            page is a complete starting point for both capabilities, not just the
+            scale. Registering a printer (any user) and routing it through a
+            paired workstation (system admin only, since printers are a shared,
+            cross-business resource — not gated per-business like the scale) are
+            deliberately separate steps/pages; this card exists purely to make
+            both reachable without already knowing they exist. */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+          <h3 className="font-medium text-gray-900 dark:text-white mb-2">🖨️ Receipt Printer Setup</h3>
+          {agents.length === 0 ? (
+            <p className="text-gray-500 dark:text-gray-400">Pair a workstation first.</p>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Routing a printer through a paired workstation is two steps, on two different pages:
+              </p>
+              <ol className="text-sm text-gray-600 dark:text-gray-400 list-decimal list-inside space-y-2">
+                <li>
+                  <strong>Register the printer</strong> — a one-time entry for the physical printer itself, if it isn't already registered.
+                  {' '}
+                  <Link href="/admin/printers" className="text-blue-600 dark:text-blue-400 hover:underline">
+                    Register a printer →
+                  </Link>
+                </li>
+                <li>
+                  <strong>Route it through this workstation</strong> — set that printer's connection mode to relay through one of the workstations paired above, and pick the exact printer name from what this workstation's agent detects.
+                  {' '}
+                  {isSystemAdmin ? (
+                    <Link href="/admin/network-printers" className="text-blue-600 dark:text-blue-400 hover:underline">
+                      Printer Connection Mode →
+                    </Link>
+                  ) : (
+                    <span className="text-gray-500 dark:text-gray-500 italic">
+                      System admin only — ask a system admin to complete this step for {agents.map(a => `"${a.label}"`).join(', ')}.
+                    </span>
+                  )}
+                </li>
+              </ol>
             </div>
           )}
         </div>

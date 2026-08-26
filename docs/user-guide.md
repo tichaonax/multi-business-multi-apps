@@ -4271,10 +4271,14 @@ The `r710-agent.exe` downloaded above is not R710-only — the exact same progra
 A workstation only needs one download and one running `r710-agent.exe` no matter how many of R710 / Scale / Printer it ends up covering — pair it for whichever it has attached. A workstation with only a scale never touches the R710 pairing at all, and vice versa.
 
 **Pairing a workstation for Scale and/or Printer:**
+
+**One pairing covers both capabilities — you never pair separately for the scale and the printer.** Pair the workstation once; whether you then use it for the scale, a printer, or both just depends on which setup steps you follow afterward.
+
 1. Go to **Settings → POS Settings → ⚖️ Scale & Weighing**, then follow the **"Workstation Agents"** link near the bottom of the Scale Hardware section (or go directly to `/admin/workstation-agents` for the current business).
 2. With the local agent already downloaded and running on the target workstation — this page has its own **Download r710-agent.zip** link right in the pairing card (same file, same install steps as R710's) — open this page **from that workstation** and click **Pair this machine**, giving it a label like "Front Desk PC — Bulawayo Branch".
-3. Once paired, use the same page's **MG-S8200 Scale Setup** section to pick the COM port (with a **List Ports** button, and a **Detect Baud** button so you don't have to know the scale's baud rate) and save — see Section 53 for the full weighing workflow once this is done.
-4. For printers, a **system admin** configures which printer relays through which paired workstation separately, at **Printer Connection Mode** in the sidebar (`/admin/network-printers`) — see Section 26 for details. This is a different, admin-only screen because printers in this app are a shared resource, not owned by one business.
+3. Once paired, the page shows two setup cards, one for each capability — use whichever apply to this workstation:
+   - **⚖️ MG-S8200 Scale Setup** — pick the COM port (with a **List Ports** button, and a **Detect Baud** button so you don't have to know the scale's baud rate) and save. See Section 53 for the full weighing workflow once this is done.
+   - **🖨️ Receipt Printer Setup** — this card doesn't configure the printer directly (printers are a shared, cross-business resource, handled on two separate admin-only pages — see Section 26's **"Printer Connection Mode"** for the full walkthrough) but gives you direct links to both steps right from here: **Register a printer →** and, for system admins, **Printer Connection Mode →**. If you're not a system admin, it names the workstation(s) you just paired and tells you to hand those off to one.
 
 Each paired workstation row on this page also has a **Start with Windows** toggle — same auto-start setting as the tray and the R710 Agent panel's version of it, described above.
 
@@ -7816,11 +7820,12 @@ If a printer is stuck or printing the same job on repeat, open the **Test Print*
 
 **Who reads this:** System administrators only. Printers configured here are a shared resource across the whole system, not owned by one business, so this lives in the global admin area rather than per-business settings.
 
-1. A **local agent** must already be paired to the workstation the printer is attached to — see Section 13's **"Remote Sites — R710 via Local Agent"** for the download/install steps, and the **"Same Agent Now Also Relays a Scale and a Printer"** subsection there for pairing it as a Workstation Agent (the same agent download used for R710 and the scale).
-2. Go to **Printer Connection Mode** in the sidebar (`/admin/network-printers`).
-3. Find the printer and click **Configure**.
-4. Choose **AGENT — relay through a paired workstation**, select the paired workstation from the dropdown, then click **List Printers** to pull the actual printer names installed there and pick the correct one — this avoids typos and confirms the agent can actually see that printer.
-5. Click **Save**.
+1. A **local agent** must already be paired to the workstation the printer is attached to — see Section 13's **"Remote Sites — R710 via Local Agent"** for the download/install steps, and the **"Same Agent Now Also Relays a Scale and a Printer"** subsection there for pairing it as a Workstation Agent (the same agent download used for R710 and the scale). The **Workstation Agents** page (`/admin/workstation-agents`) has a **🖨️ Receipt Printer Setup** card once a workstation is paired, with direct links to both steps below — you don't need to already know these two pages exist.
+2. **If the printer isn't registered yet**, add it first: go to **👤 Profile → Printer Setup**, scroll past the personal QZ Tray section to **Network Printers** (visible to system admins / anyone with the Manage Network Printers permission) → **Add Printer**. Give it a **Printer ID** (a short internal slug, e.g. `front-desk-receipt`) and a **Printer Name**, set **Printer Type** to `Receipt Printer`. The "Select System Printer" discovery on this form searches printers installed on the **server itself**, not the remote workstation — for a printer that's going to relay through an agent, that discovery is irrelevant; just type a sensible name manually and move on. The IP address/port fields are also for DIRECT-mode printers only — leave them blank.
+3. Go to **Printer Connection Mode** in the sidebar (`/admin/network-printers`).
+4. Find the printer and click **Configure**.
+5. Choose **AGENT — relay through a paired workstation**, select the paired workstation from the dropdown, then click **List Printers** to pull the actual printer names installed there and pick the correct one — this is the step that actually matches it to a real, physical printer, regardless of whatever name was typed in step 2.
+6. Click **Save**.
 
 Printers left on **DIRECT** (the default for every printer that existed before this feature) are completely unaffected — this page changes nothing about them.
 
