@@ -26,6 +26,10 @@ export interface WorkstationAgentConfig {
   configuredPrinters?: string[]
   scaleComPort?: string
   scaleBaudRate?: number
+  // The printer QZ Tray (a separate program, browser-driven — not this
+  // agent) is set up to use on THIS machine, if any — informational only,
+  // never used by this agent to route a job. See qz-config/route.ts.
+  qzPrinterName?: string
 }
 
 export function loadWorkstationConfig(profileId: string): WorkstationAgentConfig | null {

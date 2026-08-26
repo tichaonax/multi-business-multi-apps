@@ -53,9 +53,16 @@ interface ScaleConfig {
 }
 
 export default function WorkstationAgentsPage() {
-  const { currentBusinessId, isSystemAdmin, isBusinessOwner } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness, isSystemAdmin, isBusinessOwner } = useBusinessPermissionsContext()
   const isAdmin = isSystemAdmin || isBusinessOwner
   const alert = useAlert()
+
+  // MG-S8200 scale support only applies to grocery/restaurant — mirrors
+  // POSSettingsHub.tsx's identical hasScale check. Printer relay has no such
+  // restriction; every business type can register a receipt printer.
+  // Enforced server-side too (POST /api/scale/device-config), not just
+  // hidden here — this only controls what the UI offers.
+  const hasScale = currentBusiness?.businessType === 'grocery' || currentBusiness?.businessType === 'restaurant'
 
   const [agents, setAgents] = useState<WorkstationAgent[]>([])
   const [scaleConfig, setScaleConfig] = useState<ScaleConfig | null>(null)
@@ -64,6 +71,13 @@ export default function WorkstationAgentsPage() {
   const [pairLabel, setPairLabel] = useState('')
   const [pairing, setPairing] = useState(false)
   const [localAgentDetected, setLocalAgentDetected] = useState(false)
+  // Populated from the agent's own /probe response when this exact machine
+  // already has a workstation pairing to this exact server — lets the pair
+  // flow detect and warn about (or skip) creating a redundant, disconnected
+  // second WorkstationAgents row for a machine that's already paired here.
+  const [existingWorkstationAgentId, setExistingWorkstationAgentId] = useState<string | undefined>(undefined)
+  const [existingProfileLabel, setExistingProfileLabel] = useState<string | undefined>(undefined)
+  const existingAgentInThisBusiness = agents.find(a => a.id === existingWorkstationAgentId)
   const [togglingAutoStartId, setTogglingAutoStartId] = useState<string | null>(null)
 
   // Scale setup state
@@ -122,6 +136,29 @@ export default function WorkstationAgentsPage() {
     }
   }, [currentBusinessId])
 
+  // Refreshes just the connection-status badges — not the full load() (which
+  // would reset the scale form's selected port/baud while someone might be
+  // mid-edit, and flips the page-wide loading spinner). The server now
+  // checks the agent hub's live in-memory state on every call (see
+  // GET /api/admin/workstation-agents), not just the DB's last-known value,
+  // so this is what actually keeps "Connected" honest after the underlying
+  // socket drops without a clean disconnect — otherwise a stale ONLINE
+  // status could sit there indefinitely until a manual reload.
+  const refreshAgentStatus = useCallback(async () => {
+    if (!currentBusinessId) return
+    const res = await fetch(`/api/admin/workstation-agents?businessId=${currentBusinessId}`, { credentials: 'include' })
+    if (res.ok) {
+      const data = await res.json()
+      setAgents(data.data || [])
+    }
+  }, [currentBusinessId])
+
+  useEffect(() => {
+    if (!currentBusinessId) return
+    const interval = setInterval(refreshAgentStatus, 10000)
+    return () => clearInterval(interval)
+  }, [currentBusinessId, refreshAgentStatus])
+
   useEffect(() => { load() }, [load])
 
   // Probe the local agent on this browser's own machine — mirrors the R710
@@ -131,8 +168,19 @@ export default function WorkstationAgentsPage() {
     let cancelled = false
     const probe = () => {
       fetch(`http://127.0.0.1:${PAIRING_PORT}/probe?serverUrl=${encodeURIComponent(window.location.origin)}`, { signal: AbortSignal.timeout(2500) })
-        .then(res => { if (!cancelled) setLocalAgentDetected(res.ok) })
-        .catch(() => { if (!cancelled) setLocalAgentDetected(false) })
+        .then(async res => {
+          if (cancelled) return
+          setLocalAgentDetected(res.ok)
+          if (!res.ok) { setExistingWorkstationAgentId(undefined); return }
+          const data = await res.json().catch(() => null)
+          if (data?.profile?.hasWorkstation) {
+            setExistingWorkstationAgentId(data.profile.workstationAgentId)
+            setExistingProfileLabel(data.profile.label)
+          } else {
+            setExistingWorkstationAgentId(undefined)
+          }
+        })
+        .catch(() => { if (!cancelled) { setLocalAgentDetected(false); setExistingWorkstationAgentId(undefined) } })
     }
     probe()
     const interval = setInterval(probe, 2000)
@@ -311,32 +359,64 @@ export default function WorkstationAgentsPage() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
           <h3 className="font-medium text-gray-900 dark:text-white mb-2">Pair This Workstation</h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-            Open this page from the workstation you want to pair (the one with the scale and/or printer physically attached).
+            Open this page from the workstation you want to pair (the one with the {hasScale ? 'scale and/or printer' : 'printer'} physically attached).
             {' '}<a href="/api/admin/r710/agents/download" className="text-blue-600 dark:text-blue-400 hover:underline">Download r710-agent.zip</a>{' '}
             (same agent used for R710) and run it there first if it isn't already running.
           </p>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            ⚖️ 🖨️ <strong>One pairing covers both</strong> — you don't pair separately for the scale and the printer. Pair once here, then configure whichever of the two this workstation actually has: scale setup is right below, printer setup is one click away in the card underneath it.
+            {hasScale ? (
+              <>⚖️ 🖨️ <strong>One pairing covers both</strong> — you don't pair separately for the scale and the printer. Pair once here, then configure whichever of the two this workstation actually has: scale setup is right below, printer setup is one click away in the card underneath it.</>
+            ) : (
+              <>🖨️ This pairing is used for the <strong>receipt printer</strong> — set up is one click away in the card below. (MG-S8200 scale support isn't available for this business type.)</>
+            )}
           </p>
-          <div className={`mb-4 text-sm px-3 py-2 rounded-md ${localAgentDetected ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300' : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}>
-            {localAgentDetected ? '🟢 Local agent detected on this machine and waiting to be paired.' : '⚪ No local agent detected on this machine yet.'}
-          </div>
-          <div className="flex gap-2">
+          {localAgentDetected && existingAgentInThisBusiness ? (
+            // This exact machine already has a workstation pairing, and it's
+            // already part of THIS business's paired list — nothing to do.
+            // Pairing again here would just create a redundant, disconnected
+            // second row for the same physical machine (previously the only
+            // outcome, unconditionally, on every click).
+            <div className="mb-4 text-sm px-3 py-2 rounded-md bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300">
+              ✅ This machine is already paired here as <strong>"{existingAgentInThisBusiness.label}"</strong> — see it in Paired Workstations below. No need to pair again.
+            </div>
+          ) : localAgentDetected ? (
+            <>
+              {existingWorkstationAgentId && (
+                <p className="mb-2 text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3">
+                  ⚠️ This machine already has a workstation pairing to this server (as "{existingProfileLabel}"), but it isn't part of <strong>this</strong> business's paired list — it likely belongs to a different business, or that pairing was revoked. Pairing below will create an <strong>additional, separate</strong> pairing for this business, not reuse the existing one. If that's not what you want, check the other business first.
+                </p>
+              )}
+              <div className="mb-4 text-sm px-3 py-2 rounded-md bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300">
+                🟢 Local agent detected on this machine and waiting to be paired.
+              </div>
+            </>
+          ) : (
+            <p className="mb-4 text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3">
+              🔴 No local agent detected on this machine yet — the label field and <strong>Pair this machine</strong> button below stay disabled until it is.
+              Download and run <code className="text-xs bg-amber-100 dark:bg-amber-900/40 px-1 rounded">r710-agent.exe</code> (link above) if you haven't already.
+              This page checks automatically every couple of seconds — <strong>no need to reload</strong> once the agent is running; the button will activate on its own.
+            </p>
+          )}
+          {!existingAgentInThisBusiness && (
+          <div className={`flex gap-2 ${!localAgentDetected ? 'opacity-50' : ''}`}>
             <input
               type="text"
               value={pairLabel}
               onChange={(e) => setPairLabel(e.target.value)}
+              disabled={!localAgentDetected}
               placeholder="e.g. Front Desk PC — Bulawayo Branch"
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white disabled:cursor-not-allowed"
             />
             <button
               onClick={handlePair}
               disabled={!localAgentDetected || !pairLabel.trim() || pairing}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              title={!localAgentDetected ? 'Waiting for the local agent to be detected on this machine' : undefined}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
             >
-              {pairing ? 'Pairing…' : 'Pair this machine'}
+              {pairing ? 'Pairing…' : localAgentDetected ? 'Pair this machine' : 'Waiting for agent…'}
             </button>
           </div>
+          )}
         </div>
 
         {/* Paired agents list */}
@@ -430,7 +510,8 @@ export default function WorkstationAgentsPage() {
           )}
         </div>
 
-        {/* Scale setup */}
+        {/* Scale setup — grocery/restaurant only, see hasScale's comment above */}
+        {hasScale && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
           <h3 className="font-medium text-gray-900 dark:text-white mb-4">⚖️ MG-S8200 Scale Setup</h3>
           {agents.length === 0 ? (
@@ -499,6 +580,7 @@ export default function WorkstationAgentsPage() {
             </div>
           )}
         </div>
+        )}
 
         {/* Printer setup — two separate admin pages, linked directly here so this
             page is a complete starting point for both capabilities, not just the

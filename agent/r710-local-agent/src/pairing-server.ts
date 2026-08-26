@@ -19,8 +19,8 @@
  */
 
 import { createServer, type Server } from 'http'
-import { saveConfig, type AgentConfig } from './config'
-import { saveWorkstationConfig, type WorkstationAgentConfig } from './workstation-config'
+import { saveConfig, loadConfig, type AgentConfig } from './config'
+import { saveWorkstationConfig, loadWorkstationConfig, type WorkstationAgentConfig } from './workstation-config'
 import { ensureProfile, deriveProfileId, readProfileMeta } from './profile-store'
 import { buildManagePageHtml } from './manage-page'
 
@@ -39,7 +39,13 @@ export interface ManageProfileInfo {
   label: string
   serverUrl: string
   r710State?: string
+  r710DeviceIp?: string
   workstationState?: string
+  businessName?: string
+  configuredPrinters?: string[]
+  qzPrinterName?: string
+  scaleComPort?: string
+  scaleBaudRate?: number
 }
 
 export interface ManageSnapshot {
@@ -48,6 +54,10 @@ export interface ManageSnapshot {
   scaleOwnerProfileId: string | null
   scaleOwnerLabel: string | null
   autoStartEnabled: boolean
+  // Whole-machine, not per-profile — same field/rationale as TrayState's
+  // printerNames (tray.ts): every printer Windows has installed here,
+  // shown once, not duplicated per profile below.
+  printerNames: string[]
 }
 
 // The admin's browser calls this server cross-origin — the app is served
@@ -150,9 +160,27 @@ export function startPairingServer(callbacks: PairingCallbacks): Server {
       }
       const profileId = deriveProfileId(serverUrl)
       const meta = readProfileMeta(profileId)
+      // Includes which capabilities this exact machine already has for this
+      // exact server (and the actual workstationAgentId, not just a
+      // boolean) so the caller can detect "this machine already has a
+      // workstation pairing here" BEFORE minting and creating another,
+      // separate one — see the admin/workstation-agents page's pairing
+      // flow, which was previously happy to mint a brand new
+      // WorkstationAgents row every single time, with no awareness that
+      // one might already exist for this exact profile.
+      const r710Config = meta ? loadConfig(profileId) : null
+      const workstationConfig = meta ? loadWorkstationConfig(profileId) : null
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({
         hasProfile: meta !== null,
-        profile: meta ? { profileId, label: meta.label, createdAt: meta.createdAt, lastActiveAt: meta.lastActiveAt } : undefined,
+        profile: meta ? {
+          profileId,
+          label: meta.label,
+          createdAt: meta.createdAt,
+          lastActiveAt: meta.lastActiveAt,
+          hasR710: r710Config !== null,
+          hasWorkstation: workstationConfig !== null,
+          workstationAgentId: workstationConfig?.workstationAgentId,
+        } : undefined,
       }))
       return
     }

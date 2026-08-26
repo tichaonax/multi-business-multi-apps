@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerUser } from '@/lib/get-server-user'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin } from '@/lib/permission-utils'
+import { workstationAgentHub } from '@/lib/workstation-agents/agent-hub'
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -47,6 +48,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         ...(printerName ? { printerName } : {}),
       },
     })
+
+    // Without this, the agent (and anyone looking at its tray) keeps
+    // showing whatever it learned at its last periodic sync — up to 10
+    // minutes stale — even though this printer routing just changed right
+    // now. Request both the printer's new workstation AND its old one (if
+    // switching away from AGENT mode, or between two different
+    // workstations) so neither is left showing outdated info.
+    if (updated.workstationAgentId) workstationAgentHub.requestSync(updated.workstationAgentId)
+    if (printer.workstationAgentId && printer.workstationAgentId !== updated.workstationAgentId) {
+      workstationAgentHub.requestSync(printer.workstationAgentId)
+    }
 
     return NextResponse.json({ success: true, printer: updated })
   } catch (error) {

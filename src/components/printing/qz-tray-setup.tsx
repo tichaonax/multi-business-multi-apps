@@ -20,15 +20,26 @@ import {
   type QzPrinterConfig,
 } from '@/lib/printing/qz-tray-printer'
 
+const PAIRING_PORT = 47710
+
 interface QzTraySetupProps {
   onSetupComplete?: (config: QzPrinterConfig) => void
   onDisconnect?: () => void
   compact?: boolean
   /** When true, don't auto-check on mount — user must click "Check QZ Tray" first */
   lazy?: boolean
+  /**
+   * Opts into DB-backed persistence (see /api/printing/qz-config) so a
+   * Workstation Agent paired on this same machine can see this selection in
+   * its own tray, and so it survives independent of this one browser's
+   * localStorage. Optional and purely additive — every other consumer of
+   * this component keeps working exactly as before (pure localStorage,
+   * no network calls) by simply not passing this prop.
+   */
+  businessId?: string
 }
 
-export function QzTraySetup({ onSetupComplete, onDisconnect, compact = false, lazy = false }: QzTraySetupProps) {
+export function QzTraySetup({ onSetupComplete, onDisconnect, compact = false, lazy = false, businessId }: QzTraySetupProps) {
   const [available, setAvailable] = useState<boolean | null>(lazy ? false : null) // null = checking, false = not available
   const [printers, setPrinters] = useState<string[]>([])
   const [selectedPrinter, setSelectedPrinter] = useState('')
@@ -40,13 +51,51 @@ export function QzTraySetup({ onSetupComplete, onDisconnect, compact = false, la
   const [successMsg, setSuccessMsg] = useState('Test print sent successfully')
   const [error, setError] = useState('')
   const [hasChecked, setHasChecked] = useState(false)
+  // Detected from this machine's own local agent, if one happens to be
+  // paired here (independent of QZ Tray itself — the agent is a separate
+  // program) — see the save/load effects below for how this scopes the
+  // DB-backed config to this exact physical machine when possible.
+  const [localWorkstationAgentId, setLocalWorkstationAgentId] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     const config = getQzPrinterConfig()
     setSavedConfig(config)
     if (config) setSelectedPrinter(config.printerName)
     if (!lazy) checkAvailability()
-  }, [])
+
+    if (!businessId) return
+
+    // Probe first, THEN fetch — so the GET below can pass along this exact
+    // machine's workstationAgentId when one exists, preferring its
+    // per-machine config over the business-wide default. A machine with no
+    // local agent installed at all (the common pure-QZ-only case) just
+    // times out quickly and falls through to the business-wide default.
+    fetch(`http://127.0.0.1:${PAIRING_PORT}/probe?serverUrl=${encodeURIComponent(window.location.origin)}`, { signal: AbortSignal.timeout(2000) })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => data?.profile?.hasWorkstation ? (data.profile.workstationAgentId as string | undefined) : undefined)
+      .catch(() => undefined)
+      .then(workstationAgentId => {
+        setLocalWorkstationAgentId(workstationAgentId)
+        // DB is authoritative once businessId is provided — reconciles this
+        // browser's localStorage with whatever was last saved (by anyone,
+        // on this machine or set as the business default), so a fresh
+        // browser profile or a cleared cache picks up the right printer
+        // automatically instead of starting blank.
+        const qs = new URLSearchParams({ businessId })
+        if (workstationAgentId) qs.set('workstationAgentId', workstationAgentId)
+        return fetch(`/api/printing/qz-config?${qs}`, { credentials: 'include' })
+      })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.config?.printerName && data.config.printerName !== config?.printerName) {
+          const dbConfig: QzPrinterConfig = { printerName: data.config.printerName }
+          saveQzPrinterConfig(dbConfig)
+          setSavedConfig(dbConfig)
+          setSelectedPrinter(dbConfig.printerName)
+        }
+      })
+      .catch(() => { /* DB fetch failed — localStorage value (if any) still stands */ })
+  }, [businessId])
 
   async function checkAvailability() {
     setAvailable(null) // show spinner while checking
@@ -78,6 +127,26 @@ export function QzTraySetup({ onSetupComplete, onDisconnect, compact = false, la
     setSavedConfig(config)
     if (!selectedPrinter) setSelectedPrinter(name)
     onSetupComplete?.(config)
+    // The only prior feedback was the small badge next to "QZ Tray
+    // connected" — indistinguishable from a no-op when re-saving the same
+    // printer that badge already showed. Reuses the same success-message
+    // row Test Print already has, rather than a separate state/UI block.
+    setError('')
+    setSuccessMsg(`Saved "${name}" as your printer`)
+    setTestResult('success')
+
+    // Best-effort — this printer choice is now visible server-side too
+    // (see this component's businessId doc comment). A failure here never
+    // blocks the localStorage save above, which is what print jobs
+    // actually read from.
+    if (businessId) {
+      fetch('/api/printing/qz-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ businessId, workstationAgentId: localWorkstationAgentId ?? null, printerName: name }),
+      }).catch(() => { /* non-critical — localStorage already has it */ })
+    }
   }
 
   async function handleTestPrint() {

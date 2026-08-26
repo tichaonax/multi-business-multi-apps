@@ -158,7 +158,7 @@ class WorkstationAgentHub {
   // agentTokenHash or anything credential-shaped.
   private async handleSync(
     socket: Socket,
-    ack?: (res: { success: boolean; businessName?: string; printers?: string[]; scaleComPort?: string; scaleBaudRate?: number }) => void
+    ack?: (res: { success: boolean; businessName?: string; printers?: string[]; scaleComPort?: string; scaleBaudRate?: number; qzPrinterName?: string }) => void
   ): Promise<void> {
     const workstationAgentId = (socket.data as any)?.workstationAgentId as string | undefined
     if (!workstationAgentId) {
@@ -167,10 +167,22 @@ class WorkstationAgentHub {
     }
 
     const [agent, printers, scaleConfig] = await Promise.all([
-      prisma.workstationAgents.findUnique({ where: { id: workstationAgentId }, select: { businesses: { select: { name: true } } } }),
+      prisma.workstationAgents.findUnique({ where: { id: workstationAgentId }, select: { businessId: true, businesses: { select: { name: true } } } }),
       prisma.networkPrinters.findMany({ where: { workstationAgentId, connectionMode: 'AGENT' }, select: { printerName: true } }),
       prisma.scaleDeviceConfigs.findFirst({ where: { workstationAgentId, isActive: true }, select: { comPort: true, baudRate: true } }),
     ])
+
+    // Separate print path from the AGENT-relay `printers` list above — this
+    // is whichever printer QZ Tray (a completely different program, running
+    // directly in a user's browser) has been set up to use on THIS machine,
+    // if any. Prefers this exact workstation's own QZ config over the
+    // business-wide default — see qz-config/route.ts's GET for the same
+    // fallback shape. Purely informational for the tray; never used to
+    // route an actual AGENT print job.
+    const qzConfig = agent
+      ? await prisma.qzPrinterConfigs.findFirst({ where: { businessId: agent.businessId, workstationAgentId } })
+        ?? await prisma.qzPrinterConfigs.findFirst({ where: { businessId: agent.businessId, workstationAgentId: null } })
+      : null
 
     ack?.({
       success: true,
@@ -178,6 +190,7 @@ class WorkstationAgentHub {
       printers: printers.map(p => p.printerName),
       scaleComPort: scaleConfig?.comPort ?? undefined,
       scaleBaudRate: scaleConfig?.baudRate ?? undefined,
+      qzPrinterName: qzConfig?.printerName,
     })
   }
 
@@ -252,6 +265,23 @@ class WorkstationAgentHub {
     if (!connected || !this.io) return
     const socket = this.io.sockets.sockets.get(connected.socketId)
     socket?.disconnect(true)
+  }
+
+  /**
+   * Tells a connected agent to re-sync its config (business name, configured
+   * printer(s), scale COM port/baud) right now, instead of waiting for its
+   * own periodic timer — see workstation-socket-client.ts's syncConfig(),
+   * which normally only runs right after connect and then every 10 minutes.
+   * Call this whenever a server-side change makes that cached info stale
+   * for this specific agent (e.g. a printer's connectionMode/
+   * workstationAgentId was just saved) — otherwise an admin who just
+   * finished routing a printer sees the tray/Manage Profiles page keep
+   * showing the old, empty state for up to 10 minutes. No-op if the agent
+   * isn't currently connected — its next real connect already syncs fresh.
+   */
+  requestSync(workstationAgentId: string): void {
+    if (!this.io) return
+    this.io.to(`workstation-agent:${workstationAgentId}`).emit('workstation-agent:force-sync')
   }
 
   /**

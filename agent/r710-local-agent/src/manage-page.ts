@@ -70,6 +70,11 @@ export function buildManagePageHtml(): string {
   <div class="card" id="scaleCard"></div>
 
   <div class="card">
+    <div style="font-weight:600">Printers detected on this PC</div>
+    <div class="sub" style="margin:4px 0 0" id="printersOnPc"></div>
+  </div>
+
+  <div class="card">
     <div style="font-weight:600; margin-bottom:8px">Paired Servers</div>
     <div id="profiles"></div>
   </div>
@@ -105,18 +110,41 @@ async function load() {
   }
   scaleCard.innerHTML = scaleHtml
 
+  document.getElementById('printersOnPc').textContent =
+    (s.printerNames && s.printerNames.length > 0) ? s.printerNames.join(', ') : 'none detected'
+
   const container = document.getElementById('profiles')
   if (s.profiles.length === 0) {
     container.innerHTML = '<div class="empty">No profiles paired yet. Pair from the admin panel on the server you want to connect to.</div>'
     return
   }
   container.innerHTML = s.profiles.map(function (p) {
+    var r710Line = p.r710State
+      ? stateBadge('R710', p.r710State) + (p.r710DeviceIp ? ' <span class="sub" style="margin:0">(' + esc(p.r710DeviceIp) + ')</span>' : '')
+      : ''
+    var printerLine = p.workstationState ? stateBadge('Printer relay', p.workstationState) : ''
+    var detailLines = ''
+    if (p.workstationState) {
+      if (p.businessName) {
+        detailLines += '<div class="sub" style="margin-top:4px">Business: <strong>' + esc(p.businessName) + '</strong></div>'
+      }
+      detailLines += '<div class="sub" style="margin-top:4px">Configured printer(s) (via this agent): ' +
+        ((p.configuredPrinters && p.configuredPrinters.length > 0) ? esc(p.configuredPrinters.join(', ')) : 'none assigned to this business yet') +
+        '</div>'
+      detailLines += '<div class="sub" style="margin-top:4px">QZ Tray printer (this machine, separate path): ' +
+        (p.qzPrinterName ? esc(p.qzPrinterName) : 'not set') +
+        '</div>'
+      if (p.scaleComPort) {
+        detailLines += '<div class="sub" style="margin-top:4px">Scale configured for: ' + esc(p.scaleComPort) + (p.scaleBaudRate ? ' @ ' + p.scaleBaudRate : '') + '</div>'
+      }
+    }
     return '<div class="profile">' +
       '<div class="row">' +
         '<div><div class="profile-label">' + esc(p.label) + '</div><div class="profile-url">' + esc(p.serverUrl) + '</div></div>' +
         '<button class="danger" onclick="unpair(\\'' + p.profileId + '\\', \\'' + esc(p.label).replace(/'/g, "\\\\'") + '\\')">Unpair</button>' +
       '</div>' +
-      '<div style="margin-top:6px">' + stateBadge('R710', p.r710State) + ' ' + stateBadge('Printer', p.workstationState) + '</div>' +
+      '<div style="margin-top:6px">' + r710Line + ' ' + printerLine + '</div>' +
+      detailLines +
       '<div class="row" style="margin-top:8px">' +
         '<span class="sub" style="margin:0">Start with Windows <span style="opacity:.7">(one setting — applies to every profile, not just this one)</span></span>' +
         '<label class="switch"><input type="checkbox"' + (s.autoStartEnabled ? ' checked' : '') + ' onchange="toggleAutoStart(this.checked)"><span class="slider"></span></label>' +

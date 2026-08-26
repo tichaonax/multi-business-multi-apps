@@ -17,7 +17,7 @@ import { isSystemAdmin } from '@/lib/permission-utils'
 import { SessionUser } from '@/lib/permission-utils'
 
 export default function PrintersPage() {
-  const { hasPermission } = useBusinessPermissionsContext()
+  const { hasPermission, currentBusinessId } = useBusinessPermissionsContext()
   const { data: session } = useSession()
   const user = session?.user as SessionUser
   const canManageNetwork = isSystemAdmin(user) || hasPermission('canManageNetworkPrinters')
@@ -38,10 +38,11 @@ export default function PrintersPage() {
           </Link>
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-          Select and save your local receipt printer. This setting is per-device and stored in your browser.
+          Select and save your local receipt printer. Stored in your browser for instant access, and shared with the business
+          (and this machine's paired Workstation Agent, if any) so it isn't lost if this browser's storage is cleared.
         </p>
         <div className="max-w-md">
-          <QzTraySetup />
+          <QzTraySetup businessId={currentBusinessId ?? undefined} />
         </div>
       </div>
 

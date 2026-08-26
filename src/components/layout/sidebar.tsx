@@ -103,7 +103,8 @@ export function Sidebar() {
     loading: businessLoading,
     businesses: businessMemberships,
     switchBusiness,
-    hasPermission
+    hasPermission,
+    isBusinessOwner
   } = useBusinessPermissionsContext()
 
   // Get global cart for real-time sidebar badge updates
@@ -1905,6 +1906,22 @@ export function Sidebar() {
           >
             <span className="text-lg">📶</span>
             <span>R710 WiFi Portal</span>
+          </Link>
+        )}
+
+        {/* Workstation Agents (MBM-275) - pairs a workstation's scale AND/OR
+            printer relay to this business; same gate as the page itself
+            (isSystemAdmin || isBusinessOwner). Previously only reachable via
+            a buried link inside Settings -> POS Settings -> Scale & Weighing
+            — real discoverability gap, since printer setup has nothing to do
+            with scale settings. */}
+        {(isSystemAdmin(currentUser) || isBusinessOwner) && (
+          <Link
+            href="/admin/workstation-agents"
+            className={getLinkClasses('/admin/workstation-agents')}
+          >
+            <span className="text-lg">🔌</span>
+            <span>Workstation Agents</span>
           </Link>
         )}
 

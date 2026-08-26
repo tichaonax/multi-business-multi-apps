@@ -44,6 +44,7 @@ export function MobileSidebar() {
     switchBusiness,
     hasPermission: hasBusinessPermission,
     isSystemAdmin: isAdmin,
+    isBusinessOwner,
   } = useBusinessPermissionsContext()
 
   const { isAvailable: isScaleAvailable, status: scaleStatus } = useScale()
@@ -521,6 +522,10 @@ export function MobileSidebar() {
 
               {(isAdmin || hasBusinessPermission('canSetupPortalIntegration')) && (
                 <Link href="/r710-portal" className={sectionLinkClass} onClick={close}>📶 R710 WiFi Portal</Link>
+              )}
+
+              {(isAdmin || isBusinessOwner) && (
+                <Link href="/admin/workstation-agents" className={sectionLinkClass} onClick={close}>🔌 Workstation Agents</Link>
               )}
 
               {isAdmin && (

@@ -56,6 +56,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: business admin access required' }, { status: 403 })
     }
 
+    // MG-S8200 scale support is only meaningful for grocery/restaurant (the
+    // only business types that actually weigh items at POS — see
+    // POSSettingsHub.tsx's identical hasScale check, which already hides
+    // the scale tab in the UI for every other type). Enforced here too,
+    // not just hidden client-side, since this is the actual write path.
+    const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { type: true } })
+    if (!business || !['grocery', 'restaurant'].includes(business.type)) {
+      return NextResponse.json({ error: 'Scale hardware is only supported for grocery and restaurant businesses' }, { status: 403 })
+    }
+
     const agent = await prisma.workstationAgents.findUnique({ where: { id: workstationAgentId } })
     if (!agent || agent.businessId !== businessId) {
       return NextResponse.json({ error: 'Workstation agent not found for this business' }, { status: 404 })
@@ -63,13 +73,22 @@ export async function POST(request: NextRequest) {
 
     const existing = await prisma.scaleDeviceConfigs.findFirst({ where: { businessId, isActive: true } })
 
+    // Must match GET's shape exactly — the page renders
+    // scaleConfig.workstation_agent.label right after a save, using this
+    // response directly (not a re-fetch), so omitting this include here
+    // crashes that render with "Cannot read properties of undefined
+    // (reading 'label')" immediately after a successful save.
+    const include = { workstation_agent: { select: { id: true, label: true, connectionStatus: true } } } as const
+
     const config = existing
       ? await prisma.scaleDeviceConfigs.update({
           where: { id: existing.id },
           data: { workstationAgentId, comPort: comPort ?? null, baudRate: baudRate ?? null },
+          include,
         })
       : await prisma.scaleDeviceConfigs.create({
           data: { businessId, workstationAgentId, comPort: comPort ?? null, baudRate: baudRate ?? null },
+          include,
         })
 
     return NextResponse.json({ success: true, config })

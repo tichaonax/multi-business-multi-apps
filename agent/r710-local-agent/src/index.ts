@@ -80,6 +80,7 @@ function refreshTray(): void {
       configuredPrinters: workstation?.configuredPrinters,
       scaleComPort: workstation?.scaleComPort,
       scaleBaudRate: workstation?.scaleBaudRate,
+      qzPrinterName: workstation?.qzPrinterName,
     }
   })
 
@@ -102,12 +103,19 @@ function getManageSnapshot(): ManageSnapshot {
 
   const profiles: ManageSnapshot['profiles'] = currentProfileIds().map(profileId => {
     const meta = readProfileMeta(profileId)
+    const workstation = loadWorkstationConfig(profileId)
     return {
       profileId,
       label: meta?.label || profileId,
       serverUrl: meta?.serverUrl || '',
       r710State: r710Clients.get(profileId)?.lastState,
+      r710DeviceIp: loadConfig(profileId)?.deviceIpAddress,
       workstationState: workstationClients.get(profileId)?.lastState,
+      businessName: workstation?.businessName,
+      configuredPrinters: workstation?.configuredPrinters,
+      qzPrinterName: workstation?.qzPrinterName,
+      scaleComPort: workstation?.scaleComPort,
+      scaleBaudRate: workstation?.scaleBaudRate,
     }
   })
 
@@ -117,6 +125,7 @@ function getManageSnapshot(): ManageSnapshot {
     scaleOwnerProfileId: owner?.profileId ?? null,
     scaleOwnerLabel: owner ? (readProfileMeta(owner.profileId)?.label || owner.profileId) : null,
     autoStartEnabled: isAutoStartEnabled(),
+    printerNames,
   }
 }
 
@@ -206,6 +215,10 @@ function connectWorkstation(profileId: string, config: WorkstationAgentConfig): 
   // periodic sync finds this profile's configured printers/scale/business
   // changed since it was last written to workstation.json.
   client.on('config-updated', () => refreshTray())
+  // Server pushed this because a printer's routing changed — see
+  // workstation-socket-client.ts's force-sync handler. The printer list is
+  // whole-agent, not per-profile, and otherwise only read once at startup.
+  client.on('force-refresh-printers', () => { refreshPrinterList(); refreshTray() })
 
   workstationClients.set(profileId, client)
   client.start()

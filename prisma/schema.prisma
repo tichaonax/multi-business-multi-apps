@@ -578,6 +578,7 @@ model Businesses {
   reprint_logs                                                             ReprintLog[]
   saved_reports                                                            SavedReports[]
   scale_device_configs                                                     ScaleDeviceConfigs[]              @relation("ScaleDeviceConfigToBusiness")
+  qz_printer_configs                                                        QzPrinterConfigs[]
   workstation_agents                                                       WorkstationAgents[]               @relation("WorkstationAgentToBusiness")
   seed_data_templates                                                      SeedDataTemplates[]
   sku_sequences                                                            sku_sequences[]
@@ -3639,6 +3640,7 @@ model Users {
   r710_remote_agents_paired                                       R710RemoteAgents[]                @relation("R710AgentPairedBy")
   r710_token_sales                                                R710TokenSales[]                  @relation("R710TokenSaleSeller")
   reprint_logs                                                    ReprintLog[]
+  qz_printer_configs_updated                                       QzPrinterConfigs[]               @relation("QzPrinterConfigUpdatedBy")
   workstation_agents_paired                                       WorkstationAgents[]               @relation("WorkstationAgentPairedBy")
   saved_reports                                                   SavedReports[]
   cash_counted_amendments                                         SavedReports[]                    @relation("CashCountedAmendment")
@@ -4559,6 +4561,7 @@ model WorkstationAgents {
   scale_configs    ScaleDeviceConfigs[]
   network_printers NetworkPrinters[]
   request_logs     WorkstationAgentRequestLog[]
+  qz_printer_configs QzPrinterConfigs[]
 
   @@index([businessId])
   @@index([connectionStatus])
@@ -4586,6 +4589,36 @@ model WorkstationAgentRequestLog {
   @@index([status])
   @@index([createdAt])
   @@map("workstation_agent_request_logs")
+}
+
+// Promotes QZ Tray's printer selection from purely-local browser
+// localStorage (still the fast synchronous path actual print jobs read —
+// see qz-tray-printer.ts, unchanged) into a real, server-visible setting.
+// Scoped to (businessId, workstationAgentId) when the browser saving it is
+// running on a machine that also has a paired Workstation Agent for the
+// current server — giving an exact, unambiguous "this physical machine's
+// QZ printer is X" fact the agent can read back via its own sync (see
+// handleSync() in workstation-agents/agent-hub.ts) and show in its tray,
+// alongside (not confused with) its own AGENT-relay "Configured
+// printer(s)" line, which is a functionally different print path. When no
+// workstation agent is paired on that machine, workstationAgentId is null
+// and the row acts as a business-wide default/fallback — matching a small,
+// single-terminal business that only ever has one printer.
+model QzPrinterConfigs {
+  id                 String              @id @default(uuid())
+  businessId         String
+  workstationAgentId String?
+  printerName        String
+  updatedBy          String
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  businesses         Businesses          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  workstation_agent  WorkstationAgents?  @relation(fields: [workstationAgentId], references: [id], onDelete: SetNull)
+  updater            Users               @relation("QzPrinterConfigUpdatedBy", fields: [updatedBy], references: [id])
+
+  @@index([businessId])
+  @@index([workstationAgentId])
+  @@map("qz_printer_configs")
 }
 
 // MBM-275: per-business scale configuration for a workstation-agent-relayed

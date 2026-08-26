@@ -18,6 +18,7 @@
 import { randomBytes } from 'crypto'
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
+import { workstationAgentHub } from '@/lib/workstation-agents/agent-hub'
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
@@ -61,7 +62,18 @@ export async function GET(request: NextRequest) {
     orderBy: { createdAt: 'desc' },
   })
 
-  return NextResponse.json({ success: true, data: agents })
+  // The DB's connectionStatus is only ever written at connect/disconnect
+  // time — if the socket dies without a clean disconnect event (process
+  // killed, network drop, machine sleep), it can keep saying ONLINE
+  // indefinitely. Override with the hub's live in-memory truth on every
+  // request, exactly like R710's status route already does, so a paired
+  // workstation is never reported connected unless it verifiably still is.
+  const data = agents.map(agent => ({
+    ...agent,
+    connectionStatus: workstationAgentHub.isAgentConnected(agent.id) ? 'ONLINE' as const : 'OFFLINE' as const,
+  }))
+
+  return NextResponse.json({ success: true, data })
 }
 
 export async function POST(request: NextRequest) {

@@ -4256,7 +4256,7 @@ To fix, on the **application server** (not the workstation), follow the exact `m
 
 > **Upgrading from an older agent:** if this workstation was already paired under a previous version of the agent, the very first launch of the new `r710-agent.exe` automatically converts that existing pairing into a profile — nothing needs to be re-paired, and no action is required.
 
-**The Manage Profiles page:** open **http://127.0.0.1:47710** in a browser on the workstation itself (not from a remote machine) to see the same information as the tray, laid out as a page — every paired server with its live R710/Printer status, the scale's current owner (see below) with a **Release** button, the **Start with Windows** toggle, a manual **Unpair** button per profile (removes that profile's saved credentials from this machine — re-pair from that server's Agent panel to reconnect), and a **Restart Agent** button.
+**The Manage Profiles page:** open **http://127.0.0.1:47710** in a browser on the workstation itself (not from a remote machine) to see the same information as the tray, laid out as a page — every paired server with its live R710/Printer status (including device IP, business, configured printer(s), the QZ Tray printer on this machine if set, and configured scale port), the scale's current owner (see below) with a **Release** button, the **Start with Windows** toggle, a manual **Unpair** button per profile (removes that profile's saved credentials from this machine — re-pair from that server's Agent panel to reconnect), and a **Restart Agent** button.
 
 ---
 
@@ -4290,8 +4290,9 @@ Each paired workstation row on this page also has a **Start with Windows** toggl
 | **R710** | Same meaning as the "Using the Agent panel day-to-day" status above, plus the device's own IP address once known (e.g. "Connected (192.168.1.50)") |
 | **Business** | Which business this workstation pairing belongs to (workstation profiles only) |
 | **Printer relay** | Whether this profile's printer-relay pairing is currently reachable by its server. Print jobs can only be relayed while this shows Ready. Multiple profiles can print at the same time with no restriction — jobs simply queue on the printer like any other application's print jobs would. |
-| **Configured printer(s)** | The actual printer(s) this business has assigned to this pairing (set in Admin → Printer Connection Mode) — the specific answer to "what printer does this connect to," as opposed to... |
-| **Printers on this PC** | ...every printer Windows has installed on this workstation, whether or not it's one of the configured printer(s) above — useful for checking a configured name actually matches something installed |
+| **Configured printer(s)** | The actual printer(s) routed through **this agent** — i.e. jobs relayed from the server over this pairing (set in Admin → Printer Connection Mode). This is one of *two* independent print paths a workstation can have — see the QZ Tray line next. |
+| **QZ Tray printer (this machine)** | A completely separate print path this agent has no part in: whichever printer **QZ Tray** (its own program, driven directly by a browser — see Section 26) is set up to use on this exact machine, if any. Set at **Profile → Printer Setup**, not here — this line is purely informational, so the tray doesn't look "unconfigured" on a machine that's actually already printing fine via QZ. A machine can have neither, either, or both of these two configured at once; they don't conflict, but they also don't know about each other beyond this display. |
+| **Printers on this PC** | The raw list of every printer Windows has installed on this workstation — not a claim that this agent (or QZ Tray) actually uses any of them. Useful only for checking that a name you expect to see is actually installed here; compare against the two lines above to see what's *actually* in use. |
 | **Scale** | Only one profile can hold the physical scale connection at a time (it's a single serial port, not something two programs can share). The profile currently connected to it shows its live reading (Connected on COMx / Not connected / Error); every *other* profile's Scale line instead shows **"in use by \<label\> — Release,"** letting you explicitly hand the scale over rather than it being silently stolen — or, if nothing's connected yet, "configured for COMx @ baud — not connected" so you can see what *should* be there. This only comes up on a workstation paired to more than one server for a scale — most setups only ever pair one. |
 | **Start with Windows** | The same shared, whole-agent setting described above (also on the Preferences submenu and both admin pages) — reachable from every profile's own submenu too, for convenience |
 
@@ -7774,12 +7775,14 @@ The system uses a signed certificate so QZ Tray can verify the connection is gen
 
 1. Once connected, the Printer Setup page shows a green **QZ Tray connected** indicator.
 2. A dropdown lists all printers detected on your machine — select your receipt printer (e.g. `EPSON TM-T20III`).
-3. Click **Save Printer**. Your selection is saved in your browser.
+3. Click **Save Printer**. A green **"Saved '\<printer name\>' as your printer"** confirmation appears next to the button — if you don't see it, the save didn't go through.
 4. Click **Test Print** to confirm a test receipt prints correctly.
 
 **Printer not listed?** Enter the printer name manually:
 - Open Windows **Start → Settings → Bluetooth & devices → Printers & scanners** and copy the exact printer name.
 - Paste it into the manual entry field and click **Save Printer**.
+
+**Your selection is saved in your browser AND shared with the business.** Saving no longer just writes to this one browser's local storage — it's also stored server-side, scoped to whichever physical machine you saved it from (or as a business-wide default if this machine has no paired Workstation Agent). This means: opening the Printer Setup page in a different browser on the *same* machine, or after clearing this browser's data, picks the saved printer back up automatically instead of starting blank. It also means that if this exact machine also has a paired **Workstation Agent** (Section 13), its tray and Manage Profiles page can show **"QZ Tray printer (this machine): \<name\>"** — worth knowing about specifically because it's a completely separate, independent print path from anything routed through that agent (see the tray reference table in Section 13 for how the two are distinguished).
 
 ### Step 4 — Printing Receipts from the POS
 

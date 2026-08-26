@@ -112,6 +112,19 @@ export class WorkstationSocketClient extends EventEmitter implements RelayTarget
       const result: WorkstationAgentJobResult = await handleWorkstationJob(this.profileId, job)
       socket.emit('workstation-agent:result', result)
     })
+
+    // Server-pushed — see agent-hub.ts's requestSync() for when this fires
+    // (a printer's routing was just saved). Re-syncs this profile's own
+    // config immediately rather than waiting up to 10 minutes for the next
+    // scheduled sync, AND asks index.ts to refresh the whole-agent printer
+    // list (a separate, non-per-profile concern this class has no access
+    // to) in case a printer was installed in Windows after this agent
+    // process started, since that list is otherwise only ever read once at
+    // startup.
+    socket.on('workstation-agent:force-sync', () => {
+      this.syncConfig()
+      this.emit('force-refresh-printers')
+    })
   }
 
   stop(): void {
@@ -136,18 +149,20 @@ export class WorkstationSocketClient extends EventEmitter implements RelayTarget
     this.socket?.emit(
       'workstation-agent:sync',
       {},
-      (ack: { success: boolean; businessName?: string; printers?: string[]; scaleComPort?: string; scaleBaudRate?: number }) => {
+      (ack: { success: boolean; businessName?: string; printers?: string[]; scaleComPort?: string; scaleBaudRate?: number; qzPrinterName?: string }) => {
         if (!ack?.success) return
         const changed =
           ack.businessName !== this.config.businessName ||
           ack.scaleComPort !== this.config.scaleComPort ||
           ack.scaleBaudRate !== this.config.scaleBaudRate ||
+          ack.qzPrinterName !== this.config.qzPrinterName ||
           JSON.stringify(ack.printers ?? []) !== JSON.stringify(this.config.configuredPrinters ?? [])
         if (!changed) return
         this.config.businessName = ack.businessName
         this.config.configuredPrinters = ack.printers
         this.config.scaleComPort = ack.scaleComPort
         this.config.scaleBaudRate = ack.scaleBaudRate
+        this.config.qzPrinterName = ack.qzPrinterName
         saveWorkstationConfig(this.profileId, this.config)
         this.emit('config-updated')
       }

@@ -113,6 +113,12 @@ export interface ProfileTrayInfo {
   configuredPrinters?: string[]
   scaleComPort?: string
   scaleBaudRate?: number
+  // QZ Tray's own printer choice on THIS machine, if set — a separate,
+  // browser-driven print path this agent has no part in. Shown alongside
+  // configuredPrinters (the AGENT-relay path) so the tray is honest about
+  // there being two independent ways this machine might already be
+  // printing, rather than only ever surfacing the one this agent handles.
+  qzPrinterName?: string
 }
 
 export interface TrayState {
@@ -227,14 +233,27 @@ function buildProfileSubmenu(profile: ProfileTrayInfo): any[] {
       title: profile.configuredPrinters && profile.configuredPrinters.length > 0
         ? `Configured printer(s): ${profile.configuredPrinters.join(', ')}`
         : 'Configured printer(s): none assigned to this business yet',
-      tooltip: 'Set in Admin → Printer Connection Mode',
+      tooltip: 'Routed through THIS agent — set in Admin → Printer Connection Mode. Separate from QZ Tray below, which this agent has no part in.',
+      checked: false, enabled: true,
+    })
+    // A genuinely different print path from the AGENT-relay line above —
+    // QZ Tray is its own program, browser-driven, that this agent neither
+    // controls nor is required for. Shown here purely so the tray doesn't
+    // look empty/unconfigured when this machine is actually already
+    // printing fine via QZ — see qz-config/route.ts for where this comes
+    // from (DB-backed, keyed to this exact workstation when set that way).
+    items.push({
+      title: profile.qzPrinterName
+        ? `QZ Tray printer (this machine): ${profile.qzPrinterName}`
+        : 'QZ Tray printer (this machine): not set',
+      tooltip: 'A separate print path (browser → QZ Tray → printer) this agent is not involved in — set at Profile → Printer Setup, not here',
       checked: false, enabled: true,
     })
     items.push({
       title: currentState.printerNames.length > 0
         ? `Printers on this PC: ${currentState.printerNames.join(', ')}`
         : 'Printers on this PC: none detected',
-      tooltip: 'Every printer Windows has installed on this workstation, whether or not it is one of the configured printer(s) above',
+      tooltip: 'Every printer Windows has installed on this workstation — a raw list, not a claim that this agent uses all (or any) of them; see the two lines above for what actually routes through this agent vs. QZ Tray',
       checked: false, enabled: true,
     })
 
