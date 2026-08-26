@@ -263,16 +263,27 @@ mkcert -install                      # only needed once per machine, sets up mkc
 mkcert <server-ip-1> <server-ip-2> localhost 127.0.0.1
 ```
 
-This produces a cert + key pair (e.g. `192.168.0.108+3.pem` / `192.168.0.108+3-key.pem`) and a `rootCA.pem`. Then:
+This produces a cert + key pair (e.g. `192.168.0.108+3.pem` / `192.168.0.108+3-key.pem`) **in your current directory only** — see the ⚠️ callout below before assuming `rootCA.pem` is also freshly there. Then:
 
 1. Create a `certs/` folder at the repo root (same level as `package.json`) and place the cert, key, and `rootCA.pem` inside it.
-2. Restart the server: `npm run start`.
-3. Confirm the console shows `HTTPS enabled — certs loaded from ./certs/`.
+2. Restart the server: `npm run start` (or restart the Windows Service if that's how it's running — see §8.2).
+3. Confirm the console (or that service's logs) shows `HTTPS enabled — certs loaded from ./certs/`.
 4. The app is now reachable at `https://<server-ip>:8080` (or whatever port you configured).
 
 Trusting this certificate on client machines is covered in §10.1 (workstation setup) — every machine that opens the app in Chrome/Edge needs to do this once.
 
-> ⚠️ **List every IP/hostname the server will actually be reached by, in that one `mkcert` command — this is a real, previously-hit failure mode.** A cert generated for `192.168.0.108` will silently fail TLS hostname verification if the server is later reached at, say, `192.168.8.166` instead (a different NIC, a DHCP lease change, a new deployment target) — every browser tab and every local-agent socket connection to it fails with a generic, unhelpful error (browsers show a cert warning; a Node-based client like the R710/Workstation local agent just loops on a bare `websocket error` with no further detail). `rootCA.pem` being present and otherwise correct does not save you here — hostname/IP matching against the *leaf* cert's SAN list is checked independently of CA trust. If the server's reachable address ever changes, regenerate the leaf cert (`mkcert <new-ip> <old-ip-if-still-valid> localhost 127.0.0.1` — same `mkcert -install`, so the existing `rootCA.pem` and any client trust already set up for it keep working unchanged), replace the old cert+key pair in `certs/`, restart the server, and **re-pair** any local agents connected to it (revoking and re-pairing is what actually pushes a corrected `caCert` down to an agent — restarting the agent alone does not, since the bad/missing value is already saved in its own config).
+> ⚠️ **List every IP/hostname the server will actually be reached by, in that one `mkcert` command — this is a real, previously-hit failure mode.** A cert generated for `192.168.0.108` will silently fail TLS hostname verification if the server is later reached at, say, `192.168.8.166` instead (a different NIC, a DHCP lease change, a new deployment target) — every browser tab and every local-agent socket connection to it fails with a generic, unhelpful error (browsers show a cert warning; a Node-based client like the R710/Workstation local agent just loops on a bare `websocket error` with no further detail). `rootCA.pem` being present and otherwise correct does not save you here — hostname/IP matching against the *leaf* cert's SAN list is checked independently of CA trust. If the server's reachable address ever changes, regenerate the leaf cert (`mkcert <new-ip> <old-ip-if-still-valid> localhost 127.0.0.1` **on the same machine that already holds the matching CA** — see the next warning if you're not sure that's true), replace the old cert+key pair in `certs/`, restart the server, and **re-pair** any local agents connected to it (revoking and re-pairing is what actually pushes a corrected `caCert` down to an agent — restarting the agent alone does not, since the bad/missing value is already saved in its own config).
+
+> ⚠️ **`mkcert <names>` never copies `rootCA.pem` into your current directory — only the leaf cert + key.** This is a second, independent failure mode from the one above, and it's easy to trigger by accident: if you run `mkcert <names>` on a machine that has **never run `mkcert -install` before**, mkcert silently generates a **brand-new CA** on that machine (stored under its own per-user `mkcert -CAROOT`, e.g. `%LOCALAPPDATA%\mkcert` on Windows) and signs the new leaf cert with it — but nothing copies that new CA's `rootCA.pem` into `certs/`, so whatever `rootCA.pem` was already sitting there (from a previous setup, possibly generated on a completely different machine) is left in place, now signed by a CA that has nothing to do with the leaf cert actually being served. The server still starts and serves HTTPS fine — a browser that's already manually clicked through the warning, or that trusts the OLD CA from a previous setup, won't necessarily notice — but every local agent pairing will fail: the mint endpoint hands the agent the (wrong, stale) `rootCA.pem`, the agent's strict TLS validation rejects the leaf cert it's actually shown, and the agent loops forever on a bare `websocket error` with no further detail, even after multiple re-pairs. To confirm and fix:
+> ```powershell
+> # confirm the mismatch — compare what the two files actually say
+> & "C:\Program Files\Git\usr\bin\openssl.exe" x509 -in certs\rootCA.pem -noout -subject -issuer
+> # if this org/CN doesn't match what the server is actually presenting on the wire, find the CA that actually signed the leaf cert:
+> mkcert -CAROOT
+> # then copy the correct one over:
+> Copy-Item "$(mkcert -CAROOT)\rootCA.pem" -Destination "certs\rootCA.pem" -Force
+> ```
+> Restart the server, then **revoke and re-pair** every local agent connected to it — same reasoning as above, a re-pair is what actually delivers the corrected `caCert`. See §10.3's troubleshooting note for the equivalent workstation-side diagnostic steps (how to confirm this is actually the cause before assuming it).
 
 ### 7.2 QZ Tray signing certificate (generated on the server)
 
@@ -422,6 +433,24 @@ Only needed for: (a) an R710 WiFi controller that isn't on the same local networ
 3. From the browser, **on that same workstation**, open the Agent panel again and click **Pair this machine**.
 4. Right-click the tray icon → **Preferences → Start with Windows** so it survives a reboot without manual intervention.
 5. One agent install can be paired to R710, a scale, a printer relay, or any combination, and even to more than one server at once — see `docs/user-guide.md`'s R710/Workstation Agent sections for the full day-to-day usage, pairing screenshots, and troubleshooting detail; this guide only covers that it needs installing.
+
+#### Troubleshooting: agent pairs successfully but immediately loops on a bare `websocket error`
+
+If the agent's console shows the connection state cycling `connecting` → `error` → repeat, forever, and this doesn't clear up even after revoking and re-pairing, suspect a TLS certificate mismatch on the server side (§7.1's second ⚠️ callout) rather than anything wrong on the workstation. The agent (unlike a browser) cannot be manually told to trust an untrusted certificate — a mismatch there fails silently and permanently, with no more specific error surfaced.
+
+To confirm it's a cert issue and not something else (firewall, wrong port, DNS), from the **workstation**, in PowerShell, test the raw TLS handshake directly against the server, independent of the agent entirely:
+
+```powershell
+"" | & "C:\Program Files\Git\usr\bin\openssl.exe" s_client -connect <server-ip>:8080 -servername <server-ip>
+```
+
+Look at the `issuer=` line in the output — that names the machine whose mkcert CA actually signed what's being served. Then compare that against the actual current `certs\rootCA.pem` **on the server** (not a copy sitting on this or any other workstation — a stale local copy of that file is a common way to mislead this exact check):
+
+```powershell
+& "C:\Program Files\Git\usr\bin\openssl.exe" x509 -in "certs\rootCA.pem" -noout -subject -issuer
+```
+
+If the `issuer=` from the live TLS handshake doesn't match the `subject=`/`issuer=` of the server's own `certs\rootCA.pem`, that confirms the exact scenario in §7.1's `mkcert` gotcha — fix it there (on the server), then come back and re-pair this agent. Restarting the agent alone will never fix this; the wrong `caCert` is already saved in its own pairing file, and only a fresh pairing (Revoke Pairing → Pair this machine again, no re-download needed) delivers a corrected one.
 
 ### 10.4 Receipt printer drivers (workstations printing via a "regular Windows printer," not QZ Tray/agent-relayed ESC/POS)
 
