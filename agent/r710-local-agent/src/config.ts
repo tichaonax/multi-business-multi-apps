@@ -20,6 +20,12 @@ export interface AgentConfig {
   // see the comment on readRootCaCert() in the pairing route. Absent when
   // the server uses plain HTTP or a real publicly-trusted cert.
   caCert?: string
+  // Snapshot of the R710 device's IP address at pairing time, for the tray's
+  // benefit only (display/troubleshooting) — never used for the actual job
+  // dispatch, which always gets a fresh device.ipAddress from the server on
+  // every job (see job-handler.ts), so this going stale after a device's IP
+  // changes on the admin panel is cosmetic, not a functional problem.
+  deviceIpAddress?: string
 }
 
 export function loadConfig(profileId: string): AgentConfig | null {

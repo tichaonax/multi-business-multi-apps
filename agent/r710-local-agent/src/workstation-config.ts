@@ -17,6 +17,15 @@ export interface WorkstationAgentConfig {
   workstationAgentId: string
   label: string
   caCert?: string
+  // Database-driven info about THIS pairing, refreshed periodically by
+  // workstation-socket-client.ts's syncConfig() — never used for any actual
+  // functionality (print jobs/scale connects always get fresh params from
+  // the server at dispatch time), purely for the tray's display. See
+  // AgentConfig's deviceIpAddress comment for the same pattern on R710.
+  businessName?: string
+  configuredPrinters?: string[]
+  scaleComPort?: string
+  scaleBaudRate?: number
 }
 
 export function loadWorkstationConfig(profileId: string): WorkstationAgentConfig | null {

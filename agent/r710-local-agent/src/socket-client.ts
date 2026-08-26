@@ -8,10 +8,16 @@
 import { EventEmitter } from 'events'
 import os from 'os'
 import { io, Socket } from 'socket.io-client'
-import type { AgentConfig } from './config'
+import { saveConfig, type AgentConfig } from './config'
 import { handleJob, type AgentJob, type AgentJobResult } from './job-handler'
 import { isAutoStartEnabled } from './tray'
 import packageJson from '../package.json'
+
+// How often to re-ask the server for this device's current IP while
+// connected — see syncDeviceInfo()'s comment. 10 minutes: frequent enough
+// that an IP edited on the admin panel shows up in the tray well within a
+// single work shift, infrequent enough to be a non-event for the server.
+const SYNC_INTERVAL_MS = 10 * 60 * 1000
 
 // Single source of truth: package.json's version, not a separately hardcoded
 // constant. This was previously '0.1.0' hardcoded here, never bumped despite
@@ -27,6 +33,7 @@ export type AgentConnectionState = 'connecting' | 'connected' | 'disconnected' |
 
 export class AgentSocketClient extends EventEmitter {
   private socket: Socket | null = null
+  private syncTimer: ReturnType<typeof setInterval> | null = null
 
   // MBM-276: tracked internally (not just via the 'state' event) so
   // index.ts's tray snapshot can always read the current state directly,
@@ -80,6 +87,8 @@ export class AgentSocketClient extends EventEmitter {
         (ack: { success: boolean; error?: string }) => {
           if (ack.success) {
             this.setState('connected')
+            this.syncDeviceInfo()
+            if (!this.syncTimer) this.syncTimer = setInterval(() => this.syncDeviceInfo(), SYNC_INTERVAL_MS)
           } else {
             // Invalid/revoked token — no point retrying with the same one.
             this.setState('rejected')
@@ -111,6 +120,7 @@ export class AgentSocketClient extends EventEmitter {
   }
 
   stop(): void {
+    if (this.syncTimer) { clearInterval(this.syncTimer); this.syncTimer = null }
     this.socket?.disconnect()
     this.socket = null
   }
@@ -121,5 +131,26 @@ export class AgentSocketClient extends EventEmitter {
   // without requiring a reconnect. See tray.ts's setOnAutoStartChanged().
   reportAutoStart(enabled: boolean): void {
     this.socket?.emit('r710-agent:status-update', { autoStartEnabled: enabled })
+  }
+
+  // Pulls the device's CURRENT IP from the server and updates this
+  // profile's own saved r710.json + emits 'config-updated' if it changed —
+  // called right after connecting and then on a timer for as long as the
+  // connection stays up. Without this, deviceIpAddress is only ever a
+  // one-time snapshot taken at pairing time: an admin editing the device's
+  // IP later would leave the tray silently showing the old one, possibly
+  // for as long as this connection happens to stay alive (could be days).
+  private syncDeviceInfo(): void {
+    this.socket?.emit(
+      'r710-agent:sync',
+      {},
+      (ack: { success: boolean; deviceIpAddress?: string }) => {
+        if (!ack?.success || !ack.deviceIpAddress) return
+        if (ack.deviceIpAddress === this.config.deviceIpAddress) return
+        this.config.deviceIpAddress = ack.deviceIpAddress
+        saveConfig(this.profileId, this.config)
+        this.emit('config-updated')
+      }
+    )
   }
 }

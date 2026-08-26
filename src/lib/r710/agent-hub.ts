@@ -74,6 +74,7 @@ class R710AgentHub {
       socket.on('r710-agent:connect', (data, ack) => this.handleAgentConnect(socket, data, ack))
       socket.on('r710-agent:result', (data) => this.handleAgentResult(data))
       socket.on('r710-agent:status-update', (data) => this.handleStatusUpdate(socket, data))
+      socket.on('r710-agent:sync', (data, ack) => this.handleSync(socket, ack))
       socket.on('disconnect', () => this.handleDisconnect(socket))
     })
 
@@ -152,6 +153,29 @@ class R710AgentHub {
       where: { id: agentId },
       data: { autoStartEnabled: data.autoStartEnabled },
     }).catch(() => {})
+  }
+
+  // Agent-initiated, called right after connecting and then periodically
+  // for as long as the connection stays up (see socket-client.ts) — the
+  // agent's own pairing snapshot (deviceIpAddress, taken once at pair time
+  // purely for the tray's display) otherwise never learns about a device
+  // edited later on the admin panel until the next reconnect, which could
+  // be a very long time on a stable connection. This closes that gap
+  // without needing a separate push-on-edit mechanism.
+  private async handleSync(
+    socket: Socket,
+    ack?: (res: { success: boolean; deviceIpAddress?: string; error?: string }) => void
+  ): Promise<void> {
+    const deviceRegistryId = (socket.data as any)?.r710DeviceRegistryId as string | undefined
+    if (!deviceRegistryId) {
+      ack?.({ success: false, error: 'Not connected' })
+      return
+    }
+    const device = await prisma.r710DeviceRegistry.findUnique({
+      where: { id: deviceRegistryId },
+      select: { ipAddress: true },
+    })
+    ack?.({ success: true, deviceIpAddress: device?.ipAddress })
   }
 
   private handleAgentResult(data: { jobId: string; success: boolean; data?: unknown; error?: string }): void {

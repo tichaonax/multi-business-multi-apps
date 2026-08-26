@@ -85,6 +85,7 @@ class WorkstationAgentHub {
       socket.on('workstation-agent:scale-weight', (data) => this.handleScaleWeight(socket, data))
       socket.on('workstation-agent:scale-status', (data) => this.handleScaleStatus(socket, data))
       socket.on('workstation-agent:status-update', (data) => this.handleStatusUpdate(socket, data))
+      socket.on('workstation-agent:sync', (data, ack) => this.handleSync(socket, ack))
       socket.on('disconnect', () => this.handleDisconnect(socket))
     })
 
@@ -146,6 +147,38 @@ class WorkstationAgentHub {
       console.error('[WorkstationAgentHub] Error handling agent connect:', error)
       ack?.({ success: false, error: 'Internal error' })
     }
+  }
+
+  // Agent-initiated, called right after connecting and then periodically —
+  // mirrors R710AgentHub's handleSync(). Returns whatever this pairing's
+  // *database-driven* config is (which printers route through it, the
+  // configured scale COM port/baud rate, which business it belongs to) so
+  // the tray can show it — anything the admin configured server-side that's
+  // specific to this connection and isn't a secret. Deliberately excludes
+  // agentTokenHash or anything credential-shaped.
+  private async handleSync(
+    socket: Socket,
+    ack?: (res: { success: boolean; businessName?: string; printers?: string[]; scaleComPort?: string; scaleBaudRate?: number }) => void
+  ): Promise<void> {
+    const workstationAgentId = (socket.data as any)?.workstationAgentId as string | undefined
+    if (!workstationAgentId) {
+      ack?.({ success: false })
+      return
+    }
+
+    const [agent, printers, scaleConfig] = await Promise.all([
+      prisma.workstationAgents.findUnique({ where: { id: workstationAgentId }, select: { businesses: { select: { name: true } } } }),
+      prisma.networkPrinters.findMany({ where: { workstationAgentId, connectionMode: 'AGENT' }, select: { printerName: true } }),
+      prisma.scaleDeviceConfigs.findFirst({ where: { workstationAgentId, isActive: true }, select: { comPort: true, baudRate: true } }),
+    ])
+
+    ack?.({
+      success: true,
+      businessName: agent?.businesses?.name,
+      printers: printers.map(p => p.printerName),
+      scaleComPort: scaleConfig?.comPort ?? undefined,
+      scaleBaudRate: scaleConfig?.baudRate ?? undefined,
+    })
   }
 
   // One-way, agent-initiated — mirrors R710AgentHub's handleStatusUpdate().

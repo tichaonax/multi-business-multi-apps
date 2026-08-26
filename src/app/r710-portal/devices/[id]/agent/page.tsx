@@ -168,6 +168,10 @@ function AgentPanelContent() {
           // a custom CA by default). Absent/null when the server runs plain
           // HTTP or a real publicly-trusted cert.
           caCert: mintData.data.caCert ?? undefined,
+          // Display-only, for the tray's benefit — see AgentConfig's
+          // deviceIpAddress comment. Goes stale if the device's IP is later
+          // edited on the admin panel; that's cosmetic, not functional.
+          deviceIpAddress: device.ipAddress,
         }),
       })
 
@@ -448,7 +452,16 @@ function AgentPanelContent() {
               >
                 {revoking ? 'Revoking…' : 'Revoke Pairing'}
               </button>
+              <a
+                href="/api/admin/r710/agents/download"
+                className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
+              >
+                Download r710-agent.zip
+              </a>
             </div>
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              Re-download any time — e.g. to re-run the agent on the workstation, or to install it on another machine. The existing pairing stays intact; running the downloaded `r710-agent.exe` on this same workstation just picks it back up.
+            </p>
           </div>
 
           {/* Request history */}

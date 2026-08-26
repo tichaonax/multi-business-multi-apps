@@ -61,13 +61,58 @@ function loadSysTray(): any {
 const PLACEHOLDER_ICON_BASE64 =
   'AAABAAEAICAAAAEAIACoEAAAFgAAACgAAAAgAAAAQAAAAAEAIAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIqGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIqGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIqGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAIqGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf8AAAAAAAAAAAAAAAAAAAAAioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/wAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAIqGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf8AAAAAAAAAAAAAAAAAAAAAioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/wAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAIqGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf8AAAAAAAAAAAAAAAAAAAAAioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/wAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIqGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIqGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIqGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACKhg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/ioYN/4qGDf+Khg3/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA////////////4Af//4AB//4AAH/8AAA/+AAAH/AAAA/wAAAP4AAAB+AAAAfAAAADwAAAA8AAAAPAAAADwAAAA8AAAAPAAAADwAAAA8AAAAPAAAAD4AAAB+AAAAfwAAAP8AAAD/gAAB/8AAA//gAAf/+AAf//4Af///////////8='
 
+// Small solid-color dot icons (16x16, real .ico — verified against
+// System.Drawing.Icon the same way the main tray icon above was) used as
+// each status line's own `icon` field. Colored emoji embedded in a menu
+// item's TEXT (🟢/🔴/🟡) does NOT render in color through Win32's classic
+// menu font — confirmed live: even once an item is `enabled: true`, the dot
+// still shows as plain gray. A per-item bitmap icon is the mechanism Win32
+// menus actually support for this (systray2's MenuItem accepts an `icon`
+// field per item, not just on the tray itself), so status color is now
+// carried entirely by these icons — the text no longer includes an emoji.
+const DOT_GREEN = 'AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAX8QfMF3EImhdxSGAXcMicF/DHzgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABfvx8QXsUhn17FIv9exSL/XsUi/17FIv9exSL/XsUht1+/HxgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABfvx8IXcUi517FIv9exSL/XsUi/17FIv9exSL/XsUi/17FIv9dxSLvX78fGAAAAAAAAAAAAAAAAAAAAAAAAAAAXsUhl17FIv9exSL/XsUi/17FIv9exSL/XsUi/17FIv9exSL/XsUi/17FIbcAAAAAAAAAAAAAAAAAAAAAX78fCF7FIv9exSL/XsUi/17FIv9exSL/XsUi/17FIv9exSL/XsUi/17FIv9exSL/X8UfKAAAAAAAAAAAAAAAAF/DI0BexSL/XsUi/17FIv9exSL/XsUi/17FIv9exSL/XsUi/17FIv9exSL/XsUi/1zEImAAAAAAAAAAAAAAAABdxCJoXsUi/17FIv9exSL/XsUi/17FIv9exSL/XsUi/17FIv9exSL/XsUi/17FIv9dxSGAAAAAAAAAAAAAAAAAX8QfMF7FIv9exSL/XsUi/17FIv9exSL/XsUi/17FIv9exSL/XsUi/17FIv9exSL/XMUjUAAAAAAAAAAAAAAAAAAAAABdxSL3XsUi/17FIv9exSL/XsUi/17FIv9exSL/XsUi/17FIv9exSL/XsUi/1+/HxgAAAAAAAAAAAAAAAAAAAAAXcQiaF7FIv9exSL/XsUi/17FIv9exSL/XsUi/17FIv9exSL/XsUi/17GIYcAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABexSG3XsUi/17FIv9exSL/XsUi/17FIv9exSL/XsUi/13FIsdfvx8IAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFzEImBdxSLvXsUi/17FIv9exSL/XcUi913DIngAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAF/FHyhfwyNAX8QfMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=='
+const DOT_RED = 'AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARUXvMERE7WhDQ++ARETvcERE7DgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/P+8QRETun0RE7/9ERO//RETv/0RE7/9ERO//RETvtz8/6RgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/P98IRETv50RE7/9ERO//RETv/0RE7/9ERO//RETv/0RE7/9ERO7vPz/pGAAAAAAAAAAAAAAAAAAAAAAAAAAAQ0Pvl0RE7/9ERO//RETv/0RE7/9ERO//RETv/0RE7/9ERO//RETv/0RE77cAAAAAAAAAAAAAAAAAAAAAPz/fCERE7/9ERO//RETv/0RE7/9ERO//RETv/0RE7/9ERO//RETv/0RE7/9ERO//RkbrKAAAAAAAAAAAAAAAAEND70BERO//RETv/0RE7/9ERO//RETv/0RE7/9ERO//RETv/0RE7/9ERO//RETv/0VF72AAAAAAAAAAAAAAAABERO1oRETv/0RE7/9ERO//RETv/0RE7/9ERO//RETv/0RE7/9ERO//RETv/0RE7/9DQ++AAAAAAAAAAAAAAAAARUXvMERE7/9ERO//RETv/0RE7/9ERO//RETv/0RE7/9ERO//RETv/0RE7/9ERO//QkLvUAAAAAAAAAAAAAAAAAAAAABERO/3RETv/0RE7/9ERO//RETv/0RE7/9ERO//RETv/0RE7/9ERO//RETv/z8/6RgAAAAAAAAAAAAAAAAAAAAARETtaERE7/9ERO//RETv/0RE7/9ERO//RETv/0RE7/9ERO//RETv/0ND74cAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABERO+3RETv/0RE7/9ERO//RETv/0RE7/9ERO//RETv/0ND78c/P98IAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEVF72BERO7vRETv/0RE7/9ERO//RETv90RE7ngAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEZG6yhDQ+9ARUXvMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=='
+const DOT_AMBER = 'AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACp/0MAmc9WgLnfWAC53zcAmf9TgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPn+8QC571nwue9f8LnvX/C571/wue9f8LnvX/C571twqf9BgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAn/8IC5315wue9f8LnvX/C571/wue9f8LnvX/C571/wue9f8KnfXvCp/0GAAAAAAAAAAAAAAAAAAAAAAAAAAAC570lwue9f8LnvX/C571/wue9f8LnvX/C571/wue9f8LnvX/C571/wue9bcAAAAAAAAAAAAAAAAAAAAAAJ//CAue9f8LnvX/C571/wue9f8LnvX/C571/wue9f8LnvX/C571/wue9f8LnvX/DJ/yKAAAAAAAAAAAAAAAAAuf80ALnvX/C571/wue9f8LnvX/C571/wue9f8LnvX/C571/wue9f8LnvX/C571/wqc9GAAAAAAAAAAAAAAAAAJnPVoC571/wue9f8LnvX/C571/wue9f8LnvX/C571/wue9f8LnvX/C571/wue9f8LnfWAAAAAAAAAAAAAAAAACp/0MAue9f8LnvX/C571/wue9f8LnvX/C571/wue9f8LnvX/C571/wue9f8LnvX/CZz1UAAAAAAAAAAAAAAAAAAAAAALnfT3C571/wue9f8LnvX/C571/wue9f8LnvX/C571/wue9f8LnvX/C571/wqf9BgAAAAAAAAAAAAAAAAAAAAACZz1aAue9f8LnvX/C571/wue9f8LnvX/C571/wue9f8LnvX/C571/wue9YcAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAALnvW3C571/wue9f8LnvX/C571/wue9f8LnvX/C571/wud9McAn/8IAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAqc9GAKnfXvC571/wue9f8LnvX/C5309wqd9HgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAyf8igLn/NACp/0MAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=='
+const DOT_GRAY = 'AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAuaSUMLehk2i3o5OAuKGTcLajkTgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC/n48QuKOVn7ijlP+4o5T/uKOU/7ijlP+4o5T/t6OTt7SflBgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC/n58IuKOT57ijlP+4o5T/uKOU/7ijlP+4o5T/uKOU/7ijlP+4o5TvtJ+UGAAAAAAAAAAAAAAAAAAAAAAAAAAAuKOUl7ijlP+4o5T/uKOU/7ijlP+4o5T/uKOU/7ijlP+4o5T/uKOU/7ejk7cAAAAAAAAAAAAAAAAAAAAAv5+fCLijlP+4o5T/uKOU/7ijlP+4o5T/uKOU/7ijlP+4o5T/uKOU/7ijlP+4o5T/uJ+SKAAAAAAAAAAAAAAAALejk0C4o5T/uKOU/7ijlP+4o5T/uKOU/7ijlP+4o5T/uKOU/7ijlP+4o5T/uKOU/7eilGAAAAAAAAAAAAAAAAC3oZNouKOU/7ijlP+4o5T/uKOU/7ijlP+4o5T/uKOU/7ijlP+4o5T/uKOU/7ijlP+3o5OAAAAAAAAAAAAAAAAAuaSUMLijlP+4o5T/uKOU/7ijlP+4o5T/uKOU/7ijlP+4o5T/uKOU/7ijlP+4o5T/uKKSUAAAAAAAAAAAAAAAAAAAAAC3o5P3uKOU/7ijlP+4o5T/uKOU/7ijlP+4o5T/uKOU/7ijlP+4o5T/uKOU/7SflBgAAAAAAAAAAAAAAAAAAAAAt6GTaLijlP+4o5T/uKOU/7ijlP+4o5T/uKOU/7ijlP+4o5T/uKOU/7mklYcAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC3o5O3uKOU/7ijlP+4o5T/uKOU/7ijlP+4o5T/uKOU/7iilMe/n58IAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAALeilGC4o5TvuKOU/7ijlP+4o5T/t6OT97ahkngAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAALifkii3o5NAuaSUMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=='
+
 let systray: any = null
+// MBM-276 follow-up: systray2's 'update-menu' action is documented/tested
+// primarily for per-item mutation of a STABLE menu (see its README example,
+// which uses 'update-item', not 'update-menu', for a click-driven state
+// change) — it does not reliably repaint the visible Windows tray menu for
+// the kinds of changes this agent needs: item COUNT changes (0 profiles ->
+// 1 profile) and existing items' `checked` flags (the Start-with-Windows
+// toggle). Observed live: a real profile connecting left the tray still
+// showing "No profiles paired yet", and toggling auto-start from the web
+// left the tray checkbox unchecked, while the underlying state (`/api/
+// status`, the DB) was correct all along — confirming this is a rendering
+// gap in the native helper, not a state-tracking bug. Rather than
+// discovering which subset of changes 'update-menu' does/doesn't handle,
+// every state change now tears down and recreates the whole tray icon —
+// guaranteed correct, since it reuses the exact "first render" path that
+// was never in question. Debounced so a burst of rapid changes (e.g. every
+// profile reconnecting at once) collapses into one recreation, not one per
+// event.
+let recreateTimer: ReturnType<typeof setTimeout> | null = null
+let recreating = false
 
 export interface ProfileTrayInfo {
   profileId: string
   label: string
+  serverUrl: string
   r710State?: AgentConnectionState
+  // Snapshot of the R710 device's IP, periodically refreshed — see
+  // AgentConfig's deviceIpAddress comment. Undefined for a profile paired
+  // before this field existed, or for a workstation-only profile (no R710
+  // pairing).
+  r710DeviceIp?: string
   workstationState?: WorkstationAgentConnectionState
+  // Database-driven, periodically refreshed — see WorkstationAgentConfig's
+  // matching comment. Undefined for an R710-only profile.
+  businessName?: string
+  configuredPrinters?: string[]
+  scaleComPort?: string
+  scaleBaudRate?: number
 }
 
 export interface TrayState {
@@ -75,24 +120,43 @@ export interface TrayState {
   scaleStatus: ScaleStatus
   scaleOwnerProfileId: string | null
   scaleOwnerLabel: string | null
+  // Whole-machine printer list (not per-profile — any of this workstation's
+  // installed printers can be targeted by a print job routed here, see
+  // plan Section 2a), fetched once at startup and refreshed on Restart —
+  // shown under every workstation-paired profile so an admin can see what's
+  // actually available to route to, without a PowerShell call on every
+  // single tray render.
+  printerNames: string[]
 }
 
-let currentState: TrayState = { profiles: [], scaleStatus: { status: 'disconnected', comPort: null }, scaleOwnerProfileId: null, scaleOwnerLabel: null }
+let currentState: TrayState = { profiles: [], scaleStatus: { status: 'disconnected', comPort: null }, scaleOwnerProfileId: null, scaleOwnerLabel: null, printerNames: [] }
 let onReleaseScaleCallback: (() => void) | null = null
 let onAutoStartChangedCallback: ((enabled: boolean) => void) | null = null
 
 const R710_STATUS_LABEL: Record<AgentConnectionState, string> = {
-  connecting: '🟡 Connecting…',
-  connected: '🟢 Connected',
-  disconnected: '🔴 Disconnected — retrying…',
-  rejected: '🔴 Pairing rejected — re-pair from the admin panel',
+  connecting: 'Connecting…',
+  connected: 'Connected',
+  disconnected: 'Disconnected — retrying…',
+  rejected: 'Pairing rejected — re-pair from the admin panel',
+}
+const R710_STATUS_ICON: Record<AgentConnectionState, string> = {
+  connecting: DOT_AMBER,
+  connected: DOT_GREEN,
+  disconnected: DOT_RED,
+  rejected: DOT_RED,
 }
 
 const WORKSTATION_STATUS_LABEL: Record<WorkstationAgentConnectionState, string> = {
-  connecting: '🟡 Connecting…',
-  connected: '🟢 Ready',
-  disconnected: '🔴 Offline — retrying…',
-  rejected: '🔴 Pairing rejected — re-pair from the admin panel',
+  connecting: 'Connecting…',
+  connected: 'Ready',
+  disconnected: 'Offline — retrying…',
+  rejected: 'Pairing rejected — re-pair from the admin panel',
+}
+const WORKSTATION_STATUS_ICON: Record<WorkstationAgentConnectionState, string> = {
+  connecting: DOT_AMBER,
+  connected: DOT_GREEN,
+  disconnected: DOT_RED,
+  rejected: DOT_RED,
 }
 
 // Sourced directly from scaleDriver's own 'status' events inside this same
@@ -104,6 +168,12 @@ const SCALE_STATUS_LABEL: Record<ScaleStatus['status'], (comPort: string | null,
   connected: (comPort) => `Connected${comPort ? ` on ${comPort}` : ''}`,
   disconnected: () => 'Not connected',
   error: (comPort, error) => `Error${comPort ? ` on ${comPort}` : ''}: ${error ? (error.length > 40 ? `${error.slice(0, 40)}…` : error) : 'unknown'}`,
+}
+const SCALE_STATUS_ICON: Record<ScaleStatus['status'], string> = {
+  connecting: DOT_AMBER,
+  connected: DOT_GREEN,
+  disconnected: DOT_GRAY,
+  error: DOT_RED,
 }
 
 function truncate(message: string, max = 60): string {
@@ -127,29 +197,86 @@ function buildTooltip(): string {
 function buildProfileSubmenu(profile: ProfileTrayInfo): any[] {
   const items: any[] = []
 
+  // Info lines only, never clickable — but still `enabled: true`. Windows
+  // renders a `enabled: false` item's text in a uniform system gray
+  // regardless of what's in it, so status color comes entirely from each
+  // item's own `icon` (a small colored-dot .ico, see DOT_GREEN etc. above)
+  // rather than from text — a colored emoji embedded in the title does NOT
+  // render in color through Win32's classic menu font, confirmed live.
+  items.push({ title: `Server: ${profile.serverUrl}`, tooltip: '', checked: false, enabled: true })
+
   if (profile.r710State) {
-    items.push({ title: `R710: ${R710_STATUS_LABEL[profile.r710State]}`, tooltip: '', checked: false, enabled: false })
+    const ip = profile.r710DeviceIp ? ` (${profile.r710DeviceIp})` : ''
+    items.push({
+      title: `R710: ${R710_STATUS_LABEL[profile.r710State]}${ip}`,
+      tooltip: '', checked: false, enabled: true,
+      icon: R710_STATUS_ICON[profile.r710State],
+    })
   }
   if (profile.workstationState) {
-    items.push({ title: `Printer: ${WORKSTATION_STATUS_LABEL[profile.workstationState]}`, tooltip: '', checked: false, enabled: false })
+    if (profile.businessName) {
+      items.push({ title: `Business: ${profile.businessName}`, tooltip: '', checked: false, enabled: true })
+    }
+
+    items.push({
+      title: `Printer relay: ${WORKSTATION_STATUS_LABEL[profile.workstationState]}`,
+      tooltip: '', checked: false, enabled: true,
+      icon: WORKSTATION_STATUS_ICON[profile.workstationState],
+    })
+    items.push({
+      title: profile.configuredPrinters && profile.configuredPrinters.length > 0
+        ? `Configured printer(s): ${profile.configuredPrinters.join(', ')}`
+        : 'Configured printer(s): none assigned to this business yet',
+      tooltip: 'Set in Admin → Printer Connection Mode',
+      checked: false, enabled: true,
+    })
+    items.push({
+      title: currentState.printerNames.length > 0
+        ? `Printers on this PC: ${currentState.printerNames.join(', ')}`
+        : 'Printers on this PC: none detected',
+      tooltip: 'Every printer Windows has installed on this workstation, whether or not it is one of the configured printer(s) above',
+      checked: false, enabled: true,
+    })
 
     const isOwner = currentState.scaleOwnerProfileId === profile.profileId
+    const configuredScale = profile.scaleComPort
+      ? `${profile.scaleComPort}${profile.scaleBaudRate ? ` @ ${profile.scaleBaudRate}` : ''}`
+      : null
     if (isOwner) {
       items.push({
         title: `Scale: ${SCALE_STATUS_LABEL[currentState.scaleStatus.status](currentState.scaleStatus.comPort, currentState.scaleStatus.error)}`,
-        tooltip: '', checked: false, enabled: false,
+        tooltip: '', checked: false, enabled: true,
+        icon: SCALE_STATUS_ICON[currentState.scaleStatus.status],
       })
     } else if (currentState.scaleOwnerProfileId) {
       items.push({
         title: `Scale: in use by ${currentState.scaleOwnerLabel || currentState.scaleOwnerProfileId} — Release`,
         tooltip: 'Force-release the scale from the other profile so it can be used here',
         checked: false, enabled: true,
+        icon: DOT_AMBER,
         click: () => onReleaseScaleCallback?.(),
       })
     } else {
-      items.push({ title: 'Scale: not connected', tooltip: '', checked: false, enabled: false })
+      items.push({
+        title: configuredScale ? `Scale: configured for ${configuredScale} — not connected` : 'Scale: not configured',
+        tooltip: '', checked: false, enabled: true,
+        icon: DOT_GRAY,
+      })
     }
   }
+
+  // Surfaced per-profile as requested, even though it's really one
+  // machine-wide registry setting shared by every profile (there is no
+  // such thing as "this profile's own" auto-start — see setAutoStart()'s
+  // header comment) — every profile's checkbox reads/drives that same
+  // single value, so toggling it here toggles it everywhere at once.
+  items.push({
+    title: 'Start with Windows',
+    tooltip: 'One setting for the whole agent — applies to every paired profile, not just this one',
+    checked: isAutoStartEnabled(),
+    enabled: true,
+    click: () => setAutoStart(!isAutoStartEnabled()),
+  })
 
   return items
 }
@@ -183,10 +310,7 @@ function buildItems(): any[] {
         tooltip: 'Launch this agent automatically when you sign in',
         checked: isAutoStartEnabled(),
         enabled: true,
-        click: () => {
-          setAutoStart(!isAutoStartEnabled())
-          pushMenuUpdate()
-        },
+        click: () => setAutoStart(!isAutoStartEnabled()),
       },
     ],
   })
@@ -206,40 +330,37 @@ function SysTraySeparator() {
 let onRestartCallback: (() => void) | null = null
 let onQuitCallback: (() => void) | null = null
 
-// Pushes both the hover tooltip and the full menu tree in one call. Must
-// always include the full items array — systray2's 'update-menu' handler
-// dereferences action.menu.items unconditionally, throwing (and taking the
-// whole process down) if it's omitted from a partial update.
-//
-// sendAction() never awaits the tray's own readiness internally — it writes
-// straight to `_process.stdin`, which is still null until the native helper
-// has actually spawned. Connection state can change well before that
-// (spawning + copying the helper binary takes real time), so calling
-// sendAction too early throws "Cannot read properties of null (reading
-// 'stdin')". Deferring on ready() queues the update correctly whether it's
-// already resolved or still pending, and buildTooltip()/buildItems()
-// re-read the *current* state at the time this callback actually runs, so a
-// burst of rapid state changes before the tray is ready collapses to just
-// the latest one being sent, not each state.
-function pushMenuUpdate(): void {
-  if (!systray) return
-  systray.ready().then(() => {
-    systray.sendAction({
-      type: 'update-menu',
-      menu: {
-        icon: PLACEHOLDER_ICON_BASE64,
-        title: 'MBM Local Agent',
-        tooltip: buildTooltip(),
-        items: buildItems(),
-      },
-    })
-  }).catch(() => { /* tray failed to start — already logged elsewhere, nothing to update */ })
-}
-
 /** Replaces the entire tray state and re-renders. The single entry point index.ts uses for every change. */
 export function updateTrayState(state: TrayState): void {
   currentState = state
-  pushMenuUpdate()
+  if (!systray) return // tray not started yet — createSysTrayInstance() will read currentState fresh when it does
+  scheduleRecreate()
+}
+
+function scheduleRecreate(): void {
+  if (recreateTimer) clearTimeout(recreateTimer)
+  recreateTimer = setTimeout(() => {
+    recreateTimer = null
+    recreateTray()
+  }, 400)
+}
+
+// Tears down the current native tray process and spins up a fresh one from
+// scratch — see the header comment above `recreateTimer` for why this
+// replaced the old incremental 'update-menu' approach. kill(false) stops
+// only the native helper, not this Node process.
+function recreateTray(): void {
+  if (!systray) {
+    createSysTrayInstance()
+    return
+  }
+  const old = systray
+  systray = null
+  recreating = true
+  old.kill(false).catch(() => { /* already gone — fine, we're recreating anyway */ }).finally(() => {
+    recreating = false
+    createSysTrayInstance()
+  })
 }
 
 export function setOnReleaseScale(callback: () => void): void {
@@ -257,9 +378,12 @@ export function setOnAutoStartChanged(callback: (enabled: boolean) => void): voi
   onAutoStartChangedCallback = callback
 }
 
-export function startTray(onQuit: () => void, onRestart: () => void): void {
-  onQuitCallback = onQuit
-  onRestartCallback = onRestart
+// Spawns a fresh native tray helper process from the current `currentState`
+// and wires up its handlers — used both for the very first tray icon
+// (startTray()) and every subsequent recreation (recreateTray()), so there
+// is exactly one code path that renders the menu, and it's the one proven
+// correct by the icon actually appearing on first launch.
+function createSysTrayInstance(): void {
   const SysTray = loadSysTray()
   systray = new SysTray({
     menu: {
@@ -273,17 +397,20 @@ export function startTray(onQuit: () => void, onRestart: () => void): void {
   })
 
   // systray2's native helper spawns asynchronously — a failure there (bad
-  // icon, missing binary, blocked by AV, ...) doesn't throw synchronously
-  // out of startTray(), so without this it fails completely silently.
-  // ready() resolves only once the native process is confirmed up (its
-  // internal `_process` field, which onError/onExit need, is guaranteed set
-  // by then) and rejects if the spawn itself failed — attaching onError/
-  // onExit any earlier throws because _process is still null at that point.
+  // icon, missing binary, blocked by AV, ...) doesn't throw synchronously,
+  // so without this it fails completely silently. ready() resolves only
+  // once the native process is confirmed up (its internal `_process`
+  // field, which onError/onExit need, is guaranteed set by then) and
+  // rejects if the spawn itself failed — attaching onError/onExit any
+  // earlier throws because _process is still null at that point.
   systray.ready().then(() => {
     systray.onError((error: unknown) => {
       console.error('[Agent] Tray helper process error:', error)
     })
     systray.onExit((code: number | null, signal: string | null) => {
+      // A deliberate recreate() kills and immediately respawns this same
+      // process — that exit is expected, not a crash, so stay quiet for it.
+      if (recreating) return
       console.error('[Agent] Tray helper process exited unexpectedly:', { code, signal })
     })
     const proc = systray.process
@@ -301,6 +428,12 @@ export function startTray(onQuit: () => void, onRestart: () => void): void {
   systray.onClick((action: { item: { click?: () => void } }) => {
     action.item.click?.()
   })
+}
+
+export function startTray(onQuit: () => void, onRestart: () => void): void {
+  onQuitCallback = onQuit
+  onRestartCallback = onRestart
+  createSysTrayInstance()
 }
 
 // ── Auto-start (MBM-276) — replaces the old "drag a shortcut into the

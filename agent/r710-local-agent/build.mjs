@@ -47,8 +47,29 @@ function collectDependencyClosure(pkgName, nodeModulesDir, seen = new Set()) {
   return seen
 }
 
+// A running r710-agent.exe (e.g. a developer testing locally, per this
+// project's build-rebuild-redownload-retest workflow) holds its copy of
+// @serialport/bindings-cpp's native .node addon open for the life of the
+// process. Windows refuses to unlink an open file, so the copy step below
+// fails with EPERM the moment a test instance is still running — this is
+// not a rare edge case, it's the normal case whenever iterating locally.
+// Stopping it here (best-effort; a non-zero exit just means nothing was
+// running) makes the build self-sufficient instead of requiring the
+// developer to remember to kill it by hand first.
+function stopRunningAgent() {
+  console.log('[build] Stopping any running r710-agent.exe (so its locked native module can be overwritten)…')
+  try {
+    execFileSync('taskkill', ['/IM', 'r710-agent.exe', '/F'], { stdio: 'ignore' })
+  } catch {
+    // Nothing was running — fine, this is the common case on a fresh
+    // machine or CI.
+  }
+}
+
 async function main() {
   if (!existsSync(distDir)) mkdirSync(distDir, { recursive: true })
+
+  stopRunningAgent()
 
   console.log('[build] Bundling with esbuild…')
   await build({

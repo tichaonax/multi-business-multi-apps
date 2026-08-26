@@ -203,6 +203,7 @@ export function startPairingServer(callbacks: PairingCallbacks): Server {
         deviceRegistryId: parsed.deviceRegistryId,
         label: parsed.label,
         ...(parsed.caCert ? { caCert: parsed.caCert } : {}),
+        ...(parsed.deviceIpAddress ? { deviceIpAddress: parsed.deviceIpAddress } : {}),
       }
       const profileId = ensureProfile(config.serverUrl, config.label)
       saveConfig(profileId, config)

@@ -306,8 +306,9 @@ export default function WorkstationAgentsPage() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
           <h3 className="font-medium text-gray-900 dark:text-white mb-2">Pair This Workstation</h3>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Open this page from the workstation you want to pair (the one with the scale/printer physically attached),
-            with the local agent already downloaded and running.
+            Open this page from the workstation you want to pair (the one with the scale/printer physically attached).
+            {' '}<a href="/api/admin/r710/agents/download" className="text-blue-600 dark:text-blue-400 hover:underline">Download r710-agent.zip</a>{' '}
+            (same agent used for R710) and run it there first if it isn't already running.
           </p>
           <div className={`mb-4 text-sm px-3 py-2 rounded-md ${localAgentDetected ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300' : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}>
             {localAgentDetected ? '🟢 Local agent detected on this machine and waiting to be paired.' : '⚪ No local agent detected on this machine yet.'}

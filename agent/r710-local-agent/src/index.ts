@@ -24,10 +24,22 @@ import { scaleDriver, releaseScale } from './workstation-job-handler'
 import { getScaleOwner } from './scale-owner'
 import type { ScaleStatus } from './scale-driver'
 import { startTray, updateTrayState, setOnReleaseScale, setOnAutoStartChanged, isAutoStartEnabled, setAutoStart, type TrayState } from './tray'
+import { listPrinters } from './print-driver'
 
 const r710Clients = new Map<string, AgentSocketClient>()
 const workstationClients = new Map<string, WorkstationSocketClient>()
 let lastScaleStatus: ScaleStatus = { status: 'disconnected', comPort: null }
+// Fetched once at startup (and again on Restart) — see TrayState's
+// printerNames comment for why this isn't re-queried on every tray render.
+let printerNames: string[] = []
+
+function refreshPrinterList(): void {
+  try {
+    printerNames = listPrinters().map(p => p.name)
+  } catch {
+    printerNames = [] // PowerShell unavailable/blocked — tray just shows "none detected"
+  }
+}
 
 function safeStartTray(onQuit: () => void, onRestart: () => void): void {
   try {
@@ -56,11 +68,18 @@ function refreshTray(): void {
 
   const profiles: TrayState['profiles'] = currentProfileIds().map(profileId => {
     const meta = readProfileMeta(profileId)
+    const workstation = loadWorkstationConfig(profileId)
     return {
       profileId,
       label: meta?.label || profileId,
+      serverUrl: meta?.serverUrl || '',
       r710State: r710Clients.get(profileId)?.lastState,
+      r710DeviceIp: loadConfig(profileId)?.deviceIpAddress,
       workstationState: workstationClients.get(profileId)?.lastState,
+      businessName: workstation?.businessName,
+      configuredPrinters: workstation?.configuredPrinters,
+      scaleComPort: workstation?.scaleComPort,
+      scaleBaudRate: workstation?.scaleBaudRate,
     }
   })
 
@@ -70,6 +89,7 @@ function refreshTray(): void {
       scaleStatus: lastScaleStatus,
       scaleOwnerProfileId: owner?.profileId ?? null,
       scaleOwnerLabel: owner ? (readProfileMeta(owner.profileId)?.label || owner.profileId) : null,
+      printerNames,
     })
   } catch { /* tray optional */ }
 }
@@ -149,6 +169,10 @@ function connectR710(profileId: string, config: AgentConfig): void {
     clearConfig(profileId)
     refreshTray()
   })
+  // Fired when a periodic sync (socket-client.ts's syncDeviceInfo()) finds
+  // this device's IP has changed since pairing — refresh so the tray picks
+  // up the new value from the profile file it just rewrote to disk.
+  client.on('config-updated', () => refreshTray())
 
   r710Clients.set(profileId, client)
   client.start()
@@ -178,6 +202,10 @@ function connectWorkstation(profileId: string, config: WorkstationAgentConfig): 
     if (owner?.profileId === profileId) releaseScale()
     refreshTray()
   })
+  // See socket-client.ts's identical 'config-updated' wiring — fired when a
+  // periodic sync finds this profile's configured printers/scale/business
+  // changed since it was last written to workstation.json.
+  client.on('config-updated', () => refreshTray())
 
   workstationClients.set(profileId, client)
   client.start()
@@ -186,6 +214,7 @@ function connectWorkstation(profileId: string, config: WorkstationAgentConfig): 
 // Connects every already-configured profile — called once at startup
 // (after migration) and again on a manual Restart from the tray.
 function connectAllProfiles(): void {
+  refreshPrinterList()
   for (const profileId of listProfileIds()) {
     const r710 = loadConfig(profileId)
     if (r710) connectR710(profileId, r710)

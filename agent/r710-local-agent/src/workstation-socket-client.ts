@@ -21,7 +21,7 @@
 import { EventEmitter } from 'events'
 import os from 'os'
 import { io, Socket } from 'socket.io-client'
-import type { WorkstationAgentConfig } from './workstation-config'
+import { saveWorkstationConfig, type WorkstationAgentConfig } from './workstation-config'
 import { handleWorkstationJob, type WorkstationAgentJob, type WorkstationAgentJobResult } from './workstation-job-handler'
 import { registerWorkstationClient, unregisterWorkstationClient, type RelayTarget } from './workstation-clients-registry'
 import { isAutoStartEnabled } from './tray'
@@ -29,10 +29,14 @@ import packageJson from '../package.json'
 
 const AGENT_VERSION = packageJson.version
 
+// See socket-client.ts's identical constant for the rationale.
+const SYNC_INTERVAL_MS = 10 * 60 * 1000
+
 export type WorkstationAgentConnectionState = 'connecting' | 'connected' | 'disconnected' | 'rejected'
 
 export class WorkstationSocketClient extends EventEmitter implements RelayTarget {
   private socket: Socket | null = null
+  private syncTimer: ReturnType<typeof setInterval> | null = null
 
   // MBM-276: tracked internally (not just via the 'state' event) so
   // index.ts's tray snapshot can always read the current state directly,
@@ -82,6 +86,8 @@ export class WorkstationSocketClient extends EventEmitter implements RelayTarget
         (ack: { success: boolean; error?: string }) => {
           if (ack.success) {
             this.setState('connected')
+            this.syncConfig()
+            if (!this.syncTimer) this.syncTimer = setInterval(() => this.syncConfig(), SYNC_INTERVAL_MS)
           } else {
             this.setState('rejected')
             this.emit('rejected', ack.error)
@@ -109,6 +115,7 @@ export class WorkstationSocketClient extends EventEmitter implements RelayTarget
   }
 
   stop(): void {
+    if (this.syncTimer) { clearInterval(this.syncTimer); this.syncTimer = null }
     this.socket?.disconnect()
     this.socket = null
     unregisterWorkstationClient(this.profileId, this)
@@ -117,5 +124,33 @@ export class WorkstationSocketClient extends EventEmitter implements RelayTarget
   // Mirrors socket-client.ts's reportAutoStart() — see its comment.
   reportAutoStart(enabled: boolean): void {
     this.socket?.emit('workstation-agent:status-update', { autoStartEnabled: enabled })
+  }
+
+  // Mirrors socket-client.ts's syncDeviceInfo() — see its comment for the
+  // rationale (this pairing's database-driven config shouldn't be a
+  // one-time snapshot from pairing time). Here it's which printers route
+  // through this workstation, the configured scale COM port/baud rate, and
+  // the business name — all admin-configured server-side, none of it a
+  // secret, all of it useful for the tray to show.
+  private syncConfig(): void {
+    this.socket?.emit(
+      'workstation-agent:sync',
+      {},
+      (ack: { success: boolean; businessName?: string; printers?: string[]; scaleComPort?: string; scaleBaudRate?: number }) => {
+        if (!ack?.success) return
+        const changed =
+          ack.businessName !== this.config.businessName ||
+          ack.scaleComPort !== this.config.scaleComPort ||
+          ack.scaleBaudRate !== this.config.scaleBaudRate ||
+          JSON.stringify(ack.printers ?? []) !== JSON.stringify(this.config.configuredPrinters ?? [])
+        if (!changed) return
+        this.config.businessName = ack.businessName
+        this.config.configuredPrinters = ack.printers
+        this.config.scaleComPort = ack.scaleComPort
+        this.config.scaleBaudRate = ack.scaleBaudRate
+        saveWorkstationConfig(this.profileId, this.config)
+        this.emit('config-updated')
+      }
+    )
   }
 }

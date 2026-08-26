@@ -3989,6 +3989,8 @@ This means:
 
 > **Each token is single-use.** Once issued on a receipt, it cannot be reused or given to another customer.
 
+**Before you print** — the **Order Complete** confirmation that appears immediately after checkout (Universal POS, Restaurant POS, and Grocery POS) shows the same WiFi/R710 credentials on screen, each section with its own **📋 Copy** button. If the sale included more than one token, Copy grabs all of them at once, comma-separated — useful for pasting into a chat/SMS to the customer, or as a fallback if the printer is unavailable. A brief "✅ Copied" confirmation fades in next to the button that was clicked.
+
 #### Checking and Restocking Token Availability
 
 On the POS product card, the available count is displayed. When availability drops below 5:
@@ -4227,6 +4229,7 @@ Normally the application server talks to an R710 device directly over the local 
 - **Recent Activity**: a log of every request relayed through the agent — token generation, health checks — with who requested it (or "Background job" for automatic top-ups) and how long it took.
 - **Start with Windows**: a toggle that reaches across to the workstation and flips the same auto-start setting as the tray's Preferences menu — since it's one setting for the whole agent, not per pairing, changing it here also updates it for any other server that workstation happens to be paired to, and vice versa.
 - **Revoke Pairing**: disconnects the agent immediately for that pairing. The agent running on that workstation notices within a few seconds, automatically clears its old pairing, and goes back to waiting-to-be-paired on its own — there is no need to reinstall or restart anything on the workstation. Use this when a device needs to be re-paired (e.g. its IP address changed) or a workstation is being retired: just open the Agent panel again and click **Pair this machine** once the tray icon is showing "not paired."
+- **Download r710-agent.zip**: always available next to Test Connection/Revoke Pairing, not just when an update banner is showing — use it to grab the installer again any time (e.g. to re-run the agent on the same workstation after it was closed, or to install it on a different one). Re-downloading doesn't disturb an existing pairing.
 
 **If the agent goes offline:** everything that would normally happen automatically for this device — selling a token at POS, background stock top-ups — will fail with a clear **"Remote Wi-Fi device unavailable — the local agent is offline, contact IT"** message instead of a generic error, so staff and support can tell immediately that it's the agent (not the R710 itself, and not a wrong password) that needs attention. Check the tray icon on the paired workstation first — if it's not running, restart it; if it shows 🔴, the workstation likely lost its network connection to the app server.
 
@@ -4257,18 +4260,26 @@ A workstation only needs one download and one running `r710-agent.exe` no matter
 
 **Pairing a workstation for Scale and/or Printer:**
 1. Go to **Settings → POS Settings → ⚖️ Scale & Weighing**, then follow the **"Workstation Agents"** link near the bottom of the Scale Hardware section (or go directly to `/admin/workstation-agents` for the current business).
-2. With the local agent already downloaded and running on the target workstation (see the download/install steps above — same file, same steps), open this page **from that workstation** and click **Pair this machine**, giving it a label like "Front Desk PC — Bulawayo Branch".
+2. With the local agent already downloaded and running on the target workstation — this page has its own **Download r710-agent.zip** link right in the pairing card (same file, same install steps as R710's) — open this page **from that workstation** and click **Pair this machine**, giving it a label like "Front Desk PC — Bulawayo Branch".
 3. Once paired, use the same page's **MG-S8200 Scale Setup** section to pick the COM port (with a **List Ports** button, and a **Detect Baud** button so you don't have to know the scale's baud rate) and save — see Section 53 for the full weighing workflow once this is done.
 4. For printers, a **system admin** configures which printer relays through which paired workstation separately, at **Printer Connection Mode** in the sidebar (`/admin/network-printers`) — see Section 26 for details. This is a different, admin-only screen because printers in this app are a shared resource, not owned by one business.
 
 Each paired workstation row on this page also has a **Start with Windows** toggle — same auto-start setting as the tray and the R710 Agent panel's version of it, described above.
 
-**Each paired profile in the tray now shows its own R710/Printer/Scale lines** (right-click the tray icon, then open a specific profile's submenu):
+**Each paired profile in the tray shows its own detail lines** (right-click the tray icon, then open a specific profile's submenu). Status lines carry a real colored dot icon — green (connected/ready), amber (connecting/in use elsewhere), red (offline/error), gray (not configured) — not just text, so a glance at the tray tells you what needs attention:
+
 | Line | What it means |
 |---|---|
-| **R710** | Same meaning as the "Using the Agent panel day-to-day" status above |
-| **Printer** | Whether this profile's printer-relay pairing is currently reachable by its server. Print jobs can only be relayed while this shows Ready. Multiple profiles can print at the same time with no restriction — jobs simply queue on the printer like any other application's print jobs would. |
-| **Scale** | Only one profile can hold the physical scale connection at a time (it's a single serial port, not something two programs can share). The profile currently connected to it shows its live reading (Connected on COMx / Not connected / Error); every *other* profile's Scale line instead shows **"in use by \<label\> — Release,"** letting you explicitly hand the scale over rather than it being silently stolen. This only comes up on a workstation paired to more than one server for a scale — most setups only ever pair one. |
+| **Server** | The URL of the server this profile is paired to |
+| **R710** | Same meaning as the "Using the Agent panel day-to-day" status above, plus the device's own IP address once known (e.g. "Connected (192.168.1.50)") |
+| **Business** | Which business this workstation pairing belongs to (workstation profiles only) |
+| **Printer relay** | Whether this profile's printer-relay pairing is currently reachable by its server. Print jobs can only be relayed while this shows Ready. Multiple profiles can print at the same time with no restriction — jobs simply queue on the printer like any other application's print jobs would. |
+| **Configured printer(s)** | The actual printer(s) this business has assigned to this pairing (set in Admin → Printer Connection Mode) — the specific answer to "what printer does this connect to," as opposed to... |
+| **Printers on this PC** | ...every printer Windows has installed on this workstation, whether or not it's one of the configured printer(s) above — useful for checking a configured name actually matches something installed |
+| **Scale** | Only one profile can hold the physical scale connection at a time (it's a single serial port, not something two programs can share). The profile currently connected to it shows its live reading (Connected on COMx / Not connected / Error); every *other* profile's Scale line instead shows **"in use by \<label\> — Release,"** letting you explicitly hand the scale over rather than it being silently stolen — or, if nothing's connected yet, "configured for COMx @ baud — not connected" so you can see what *should* be there. This only comes up on a workstation paired to more than one server for a scale — most setups only ever pair one. |
+| **Start with Windows** | The same shared, whole-agent setting described above (also on the Preferences submenu and both admin pages) — reachable from every profile's own submenu too, for convenience |
+
+None of this is a one-time snapshot from when you paired — the agent quietly re-checks the server every 10 minutes (and immediately on every reconnect) and updates these lines automatically, so an IP address or printer assignment changed later on the admin side shows up here without needing to re-pair.
 
 **Recent Activity** for the Scale/Printer pairing works the same way as R710's — click **Recent Activity** next to a paired workstation on the Workstation Agents page to see its last 50 scale/print jobs, who requested each one, how long it took, and any error.
 

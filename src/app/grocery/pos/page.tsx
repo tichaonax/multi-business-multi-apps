@@ -168,6 +168,11 @@ function GroceryPOSContent() {
   const [showReceiptModal, setShowReceiptModal] = useState(false)
   const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
   const [completedOrder, setCompletedOrder] = useState<any>(null)
+  // Which token section was just copied, for the inline fade-out
+  // confirmation next to that section's Copy button — see
+  // copyTokensToClipboard()'s comment for why this isn't a modal alert.
+  const [copiedKind, setCopiedKind] = useState<'wifi' | 'r710' | null>(null)
+  const [copiedVisible, setCopiedVisible] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelTarget, setCancelTarget] = useState<CancelOrderSummary | null>(null)
   const [showCashTenderModal, setShowCashTenderModal] = useState(false)
@@ -2192,6 +2197,26 @@ function GroceryPOSContent() {
     }
   }
 
+  // Copies every successfully-generated token's code in one go —
+  // comma-separated when there's more than one, so a cashier reading
+  // multiple tokens off the same order doesn't have to copy them one at a
+  // time. Feedback is an inline badge that fades out next to the button
+  // that was clicked, not the modal-based useAlert() this page uses
+  // elsewhere — a confirmation dialog on top of the already-open Order
+  // Complete modal would be more interruption than a quick copy action
+  // warrants, and needs to actually be seen, not just technically shown.
+  const copyTokensToClipboard = async (codes: string[], kind: 'wifi' | 'r710') => {
+    if (codes.length === 0) return
+    try {
+      await navigator.clipboard.writeText(codes.join(', '))
+      setCopiedKind(kind)
+      setCopiedVisible(true)
+      setTimeout(() => setCopiedVisible(false), 1200)
+    } catch {
+      await customAlert({ title: 'Error', description: 'Could not copy to clipboard' })
+    }
+  }
+
   // Handle printing receipt to configured printer
   const handlePrintReceipt = async (receiptData: ReceiptData) => {
     try {
@@ -2354,9 +2379,24 @@ function GroceryPOSContent() {
                 {/* WiFi Tokens (if any) */}
                 {completedOrder.wifiTokens && completedOrder.wifiTokens.length > 0 && (
                   <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg border-2 border-purple-200 dark:border-purple-700">
-                    <h3 className="font-semibold mb-3 text-purple-700 dark:text-purple-300 flex items-center gap-2">
-                      📶 WiFi Access Tokens
-                    </h3>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-2">
+                        📶 WiFi Access Tokens
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-xs text-green-600 dark:text-green-400 transition-opacity duration-700 ease-out ${copiedKind === 'wifi' && copiedVisible ? 'opacity-100' : 'opacity-0'}`}
+                        >
+                          ✅ Copied
+                        </span>
+                        <button
+                          onClick={() => copyTokensToClipboard(completedOrder.wifiTokens.map((t: any) => t.tokenCode).filter(Boolean), 'wifi')}
+                          className="text-xs px-2 py-1 rounded border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40"
+                        >
+                          📋 Copy
+                        </button>
+                      </div>
+                    </div>
                     {completedOrder.wifiTokens.map((token: any, index: number) => {
                       const isError = token.success === false || token.error
 
@@ -2398,9 +2438,24 @@ function GroceryPOSContent() {
                 {/* R710 WiFi Tokens (if any) */}
                 {completedOrder.r710Tokens && completedOrder.r710Tokens.length > 0 && (
                   <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border-2 border-blue-200 dark:border-blue-700">
-                    <h3 className="font-semibold mb-3 text-blue-700 dark:text-blue-300 flex items-center gap-2">
-                      📶 R710 WiFi Access
-                    </h3>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                        📶 R710 WiFi Access
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-xs text-green-600 dark:text-green-400 transition-opacity duration-700 ease-out ${copiedKind === 'r710' && copiedVisible ? 'opacity-100' : 'opacity-0'}`}
+                        >
+                          ✅ Copied
+                        </span>
+                        <button
+                          onClick={() => copyTokensToClipboard(completedOrder.r710Tokens.map((t: any) => t.password).filter(Boolean), 'r710')}
+                          className="text-xs px-2 py-1 rounded border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                        >
+                          📋 Copy
+                        </button>
+                      </div>
+                    </div>
                     {completedOrder.r710Tokens.map((token: any, index: number) => {
                       const isError = token.success === false || token.error
 

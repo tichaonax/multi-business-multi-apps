@@ -117,6 +117,10 @@ async function load() {
         '<button class="danger" onclick="unpair(\\'' + p.profileId + '\\', \\'' + esc(p.label).replace(/'/g, "\\\\'") + '\\')">Unpair</button>' +
       '</div>' +
       '<div style="margin-top:6px">' + stateBadge('R710', p.r710State) + ' ' + stateBadge('Printer', p.workstationState) + '</div>' +
+      '<div class="row" style="margin-top:8px">' +
+        '<span class="sub" style="margin:0">Start with Windows <span style="opacity:.7">(one setting — applies to every profile, not just this one)</span></span>' +
+        '<label class="switch"><input type="checkbox"' + (s.autoStartEnabled ? ' checked' : '') + ' onchange="toggleAutoStart(this.checked)"><span class="slider"></span></label>' +
+      '</div>' +
     '</div>'
   }).join('')
 }
