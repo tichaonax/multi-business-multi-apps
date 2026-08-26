@@ -318,53 +318,63 @@ function AgentPanelContent() {
       {device.connectionMode === 'AGENT' && !device.remoteAgent && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Pair a Machine</h2>
-          <ol className="text-sm text-gray-600 dark:text-gray-400 list-decimal list-inside space-y-1">
-            <li>
-              On the workstation that sits on the same network as this device, download and run the agent:{' '}
-              <a href="/api/admin/r710/agents/download" className="text-primary-600 dark:text-primary-400 hover:underline">
-                Download r710-agent.zip
-              </a>
-            </li>
-            <li>Unzip it and double-click <code className="text-xs bg-gray-100 dark:bg-gray-900 px-1 rounded">r710-agent.exe</code> — a tray icon will appear (right-click it any time to Restart or Quit the agent).</li>
-            <li>Open this page in a browser <strong>on that same workstation</strong>, then click Pair below.</li>
-          </ol>
 
-          <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
-            {localAgentDetected === null && (
-              <p className="text-sm text-gray-500 dark:text-gray-400">Checking for a local agent on this machine…</p>
-            )}
-            {localAgentDetected === false && (
-              <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3">
-                No local agent detected on this machine (http://127.0.0.1:{PAIRING_PORT}). Install and run it first,
-                then reload this page — from the workstation itself, not remotely.
-                {' '}If it's stuck (e.g. this port is already in use by a previous run), run{' '}
-                <code className="text-xs bg-amber-100 dark:bg-amber-900/40 px-1 rounded">Stop R710 Agent.bat</code>{' '}
-                from the unzipped folder, then start <code className="text-xs bg-amber-100 dark:bg-amber-900/40 px-1 rounded">r710-agent.exe</code> again.
-              </p>
-            )}
-            {localAgentDetected === true && (
-              <div className="space-y-3">
-                <p className="text-sm text-green-700 dark:text-green-400">✓ Local agent detected and waiting to be paired.</p>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Label for this workstation</label>
-                  <input
-                    type="text"
-                    value={pairLabel}
-                    onChange={(e) => setPairLabel(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white"
-                    placeholder="Front Desk PC — Bulawayo Branch"
-                  />
-                </div>
-                <button
-                  onClick={handlePair}
-                  disabled={pairing || !pairLabel.trim()}
-                  className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {pairing ? 'Pairing…' : 'Pair this machine'}
-                </button>
+          {/* Common case first: an agent already installed on this workstation (e.g. re-pairing
+              after a Revoke, or pairing a second device/server from the same machine) needs
+              nothing more than the form below — leading with download/install instructions here
+              would wrongly imply a fresh download is required every time. */}
+          {localAgentDetected === true && (
+            <div className="space-y-3">
+              <p className="text-sm text-green-700 dark:text-green-400">✓ Local agent detected on this machine and waiting to be paired. No need to download or reinstall it.</p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Label for this workstation</label>
+                <input
+                  type="text"
+                  value={pairLabel}
+                  onChange={(e) => setPairLabel(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white"
+                  placeholder="Front Desk PC — Bulawayo Branch"
+                />
               </div>
-            )}
-          </div>
+              <button
+                onClick={handlePair}
+                disabled={pairing || !pairLabel.trim()}
+                className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {pairing ? 'Pairing…' : 'Pair this machine'}
+              </button>
+            </div>
+          )}
+
+          {localAgentDetected !== true && (
+            <>
+              <ol className="text-sm text-gray-600 dark:text-gray-400 list-decimal list-inside space-y-1">
+                <li>
+                  On the workstation that sits on the same network as this device, download and run the agent — skip this if it's already installed and running there:{' '}
+                  <a href="/api/admin/r710/agents/download" className="text-primary-600 dark:text-primary-400 hover:underline">
+                    Download r710-agent.zip
+                  </a>
+                </li>
+                <li>Unzip it and double-click <code className="text-xs bg-gray-100 dark:bg-gray-900 px-1 rounded">r710-agent.exe</code> — a tray icon will appear (right-click it any time to Restart or Quit the agent).</li>
+                <li>Open this page in a browser <strong>on that same workstation</strong> — it'll detect the running agent automatically and the Pair button will appear below.</li>
+              </ol>
+
+              <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                {localAgentDetected === null && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Checking for a local agent on this machine…</p>
+                )}
+                {localAgentDetected === false && (
+                  <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3">
+                    No local agent detected on this machine (http://127.0.0.1:{PAIRING_PORT}). If it's already installed, make sure it's actually running (check the system tray) and that you opened this page on that same workstation, not remotely — this check only ever succeeds from the machine the agent is running on.
+                    {' '}If it's stuck (e.g. this port is already in use by a previous run), run{' '}
+                    <code className="text-xs bg-amber-100 dark:bg-amber-900/40 px-1 rounded">Stop R710 Agent.bat</code>{' '}
+                    from the unzipped folder, then start <code className="text-xs bg-amber-100 dark:bg-amber-900/40 px-1 rounded">r710-agent.exe</code> again. Otherwise, install it using the link above.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+
         </div>
       )}
 

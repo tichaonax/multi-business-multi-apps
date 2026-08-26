@@ -227,6 +227,34 @@ There are **two entirely separate certificates** involved in a full deployment, 
 
 Chrome and Edge enforce **Private Network Access** restrictions that block a plain-HTTP page from talking to QZ Tray (which listens locally for print jobs) unless the page itself is served over HTTPS with a certificate the browser trusts. Firefox has no such restriction and needs none of this. If you don't use QZ Tray printing (e.g. every printer goes through the Windows Raw Printer path or an agent-relayed printer), you can skip this subsection entirely and run HTTP-only.
 
+#### Installing mkcert itself
+
+`mkcert` is not preinstalled anywhere and isn't a repo dependency — install it once on whichever machine will generate the certificate (usually the server itself, or any machine you trust to hold the private key briefly before copying it over).
+
+**Windows (PowerShell)** — no package manager required, it's a single portable `.exe`:
+
+```powershell
+New-Item -ItemType Directory -Force -Path "C:\mkcert" | Out-Null
+Invoke-WebRequest -Uri "https://github.com/FiloSottile/mkcert/releases/download/v1.4.4/mkcert-v1.4.4-windows-amd64.exe" -OutFile "C:\mkcert\mkcert.exe"
+
+$env:Path += ";C:\mkcert"
+[Environment]::SetEnvironmentVariable("Path", $env:Path, "User")
+```
+
+Close and reopen PowerShell, then confirm with `mkcert -version`. (Check https://github.com/FiloSottile/mkcert/releases/latest first in case a newer version exists — the URL above pins v1.4.4.) If you have Chocolatey or Scoop already, `choco install mkcert` / `scoop install mkcert` works too and skips the manual PATH step.
+
+**Linux (Debian/Ubuntu)**:
+
+```bash
+sudo apt-get update && sudo apt-get install -y libnss3-tools wget
+wget -O mkcert https://github.com/FiloSottile/mkcert/releases/download/v1.4.4/mkcert-v1.4.4-linux-amd64
+chmod +x mkcert
+sudo mv mkcert /usr/local/bin/mkcert
+mkcert -version
+```
+
+`libnss3-tools` is what lets `mkcert -install` also register the CA with Chrome/Chromium's own NSS trust store, not just the system one — skip it and Chrome-based browsers on that machine won't trust certificates mkcert issues. (Other distros: swap `apt-get` for your package manager — `nss-tools` on Fedora/RHEL, or use your distro's `mkcert` package directly if it has one, e.g. `sudo dnf install mkcert` / `sudo pacman -S mkcert`.)
+
 #### Generating and installing the TLS certificate
 
 ```bash
@@ -243,6 +271,8 @@ This produces a cert + key pair (e.g. `192.168.0.108+3.pem` / `192.168.0.108+3-k
 4. The app is now reachable at `https://<server-ip>:8080` (or whatever port you configured).
 
 Trusting this certificate on client machines is covered in §10.1 (workstation setup) — every machine that opens the app in Chrome/Edge needs to do this once.
+
+> ⚠️ **List every IP/hostname the server will actually be reached by, in that one `mkcert` command — this is a real, previously-hit failure mode.** A cert generated for `192.168.0.108` will silently fail TLS hostname verification if the server is later reached at, say, `192.168.8.166` instead (a different NIC, a DHCP lease change, a new deployment target) — every browser tab and every local-agent socket connection to it fails with a generic, unhelpful error (browsers show a cert warning; a Node-based client like the R710/Workstation local agent just loops on a bare `websocket error` with no further detail). `rootCA.pem` being present and otherwise correct does not save you here — hostname/IP matching against the *leaf* cert's SAN list is checked independently of CA trust. If the server's reachable address ever changes, regenerate the leaf cert (`mkcert <new-ip> <old-ip-if-still-valid> localhost 127.0.0.1` — same `mkcert -install`, so the existing `rootCA.pem` and any client trust already set up for it keep working unchanged), replace the old cert+key pair in `certs/`, restart the server, and **re-pair** any local agents connected to it (revoking and re-pairing is what actually pushes a corrected `caCert` down to an agent — restarting the agent alone does not, since the bad/missing value is already saved in its own config).
 
 ### 7.2 QZ Tray signing certificate (generated on the server)
 
@@ -358,10 +388,16 @@ Everything above is done once, on the server. This section is what needs to happ
 ### 10.1 Just browsing the app (every workstation)
 
 1. Open the server's URL in a modern browser (Chrome, Edge, or Firefox) — `https://<server-ip>:8080` if TLS is set up (§7.1), otherwise `http://<server-ip>:8080`.
-2. **If the server runs HTTPS with a self-signed (mkcert) certificate**, this browser needs to trust it once, or it'll show a security warning (and QZ Tray printing won't work at all in Chrome/Edge until this is done):
-   - **Automated**: copy `rootCA.pem` (from the server's `certs/` folder) to the workstation alongside a small trust-installer script and run it — see the exact one-click pattern already used in `certs/README.md` (`setup-ssl.bat`) if you want to reuse that approach.
-   - **Manual**: `Win+R` → `certmgr.msc` → **Trusted Root Certification Authorities** → right-click **Certificates** → **All Tasks → Import** → select `rootCA.pem` → restart the browser.
-   - **Firefox** needs none of this — it doesn't enforce the restriction that makes this necessary in Chrome/Edge in the first place.
+2. **If the server runs HTTPS with a self-signed (mkcert) certificate**, this browser needs to trust it once, or it'll show a security warning (and QZ Tray printing won't work at all in Chrome/Edge until this is done). Copy `rootCA.pem` from the server's `certs/` folder to the workstation (USB, shared folder, email — it's a public file, not a secret) first, then:
+   - **Windows, automated**: alongside `rootCA.pem`, copy a small trust-installer script and run it — see the exact one-click pattern already used in `certs/README.md` (`setup-ssl.bat`) if you want to reuse that approach.
+   - **Windows, manual**: `Win+R` → `certmgr.msc` → **Trusted Root Certification Authorities** → right-click **Certificates** → **All Tasks → Import** → select `rootCA.pem` → restart the browser.
+   - **Linux (Debian/Ubuntu)**:
+     ```bash
+     sudo cp rootCA.pem /usr/local/share/ca-certificates/mkcert-rootCA.crt
+     sudo update-ca-certificates
+     ```
+     This covers the system trust store (curl, wget, most non-Chromium apps). For Chrome/Chromium specifically, which uses its own NSS trust store, either install `libnss3-tools` and run `mkcert -install` locally using the *same* `rootCA-key.pem` (if you have it — not just the public `rootCA.pem`), or import it manually via `chrome://settings/certificates` → **Authorities** → **Import**. Firefox on Linux also uses its own store — `about:preferences#privacy` → **View Certificates** → **Authorities** → **Import**.
+   - **Firefox (any OS)** needs none of this for the *page itself* to load once you click through the one-time warning — it doesn't enforce the Private Network Access restriction that makes browser-level trust a hard requirement for QZ Tray in Chrome/Edge. Still recommended for a clean, warning-free experience either way.
 3. Log in with a user account (the first admin account is created per §5.5 — change its password immediately if you haven't already).
 
 ### 10.2 Printing via QZ Tray (workstations with a locally-attached printer, using the QZ Tray path)

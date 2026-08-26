@@ -385,7 +385,21 @@ export function setOnAutoStartChanged(callback: (enabled: boolean) => void): voi
 // correct by the icon actually appearing on first launch.
 function createSysTrayInstance(): void {
   const SysTray = loadSysTray()
-  systray = new SysTray({
+  // Captured locally and used throughout this function — NOT re-read via
+  // the module-level `systray` variable inside the async callbacks below.
+  // Real bug this fixed: with two-plus profiles connecting at once,
+  // refreshTray() bursts can span the 400ms recreate debounce, so a second
+  // recreateTray() can null out (and eventually replace) the module-level
+  // `systray` before THIS instance's own `.ready()` promise has resolved.
+  // When that late callback then did `systray.onError(...)`, it read
+  // whatever the module variable pointed to *at that later moment* — null,
+  // mid-recreate — and threw "Cannot read properties of null (reading
+  // 'onError')", which crashed tray startup for the whole process (caught
+  // only by the outer try/catch in index.ts's safeStartTray, so the agent
+  // survived, but the tray never came up). Every callback here now
+  // operates on the specific instance it belongs to, regardless of what
+  // the module-level `systray` has since been reassigned to.
+  const instance = new SysTray({
     menu: {
       icon: PLACEHOLDER_ICON_BASE64,
       title: 'MBM Local Agent',
@@ -395,6 +409,7 @@ function createSysTrayInstance(): void {
     debug: false,
     copyDir: true,
   })
+  systray = instance
 
   // systray2's native helper spawns asynchronously — a failure there (bad
   // icon, missing binary, blocked by AV, ...) doesn't throw synchronously,
@@ -403,17 +418,17 @@ function createSysTrayInstance(): void {
   // field, which onError/onExit need, is guaranteed set by then) and
   // rejects if the spawn itself failed — attaching onError/onExit any
   // earlier throws because _process is still null at that point.
-  systray.ready().then(() => {
-    systray.onError((error: unknown) => {
+  instance.ready().then(() => {
+    instance.onError((error: unknown) => {
       console.error('[Agent] Tray helper process error:', error)
     })
-    systray.onExit((code: number | null, signal: string | null) => {
+    instance.onExit((code: number | null, signal: string | null) => {
       // A deliberate recreate() kills and immediately respawns this same
       // process — that exit is expected, not a crash, so stay quiet for it.
       if (recreating) return
       console.error('[Agent] Tray helper process exited unexpectedly:', { code, signal })
     })
-    const proc = systray.process
+    const proc = instance.process
     proc?.stdout?.on('data', (chunk: Buffer) => console.error('[Agent] [tray stdout]', chunk.toString()))
     proc?.stderr?.on('data', (chunk: Buffer) => console.error('[Agent] [tray stderr]', chunk.toString()))
   }).catch((error: unknown) => {
@@ -425,7 +440,7 @@ function createSysTrayInstance(): void {
   // always capture the current profile/callback references, never stale
   // ones from an earlier render) — the top-level handler just invokes
   // whichever one fired. Nested submenu items are dispatched the same way.
-  systray.onClick((action: { item: { click?: () => void } }) => {
+  instance.onClick((action: { item: { click?: () => void } }) => {
     action.item.click?.()
   })
 }
