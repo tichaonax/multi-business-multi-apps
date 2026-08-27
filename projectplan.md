@@ -10,6 +10,7 @@ All detailed project plans live in `ai-contexts/project-plans/`.
 
 | ID | Title | File | Status |
 |----|-------|------|--------|
+| MBM-281 | Agent/Server Version Compatibility Warning | [view](ai-contexts/project-plans/review/projectplan-MBM-281-agent-version-compatibility-2026-08-27.md) | 🟢 BUILT |
 | MBM-280 | Two Bugs Found During MBM-279 Live Testing (round-down disables Complete Order; QZ needs per-business setup) | [view](ai-contexts/project-plans/review/projectplan-MBM-280-rounddown-and-qz-default-2026-08-27.md) | 🟢 BUILT |
 | MBM-279 | Workstation Agent — Switch Active Business on Browser Switch | [view](ai-contexts/project-plans/review/projectplan-MBM-279-agent-active-business-switch-2026-08-27.md) | 🟡 Printer auto-follow fix added after live-test bug report — fresh agent build ready, awaiting redeploy to TX Bedroom + re-verify |
 | MBM-278 | Surface Printer Connection Mode & Status on Workstation Agents Page | [view](ai-contexts/project-plans/review/projectplan-MBM-278-printer-mode-status-visibility-2026-08-27.md) | 🟢 BUILT |

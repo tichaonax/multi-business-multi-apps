@@ -185,6 +185,13 @@ export default function WorkstationAgentsPage() {
   const [agents, setAgents] = useState<WorkstationAgent[]>([])
   const [scaleConfig, setScaleConfig] = useState<ScaleConfig | null>(null)
   const [loading, setLoading] = useState(true)
+  // MBM-281: current agent build's version (agent/r710-local-agent/package.json,
+  // read server-side) — compared against each paired agent's own reported
+  // version to flag ones that haven't been rebuilt/redistributed since the
+  // server last shipped a protocol change. Same source R710's Agent panel
+  // already uses; ported here since this page previously had no equivalent
+  // signal at all despite tracking `lastError` in its own agent shape.
+  const [latestAgentVersion, setLatestAgentVersion] = useState<string | null>(null)
 
   // System-admin only (same gating as the "Printer Connection Mode →" link
   // below) — cross-business printer routing is not something a plain
@@ -312,6 +319,13 @@ export default function WorkstationAgentsPage() {
   }, [currentBusinessId, refreshAgentStatus])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    fetch('/api/admin/r710/agents/latest-version', { credentials: 'include' })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data?.data?.version) setLatestAgentVersion(data.data.version) })
+      .catch(() => { /* non-critical — banner just won't show */ })
+  }, [])
 
   // Probe the local agent on this browser's own machine — mirrors the R710
   // Agent panel's polling probe so the Pair button appears without a reload
@@ -525,6 +539,29 @@ export default function WorkstationAgentsPage() {
       description="Pair a workstation once, then use that single pairing for BOTH its locally-connected scale and its receipt printer (MBM-275)"
     >
       <div className="space-y-6">
+        {/* MBM-281: page-top, unmissable — any paired workstation whose agent
+            hasn't been rebuilt/redistributed since the server last shipped a
+            protocol change (e.g. the MBM-279 business-switching work) can
+            silently fail to support newer features (like /activate) with no
+            visible error at all, which is worse than a loud one. Shown above
+            everything else on the page, not just as a per-row detail. */}
+        {latestAgentVersion && agents.some(a => a.agentVersion && a.agentVersion !== latestAgentVersion) && (
+          <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg p-4">
+            <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+              ⚠️ Agent update required
+            </p>
+            <p className="text-sm text-red-700 dark:text-red-400 mt-1">
+              {agents.filter(a => a.agentVersion && a.agentVersion !== latestAgentVersion).map(a => `"${a.label}"`).join(', ')}{' '}
+              {agents.filter(a => a.agentVersion && a.agentVersion !== latestAgentVersion).length === 1 ? 'is' : 'are'} running an older agent build than this server now expects.
+              Business switching, printer routing, and other recent features may silently not work until it's updated — the connection itself won't necessarily show as broken.
+            </p>
+            <p className="text-sm text-red-700 dark:text-red-400 mt-2">
+              <a href="/api/admin/r710/agents/download" className="underline font-medium hover:no-underline">Download the latest r710-agent.zip →</a>{' '}
+              then on that workstation: run <code className="text-xs bg-red-100 dark:bg-red-900/40 px-1 rounded">Stop R710 Agent.bat</code>, extract the new download, and run the new <code className="text-xs bg-red-100 dark:bg-red-900/40 px-1 rounded">r710-agent.exe</code>. Existing pairings stay intact — no need to re-pair.
+            </p>
+          </div>
+        )}
+
         {/* Pairing */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
           <h3 className="font-medium text-gray-900 dark:text-white mb-2">Pair This Workstation</h3>
@@ -603,7 +640,9 @@ export default function WorkstationAgentsPage() {
             <p className="text-gray-500 dark:text-gray-400">No workstations paired yet.</p>
           ) : (
             <div className="space-y-2">
-              {agents.map(agent => (
+              {agents.map(agent => {
+                const isOutdated = !!(latestAgentVersion && agent.agentVersion && agent.agentVersion !== latestAgentVersion)
+                return (
                 <div key={agent.id} className="border border-gray-200 dark:border-gray-700 rounded-md">
                   <div className="flex items-center justify-between p-3">
                     <div>
@@ -611,7 +650,14 @@ export default function WorkstationAgentsPage() {
                       <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-medium ${agent.connectionStatus === 'ONLINE' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
                         {agent.connectionStatus === 'ONLINE' ? '🟢 Connected' : '🔴 Offline'}
                       </span>
-                      {agent.agentVersion && <span className="ml-2 text-xs text-gray-500">v{agent.agentVersion}</span>}
+                      {agent.agentVersion && (
+                        <span className={`ml-2 text-xs ${isOutdated ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500'}`}>
+                          v{agent.agentVersion}{isOutdated && ' — update required'}
+                        </span>
+                      )}
+                      {agent.lastError && (
+                        <p className="mt-1 text-xs text-red-600 dark:text-red-400">{agent.lastError}</p>
+                      )}
                     </div>
                     <div className="flex items-center gap-3">
                       <button
@@ -680,7 +726,7 @@ export default function WorkstationAgentsPage() {
                     </div>
                   )}
                 </div>
-              ))}
+              )})}
             </div>
           )}
         </div>
