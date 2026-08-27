@@ -87,6 +87,11 @@ export default function RootLayout({
                           </div>
                           <GlobalBarcodeModalManager />
                           <FloatingChat />
+                          {/* MBM-281 follow-up: needs BusinessPermissionsProvider (for the
+                              admin/owner gate on the agent check) and CustomSessionProvider,
+                              so it must render inside them, not after </CustomSessionProvider>
+                              like the old (permanently-disabled) placement below the tree. */}
+                          <ConditionalHealthIndicator />
                         </GlobalBarcodeProvider>
                       </NavigationProvider>
                       </NotificationProvider>
@@ -98,9 +103,6 @@ export default function RootLayout({
             </ThemeProvider>
           </SettingsProvider>
         </CustomSessionProvider>
-
-        {/* Global Health Status Indicator - Conditionally hidden on customer display */}
-        <ConditionalHealthIndicator />
       </body>
     </html>
   )

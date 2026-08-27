@@ -1,6 +1,19 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
+import Link from 'next/link'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+
+// MBM-281 follow-up: this indicator was previously server-health-only. It
+// now also layers in a live, local check of the workstation agent (same
+// http://127.0.0.1:47710/probe the pairing card and dashboard widget use) —
+// system admins/business owners get a second signal from the same glance,
+// and a click straight to where they can fix it, instead of a separate
+// dedicated widget being the only place this showed up.
+const PAIRING_PORT = 47710
+const BASE_AGENT_POLL_MS = 30000
+const FAST_AGENT_POLL_MS = 3000
+const FAST_AGENT_POLL_CAP_MS = 3 * 60 * 1000
 
 interface HealthResponse {
   status: 'healthy' | 'unhealthy'
@@ -37,6 +50,21 @@ export default function HealthIndicator({
   const [isMobile, setIsMobile] = useState(false)
   const [extensionWarning, setExtensionWarning] = useState(false)
   const [lastCheck, setLastCheck] = useState<Date>(new Date())
+
+  const { isSystemAdmin, isBusinessOwner } = useBusinessPermissionsContext()
+  const isAdmin = isSystemAdmin || isBusinessOwner
+  const [agentChecked, setAgentChecked] = useState(false)
+  const [agentRunning, setAgentRunning] = useState(false)
+  const [agentVersion, setAgentVersion] = useState<string | null>(null)
+  const [latestAgentVersion, setLatestAgentVersion] = useState<string | null>(null)
+  // Started the moment the admin clicks through to fix an agent issue (see
+  // handleActionClick below) — the realistic next few minutes are "go
+  // download/restart the agent, come back," and the pill should flip green
+  // the moment that's actually done, not whenever the base 30s window
+  // happens to land. Stops itself once the issue's gone, or at a cap.
+  const [fastPolling, setFastPolling] = useState(false)
+  const agentMountedRef = useRef(true)
+  useEffect(() => () => { agentMountedRef.current = false }, [])
 
   // Refs for click-outside detection
   const popoverRef = useRef<HTMLDivElement>(null)
@@ -201,6 +229,70 @@ export default function HealthIndicator({
     }
   }, [pollInterval])
 
+  const checkAgent = useCallback(() => {
+    fetch(`http://127.0.0.1:${PAIRING_PORT}/probe?serverUrl=${encodeURIComponent(window.location.origin)}`, { signal: AbortSignal.timeout(2500) })
+      .then(async (res) => {
+        if (!agentMountedRef.current) return
+        setAgentRunning(res.ok)
+        if (res.ok) {
+          const data = await res.json().catch(() => null)
+          if (!agentMountedRef.current) return
+          setAgentVersion(data?.agentVersion || null)
+        }
+      })
+      .catch(() => { if (agentMountedRef.current) setAgentRunning(false) })
+      .finally(() => { if (agentMountedRef.current) setAgentChecked(true) })
+  }, [])
+
+  // Live local probe — same call the "Pair This Workstation" card and the
+  // dashboard's WorkstationAgentStatusWidget use. Only meaningful for an
+  // admin/owner (matches who can act on it); skipped entirely otherwise so
+  // this never fires a stray localhost request for a plain staff account.
+  // 30s poll is just the fallback — also re-check immediately on window
+  // focus/tab visibility regain, since the realistic path is the admin
+  // alt-tabbing to run the installer and coming straight back to the
+  // browser, not sitting and waiting out a timer.
+  useEffect(() => {
+    if (!isAdmin) { setAgentChecked(true); return }
+    checkAgent()
+    const agentInterval = setInterval(checkAgent, BASE_AGENT_POLL_MS)
+
+    const onFocus = () => checkAgent()
+    const onVisibility = () => { if (document.visibilityState === 'visible') checkAgent() }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      clearInterval(agentInterval)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [isAdmin, checkAgent])
+
+  // Fast-poll window — see handleActionClick below for what starts it.
+  // Stops itself the moment there's no longer an agent issue to resolve
+  // (about to render green again), or at the cap either way.
+  const hasAgentIssue = agentChecked && isAdmin && (!agentRunning || !!(agentVersion && latestAgentVersion && agentVersion !== latestAgentVersion))
+  useEffect(() => {
+    if (!fastPolling) return
+    if (!hasAgentIssue) { setFastPolling(false); return }
+    const fastInterval = setInterval(checkAgent, FAST_AGENT_POLL_MS)
+    const capTimeout = setTimeout(() => setFastPolling(false), FAST_AGENT_POLL_CAP_MS)
+    return () => { clearInterval(fastInterval); clearTimeout(capTimeout) }
+  }, [fastPolling, hasAgentIssue, checkAgent])
+
+  const handleActionClick = () => setFastPolling(true)
+
+  useEffect(() => {
+    if (!isAdmin) return
+    let cancelled = false
+    fetch('/api/admin/r710/agents/latest-version', { credentials: 'include' })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (!cancelled && data?.data?.version) setLatestAgentVersion(data.data.version) })
+      .catch(() => { /* non-critical — agent update check just won't fire */ })
+    return () => { cancelled = true }
+  }, [isAdmin])
+
   // Determine status and styling
   const getStatusInfo = () => {
     if (loading) {
@@ -210,7 +302,8 @@ export default function HealthIndicator({
         bgColor: 'bg-gray-50',
         textColor: 'text-gray-700',
         label: 'Loading...',
-        icon: '⏳'
+        icon: '⏳',
+        actionHref: undefined as string | undefined,
       }
     }
 
@@ -221,7 +314,8 @@ export default function HealthIndicator({
         bgColor: extensionWarning ? 'bg-orange-50' : 'bg-red-50',
         textColor: extensionWarning ? 'text-orange-700' : 'text-red-700',
         label: extensionWarning ? 'Extension Block' : 'Offline',
-        icon: extensionWarning ? '🛡️' : '❌'
+        icon: extensionWarning ? '🛡️' : '❌',
+        actionHref: undefined as string | undefined,
       }
     }
 
@@ -232,7 +326,38 @@ export default function HealthIndicator({
         bgColor: 'bg-yellow-50',
         textColor: 'text-yellow-700',
         label: 'Degraded',
-        icon: '⚠️'
+        icon: '⚠️',
+        actionHref: undefined as string | undefined,
+      }
+    }
+
+    // Server itself is healthy — layer the workstation agent's live local
+    // status on top. Only checked for an admin/owner, and only once the
+    // probe has actually resolved (agentChecked) — an unresolved check
+    // silently falls through to "Running" rather than flashing a false
+    // warning during the couple of seconds the probe is still in flight.
+    if (isAdmin && agentChecked) {
+      if (!agentRunning) {
+        return {
+          color: 'bg-orange-500',
+          borderColor: 'border-orange-200',
+          bgColor: 'bg-orange-50',
+          textColor: 'text-orange-700',
+          label: 'Agent Offline',
+          icon: '⚠️',
+          actionHref: '/admin/workstation-agents' as string | undefined,
+        }
+      }
+      if (agentVersion && latestAgentVersion && agentVersion !== latestAgentVersion) {
+        return {
+          color: 'bg-orange-500',
+          borderColor: 'border-orange-200',
+          bgColor: 'bg-orange-50',
+          textColor: 'text-orange-700',
+          label: 'Agent Update',
+          icon: '⬆️',
+          actionHref: '/admin/workstation-agents' as string | undefined,
+        }
       }
     }
 
@@ -242,11 +367,22 @@ export default function HealthIndicator({
       bgColor: 'bg-green-50',
       textColor: 'text-green-700',
       label: 'Running',
-      icon: '✓'
+      icon: '✓',
+      actionHref: undefined as string | undefined,
     }
   }
 
   const statusInfo = getStatusInfo()
+
+  // MBM-281 follow-up: "easy to find" home for the workstation agent's own
+  // version on this machine — a hover tooltip works everywhere this
+  // component renders (desktop pill, inline header pill) with zero added
+  // UI, and costs nothing extra since agentVersion is already fetched for
+  // the status check above. Only meaningful once the probe has actually
+  // resolved and found a running agent.
+  const agentVersionTitle = isAdmin && agentChecked && agentRunning && agentVersion
+    ? `Workstation agent v${agentVersion} on this machine`
+    : undefined
 
   // Position classes
   const positionClasses = {
@@ -289,12 +425,15 @@ export default function HealthIndicator({
 
   // Inline mode — no fixed positioning, just a compact dot + label
   if (inline) {
-    return (
-      <span className={`flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${statusInfo.bgColor} ${statusInfo.borderColor} ${statusInfo.textColor}`}>
+    const pill = (
+      <span title={agentVersionTitle} className={`flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${statusInfo.bgColor} ${statusInfo.borderColor} ${statusInfo.textColor}`}>
         <span className={`h-2 w-2 rounded-full ${statusInfo.color}`} />
         {statusInfo.label}
       </span>
     )
+    return statusInfo.actionHref ? (
+      <Link href={statusInfo.actionHref} onClick={handleActionClick} className="hover:opacity-80 transition-opacity">{pill}</Link>
+    ) : pill
   }
 
   // Mobile LED-only view
@@ -377,6 +516,23 @@ export default function HealthIndicator({
                   {health?.database === 'connected' ? '✓ Connected' : '✗ Disconnected'}
                 </span>
               </div>
+              {isAdmin && agentChecked && agentRunning && agentVersion && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Workstation agent:</span>
+                  <span className="font-medium text-gray-700">v{agentVersion}</span>
+                </div>
+              )}
+              {statusInfo.actionHref && (
+                <div className="pt-2 mt-2 border-t border-gray-200">
+                  <Link
+                    href={statusInfo.actionHref}
+                    onClick={() => { setIsExpanded(false); handleActionClick() }}
+                    className="text-blue-600 hover:underline font-medium"
+                  >
+                    {statusInfo.label === 'Agent Update' ? 'Update the agent →' : 'View Workstation Agents →'}
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -385,10 +541,9 @@ export default function HealthIndicator({
   }
 
   // Desktop full card view - compact thin version
-  return (
-    <div
-      className={`fixed ${positionClasses[position]} z-[9999] flex items-center gap-2 rounded-full border px-3 py-1.5 shadow-md ${statusInfo.bgColor} ${statusInfo.borderColor} transition-all duration-200`}
-    >
+  const cardClasses = `fixed ${positionClasses[position]} z-[9999] flex items-center gap-2 rounded-full border px-3 py-1.5 shadow-md ${statusInfo.bgColor} ${statusInfo.borderColor} transition-all duration-200 ${statusInfo.actionHref ? 'cursor-pointer hover:shadow-lg' : ''}`
+  const cardContent = (
+    <>
       <div className={`h-2 w-2 rounded-full ${statusInfo.color}`} />
       <span className={`text-xs font-medium ${statusInfo.textColor}`}>
         {statusInfo.label}
@@ -398,6 +553,14 @@ export default function HealthIndicator({
           {health.uptime.formatted}
         </span>
       )}
-    </div>
+    </>
+  )
+
+  return statusInfo.actionHref ? (
+    <Link href={statusInfo.actionHref} onClick={handleActionClick} className={cardClasses} title="Click to view Workstation Agents">
+      {cardContent}
+    </Link>
+  ) : (
+    <div className={cardClasses} title={agentVersionTitle}>{cardContent}</div>
   )
 }

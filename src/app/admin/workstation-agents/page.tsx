@@ -539,6 +539,46 @@ export default function WorkstationAgentsPage() {
       description="Pair a workstation once, then use that single pairing for BOTH its locally-connected scale and its receipt printer (MBM-275)"
     >
       <div className="space-y-6">
+        {/* MBM-281 follow-up: same page-top, unmissable treatment for the two
+            more basic "there's no working agent at all" cases — previously
+            only a version *mismatch* got a banner, so a workstation that had
+            never been paired, or whose agent was stopped/uninstalled ahead of
+            a redeploy, gave no page-top signal at all despite being the more
+            fundamental problem (found live: a freshly-redeployed workstation
+            with the agent not yet reinstalled looked identical to "nothing
+            wrong" until you scrolled down). Mutually exclusive with each
+            other (the offline check only runs once at least one workstation
+            is paired) but either can co-occur with the version banner below. */}
+        {!loading && agents.length === 0 && (
+          <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg p-4">
+            <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+              ⚠️ No workstation agent paired for this business yet
+            </p>
+            <p className="text-sm text-red-700 dark:text-red-400 mt-1">
+              {hasScale ? 'The scale and receipt printer' : 'The receipt printer'} on this workstation won't work
+              until the local agent is downloaded, running, and paired below.
+            </p>
+            <p className="text-sm text-red-700 dark:text-red-400 mt-2">
+              <a href="/api/admin/r710/agents/download" className="underline font-medium hover:no-underline">Download the latest r710-agent.zip →</a>{' '}
+              then run <code className="text-xs bg-red-100 dark:bg-red-900/40 px-1 rounded">r710-agent.exe</code> on this workstation and pair it below.
+            </p>
+          </div>
+        )}
+
+        {!loading && agents.length > 0 && agents.some(a => a.connectionStatus === 'OFFLINE') && (
+          <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg p-4">
+            <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+              ⚠️ Agent not running
+            </p>
+            <p className="text-sm text-red-700 dark:text-red-400 mt-1">
+              {agents.filter(a => a.connectionStatus === 'OFFLINE').map(a => `"${a.label}"`).join(', ')}{' '}
+              {agents.filter(a => a.connectionStatus === 'OFFLINE').length === 1 ? 'is' : 'are'} paired but currently
+              offline — its scale/printer won't work until <code className="text-xs bg-red-100 dark:bg-red-900/40 px-1 rounded">r710-agent.exe</code> is
+              running again on that workstation (it may just need reinstalling after a redeploy, or restarting if it was closed).
+            </p>
+          </div>
+        )}
+
         {/* MBM-281: page-top, unmissable — any paired workstation whose agent
             hasn't been rebuilt/redistributed since the server last shipped a
             protocol change (e.g. the MBM-279 business-switching work) can

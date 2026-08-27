@@ -28,6 +28,14 @@ import { createRequire } from 'module'
 import type { AgentConnectionState } from './socket-client'
 import type { WorkstationAgentConnectionState } from './workstation-socket-client'
 import type { ScaleStatus } from './scale-driver'
+import packageJson from '../package.json'
+
+// Same source of truth as socket-client.ts/workstation-socket-client.ts's
+// own AGENT_VERSION and pairing-server.ts's /probe response — surfaced here
+// too (MBM-281 follow-up) so the version is visible without opening any
+// specific server profile's submenu: right on the tray tooltip (hover, zero
+// clicks) and as its own top-level menu item.
+const AGENT_VERSION = packageJson.version
 
 // systray2 is loaded via a fresh `createRequire()` rooted at a real
 // filesystem path, not the ambient `require()`. Node SEA's embedded
@@ -194,11 +202,11 @@ function truncate(message: string, max = 60): string {
 
 function buildTooltip(): string {
   const n = currentState.profiles.length
-  if (n === 0) return 'MBM Local Agent — no profiles paired yet'
+  if (n === 0) return `MBM Local Agent v${AGENT_VERSION} — no profiles paired yet`
   const connected = currentState.profiles.filter(p =>
     p.r710State === 'connected' || p.workstationState === 'connected'
   ).length
-  return `MBM Local Agent — ${n} profile${n === 1 ? '' : 's'} (${connected} connected)`
+  return `MBM Local Agent v${AGENT_VERSION} — ${n} profile${n === 1 ? '' : 's'} (${connected} connected)`
 }
 
 // Every configured profile gets its own R710/Printer status line (both can
@@ -342,6 +350,7 @@ function buildItems(): any[] {
   }
 
   items.push(SysTraySeparator())
+  items.push({ title: `Agent version: ${AGENT_VERSION}`, tooltip: 'Compare against the server\'s "Agent update required" banner if one is showing', checked: false, enabled: true })
   items.push({
     title: 'Preferences',
     tooltip: '',

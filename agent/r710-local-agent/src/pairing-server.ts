@@ -31,6 +31,14 @@ import {
 import { getActiveWorkstationBusinessId } from './active-workstation'
 import { ensureProfile, deriveProfileId, readProfileMeta } from './profile-store'
 import { buildManagePageHtml } from './manage-page'
+import packageJson from '../package.json'
+
+// Same source of truth as socket-client.ts/workstation-socket-client.ts's
+// own AGENT_VERSION — surfaced here too so /probe can report it before any
+// pairing exists. A server-side dashboard widget uses this to detect a
+// stale agent install on this exact machine even for a business that has
+// never paired it (see MBM-281 follow-up).
+const AGENT_VERSION = packageJson.version
 
 export const PAIRING_PORT = 47710
 
@@ -108,6 +116,11 @@ export interface PairingCallbacks {
   // (an explicit switch, e.g. the browser's business dropdown) and is also
   // how onWorkstationPaired below activates a freshly paired business.
   activateWorkstationBusiness: (profileId: string, businessId: string) => void
+  // MBM-282: tells the agent this profile now has browser focus — called on
+  // EVERY /activate, not just ones where the business itself changed (see
+  // index.ts's noteFocusedProfile() for why that distinction matters). Hands
+  // the scale over from whichever other profile currently owns it.
+  noteFocusedProfile: (profileId: string) => void
 }
 
 function readBody(req: import('http').IncomingMessage): Promise<string> {
@@ -182,6 +195,10 @@ export function startPairingServer(callbacks: PairingCallbacks): Server {
             res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'businessId is required' }))
             return
           }
+          // A human standing at this exact machine clicking this is at
+          // least as good a focus signal as a browser tab's own focus event
+          // — same MBM-282 hand-off applies.
+          callbacks.noteFocusedProfile(activateMatch[1])
           callbacks.activateWorkstationBusiness(activateMatch[1], businessId)
           res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true }))
         } catch {
@@ -236,6 +253,7 @@ export function startPairingServer(callbacks: PairingCallbacks): Server {
 
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({
         hasProfile: meta !== null,
+        agentVersion: AGENT_VERSION,
         profile: meta ? {
           profileId,
           label: meta.label,
@@ -258,6 +276,15 @@ export function startPairingServer(callbacks: PairingCallbacks): Server {
     // activateWorkstationBusiness()'s own early-return) if that business is
     // already active; deactivates whatever was active if this business has
     // no pairing here at all.
+    //
+    // MBM-282: the browser now ALSO calls this on window focus/tab
+    // visibility regain, not just an actual business change (see
+    // local-agent-sync.ts) — so this is no longer only "the business
+    // changed," it's also "this tab is the one with focus right now."
+    // noteFocusedProfile() runs on every call regardless of whether
+    // activateWorkstationBusiness() itself finds anything to do for THIS
+    // profile, since the cross-profile scale hand-off must happen even when
+    // simply refocusing a tab that was already showing the right business.
     if (req.method === 'POST' && url.pathname === '/activate') {
       try {
         const body = await readBody(req)
@@ -267,6 +294,7 @@ export function startPairingServer(callbacks: PairingCallbacks): Server {
           return
         }
         const profileId = deriveProfileId(serverUrl)
+        callbacks.noteFocusedProfile(profileId)
         callbacks.activateWorkstationBusiness(profileId, businessId)
         res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true }))
       } catch {

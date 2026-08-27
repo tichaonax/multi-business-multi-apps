@@ -212,6 +212,33 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
     syncLocalAgentActiveBusiness(currentBusinessId);
   }, [currentBusinessId]);
 
+  // MBM-282: also re-assert this on window focus / tab visibility regain —
+  // an actual businessId *change* isn't the only thing that should tell the
+  // agent "this is the active context now." Two tabs already open to
+  // different businesses (same server or, per MBM-276, two different paired
+  // servers) never fire the effect above just from switching OS/browser
+  // focus between them, so without this the agent's active context (and
+  // therefore which one currently owns the physical scale) stays pinned to
+  // whichever tab last explicitly switched business, not whichever tab is
+  // actually focused right now. Debounced so rapid alt-tabbing doesn't spam
+  // the agent with back-to-back activate calls.
+  useEffect(() => {
+    if (!currentBusinessId) return;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const notify = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => syncLocalAgentActiveBusiness(currentBusinessId), 350);
+    };
+    const onVisibility = () => { if (document.visibilityState === 'visible') notify(); };
+    window.addEventListener('focus', notify);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      window.removeEventListener('focus', notify);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [currentBusinessId]);
+
   const currentBusiness = useMemo(() => {
     return businesses.find((b) => b.businessId === currentBusinessId && b.isActive) || null;
   }, [businesses, currentBusinessId]);

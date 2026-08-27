@@ -316,6 +316,32 @@ function activateWorkstationBusiness(profileId: string, businessId: string): voi
   refreshTray()
 }
 
+// MBM-282: which profile the browser most recently told this agent has OS/
+// browser focus — agent-wide, in-memory only (unlike scale-owner.json/
+// active-workstation.json, nothing here needs to survive a restart: if the
+// agent restarts, no tab has re-asserted focus yet, and the very next focus
+// event fixes it, exactly like today's behavior before this feature).
+//
+// Deliberately separate from activateWorkstationBusiness() above, and
+// called on EVERY focus-triggered /activate — not just ones where this
+// profile's own business changed. That distinction matters: the common
+// case is simply refocusing a tab that's already showing the right
+// business, where activateWorkstationBusiness() correctly no-ops (line
+// 307's early return) — but the scale still needs to be handed over from
+// whichever OTHER profile currently owns it, and that must not depend on
+// this profile's own business having changed.
+let focusedProfileId: string | null = null
+function noteFocusedProfile(profileId: string): void {
+  if (focusedProfileId === profileId) return
+  focusedProfileId = profileId
+  const owner = getScaleOwner()
+  if (owner && owner.profileId !== profileId) {
+    console.log(`[Agent] Focus moved to a different profile — releasing scale from ${owner.profileId}`)
+    releaseScale()
+    refreshTray()
+  }
+}
+
 // Connects every already-configured profile — called once at startup
 // (after migration) and again on a manual Restart from the tray.
 function connectAllProfiles(): void {
@@ -405,6 +431,7 @@ function main(): void {
     setAutoStart,
     restart: onRestart,
     activateWorkstationBusiness,
+    noteFocusedProfile,
   })
 
   connectAllProfiles()

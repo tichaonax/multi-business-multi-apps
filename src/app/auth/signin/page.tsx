@@ -5,7 +5,6 @@ export const dynamic = 'force-dynamic'
 import { signIn } from 'next-auth/react'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import HealthIndicator from '@/components/ui/health-indicator'
 import { CardScanOverlay } from '@/components/clock-in/card-scan-overlay'
 
 export default function SignIn() {
@@ -63,8 +62,6 @@ export default function SignIn() {
 
   return (
     <div className="min-h-screen flex items-center justify-center page-background px-4">
-      <HealthIndicator position="bottom-right" />
-
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           {logoImageId ? (

@@ -175,6 +175,36 @@ export function ScaleProvider({ children }: { children: ReactNode }) {
     setReconnectTick(t => t + 1)
   }, [])
 
+  // MBM-282: also retry on window focus / tab visibility regain, not just a
+  // manual Retry click. The realistic path this closes: this tab's scale
+  // connect was rejected earlier because a DIFFERENT server/business's tab
+  // held the scale at the time — business-permissions-context.tsx's own
+  // focus-triggered agent notification releases it agent-side around the
+  // same moment focus lands here, but this tab still needs to actually
+  // re-attempt SCALE_CONNECT itself to pick it back up; nothing does that
+  // automatically without this. Only retries when not already connected/
+  // connecting, so a healthy connection is never needlessly torn down and
+  // rebuilt just from alt-tabbing. Debounced since focus and visibilitychange
+  // commonly fire together.
+  useEffect(() => {
+    if (window.electron?.scale) return
+    if (!isAgentMode) return
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+    const maybeRetry = () => {
+      if (status.status === 'connected' || status.status === 'connecting') return
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => reconnect(), 500)
+    }
+    const onVisibility = () => { if (document.visibilityState === 'visible') maybeRetry() }
+    window.addEventListener('focus', maybeRetry)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer)
+      window.removeEventListener('focus', maybeRetry)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [isAgentMode, status.status, reconnect])
+
   const tare = useCallback(async () => {
     if (window.electron?.scale) {
       await window.electron.scale.tare()

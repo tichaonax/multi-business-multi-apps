@@ -16,10 +16,10 @@ import { TransactionDetailModal } from '@/components/construction/transaction-de
 import { BusinessOrderDetailModal } from '@/components/business/business-order-detail-modal'
 import { UserEditModal } from '@/components/user-management/user-edit-modal'
 import { hasUserPermission, isSystemAdmin, SessionUser } from '@/lib/permission-utils'
-import HealthIndicator from '@/components/ui/health-indicator'
 import { LaybyAlertsWidget } from '@/components/laybys/layby-alerts-widget'
 import { LowBalanceAlert } from '@/components/expense-account/low-balance-alert'
 import { R710AlertsWidget } from '@/components/r710/r710-alerts-widget'
+import { WorkstationAgentStatusWidget } from '@/components/workstation-agents/workstation-agent-status-widget'
 import { BusinessBalanceDisplay } from '@/components/business/business-balance-display'
 import { LoanBreakdownCard } from '@/components/business/loan-breakdown-card'
 import { LoanPendingActionsWidget } from '@/components/loans/loan-pending-actions-widget'
@@ -520,9 +520,6 @@ function DashboardContent() {
 
   return (
     <ProtectedRoute>
-      {/* Health Status Indicator */}
-      <HealthIndicator position="bottom-right" />
-
       <MainLayout>
         <ContentLayout
           title={`🏠 Welcome back, ${session?.user?.name}!`}
@@ -535,6 +532,13 @@ function DashboardContent() {
             { label: 'Home', isActive: true }
           ]}
         >
+
+        {/* Workstation Agent (scale/printer) issues — offline or outdated on
+            this machine. Placed immediately below the page title, not
+            further down with the other alert widgets, since this is
+            specifically about "is anything even working right now" and
+            should be visible without scrolling. */}
+        <WorkstationAgentStatusWidget />
 
         {isDriver ? (
           // Driver-specific dashboard
