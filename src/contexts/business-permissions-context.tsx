@@ -8,6 +8,7 @@ import { useToastContext } from '@/components/ui/toast'
 import AdminSeedPromptModal from '@/components/admin/admin-seed-prompt-modal'
 import { BroadcastSync } from '@/lib/customer-display/broadcast-sync'
 import { getDefaultPagePath } from '@/lib/business-default-pages'
+import { syncLocalAgentActiveBusiness } from '@/lib/workstation-agents/local-agent-sync'
 
 interface BusinessPermissionsContextType {
   currentBusinessId: string | null;
@@ -198,6 +199,17 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
     return () => {
       clearTimeout(timer);
     };
+  }, [currentBusinessId]);
+
+  // MBM-279: tells this exact machine's local workstation agent (if any)
+  // which business is now active, so its scale/printer pairing follows —
+  // covers every path that ever changes currentBusinessId (the header
+  // dropdown, business creation's auto-switch, refreshBusinesses()'s
+  // auto-recovery) from this one place, rather than each caller
+  // remembering to do it. Fully best-effort — see local-agent-sync.ts.
+  useEffect(() => {
+    if (!currentBusinessId) return;
+    syncLocalAgentActiveBusiness(currentBusinessId);
   }, [currentBusinessId]);
 
   const currentBusiness = useMemo(() => {

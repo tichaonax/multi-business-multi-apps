@@ -5585,7 +5585,7 @@ export default function RestaurantPOS() {
                       ? (mealProgramCashDue > 0 && (!amountReceived || parseFloat(amountReceived) < mealProgramCashDue))
                       : paymentMethod === 'ECOCASH' ? !ecocashTxCode.trim()
                       : paymentMethod === 'ON_DELIVERY' || paymentMethod === 'ON_PICKUP' || paymentMethod === 'CREDIT' ? false
-                      : (paymentMethod === 'CASH' && total > 0 && (!amountReceived || Math.round(parseFloat(amountReceived) * 100) / 100 < Math.round(total * 100) / 100))
+                      : (paymentMethod === 'CASH' && total > 0 && (!amountReceived || Math.round(parseFloat(amountReceived) * 100) / 100 < Math.round((cashRoundedTotal !== null ? cashRoundedTotal : total) * 100) / 100))
                   ))}
                   className="flex-1 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >

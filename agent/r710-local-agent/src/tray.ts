@@ -119,6 +119,11 @@ export interface ProfileTrayInfo {
   // there being two independent ways this machine might already be
   // printing, rather than only ever surfacing the one this agent handles.
   qzPrinterName?: string
+  // MBM-279: every OTHER business with a scale/printer pairing saved on
+  // this profile besides whichever is currently active — surfaced as a
+  // "Switch to this" submenu (buildProfileSubmenu below) for manual
+  // override when no browser is driving the switch.
+  otherWorkstationBusinesses?: { businessId: string; label: string }[]
 }
 
 export interface TrayState {
@@ -138,6 +143,7 @@ export interface TrayState {
 let currentState: TrayState = { profiles: [], scaleStatus: { status: 'disconnected', comPort: null }, scaleOwnerProfileId: null, scaleOwnerLabel: null, printerNames: [] }
 let onReleaseScaleCallback: (() => void) | null = null
 let onAutoStartChangedCallback: ((enabled: boolean) => void) | null = null
+let onSwitchWorkstationBusinessCallback: ((profileId: string, businessId: string) => void) | null = null
 
 const R710_STATUS_LABEL: Record<AgentConnectionState, string> = {
   connecting: 'Connecting…',
@@ -282,6 +288,24 @@ function buildProfileSubmenu(profile: ProfileTrayInfo): any[] {
         icon: DOT_GRAY,
       })
     }
+
+    // MBM-279: every other business paired to THIS workstation besides the
+    // one currently active — a manual override for switching without a
+    // browser driving it (the normal path is the browser's business
+    // dropdown, see local-agent-sync.ts on the web side).
+    if (profile.otherWorkstationBusinesses && profile.otherWorkstationBusinesses.length > 0) {
+      items.push({
+        title: 'Other businesses paired here',
+        tooltip: 'These businesses have a scale/printer pairing on this workstation but are not the active one right now',
+        checked: false, enabled: true,
+        items: profile.otherWorkstationBusinesses.map(business => ({
+          title: `Switch to ${business.label}`,
+          tooltip: '',
+          checked: false, enabled: true,
+          click: () => onSwitchWorkstationBusinessCallback?.(profile.profileId, business.businessId),
+        })),
+      })
+    }
   }
 
   // Surfaced per-profile as requested, even though it's really one
@@ -384,6 +408,12 @@ function recreateTray(): void {
 
 export function setOnReleaseScale(callback: () => void): void {
   onReleaseScaleCallback = callback
+}
+
+// MBM-279: the "Other businesses paired here ▸ Switch to this" action —
+// see buildProfileSubmenu()'s use of this callback.
+export function setOnSwitchWorkstationBusiness(callback: (profileId: string, businessId: string) => void): void {
+  onSwitchWorkstationBusinessCallback = callback
 }
 
 // Fires whenever auto-start is toggled from ANY source — the tray's own

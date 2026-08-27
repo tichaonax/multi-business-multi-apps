@@ -137,6 +137,15 @@ async function load() {
       if (p.scaleComPort) {
         detailLines += '<div class="sub" style="margin-top:4px">Scale configured for: ' + esc(p.scaleComPort) + (p.scaleBaudRate ? ' @ ' + p.scaleBaudRate : '') + '</div>'
       }
+      if (p.otherWorkstationBusinesses && p.otherWorkstationBusinesses.length > 0) {
+        detailLines += '<div class="sub" style="margin-top:6px">Other businesses paired here:</div>'
+        detailLines += p.otherWorkstationBusinesses.map(function (b) {
+          return '<div class="row" style="margin-top:4px">' +
+            '<span class="sub" style="margin:0">' + esc(b.label) + '</span>' +
+            '<button onclick="activateBusiness(\\'' + p.profileId + '\\', \\'' + b.businessId + '\\')">Switch to this</button>' +
+          '</div>'
+        }).join('')
+      }
     }
     return '<div class="profile">' +
       '<div class="row">' +
@@ -172,6 +181,14 @@ async function restart() {
 async function unpair(profileId, label) {
   if (!confirm('Unpair "' + label + '"? This removes its saved credentials from this machine — you\\'ll need to re-pair from that server\\'s admin panel to reconnect.')) return
   await fetch('/api/profiles/' + encodeURIComponent(profileId) + '/unpair', { method: 'POST' })
+  load()
+}
+async function activateBusiness(profileId, businessId) {
+  await fetch('/api/profiles/' + encodeURIComponent(profileId) + '/activate-business', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ businessId: businessId }),
+  })
   load()
 }
 

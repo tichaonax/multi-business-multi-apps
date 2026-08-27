@@ -1,482 +1,175 @@
-# Lending Feature — Revised Design Document
-**Date:** 2026-02-19
-**Status:** APPROVED — IN PROGRESS
+# Project Plan Index
 
-### Approved Decisions
-1. New permission `canManageLending` (not reusing `canMakeExpensePayments`)
-2. Post-payroll deposit created automatically on payroll period finalization
-3. Person/Business loans: immediate (no approval step) — informational only for now
-4. Interest: informational field only — no enforcement
+All detailed project plans live in `ai-contexts/project-plans/`.
+- **In review**: `ai-contexts/project-plans/review/`
+- **Completed**: `ai-contexts/project-plans/completed/YYYY-MM/`
 
 ---
 
-## Overview
+## Active / In Review
 
-Implement an outgoing lending system that allows expense accounts and personal accounts to lend money to:
-- **Individuals (Persons)** — informal loans tracked by name/ID
-- **Businesses** — cross-entity lending
-- **Employees** — loans with mandatory manager approval, one-loan-at-a-time rule, contract signing, and payroll deduction
-
-Emoji for lending transactions: **🤝**
-
----
-
-## Architecture Summary
-
-### Clarifying Existing vs. New Concepts
-
-| Existing | Purpose |
-|---|---|
-| `ExpenseAccountLoans` | Loans received INTO an account (from a bank/lender) — "incoming loans" |
-| `EmployeeLoans` | HR module for employee loans (existing, partially integrated with payroll TODO) |
-| `PayrollEntries.loanDeductions` | Already in schema, feeds into `computeTotalsForEntry()` |
-
-### New Concept
-**`AccountOutgoingLoans`** — Loans disbursed FROM an expense account TO a recipient (Person, Business, Employee). This is the opposite direction from `ExpenseAccountLoans`.
-
-### Disbursement & Repayment Flow
-- **Disbursement**: Recorded as an `ExpenseAccountPayments` entry with `paymentType = 'LOAN_DISBURSEMENT'`. This deducts from the account balance using existing payment infrastructure.
-- **Manual Repayment**: Recorded as an `ExpenseAccountDeposits` entry (increases account balance) + creates `AccountOutgoingLoanPayments` record + reduces `AccountOutgoingLoans.remainingBalance`.
-- **Payroll Deduction Repayment**: During payroll processing, `PayrollEntries.loanDeductions` is auto-populated from the employee's active loan `monthlyInstallment`. When payroll period is finalized, auto-create deposit to linked expense account + `AccountOutgoingLoanPayments` record.
-
----
-
-## Database Schema Changes
-
-### New Table 1: `AccountOutgoingLoans`
-Tracks loans disbursed FROM expense accounts TO recipients.
-
-```prisma
-model AccountOutgoingLoans {
-  id                    String   @id @default(uuid())
-  loanNumber            String   @unique               // auto-generated, e.g. "OL-2026-001"
-  expenseAccountId      String                         // account that disbursed the loan
-  loanType              String                         // 'PERSON' | 'BUSINESS' | 'EMPLOYEE'
-  recipientPersonId     String?                        // FK → Persons (if loanType='PERSON')
-  recipientBusinessId   String?                        // FK → Businesses (if loanType='BUSINESS')
-  recipientEmployeeId   String?                        // FK → Employees (if loanType='EMPLOYEE')
-  principalAmount       Decimal  @db.Decimal(12, 2)
-  remainingBalance      Decimal  @db.Decimal(12, 2)
-  monthlyInstallment    Decimal? @db.Decimal(12, 2)   // required for EMPLOYEE payroll deduction
-  totalMonths           Int?                           // required for EMPLOYEE
-  remainingMonths       Int?                           // decremented each payroll cycle
-  interestRate          Decimal? @db.Decimal(5, 4)    // optional, e.g. 0.05 = 5%
-  disbursementDate      DateTime
-  dueDate               DateTime?
-  status                String   @default("PENDING_APPROVAL")
-  // Status flow:
-  //   EMPLOYEE: PENDING_APPROVAL → PENDING_CONTRACT → ACTIVE → PAID_OFF | DEFAULTED | WRITTEN_OFF
-  //   PERSON / BUSINESS: ACTIVE → PAID_OFF | DEFAULTED | WRITTEN_OFF (no approval step)
-  purpose               String?
-  notes                 String?
-  paymentType           String   @default("MANUAL")   // 'MANUAL' | 'PAYROLL_DEDUCTION'
-  approvedByEmployeeId  String?                        // FK → Employees (manager who approved)
-  approvedAt            DateTime?
-  contractSigned        Boolean  @default(false)
-  contractSignedAt      DateTime?
-  contractSignedByUserId String?                      // FK → Users
-  contractTerms         Json?                          // snapshot at signing time
-  disbursementPaymentId String?                       // FK → ExpenseAccountPayments
-  createdBy             String                        // FK → Users
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  @@index([expenseAccountId])
-  @@index([recipientEmployeeId])
-  @@index([status])
-  @@map("account_outgoing_loans")
-}
-```
-
-### New Table 2: `AccountOutgoingLoanPayments`
-Tracks repayments received against outgoing loans.
-
-```prisma
-model AccountOutgoingLoanPayments {
-  id             String   @id @default(uuid())
-  loanId         String                        // FK → AccountOutgoingLoans
-  amount         Decimal  @db.Decimal(12, 2)
-  paymentDate    DateTime
-  paymentMethod  String                        // 'CASH' | 'PAYROLL_DEDUCTION' | 'BANK_TRANSFER' | 'OTHER'
-  payrollEntryId String?                       // FK → PayrollEntries (if payroll deduction)
-  depositId      String?                       // FK → ExpenseAccountDeposits (linked deposit)
-  notes          String?
-  recordedBy     String                        // FK → Users
-  createdAt      DateTime @default(now())
-
-  @@index([loanId])
-  @@map("account_outgoing_loan_payments")
-}
-```
-
-### Schema Modifications to Existing Tables
-
-**`ExpenseAccountPayments`** — Add optional FK + new payment type:
-- New nullable field: `outgoingLoanId String?` — FK to `AccountOutgoingLoans`
-- New paymentType value: `'LOAN_DISBURSEMENT'` (existing column, just new allowed value — no schema migration needed for the value itself)
-
-**`ExpenseAccountDeposits`** — Add optional FK:
-- New nullable field: `outgoingLoanPaymentId String?` — FK to `AccountOutgoingLoanPayments`
-
-> **CRITICAL**: Each schema change requires a migration file via `prisma migrate dev --name <name>`. Never use `prisma db push`.
-
----
-
-## Employee Loan Business Rules
-
-1. **One active loan per employee across all businesses** — when creating, check `AccountOutgoingLoans` for `recipientEmployeeId = <id>` AND `status IN ('PENDING_APPROVAL', 'PENDING_CONTRACT', 'ACTIVE')`. Reject if count > 0.
-2. **Manager approval required** — initial status is `PENDING_APPROVAL`. A manager (supervisor employee or system admin) must approve before contract is shown.
-3. **Contract signing required** — after approval, status becomes `PENDING_CONTRACT`. Employee or authorized user reviews and accepts the contract terms. Status moves to `ACTIVE` and disbursement is processed.
-4. **Payroll deduction** — `monthlyInstallment` and `totalMonths` are required for employee loans. During payroll processing, `loanDeductions` is auto-populated.
-5. **`computeTotalsForEntry()` requires no changes** — it already calculates `loans = Number(entry.loanDeductions || 0)` as part of `derivedTotalDeductions` in `src/lib/payroll/helpers.ts`.
-
----
-
-## Payroll Integration Details
-
-### Step A — During Payroll Entry Creation/Refresh
-File to update: payroll entry creation route (needs exploration to identify exact file).
-
-Logic to add: Before saving `PayrollEntries`, query:
-```typescript
-const activeLoan = await prisma.accountOutgoingLoans.findFirst({
-  where: {
-    recipientEmployeeId: employeeId,
-    status: 'ACTIVE',
-    paymentType: 'PAYROLL_DEDUCTION',
-  }
-})
-if (activeLoan) {
-  entry.loanDeductions = activeLoan.monthlyInstallment
-}
-```
-`computeTotalsForEntry()` already picks this up — no other changes needed.
-
-### Step B — After Payroll Period Finalization
-When period is approved/finalized, for each entry where `loanDeductions > 0`:
-1. Find the active `AccountOutgoingLoan` for that employee
-2. Create `ExpenseAccountDeposits` on the linked expense account (amount = `loanDeductions`, description = "🤝 Loan repayment - [employee name]")
-3. Create `AccountOutgoingLoanPayments` (paymentMethod='PAYROLL_DEDUCTION', payrollEntryId=entry.id, depositId=new deposit id)
-4. Decrement `AccountOutgoingLoans.remainingBalance` and `remainingMonths`
-5. If `remainingBalance <= 0` or `remainingMonths <= 0`, set status to `PAID_OFF`
+| ID | Title | File | Status |
+|----|-------|------|--------|
+| MBM-280 | Two Bugs Found During MBM-279 Live Testing (round-down disables Complete Order; QZ needs per-business setup) | [view](ai-contexts/project-plans/review/projectplan-MBM-280-rounddown-and-qz-default-2026-08-27.md) | 🟢 BUILT |
+| MBM-279 | Workstation Agent — Switch Active Business on Browser Switch | [view](ai-contexts/project-plans/review/projectplan-MBM-279-agent-active-business-switch-2026-08-27.md) | 🟡 Printer auto-follow fix added after live-test bug report — fresh agent build ready, awaiting redeploy to TX Bedroom + re-verify |
+| MBM-278 | Surface Printer Connection Mode & Status on Workstation Agents Page | [view](ai-contexts/project-plans/review/projectplan-MBM-278-printer-mode-status-visibility-2026-08-27.md) | 🟢 BUILT |
+| MBM-277 | Cross-Business Printer Preference Leak (TX Bedroom / Happy Eater) | [view](ai-contexts/project-plans/review/projectplan-MBM-277-cross-business-printer-preference-leak-2026-08-27.md) | 🟡 Root cause confirmed, fix proposed — awaiting go-ahead |
+| MBM-276 | Agent Multi-Server Profile Isolation & Tray/Settings Redesign | [view](ai-contexts/project-plans/review/projectplan-MBM-276-agent-multi-profile-redesign-2026-08-26.md) | 🟡 Phases A–E done, docs updated — live two-server test still outstanding |
+| MBM-275 | Workstation-Local Device Support: MG-S8200 Scale + Receipt Printing (unified agent) for Remote App Server | [view](ai-contexts/project-plans/review/projectplan-MBM-275-workstation-local-device-agent-2026-08-25.md) | 🟢 BUILT — Phases 1-5 + tray/activity/printer-UI gaps done; live-verified except Phase 6 real-hardware pilot |
+| MBM-274 | R710 Admin-Issued Long-Term WiFi Tokens (issuance, revocation, report) | [view](ai-contexts/project-plans/review/projectplan-MBM-274-r710-admin-long-term-tokens-2026-08-24.md) | 🟢 BUILT — real device cap is 1 year (365 days), not 5 years; docs corrected |
+| MBM-273 | Vehicle Service R710 WiFi Menu Config | [view](ai-contexts/project-plans/review/projectplan-MBM-273-vehicle-service-r710-menu-config-2026-08-24.md) | 🟡 PLANNED — awaiting go-ahead |
+| MBM-272 | R710 Remote Site Support via Local Agent | [view](ai-contexts/project-plans/review/projectplan-MBM-272-r710-remote-agent-2026-08-19.md) | 🟢 Phase 1+2+3 BUILT (agent, SEA packaging, background jobs, admin UI/pairing) — Phase 4 (real-site deploy) next |
+| MBM-271 | Advance/Receipt Accountability: Capture, Search, Reminders, Escalation & Cashier Verification | [view](ai-contexts/project-plans/review/projectplan-MBM-271-combo-pay-receipt-tracking-2026-08-18.md) | 🟢 BUILT & live-verified — docs (Phase 7) still pending |
+| MBM-270 | Hardware Inventory Taxonomy Expansion | [view](ai-contexts/project-plans/review/projectplan-MBM-270-hardware-inventory-taxonomy-expansion-2026-08-18.md) | 🟢 All 6 phases complete — awaiting live verification after next server restart |
+| MBM-268 | Vehicle Parts Inventory System | [view](ai-contexts/project-plans/review/projectplan-MBM-268-vehicle-parts-inventory-system-2026-08-16.md) | BUILT — verified live |
+| MBM-267 | Vehicle Service Rework Jobs (waive labor/parts) | [view](ai-contexts/project-plans/review/projectplan-MBM-267-vehicle-service-rework-jobs-2026-08-16.md) | BUILT — verified live |
+| MBM-266 | Vehicle Service: Two-Step Billing → Payment (Cashier Collects Later) | [view](ai-contexts/project-plans/review/projectplan-MBM-266-vehicle-service-two-step-billing-payment-2026-08-16.md) | BUILT — verified live |
+| MBM-265 | Vehicle Service Labour Cost Configuration (customer labour charge separated from contractor payout) | [view](ai-contexts/project-plans/review/projectplan-MBM-265-vehicle-service-labour-cost-configuration-2026-08-15.md) | BUILT — verified live |
+| MBM-264 | Vehicle Service Job Search, Shared Search Bar, and Cross-Business Customer Reuse | [view](ai-contexts/project-plans/review/projectplan-MBM-264-vehicle-service-job-search-and-shared-customers-2026-08-15.md) | BUILT — verified live |
+| MBM-263 | Manual Balance Adjustment for Business Balance & Cash Box (Cash + EcoCash) | [view](ai-contexts/project-plans/review/projectplan-MBM-263-business-and-cashbox-balance-adjustment-2026-08-15.md) | BUILT — verified live |
+| MBM-262 | Vehicle Service — Job Card, Parts Requests & Vehicle Release Workflow | [view](ai-contexts/project-plans/review/projectplan-MBM-262-vehicle-service-job-card-parts-workflow-2026-08-14.md) | BUILT — all 5 phases (A–E) complete and verified |
+| MBM-261 | Vehicle Repair & Service Business Type (Contractors, Jobs/Tasks, Portal, Billing, Parts) | [view](ai-contexts/project-plans/review/projectplan-MBM-261-vehicle-service-business-type-2026-08-14.md) | BUILT — all 6 phases complete and verified |
+| MBM-260 | Sale Salesperson Reassignment (Bulk + Filtered) | [view](ai-contexts/project-plans/review/projectplan-MBM-260-sale-salesperson-reassignment-2026-08-14.md) | BUILT — verified against real data, reverted |
+| MBM-259 | Payroll Account Manual Balance Adjustment (Admin Only) | [view](ai-contexts/project-plans/review/projectplan-MBM-259-payroll-account-manual-balance-adjustment-2026-08-13.md) | BUILT |
+| MBM-258 | Expense Account Balance Drift + Admin Manual Balance Adjustment | [view](ai-contexts/project-plans/review/projectplan-MBM-258-expense-account-balance-drift-manual-adjustment-2026-08-13.md) | BUILT — awaiting user to apply corrections |
+| MBM-257 | R710 IP Mix-up (Mvimvi ↔ HXI) + Device Setup/Test UI Improvements | [view](ai-contexts/project-plans/review/projectplan-MBM-257-r710-ip-mixup-mvimvi-hxi-2026-08-10.md) | IN REVIEW — migration applied locally, prod deploy + UI code review pending |
+| MBM-256 | EcoCash → Cash Conversion Could Create/Destroy Money | [view](ai-contexts/project-plans/review/projectplan-MBM-256-ecocash-conversion-amount-mismatch-2026-08-10.md) | ✅ COMPLETE — production confirmed clean |
+| MBM-255 | Loan Withdrawal "Pay" Regression + Dashboard Widget Correction | [view](ai-contexts/project-plans/review/projectplan-MBM-255-loan-withdrawal-regression-and-widget-2026-08-10.md) | ✅ COMPLETE — production confirmed clean |
+| MBM-254 | "Cash Box Balances" Widget Never Reflects Loan Repayments | [view](ai-contexts/project-plans/review/projectplan-MBM-254-eod-accounts-widget-stale-balance-2026-08-10.md) | ✅ COMPLETE |
+| MBM-253 | Dashboard "Available Balance" Badges Mislabeled (Not a Cash Bug) | [view](ai-contexts/project-plans/review/projectplan-MBM-253-dashboard-sales-balance-mislabel-2026-08-10.md) | ✅ COMPLETE |
+| MBM-252 | EOD / Cash Allocation Credits Accounts Without Sufficient Real Cash | [view](ai-contexts/project-plans/review/projectplan-MBM-252-eod-cash-allocation-insufficient-funds-2026-08-09.md) | ✅ COMPLETE — TESTED, MIGRATION APPLIED TO DEV |
+| MBM-251 | Payroll Export Preview — Wrong Net Pay / Zero PAYE, NSSA, Levy | [view](ai-contexts/project-plans/review/projectplan-MBM-251-payroll-export-preview-tax-fix-2026-08-05.md) | ✅ COMPLETE |
+| MBM-250 | Payment Voucher — Amount in Words + Collection Date Field | [view](ai-contexts/project-plans/review/projectplan-MBM-250-voucher-amount-words-date-2026-07-29.md) | ✅ COMPLETE |
+| MBM-249 | AYLI Reverse Calibration: System-Directed Item Removal | [view](ai-contexts/project-plans/review/projectplan-MBM-249-ayli-reverse-calibration-2026-06-28.md) | ✅ COMPLETE |
+| MBM-248 | Scale-Assisted Min Meat Weight in Combo Modal | [view](ai-contexts/project-plans/review/projectplan-MBM-248-scale-meat-threshold-combo-modal-2026-06-28.md) | ✅ COMPLETE |
+| MBM-247 | AYLI Combo Clone + Reset Docs | [view](ai-contexts/project-plans/review/projectplan-MBM-247-ayli-clone-reset-docs-2026-06-28.md) | ✅ COMPLETE |
+| MBM-246 | AYLI Pricing Wizard: Goal-First Calibration + No-Scale Item Addition | [view](ai-contexts/project-plans/review/projectplan-MBM-246-ayli-pricing-wizard-2026-06-28.md) | ✅ COMPLETE |
+| MBM-245 | ZIMRA Employee Earnings Export + Employee TIN Field | [view](ai-contexts/project-plans/review/projectplan-MBM-ZIMRA-employee-earnings-export.md) | IN REVIEW |
+| MBM-244 | Payroll Deductions: Dedicated UI + Description on Payslip | [view](ai-contexts/project-plans/review/projectplan-MBM-244-payroll-deductions-ui-payslip-2026-06-25.md) | IN REVIEW |
+| MBM-243 | ZIMRA Tax Override (PAYE, NSSA, AIDS Levy) | [view](ai-contexts/project-plans/review/projectplan-MBM-243-zimra-tax-override-2026-06-22.md) | IN REVIEW |
+| MBM-242 | Edit Submitted Payment Request | [view](ai-contexts/project-plans/review/projectplan-MBM-242-edit-payment-request-2026-06-15.md) | ✅ COMPLETE |
+| MBM-241 | Cash Rounding: Max Round-Down Discount | [view](ai-contexts/project-plans/review/projectplan-MBM-241-cash-rounding-max-down-discount-2026-06-11.md) | ✅ COMPLETE |
+| MBM-239 | Cash Rounding for Cash Payments | [view](ai-contexts/project-plans/review/projectplan-MBM-239-cash-rounding-2026-06-10.md) | IN REVIEW |
+| MBM-238 | AYLI Pricing Calibration & Management UI | [view](ai-contexts/project-plans/review/projectplan-MBM-238-ayli-pricing-calibration-2026-06-09.md) | IN REVIEW |
+| MBM-237 | Today's Daily Special — Customer Display | [view](ai-contexts/project-plans/review/projectplan-MBM-237-daily-special-customer-display-2026-06-08.md) | IN REVIEW |
+| MBM-236 | Restaurant Menu Numbering | [view](ai-contexts/project-plans/review/projectplan-MBM-236-menu-numbering-2026-06-07.md) | IN REVIEW |
+| MBM-235 | Scale Integration On/Off Toggle | [view](ai-contexts/project-plans/review/projectplan-MBM-235-scale-integration-toggle-2026-06-07.md) | IN REVIEW |
+| MBM-234 | AYLI, Customer Display & POS Settings Permissions | [view](ai-contexts/project-plans/review/projectplan-MBM-234-ayli-display-pos-permissions-2026-06-07.md) | IN REVIEW |
+| MBM-233 | Display Advertising Notes + Product Images | [view](ai-contexts/project-plans/review/projectplan-MBM-233-display-advertising-notes-images-2026-06-07.md) | IN REVIEW |
+| MBM-232 | Smart Customer Display: Dynamic Product Ads | [view](ai-contexts/project-plans/review/projectplan-MBM-232-smart-customer-display-ads-2026-06-06.md) | IN REVIEW |
+| MBM-231 | As-You-Like-It Weight-Based Combo | [view](ai-contexts/project-plans/review/projectplan-MBM-231-ayli-weight-combo-2026-06-06.md) | IN REVIEW |
+| MBM-230 | Contractor Project Dropdown Fix + Searchable | [view](ai-contexts/project-plans/review/projectplan-MBM-230-contractor-project-dropdown-fix-2026-06-05.md) | IN REVIEW |
+| MBM-229 | Sale Weight Presets + POS Settings Redesign | [view](ai-contexts/project-plans/review/projectplan-MBM-229-sale-weight-presets-pos-settings-redesign-2026-06-04.md) | ✅ COMPLETE |
+| MBM-228 | Scale Panel: Pricing Rules Display + Sales Widget Suppression | [view](ai-contexts/project-plans/review/projectplan-MBM-228-scale-panel-pricing-rules-2026-06-04.md) | ✅ COMPLETE |
+| MBM-227 | Grocery POS: Weight-Based Selling + Real Scale | [view](ai-contexts/project-plans/review/projectplan-MBM-227-grocery-pos-weight-selling-real-scale-2026-06-04.md) | ✅ COMPLETE |
+| MBM-226 | Scale Integration: Star Micronics MG-S8200 | [view](ai-contexts/project-plans/review/projectplan-MBM-226-scale-integration-mg-s8200-2026-05-29.md) | READY TO BUILD |
+| MBM-225 | Warehouse: Manifest Qty & Order Reference Totals | [view](ai-contexts/project-plans/review/projectplan-MBM-225-warehouse-manifest-qty-order-refs-2026-05-29.md) | ✅ COMPLETE |
+| MBM-224 | Warehouse Order Reference Locking | [view](ai-contexts/project-plans/review/projectplan-MBM-224-warehouse-reference-locking-2026-05-29.md) | AWAITING REVIEW |
+| MBM-223 | Warehouse Move Wizard Redesign (Bulk-Stock Model) | [view](ai-contexts/project-plans/review/projectplan-MBM-223-warehouse-move-wizard-redesign-2026-05-26.md) | IN PROGRESS |
+| MBM-222 | Warehouse Import: Excel → Staging → Business Inventory | [view](ai-contexts/project-plans/review/projectplan-MBM-222-warehouse-import-2026-05-25.md) | AWAITING APPROVAL |
+| MBM-221 | Inventory Cost Price Enforcement & Pricing Calculator | [view](ai-contexts/project-plans/review/projectplan-MBM-221-inventory-cost-price-and-pricing-calculator-2026-05-25.md) | ✅ COMPLETE |
+| MBM-220 | Payee Expense Insights Report | [view](ai-contexts/project-plans/review/projectplan-MBM-220-payee-expense-insights-report-2026-05-25.md) | ✅ COMPLETE |
+| MBM-219 | Payee Payment History Report | [view](ai-contexts/project-plans/review/projectplan-MBM-219-payee-payment-history-2026-05-23.md) | ✅ COMPLETE |
+| MBM-218 | Inventory Decrement Fix — Code Patch + Data Repair Migration | [view](ai-contexts/project-plans/review/projectplan-MBM-218-inventory-decrement-fix-2026-05-22.md) | AWAITING APPROVAL |
+| MBM-217 | Fix CamelCase Product Names Migration | [view](ai-contexts/project-plans/review/projectplan-MBM-217-camelcase-product-names-migration-2026-05-19.md) | ✅ COMPLETE |
+| MBM-216 | Per-Payment Voucher for Standalone Account Approvals | [view](ai-contexts/project-plans/review/projectplan-MBM-216-standalone-approval-voucher-2026-05-16.md) | In Progress |
+| MBM-215 | Copy Product to Another Business | [view](ai-contexts/project-plans/review/projectplan-MBM-215-copy-product-to-business-2026-05-15.md) | AWAITING APPROVAL |
+| MBM-214 | Cash Counted Amendment — Tracked, One-Time, Audited | [view](ai-contexts/project-plans/review/projectplan-MBM-214-cash-counted-amendment-2026-05-12.md) | AWAITING APPROVAL |
+| MBM-213 | Salesperson Shortfall Report | [view](ai-contexts/project-plans/review/projectplan-MBM-213-salesperson-shortfall-report-2026-05-12.md) | AWAITING APPROVAL |
+| MBM-212 | Cash Box Data Integrity: Bug Fixes & Historical Data Migration | [view](ai-contexts/project-plans/review/projectplan-MBM-212-cash-box-data-integrity-2026-05-11.md) | AWAITING APPROVAL |
+| MBM-211 | Grouped EOD Report: Fix cashCounted / totalSales / totalOrders | [view](ai-contexts/project-plans/review/projectplan-MBM-211-grouped-eod-report-data-fix-2026-05-11.md) | AWAITING APPROVAL |
+| MBM-210 | Repeat Request from History (Payment / Combo / Petty Cash) | [view](ai-contexts/project-plans/review/projectplan-MBM-210-repeat-request-from-history-2026-05-10.md) | AWAITING APPROVAL |
+| MBM-209 | Loan Withdrawal Request: Notifications & Admin Queue | [view](ai-contexts/project-plans/review/projectplan-MBM-209-loan-withdrawal-notifications-queue-2026-05-09.md) | AWAITING APPROVAL |
+| MBM-207 | Rejection Flow — Reason Capture, Requester Queue & Action Buttons | [view](ai-contexts/project-plans/review/projectplan-MBM-207-rejection-flow-reason-queue-actions-2026-05-09.md) | AWAITING APPROVAL |
+| MBM-206 | Rent Account Approval — Cash Bucket Validation Bug Fix | [view](ai-contexts/project-plans/review/projectplan-MBM-206-rent-account-approval-bucket-fix-2026-05-09.md) | AWAITING APPROVAL |
+| MBM-205 | Split Payment Fix: Partial Credit + EcoCash / Cash / Card | [view](ai-contexts/project-plans/review/projectplan-MBM-205-split-payment-ecocash-credit-fix-2026-05-06.md) | AWAITING APPROVAL |
+| MBM-204 | Customer Credit Payment at POS (All Order Types) | [view](ai-contexts/project-plans/review/projectplan-MBM-204-customer-credit-payment-pos-2026-05-06.md) | AWAITING APPROVAL |
+| MBM-203 | Leave Management UI & Sick Day Tracking | [view](ai-contexts/project-plans/completed/2026-05/projectplan-MBM-203-leave-management-ui-2026-05-05.md) | ✅ COMPLETE |
+| MBM-202 | Leave Management & Payslip Accuracy | [view](ai-contexts/project-plans/review/projectplan-MBM-202-leave-management-payslip-accuracy-2026-05-05.md) | ✅ COMPLETE |
+| MBM-201 | Combo Request: Submit Confirmation + Return for Edits Flow | [view](ai-contexts/project-plans/completed/2026-05/projectplan-MBM-201-combo-submit-confirm-return-flow-2026-05-03.md) | ✅ COMPLETE |
+| MBM-199 | Personal View Grant & Restricted Access Enforcement Fix | [view](ai-contexts/project-plans/completed/2026-05/projectplan-MBM-199-personal-view-grant-restricted-access-fix-2026-05-02.md) | ✅ COMPLETE |
+| MBM-198 | Auto-Transfer Detail & Modal Improvements | [view](ai-contexts/project-plans/review/projectplan-MBM-198-transfer-detail-modal-improvements-2026-05-07.md) | AWAITING APPROVAL |
+| MBM-197 | Combo Payment Requests & Restricted Expense Account Access | [view](ai-contexts/project-plans/completed/2026-05/projectplan-MBM-197-combo-payment-requests-restricted-access-2026-05-02.md) | ✅ COMPLETE |
+| MBM-196 | Payment Line Items — Receipt Breakdown in Quick & Edit Payment | [view](ai-contexts/project-plans/review/projectplan-MBM-196-payment-line-items-breakdown-2026-04-30.md) | COMPLETE |
+| MBM-195 | Expense Payment Category Display — Sync with Edit & Quick Payment Hierarchy | [view](ai-contexts/project-plans/review/projectplan-MBM-195-category-display-sync-2026-04-30.md) | COMPLETE |
+| MBM-194 | Expense Payment Downward Adjustment & Deposit Source Tracking | [view](ai-contexts/project-plans/review/projectplan-MBM-194-expense-payment-adjustment-source-tracking-2026-04-30.md) | AWAITING APPROVAL |
+| MBM-193 | Inventory Activity Report (Shrinkage Detection) | [view](ai-contexts/project-plans/review/projectplan-MBM-193-inventory-activity-report-2026-04-28.md) | AWAITING APPROVAL |
+| MBM-192 | Payment Cancellation & Manager Override Code System | [view](ai-contexts/project-plans/review/projectplan-MBM-192-payment-cancellation-manager-override-2026-04-25.md) | AWAITING APPROVAL |
+| MBM-191 | Salesperson EOD: Standalone Submit + Next-Day Attribution | [view](ai-contexts/project-plans/review/projectplan-MBM-191-salesperson-eod-standalone-submit-2026-04-25.md) | IN REVIEW |
+| MBM-190 | Salesperson Inventory Access Control | [view](ai-contexts/project-plans/review/projectplan-MBM-190-salesperson-inventory-access-control-2026-04-23.md) | COMPLETE |
+| MBM-189 | Policy Management & Employee Acknowledgment System | [view](ai-contexts/project-plans/review/projectplan-MBM-189-policy-management-2026-04-23.md) | AWAITING APPROVAL |
+| MBM-187 | Salesperson EOD Reporting & Discrepancy Tracking | [view](ai-contexts/project-plans/review/projectplan-MBM-187-salesperson-eod-reporting-2026-04-22.md) | AWAITING APPROVAL |
+| MBM-186 | Inventory Expiration Tracking & Management | [view](ai-contexts/project-plans/review/projectplan-MBM-186-expiry-tracking-management-2026-04-22.md) | AWAITING APPROVAL |
+| MBM-185 | Business Asset Management | [view](ai-contexts/project-plans/review/projectplan-MBM-185-asset-management-2026-04-22.md) | AWAITING APPROVAL |
+| MBM-184 | Restaurant Delivery Service | [view](ai-contexts/project-plans/review/projectplan-MBM-184-restaurant-delivery-service-2026-04-21.md) | AWAITING APPROVAL |
+| MBM-183 | Restaurant Prepared Item Inventory Tracking | [view](ai-contexts/project-plans/review/projectplan-MBM-183-restaurant-prep-inventory-tracking-2026-04-20.md) | AWAITING APPROVAL |
+| MBM-182 | Custom Bulk Modal: Business Dropdown + Expense Classification + Suggest | [view](ai-contexts/project-plans/review/projectplan-MBM-182-custom-bulk-business-dropdown-classification-2026-04-19.md) | COMPLETE |
+| MBM-178 | Invoices & Quotations | [view](ai-contexts/project-plans/review/projectplan-MBM-178-invoices-quotations-2026-04-15.md) | AWAITING APPROVAL |
+| MBM-177 | Expense Transaction List — Richer Descriptions | [view](ai-contexts/project-plans/review/projectplan-MBM-177-expense-transaction-richer-descriptions-2026-04-13.md) | AWAITING APPROVAL |
+| MBM-176 | Reorder Level Threshold & Low Stock Notifications | [view](ai-contexts/project-plans/review/projectplan-MBM-176-reorder-level-notifications-2026-04-13.md) | COMPLETE |
+| MBM-175 | Electron SSL Deploy + Inventory Intelligence Reports | [view](ai-contexts/project-plans/review/projectplan-MBM-175-inventory-intelligence-reports-2026-04-11.md) | AWAITING APPROVAL |
+| MBM-174 | Expense Account Transfers | [view](ai-contexts/project-plans/review/projectplan-MBM-174-expense-account-transfers-2026-04-10.md) | AWAITING APPROVAL |
+| MBM-172 | QZ Tray Local Printer Support | [view](ai-contexts/project-plans/review/projectplan-MBM-172-qz-tray-local-printing-2026-04-06.md) | AWAITING APPROVAL |
+| MBM-171 | Cashier-Assisted Payment Requests (Personal Accounts) | [view](ai-contexts/project-plans/review/projectplan-MBM-171-cashier-assisted-payment-requests-2026-04-05.md) | IN PROGRESS |
+| MBM-170 | EOD Submissions in Expense Account Queue | [view](ai-contexts/project-plans/review/projectplan-MBM-170-eod-submissions-in-queue-2026-04-04.md) | IN PROGRESS |
+| MBM-169 | Business Domain Full Seed + Payment Domain Defaulting | [view](ai-contexts/project-plans/review/projectplan-MBM-169-business-domain-seed-2026-03-29.md) | PENDING REVIEW |
+| MBM-168 | Per Diem Approval Modal in Payroll Entry Detail | [view](ai-contexts/project-plans/review/projectplan-MBM-168-perdiem-approval-modal-2026-03-28.md) | AWAITING APPROVAL |
+| MBM-167 | Employee Meal Program: EOD Batch Payment | [view](ai-contexts/project-plans/review/projectplan-MBM-167-meal-program-eod-batch-2026-03-28.md) | AWAITING APPROVAL |
+| MBM-166 | Predefined Domain / Category / Sub-Category Taxonomy for All Business Types | [view](ai-contexts/project-plans/review/projectplan-MBM-166-predefined-domain-category-taxonomy-2026-03-27.md) | AWAITING APPROVAL |
+| MBM-165 | Salesperson Attribution at POS: Shared Terminal, Per-Sale Assignment | [view](ai-contexts/project-plans/review/projectplan-MBM-165-salesperson-attribution-pos-2026-03-25.md) | AWAITING APPROVAL |
+| MBM-164 | Stock Take: Sales Conflict Handling & Sync Workflow | [view](ai-contexts/project-plans/review/projectplan-MBM-164-stock-take-sales-conflict-2026-03-24.md) | AWAITING APPROVAL |
+| MBM-163 | Bale Transfer: Fixes, Notifications & Report | [view](ai-contexts/project-plans/review/projectplan-MBM-163-bale-transfer-fixes-2026-03-24.md) | READY FOR TESTING |
+| MBM-162 | Custom Bulk Product Mode | [view](ai-contexts/project-plans/review/projectplan-MBM-162-custom-bulk-product-mode-2026-03-23.md) | READY FOR TESTING |
+| MBM-161 | Stock Take Mode for Bulk Stocking Panel | [view](ai-contexts/project-plans/review/projectplan-MBM-161-stock-take-mode-2026-03-23.md) | AWAITING APPROVAL |
+| MBM-160 | Bulk Stock: Multi-Draft Support with Names | [view](ai-contexts/project-plans/review/projectplan-MBM-160-bulk-stock-multi-draft-2026-03-22.md) | AWAITING APPROVAL |
+| MBM-159 | EcoCash Refactoring and Enhancements | [view](ai-contexts/project-plans/review/projectplan-MBM-159-ecocash-refactoring-enhancements-2026-03-21.md) | AWAITING APPROVAL |
+| MBM-158 | Combined Stock Take & Stock Receive Workflow | [view](ai-contexts/project-plans/review/projectplan-MBM-158-stock-take-receive-combined-workflow-2026-03-21.md) | AWAITING APPROVAL |
+| MBM-157 | Admin Test Barcode Generator | [view](ai-contexts/project-plans/review/projectplan-MBM-157-admin-test-barcode-generator-2026-03-21.md) | AWAITING APPROVAL |
+| MBM-156 | Bulk Stocking Workflow | [view](ai-contexts/project-plans/review/projectplan-MBM-156-bulk-stocking-workflow-2026-03-20.md) | AWAITING APPROVAL |
+| MBM-155 | Add Stock Panel: Department, Category & Supplier Fields | [view](ai-contexts/project-plans/review/projectplan-MBM-155-add-stock-panel-category-supplier-2026-03-20.md) | AWAITING APPROVAL |
+| MBM-154 | Clothing Inventory Stocking Streamlining | [view](ai-contexts/project-plans/review/projectplan-MBM-154-clothing-inventory-stocking-2026-03-19.md) | AWAITING APPROVAL |
+| MBM-153 | Reverse Expense Payments to Petty Cash | [view](ai-contexts/project-plans/review/projectplan-MBM-153-reverse-payments-to-petty-cash-2026-03-19.md) | AWAITING APPROVAL |
+| MBM-152 | Rent Payment Workflow: Auto-Request, Full-Amount & Correct Approval | [view](ai-contexts/project-plans/review/projectplan-MBM-152-rent-payment-workflow-2026-03-18.md) | AWAITING APPROVAL |
+| MBM-151 | Bales BOGO Toggle: Audit Trail & Irreversibility | [view](ai-contexts/project-plans/review/projectplan-MBM-151-bales-bogo-audit-trail-irreversible-2026-03-18.md) | AWAITING APPROVAL |
+| MBM-150 | EcoCash Payment Support | [view](ai-contexts/project-plans/review/projectplan-MBM-150-ecocash-payment-support-2026-03-15.md) | AWAITING APPROVAL |
+| MBM-149 | EOD Zero-Sales Resilience & Cash Allocation Flexibility | [view](ai-contexts/project-plans/review/projectplan-MBM-149-eod-zero-sales-allocation-resilience-2026-03-13.md) | AWAITING APPROVAL |
+| MBM-148 | Real-Time Notifications & Payment Queue Updates | [view](ai-contexts/project-plans/review/projectplan-MBM-148-real-time-notifications-payment-queue-2026-03-13.md) | AWAITING APPROVAL |
+| MBM-146 | Expense Payment Lifecycle: Paid Status & Cash Box Alignment | [view](ai-contexts/project-plans/review/projectplan-MBM-146-expense-payment-lifecycle-paid-status-2026-03-13.md) | AWAITING APPROVAL |
+| MBM-145 | Chicken Run Management System | [view](ai-contexts/project-plans/review/projectplan-MBM-145-chicken-run-management-2026-03-11.md) | READY FOR TESTING |
+| MBM-139 | Expense Account Enhancements: Personal Categories, Loans & Transfers | [view](ai-contexts/project-plans/review/projectplan-MBM-139-expense-account-enhancements.md) | DESIGN REVIEW |
 
 ---
 
-## API Endpoints
+## Recently Completed
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `POST` | `/api/expense-account/[accountId]/outgoing-loans` | Create new loan |
-| `GET` | `/api/expense-account/[accountId]/outgoing-loans` | List outgoing loans for one account |
-| `GET` | `/api/expense-account/outgoing-loans` | All loans system-wide (for report) |
-| `POST` | `/api/expense-account/outgoing-loans/[loanId]/approve` | Manager approval |
-| `POST` | `/api/expense-account/outgoing-loans/[loanId]/sign-contract` | Record contract signing + trigger disbursement |
-| `POST` | `/api/expense-account/outgoing-loans/[loanId]/payments` | Record manual repayment |
-| `GET` | `/api/expense-account/reports/lending` | Report data |
-
-### POST body — Create loan (EMPLOYEE example):
-```json
-{
-  "loanType": "EMPLOYEE",
-  "recipientEmployeeId": "...",
-  "principalAmount": 500,
-  "monthlyInstallment": 100,
-  "totalMonths": 5,
-  "disbursementDate": "2026-02-19",
-  "dueDate": "2026-07-19",
-  "purpose": "Medical expenses",
-  "paymentType": "PAYROLL_DEDUCTION"
-}
-```
-
-### POST body — Sign contract:
-```json
-{
-  "consentForPayrollDeduction": true,
-  "signedByUserId": "..."
-}
-```
-Server action: store `contractTerms` snapshot, set `contractSigned=true`, `contractSignedAt=now()`, status → `ACTIVE`, create disbursement payment.
+| ID | Title | Status |
+|----|-------|--------|
+| MBM-138 | Customer Activity Reports & Behavior Insights | ✅ COMPLETED |
+| MBM-137 | Customer Loyalty Card Printing & Barcode Scan | ✅ COMPLETED |
+| MBM-136 | Petty Cash: Signature Capture at Fund Handover | ✅ COMPLETED |
 
 ---
 
-## UI Components
+# UI Fix: Show Actual Handed-In Value for Grouped EOD Reports
 
-### 1. `LendMoneyModal` — `src/components/expense-account/lend-money-modal.tsx`
-Multi-step modal:
-- **Step 1**: Select loan type (Person / Business / Employee), search/select recipient, enter amount, term, purpose, payment method
-- **Step 2** (Employee only): Contract preview with filled terms + "I accept these terms" checkbox
-- **Step 3**: Confirmation summary → submit
+## Objective
+Ensure that the actual cash handed in (groupedRun.totalCashReceived) is displayed for grouped EOD catch-up reports in both the Pending Actions page and the bell dropdown. Daily reports should continue to show totalReported.
 
-### 2. `OutgoingLoansPanel` — `src/components/expense-account/outgoing-loans-panel.tsx`
-Panel in account detail page. Shows:
-- "🤝 Lend Money" button (gated on permission)
-- List of outgoing loans with status badges
-- "Record Repayment" button per ACTIVE loan
-- "Approve" button for PENDING_APPROVAL loans (manager/admin only)
+## Impact Analysis
+- **Backend**: Already returns groupedRun.totalCashReceived for grouped reports. No changes needed.
+- **Frontend**:
+  - Pending Actions page (src/app/admin/pending-actions/page.tsx): Currently displays totalReported for all reports.
+  - Bell dropdown (src/components/layout/global-header.tsx): Also displays totalReported for all reports.
+  - Both need conditional logic to display groupedRun.totalCashReceived for grouped reports.
+- **Risk**: Minimal, as the change is isolated to display logic and does not affect data flow or backend.
 
-### 3. `RecordRepaymentModal` — `src/components/expense-account/record-repayment-modal.tsx`
-Simple modal: amount, date, payment method (CASH / BANK_TRANSFER / OTHER). Validates ≤ remaining balance.
-
-### 4. Lending Portfolio Report — `src/app/expense-accounts/reports/lending/page.tsx`
-Filters by loanType and status. Table shows all outgoing loans system-wide with summary stats.
-
----
-
-## Numbered Task Checklist
-
-### Phase 1 — Database Schema
-- [ ] **Task 1** — Add `AccountOutgoingLoans` model to `prisma/schema.prisma`
-- [ ] **Task 2** — Add `AccountOutgoingLoanPayments` model to `prisma/schema.prisma`
-- [ ] **Task 3** — Add `outgoingLoanId String?` FK to `ExpenseAccountPayments` in schema
-- [ ] **Task 4** — Add `outgoingLoanPaymentId String?` FK to `ExpenseAccountDeposits` in schema
-- [ ] **Task 5** — Run `prisma migrate dev --name add_account_outgoing_loans` → verify migration file created
-- [ ] **Task 6** — Regenerate Prisma client and verify TypeScript compiles
-
-### Phase 2 — Core API
-- [ ] **Task 7** — Create `POST /api/expense-account/[accountId]/outgoing-loans` (one-loan rule, status logic, immediate disburse for PERSON/BUSINESS)
-- [ ] **Task 8** — Create `GET /api/expense-account/[accountId]/outgoing-loans`
-- [ ] **Task 9** — Create `POST /api/expense-account/outgoing-loans/[loanId]/approve`
-- [ ] **Task 10** — Create `POST /api/expense-account/outgoing-loans/[loanId]/sign-contract` (contract snapshot + disburse payment)
-- [ ] **Task 11** — Create `POST /api/expense-account/outgoing-loans/[loanId]/payments` (manual repayment + deposit)
-- [ ] **Task 12** — Create `GET /api/expense-account/outgoing-loans` (system-wide, with filters)
-- [ ] **Task 13** — Create `GET /api/expense-account/reports/lending`
-
-### Phase 3 — Payroll Integration
-- [ ] **Task 14** — Identify payroll entry creation route; add `loanDeductions` auto-populate from active `AccountOutgoingLoans`
-- [ ] **Task 15** — Identify payroll finalization route; add post-finalization deposit + repayment record creation + balance decrement
-
-### Phase 4 — UI Components
-- [ ] **Task 16** — Build `LendMoneyModal` (3-step multi-type modal with contract step for employees)
-- [ ] **Task 17** — Build `OutgoingLoansPanel` component (list + action buttons)
-- [ ] **Task 18** — Build `RecordRepaymentModal` component
-- [ ] **Task 19** — Integrate `OutgoingLoansPanel` + "🤝 Lend Money" button into account detail page
-
-### Phase 5 — Reports
-- [ ] **Task 20** — Build Lending Portfolio report page (`/expense-accounts/reports/lending`)
-- [ ] **Task 21** — Add "🤝 Lending Portfolio" card to Reports Hub (`src/app/expense-accounts/reports/page.tsx`)
-- [ ] **Task 22** — Add active outgoing loans count to Reports Hub quick stats banner
-
-### Phase 6 — Polish
-- [ ] **Task 23** — Gate "Lend Money" on `canMakeExpensePayments` (or confirm with user if new permission needed)
-- [ ] **Task 24** — Gate loan approval on manager/admin check
-- [ ] **Task 25** — Show loan disbursement and repayments in account transaction history
-
----
-
-## Contract Template (Employee Loans)
-
-Rendered client-side as a formatted preview card:
-
-```
-LOAN AGREEMENT
-
-Lender: [Account Name] ([Account Number])
-Borrower: [Employee Full Name] ([Employee Number])
-Date: [Disbursement Date]
-
-Loan Amount: $[principalAmount]
-Monthly Deduction: $[monthlyInstallment]
-Duration: [totalMonths] months
-Due Date: [dueDate]
-Purpose: [purpose]
-
-Terms:
-1. The borrower authorizes deduction of $[monthlyInstallment] from each
-   monthly payroll until the loan is fully repaid.
-2. Deductions begin in the next payroll cycle after contract signing.
-3. Early repayment is permitted without penalty.
-4. In case of employment termination, the outstanding balance becomes
-   immediately due.
-
-By accepting, the borrower consents to the above terms including the
-payroll deduction authorization.
-```
-
----
-
-## Open Questions for Approval
-
-1. **Permission gating**: Use existing `canMakeExpensePayments` for "Lend Money", or create new `canManageLending`?
-2. **Post-payroll reconciliation**: Should the expense account deposit (from payroll deduction) be created **automatically** when payroll period is finalized, or should it be a manual step the user triggers?
-3. **Person/Business loans**: Require approval step too, or immediate on submit?
-4. **Interest**: Enforce calculated interest, or just informational field?
-
----
-
-## Impact on Existing Code
-
-| File | Change | Risk |
-|---|---|---|
-| `prisma/schema.prisma` | 2 new models + 2 nullable FKs | Low — additive |
-| `src/lib/payroll/helpers.ts` | **No change** — `loanDeductions` already handled | None |
-| `ExpenseAccountPayments` paymentType | New value `'LOAN_DISBURSEMENT'` — no migration needed for enum value | Low |
-| Payroll entry creation API | Add `loanDeductions` auto-populate | Medium |
-| Payroll finalization API | Add deposit + repayment record creation | Medium |
-| Account detail page | Add outgoing loans section | Low — additive |
-| Reports Hub | Add new card + stat | Low — additive |
-
----
-
-## Review Section
-_(To be filled after implementation)_
-
----
-
-# Fix Sales Attribution & Backup/Restore Reliability
-
-## Problem
-1. **Sales attributed to "System Administrator"**: After restoring a backup from another machine, all sales show under "System Administrator" instead of actual salespeople (Letwin, Pride). BusinessOrders has no `createdBy` field to track which user made the sale.
-2. **Backup/restore format mismatch**: CLI restore script only handles v1.0 flat format, but the app's UI backup creates v3.0 format with `businessData` wrapper. Cross-machine restore must work reliably.
-3. **1 record skipped during restore**: Foreign key constraint error (from restore screenshot).
-
-## Plan
-
-### Phase 1: Add `createdBy` to BusinessOrders
-- [x] Add `createdBy String?` field + `creator Users?` relation to BusinessOrders model
-- [x] Add `business_orders_created BusinessOrders[]` reverse relation to Users model
-- [x] Create idempotent migration
-- [x] Add index on `createdBy` for query performance
-
-### Phase 2: Set `createdBy` in POS checkout flows
-- [x] Update `/api/universal/orders` POST to set `createdBy` from session user
-- [x] Check restaurant orders API for same fix
-
-### Phase 3: Update sales analytics to use `createdBy`
-- [x] Update `/api/business/[businessId]/sales-analytics` to include `creator` relation and use it for name fallback
-- [x] Update `/api/universal/daily-sales` to include `creator` relation and use it for name fallback
-
-### Phase 4: Fix CLI restore script for v3.0 format
-- [x] Update `scripts/restore-from-backup.js` to detect and unwrap `businessData` wrapper
-- [x] Handle both v1.0 flat and v3.0 wrapped formats
-
-### Phase 5: Backfill existing orders' `createdBy`
-- [x] Create a script/query to match existing orders to users via `attributes.employeeName` or employee→user mapping
+## Plan & Todos
+1. Update Pending Actions page to show groupedRun.totalCashReceived for grouped reports.
+2. Update bell dropdown to show groupedRun.totalCashReceived for grouped reports.
+3. Test both locations to ensure correct values are displayed for both grouped and daily reports.
+4. Add a review section summarizing the changes and any follow-up suggestions.
 
 ## Review
+(To be completed after implementation)
 
-### Changes Made
-1. **Schema**: Added `createdBy String?` + `creator Users?` relation to `BusinessOrders`, with index. Migration `20260220000003` includes two backfill strategies: via `employees.userId` and via `attributes.employeeName` → `users.name` matching.
-
-2. **Order creation**: Added `createdBy: user.id` to 4 order creation points:
-   - `/api/universal/orders` (main POS)
-   - `/api/universal/orders/manual` (manual entry)
-   - `/api/restaurant/orders` (restaurant POS, both create and retry)
-   - `/api/restaurant/meal-program/transactions` (meal program)
-
-3. **Sales analytics**: Both `/api/business/[businessId]/sales-analytics` and `/api/universal/daily-sales` now include `creator` relation and use fallback chain: `employees.fullName` → `creator.name` → `attributes.employeeName` → 'Other'/'Walk-in/Unknown'
-
-4. **CLI restore**: `scripts/restore-from-backup.js` now detects v3.0 format (has `businessData` key) and unwraps it, supporting both flat and wrapped formats.
-
-5. **Local backfill**: 444/455 orders now have `createdBy` set (Pride: 417, Letwin: 25, System Admin: 2). 11 orders had no `employeeName` in attributes.
-
-### Restore Screenshot Analysis
-- 6084/6967 records restored (87%), 1 skipped (FK constraint)
-- The 882 gap (6967-6084-1) represents records in tables not in the restore order (likely local-only tables like sync, printers, etc.)
-- The 1 FK error is a single record referencing a missing parent — minor issue
-
-### Notes for Remote Deployment
-- Migration `20260220000003` must be applied on the remote server
-- The backfill SQL will automatically match orders to users by name on the remote DB too
-- All future orders will have `createdBy` set automatically from the session user
-
----
-
-## Lending Feature Review
-
-### Implementation Summary
-All 6 phases of the outgoing lending feature are complete. Below is a summary of all changes made.
-
-### Changes Made
-
-1. **Permission** (`src/types/permissions.ts`): Added `canManageLending` to the `CoreBusinessPermissions` interface. Admin and Manager roles get `true`, all others get `false`.
-
-2. **Database Schema** (`prisma/schema.prisma`): Added two new models:
-   - `AccountOutgoingLoans` → table `account_outgoing_loans`
-   - `AccountOutgoingLoanPayments` → table `account_outgoing_loan_payments`
-   - Added `outgoingLoanPaymentId?` FK to `ExpenseAccountDeposits`
-   - Added `outgoingLoanId?` FK to `ExpenseAccountPayments`
-
-3. **Migration** (`prisma/migrations/20260220000011_add_account_outgoing_loans/migration.sql`): Manual migration created and applied via `prisma db execute` + `prisma migrate resolve --applied` due to pre-existing drift.
-
-4. **APIs** (6 new route files):
-   - `GET|POST /api/expense-account/[accountId]/outgoing-loans` — per-account loan list + creation
-   - `GET /api/expense-account/outgoing-loans` — system-wide loan list
-   - `POST /api/expense-account/outgoing-loans/[loanId]/approve` — manager approval
-   - `POST /api/expense-account/outgoing-loans/[loanId]/sign-contract` — contract signing + disbursement
-   - `POST /api/expense-account/outgoing-loans/[loanId]/payments` — manual repayment recording
-   - `GET /api/expense-account/reports/lending` — lending portfolio report data
-
-5. **Payroll Integration** (2 files modified):
-   - `payroll/entries/route.ts`: Auto-populates `loanDeductions` from active employee loans on entry creation
-   - `payroll/periods/[periodId]/route.ts`: `reconcilePayrollLoanDeductions()` runs on period approval, creates deposit + repayment records for each entry with loan deductions
-
-6. **UI Components** (3 new files):
-   - `lend-money-modal.tsx` — 3-step modal (details → contract → confirm)
-   - `record-repayment-modal.tsx` — simple repayment recording modal
-   - `outgoing-loans-panel.tsx` — displays outgoing loans per account with Approve/Repayment actions
-
-7. **Account Detail Page** (`src/app/expense-accounts/[accountId]/page.tsx`): Added "🤝 Lend Money" button (gated on `canManageLending`), `OutgoingLoansPanel` section, and `LendMoneyModal`.
-
-8. **Reports Hub** (`src/app/expense-accounts/reports/page.tsx`): Added Lending Portfolio card + "Active Lending Loans" stat.
-
-9. **New Report Page** (`src/app/expense-accounts/reports/lending/page.tsx`): Full lending portfolio table with status/type filters and summary cards.
-
-### Suggestions for Follow-Up
-- Add outgoing loans to backup/restore (`backup-clean.ts` / `restore-clean.ts`)
-- Add loan disbursements and repayments to account transaction history list
-- Loan notifications (e.g., overdue alerts, upcoming payroll deductions)
-- Write-off functionality for defaulted loans
-
----
-
-## Sequential Display Number — Unique Constraint Removal
-
-### Context
-Backup/restore from an upgraded server failed with: `Unique constraint failed on fields: (businessType, supplierNumber)`. Root cause: auto-generated sequential display numbers (e.g. `RES-SUP-001`, `EMP-001`) were used as DB unique constraints. Two independent machines can generate the same number for different records. The GUID `id` is the true unique identity.
-
-### Changes Made
-
-1. **Schema** (`prisma/schema.prisma`): Removed unique constraints from 13 display-label fields across 10+ tables:
-   - `BusinessSuppliers`: removed `@@unique([businessType, supplierNumber])`
-   - `Employees`: removed `@unique` from `employeeNumber`
-   - `PayrollPaymentVouchers`: removed `@unique` from `voucherNumber`
-   - `ExpenseAccountLoans`: removed `@unique` from `loanNumber`
-   - `AccountOutgoingLoans`: removed `@unique` from `loanNumber`
-   - `InterBusinessLoans`: removed `@unique` from `loanNumber`
-   - `Orders` (restaurant): removed `@unique` from `orderNumber`
-   - `CustomerLayby`: removed `@unique` from `laybyNumber`
-   - `CustomerLaybyPayment`: removed `@unique` from `receiptNumber`
-   - `BusinessCustomers`: removed `@@unique([businessId, customerNumber])`
-   - `BusinessOrders`: removed `@@unique([businessId, orderNumber])` (kept `@@index([orderNumber])`)
-   - `ProductVariants`: removed `@unique` from `sku`
-   - `ClothingBales`: removed `@unique` from `sku`
-
-2. **Migration** (`prisma/migrations/20260223000001_remove_sequential_number_unique_constraints/migration.sql`): 13 `ALTER TABLE DROP CONSTRAINT IF EXISTS` statements. Applied via `prisma migrate deploy`.
-
-3. **restore-clean.ts** (`src/lib/restore-clean.ts`): Removed stale entries from `UNIQUE_CONSTRAINT_FIELDS`:
-   - Removed `'expenseAccountLoans': 'loanNumber'` (constraint dropped — now upserts by GUID)
-   - Removed `'businessOrders': { fields: ['businessId', 'orderNumber'] }` (constraint dropped — now upserts by GUID)
-
-4. **Backup API** (`src/app/api/backup/route.ts`): GET endpoint now allows managers and business owners (not just admins) to download backups. Restore (POST) remains admin-only.
-
-5. **UI** (`src/components/data-backup.tsx`, `src/components/data-management-client.tsx`): Restore section hidden for non-admin users. Backup tab enabled for managers and business owners.
-
-6. **POS Role Redirect** (`src/app/auth/signin/page.tsx`, `src/app/auth/redirect/page.tsx`): After login, POS role users are redirected to their business-type POS (`/restaurant/pos`, `/grocery/pos`, `/clothing/pos`, `/universal/pos`). Implemented via dedicated `/auth/redirect` page using reactive `useSession()` hook.
-
-### Tests Added
-`__tests__/lib/display-number-uniqueness.test.ts` (19 tests):
-- Display number fields allow duplicate values (6 tests — one per field type)
-- Restore logic uses GUID-based upsert for all formerly-constrained tables (4 tests)
-- Backup GET API allows managers and business owners; POST stays admin-only (7 tests)
-- Stale UNIQUE_CONSTRAINT_FIELDS entries are removed (2 documentation tests)
-
-`__tests__/api/backup-restore.test.ts` (4 tests — updated from orphaned structure):
-- Unauthenticated POST returns 401
-- Non-admin POST returns 401
-- POST with no backup data returns 400
-- Admin with valid backup triggers restore and returns 200
-
-### Suggestions for Follow-Up
-- Run UI-level backup/restore test with the upgraded server backup file to verify end-to-end
-- Consider adding a database-level guard: trigger or check constraint to warn if a sequential number exceeds a reasonable range (optional — informational only)
+| MBM-165 | Payment Voucher with Collector Capture | review/projectplan-MBM-165-payment-voucher-collector-capture-2026-03-28.md | In Progress |

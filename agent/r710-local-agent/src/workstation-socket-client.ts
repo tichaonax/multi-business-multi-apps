@@ -21,7 +21,12 @@
 import { EventEmitter } from 'events'
 import os from 'os'
 import { io, Socket } from 'socket.io-client'
-import { saveWorkstationConfig, type WorkstationAgentConfig } from './workstation-config'
+import {
+  saveWorkstationConfig,
+  deleteLegacyFlatWorkstationConfig,
+  type WorkstationAgentConfig,
+} from './workstation-config'
+import { setActiveWorkstationBusinessId } from './active-workstation'
 import { handleWorkstationJob, type WorkstationAgentJob, type WorkstationAgentJobResult } from './workstation-job-handler'
 import { registerWorkstationClient, unregisterWorkstationClient, type RelayTarget } from './workstation-clients-registry'
 import { isAutoStartEnabled } from './tray'
@@ -43,8 +48,28 @@ export class WorkstationSocketClient extends EventEmitter implements RelayTarget
   // regardless of listener registration timing.
   lastState: WorkstationAgentConnectionState | undefined
 
-  constructor(readonly profileId: string, private readonly config: WorkstationAgentConfig) {
+  // MBM-279 follow-up: every OTHER workstationAgentId this exact machine has
+  // stored for a different business on this same profile — sent with every
+  // connect handshake so the server can re-point a shared printer still
+  // routed to one of them onto THIS agent instead (see agent-hub.ts's
+  // handleAgentConnect()). Computed by index.ts's connectWorkstation(), not
+  // by this class, since it's the one place that already knows every stored
+  // business on this profile.
+  constructor(
+    readonly profileId: string,
+    private readonly config: WorkstationAgentConfig,
+    private readonly siblingAgentIds: string[] = []
+  ) {
     super()
+  }
+
+  // Exposes the live, continuously-synced config for display (index.ts's
+  // refreshTray()/getManageSnapshot()) instead of a second, possibly-stale
+  // disk read — this instance's in-memory copy IS the current source of
+  // truth for whatever's actually connected right now, migrated or not (see
+  // syncConfig()'s businessId-migration branch below).
+  getConfig(): Readonly<WorkstationAgentConfig> {
+    return this.config
   }
 
   private setState(state: WorkstationAgentConnectionState): void {
@@ -82,7 +107,13 @@ export class WorkstationSocketClient extends EventEmitter implements RelayTarget
     socket.on('connect', () => {
       socket.emit(
         'workstation-agent:connect',
-        { agentToken: this.config.agentToken, hostLabel: os.hostname(), agentVersion: AGENT_VERSION, autoStartEnabled: isAutoStartEnabled() },
+        {
+          agentToken: this.config.agentToken,
+          hostLabel: os.hostname(),
+          agentVersion: AGENT_VERSION,
+          autoStartEnabled: isAutoStartEnabled(),
+          siblingAgentIds: this.siblingAgentIds,
+        },
         (ack: { success: boolean; error?: string }) => {
           if (ack.success) {
             this.setState('connected')
@@ -149,8 +180,23 @@ export class WorkstationSocketClient extends EventEmitter implements RelayTarget
     this.socket?.emit(
       'workstation-agent:sync',
       {},
-      (ack: { success: boolean; businessName?: string; printers?: string[]; scaleComPort?: string; scaleBaudRate?: number; qzPrinterName?: string }) => {
+      (ack: { success: boolean; businessId?: string; businessName?: string; printers?: string[]; scaleComPort?: string; scaleBaudRate?: number; qzPrinterName?: string }) => {
         if (!ack?.success) return
+
+        // MBM-279: a config connected from the pre-MBM-279 flat file (or the
+        // even older pre-MBM-276 one, chained through legacy-migration.ts)
+        // won't have a businessId yet — this is the one-time, live-triggered
+        // migration into businesses/<businessId>/workstation.json. Runs at
+        // most once per pairing: after this, this.config.businessId is set,
+        // so this branch never runs again for it.
+        if (!this.config.businessId && ack.businessId) {
+          this.config.businessId = ack.businessId
+          saveWorkstationConfig(this.profileId, ack.businessId, this.config)
+          deleteLegacyFlatWorkstationConfig(this.profileId)
+          setActiveWorkstationBusinessId(this.profileId, ack.businessId)
+          console.log(`[Workstation Agent] [${this.config.label}] Migrated to per-business storage (business ${ack.businessId})`)
+        }
+
         const changed =
           ack.businessName !== this.config.businessName ||
           ack.scaleComPort !== this.config.scaleComPort ||
@@ -163,7 +209,9 @@ export class WorkstationSocketClient extends EventEmitter implements RelayTarget
         this.config.scaleComPort = ack.scaleComPort
         this.config.scaleBaudRate = ack.scaleBaudRate
         this.config.qzPrinterName = ack.qzPrinterName
-        saveWorkstationConfig(this.profileId, this.config)
+        // this.config.businessId is always set by this point — either it was
+        // already there, or the migration branch above just set it.
+        saveWorkstationConfig(this.profileId, this.config.businessId!, this.config)
         this.emit('config-updated')
       }
     )

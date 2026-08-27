@@ -193,28 +193,38 @@ export function UnifiedReceiptPreviewModal({
           localStorage.setItem(printerKey, globalValue)
         }
       }
+
+      let resolvedId: string | null = null
       if (lastPrinterId) {
         if (lastPrinterId === LOCAL_PRINTER_ID && localAvailable) {
-          setSelectedPrinterId(LOCAL_PRINTER_ID)
+          resolvedId = LOCAL_PRINTER_ID
         } else if (lastPrinterId.startsWith(QZ_PRINTER_PREFIX)) {
           const qzName = lastPrinterId.slice(QZ_PRINTER_PREFIX.length)
-          if (qzPrinterList.includes(qzName)) {
-            setSelectedPrinterId(lastPrinterId)
-          }
+          if (qzPrinterList.includes(qzName)) resolvedId = lastPrinterId
         } else {
           const savedPrinter = availablePrinters.find((p: NetworkPrinter) => p.id === lastPrinterId)
-          if (savedPrinter && savedPrinter.isOnline) {
-            setSelectedPrinterId(lastPrinterId)
-          }
+          if (savedPrinter && savedPrinter.isOnline) resolvedId = lastPrinterId
         }
       }
-      // Auto-select saved QZ printer even if no prior selection
-      if (!lastPrinterId && qzPrinterList.length > 0) {
+
+      // MBM-280: printerKey is cached per-USER, not per-business — a printer
+      // (or agent-relay id) valid for whichever business was used last often
+      // isn't valid for a different business on the same machine (e.g. an
+      // AGENT-relayed printer id tied to a different business's workstation
+      // agent). Previously that just left nothing selected. QZ Tray's own
+      // saved printer (getQzPrinterConfig()) is genuinely machine-wide, not
+      // business-scoped, so it's a safe universal fallback whenever the
+      // cached choice above doesn't apply here — not just when there was no
+      // cached choice at all — so QZ effectively works for every business
+      // sharing one workstation without a separate per-business setup step.
+      if (!resolvedId && qzPrinterList.length > 0) {
         const saved = getQzPrinterConfig()
         if (saved && qzPrinterList.includes(saved.printerName)) {
-          setSelectedPrinterId(QZ_PRINTER_PREFIX + saved.printerName)
+          resolvedId = QZ_PRINTER_PREFIX + saved.printerName
         }
       }
+
+      if (resolvedId) setSelectedPrinterId(resolvedId)
     } catch (storageError) {
       console.warn('Failed to load saved printer preference:', storageError)
     }

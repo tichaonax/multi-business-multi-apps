@@ -15,7 +15,7 @@ import { join } from 'path'
 import os from 'os'
 import { ensureProfile, profilesRoot } from './profile-store'
 import { saveConfig, type AgentConfig } from './config'
-import { saveWorkstationConfig, type WorkstationAgentConfig } from './workstation-config'
+import { saveLegacyFlatWorkstationConfig, type WorkstationAgentConfig } from './workstation-config'
 
 function legacyDir(): string {
   const base = process.env.LOCALAPPDATA || join(os.homedir(), '.local', 'share')
@@ -54,9 +54,15 @@ export function migrateLegacyConfigIfNeeded(): void {
     // automatically (deriveProfileId is a pure function of serverUrl) — a
     // workstation paired for both against the same server correctly lands
     // in one profile, not two.
+    // Lands in the same profile-root flat file the MBM-279 lazy migration
+    // already knows how to pick up (workstation-config.ts's legacy-flat
+    // helpers) — this pairing predates businessId existing anywhere, so it
+    // still needs that second migration once connected and synced, exactly
+    // like a machine that was already on the MBM-276 format when MBM-279
+    // shipped.
     const profileId = ensureProfile(legacyWorkstation.serverUrl, legacyWorkstation.label)
-    saveWorkstationConfig(profileId, legacyWorkstation)
-    console.log(`[Agent]   Migrated Workstation pairing for ${legacyWorkstation.serverUrl} -> profile ${profileId}`)
+    saveLegacyFlatWorkstationConfig(profileId, legacyWorkstation)
+    console.log(`[Agent]   Migrated Workstation pairing for ${legacyWorkstation.serverUrl} -> profile ${profileId} (pending businessId migration on first sync)`)
   }
 
   // Clean up the old files so this migration never runs again.

@@ -89,7 +89,7 @@ interface ScaleConfig {
 // other SCALE_CONNECT/SCALE_TARE job, so it's diagnosable the same way
 // without a separate logging path.
 function TestScalePanel() {
-  const { weight, status, isAvailable, isConfigured, tare } = useScale()
+  const { weight, status, isAvailable, isConfigured, tare, reconnect } = useScale()
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
   const [taring, setTaring] = useState(false)
 
@@ -145,13 +145,25 @@ function TestScalePanel() {
           <span className="text-xs text-gray-400 dark:text-gray-500">
             {lastUpdatedAt ? `Last updated ${lastUpdatedAt.toLocaleTimeString()}` : 'Waiting for a reading…'}
           </span>
-          <button
-            onClick={handleTare}
-            disabled={!isAvailable || status.status !== 'connected' || taring}
-            className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
-          >
-            {taring ? 'Taring…' : 'Tare'}
-          </button>
+          <div className="flex items-center gap-2">
+            {status.status !== 'connected' && (
+              <button
+                onClick={reconnect}
+                disabled={status.status === 'connecting'}
+                title="Re-attempt the connection — useful if the workstation agent had a brief disconnect and hasn't been retried since this page loaded"
+                className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
+              >
+                {status.status === 'connecting' ? 'Connecting…' : 'Retry'}
+              </button>
+            )}
+            <button
+              onClick={handleTare}
+              disabled={!isAvailable || status.status !== 'connected' || taring}
+              className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
+            >
+              {taring ? 'Taring…' : 'Tare'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -186,8 +198,13 @@ export default function WorkstationAgentsPage() {
   const [localAgentDetected, setLocalAgentDetected] = useState(false)
   // Populated from the agent's own /probe response when this exact machine
   // already has a workstation pairing to this exact server — lets the pair
-  // flow detect and warn about (or skip) creating a redundant, disconnected
-  // second WorkstationAgents row for a machine that's already paired here.
+  // flow detect and skip creating a redundant second WorkstationAgents row
+  // for a machine that's already paired here. MBM-279: /probe is now scoped
+  // by businessId (see the probe effect below), so this can only ever be
+  // THIS business's own pairing — a workstation pairing that belongs to a
+  // DIFFERENT business on this same machine is no longer surfaced here (and
+  // is expected: the agent now supports several businesses per machine,
+  // switching which one is active rather than evicting the others).
   const [existingWorkstationAgentId, setExistingWorkstationAgentId] = useState<string | undefined>(undefined)
   const [existingProfileLabel, setExistingProfileLabel] = useState<string | undefined>(undefined)
   // True when this machine already has an R710 pairing to this exact
@@ -299,10 +316,16 @@ export default function WorkstationAgentsPage() {
   // Probe the local agent on this browser's own machine — mirrors the R710
   // Agent panel's polling probe so the Pair button appears without a reload
   // once the admin has downloaded and started the agent.
+  //
+  // MBM-279: businessId is now required for the workstation-specific answer
+  // (hasWorkstation/workstationAgentId are scoped per business, since one
+  // profile can hold pairings for several — see pairing-server.ts's /probe).
+  // Skipped entirely until currentBusinessId is known.
   useEffect(() => {
+    if (!currentBusinessId) return
     let cancelled = false
     const probe = () => {
-      fetch(`http://127.0.0.1:${PAIRING_PORT}/probe?serverUrl=${encodeURIComponent(window.location.origin)}`, { signal: AbortSignal.timeout(2500) })
+      fetch(`http://127.0.0.1:${PAIRING_PORT}/probe?serverUrl=${encodeURIComponent(window.location.origin)}&businessId=${encodeURIComponent(currentBusinessId)}`, { signal: AbortSignal.timeout(2500) })
         .then(async res => {
           if (cancelled) return
           setLocalAgentDetected(res.ok)
@@ -331,7 +354,7 @@ export default function WorkstationAgentsPage() {
     probe()
     const interval = setInterval(probe, 2000)
     return () => { cancelled = true; clearInterval(interval) }
-  }, [])
+  }, [currentBusinessId])
 
   const handlePair = async () => {
     if (!currentBusinessId || !pairLabel.trim()) return
@@ -357,6 +380,7 @@ export default function WorkstationAgentsPage() {
           serverUrl: window.location.origin,
           agentToken: mintData.data.agentToken,
           workstationAgentId: mintData.data.workstationAgentId,
+          businessId: currentBusinessId,
           label: pairLabel.trim(),
           caCert: mintData.data.caCert ?? undefined,
         }),
@@ -527,11 +551,6 @@ export default function WorkstationAgentsPage() {
             </div>
           ) : localAgentDetected ? (
             <>
-              {existingWorkstationAgentId && (
-                <p className="mb-2 text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3">
-                  ⚠️ This machine already has a workstation pairing to this server (as "{existingProfileLabel}"), but it isn't part of <strong>this</strong> business's paired list — it likely belongs to a different business, or that pairing was revoked. Pairing below will create an <strong>additional, separate</strong> pairing for this business, not reuse the existing one. If that's not what you want, check the other business first.
-                </p>
-              )}
               {hasExistingR710Only ? (
                 // This exact machine is already paired to this server for
                 // R710, just not for printer/scale yet — no need to make

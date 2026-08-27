@@ -25,6 +25,14 @@ interface ScaleContextValue {
   isConfigured: boolean
   isConnected: boolean
   tare: () => Promise<void>
+  /** Re-attempts the agent-relay connect flow on demand — no-op for Electron.
+   *  MBM-277: the agent-mode connect in the effect below only ever runs once
+   *  per business/mount; if it lands during a brief AGENT_OFFLINE window
+   *  (the workstation agent reconnecting after a restart or network blip),
+   *  status gets stuck on 'error' indefinitely with nothing to recover it
+   *  short of a full page reload, even though the agent is back online
+   *  moments later. This lets a "Retry" button re-run that same flow. */
+  reconnect: () => void
 }
 
 const defaultStatus: ScaleStatus = { status: 'disconnected', comPort: null }
@@ -37,6 +45,7 @@ const ScaleContext = createContext<ScaleContextValue>({
   isConfigured: false,
   isConnected: false,
   tare: async () => {},
+  reconnect: () => {},
 })
 
 export function ScaleProvider({ children }: { children: ReactNode }) {
@@ -47,6 +56,10 @@ export function ScaleProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<ScaleStatus>(defaultStatus)
   const { currentBusinessId } = useBusinessPermissionsContext()
   const socketRef = useRef<Socket | null>(null)
+  // Bumping this re-runs the agent-relay effect below from scratch (tears
+  // down the old socket, re-fetches config, re-attempts connect) — see
+  // reconnect()'s comment on the context value.
+  const [reconnectTick, setReconnectTick] = useState(0)
 
   // ── Branch 1: Electron — unchanged from before this phase ──────────────
   useEffect(() => {
@@ -154,7 +167,13 @@ export function ScaleProvider({ children }: { children: ReactNode }) {
       socketRef.current?.disconnect()
       socketRef.current = null
     }
-  }, [currentBusinessId])
+  }, [currentBusinessId, reconnectTick])
+
+  const reconnect = useCallback(() => {
+    if (window.electron?.scale) return
+    setStatus({ status: 'connecting', comPort: null })
+    setReconnectTick(t => t + 1)
+  }, [])
 
   const tare = useCallback(async () => {
     if (window.electron?.scale) {
@@ -180,6 +199,7 @@ export function ScaleProvider({ children }: { children: ReactNode }) {
         isConfigured,
         isConnected: status.status === 'connected',
         tare,
+        reconnect,
       }}
     >
       {children}

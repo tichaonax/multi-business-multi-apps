@@ -95,7 +95,20 @@ class WorkstationAgentHub {
 
   private async handleAgentConnect(
     socket: Socket,
-    data: { agentToken?: string; hostLabel?: string; agentVersion?: string; autoStartEnabled?: boolean },
+    data: {
+      agentToken?: string
+      hostLabel?: string
+      agentVersion?: string
+      autoStartEnabled?: boolean
+      // MBM-279 follow-up: every OTHER workstationAgentId this exact
+      // physical machine has stored (its "sibling" businesses on the same
+      // profile — see index.ts's connectWorkstation()). Lets the server
+      // re-point any printer still routed to one of those siblings to
+      // THIS agent automatically, so a shared printer follows whichever
+      // business is now active on this workstation instead of staying
+      // wherever it was last manually pointed via Printer Connection Mode.
+      siblingAgentIds?: string[]
+    },
     ack?: (res: { success: boolean; error?: string }) => void
   ): Promise<void> {
     try {
@@ -142,6 +155,25 @@ class WorkstationAgentHub {
         },
       })
 
+      // MBM-279 follow-up: a shared printer's AGENT routing is otherwise
+      // "sticky" wherever an admin last pointed it via Printer Connection
+      // Mode — it doesn't know a business switch on the same physical
+      // workstation happened at all. Since siblingAgentIds only ever
+      // contains OTHER businesses actually paired on THIS exact machine
+      // (computed locally from disk, never cross-machine), this is safe:
+      // it only re-routes a printer that was already following one of this
+      // workstation's own other businesses, never a printer belonging to
+      // some unrelated machine/business elsewhere.
+      if (data.siblingAgentIds?.length) {
+        const moved = await prisma.networkPrinters.updateMany({
+          where: { workstationAgentId: { in: data.siblingAgentIds }, connectionMode: 'AGENT' },
+          data: { workstationAgentId: matched.id },
+        })
+        if (moved.count > 0) {
+          console.log(`[WorkstationAgentHub] Re-pointed ${moved.count} printer(s) from a sibling business to agent ${matched.id} (active-business switch)`)
+        }
+      }
+
       ack?.({ success: true })
       console.log(`[WorkstationAgentHub] Agent ${matched.id} (${data.hostLabel ?? 'unknown host'}) connected`)
     } catch (error) {
@@ -159,7 +191,7 @@ class WorkstationAgentHub {
   // agentTokenHash or anything credential-shaped.
   private async handleSync(
     socket: Socket,
-    ack?: (res: { success: boolean; businessName?: string; printers?: string[]; scaleComPort?: string; scaleBaudRate?: number; qzPrinterName?: string }) => void
+    ack?: (res: { success: boolean; businessId?: string; businessName?: string; printers?: string[]; scaleComPort?: string; scaleBaudRate?: number; qzPrinterName?: string }) => void
   ): Promise<void> {
     const workstationAgentId = (socket.data as any)?.workstationAgentId as string | undefined
     if (!workstationAgentId) {
@@ -180,6 +212,12 @@ class WorkstationAgentHub {
 
     ack?.({
       success: true,
+      // MBM-279: lets the agent learn which business this pairing belongs to
+      // without a new endpoint — used both to migrate a pre-MBM-279 flat
+      // workstation.json into the businesses/<businessId>/ layout (see
+      // legacy-migration.ts) and, going forward, to save new pairings
+      // directly under the right business.
+      businessId: agent?.businessId,
       businessName: agent?.businesses?.name,
       printers,
       scaleComPort: scaleConfig?.comPort ?? undefined,

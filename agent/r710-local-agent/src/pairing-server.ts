@@ -20,7 +20,15 @@
 
 import { createServer, type Server } from 'http'
 import { saveConfig, loadConfig, type AgentConfig } from './config'
-import { saveWorkstationConfig, loadWorkstationConfig, type WorkstationAgentConfig } from './workstation-config'
+import {
+  saveWorkstationConfig,
+  loadWorkstationConfig,
+  listWorkstationBusinessIds,
+  hasLegacyFlatWorkstationConfig,
+  loadLegacyFlatWorkstationConfig,
+  type WorkstationAgentConfig,
+} from './workstation-config'
+import { getActiveWorkstationBusinessId } from './active-workstation'
 import { ensureProfile, deriveProfileId, readProfileMeta } from './profile-store'
 import { buildManagePageHtml } from './manage-page'
 
@@ -34,6 +42,11 @@ export const PAIRING_PORT = 47710
 // HTTP response, potentially long-lived across a rebuild) where tray.ts's
 // types don't need to, and coupling them would make an unrelated tray-only
 // change ripple into this file for no reason.
+export interface OtherWorkstationBusiness {
+  businessId: string
+  label: string
+}
+
 export interface ManageProfileInfo {
   profileId: string
   label: string
@@ -46,6 +59,11 @@ export interface ManageProfileInfo {
   qzPrinterName?: string
   scaleComPort?: string
   scaleBaudRate?: number
+  // MBM-279: every OTHER business that has a scale/printer pairing saved on
+  // this exact profile but isn't the one currently connected — lets an
+  // admin standing at the machine switch manually (Section 6's "Switch to
+  // this" action), without needing a browser on this machine to drive it.
+  otherWorkstationBusinesses?: OtherWorkstationBusiness[]
 }
 
 export interface ManageSnapshot {
@@ -84,6 +102,12 @@ export interface PairingCallbacks {
   releaseScale: () => void
   setAutoStart: (enabled: boolean) => void
   restart: () => void
+  // MBM-279: switches this profile's active workstation business — see
+  // index.ts's activateWorkstationBusiness() for the actual connect/
+  // disconnect/scale-handoff logic this triggers. Called by /activate below
+  // (an explicit switch, e.g. the browser's business dropdown) and is also
+  // how onWorkstationPaired below activates a freshly paired business.
+  activateWorkstationBusiness: (profileId: string, businessId: string) => void
 }
 
 function readBody(req: import('http').IncomingMessage): Promise<string> {
@@ -146,30 +170,70 @@ export function startPairingServer(callbacks: PairingCallbacks): Server {
         return
       }
     }
+    {
+      // MBM-279: the Manage Profiles page's "Switch to this" button — same
+      // underlying operation as POST /activate below, just addressed by
+      // profileId (already known to this page) rather than serverUrl.
+      const activateMatch = req.method === 'POST' ? url.pathname.match(/^\/api\/profiles\/([^/]+)\/activate-business$/) : null
+      if (activateMatch) {
+        try {
+          const { businessId } = JSON.parse(await readBody(req)) as { businessId?: string }
+          if (!businessId) {
+            res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'businessId is required' }))
+            return
+          }
+          callbacks.activateWorkstationBusiness(activateMatch[1], businessId)
+          res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true }))
+        } catch {
+          res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Invalid request body' }))
+        }
+        return
+      }
+    }
 
     // Lets the admin UI check "does THIS server already have a profile on
     // this machine" before showing a Pair button — scoped per server so
     // opening the panel on server B never reports server A's state, and
     // vice versa. serverUrl is required; the caller always knows its own
     // window.location.origin.
+    //
+    // MBM-279: businessId is optional and, when passed, scopes the
+    // workstation answer to that exact business — a profile can now hold
+    // pairings for several businesses (see workstation-config.ts), so
+    // "hasWorkstation" without a businessId would be ambiguous. The
+    // Workstation Agents admin page always knows its own businessId and
+    // passes it, to detect "does THIS business already have a pairing here"
+    // before minting another one. R710's Agent panel has no per-business
+    // concept (MBM-279 plan Section 1) and never passes one — it gets a
+    // same-shaped but coarser answer instead ("does this profile have ANY
+    // workstation pairing at all"), which is all it ever needed anyway.
     if (req.method === 'GET' && url.pathname === '/probe') {
       const serverUrl = url.searchParams.get('serverUrl')
+      const businessId = url.searchParams.get('businessId') || undefined
       if (!serverUrl) {
         res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'serverUrl query parameter required' }))
         return
       }
       const profileId = deriveProfileId(serverUrl)
       const meta = readProfileMeta(profileId)
-      // Includes which capabilities this exact machine already has for this
-      // exact server (and the actual workstationAgentId, not just a
-      // boolean) so the caller can detect "this machine already has a
-      // workstation pairing here" BEFORE minting and creating another,
-      // separate one — see the admin/workstation-agents page's pairing
-      // flow, which was previously happy to mint a brand new
-      // WorkstationAgents row every single time, with no awareness that
-      // one might already exist for this exact profile.
       const r710Config = meta ? loadConfig(profileId) : null
-      const workstationConfig = meta ? loadWorkstationConfig(profileId) : null
+
+      let hasWorkstation = false
+      let workstationAgentId: string | undefined
+      let isActiveWorkstation = false
+      if (meta) {
+        if (businessId) {
+          const config = loadWorkstationConfig(profileId, businessId)
+          hasWorkstation = config !== null
+          workstationAgentId = config?.workstationAgentId
+          isActiveWorkstation = getActiveWorkstationBusinessId(profileId) === businessId
+        } else {
+          const legacy = hasLegacyFlatWorkstationConfig(profileId) ? loadLegacyFlatWorkstationConfig(profileId) : null
+          hasWorkstation = legacy !== null || listWorkstationBusinessIds(profileId).length > 0
+          workstationAgentId = legacy?.workstationAgentId
+        }
+      }
+
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({
         hasProfile: meta !== null,
         profile: meta ? {
@@ -178,10 +242,36 @@ export function startPairingServer(callbacks: PairingCallbacks): Server {
           createdAt: meta.createdAt,
           lastActiveAt: meta.lastActiveAt,
           hasR710: r710Config !== null,
-          hasWorkstation: workstationConfig !== null,
-          workstationAgentId: workstationConfig?.workstationAgentId,
+          hasWorkstation,
+          workstationAgentId,
+          isActiveWorkstation,
         } : undefined,
       }))
+      return
+    }
+
+    // MBM-279: switches this profile's active workstation business — the
+    // browser calls this whenever its current business changes (see
+    // local-agent-sync.ts on the web side), scoped by businessId so it's an
+    // explicit "make this business's pairing the active one," never an
+    // implicit side effect of anything else. A no-op (via
+    // activateWorkstationBusiness()'s own early-return) if that business is
+    // already active; deactivates whatever was active if this business has
+    // no pairing here at all.
+    if (req.method === 'POST' && url.pathname === '/activate') {
+      try {
+        const body = await readBody(req)
+        const { serverUrl, businessId } = JSON.parse(body) as { serverUrl?: string; businessId?: string }
+        if (!serverUrl || !businessId) {
+          res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'serverUrl and businessId are required' }))
+          return
+        }
+        const profileId = deriveProfileId(serverUrl)
+        callbacks.activateWorkstationBusiness(profileId, businessId)
+        res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true }))
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Invalid request body' }))
+      }
       return
     }
 
@@ -200,7 +290,7 @@ export function startPairingServer(callbacks: PairingCallbacks): Server {
       const pairingType = parsed.pairingType || 'r710'
 
       if (pairingType === 'workstation') {
-        if (!parsed.serverUrl || !parsed.agentToken || !parsed.workstationAgentId || !parsed.label) {
+        if (!parsed.serverUrl || !parsed.agentToken || !parsed.workstationAgentId || !parsed.label || !parsed.businessId) {
           res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Missing fields' }))
           return
         }
@@ -208,14 +298,16 @@ export function startPairingServer(callbacks: PairingCallbacks): Server {
           serverUrl: parsed.serverUrl,
           agentToken: parsed.agentToken,
           workstationAgentId: parsed.workstationAgentId,
+          businessId: parsed.businessId,
           label: parsed.label,
           ...(parsed.caCert ? { caCert: parsed.caCert } : {}),
         }
         const profileId = ensureProfile(config.serverUrl, config.label)
-        saveWorkstationConfig(profileId, config)
+        saveWorkstationConfig(profileId, parsed.businessId, config)
         res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true, profileId }))
-        // Server stays running — a second pairing (this or another server)
-        // can arrive later without restarting the agent.
+        // Server stays running — a second pairing (this or another
+        // business, or another server) can arrive later without restarting
+        // the agent.
         callbacks.onWorkstationPaired(profileId, config)
         return
       }
