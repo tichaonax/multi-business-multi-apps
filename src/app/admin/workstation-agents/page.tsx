@@ -40,6 +40,29 @@ interface WorkstationAgent {
   qzPrinterName?: string
 }
 
+// MBM-278: mirrors network-printers/page.tsx's own shapes — the exact same
+// two endpoints that page already uses, fetched read-only here (system admin
+// only) so "what connection mode is this printer actually in, and is that
+// workstation online" is visible right on this business's own Workstation
+// Agents page instead of only discoverable by clicking through to the
+// separate Printer Connection Mode admin page. See MBM-277's finding: HE
+// Kitchen was silently misrouted with no on-page signal until that page was
+// opened directly.
+interface GlobalPrinter {
+  id: string
+  name: string
+  type: string
+  connectionMode?: 'DIRECT' | 'AGENT'
+  workstationAgentId?: string | null
+}
+
+interface GlobalWorkstationAgentOption {
+  id: string
+  label: string
+  connectionStatus: 'ONLINE' | 'OFFLINE'
+  businessName: string
+}
+
 interface ActivityEntry {
   id: string
   jobType: string
@@ -151,6 +174,13 @@ export default function WorkstationAgentsPage() {
   const [scaleConfig, setScaleConfig] = useState<ScaleConfig | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // System-admin only (same gating as the "Printer Connection Mode →" link
+  // below) — cross-business printer routing is not something a plain
+  // business owner should see, per the sandboxing this app otherwise keeps
+  // between businesses.
+  const [globalPrinters, setGlobalPrinters] = useState<GlobalPrinter[]>([])
+  const [globalAgents, setGlobalAgents] = useState<GlobalWorkstationAgentOption[]>([])
+
   const [pairLabel, setPairLabel] = useState('')
   const [pairing, setPairing] = useState(false)
   const [localAgentDetected, setLocalAgentDetected] = useState(false)
@@ -204,10 +234,17 @@ export default function WorkstationAgentsPage() {
     if (!currentBusinessId) return
     try {
       setLoading(true)
-      const [agentsRes, scaleRes] = await Promise.all([
+      const requests = [
         fetch(`/api/admin/workstation-agents?businessId=${currentBusinessId}`, { credentials: 'include' }),
         fetch(`/api/scale/device-config?businessId=${currentBusinessId}`, { credentials: 'include' }),
-      ])
+      ]
+      if (isSystemAdmin) {
+        requests.push(
+          fetch('/api/network-printers', { credentials: 'include' }),
+          fetch('/api/admin/workstation-agents/all', { credentials: 'include' }),
+        )
+      }
+      const [agentsRes, scaleRes, printersRes, allAgentsRes] = await Promise.all(requests)
       if (agentsRes.ok) {
         const data = await agentsRes.json()
         setAgents(data.data || [])
@@ -221,10 +258,18 @@ export default function WorkstationAgentsPage() {
           setBaudRate(data.config.baudRate || '')
         }
       }
+      if (printersRes?.ok) {
+        const data = await printersRes.json()
+        setGlobalPrinters(data.printers || [])
+      }
+      if (allAgentsRes?.ok) {
+        const data = await allAgentsRes.json()
+        setGlobalAgents(data.data || [])
+      }
     } finally {
       setLoading(false)
     }
-  }, [currentBusinessId])
+  }, [currentBusinessId, isSystemAdmin])
 
   // Refreshes just the connection-status badges — not the full load() (which
   // would reset the scale form's selected port/baud while someone might be
@@ -743,6 +788,52 @@ export default function WorkstationAgentsPage() {
                       Not yet configured: {agents.filter(a => a.configuredPrinters.length === 0 && !a.qzPrinterName).map(a => `"${a.label}"`).join(', ')}
                     </p>
                   )}
+                </div>
+              )}
+
+              {/* MBM-278: system-admin-only read-only view of every registered
+                  printer's actual connection mode and (for AGENT mode) which
+                  workstation it's really routed to right now, plus that
+                  workstation's live status — the exact information that was
+                  previously only visible by clicking through to Printer
+                  Connection Mode, which is why a printer misrouted to a
+                  different business's agent (MBM-277) had no on-page signal
+                  here at all. Business owners don't see this — it spans
+                  every business's printers/agents, not just this one. */}
+              {isSystemAdmin && globalPrinters.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Printer connection mode & status (all printers on this server):</p>
+                  <div className="space-y-1.5">
+                    {globalPrinters.map(printer => {
+                      const mode = printer.connectionMode || 'DIRECT'
+                      const via = mode === 'AGENT' ? globalAgents.find(a => a.id === printer.workstationAgentId) : undefined
+                      const isThisBusiness = mode === 'AGENT' && agents.some(a => a.id === printer.workstationAgentId)
+                      return (
+                        <div key={printer.id} className="flex items-center justify-between text-sm border border-gray-200 dark:border-gray-700 rounded-md px-3 py-2">
+                          <div>
+                            <span className="font-medium text-gray-900 dark:text-white">{printer.name}</span>
+                            <span className="ml-2 text-xs text-gray-500">{printer.type}</span>
+                            <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-medium ${mode === 'AGENT' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600'}`}>
+                              {mode === 'AGENT' ? 'AGENT (relayed)' : 'DIRECT'}
+                            </span>
+                            {mode === 'AGENT' && (
+                              via ? (
+                                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                                  via <span className="font-medium text-gray-700 dark:text-gray-300">{via.label}</span> ({via.businessName}) {via.connectionStatus === 'ONLINE' ? '🟢' : '🔴'}
+                                  {!isThisBusiness && <span className="ml-1 text-amber-600 dark:text-amber-400">— not this business</span>}
+                                </span>
+                              ) : printer.workstationAgentId ? (
+                                <span className="ml-2 text-xs text-red-500 dark:text-red-400">via an unknown/revoked workstation</span>
+                              ) : null
+                            )}
+                          </div>
+                          <Link href="/admin/network-printers" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex-shrink-0">
+                            Configure →
+                          </Link>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
 
