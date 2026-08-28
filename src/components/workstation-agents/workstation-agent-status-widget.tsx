@@ -22,6 +22,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { isMobileDevice } from '@/lib/workstation-agents/local-agent-sync'
 
 const PAIRING_PORT = 47710
 const BASE_POLL_MS = 30000
@@ -30,7 +31,15 @@ const FAST_POLL_CAP_MS = 3 * 60 * 1000
 
 export function WorkstationAgentStatusWidget() {
   const { isSystemAdmin, isBusinessOwner } = useBusinessPermissionsContext()
-  const isAdmin = isSystemAdmin || isBusinessOwner
+  // MBM-283 follow-up: the workstation agent is a Windows .exe — never
+  // meaningful on a phone/tablet, which can't run one regardless of
+  // pairing state. Without this, a mobile user was told "No workstation
+  // agent running on this machine — download r710-agent.zip and run
+  // r710-agent.exe" on their own phone, which is never something they can
+  // act on (mobile printing relays through SOME OTHER workstation's
+  // already-paired agent — see MBM-283 — it never runs one itself).
+  const [isMobile] = useState(() => isMobileDevice())
+  const isAdmin = (isSystemAdmin || isBusinessOwner) && !isMobile
 
   const [checked, setChecked] = useState(false)
   const [agentRunning, setAgentRunning] = useState(false)
