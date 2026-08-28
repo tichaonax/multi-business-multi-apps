@@ -347,6 +347,14 @@ async function processQueue(): Promise<void> {
     return;
   }
 
+  // Hoisted so the catch block below can mark THIS job failed, not
+  // whatever getNextPendingJob() happens to return next (a bug found
+  // while adding AGENT-mode support: since markJobAsProcessing() already
+  // ran on the real job, a second getNextPendingJob() call in catch
+  // returns a DIFFERENT, unrelated job — silently marking the wrong one
+  // failed while the one that actually errored was left stuck).
+  let currentJobId: string | null = null;
+
   try {
     state.isProcessing = true;
 
@@ -378,15 +386,18 @@ async function processQueue(): Promise<void> {
 
     // Mark as processing
     await markJobAsProcessing(job.id);
+    currentJobId = job.id;
 
-    // Get printer details
-    const printer = await prisma.networkPrinters.findUnique({
-      where: { id: job.printerId },
-    });
-
-    if (!printer) {
-      throw new Error(`Printer not found: ${job.printerId}`);
-    }
+    // MBM-283 Phase 4: resolve through the same authorization check the
+    // original request went through (business-match + remote-enabled for
+    // AGENT-mode — see print-dispatch.ts), not a bare findUnique. A job
+    // sitting here for retry may have failed *because* of that exact
+    // check — re-validating means a config change (e.g. an admin fixing
+    // the printer's business assignment) is honored on the next retry
+    // instead of the worker silently bypassing a check the original
+    // request was subject to.
+    const { resolvePrinterForBusiness } = await import('./print-dispatch');
+    const printer = await resolvePrinterForBusiness(job.printerId, job.businessId);
 
     if (ENABLE_LOGGING) {
       console.log(`   Printer: ${printer.printerName}`);
@@ -430,16 +441,32 @@ async function processQueue(): Promise<void> {
       console.log(`   Content length: ${printContent.length} characters`);
     }
 
-    // Check printer connectivity
-    const isOnline = await checkPrinterConnectivity(printer.id);
-    if (!isOnline) {
-      throw new Error(`Printer "${printer.printerName}" is offline or unreachable`);
+    // Check printer connectivity — DIRECT-mode only. An AGENT-mode
+    // printer's "online" state is whatever the paired workstation reports
+    // at dispatch time, not something the server can check independently
+    // (same rationale as POST /api/print/receipt's identical skip).
+    if (printer.connectionMode !== 'AGENT') {
+      const isOnline = await checkPrinterConnectivity(printer.id);
+      if (!isOnline) {
+        throw new Error(`Printer "${printer.printerName}" is offline or unreachable`);
+      }
     }
 
     // Send to printer using appropriate method based on printer type
     const copies = job.requestedQuantity || 1; // Use requestedQuantity from the job
 
-    if (printer.printerType === 'receipt') {
+    if (printer.connectionMode === 'AGENT') {
+      // MBM-283 Phase 4: relay through the paired workstation agent — the
+      // one path this worker previously had no concept of at all, so a
+      // failed immediate AGENT-mode dispatch (POST /api/print/receipt)
+      // fell through to here and just failed again identically, forever,
+      // since printRawData() can't reach a printer on a different machine.
+      const { printViaConnectionMode } = await import('./print-dispatch');
+      await printViaConnectionMode(printer, printContent, copies);
+      if (ENABLE_LOGGING) {
+        console.log(`   Print method: Workstation agent relay (AGENT mode)`);
+      }
+    } else if (printer.printerType === 'receipt') {
       // Receipt printers use RAW printing (ESC/POS)
       await printRawData(printContent, {
         printerName: printer.printerName,
@@ -468,14 +495,15 @@ async function processQueue(): Promise<void> {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
     console.error(`   ❌ Print job failed: ${errorMsg}`);
 
-    // Try to mark job as failed if we have the job object
-    try {
-      const job = await getNextPendingJob();
-      if (job) {
-        await markJobAsFailed(job.id, errorMsg);
+    // Mark THIS job failed — currentJobId, not a fresh getNextPendingJob()
+    // call, which (now that this job is already marked PROCESSING) would
+    // return a different, unrelated job and mark the wrong one failed.
+    if (currentJobId) {
+      try {
+        await markJobAsFailed(currentJobId, errorMsg);
+      } catch (markError) {
+        console.error('   Failed to mark job as failed:', markError);
       }
-    } catch (markError) {
-      console.error('   Failed to mark job as failed:', markError);
     }
 
   } finally {

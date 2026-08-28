@@ -73,13 +73,22 @@ export async function POST(request: NextRequest) {
 
     // rawEscPos shortcut: pre-built ESC/POS bytes (base64), skips template generation
     if (data.rawEscPos) {
-      const { printViaConnectionMode } = await import('@/lib/printing/print-dispatch');
+      const { printViaConnectionMode, resolvePrinterForBusiness, PrinterAuthorizationError } = await import('@/lib/printing/print-dispatch');
       const { checkPrinterConnectivity } = await import('@/lib/printing/printer-service');
-      const { prisma } = await import('@/lib/prisma');
       const { queuePrintJob, markJobAsProcessing, markJobAsCompleted, markJobAsFailed } = await import('@/lib/printing/print-job-queue');
 
-      const printer = await prisma.networkPrinters.findUnique({ where: { id: data.printerId } });
-      if (!printer) return NextResponse.json({ error: 'Printer not found' }, { status: 404 });
+      // MBM-283 Phase 1: validates the printer is actually assigned to
+      // data.businessId (AGENT-mode only — see resolvePrinterForBusiness's
+      // own comment) before anything is queued or dispatched.
+      let printer;
+      try {
+        printer = await resolvePrinterForBusiness(data.printerId, data.businessId);
+      } catch (err) {
+        if (err instanceof PrinterAuthorizationError) {
+          return NextResponse.json({ error: err.message }, { status: err.message === 'Printer not found' ? 404 : 403 });
+        }
+        throw err;
+      }
 
       const printJob = await queuePrintJob({ printerId: data.printerId, jobType: 'receipt', jobData: { rawEscPos: data.rawEscPos }, copies: 1 }, data.businessId, data.businessType || 'restaurant', user.id);
       await markJobAsProcessing(printJob.id);
@@ -247,25 +256,21 @@ export async function POST(request: NextRequest) {
 
     // IMMEDIATELY print the receipt (don't wait for queue worker)
     try {
-      const { printViaConnectionMode } = await import('@/lib/printing/print-dispatch');
+      const { printViaConnectionMode, resolvePrinterForBusiness } = await import('@/lib/printing/print-dispatch');
       const { checkPrinterConnectivity } = await import('@/lib/printing/printer-service');
       const { markJobAsProcessing, markJobAsCompleted, markJobAsFailed } = await import('@/lib/printing/print-job-queue');
-      const { prisma } = await import('@/lib/prisma');
 
       console.log('🖨️ Attempting immediate print for job:', printJob.id);
 
       // Mark as processing immediately so the background worker does not also pick it up
       await markJobAsProcessing(printJob.id);
 
-      // Get printer details
-      const printer = await prisma.networkPrinters.findUnique({
-        where: { id: data.printerId },
-      });
-
-      if (!printer) {
-        console.error('❌ Printer not found:', data.printerId);
-        throw new Error(`Printer not found: ${data.printerId}`);
-      }
+      // MBM-283 Phase 1: get printer details AND validate it's actually
+      // assigned to data.businessId (AGENT-mode only) — same rejection
+      // (PrinterAuthorizationError, "not assigned to this business") flows
+      // through the same catch block below as "printer not found" already
+      // did, since the job is already queued by this point either way.
+      const printer = await resolvePrinterForBusiness(data.printerId, data.businessId);
 
       console.log(`📄 Printing to: ${printer.printerName}`);
 

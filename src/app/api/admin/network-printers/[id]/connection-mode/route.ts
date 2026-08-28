@@ -19,10 +19,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!isSystemAdmin(user)) return NextResponse.json({ error: 'Forbidden: admin access required' }, { status: 403 })
 
     const { id } = await params
-    const { connectionMode, workstationAgentId, printerName } = await request.json() as {
+    const { connectionMode, workstationAgentId, printerName, remoteEnabled } = await request.json() as {
       connectionMode?: 'DIRECT' | 'AGENT'
       workstationAgentId?: string | null
       printerName?: string
+      remoteEnabled?: boolean
     }
 
     if (connectionMode !== 'DIRECT' && connectionMode !== 'AGENT') {
@@ -46,6 +47,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         // match. Optional: the setup UI passes this from PRINT_LIST_PRINTERS
         // once an admin picks the actual printer on the target workstation.
         ...(printerName ? { printerName } : {}),
+        // MBM-283 Phase 2: only meaningful in AGENT mode — reset to false
+        // when switching back to DIRECT so a stale, invisible true doesn't
+        // linger on a printer this flag no longer applies to.
+        remoteEnabled: connectionMode === 'AGENT' ? !!remoteEnabled : false,
       },
     })
 

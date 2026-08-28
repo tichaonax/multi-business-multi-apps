@@ -101,6 +101,23 @@ export async function printReceipt(
 
     const result = await response.json()
 
+    // /api/print/receipt returns HTTP 201 (response.ok) even when the
+    // immediate print attempt failed and the job was only queued for a
+    // background retry (offline agent, printer not assigned to this
+    // business, printer not enabled for remote use, etc.) — it signals
+    // that with printJob.status/warning in the body, not the HTTP status.
+    // Without this check, a real failure was reported as success here,
+    // which meant the caller (ReceiptPrintManager, then the receipt
+    // preview modal) closed as if printing worked, never showing the
+    // user the actual error or a chance to pick a different printer.
+    if (result.printJob?.status === 'failed') {
+      return {
+        success: false,
+        jobId: result.jobId,
+        error: result.warning || result.message || 'Print failed — the job has been queued for retry',
+      }
+    }
+
     return {
       success: true,
       jobId: result.jobId

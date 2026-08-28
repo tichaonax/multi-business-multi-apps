@@ -27,6 +27,15 @@ export interface PrinterFilters {
   isShareable?: boolean;
   isOnline?: boolean;
   search?: string; // Search by printer name or IP
+  // MBM-283 Phase 1: when provided, an AGENT-mode printer is only included
+  // if its owning workstation agent belongs to this business — closes a
+  // gap where any business could see (and previously, successfully dispatch
+  // to) another business's agent-relayed printer. DIRECT-mode printers are
+  // unaffected (no business field exists for them yet — a separate,
+  // pre-existing gap, out of this project's scope). Optional so admin
+  // management screens that intentionally want the full unscoped list
+  // (printer-list.tsx etc.) keep working exactly as before.
+  businessId?: string;
 }
 
 export interface PrinterListOptions extends PrinterFilters {
@@ -135,6 +144,7 @@ export async function listPrinters(options: PrinterListOptions = {}): Promise<{
     isShareable,
     isOnline,
     search,
+    businessId,
     limit = 50,
     offset = 0,
     sortBy = 'name',
@@ -160,11 +170,34 @@ export async function listPrinters(options: PrinterListOptions = {}): Promise<{
     where.isOnline = isOnline;
   }
 
+  // search and businessId each need their own OR clause — combined via AND
+  // so they narrow independently instead of one silently overwriting the
+  // other's where.OR.
+  const andConditions: any[] = [];
+
   if (search) {
-    where.OR = [
-      { printerName: { contains: search, mode: 'insensitive' } },
-      { ipAddress: { contains: search } },
-    ];
+    andConditions.push({
+      OR: [
+        { printerName: { contains: search, mode: 'insensitive' } },
+        { ipAddress: { contains: search } },
+      ],
+    });
+  }
+
+  if (businessId) {
+    andConditions.push({
+      OR: [
+        { connectionMode: { not: 'AGENT' } },
+        // MBM-283 Phase 2: same-business alone isn't enough — an AGENT
+        // printer must also be explicitly opted in for remote use to
+        // appear in this business-scoped (i.e. print-time picker) listing.
+        { connectionMode: 'AGENT', workstation_agent: { businessId }, remoteEnabled: true },
+      ],
+    });
+  }
+
+  if (andConditions.length > 0) {
+    where.AND = andConditions;
   }
 
   // Count total
@@ -178,6 +211,13 @@ export async function listPrinters(options: PrinterListOptions = {}): Promise<{
     orderBy: {
       [sortBy === 'name' ? 'printerName' : sortBy]: sortOrder,
     },
+    // MBM-283: AGENT-mode "online" is really the paired workstation's live
+    // socket status, not the printer's own static isOnline column — that
+    // column is only ever kept accurate for DIRECT printers (see
+    // checkPrinterConnectivity, which explicitly skips AGENT mode). Needed
+    // so transformPrinterRecord below can report real connectivity instead
+    // of a stale/meaningless flag.
+    include: { workstation_agent: { select: { connectionStatus: true } } },
   });
 
   return {
@@ -471,7 +511,16 @@ function transformPrinterRecord(record: any): NetworkPrinter {
     port: record.port,
     capabilities: (record.capabilities || []) as PrinterCapability[],
     isShareable: record.isShareable,
-    isOnline: record.isOnline,
+    // MBM-283: for AGENT-mode printers, "online" means the paired
+    // workstation's live socket connection — record.isOnline is a static
+    // DB column never kept accurate for AGENT mode (checkPrinterConnectivity
+    // explicitly skips it). Only overridden when the caller actually joined
+    // workstation_agent (listPrinters() does; other callers of this shared
+    // transform, e.g. registerPrinter/updatePrinter, didn't and don't need
+    // to — they fall back to the raw column exactly as before).
+    isOnline: record.connectionMode === 'AGENT' && record.workstation_agent
+      ? record.workstation_agent.connectionStatus === 'ONLINE'
+      : record.isOnline,
     receiptWidth: record.receiptWidth,
     lastSeen: new Date(record.lastSeen),
     createdAt: new Date(record.createdAt),

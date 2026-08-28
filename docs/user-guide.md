@@ -7891,11 +7891,39 @@ If a printer is stuck or printing the same job on repeat, open the **Test Print*
 3. Go to **Printer Connection Mode** in the sidebar (`/admin/network-printers`).
 4. Find the printer and click **Configure**.
 5. Choose **AGENT — relay through a paired workstation**, select the paired workstation from the dropdown, then click **List Printers** to pull the actual printer names installed there and pick the correct one — this is the step that actually matches it to a real, physical printer, regardless of whatever name was typed in step 2.
-6. Click **Save**.
+6. **Check "📱 Enable for remote/mobile printing"** (MBM-283) — see the dedicated note below. Without this, the printer is set up but unusable by anyone, from any device, including its own workstation's local browser.
+7. Click **Save**.
 
 Printers left on **DIRECT** (the default for every printer that existed before this feature) are completely unaffected — this page changes nothing about them.
 
 > **Recent Activity** for a printer's relayed jobs shows up on the **Workstation Agents** page (`/admin/workstation-agents`) under that workstation's own activity log, alongside its scale jobs — there's no separate log per printer.
+
+#### Enabling a Printer for Remote / Mobile Printing (MBM-283)
+
+The application server can be moved to a secure central location where it no longer has any receipt printer or scale physically nearby — this is exactly what the AGENT relay above already solves for a *workstation's own* browser. MBM-283 extends the same relay so a **mobile device, or a completely different workstation's browser**, can also print to it — the actual delivery mechanism (server → paired workstation agent → local printer) was already fully general and needed no changes; what was missing was an explicit opt-in and a couple of correctness fixes.
+
+- **"📱 Enable for remote/mobile printing" is off by default** for any newly configured AGENT printer — an admin must check it, right on the same **Configure** panel used to set the printer up. Read the checkbox's own description carefully: unlike its name suggests, this isn't only about literal remote/mobile use — while it's off, **nothing** can print to that AGENT-relayed printer at all, not even a browser sitting at the printer's own workstation. There's no reliable way for the server to tell "a request from this printer's own PC" apart from "a phone across the building" (both are just an authenticated request from someone in the business), so this is a single, uniform gate rather than two separate settings.
+- **Printers already in AGENT mode before this feature shipped are unaffected** — the migration that added this setting turned it on automatically for every printer already configured that way, so nothing already working stopped working. Only *newly* configured AGENT printers start out needing this box checked.
+- Each printer's current state is shown right on the **Printer Connection Mode** list: a blue **"📱 Remote-enabled"** badge, or a grey **"Not remote-enabled"** one, next to every AGENT-mode row.
+- **Business isolation is automatic, not something to configure.** A mobile user (or any device) can only ever see and print to AGENT-relayed printers belonging to their **own currently-active business** — this is enforced on the server for every print request, not just hidden from a picker, so it holds even if something tries to name a printer ID directly. A workstation paired to two different application servers (Section 13's "One agent, many servers at once") is likewise never a leak between them — each server only ever knows about its own printers, since a "different application server" is a completely separate deployment with its own database.
+
+#### Same Printer, Both QZ Tray and AGENT Relay (MBM-283)
+
+If the exact same physical printer is set up **both** as a personal QZ Tray printer (Steps 1–4 above, on that workstation) **and** as an AGENT-relayed printer pointed at the same workstation, the **Printer Connection Mode** list shows an amber **"⚠️ Also set up for QZ Tray here"** badge on that row. This is informational only and doesn't block saving — both print paths ultimately go through the real Windows print spooler, which already safely queues concurrent jobs from different programs onto one printer with no risk of receipts merging or corrupting. It's just pointless to run both for the same physical printer, and the badge exists so that's not accidentally left half-configured without anyone noticing.
+
+#### Business Default Printer (MBM-283)
+
+A **per-user** default printer has always been available at **👤 Profile → Printer Setup**'s QZ section and the printer dropdown in the receipt preview — but that only helps once someone has actually picked a printer on that specific device before. A phone that's never printed before, or a new staff member's first shift, previously had nothing to fall back to.
+
+- System admins and business owners can now set a **Business Default Printer** at **Settings → POS Settings → Printer Preferences**, below the existing personal printer picker. It lists this business's own printers only (same remote-enabled/business-scoped list as everywhere else in MBM-283).
+- **Resolution order when a receipt is about to print:** the printer you personally picked on this device (if you have one and it's still valid for this business) → your saved **QZ Tray** printer on this machine, if any (still takes priority — it's a deliberate, per-device setup) → the **business default** set here → if none of those apply, you're prompted to choose one manually. This is exactly what lets a mobile device with nothing configured of its own print somewhere sensible automatically.
+- Clearing the business default (selecting "No business default printer") removes it — anyone with no personal choice of their own goes back to being prompted manually.
+
+#### If the Default (or Any) Printer Is Offline
+
+- The receipt preview's printer list shows **(Online)/(Offline)** per printer — for an AGENT-relayed printer this now reflects the *real, live* connection status of its paired workstation agent, not a stale flag. An offline printer's row disables the **Print** button entirely until a different, online printer is selected.
+- The business default above is only ever auto-selected if it's actually online at that moment — an offline default is skipped silently in favor of prompting you to choose, rather than pre-selecting something that won't work.
+- If a printer somehow goes offline in the moment between opening the receipt preview and clicking Print, the failure now surfaces properly: the preview stays open, shows the real error (e.g. "the local agent for its workstation is offline — contact IT"), and marks that printer offline in the list so you can immediately pick another one. (This used to fail silently — the app would say "Receipt sent to printer" and close even though nothing printed; that's fixed.)
 
 ---
 

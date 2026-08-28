@@ -43,6 +43,10 @@ export async function GET(request: NextRequest) {
     const options: PrinterListOptions = {
       nodeId: searchParams.get('nodeId') || undefined,
       printerType: searchParams.get('printerType') as PrinterType | undefined,
+      // MBM-283 Phase 1: optional — when the caller passes its current
+      // business, an AGENT-mode printer belonging to a different business
+      // is excluded from the list. See printer-service.ts's listPrinters().
+      businessId: searchParams.get('businessId') || undefined,
       isShareable: searchParams.get('isShareable') === 'true' ? true :
                    searchParams.get('isShareable') === 'false' ? false : undefined,
       isOnline: searchParams.get('isOnline') === 'true' ? true :

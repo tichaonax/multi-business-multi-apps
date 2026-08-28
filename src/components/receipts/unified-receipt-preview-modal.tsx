@@ -37,13 +37,27 @@ import type { ReceiptData, NetworkPrinter, BusinessType } from '@/types/printing
 const LOCAL_PRINTER_ID = 'local-serial'
 const QZ_PRINTER_PREFIX = 'qz::'
 
-// Module-level cache — persists across modal opens within the same page session
-let printerCache: {
+interface PrinterCacheEntry {
   printers: NetworkPrinter[]
   hasLocalPrinter: boolean
   localPrinterName: string
   qzPrinters: string[]
-} | null = null
+  // MBM-283 Phase 3: this business's server-side default (if any) — the
+  // last resort in autoSelectPrinter(), below the user's own saved choice
+  // and QZ's machine-specific fallback.
+  businessDefaultPrinterId: string | null
+}
+
+// Module-level cache — persists across modal opens within the same page
+// session. MBM-283 Phase 1: keyed by businessId, not a single shared entry
+// — the printer list is now business-scoped server-side (an AGENT-mode
+// printer belonging to a different business is excluded), so a cache built
+// while working one business must never be shown after switching to
+// another; without this, the modal could keep displaying (though no longer
+// successfully dispatch to, since the server-side check still applies)
+// another business's printer list after a business switch, on the same
+// browser session.
+const printerCacheByBusiness = new Map<string, PrinterCacheEntry>()
 
 interface UnifiedReceiptPreviewModalProps {
   isOpen: boolean
@@ -76,15 +90,24 @@ export function UnifiedReceiptPreviewModal({
   hideCustomerCopy,
   title = 'Print Receipt',
 }: UnifiedReceiptPreviewModalProps) {
-  const [printers, setPrinters] = useState<NetworkPrinter[]>(() => printerCache?.printers || [])
+  // MBM-283 Phase 1: the printer list is now business-scoped server-side
+  // (GET /api/printers excludes another business's AGENT-relayed printers
+  // when businessId is passed), so the module-level cache below must be
+  // keyed by business too — otherwise switching businesses on the same
+  // browser session could keep showing a stale, previously-loaded list.
+  const businessId = receiptData?.businessId || ''
+  const getCache = () => printerCacheByBusiness.get(businessId) ?? null
+  const setCache = (entry: PrinterCacheEntry) => { printerCacheByBusiness.set(businessId, entry) }
+
+  const [printers, setPrinters] = useState<NetworkPrinter[]>(() => getCache()?.printers || [])
   const [selectedPrinterId, setSelectedPrinterId] = useState<string | undefined>()
   const [copies, setCopies] = useState(1)
   const [printCustomerCopy, setPrintCustomerCopy] = useState(true)
   const [loading, setLoading] = useState(false)
-  const [printersLoading, setPrintersLoading] = useState(() => printerCache === null)
-  const [hasLocalPrinter, setHasLocalPrinter] = useState(() => printerCache?.hasLocalPrinter || false)
-  const [localPrinterName, setLocalPrinterName] = useState(() => printerCache?.localPrinterName || '')
-  const [qzPrinters, setQzPrinters] = useState<string[]>(() => printerCache?.qzPrinters || [])
+  const [printersLoading, setPrintersLoading] = useState(() => getCache() === null)
+  const [hasLocalPrinter, setHasLocalPrinter] = useState(() => getCache()?.hasLocalPrinter || false)
+  const [localPrinterName, setLocalPrinterName] = useState(() => getCache()?.localPrinterName || '')
+  const [qzPrinters, setQzPrinters] = useState<string[]>(() => getCache()?.qzPrinters || [])
   const [showLocalSetup, setShowLocalSetup] = useState(false)
   const [showQzSetup, setShowQzSetup] = useState(false)
   const [checkingOnline, setCheckingOnline] = useState(false)
@@ -104,22 +127,24 @@ export function UnifiedReceiptPreviewModal({
       setCopies(1)
       setPrintCustomerCopy(true)
       isPrintingRef.current = false
-      if (printerCache) {
+      const cached = getCache()
+      if (cached) {
         // Cache hit — auto-select printer without any network call or loading state
-        autoSelectPrinter(printerCache.printers, printerCache.hasLocalPrinter, printerCache.qzPrinters)
+        autoSelectPrinter(cached.printers, cached.hasLocalPrinter, cached.qzPrinters, cached.businessDefaultPrinterId)
       } else {
         loadPrinters()
       }
     }
-  }, [isOpen])
+  }, [isOpen, businessId])
 
   async function loadPrinters(forceRefresh = false) {
     // Use cache if available and not forcing a refresh
-    if (printerCache && !forceRefresh) {
-      setPrinters(printerCache.printers)
-      setHasLocalPrinter(printerCache.hasLocalPrinter)
-      setLocalPrinterName(printerCache.localPrinterName)
-      autoSelectPrinter(printerCache.printers, printerCache.hasLocalPrinter, printerCache.qzPrinters)
+    const cached = getCache()
+    if (cached && !forceRefresh) {
+      setPrinters(cached.printers)
+      setHasLocalPrinter(cached.hasLocalPrinter)
+      setLocalPrinterName(cached.localPrinterName)
+      autoSelectPrinter(cached.printers, cached.hasLocalPrinter, cached.qzPrinters, cached.businessDefaultPrinterId)
       setPrintersLoading(false)
       return
     }
@@ -127,8 +152,17 @@ export function UnifiedReceiptPreviewModal({
     try {
       setPrintersLoading(true)
 
-      // Fetch all receipt printers (including offline ones so users can bring them online)
-      const response = await fetch('/api/printers?printerType=receipt')
+      // Fetch all receipt printers (including offline ones so users can bring them online).
+      // MBM-283 Phase 1: businessId scopes out another business's AGENT-relayed
+      // printers server-side — see printer-service.ts's listPrinters().
+      // MBM-283 Phase 3: also fetch this business's server-side default in
+      // parallel — the last-resort fallback in autoSelectPrinter() below.
+      const [response, defaultResponse] = await Promise.all([
+        fetch(`/api/printers?printerType=receipt${businessId ? `&businessId=${encodeURIComponent(businessId)}` : ''}`),
+        businessId
+          ? fetch(`/api/printing/default-printer?businessId=${encodeURIComponent(businessId)}`).catch(() => null)
+          : Promise.resolve(null),
+      ])
 
       if (!response.ok) {
         throw new Error('Failed to load printers')
@@ -136,6 +170,9 @@ export function UnifiedReceiptPreviewModal({
 
       const data = await response.json()
       const availablePrinters = data.printers || []
+      const businessDefaultPrinterId: string | null = defaultResponse && defaultResponse.ok
+        ? (await defaultResponse.json())?.printerId ?? null
+        : null
 
       // Check for local USB printer (Web Serial) and QZ Tray printers in parallel
       let localAvailable = false
@@ -158,18 +195,19 @@ export function UnifiedReceiptPreviewModal({
       }
 
       // Save to module-level cache
-      printerCache = {
+      setCache({
         printers: availablePrinters,
         hasLocalPrinter: localAvailable,
         localPrinterName: localName,
         qzPrinters: detectedQzPrinters,
-      }
+        businessDefaultPrinterId,
+      })
 
       setPrinters(availablePrinters)
       setHasLocalPrinter(localAvailable)
       setLocalPrinterName(localName)
       setQzPrinters(detectedQzPrinters)
-      autoSelectPrinter(availablePrinters, localAvailable, detectedQzPrinters)
+      autoSelectPrinter(availablePrinters, localAvailable, detectedQzPrinters, businessDefaultPrinterId)
 
       if (availablePrinters.length === 0 && !localAvailable && detectedQzPrinters.length === 0) {
         toast.error('No printers found. Configure a network printer in Admin > Printers, or set up a local USB printer.')
@@ -183,7 +221,7 @@ export function UnifiedReceiptPreviewModal({
     }
   }
 
-  function autoSelectPrinter(availablePrinters: NetworkPrinter[], localAvailable: boolean, qzPrinterList: string[] = []) {
+  function autoSelectPrinter(availablePrinters: NetworkPrinter[], localAvailable: boolean, qzPrinterList: string[] = [], businessDefaultPrinterId: string | null = null) {
     try {
       let lastPrinterId = localStorage.getItem(printerKey)
       if (!lastPrinterId) {
@@ -224,6 +262,16 @@ export function UnifiedReceiptPreviewModal({
         }
       }
 
+      // MBM-283 Phase 3: last resort — this business's server-side default,
+      // below both the user's own saved choice and QZ's machine-specific
+      // setup (which stays more specific/intentional than a business-wide
+      // fallback). This is what gives a mobile device with nothing of its
+      // own configured yet a sensible printer instead of nothing at all.
+      if (!resolvedId && businessDefaultPrinterId) {
+        const defaultPrinter = availablePrinters.find((p: NetworkPrinter) => p.id === businessDefaultPrinterId)
+        if (defaultPrinter && defaultPrinter.isOnline) resolvedId = businessDefaultPrinterId
+      }
+
       if (resolvedId) setSelectedPrinterId(resolvedId)
     } catch (storageError) {
       console.warn('Failed to load saved printer preference:', storageError)
@@ -240,7 +288,7 @@ export function UnifiedReceiptPreviewModal({
       const { isOnline } = await response.json()
       if (isOnline) {
         toast.push('Printer is now online and ready!')
-        printerCache = null // Invalidate cache so fresh status is fetched
+        printerCacheByBusiness.delete(businessId) // Invalidate cache so fresh status is fetched
         await loadPrinters(true)
       } else {
         toast.error('Printer is still offline. Check power and network connection.')
@@ -527,11 +575,13 @@ export function UnifiedReceiptPreviewModal({
                       onSetupComplete={(cfg) => {
                         setQzPrinters([cfg.printerName])
                         setSelectedPrinterId(`qz::${cfg.printerName}`)
-                        if (printerCache) printerCache.qzPrinters = [cfg.printerName]
+                        const cached = getCache()
+                        if (cached) setCache({ ...cached, qzPrinters: [cfg.printerName] })
                       }}
                       onDisconnect={() => {
                         setQzPrinters([])
-                        if (printerCache) printerCache.qzPrinters = []
+                        const cached = getCache()
+                        if (cached) setCache({ ...cached, qzPrinters: [] })
                       }}
                     />
                   </div>
@@ -559,10 +609,8 @@ export function UnifiedReceiptPreviewModal({
                         setShowLocalSetup(false)
                         localStorage.setItem(printerKey, LOCAL_PRINTER_ID)
                         // Update cache with new local printer
-                        if (printerCache) {
-                          printerCache.hasLocalPrinter = true
-                          printerCache.localPrinterName = config.name
-                        }
+                        const cached = getCache()
+                        if (cached) setCache({ ...cached, hasLocalPrinter: true, localPrinterName: config.name })
                       }}
                     />
                   )}

@@ -21,6 +21,8 @@ interface Printer {
   status: string
   connectionMode?: 'DIRECT' | 'AGENT'
   workstationAgentId?: string | null
+  remoteEnabled?: boolean
+  qzOverlap?: boolean
 }
 
 interface WorkstationAgentOption {
@@ -43,6 +45,7 @@ export default function NetworkPrintersPage() {
   const [draftMode, setDraftMode] = useState<'DIRECT' | 'AGENT'>('DIRECT')
   const [draftAgentId, setDraftAgentId] = useState('')
   const [draftPrinterName, setDraftPrinterName] = useState('')
+  const [draftRemoteEnabled, setDraftRemoteEnabled] = useState(false)
   const [remotePrinters, setRemotePrinters] = useState<{ name: string }[]>([])
   const [listingRemote, setListingRemote] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -74,6 +77,7 @@ export default function NetworkPrintersPage() {
     setDraftMode(printer.connectionMode || 'DIRECT')
     setDraftAgentId(printer.workstationAgentId || '')
     setDraftPrinterName(printer.name)
+    setDraftRemoteEnabled(!!printer.remoteEnabled)
     setRemotePrinters([])
   }
 
@@ -118,6 +122,7 @@ export default function NetworkPrintersPage() {
           connectionMode: draftMode,
           workstationAgentId: draftMode === 'AGENT' ? draftAgentId : undefined,
           printerName: draftMode === 'AGENT' ? draftPrinterName : undefined,
+          remoteEnabled: draftMode === 'AGENT' ? draftRemoteEnabled : undefined,
         }),
       })
       const data = await res.json()
@@ -174,6 +179,19 @@ export default function NetworkPrintersPage() {
                       </span>
                     ) : null
                   })()}
+                  {(printer.connectionMode || 'DIRECT') === 'AGENT' && (
+                    <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-medium ${printer.remoteEnabled ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-500'}`}>
+                      {printer.remoteEnabled ? '📱 Remote-enabled' : 'Not remote-enabled'}
+                    </span>
+                  )}
+                  {printer.qzOverlap && (
+                    <span
+                      className="ml-2 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800"
+                      title="This exact printer name is also saved as a QZ Tray printer on this same workstation (Profile → Printer Setup). Not unsafe — both paths go through the real Windows print spooler — but pointless to run both at once for the same physical printer. Consider using just one."
+                    >
+                      ⚠️ Also set up for QZ Tray here
+                    </span>
+                  )}
                 </div>
                 {editingId !== printer.id && (
                   <button onClick={() => startEdit(printer)} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
@@ -233,6 +251,22 @@ export default function NetworkPrintersPage() {
                       <p className="text-xs text-gray-500 dark:text-gray-400">
                         Click "List Printers" to pull the actual printer names installed on that workstation — the agent must be online.
                       </p>
+
+                      <label className="flex items-start gap-2 text-sm bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-3">
+                        <input
+                          type="checkbox"
+                          checked={draftRemoteEnabled}
+                          onChange={(e) => setDraftRemoteEnabled(e.target.checked)}
+                          className="mt-0.5"
+                        />
+                        <span>
+                          <span className="font-medium text-gray-900 dark:text-white">📱 Enable for remote/mobile printing</span>
+                          <br />
+                          <span className="text-xs text-gray-600 dark:text-gray-400">
+                            Off by default (MBM-283). While off, this printer can't be used by <strong>any</strong> device — including a browser on this printer's own paired workstation — not just phones elsewhere. Turn this on once the workstation setup above is confirmed working.
+                          </span>
+                        </span>
+                      </label>
                     </div>
                   )}
 

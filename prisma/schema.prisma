@@ -579,6 +579,7 @@ model Businesses {
   saved_reports                                                            SavedReports[]
   scale_device_configs                                                     ScaleDeviceConfigs[]              @relation("ScaleDeviceConfigToBusiness")
   qz_printer_configs                                                        QzPrinterConfigs[]
+  default_receipt_printer_config                                           DefaultReceiptPrinterConfigs?
   workstation_agents                                                       WorkstationAgents[]               @relation("WorkstationAgentToBusiness")
   seed_data_templates                                                      SeedDataTemplates[]
   sku_sequences                                                            sku_sequences[]
@@ -3515,10 +3516,22 @@ model NetworkPrinters {
   // pre-existing row defaults to DIRECT; AGENT is opt-in per printer.
   connectionMode     String             @default("DIRECT")
   workstationAgentId String?
+  // MBM-283 Phase 2: only meaningful for AGENT-mode printers — gates
+  // whether this printer is offered/dispatchable for mobile/cross-
+  // workstation printing, on top of the existing same-business check
+  // (Phase 1). Defaults false so a NEWLY configured AGENT printer is never
+  // remote-available until an admin explicitly opts it in — but the
+  // migration that adds this column sets it TRUE for every printer that
+  // was ALREADY in AGENT mode at that point, so existing MBM-275 local
+  // printing (which has always meant "any device in this business can use
+  // it," see MBM-283's finding #6) keeps working unchanged. Only brand-new
+  // AGENT configurations are opt-in going forward.
+  remoteEnabled      Boolean            @default(false)
   barcode_print_jobs BarcodePrintJobs[]
   sync_nodes         SyncNodes          @relation(fields: [nodeId], references: [nodeId])
   print_jobs         PrintJobs[]
   workstation_agent  WorkstationAgents? @relation(fields: [workstationAgentId], references: [id])
+  default_receipt_printer_configs DefaultReceiptPrinterConfigs[]
 
   @@index([nodeId])
   @@index([printerType])
@@ -3641,6 +3654,7 @@ model Users {
   r710_token_sales                                                R710TokenSales[]                  @relation("R710TokenSaleSeller")
   reprint_logs                                                    ReprintLog[]
   qz_printer_configs_updated                                       QzPrinterConfigs[]               @relation("QzPrinterConfigUpdatedBy")
+  default_receipt_printer_configs_updated                          DefaultReceiptPrinterConfigs[]    @relation("DefaultReceiptPrinterConfigUpdatedBy")
   workstation_agents_paired                                       WorkstationAgents[]               @relation("WorkstationAgentPairedBy")
   saved_reports                                                   SavedReports[]
   cash_counted_amendments                                         SavedReports[]                    @relation("CashCountedAmendment")
@@ -4619,6 +4633,29 @@ model QzPrinterConfigs {
   @@index([businessId])
   @@index([workstationAgentId])
   @@map("qz_printer_configs")
+}
+
+// MBM-283 Phase 3: business-wide default receipt printer — used at print
+// time as the fallback when the printing user has no saved per-user choice
+// of their own (see use-print-preferences.ts's defaultPrinterId, which is
+// checked first and always wins when present and still valid for this
+// business). One row per business (businessId is unique) — unlike
+// QzPrinterConfigs above, there's no per-workstation dimension here; this
+// exists specifically to give mobile/remote printing (MBM-283) a sane
+// default without every user having to pick a printer by hand every time.
+model DefaultReceiptPrinterConfigs {
+  id         String          @id @default(uuid())
+  businessId String          @unique
+  printerId  String
+  updatedBy  String
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  businesses Businesses      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  printer    NetworkPrinters @relation(fields: [printerId], references: [id], onDelete: Cascade)
+  updater    Users           @relation("DefaultReceiptPrinterConfigUpdatedBy", fields: [updatedBy], references: [id])
+
+  @@index([printerId])
+  @@map("default_receipt_printer_configs")
 }
 
 // MBM-275: per-business scale configuration for a workstation-agent-relayed

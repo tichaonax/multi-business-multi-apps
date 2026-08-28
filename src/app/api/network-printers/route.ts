@@ -52,12 +52,31 @@ export async function GET(request: NextRequest) {
         lastSeen: true,
         connectionMode: true,
         workstationAgentId: true,
+        remoteEnabled: true,
       },
       orderBy: [
         { isOnline: 'desc' }, // Online printers first
         { printerName: 'asc' },
       ],
     });
+
+    // MBM-283 Phase 5: cross-reference against QZ Tray's own saved printer
+    // names on the same workstation(s) — purely to flag an avoidable
+    // double-configuration (the same physical printer targeted by both QZ
+    // and an AGENT relay) for the admin UI. Informational only; QZ and
+    // AGENT printing already coexist safely (both go through the real OS
+    // print spooler, see MBM-283's plan finding #5) — this doesn't gate
+    // anything, it just makes an easy-to-avoid mix-up visible.
+    const agentWorkstationIds = Array.from(new Set(
+      printers.filter(p => p.connectionMode === 'AGENT' && p.workstationAgentId).map(p => p.workstationAgentId!)
+    ));
+    const qzConfigs = agentWorkstationIds.length > 0
+      ? await prisma.qzPrinterConfigs.findMany({
+          where: { workstationAgentId: { in: agentWorkstationIds } },
+          select: { workstationAgentId: true, printerName: true },
+        })
+      : [];
+    const normalize = (s: string) => s.trim().toLowerCase();
 
     // Transform to match expected format
     const formattedPrinters = printers.map((printer) => ({
@@ -75,6 +94,10 @@ export async function GET(request: NextRequest) {
       lastSeen: printer.lastSeen,
       connectionMode: printer.connectionMode,
       workstationAgentId: printer.workstationAgentId,
+      remoteEnabled: printer.remoteEnabled,
+      qzOverlap: printer.connectionMode === 'AGENT' && printer.workstationAgentId
+        ? qzConfigs.some(qz => qz.workstationAgentId === printer.workstationAgentId && normalize(qz.printerName) === normalize(printer.printerName))
+        : false,
     }));
 
     return NextResponse.json({
