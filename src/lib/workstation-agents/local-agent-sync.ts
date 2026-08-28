@@ -24,6 +24,23 @@
 const PAIRING_PORT = 47710
 const REQUEST_TIMEOUT_MS = 2500
 
+// MBM-283 follow-up: the workstation agent is a Windows .exe — a phone or
+// tablet can never run it, full stop. The "no agent running on this
+// machine" UI (dashboard banner, status pill) was built without this
+// distinction and fired unconditionally on any device, which meant a
+// mobile user was told to download and run r710-agent.exe on their phone —
+// nonsensical, since mobile printing (MBM-283) works by relaying through
+// SOME OTHER workstation's already-paired agent, never by running one
+// itself. User-agent sniffing is the right tool here specifically because
+// the question isn't "is the viewport narrow" (a phone in landscape, or a
+// resized desktop window, shouldn't change the answer) but "can this OS
+// even execute a Windows binary" — a fact about the platform, not the
+// screen size.
+export function isMobileDevice(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+}
+
 export async function syncLocalAgentActiveBusiness(businessId: string): Promise<void> {
   if (typeof window === 'undefined' || !businessId) return
 

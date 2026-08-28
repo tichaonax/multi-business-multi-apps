@@ -194,13 +194,21 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
           </>
         ) : (
           <>
-            {data.amountPaid && (
+            {/* Guard explicitly against NaN/undefined rather than relying on
+                `data.amountPaid && (...)` — for a complimentary/$0 order
+                amountPaid or changeDue can end up as the number NaN
+                (upstream math on an undefined cashTendered), and `NaN` is
+                falsy but not `false`/`null`/`undefined`, so React renders
+                the short-circuited NaN itself as literal "NaN" text instead
+                of hiding it. Same footgun affects a literal 0 (renders "0"),
+                also excluded here since neither is a receipt-worthy value. */}
+            {typeof data.amountPaid === 'number' && Number.isFinite(data.amountPaid) && data.amountPaid > 0 && (
               <div className="flex justify-between">
                 <span>Amount Paid:</span>
                 <span>${data.amountPaid.toFixed(2)}</span>
               </div>
             )}
-            {data.changeDue && (
+            {typeof data.changeDue === 'number' && Number.isFinite(data.changeDue) && data.changeDue > 0 && (
               <div className="flex justify-between">
                 <span>Change Due:</span>
                 <span>${data.changeDue.toFixed(2)}</span>

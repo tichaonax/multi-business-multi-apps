@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { isMobileDevice } from '@/lib/workstation-agents/local-agent-sync'
 
 // MBM-281 follow-up: this indicator was previously server-health-only. It
 // now also layers in a live, local check of the workstation agent (same
@@ -52,7 +53,16 @@ export default function HealthIndicator({
   const [lastCheck, setLastCheck] = useState<Date>(new Date())
 
   const { isSystemAdmin, isBusinessOwner } = useBusinessPermissionsContext()
-  const isAdmin = isSystemAdmin || isBusinessOwner
+  // MBM-283 follow-up: the workstation agent is a Windows .exe — never
+  // runnable on a phone/tablet, so the agent-specific portion of this
+  // indicator (orange "Agent Offline"/"Agent Update") must never fire
+  // there regardless of admin/owner status. The base server-health check
+  // below is unaffected — that stays meaningful on any device. Distinct
+  // from the isMobile state further down (that one's a *viewport-width*
+  // layout switch — LED-only vs full pill — not a platform capability
+  // check, and the two must not be conflated).
+  const [isMobilePlatform] = useState(() => isMobileDevice())
+  const isAdmin = (isSystemAdmin || isBusinessOwner) && !isMobilePlatform
   const [agentChecked, setAgentChecked] = useState(false)
   const [agentRunning, setAgentRunning] = useState(false)
   const [agentVersion, setAgentVersion] = useState<string | null>(null)

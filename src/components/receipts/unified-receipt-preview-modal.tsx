@@ -461,8 +461,17 @@ export function UnifiedReceiptPreviewModal({
           </div>
         </div>
 
-        {/* Right panel — settings + actions (no scroll needed) */}
-        <div className="md:flex-1 flex flex-col">
+        {/* Right panel — settings + actions. flex-1 + min-h-0 must apply
+            unconditionally, not just md:flex-1 — on mobile (where the panels
+            above stack via flex-col instead of sitting side by side), a
+            bare "md:flex-1" gives this panel no height constraint at all
+            below the md breakpoint, so it grows to its natural content
+            height. Combined with the preview panel above it, that can
+            exceed the Modal's 90vh cap — and since Modal clips overflow
+            instead of scrolling it (noPadding mode), the "always visible,
+            stuck to bottom" action buttons below were silently cut off
+            entirely on narrow screens, with no way to scroll to them. */}
+        <div className="flex-1 min-h-0 flex flex-col">
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
 
             {/* Printer Selection */}
