@@ -13,6 +13,7 @@
  * without restarting the agent.
  */
 
+import { execFileSync } from 'child_process'
 import { migrateLegacyConfigIfNeeded } from './legacy-migration'
 import { listProfileIds, readProfileMeta, touchProfileLastActive, deleteProfile } from './profile-store'
 import { loadConfig, clearConfig, type AgentConfig } from './config'
@@ -366,8 +367,42 @@ function connectAllProfiles(): void {
   refreshTray()
 }
 
+// Kills any OTHER already-running instance of this exact agent before doing
+// anything else. Previously, launching a second instance (e.g. after the
+// tray icon failed to render, leaving no visible tray icon to Quit from)
+// just failed silently on EADDRINUSE — port 47710 already bound by the
+// earlier instance — with no way to recover short of finding and running
+// "Stop R710 Agent.bat" or opening Task Manager. Self-replacing on launch
+// (newest run always wins) matches ordinary desktop-app expectations —
+// nobody expects to have to run a separate stop script before restarting
+// an app — and mirrors build.mjs's own stopRunningAgent(), which already
+// does exactly this for the build's own re-run case.
+//
+// Excludes this process's own PID via the taskkill filter — image-name-
+// based killing would otherwise match (and kill) the very process running
+// this code, since it shares the same r710-agent.exe name. Also clears any
+// orphaned systray2 native helper (tray_windows_release.exe) — spawned as
+// a plain child process, not inside a Job Object, so it can survive its
+// parent being killed and keep a stale icon temp file handle open, which
+// is a plausible contributor to the "volume externally altered" SetIcon
+// failures seen when a previous instance wasn't cleanly stopped first.
+function killExistingInstance(): void {
+  const selfPid = process.pid
+  for (const imageName of ['r710-agent.exe', 'tray_windows_release.exe']) {
+    try {
+      execFileSync('taskkill', ['/F', '/FI', `IMAGENAME eq ${imageName}`, '/FI', `PID ne ${selfPid}`], { stdio: 'ignore' })
+    } catch {
+      // Nothing matched (the common case), or taskkill itself isn't
+      // available (e.g. a non-Windows dev environment) — either way,
+      // non-fatal; just proceed to start normally.
+    }
+  }
+}
+
 function main(): void {
   console.log('[Agent] Starting…')
+
+  killExistingInstance()
 
   migrateLegacyConfigIfNeeded()
 
