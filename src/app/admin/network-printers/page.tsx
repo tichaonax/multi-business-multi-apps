@@ -19,6 +19,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useAlert } from '@/components/ui/confirm-modal'
@@ -44,7 +45,7 @@ interface Printer {
 }
 
 export default function NetworkPrintersPage() {
-  const { isSystemAdmin } = useBusinessPermissionsContext()
+  const { isSystemAdmin, currentBusinessId } = useBusinessPermissionsContext()
   const alert = useAlert()
 
   const [businesses, setBusinesses] = useState<Business[]>([])
@@ -62,6 +63,15 @@ export default function NetworkPrintersPage() {
       .then((data: Business[]) => setBusinesses(Array.isArray(data) ? data : []))
       .finally(() => setLoadingBusinesses(false))
   }, [isSystemAdmin])
+
+  // Follows the header's business switcher — landing here (or switching
+  // business while already here) pre-selects whatever business is globally
+  // active, instead of always starting blank. Still fully overridable: this
+  // page can manage ANY business, so picking a different one here just
+  // updates the in-page selector without touching the global switcher.
+  useEffect(() => {
+    if (currentBusinessId) setSelectedBusinessId(currentBusinessId)
+  }, [currentBusinessId])
 
   useEffect(() => {
     if (!selectedBusinessId) { setPrinters([]); setDefaultPrinterId(''); return }
@@ -120,6 +130,9 @@ export default function NetworkPrintersPage() {
       title="Default Printer"
       description="The fallback receipt printer for a business — used whenever a user hasn't personally chosen one of their own in Printer Preferences. Only printers enabled for remote use (set on each workstation's own row in Workstation Agents) appear here."
     >
+      <Link href="/admin/workstation-agents" className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline mb-4">
+        ← Workstation Agents (declare or edit a workstation's printer)
+      </Link>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 space-y-4">
         <div>
           <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Business</label>

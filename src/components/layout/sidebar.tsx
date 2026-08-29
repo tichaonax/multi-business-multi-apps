@@ -474,6 +474,19 @@ export function Sidebar() {
         // Determine navigation path - preserve current module if applicable
         const currentPath = pathname
 
+        // Admin/management pages (/admin/*, /business/manage/*) aren't
+        // scoped to one business type — switching business while on one
+        // should just refresh that same screen for the newly active
+        // business, not bounce to the target business's homepage/dashboard.
+        // No navigation needed at all: switchBusiness() above already
+        // updated currentBusinessId in context, and these pages re-fetch
+        // their own data reactively off that, not off the URL. Mirrors the
+        // same check in global-header.tsx's business switcher and
+        // business-permissions-context.tsx's switchBusiness().
+        if (currentPath.startsWith('/admin') || currentPath.startsWith('/business/manage')) {
+          return
+        }
+
         // Define business types with universal module support (inventory, products, pos, reports, orders, employees, suppliers, customers)
         const universalModuleBusinessTypes = ['restaurant', 'grocery', 'clothing', 'hardware']
         const allPrimaryBusinessTypes = ['restaurant', 'grocery', 'clothing', 'hardware', 'construction', 'services']

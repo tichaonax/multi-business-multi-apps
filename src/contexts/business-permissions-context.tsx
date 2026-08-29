@@ -377,9 +377,15 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
       console.error("Failed to sync business switch with backend:", err);
     }
 
-    // Navigate to default page if configured
-    // Only navigate if we have a membership with complete data
-    if (typeof window !== 'undefined' && router && membership?.defaultPage) {
+    // Navigate to default page if configured, but not when already on a
+    // settings/management page — mirrors the admin branch above (line
+    // ~336). Without this, switching business while on an admin page like
+    // /admin/workstation-agents or /admin/network-printers bounced you
+    // away to that business's default page instead of just refreshing the
+    // same admin screen for the newly selected business.
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname : ''
+    const isManagePage = currentPath.startsWith('/business/manage') || currentPath.startsWith('/admin')
+    if (typeof window !== 'undefined' && router && membership?.defaultPage && !isManagePage) {
       const businessType = membership.businessType || 'retail'
       const path = getDefaultPagePath(businessType, membership.defaultPage)
       router.push(path)

@@ -329,6 +329,15 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
       return '/vehicle-service/jobs'
     }
 
+    // Admin/management pages (/admin/*, /business/manage/*) aren't scoped to
+    // one business type at all — switching business while on one should just
+    // refresh that same screen for the newly active business, not bounce you
+    // to the target business's homepage. Mirrors the same isManagePage check
+    // business-permissions-context.tsx's switchBusiness() already uses.
+    if (pathname.startsWith('/admin') || pathname.startsWith('/business/manage')) {
+      return pathname
+    }
+
     const currentPath = pathname
     let targetPath = `/${targetBusinessType}` // Default to business homepage
 

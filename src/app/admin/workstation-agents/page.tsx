@@ -596,6 +596,11 @@ export default function WorkstationAgentsPage() {
       title="Workstation Agents"
       description="Pair a workstation once, then use that single pairing for BOTH its locally-connected scale and its receipt printer (MBM-275)"
     >
+      {isSystemAdmin && (
+        <Link href="/admin/network-printers" className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline mb-4">
+          Default Printer (set the business-wide fallback) →
+        </Link>
+      )}
       <div className="space-y-6">
         {/* MBM-281 follow-up: same page-top, unmissable treatment for the two
             more basic "there's no working agent at all" cases — previously

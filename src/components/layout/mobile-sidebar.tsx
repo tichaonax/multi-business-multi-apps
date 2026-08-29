@@ -101,6 +101,12 @@ export function MobileSidebar() {
   const handleSelectBusiness = (businessId: string, businessType: string) => {
     switchBusiness(businessId)
     setIsOpen(false)
+    // Admin/management pages aren't scoped to one business type — stay put
+    // and let the page re-fetch reactively off the updated currentBusinessId,
+    // same as the desktop header/sidebar switchers.
+    if (window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/business/manage')) {
+      return
+    }
     // vehicle_service has no page at /vehicle_service OR /vehicle-service
     // (only nested routes like /vehicle-service/jobs exist) — same
     // short-circuit the desktop header's switch-business handler already
