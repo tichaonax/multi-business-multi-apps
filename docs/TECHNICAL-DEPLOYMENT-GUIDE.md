@@ -480,7 +480,268 @@ This is purely a client-side convenience wrapper around the same app pages — i
 
 ---
 
-## 11. Backup
+## 11. Workstation Agent & Printer Architecture
+
+This section explains how receipt printing actually gets from the server to a physical printer, how printers are shared across workstations and businesses, and how to set up and troubleshoot it as an admin. §10.3 above covers installing the agent; this goes deeper into the design behind it. It reflects the architecture as of MBM-283 (multi-business-per-agent) and the zombie-printer cleanup that followed it.
+
+### 11.1 Core concepts
+
+| Term | Meaning |
+|---|---|
+| **Server** | The central app (this Next.js app + database). Runs on one machine, reachable by every workstation on the network. |
+| **Business** | A tenant in the multi-business app (e.g. "Happy Eater", "Jiffy Lube"). Each has its own printers, users, POS. |
+| **Workstation** | A physical PC on the local network — a till, a kitchen printer station, an office desktop. |
+| **Workstation Agent** (`WorkstationAgents` table) | A *pairing* between one workstation and one business on one server. Not "one row per PC" — see §11.3. |
+| **Local Agent** (`r710-agent.exe`) | The small background process that runs on a workstation, holds one persistent connection per pairing, and relays print jobs + scale readings. |
+| **Network Printer** (`NetworkPrinters` table) | One printer record. Can be `DIRECT` (server talks to it over IP), `AGENT` (relayed through a workstation agent), or registered for QZ Tray (a separate, browser-driven path — see §11.1a). |
+
+#### 11.1a The three printing paths
+
+This app can print three genuinely different ways. They are not interchangeable and a printer only ever belongs to one of them:
+
+1. **DIRECT mode** — the server itself opens a socket to the printer's IP and prints over the network (ESC/POS raw TCP, typically port 9100). No agent involved. Business-agnostic: a DIRECT printer has no `workstationAgentId` and is not scoped to any business.
+2. **AGENT mode** — the server sends the print job over the persistent agent socket to a specific paired workstation, which prints to a Windows-installed printer using the local print spooler. This is what the rest of this section is mostly about. Business-scoped: every AGENT printer belongs to exactly one `WorkstationAgents` pairing, which belongs to exactly one business.
+3. **QZ Tray** — a completely separate, browser-driven path (§10.2). The *browser*, not the server, talks to QZ Tray running on whatever machine the browser tab is open on, which then prints locally. No agent, no server-side routing, no business scoping — it is purely "whatever this browser last saved as its QZ printer." It exists mainly as a zero-agent-setup fallback for a machine with nothing else configured.
+
+Two printers can share the exact same physical hardware and printer name (e.g. "EPSON TM-T") while being registered under two different modes at once — that is not a bug, just two independent ways of reaching the same box.
+
+#### 11.1b Key `NetworkPrinters` fields
+
+| Field | Meaning |
+|---|---|
+| `connectionMode` | `'AGENT'` or `'DIRECT'`. |
+| `workstationAgentId` | Which `WorkstationAgents` pairing this printer is physically attached to. Only set for AGENT mode. |
+| `remotePrintingEnabled` | "Is this printer reachable from the server at all right now?" Off = paused, not deleted — the printer definition is kept, but no job will ever be routed to it. |
+| `remoteEnabled` | "Share this printer" — can devices *other than* the workstation it's attached to route to it? Only meaningful (and only ever true) while `remotePrintingEnabled` is also true. |
+| `isShareable` | An older, unrelated flag from before AGENT mode existed. Don't confuse it with `remoteEnabled` — it's a different field with a different history and doesn't gate AGENT-mode routing. |
+
+A workstation can **always** print to its own declared AGENT printer even when `remoteEnabled` is off — "share this printer" only controls whether *other* workstations in the business can also route to it.
+
+### 11.2 Architecture diagram
+
+```mermaid
+graph TB
+    Server["Central Server<br/>(Next.js app + DB)"]
+
+    subgraph WS1["Workstation 1 — Front Till"]
+      Agent1["r710-agent.exe<br/>(paired: Business A)"]
+      P1["EPSON TM-T<br/>(AGENT, shared)"]
+      Agent1 --> P1
+    end
+
+    subgraph WS2["Workstation 2 — Kitchen"]
+      Agent2["r710-agent.exe<br/>(paired: Business A)"]
+      P2["Star TSP100<br/>(AGENT, shared)"]
+      Agent2 --> P2
+    end
+
+    subgraph WS3["Workstation 3 — Mobile Till"]
+      Agent3["r710-agent.exe<br/>(paired: Business A,<br/>no printer of its own)"]
+    end
+
+    Server -- "persistent socket<br/>(printer + scale relay)" --> Agent1
+    Server -- "persistent socket" --> Agent2
+    Server -- "persistent socket" --> Agent3
+
+    Server -. "print job routed to<br/>WS1's shared printer" .-> P1
+    Server -. "print job routed to<br/>WS2's shared printer" .-> P2
+
+    Direct["Office label printer<br/>(DIRECT, IP 192.168.1.50)"]
+    Server -- "raw TCP:9100<br/>(no agent)" --> Direct
+
+    QZ["Browser on any PC"]
+    QZLocal["Local printer<br/>via QZ Tray"]
+    QZ -. "browser-driven,<br/>server not involved" .-> QZLocal
+```
+
+Every arrow from the Server into an agent is a **persistent, always-on socket connection** — not a one-off request. A print job is one self-contained round trip over whichever socket is relevant; there is no "active workstation" exclusivity for printing (unlike the physical scale, which genuinely can only be owned by one business at a time — see §11.3b).
+
+### 11.3 Connection lifecycle
+
+#### 11.3a Pairing
+
+Pairing happens once per (workstation, business) combination, from **Admin → Workstation Agents**. It mints a token, stores a new `WorkstationAgents` row (`businessId`, `label`, `hostname`, a hash of the token), and the local agent on that machine saves the credential and connects. From then on the agent reconnects automatically on every restart/reboot — no re-pairing needed unless it's explicitly revoked.
+
+#### 11.3b One physical machine, several businesses
+
+The **same physical PC** can be paired to **more than one business** on the same server — e.g. a shared front desk that rings up both "Happy Eater" and "Jiffy Lube." Each pairing is its own independent `WorkstationAgents` row, its own token, and — critically — its own **persistent socket connection**, all running concurrently in the one `r710-agent.exe` process on that machine.
+
+This matters because of a bug this architecture specifically fixes: an earlier design kept only one such socket "active" per physical machine at a time, and switching which business's browser tab had focus would silently disconnect the other business's printer relay. Today, **every paired business's connection is independent and stays up regardless of which business currently has UI focus** — printing has no exclusivity concern at all, since a print job is a single self-contained round trip and the Windows spooler already queues concurrent jobs safely.
+
+The **only** thing that is genuinely exclusive per physical machine is the attached **scale** (one serial port = one hardware resource). Ownership of the scale is arbitrated separately (whichever business currently has browser/tray focus on that machine), and is unrelated to whether either business's printer relay is connected — both stay connected regardless of who currently "owns" the scale.
+
+#### 11.3c Revoking a pairing
+
+```mermaid
+sequenceDiagram
+    participant Admin
+    participant Server
+    participant DB as Database
+
+    Admin->>Server: Pair workstation (attempt 1)
+    Server->>DB: Create WorkstationAgents row A
+    Admin->>Server: Declare printer on A
+    Server->>DB: Create NetworkPrinters row (workstationAgentId = A)
+
+    Note over Admin,DB: ...troubleshooting, time passes...
+
+    Admin->>Server: Revoke pairing A
+    Server->>DB: Set A.revokedAt = now<br/>Disable A's printer row
+
+    Admin->>Server: Re-pair the SAME physical machine
+    Server->>DB: Create NEW WorkstationAgents row B<br/>(A is never reused)
+    Admin->>Server: Declare printer on B
+    Server->>DB: Create NEW NetworkPrinters row (workstationAgentId = B)
+
+    Note over DB: A's printer row still exists on disk<br/>(preserves print history) but is excluded<br/>from every listing because A is revoked
+```
+
+Revoking (Admin → Workstation Agents → Revoke) sets `revokedAt` on the `WorkstationAgents` row and disconnects its socket. It is a soft, permanent end to that specific pairing — re-pairing the same physical machine for the same business afterward creates a **brand-new** `WorkstationAgents` row, never reuses the old one.
+
+Revoking also:
+- Deletes any `ScaleDeviceConfigs` row that referenced the pairing (a stale one otherwise makes the app keep retrying a dead scale connection forever).
+- Disables (`remotePrintingEnabled = false`, `remoteEnabled = false`) any `NetworkPrinters` row declared on that pairing — **disabled, not deleted**, because deleting would cascade-delete real print job history (`print_jobs`, `default_receipt_printer_configs` both reference `NetworkPrinters` with `onDelete: Cascade`).
+
+On top of that, every printer *listing* the app does — the print-time picker, the admin printer list — independently excludes an AGENT printer whose owning pairing is revoked, regardless of those flags. This is defense in depth: a pairing revoked before this cleanup existed still self-heals the moment the code runs, with no manual database work needed.
+
+### 11.4 Business scoping rules
+
+- An **AGENT-mode** printer belongs to exactly one business (via its `WorkstationAgents.businessId`). Only that business's users can print to it, and it only ever appears in that business's printer picker.
+- A workstation can **always** discover and print to its own declared AGENT printer, even while `remoteEnabled` (shared) is off.
+- A **DIRECT-mode** printer has no business association at all — it's a raw IP the server can reach, available to whichever business's flow happens to be configured to use it. This is true even when the physical machine at that IP is *also* running the server itself — running both roles on one box doesn't change what "DIRECT" means.
+- **QZ Tray** printers have no business association either — they're a per-browser, per-machine setting, unrelated to server-side routing entirely.
+
+In short: **business-awareness only exists on the AGENT path.** DIRECT and QZ Tray are both business-agnostic by design, not by omission.
+
+### 11.5 Worked scenario — one server, five workstations
+
+Setup: one server, five workstations all paired to the **same business**. Two of the workstations each have their own physical printer, set up for remote printing and shared. The other three have no printer of their own — two of them print through one of the shared printers, the remaining one prints through the other.
+
+```mermaid
+graph LR
+    Server(("Central<br/>Server"))
+
+    Server -->|socket| WS1["WS-1<br/>Front Till"]
+    Server -->|socket| WS2["WS-2<br/>Kitchen"]
+    Server -->|socket| WS3["WS-3<br/>Mobile Till A"]
+    Server -->|socket| WS4["WS-4<br/>Mobile Till B"]
+    Server -->|socket| WS5["WS-5<br/>Office Desk"]
+
+    WS1 -->|own printer| P1["EPSON TM-T<br/>shared: yes"]
+    WS2 -->|own printer| P2["Star TSP100<br/>shared: yes"]
+
+    WS3 -.->|override| P1
+    WS4 -.->|override| P1
+    WS5 -.->|override| P2
+```
+
+Solid arrows are a workstation's own declared printer; dashed arrows are a per-workstation default override routing a printer-less workstation to someone else's shared one.
+
+| Workstation | Own printer? | `remotePrintingEnabled` | `remoteEnabled` (shared) | Who actually prints here |
+|---|---|---|---|---|
+| **WS-1 (Front Till)** | EPSON TM-T | On | On | WS-1 itself, and WS-3 + WS-4 (see below) |
+| **WS-2 (Kitchen)** | Star TSP100 | On | On | WS-2 itself, and WS-5 |
+| **WS-3 (Mobile Till A)** | none | — | — | Routes to WS-1's EPSON TM-T |
+| **WS-4 (Mobile Till B)** | none | — | — | Routes to WS-1's EPSON TM-T |
+| **WS-5 (Office Desk)** | none | — | — | Routes to WS-2's Star TSP100 |
+
+What's actually configured in the database for this:
+
+- **Two `WorkstationAgents` rows with printers** — WS-1 and WS-2, each with one `NetworkPrinters` row (`connectionMode: 'AGENT'`, `workstationAgentId` pointing at that row, `remotePrintingEnabled: true`, `remoteEnabled: true`).
+- **Three more `WorkstationAgents` rows with no printer of their own** — WS-3, WS-4, WS-5. They're still paired (so their own socket is live, and they can still receive scale-relay jobs, run local diagnostics, etc.) — they just never declared a physical printer.
+- Each of WS-3 and WS-4 has a **per-workstation default printer override** (`DefaultReceiptPrinterConfigs`, keyed by `workstationAgentId`) set to WS-1's printer. WS-5's override is set to WS-2's printer.
+
+#### What happens at print time on each workstation
+
+The print picker (`UnifiedReceiptPreviewModal`) resolves a default printer in this order (see §11.6 for the full rule and why):
+
+1. This browser's own last-selected printer for *this business* (if still verifiably online).
+2. This workstation's admin-set override, if any.
+3. This workstation's *own* declared AGENT printer, if any.
+4. This business's server-wide default.
+5. QZ Tray's saved printer (last resort, unverified).
+
+- **WS-1 and WS-2**: step 3 resolves immediately — each prints to its own attached printer without any override needed.
+- **WS-3 and WS-4**: no printer of their own, so step 3 finds nothing; step 2's override (set to WS-1's printer) resolves it.
+- **WS-5**: same shape — step 2's override (set to WS-2's printer) resolves it.
+
+If WS-1's printer goes offline, WS-3/WS-4's override still *points* at it, but the picker's `.isOnline` check skips a dead pick and falls through — worst case, down to the business-wide default (step 4), which an admin should point at whichever shared printer is more reliably up.
+
+#### If this were instead spread across two businesses
+
+Nothing above changes conceptually if, say, WS-1/WS-3/WS-4 belong to Business A and WS-2/WS-5 belong to Business B, sharing the same five physical machines and the same server. Each workstation still gets its own independent `WorkstationAgents` row **per business it's paired to** (a machine paired to two businesses has two rows, two tokens, two live sockets — see §11.3b), and AGENT-mode business-scoping (§11.4) means Business A's users never see or can route to Business B's printer, even though both printers are physically reachable from the exact same server.
+
+### 11.6 Default printer resolution, in detail
+
+```mermaid
+flowchart TD
+    Start(["Print Receipt modal opens"]) --> Last{"Last selected printer<br/>for THIS business —<br/>still verifiably online?"}
+    Last -->|yes| UseLast["Use it"]
+    Last -->|no| Override{"Admin override set for<br/>THIS workstation, and online?"}
+    Override -->|yes| UseOverride["Use it"]
+    Override -->|no| Own{"This workstation has its<br/>own declared printer, and online?"}
+    Own -->|yes| UseOwn["Use it"]
+    Own -->|no| BizDefault{"Business-wide default<br/>set, and online?"}
+    BizDefault -->|yes| UseBiz["Use it"]
+    BizDefault -->|no| QZ{"QZ Tray has a<br/>saved printer name?"}
+    QZ -->|yes| UseQZ["Use it —<br/>unverified, last resort"]
+    QZ -->|no| None["Nothing auto-selected —<br/>picked manually"]
+```
+
+Why this order, specifically:
+
+- **Last-selected** wins first because it's the most specific, most recent signal of what a particular person actually wants on a particular machine — but only when it can be *verified* still online. It is scoped per user **and per business** (not globally per user) — a QZ Tray choice made once for one business, or during testing, must never leak into a different business's default.
+- **Workstation override** and **own declared printer** both rank above the business-wide default because they're more specific to *this exact machine* — a business default might belong to a completely different workstation.
+- **QZ Tray is always last resort**, even when it was the last thing selected, because its "saved printer" is just a remembered *name* — there's no way to verify QZ Tray is actually running without connecting to it (deliberately not done on load, to avoid a permission prompt every time the modal opens). An unverified guess should never outrank something the app can actually confirm is online.
+
+### 11.7 Admin setup guide
+
+#### 11.7a Pair a new workstation
+
+1. On the target workstation, install and run `r710-agent.exe` (see the download link on **Admin → Workstation Agents**).
+2. On that same machine's browser, open **Admin → Workstation Agents** for the business this workstation should serve, and click **Pair**. The local agent's pairing endpoint (`http://127.0.0.1:47710`) is probed automatically — pairing completes with no manual token entry.
+3. Repeat step 2, on the same machine, for a **second** business if this workstation should also serve one — this creates a second, independent pairing, not a replacement of the first.
+
+#### 11.7b Declare a printer on a workstation
+
+1. On **Admin → Workstation Agents**, find the paired row for the business + workstation in question, click **Set up printer** (or **Edit** if one already exists).
+2. Click **List Printers** to pull every printer Windows currently sees on that workstation (the agent must be online), or type the exact name from Windows' own Printers & Scanners settings.
+3. Toggle **Enable remote printing** on — this is what makes the printer reachable from the server at all.
+4. Toggle **Share this printer** on if other workstations in this business should also be able to route to it. Leave it off if it should only ever be used by this exact workstation.
+5. Click **Save**, then click **🖨️ Test Print** right there — no need to navigate to a different admin page to confirm it actually works.
+
+#### 11.7c Set a business-wide or per-workstation default
+
+- **Business-wide default**: on the same page, use the "Default printer for this business" picker. This is the fallback used by any device with nothing more specific configured.
+- **Per-workstation override**: use "Default printer for this workstation" on that workstation's own row. Use this when a workstation with no printer of its own should route somewhere other than the business-wide default (e.g. WS-3/WS-4 in §11.5's scenario, routed specifically to WS-1's printer rather than whatever the business default happens to be).
+
+### 11.8 Troubleshooting playbook
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| A printer shows "Offline" on a remote workstation but prints fine locally | The printer's owning agent isn't actually connected right now (agent process not running, machine off, network down) — this is a real, live status, not a caching bug. | Check the workstation's tray icon / **Admin → Workstation Agents** connection status for that pairing. If it says Connected but the printer still shows offline, use **Check Status** / **Bring Online** to force a fresh check. |
+| Same printer name appears twice in the picker or admin list, one always offline | A stale "zombie" `NetworkPrinters` row left over from a **revoked** pairing that was later re-paired (re-pairing always creates a new `WorkstationAgents` row, never reuses the old one). | Should self-heal automatically — every listing excludes a printer whose owning agent is revoked. If you still see it, confirm you're on a build that includes this fix; it will not reappear after a fresh page load. |
+| Setting up Business B's printer on a shared workstation made Business A's printer disappear | This was a real historical bug (pre-MBM-283): only one business's connection could be "active" per physical machine at a time. | Fixed — every paired business's connection now stays up simultaneously, regardless of which business currently has UI focus. If this recurs, it's a regression, not expected behavior — check the agent's own version against the "Agent update required" banner. |
+| The wrong printer gets auto-selected at print time (e.g. an unreachable QZ Tray printer instead of a known-online one) | Either a stale per-workstation override pointing at a dead/disabled printer, or a "last selected" browser preference from a different business/earlier testing leaking in. | Confirm the per-workstation and business-wide defaults (§11.7c) point at a real, online printer. If the picker still won't pick the online one, it's most likely the browser's own remembered choice for *this specific business* — reselect the correct printer once from the dropdown to overwrite it. |
+| Printer shows "Shared" but a remote workstation still can't reach it | `isShareable` and `remoteEnabled` are two different, unrelated flags — the "Shared" badge on the general admin printer list reflects the older `isShareable`, not whether AGENT-mode remote routing is actually on. | Check **Enable remote printing** and **Share this printer** specifically on **Admin → Workstation Agents** for that printer, not the `isShareable` badge elsewhere. |
+| Scale readings jump to the wrong business, or a business can't connect its scale | Scale ownership is exclusive per physical machine (one serial port), unlike printers. Whichever business most recently had browser/tray focus on that machine owns it. | Use the tray's **Release** action (or the equivalent admin control) to hand the scale back explicitly, then refocus the correct business's tab. |
+| "List Printers" on the setup page returns nothing | The agent must be online for this to work — it runs `Get-Printer` locally on that exact workstation. | Confirm the agent's connection status is green first. If it's online and still returns nothing, type the printer name manually from Windows' own Printers & Scanners settings instead — this always works regardless of whether listing does. |
+
+### 11.9 Appendix — relevant code
+
+| Concern | File |
+|---|---|
+| Printer listing / business-scoping / revoked-agent exclusion | `src/lib/printing/printer-service.ts` |
+| Print-time authorization (is this printer usable by this business right now) | `src/lib/printing/print-dispatch.ts` |
+| Default-printer resolution priority | `src/components/receipts/unified-receipt-preview-modal.tsx` |
+| Business-wide / per-workstation default storage | `src/app/api/printing/default-printer/route.ts` |
+| Pairing, printer declaration, revoke (with cleanup) | `src/app/api/admin/workstation-agents/**` |
+| Local agent — multi-business persistent connections | `agent/r710-local-agent/src/index.ts` |
+| Local agent — scale ownership arbitration | `agent/r710-local-agent/src/scale-owner.ts` |
+
+---
+
+## 12. Backup
 
 ```bash
 npm run backup:database
@@ -490,7 +751,7 @@ wraps `scripts/backup-database.js`. There isn't a separate, dedicated backup/res
 
 ---
 
-## 12. Post-deployment checklist
+## 13. Post-deployment checklist
 
 **Server:**
 - [ ] `ENCRYPTION_KEY` set (64 hex chars) — §4.2
@@ -510,12 +771,12 @@ wraps `scripts/backup-database.js`. There isn't a separate, dedicated backup/res
 - [ ] Browser can reach the server and (if TLS) trusts its `rootCA.pem` (§10.1)
 - [ ] QZ Tray installed + the server's `qz-certificate.pem` added via Site Manager, for any workstation printing that way (§10.2)
 - [ ] Printer driver installed and visible in Windows Devices & Printers, for any printer that isn't QZ/agent-relayed (§10.4)
-- [ ] R710/Workstation local agent downloaded, running, and paired — for remote R710 devices or a workstation-attached scale/printer (§10.3), with "Start with Windows" enabled
+- [ ] R710/Workstation local agent downloaded, running, and paired — for remote R710 devices or a workstation-attached scale/printer (§10.3), with "Start with Windows" enabled — see §11 for the full architecture and a troubleshooting playbook
 - [ ] Electron kiosk set up, only if that workstation drives a customer-facing second monitor (§10.5)
 
 ---
 
-## 13. Known rough edges (worth knowing about, not necessarily worth fixing before you deploy)
+## 14. Known rough edges (worth knowing about, not necessarily worth fixing before you deploy)
 
 - `scripts/install/install.js`'s Node version check says "16+" — ignore it; the real requirement (via Next.js 15) is Node ≥18.18. Use Node 20 LTS.
 - If `scripts/create-admin.js` is ever deleted or renamed, `install-database.js` falls back to a `createBasicAdmin()` path that hashes the password with plain SHA-256 (not bcrypt) and writes to a field name that doesn't match the current Prisma schema. This fallback is not currently reachable in a normal deployment — just don't delete `scripts/create-admin.js`.
