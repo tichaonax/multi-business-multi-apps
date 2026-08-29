@@ -11,11 +11,25 @@ import { prisma } from '@/lib/prisma'
 import { WorkstationAgentDispatchError, type WorkstationAgentJobType } from '@/lib/workstation-agents/agent-hub'
 import { dispatchWorkstationJobWithLog } from '@/lib/workstation-agents/request-log'
 
+// Self-heals a stale config left behind by a workstation agent that was
+// later revoked — revoking a pairing doesn't delete its row (just marks
+// revokedAt), so a ScaleDeviceConfigs row still pointing at it never gets
+// cleaned up by the schema's own onDelete: Cascade, and every future
+// SCALE_CONNECT attempt just 500s against a pairing that's never coming
+// back. Deleting it here means the NEXT connect attempt after this one
+// correctly sees "no scale configured" instead of repeating the same dead
+// dispatch forever.
 export async function resolveScaleConfig(businessId: string) {
-  return prisma.scaleDeviceConfigs.findFirst({
+  const config = await prisma.scaleDeviceConfigs.findFirst({
     where: { businessId, isActive: true },
     orderBy: { createdAt: 'desc' },
+    include: { workstation_agent: { select: { revokedAt: true } } },
   })
+  if (config && config.workstation_agent.revokedAt) {
+    await prisma.scaleDeviceConfigs.delete({ where: { id: config.id } }).catch(() => {})
+    return null
+  }
+  return config
 }
 
 export async function dispatchScaleJob(workstationAgentId: string, jobType: WorkstationAgentJobType, params?: unknown, requestedBy?: string) {

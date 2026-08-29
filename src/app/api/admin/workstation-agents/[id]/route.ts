@@ -25,6 +25,16 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       data: { revokedAt: new Date(), revokedBy: user.id, connectionStatus: 'OFFLINE' },
     })
 
+    // Revoking doesn't delete this row (just marks it revoked), so the
+    // schema's onDelete: Cascade on ScaleDeviceConfigs never fires here —
+    // left alone, a scale config still pointing at this now-dead pairing
+    // makes ScaleContext (which only checks "does a config exist," not
+    // whether its agent is still valid) keep firing a doomed SCALE_CONNECT
+    // on every page load for this business, forever. workstationAgentId is
+    // required on that model (not nullable), so the only clean fix is
+    // deleting the config outright rather than nulling the reference.
+    await prisma.scaleDeviceConfigs.deleteMany({ where: { workstationAgentId: id } })
+
     workstationAgentHub.disconnectAgent(id)
 
     return NextResponse.json({ success: true })
