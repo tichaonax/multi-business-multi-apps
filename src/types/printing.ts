@@ -20,6 +20,18 @@ export interface NetworkPrinter {
   capabilities: PrinterCapability[];
   isShareable: boolean; // Admin configured - can other nodes use this?
   isOnline: boolean;
+  // MBM-283: which paired workstation this AGENT-relayed printer is
+  // physically attached to (its label, e.g. "Kitchen Till") — null for
+  // DIRECT printers. Lets the UI distinguish two AGENT printers sharing a
+  // printer name across different workstations.
+  workstationLabel?: string | null;
+  // MBM-283 follow-up: that workstation's actual machine hostname —
+  // workstationLabel is free text with no uniqueness enforced, so this is
+  // what actually disambiguates two workstations that share a label.
+  workstationHostname?: string | null;
+  // MBM-283 follow-up: which paired workstation owns this AGENT printer —
+  // lets a client that IS that workstation recognize its own printer.
+  workstationAgentId?: string | null;
   receiptWidth: number | null; // Receipt width in characters (32, 42, or 48)
   lastSeen: Date;
   createdAt: Date;

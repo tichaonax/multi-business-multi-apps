@@ -48,8 +48,17 @@ export class PrinterAuthorizationError extends Error {
  * true for every printer already in AGENT mode at that point (see its own
  * comment) — this only requires a NEW opt-in step for AGENT configurations
  * created from here on.
+ *
+ * MBM-283 follow-up: two independent AGENT-mode flags now, not one —
+ * remotePrintingEnabled (does the server relay to this printer at all —
+ * unconditional, no bypass, "paused" means unreachable for everyone) and
+ * remoteEnabled/"share" (can devices OTHER than this printer's own
+ * workstation also route to it). `requestingWorkstationAgentId` — the
+ * caller's own probed machine identity, when known — lets that printer's
+ * own workstation bypass the share check for its own printer; every other
+ * caller (mismatched id, or none at all) still needs remoteEnabled.
  */
-export async function resolvePrinterForBusiness(printerId: string, businessId: string) {
+export async function resolvePrinterForBusiness(printerId: string, businessId: string, requestingWorkstationAgentId?: string | null) {
   const printer = await prisma.networkPrinters.findUnique({
     where: { id: printerId },
     include: { workstation_agent: { select: { businessId: true } } },
@@ -60,8 +69,12 @@ export async function resolvePrinterForBusiness(printerId: string, businessId: s
     if (!printer.workstation_agent || printer.workstation_agent.businessId !== businessId) {
       throw new PrinterAuthorizationError(`Printer "${printer.printerName}" is not assigned to this business`)
     }
-    if (!printer.remoteEnabled) {
-      throw new PrinterAuthorizationError(`Printer "${printer.printerName}" is not enabled for use — ask an admin to enable it in Printer Connection Mode`)
+    if (!printer.remotePrintingEnabled) {
+      throw new PrinterAuthorizationError(`Printer "${printer.printerName}" has remote printing turned off on its workstation`)
+    }
+    const isOwnWorkstation = !!requestingWorkstationAgentId && requestingWorkstationAgentId === printer.workstationAgentId
+    if (!printer.remoteEnabled && !isOwnWorkstation) {
+      throw new PrinterAuthorizationError(`Printer "${printer.printerName}" is not shared for use by other devices — ask an admin to enable it in Workstation Agents`)
     }
   }
 

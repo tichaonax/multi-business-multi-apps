@@ -15,6 +15,29 @@
 import { printReceipt, type PrintReceiptResult } from '@/lib/printing/print-receipt'
 import type { ReceiptData, BusinessType } from '@/types/printing'
 
+const PAIRING_PORT = 47710
+
+// MBM-283 follow-up: this machine's own paired workstation id, if any —
+// probed once per print (not per copy) so the server can recognize "this
+// request IS printer X's own workstation" and allow it through even when
+// that printer isn't shared with other devices. Best-effort: any failure
+// (no agent running here, timeout) just means no bypass is offered, same
+// as today's behavior for a device that was never paired at all.
+async function probeOwnWorkstationAgentId(businessId: string | undefined): Promise<string | null> {
+  if (typeof window === 'undefined' || !businessId) return null
+  try {
+    const res = await fetch(
+      `http://127.0.0.1:${PAIRING_PORT}/probe?serverUrl=${encodeURIComponent(window.location.origin)}&businessId=${encodeURIComponent(businessId)}`,
+      { signal: AbortSignal.timeout(1500) }
+    )
+    if (!res.ok) return null
+    const data = await res.json().catch(() => null)
+    return data?.profile?.workstationAgentId ?? null
+  } catch {
+    return null
+  }
+}
+
 export interface PrintReceiptOptions {
   /** Auto-print without showing preview modal */
   autoPrint?: boolean
@@ -130,6 +153,8 @@ export class ReceiptPrintManager {
     console.log('   Receipt #:', receiptNumber)
 
     try {
+      const workstationAgentId = await probeOwnWorkstationAgentId(receiptData.businessId)
+
       // ALWAYS print business copy
       console.log('🖨️  [ReceiptPrintManager] Printing BUSINESS copy')
 
@@ -143,6 +168,7 @@ export class ReceiptPrintManager {
         printerId: options.printerId,
         copies: 1, // Always 1 copy for business records
         autoPrint: true,
+        workstationAgentId,
       })
 
       if (!result.businessCopy.success) {
@@ -171,6 +197,7 @@ export class ReceiptPrintManager {
           printerId: options.printerId,
           copies: options.copies || 1, // Customer copy uses the copies setting
           autoPrint: true,
+          workstationAgentId,
         })
 
         if (result.customerCopy.success) {

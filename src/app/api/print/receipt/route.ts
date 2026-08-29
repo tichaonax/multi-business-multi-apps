@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
       // own comment) before anything is queued or dispatched.
       let printer;
       try {
-        printer = await resolvePrinterForBusiness(data.printerId, data.businessId);
+        printer = await resolvePrinterForBusiness(data.printerId, data.businessId, data.workstationAgentId);
       } catch (err) {
         if (err instanceof PrinterAuthorizationError) {
           return NextResponse.json({ error: err.message }, { status: err.message === 'Printer not found' ? 404 : 403 });
@@ -270,7 +270,7 @@ export async function POST(request: NextRequest) {
       // (PrinterAuthorizationError, "not assigned to this business") flows
       // through the same catch block below as "printer not found" already
       // did, since the job is already queued by this point either way.
-      const printer = await resolvePrinterForBusiness(data.printerId, data.businessId);
+      const printer = await resolvePrinterForBusiness(data.printerId, data.businessId, data.workstationAgentId);
 
       console.log(`📄 Printing to: ${printer.printerName}`);
 

@@ -32,10 +32,13 @@ import {
   printToQzPrinter,
   getQzPrinterConfig,
 } from '@/lib/printing/qz-tray-printer'
+import { getPrintTerminal } from '@/lib/printing/print-terminal'
+import { formatPrinterName } from '@/lib/printing/format-printer-label'
 import type { ReceiptData, NetworkPrinter, BusinessType } from '@/types/printing'
 
 const LOCAL_PRINTER_ID = 'local-serial'
 const QZ_PRINTER_PREFIX = 'qz::'
+const PAIRING_PORT = 47710
 
 interface PrinterCacheEntry {
   printers: NetworkPrinter[]
@@ -46,6 +49,12 @@ interface PrinterCacheEntry {
   // last resort in autoSelectPrinter(), below the user's own saved choice
   // and QZ's machine-specific fallback.
   businessDefaultPrinterId: string | null
+  // MBM-283 follow-up: this exact machine's own paired workstation id (from
+  // the local /probe), if any — lets autoSelectPrinter recognize "one of
+  // these AGENT printers is physically attached to ME" and default to it
+  // ahead of the business-wide default, which may point at a different
+  // workstation's printer entirely.
+  myWorkstationAgentId: string | null
 }
 
 // Module-level cache — persists across modal opens within the same page
@@ -130,7 +139,7 @@ export function UnifiedReceiptPreviewModal({
       const cached = getCache()
       if (cached) {
         // Cache hit — auto-select printer without any network call or loading state
-        autoSelectPrinter(cached.printers, cached.hasLocalPrinter, cached.qzPrinters, cached.businessDefaultPrinterId)
+        autoSelectPrinter(cached.printers, cached.hasLocalPrinter, cached.qzPrinters, cached.businessDefaultPrinterId, cached.myWorkstationAgentId)
       } else {
         loadPrinters()
       }
@@ -144,7 +153,7 @@ export function UnifiedReceiptPreviewModal({
       setPrinters(cached.printers)
       setHasLocalPrinter(cached.hasLocalPrinter)
       setLocalPrinterName(cached.localPrinterName)
-      autoSelectPrinter(cached.printers, cached.hasLocalPrinter, cached.qzPrinters, cached.businessDefaultPrinterId)
+      autoSelectPrinter(cached.printers, cached.hasLocalPrinter, cached.qzPrinters, cached.businessDefaultPrinterId, cached.myWorkstationAgentId)
       setPrintersLoading(false)
       return
     }
@@ -155,12 +164,19 @@ export function UnifiedReceiptPreviewModal({
       // Fetch all receipt printers (including offline ones so users can bring them online).
       // MBM-283 Phase 1: businessId scopes out another business's AGENT-relayed
       // printers server-side — see printer-service.ts's listPrinters().
-      // MBM-283 Phase 3: also fetch this business's server-side default in
-      // parallel — the last-resort fallback in autoSelectPrinter() below.
-      const [response, defaultResponse] = await Promise.all([
+      // MBM-283 follow-up: this business's default resolves against ONE of two
+      // identities, never both — a registered print terminal (lightweight,
+      // localStorage, no agent — see print-terminal.ts) if this browser has
+      // one, else this exact machine's own paired workstationAgentId (probed
+      // the same local way the pairing card does). Both exist so several
+      // workstations/terminals in one business can each default to a
+      // *different* remote printer instead of one shared business-wide value.
+      const myTerminal = getPrintTerminal()
+      const [response, probeResult] = await Promise.all([
         fetch(`/api/printers?printerType=receipt${businessId ? `&businessId=${encodeURIComponent(businessId)}` : ''}`),
-        businessId
-          ? fetch(`/api/printing/default-printer?businessId=${encodeURIComponent(businessId)}`).catch(() => null)
+        (businessId && !myTerminal)
+          ? fetch(`http://127.0.0.1:${PAIRING_PORT}/probe?serverUrl=${encodeURIComponent(window.location.origin)}&businessId=${encodeURIComponent(businessId)}`, { signal: AbortSignal.timeout(2000) })
+              .then(r => r.ok ? r.json() : null).catch(() => null)
           : Promise.resolve(null),
       ])
 
@@ -169,7 +185,35 @@ export function UnifiedReceiptPreviewModal({
       }
 
       const data = await response.json()
-      const availablePrinters = data.printers || []
+      let availablePrinters = data.printers || []
+      // MBM-283 follow-up: used to find "my own" AGENT printer in
+      // autoSelectPrinter() below — no longer used to scope the
+      // business-default lookup itself (there's no admin UI left that sets
+      // a workstation-specific override; a paired workstation defaulting to
+      // its own declared printer is handled entirely client-side now).
+      const myWorkstationAgentId: string | null = myTerminal ? null : (probeResult?.profile?.workstationAgentId ?? null)
+
+      // MBM-283 follow-up: "share this printer" being off hides a
+      // workstation's own printer from the normal business-scoped list
+      // above (by design — no one ELSE should see it) — but this
+      // workstation must still be able to find and use it. Only fetched
+      // when it's actually missing, so the common (already-shared) case
+      // costs nothing extra.
+      if (businessId && myWorkstationAgentId && !availablePrinters.some((p: NetworkPrinter) => p.workstationAgentId === myWorkstationAgentId)) {
+        const ownRes = await fetch(`/api/printers?printerType=receipt&businessId=${encodeURIComponent(businessId)}&ownWorkstationAgentId=${encodeURIComponent(myWorkstationAgentId)}`).catch(() => null)
+        if (ownRes?.ok) {
+          const ownData = await ownRes.json()
+          const ownPrinter = (ownData.printers || []).find((p: NetworkPrinter) => p.workstationAgentId === myWorkstationAgentId)
+          if (ownPrinter) availablePrinters = [...availablePrinters, ownPrinter]
+        }
+      }
+
+      // This business's default — terminal-specific if this browser is a
+      // registered print terminal, else the plain business-wide fallback.
+      const identityParam = myTerminal ? `&printTerminalId=${encodeURIComponent(myTerminal.id)}` : ''
+      const defaultResponse = businessId
+        ? await fetch(`/api/printing/default-printer?businessId=${encodeURIComponent(businessId)}${identityParam}`).catch(() => null)
+        : null
       const businessDefaultPrinterId: string | null = defaultResponse && defaultResponse.ok
         ? (await defaultResponse.json())?.printerId ?? null
         : null
@@ -201,13 +245,14 @@ export function UnifiedReceiptPreviewModal({
         localPrinterName: localName,
         qzPrinters: detectedQzPrinters,
         businessDefaultPrinterId,
+        myWorkstationAgentId,
       })
 
       setPrinters(availablePrinters)
       setHasLocalPrinter(localAvailable)
       setLocalPrinterName(localName)
       setQzPrinters(detectedQzPrinters)
-      autoSelectPrinter(availablePrinters, localAvailable, detectedQzPrinters, businessDefaultPrinterId)
+      autoSelectPrinter(availablePrinters, localAvailable, detectedQzPrinters, businessDefaultPrinterId, myWorkstationAgentId)
 
       if (availablePrinters.length === 0 && !localAvailable && detectedQzPrinters.length === 0) {
         toast.error('No printers found. Configure a network printer in Admin > Printers, or set up a local USB printer.')
@@ -221,7 +266,7 @@ export function UnifiedReceiptPreviewModal({
     }
   }
 
-  function autoSelectPrinter(availablePrinters: NetworkPrinter[], localAvailable: boolean, qzPrinterList: string[] = [], businessDefaultPrinterId: string | null = null) {
+  function autoSelectPrinter(availablePrinters: NetworkPrinter[], localAvailable: boolean, qzPrinterList: string[] = [], businessDefaultPrinterId: string | null = null, myWorkstationAgentId: string | null = null) {
     try {
       let lastPrinterId = localStorage.getItem(printerKey)
       if (!lastPrinterId) {
@@ -243,6 +288,19 @@ export function UnifiedReceiptPreviewModal({
           const savedPrinter = availablePrinters.find((p: NetworkPrinter) => p.id === lastPrinterId)
           if (savedPrinter && savedPrinter.isOnline) resolvedId = lastPrinterId
         }
+      }
+
+      // MBM-283 follow-up: a workstation with its own declared printer
+      // defaults to THAT printer — not whatever the business-wide default
+      // happens to be, which may belong to a different workstation
+      // entirely. Ranked above QZ Tray/business-default since it requires
+      // zero setup on this machine (the admin declared it once, centrally,
+      // on this workstation's own row) — same intentionality as QZ, but
+      // this is the "just works out of the box" tier the business-wide
+      // fallback exists to catch devices that DON'T have one of their own.
+      if (!resolvedId && myWorkstationAgentId) {
+        const ownPrinter = availablePrinters.find((p: NetworkPrinter) => p.workstationAgentId === myWorkstationAgentId)
+        if (ownPrinter && ownPrinter.isOnline) resolvedId = ownPrinter.id
       }
 
       // MBM-280: printerKey is cached per-USER, not per-business — a printer
@@ -522,7 +580,7 @@ export function UnifiedReceiptPreviewModal({
                   ))}
                   {printers.map((printer) => (
                     <option key={printer.id} value={printer.id}>
-                      {printer.printerName} {printer.isOnline ? '(Online)' : '(Offline)'}
+                      {formatPrinterName(printer)} {printer.isOnline ? '(Online)' : '(Offline)'}
                     </option>
                   ))}
                 </select>

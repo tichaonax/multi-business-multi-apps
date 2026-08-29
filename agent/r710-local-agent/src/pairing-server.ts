@@ -93,10 +93,21 @@ export interface ManageSnapshot {
 // rely on), but CORS still applies and must be handled explicitly, preflight
 // included, or the fetch fails client-side even though this server processed
 // it fine.
+//
+// Beyond plain CORS, Chrome's Private Network Access (PNA) policy treats any
+// request from a "less private" address space into a "more private" one —
+// here, the app's LAN/public origin calling into this loopback (127.0.0.1)
+// server — as requiring an extra opt-in from the target, checked on the
+// preflight. Without Access-Control-Allow-Private-Network: true, Chrome
+// silently fails the actual GET/POST (fetch throws, never even reaches this
+// server) once it starts enforcing PNA for that address-space transition —
+// this was the real cause of "the agent is running but the browser still
+// says it isn't," not a bug in what this server returns.
 function withCors(res: import('http').ServerResponse): void {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  res.setHeader('Access-Control-Allow-Private-Network', 'true')
 }
 
 export interface PairingCallbacks {

@@ -579,7 +579,8 @@ model Businesses {
   saved_reports                                                            SavedReports[]
   scale_device_configs                                                     ScaleDeviceConfigs[]              @relation("ScaleDeviceConfigToBusiness")
   qz_printer_configs                                                        QzPrinterConfigs[]
-  default_receipt_printer_config                                           DefaultReceiptPrinterConfigs?
+  default_receipt_printer_configs                                          DefaultReceiptPrinterConfigs[]
+  print_terminals                                                          PrintTerminals[]                  @relation("PrintTerminalToBusiness")
   workstation_agents                                                       WorkstationAgents[]               @relation("WorkstationAgentToBusiness")
   seed_data_templates                                                      SeedDataTemplates[]
   sku_sequences                                                            sku_sequences[]
@@ -3527,6 +3528,20 @@ model NetworkPrinters {
   // it," see MBM-283's finding #6) keeps working unchanged. Only brand-new
   // AGENT configurations are opt-in going forward.
   remoteEnabled      Boolean            @default(false)
+  // MBM-283 follow-up: independent from remoteEnabled/"share" above.
+  // remotePrintingEnabled = does the centralized server relay jobs to this
+  // printer through its workstation's agent AT ALL (the original MBM-275
+  // capability). remoteEnabled = can OTHER devices besides this printer's
+  // own workstation also route to it, on top of that. Deliberately NOT
+  // modeled as connectionMode DIRECT/AGENT toggling — DIRECT printers are a
+  // genuinely different, cross-business-visible legacy resource (see
+  // listPrinters()'s businessId filter), so flipping a paused workstation
+  // printer to DIRECT would leak it into every OTHER business's printer
+  // list. This column lets an AGENT-mode printer be "paused" (temporarily
+  // unreachable, name/share setting remembered) without ever changing
+  // connectionMode. Defaults true so every pre-existing AGENT printer keeps
+  // working unchanged.
+  remotePrintingEnabled Boolean          @default(true)
   barcode_print_jobs BarcodePrintJobs[]
   sync_nodes         SyncNodes          @relation(fields: [nodeId], references: [nodeId])
   print_jobs         PrintJobs[]
@@ -3655,6 +3670,7 @@ model Users {
   reprint_logs                                                    ReprintLog[]
   qz_printer_configs_updated                                       QzPrinterConfigs[]               @relation("QzPrinterConfigUpdatedBy")
   default_receipt_printer_configs_updated                          DefaultReceiptPrinterConfigs[]    @relation("DefaultReceiptPrinterConfigUpdatedBy")
+  print_terminals_registered                                       PrintTerminals[]                  @relation("PrintTerminalRegisteredBy")
   workstation_agents_paired                                       WorkstationAgents[]               @relation("WorkstationAgentPairedBy")
   saved_reports                                                   SavedReports[]
   cash_counted_amendments                                         SavedReports[]                    @relation("CashCountedAmendment")
@@ -4559,6 +4575,14 @@ model WorkstationAgents {
   id               String                           @id @default(uuid())
   businessId       String
   label            String
+  // MBM-283 follow-up: the machine's actual OS hostname (os.hostname(),
+  // sent as hostLabel in every connect handshake — see socket-client.ts /
+  // workstation-socket-client.ts) — was already arriving on every connect
+  // but only ever logged, never stored. `label` is free text an admin
+  // typed at pairing time with no uniqueness enforced, so two workstations
+  // can end up with the same label; hostname is what actually disambiguates
+  // them in a picker that lists several workstations for one business.
+  hostname         String?
   agentTokenHash   String
   agentVersion     String?
   autoStartEnabled Boolean?
@@ -4576,6 +4600,7 @@ model WorkstationAgents {
   network_printers NetworkPrinters[]
   request_logs     WorkstationAgentRequestLog[]
   qz_printer_configs QzPrinterConfigs[]
+  default_receipt_printer_configs DefaultReceiptPrinterConfigs[]
 
   @@index([businessId])
   @@index([connectionStatus])
@@ -4635,25 +4660,63 @@ model QzPrinterConfigs {
   @@map("qz_printer_configs")
 }
 
-// MBM-283 Phase 3: business-wide default receipt printer — used at print
-// time as the fallback when the printing user has no saved per-user choice
-// of their own (see use-print-preferences.ts's defaultPrinterId, which is
-// checked first and always wins when present and still valid for this
-// business). One row per business (businessId is unique) — unlike
-// QzPrinterConfigs above, there's no per-workstation dimension here; this
-// exists specifically to give mobile/remote printing (MBM-283) a sane
-// default without every user having to pick a printer by hand every time.
-model DefaultReceiptPrinterConfigs {
-  id         String          @id @default(uuid())
-  businessId String          @unique
-  printerId  String
-  updatedBy  String
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
-  businesses Businesses      @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  printer    NetworkPrinters @relation(fields: [printerId], references: [id], onDelete: Cascade)
-  updater    Users           @relation("DefaultReceiptPrinterConfigUpdatedBy", fields: [updatedBy], references: [id])
+// MBM-283 follow-up: a lightweight identity for a printer-less device that
+// wants a centrally (admin-assigned) default remote printer WITHOUT ever
+// running the local agent — deliberately separate from WorkstationAgents,
+// not a variant of it. A real workstation pairing means "there's a running
+// agent relaying real local hardware here," and reusing that concept for a
+// browsing-only terminal produced a genuinely confusing UI (waiting-for-
+// agent states, connection status, etc. that have no meaning without an
+// actual agent process). Registration is a single API call — no agent
+// token, no pairing handshake, no port 47710 involved anywhere; the
+// browser that registers just stores the returned id in localStorage.
+model PrintTerminals {
+  id           String    @id @default(uuid())
+  businessId   String
+  label        String
+  registeredBy String
+  createdAt    DateTime  @default(now())
+  lastSeenAt   DateTime?
+  businesses   Businesses @relation("PrintTerminalToBusiness", fields: [businessId], references: [id], onDelete: Cascade)
+  registerer   Users      @relation("PrintTerminalRegisteredBy", fields: [registeredBy], references: [id])
+  default_receipt_printer_configs DefaultReceiptPrinterConfigs[]
 
+  @@index([businessId])
+  @@map("print_terminals")
+}
+
+// MBM-283 Phase 3, extended: default receipt printer used at print time as
+// the fallback when the printing user has no saved per-user choice of
+// their own (see use-print-preferences.ts's defaultPrinterId, checked
+// first client-side and always wins when present and still valid). Same
+// (businessId, workstationAgentId?) shape as QzPrinterConfigs above, for
+// the same reason: a business can have several workstations that each
+// need to default to a *different* remote printer (e.g. front counter →
+// kitchen printer, bar tablet → bar printer) — a single business-wide
+// value can't represent that. Two mutually-exclusive optional identity
+// columns: workstationAgentId for a real hardware pairing, printTerminalId
+// for the lightweight no-agent identity above — a given row only ever has
+// one of the two set (app logic enforces this, not a DB constraint,
+// mirroring how QzPrinterConfigs already keeps this kind of thing simple).
+// Both null = the business-wide fallback, tried last.
+model DefaultReceiptPrinterConfigs {
+  id                 String              @id @default(uuid())
+  businessId         String
+  workstationAgentId String?
+  printTerminalId    String?
+  printerId          String
+  updatedBy          String
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  businesses         Businesses          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  workstation_agent  WorkstationAgents?  @relation(fields: [workstationAgentId], references: [id], onDelete: Cascade)
+  print_terminal     PrintTerminals?     @relation(fields: [printTerminalId], references: [id], onDelete: Cascade)
+  printer            NetworkPrinters     @relation(fields: [printerId], references: [id], onDelete: Cascade)
+  updater            Users               @relation("DefaultReceiptPrinterConfigUpdatedBy", fields: [updatedBy], references: [id])
+
+  @@index([businessId])
+  @@index([workstationAgentId])
+  @@index([printTerminalId])
   @@index([printerId])
   @@map("default_receipt_printer_configs")
 }

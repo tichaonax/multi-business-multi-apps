@@ -47,6 +47,10 @@ export async function GET(request: NextRequest) {
       // business, an AGENT-mode printer belonging to a different business
       // is excluded from the list. See printer-service.ts's listPrinters().
       businessId: searchParams.get('businessId') || undefined,
+      // MBM-283 follow-up: lets a workstation discover its OWN AGENT
+      // printer even while "share this printer" is off. See
+      // printer-service.ts's listPrinters() header comment.
+      ownWorkstationAgentId: searchParams.get('ownWorkstationAgentId') || undefined,
       isShareable: searchParams.get('isShareable') === 'true' ? true :
                    searchParams.get('isShareable') === 'false' ? false : undefined,
       isOnline: searchParams.get('isOnline') === 'true' ? true :

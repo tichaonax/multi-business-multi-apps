@@ -40,27 +40,20 @@ interface WorkstationAgent {
   qzPrinterName?: string
 }
 
-// MBM-278: mirrors network-printers/page.tsx's own shapes — the exact same
-// two endpoints that page already uses, fetched read-only here (system admin
-// only) so "what connection mode is this printer actually in, and is that
-// workstation online" is visible right on this business's own Workstation
-// Agents page instead of only discoverable by clicking through to the
-// separate Printer Connection Mode admin page. See MBM-277's finding: HE
-// Kitchen was silently misrouted with no on-page signal until that page was
-// opened directly.
-interface GlobalPrinter {
+// This workstation's own AGENT-mode printer — declared and edited right on
+// its own row below, replacing the old separate "Printer Connection Mode"
+// admin page for this exact job (see route.ts's header comment for why).
+interface AgentPrinter {
   id: string
-  name: string
-  type: string
-  connectionMode?: 'DIRECT' | 'AGENT'
-  workstationAgentId?: string | null
-}
-
-interface GlobalWorkstationAgentOption {
-  id: string
-  label: string
-  connectionStatus: 'ONLINE' | 'OFFLINE'
-  businessName: string
+  printerName: string
+  // Two independent flags — see route.ts's header comment. remotePrintingEnabled
+  // = this workstation's printer receives jobs relayed from the centralized
+  // server at all (the original MBM-275 behavior). remoteEnabled = "share
+  // this printer," whether OTHER devices can also route to it; only
+  // meaningful (and only ever true) while remotePrintingEnabled is also true.
+  remotePrintingEnabled: boolean
+  remoteEnabled: boolean
+  qzOverlap: boolean
 }
 
 interface ActivityEntry {
@@ -193,13 +186,6 @@ export default function WorkstationAgentsPage() {
   // signal at all despite tracking `lastError` in its own agent shape.
   const [latestAgentVersion, setLatestAgentVersion] = useState<string | null>(null)
 
-  // System-admin only (same gating as the "Printer Connection Mode →" link
-  // below) — cross-business printer routing is not something a plain
-  // business owner should see, per the sandboxing this app otherwise keeps
-  // between businesses.
-  const [globalPrinters, setGlobalPrinters] = useState<GlobalPrinter[]>([])
-  const [globalAgents, setGlobalAgents] = useState<GlobalWorkstationAgentOption[]>([])
-
   const [pairLabel, setPairLabel] = useState('')
   const [pairing, setPairing] = useState(false)
   const [localAgentDetected, setLocalAgentDetected] = useState(false)
@@ -223,6 +209,18 @@ export default function WorkstationAgentsPage() {
   const [hasExistingR710Only, setHasExistingR710Only] = useState(false)
   const existingAgentInThisBusiness = agents.find(a => a.id === existingWorkstationAgentId)
   const [togglingAutoStartId, setTogglingAutoStartId] = useState<string | null>(null)
+
+  // This workstation's own printer — keyed by workstationAgentId. Fetched
+  // per paired agent (GET .../[id]/printer); null once loaded means "not
+  // set up yet," not "still loading" (see agentPrintersLoaded).
+  const [agentPrinters, setAgentPrinters] = useState<Record<string, AgentPrinter | null>>({})
+  const [editingPrinterFor, setEditingPrinterFor] = useState<string | null>(null)
+  const [draftPrinterName, setDraftPrinterName] = useState('')
+  const [draftRemotePrintingEnabled, setDraftRemotePrintingEnabled] = useState(true)
+  const [draftRemoteEnabled, setDraftRemoteEnabled] = useState(false)
+  const [remotePrinterOptions, setRemotePrinterOptions] = useState<{ name: string }[]>([])
+  const [listingRemotePrinters, setListingRemotePrinters] = useState(false)
+  const [savingPrinterFor, setSavingPrinterFor] = useState<string | null>(null)
 
   // Scale setup state
   const [selectedAgentId, setSelectedAgentId] = useState('')
@@ -258,20 +256,16 @@ export default function WorkstationAgentsPage() {
     if (!currentBusinessId) return
     try {
       setLoading(true)
-      const requests = [
+      const [agentsRes, scaleRes] = await Promise.all([
         fetch(`/api/admin/workstation-agents?businessId=${currentBusinessId}`, { credentials: 'include' }),
         fetch(`/api/scale/device-config?businessId=${currentBusinessId}`, { credentials: 'include' }),
-      ]
-      if (isSystemAdmin) {
-        requests.push(
-          fetch('/api/network-printers', { credentials: 'include' }),
-          fetch('/api/admin/workstation-agents/all', { credentials: 'include' }),
-        )
-      }
-      const [agentsRes, scaleRes, printersRes, allAgentsRes] = await Promise.all(requests)
+      ])
+
+      let loadedAgents: WorkstationAgent[] = []
       if (agentsRes.ok) {
         const data = await agentsRes.json()
-        setAgents(data.data || [])
+        loadedAgents = data.data || []
+        setAgents(loadedAgents)
       }
       if (scaleRes.ok) {
         const data = await scaleRes.json()
@@ -282,18 +276,26 @@ export default function WorkstationAgentsPage() {
           setBaudRate(data.config.baudRate || '')
         }
       }
-      if (printersRes?.ok) {
-        const data = await printersRes.json()
-        setGlobalPrinters(data.printers || [])
-      }
-      if (allAgentsRes?.ok) {
-        const data = await allAgentsRes.json()
-        setGlobalAgents(data.data || [])
+
+      // Each paired workstation's own printer, if it's declared one — no
+      // bulk endpoint exists; N small requests is fine here since a
+      // business rarely has more than a handful of workstations.
+      if (loadedAgents.length > 0) {
+        const printerResults = await Promise.all(
+          loadedAgents.map(a =>
+            fetch(`/api/admin/workstation-agents/${a.id}/printer`, { credentials: 'include' })
+              .then(r => r.ok ? r.json() : null)
+              .catch(() => null)
+          )
+        )
+        const printers: Record<string, AgentPrinter | null> = {}
+        loadedAgents.forEach((a, i) => { printers[a.id] = printerResults[i]?.printer ?? null })
+        setAgentPrinters(printers)
       }
     } finally {
       setLoading(false)
     }
-  }, [currentBusinessId, isSystemAdmin])
+  }, [currentBusinessId])
 
   // Refreshes just the connection-status badges — not the full load() (which
   // would reset the scale form's selected port/baud while someone might be
@@ -446,6 +448,62 @@ export default function WorkstationAgentsPage() {
       await alert({ title: '❌ Update Failed', description: 'Unable to reach the server. Please try again.' })
     } finally {
       setTogglingAutoStartId(null)
+    }
+  }
+
+  const startPrinterEdit = (agentId: string) => {
+    const current = agentPrinters[agentId]
+    setEditingPrinterFor(agentId)
+    setDraftPrinterName(current?.printerName || '')
+    setDraftRemotePrintingEnabled(current?.remotePrintingEnabled ?? true)
+    setDraftRemoteEnabled(current?.remoteEnabled ?? false)
+    setRemotePrinterOptions([])
+  }
+
+  const cancelPrinterEdit = () => {
+    setEditingPrinterFor(null)
+    setRemotePrinterOptions([])
+  }
+
+  const handleListRemotePrinters = async (agentId: string) => {
+    setListingRemotePrinters(true)
+    try {
+      const res = await fetch('/api/print/list-printers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ workstationAgentId: agentId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        await alert({ title: 'Error', description: data.error || 'Failed to list printers on that workstation' })
+        return
+      }
+      setRemotePrinterOptions(data.printers || [])
+    } finally {
+      setListingRemotePrinters(false)
+    }
+  }
+
+  const handleSavePrinter = async (agentId: string) => {
+    if (!draftPrinterName.trim()) return
+    setSavingPrinterFor(agentId)
+    try {
+      const res = await fetch(`/api/admin/workstation-agents/${agentId}/printer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ printerName: draftPrinterName.trim(), remotePrintingEnabled: draftRemotePrintingEnabled, remoteEnabled: draftRemoteEnabled }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        await alert({ title: 'Error', description: data.error || 'Failed to save printer' })
+        return
+      }
+      setAgentPrinters(prev => ({ ...prev, [agentId]: { ...data.printer, qzOverlap: agentPrinters[agentId]?.qzOverlap ?? false } }))
+      setEditingPrinterFor(null)
+    } finally {
+      setSavingPrinterFor(null)
     }
   }
 
@@ -721,6 +779,120 @@ export default function WorkstationAgentsPage() {
                       <button onClick={() => handleRevoke(agent.id)} className="text-sm text-red-600 hover:underline">Revoke</button>
                     </div>
                   </div>
+                  {/* This workstation's own printer — the physical printer
+                      attached HERE, declared once and edited right on this
+                      row. Two independent flags:
+                       - Remote printing (connectionMode AGENT/DIRECT): does
+                         the centralized server relay jobs to it through
+                         this workstation's agent at all? The original
+                         MBM-275 behavior.
+                       - Share this printer (remoteEnabled): can OTHER
+                         devices/workstations in the business also route to
+                         it, on top of remote printing being on? Meaningless
+                         — and disabled — while remote printing is off. */}
+                  <div className="border-t border-gray-200 dark:border-gray-700 px-3 py-2">
+                    {editingPrinterFor === agent.id ? (
+                      <div className="space-y-2">
+                        <div className="flex gap-2 items-end">
+                          <div className="flex-1">
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Printer name (as installed on this workstation)</label>
+                            <select
+                              value={draftPrinterName}
+                              onChange={(e) => setDraftPrinterName(e.target.value)}
+                              className="w-full text-xs px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                            >
+                              {remotePrinterOptions.length === 0 && draftPrinterName && <option value={draftPrinterName}>{draftPrinterName}</option>}
+                              {remotePrinterOptions.length === 0 && !draftPrinterName && <option value="">Select…</option>}
+                              {remotePrinterOptions.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+                            </select>
+                          </div>
+                          <button
+                            onClick={() => handleListRemotePrinters(agent.id)}
+                            disabled={listingRemotePrinters}
+                            className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-xs hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+                          >
+                            {listingRemotePrinters ? 'Listing…' : 'List Printers'}
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Click "List Printers" to pull the actual printer names Windows sees on this workstation — the agent must be online.
+                        </p>
+                        <label className="flex items-start gap-2 text-xs bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-2">
+                          <input
+                            type="checkbox"
+                            checked={draftRemotePrintingEnabled}
+                            onChange={(e) => {
+                              setDraftRemotePrintingEnabled(e.target.checked)
+                              if (!e.target.checked) setDraftRemoteEnabled(false)
+                            }}
+                            className="mt-0.5"
+                          />
+                          <span>
+                            <span className="font-medium text-gray-900 dark:text-white">🔌 Enable remote printing</span>
+                            <br />
+                            Lets the centralized server relay print jobs to this printer through this workstation's agent. Off = this
+                            printer is set up but not currently reachable from the server (paused, not deleted).
+                          </span>
+                        </label>
+                        <label className={`flex items-start gap-2 text-xs border rounded-md p-2 ${draftRemotePrintingEnabled ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-700 opacity-60'}`}>
+                          <input
+                            type="checkbox"
+                            checked={draftRemoteEnabled}
+                            disabled={!draftRemotePrintingEnabled}
+                            onChange={(e) => setDraftRemoteEnabled(e.target.checked)}
+                            className="mt-0.5"
+                          />
+                          <span>
+                            <span className="font-medium text-gray-900 dark:text-white">🔗 Share this printer</span>
+                            <br />
+                            {draftRemotePrintingEnabled
+                              ? <>While off, only this workstation can print to it. Turn on to let other devices/workstations in this business use it too (e.g. as their default, or picked on the fly).</>
+                              : <>Requires remote printing to be on — there's no relay for another device to reach otherwise.</>}
+                          </span>
+                        </label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleSavePrinter(agent.id)}
+                            disabled={!draftPrinterName.trim() || savingPrinterFor === agent.id}
+                            className="px-3 py-1.5 bg-green-600 text-white rounded-md text-xs hover:bg-green-700 disabled:opacity-50"
+                          >
+                            {savingPrinterFor === agent.id ? 'Saving…' : 'Save'}
+                          </button>
+                          <button onClick={cancelPrinterEdit} className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-xs hover:bg-gray-50 dark:hover:bg-gray-700">
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : agentPrinters[agent.id] ? (
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-xs text-gray-600 dark:text-gray-400">
+                          <span className="font-medium text-gray-900 dark:text-white">🖨️ {agentPrinters[agent.id]!.printerName}</span>
+                          <span className={`ml-2 px-1.5 py-0.5 rounded-full font-medium ${agentPrinters[agent.id]!.remotePrintingEnabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'}`}>
+                            {agentPrinters[agent.id]!.remotePrintingEnabled ? '🔌 Remote printing on' : '⏸️ Remote printing off'}
+                          </span>
+                          {agentPrinters[agent.id]!.remotePrintingEnabled && (
+                            <span className={`ml-2 px-1.5 py-0.5 rounded-full font-medium ${agentPrinters[agent.id]!.remoteEnabled ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-500'}`}>
+                              {agentPrinters[agent.id]!.remoteEnabled ? '🔗 Shared' : 'This workstation only'}
+                            </span>
+                          )}
+                          {agentPrinters[agent.id]!.qzOverlap && (
+                            <span
+                              className="ml-2 px-1.5 py-0.5 rounded-full font-medium bg-amber-100 text-amber-800"
+                              title="This exact printer name is also saved as a QZ Tray printer on this same workstation (Profile → Printer Setup). Not unsafe — both paths go through the real Windows print spooler — just avoid setting both up unless you actually want this printer usable both ways."
+                            >
+                              ⚠️ Also set up for QZ Tray
+                            </span>
+                          )}
+                        </div>
+                        <button onClick={() => startPrinterEdit(agent.id)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex-shrink-0">Edit</button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">No printer set up for this workstation yet.</span>
+                        <button onClick={() => startPrinterEdit(agent.id)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex-shrink-0">Set up printer</button>
+                      </div>
+                    )}
+                  </div>
                   {expandedAgentId === agent.id && (
                     <div className="border-t border-gray-200 dark:border-gray-700 p-3">
                       {loadingActivity ? (
@@ -896,85 +1068,16 @@ export default function WorkstationAgentsPage() {
                 </div>
               )}
 
-              {/* MBM-278: system-admin-only read-only view of every registered
-                  printer's actual connection mode and (for AGENT mode) which
-                  workstation it's really routed to right now, plus that
-                  workstation's live status — the exact information that was
-                  previously only visible by clicking through to Printer
-                  Connection Mode, which is why a printer misrouted to a
-                  different business's agent (MBM-277) had no on-page signal
-                  here at all. Business owners don't see this — it spans
-                  every business's printers/agents, not just this one. */}
-              {isSystemAdmin && globalPrinters.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Printer connection mode & status (all printers on this server):</p>
-                  <div className="space-y-1.5">
-                    {globalPrinters.map(printer => {
-                      const mode = printer.connectionMode || 'DIRECT'
-                      const via = mode === 'AGENT' ? globalAgents.find(a => a.id === printer.workstationAgentId) : undefined
-                      const isThisBusiness = mode === 'AGENT' && agents.some(a => a.id === printer.workstationAgentId)
-                      return (
-                        <div key={printer.id} className="flex items-center justify-between text-sm border border-gray-200 dark:border-gray-700 rounded-md px-3 py-2">
-                          <div>
-                            <span className="font-medium text-gray-900 dark:text-white">{printer.name}</span>
-                            <span className="ml-2 text-xs text-gray-500">{printer.type}</span>
-                            <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-medium ${mode === 'AGENT' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600'}`}>
-                              {mode === 'AGENT' ? 'AGENT (relayed)' : 'DIRECT'}
-                            </span>
-                            {mode === 'AGENT' && (
-                              via ? (
-                                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                                  via <span className="font-medium text-gray-700 dark:text-gray-300">{via.label}</span> ({via.businessName}) {via.connectionStatus === 'ONLINE' ? '🟢' : '🔴'}
-                                  {!isThisBusiness && <span className="ml-1 text-amber-600 dark:text-amber-400">— not this business</span>}
-                                </span>
-                              ) : printer.workstationAgentId ? (
-                                <span className="ml-2 text-xs text-red-500 dark:text-red-400">via an unknown/revoked workstation</span>
-                              ) : null
-                            )}
-                          </div>
-                          <Link href="/admin/network-printers" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex-shrink-0">
-                            Configure →
-                          </Link>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {agents.some(a => a.configuredPrinters.length > 0 || a.qzPrinterName)
-                    ? 'To add or change an agent-relayed printer, it\'s two steps, on two different pages:'
-                    : 'Routing a printer through a paired workstation is two steps, on two different pages:'}
-                </p>
-                <ol className="text-sm text-gray-600 dark:text-gray-400 list-decimal list-inside space-y-2 mt-2">
-                  <li>
-                    <strong>Register the printer</strong> — a one-time entry for the physical printer itself, if it isn't already registered.
-                    {' '}
-                    <Link href="/admin/printers" className="text-blue-600 dark:text-blue-400 hover:underline">
-                      Register a printer →
-                    </Link>
-                  </li>
-                  <li>
-                    <strong>Route it through this workstation</strong> — set that printer's connection mode to relay through one of the workstations paired above, and pick the exact printer name from what this workstation's agent detects.
-                    {' '}
-                    {isSystemAdmin ? (
-                      <Link href="/admin/network-printers" className="text-blue-600 dark:text-blue-400 hover:underline">
-                        Printer Connection Mode →
-                      </Link>
-                    ) : (
-                      <span className="text-gray-500 dark:text-gray-500 italic">
-                        System admin only — ask a system admin to complete this step for {agents.map(a => `"${a.label}"`).join(', ')}.
-                      </span>
-                    )}
-                  </li>
-                </ol>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                  Prefer QZ Tray instead? That's set up separately, per browser/machine, at{' '}
-                  <Link href="/admin/printers" className="text-blue-600 dark:text-blue-400 hover:underline">👤 Profile → Printer Setup</Link> — see Section 26 of the user guide.
-                </p>
-              </div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Each paired workstation's own printer is declared right on its row above — click <strong>"Set up printer"</strong> or <strong>"Edit"</strong> there.
+                <strong>"Enable remote printing"</strong> is what makes it reachable from this centralized server at all. <strong>"Share this printer"</strong> is
+                a separate, additional choice — it makes it available for other devices in this business to use too, via the picker in Settings → POS Settings →
+                Printer Preferences (or their own workstation/print-terminal default).
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Prefer QZ Tray instead? That's set up separately, per browser/machine, at{' '}
+                <Link href="/admin/printers" className="text-blue-600 dark:text-blue-400 hover:underline">👤 Profile → Printer Setup</Link> — see Section 26 of the user guide.
+              </p>
             </div>
           )}
         </div>

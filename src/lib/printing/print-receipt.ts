@@ -6,6 +6,11 @@ interface PrintReceiptOptions {
   printerId?: string
   copies?: number
   autoPrint?: boolean
+  // MBM-283 follow-up: this browser's own probed workstation id, when
+  // known — lets the server recognize "this request IS printer X's own
+  // workstation" and allow it through even when that printer isn't shared
+  // with other devices. See print-dispatch.ts's resolvePrinterForBusiness.
+  workstationAgentId?: string | null
 }
 
 interface PrintReceiptResult {
@@ -25,7 +30,7 @@ export async function printReceipt(
   options: PrintReceiptOptions = {}
 ): Promise<PrintReceiptResult> {
   try {
-    const { printerId, copies = 1, autoPrint = true } = options
+    const { printerId, copies = 1, autoPrint = true, workstationAgentId } = options
 
     // Extract businessId and businessType from receiptData
     const businessId = receiptData.businessId
@@ -55,6 +60,7 @@ export async function printReceipt(
         printerId,
         businessId,
         businessType,
+        workstationAgentId,
         receiptType: receiptData.receiptType, // ← Receipt type (business/customer)
         receiptNumber: receiptData.receiptNumber,
         transactionId: receiptData.transactionId,

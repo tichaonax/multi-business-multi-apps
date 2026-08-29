@@ -11,12 +11,19 @@
 import { useEffect, useState } from 'react'
 import { usePrintPreferences } from '@/hooks/use-print-preferences'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { getPrintTerminal, setPrintTerminal, clearPrintTerminal, type PrintTerminalIdentity } from '@/lib/printing/print-terminal'
+import { formatPrinterName } from '@/lib/printing/format-printer-label'
 
 interface Printer {
   id: string
   printerName: string
   isOnline: boolean
   printerType: string
+  // MBM-283: which workstation this AGENT-relayed printer is physically
+  // attached to — distinguishes two printers sharing a model name across
+  // different workstations (e.g. two identical thermal printers).
+  workstationLabel?: string | null
+  workstationHostname?: string | null
 }
 
 interface PrinterPreferencesSettingsProps {
@@ -37,6 +44,48 @@ export function PrinterPreferencesSettings({ businessType, posLink }: PrinterPre
   const [businessDefaultPrinterId, setBusinessDefaultPrinterId] = useState<string | null>(null)
   const [loadingBusinessDefault, setLoadingBusinessDefault] = useState(true)
   const [savingBusinessDefault, setSavingBusinessDefault] = useState(false)
+
+  // MBM-283 follow-up: this device's own lightweight "print terminal"
+  // identity, if it's ever been registered — lets an admin assign THIS
+  // specific machine a default printer that survives whoever's logged in,
+  // without needing the local agent at all. See print-terminal.ts.
+  const [terminal, setTerminal] = useState<PrintTerminalIdentity | null>(null)
+  const [registerLabel, setRegisterLabel] = useState('')
+  const [registering, setRegistering] = useState(false)
+
+  useEffect(() => {
+    setTerminal(getPrintTerminal())
+  }, [])
+
+  const handleRegisterTerminal = async () => {
+    if (!currentBusinessId || !registerLabel.trim()) return
+    setRegistering(true)
+    try {
+      const res = await fetch('/api/printing/terminals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ businessId: currentBusinessId, label: registerLabel.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        showSaved(data.error || 'Failed to register this device')
+        return
+      }
+      const identity = { id: data.data.id, label: data.data.label }
+      setPrintTerminal(identity)
+      setTerminal(identity)
+      showSaved('Device registered')
+    } finally {
+      setRegistering(false)
+    }
+  }
+
+  const handleForgetTerminal = () => {
+    clearPrintTerminal()
+    setTerminal(null)
+    setRegisterLabel('')
+  }
 
   useEffect(() => {
     fetchPrinters()
@@ -190,7 +239,7 @@ export function PrinterPreferencesSettings({ businessType, posLink }: PrinterPre
               <option value="">No default printer</option>
               {printers.map(p => (
                 <option key={p.id} value={p.id}>
-                  {p.printerName}{p.isOnline ? '' : ' (offline)'}
+                  {formatPrinterName(p)}{p.isOnline ? '' : ' (offline)'}
                 </option>
               ))}
             </select>
@@ -219,6 +268,48 @@ export function PrinterPreferencesSettings({ businessType, posLink }: PrinterPre
         )}
       </div>
 
+      {/* This Device / Print Terminal (MBM-283 follow-up) — any user can
+          register; this is what makes a shared machine (not the login)
+          eligible for an admin-assigned default printer, without ever
+          running the local agent. No pairing, no agent, just an id this
+          browser remembers. */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+        <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">This Device</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+          Register this specific machine so an admin can assign it a fixed default printer — useful for a shared
+          till used by rotating staff, where a per-user choice above doesn&apos;t help. No local hardware or
+          agent required.
+        </p>
+        {terminal ? (
+          <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+            <p className="text-sm text-green-800 dark:text-green-300">
+              ✅ Registered as <strong>&quot;{terminal.label}&quot;</strong>
+              {canManageBusinessDefault && <> — set its default printer in <strong>Admin → Print Terminals</strong>.</>}
+            </p>
+            <button onClick={handleForgetTerminal} className="text-xs text-red-600 dark:text-red-400 hover:underline flex-shrink-0 ml-3">
+              Forget this device
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={registerLabel}
+              onChange={(e) => setRegisterLabel(e.target.value)}
+              placeholder="e.g. Front Counter Till"
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm dark:bg-gray-700 dark:text-white"
+            />
+            <button
+              onClick={handleRegisterTerminal}
+              disabled={!registerLabel.trim() || registering}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 flex-shrink-0"
+            >
+              {registering ? 'Registering…' : 'Register this device'}
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Business Default Printer (MBM-283 Phase 3) — admin/owner only */}
       {canManageBusinessDefault && (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
@@ -241,7 +332,7 @@ export function PrinterPreferencesSettings({ businessType, posLink }: PrinterPre
                 <option value="">No business default printer</option>
                 {printers.map(p => (
                   <option key={p.id} value={p.id}>
-                    {p.printerName}{p.isOnline ? '' : ' (offline)'}
+                    {formatPrinterName(p)}{p.isOnline ? '' : ' (offline)'}
                   </option>
                 ))}
               </select>

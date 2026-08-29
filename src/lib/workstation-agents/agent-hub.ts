@@ -151,6 +151,11 @@ class WorkstationAgentHub {
           lastSeenAt: new Date(),
           agentVersion: data.agentVersion ?? undefined,
           autoStartEnabled: data.autoStartEnabled ?? undefined,
+          // MBM-283 follow-up: was already arriving here on every connect,
+          // only ever used for the console.log below — now persisted so a
+          // picker listing several workstations can disambiguate two that
+          // share the same admin-typed label.
+          hostname: data.hostLabel ?? undefined,
           lastError: null,
         },
       })

@@ -36,6 +36,14 @@ export interface PrinterFilters {
   // management screens that intentionally want the full unscoped list
   // (printer-list.tsx etc.) keep working exactly as before.
   businessId?: string;
+  // MBM-283 follow-up: lets a paired workstation discover its OWN AGENT
+  // printer even when "share this printer" (remoteEnabled) is off — a
+  // workstation must be able to auto-select/print to its own declared
+  // printer regardless of whether it's shared with anyone else. Only ever
+  // widens the result to include that ONE printer (matched by
+  // workstationAgentId, still requiring remotePrintingEnabled) — never a
+  // bypass for any other printer.
+  ownWorkstationAgentId?: string;
 }
 
 export interface PrinterListOptions extends PrinterFilters {
@@ -145,6 +153,7 @@ export async function listPrinters(options: PrinterListOptions = {}): Promise<{
     isOnline,
     search,
     businessId,
+    ownWorkstationAgentId,
     limit = 50,
     offset = 0,
     sortBy = 'name',
@@ -191,7 +200,17 @@ export async function listPrinters(options: PrinterListOptions = {}): Promise<{
         // MBM-283 Phase 2: same-business alone isn't enough — an AGENT
         // printer must also be explicitly opted in for remote use to
         // appear in this business-scoped (i.e. print-time picker) listing.
-        { connectionMode: 'AGENT', workstation_agent: { businessId }, remoteEnabled: true },
+        // MBM-283 follow-up: also requires remotePrintingEnabled — a
+        // "paused" printer (remote printing off) is unreachable for
+        // everyone, share flag notwithstanding.
+        { connectionMode: 'AGENT', remotePrintingEnabled: true, workstation_agent: { businessId }, remoteEnabled: true },
+        // MBM-283 follow-up: a workstation can always discover its OWN
+        // printer, share flag aside — it just can't be discovered by
+        // anyone else while unshared. Still gated by remotePrintingEnabled
+        // — paused means unreachable even for its own workstation.
+        ...(ownWorkstationAgentId
+          ? [{ connectionMode: 'AGENT', remotePrintingEnabled: true, workstationAgentId: ownWorkstationAgentId }]
+          : []),
       ],
     });
   }
@@ -216,8 +235,15 @@ export async function listPrinters(options: PrinterListOptions = {}): Promise<{
     // column is only ever kept accurate for DIRECT printers (see
     // checkPrinterConnectivity, which explicitly skips AGENT mode). Needed
     // so transformPrinterRecord below can report real connectivity instead
-    // of a stale/meaningless flag.
-    include: { workstation_agent: { select: { connectionStatus: true } } },
+    // of a stale/meaningless flag. `label` is surfaced too so the print-time
+    // picker can distinguish two AGENT printers that happen to share a
+    // printer name (e.g. the same "EPSON TM-T" model at two different
+    // workstations) — without it, a manual "pick a different one, this
+    // workstation is busy" override is impossible to make correctly.
+    // `hostname` too: `label` is free text an admin typed with no
+    // uniqueness enforced, so two workstations can share one — hostname is
+    // what actually disambiguates them once a picker lists several.
+    include: { workstation_agent: { select: { connectionStatus: true, label: true, hostname: true } } },
   });
 
   return {
@@ -521,6 +547,24 @@ function transformPrinterRecord(record: any): NetworkPrinter {
     isOnline: record.connectionMode === 'AGENT' && record.workstation_agent
       ? record.workstation_agent.connectionStatus === 'ONLINE'
       : record.isOnline,
+    // MBM-283: which workstation this AGENT-relayed printer is physically
+    // attached to — null for DIRECT printers or when the caller didn't
+    // join workstation_agent. Lets the print-time picker show "EPSON TM-T
+    // — Kitchen Till" instead of an ambiguous bare name that's identical
+    // across every workstation using the same printer model.
+    workstationLabel: record.connectionMode === 'AGENT' ? (record.workstation_agent?.label ?? null) : null,
+    // MBM-283 follow-up: the workstation's actual machine hostname —
+    // `workstationLabel` above is free text an admin typed with no
+    // uniqueness enforced, so two workstations can share a label; hostname
+    // is what a picker listing several workstations actually disambiguates
+    // them by.
+    workstationHostname: record.connectionMode === 'AGENT' ? (record.workstation_agent?.hostname ?? null) : null,
+    // MBM-283 follow-up: lets a paired workstation recognize "this AGENT
+    // printer is MY OWN attached printer" client-side (unified-receipt-
+    // preview-modal.tsx matches this against its own local /probe result)
+    // so it defaults to printing to itself rather than to the business-wide
+    // default, which may point at a different workstation entirely.
+    workstationAgentId: record.connectionMode === 'AGENT' ? (record.workstationAgentId ?? null) : null,
     receiptWidth: record.receiptWidth,
     lastSeen: new Date(record.lastSeen),
     createdAt: new Date(record.createdAt),
