@@ -370,6 +370,27 @@ export async function checkPrinterConnectivity(printerId: string): Promise<boole
       return false;
     }
 
+    // AGENT-mode printers live on a paired workstation, not the central
+    // server — neither branch below applies to them (no ipAddress/port,
+    // and checkLocalPrinterConnectivity checks for a printer installed on
+    // whatever machine runs THIS server process, which is never where an
+    // AGENT printer actually is). Missing this case meant "Bring Online"
+    // always reported false for every AGENT printer regardless of its
+    // real connection state — it was checking the wrong machine entirely.
+    // The live workstationAgentHub state (same source the admin page's
+    // own agent list already uses) is the real answer here, and — unlike
+    // the branches below — deliberately does NOT get written back to this
+    // printer's isOnline column: that column means nothing for AGENT mode
+    // (transformPrinterRecord ignores it, deriving isOnline from the
+    // paired workstation's live state instead), so writing to it here
+    // would just be a second, unread, possibly-misleading copy of the
+    // same fact.
+    if (printer.connectionMode === 'AGENT') {
+      if (!printer.workstationAgentId) return false;
+      const { workstationAgentHub } = await import('@/lib/workstation-agents/agent-hub');
+      return workstationAgentHub.isAgentConnected(printer.workstationAgentId);
+    }
+
     // For network printers, try to connect to the IP/port
     if (printer.ipAddress && printer.port) {
       const isOnline = await checkNetworkPrinterConnectivity(printer.ipAddress, printer.port);

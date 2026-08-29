@@ -221,6 +221,11 @@ export default function WorkstationAgentsPage() {
   const [draftRemoteEnabled, setDraftRemoteEnabled] = useState(false)
   const [remotePrinterOptions, setRemotePrinterOptions] = useState<{ name: string }[]>([])
   const [listingRemotePrinters, setListingRemotePrinters] = useState(false)
+  // Custom combobox open state — deliberately not a native <select> (must
+  // stay editable for manual entry when List Printers can't reach the
+  // agent) or <datalist> (its suggestion popup only appears once typing
+  // starts, giving no visible signal that printers were even found).
+  const [printerSuggestionsOpen, setPrinterSuggestionsOpen] = useState(false)
   const [savingPrinterFor, setSavingPrinterFor] = useState<string | null>(null)
 
   // Restored per-workstation default override: lets several workstations in
@@ -490,11 +495,13 @@ export default function WorkstationAgentsPage() {
     setDraftRemotePrintingEnabled(current?.remotePrintingEnabled ?? true)
     setDraftRemoteEnabled(current?.remoteEnabled ?? false)
     setRemotePrinterOptions([])
+    setPrinterSuggestionsOpen(false)
   }
 
   const cancelPrinterEdit = () => {
     setEditingPrinterFor(null)
     setRemotePrinterOptions([])
+    setPrinterSuggestionsOpen(false)
   }
 
   const handleListRemotePrinters = async (agentId: string) => {
@@ -512,6 +519,10 @@ export default function WorkstationAgentsPage() {
         return
       }
       setRemotePrinterOptions(data.printers || [])
+      // Open immediately so "these printers were found" is visible right
+      // away, without needing to type anything first — the discoverability
+      // gap that made the earlier native-datalist version look broken.
+      setPrinterSuggestionsOpen(true)
     } finally {
       setListingRemotePrinters(false)
     }
@@ -883,17 +894,47 @@ export default function WorkstationAgentsPage() {
                     {editingPrinterFor === agent.id ? (
                       <div className="space-y-2">
                         <div className="flex gap-2 items-end">
-                          <div className="flex-1">
+                          <div className="flex-1 relative">
                             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Printer name (as installed on this workstation)</label>
-                            <select
+                            <input
+                              type="text"
                               value={draftPrinterName}
-                              onChange={(e) => setDraftPrinterName(e.target.value)}
+                              onChange={(e) => { setDraftPrinterName(e.target.value); if (remotePrinterOptions.length > 0) setPrinterSuggestionsOpen(true) }}
+                              onFocus={() => { if (remotePrinterOptions.length > 0) setPrinterSuggestionsOpen(true) }}
+                              onBlur={() => setTimeout(() => setPrinterSuggestionsOpen(false), 150)}
+                              placeholder="e.g. EPSON TM-T"
                               className="w-full text-xs px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
-                            >
-                              {remotePrinterOptions.length === 0 && draftPrinterName && <option value={draftPrinterName}>{draftPrinterName}</option>}
-                              {remotePrinterOptions.length === 0 && !draftPrinterName && <option value="">Select…</option>}
-                              {remotePrinterOptions.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
-                            </select>
+                            />
+                            {/* Custom dropdown panel — not a native <select>
+                                (must stay freely editable for manual entry
+                                when List Printers can't reach the agent) or
+                                <datalist> (its suggestion popup only shows
+                                once typing starts, giving no visible sign
+                                that any printers were even found — which is
+                                exactly what made it look broken). Opens the
+                                moment results arrive, filters live as you
+                                type, onBlur has a short delay so a click on
+                                an option registers before the panel closes. */}
+                            {printerSuggestionsOpen && remotePrinterOptions.length > 0 && (() => {
+                              const filtered = remotePrinterOptions.filter(p => p.name.toLowerCase().includes(draftPrinterName.toLowerCase()))
+                              return (
+                                <div className="absolute z-10 mt-1 w-full max-h-48 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg">
+                                  {filtered.length === 0 ? (
+                                    <p className="px-2 py-1.5 text-xs text-gray-400">No match — this exact name will be used as typed.</p>
+                                  ) : filtered.map(p => (
+                                    <button
+                                      key={p.name}
+                                      type="button"
+                                      onMouseDown={(e) => e.preventDefault()}
+                                      onClick={() => { setDraftPrinterName(p.name); setPrinterSuggestionsOpen(false) }}
+                                      className={`block w-full text-left px-2 py-1.5 text-xs ${draftPrinterName === p.name ? 'bg-blue-600 text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                    >
+                                      {p.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              )
+                            })()}
                           </div>
                           <button
                             onClick={() => handleListRemotePrinters(agent.id)}
@@ -904,7 +945,8 @@ export default function WorkstationAgentsPage() {
                           </button>
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                          Click "List Printers" to pull the actual printer names Windows sees on this workstation — the agent must be online.
+                          Click "List Printers" to see and search every printer Windows detects on this workstation (the agent must be online) — or just
+                          type the exact name yourself, e.g. straight from Windows' own Printers &amp; Scanners settings, if listing isn't working.
                         </p>
                         <label className="flex items-start gap-2 text-xs bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-2">
                           <input

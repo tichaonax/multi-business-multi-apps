@@ -30,10 +30,17 @@ export interface LocalPrinterInfo {
 // the real reason only ever visible in this agent's own local console,
 // never to whoever's looking at the picker remotely.
 export function listPrinters(): LocalPrinterInfo[] {
-  const psScript = `
-$ErrorActionPreference = "Stop"
-Get-Printer | Select-Object Name, DriverName, PortName | ConvertTo-Json -Compress
-`
+  // Deliberately ONE line, ';'-separated — not a multi-line template
+  // literal. execSync on Windows runs this via cmd.exe /c "...", and
+  // cmd.exe's command-line parser does not reliably handle literal
+  // newlines embedded inside a quoted argument: it can truncate the
+  // command at the line break. With a multi-line script here, that meant
+  // only `$ErrorActionPreference = "Stop"` (the first line) ever actually
+  // ran — a syntactically complete statement on its own, doing nothing —
+  // while `Get-Printer | ...` (the second line) silently never executed at
+  // all. No error, no output: exactly the "always empty, on every
+  // machine" symptom this turned out to be, traced live.
+  const psScript = `$ErrorActionPreference = "Stop"; Get-Printer | Select-Object Name, DriverName, PortName | ConvertTo-Json -Compress`
   const output = execSync(`powershell -NoProfile -NonInteractive -Command "${psScript.replace(/"/g, '\\"')}"`, {
     encoding: 'utf-8',
     timeout: 10000,

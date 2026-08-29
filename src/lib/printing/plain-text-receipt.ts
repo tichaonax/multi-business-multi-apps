@@ -90,6 +90,7 @@ export function generatePlainTextReceipt(data: Partial<ReceiptData>): string {
     for (const token of data.r710Tokens) {
       out.push('')
       out.push(`Package: ${token.packageName}`)
+      if (token.ssid) out.push(`Network: ${token.ssid}`)
       out.push(`Username: ${token.username}`)
       out.push(`Password: ${token.password}`)
       if (token.durationValue && token.durationUnit) {
@@ -104,6 +105,7 @@ export function generatePlainTextReceipt(data: Partial<ReceiptData>): string {
     for (const token of data.wifiTokens) {
       out.push('')
       out.push(`Package: ${token.packageName}`)
+      if (token.ssid) out.push(`Network: ${token.ssid}`)
       out.push(`Token: ${token.tokenCode}`)
     }
   }
