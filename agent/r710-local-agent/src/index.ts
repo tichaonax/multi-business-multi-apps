@@ -11,6 +11,19 @@
  * HTTP server now runs for the entire process lifetime (not just until the
  * first pairing succeeds) so a new profile can be added at any time
  * without restarting the agent.
+ * MBM-283: the same "connect everything, stay connected" principle above
+ * is now applied one level deeper — to every BUSINESS paired to a given
+ * profile on this machine, not just to every profile. Previously,
+ * activateWorkstationBusiness() disconnected the whole workstation socket
+ * of whichever business was previously "active" on a profile every time a
+ * browser tab switched focus to a different business — meaning only ONE
+ * business's printers/scale could ever be reachable at a time on a shared
+ * workstation, even though (per the MBM-276 header comment above) print
+ * relay and R710 were always designed with no such exclusivity concern.
+ * Now connectAllProfiles() connects a socket for every paired business up
+ * front, and activateWorkstationBusiness() only updates which business is
+ * "focused" (for display, and for scale hand-off — still genuinely
+ * exclusive, one physical serial port) — it never disconnects anything.
  */
 
 import { execFileSync } from 'child_process'
@@ -31,13 +44,24 @@ import { startPairingServer, PAIRING_PORT, type ManageSnapshot, type OtherWorkst
 import { AgentSocketClient, type AgentConnectionState } from './socket-client'
 import { WorkstationSocketClient, type WorkstationAgentConnectionState } from './workstation-socket-client'
 import { scaleDriver, releaseScale } from './workstation-job-handler'
-import { getScaleOwner } from './scale-owner'
+import { getScaleOwner, type ScaleOwner } from './scale-owner'
+import { LEGACY_BUSINESS_KEY } from './workstation-clients-registry'
 import type { ScaleStatus } from './scale-driver'
 import { startTray, updateTrayState, setOnReleaseScale, setOnAutoStartChanged, setOnSwitchWorkstationBusiness, isAutoStartEnabled, setAutoStart, requestQuit, type TrayState } from './tray'
 import { listPrinters } from './print-driver'
+import packageJson from '../package.json'
+
+const AGENT_VERSION = packageJson.version
 
 const r710Clients = new Map<string, AgentSocketClient>()
-const workstationClients = new Map<string, WorkstationSocketClient>()
+// MBM-283: outer key is profileId, inner key is businessId (or
+// LEGACY_BUSINESS_KEY for a not-yet-migrated flat config) — every business
+// paired to a profile on this machine gets its own permanently-connected
+// entry, unlike the flat profileId-only map this replaced.
+const workstationClients = new Map<string, Map<string, WorkstationSocketClient>>()
+function allWorkstationClients(): WorkstationSocketClient[] {
+  return [...workstationClients.values()].flatMap(m => [...m.values()])
+}
 let lastScaleStatus: ScaleStatus = { status: 'disconnected', comPort: null }
 // Fetched once at startup (and again on Restart) — see TrayState's
 // printerNames comment for why this isn't re-queried on every tray render.
@@ -84,6 +108,28 @@ function otherWorkstationBusinessesFor(profileId: string, activeBusinessId: stri
     })
 }
 
+// MBM-283: every business's socket for a profile now stays connected
+// simultaneously (see this file's header comment), so display code needs
+// to explicitly pick ONE to show as "the" business row — the one currently
+// marked active/focused for that profile, same concept as before, just no
+// longer implied by "whichever socket happens to be connected."
+function activeWorkstationClient(profileId: string): WorkstationSocketClient | undefined {
+  const activeBusinessId = getActiveWorkstationBusinessId(profileId)
+  if (!activeBusinessId) return undefined
+  return workstationClients.get(profileId)?.get(activeBusinessId)
+}
+
+// MBM-283: includes the business name, not just the profile/server label —
+// with several businesses now able to share one profile, "Scale owned by
+// Acme Server" would be ambiguous about which of that server's businesses
+// actually holds it.
+function scaleOwnerLabel(owner: ScaleOwner | null): string | null {
+  if (!owner) return null
+  const profileLabel = readProfileMeta(owner.profileId)?.label || owner.profileId
+  const businessLabel = loadWorkstationConfig(owner.profileId, owner.businessId)?.businessName
+  return businessLabel ? `${profileLabel} — ${businessLabel}` : profileLabel
+}
+
 // Rebuilds the full tray snapshot from current connection state + profile
 // metadata and pushes it. Called after any change anywhere — connecting,
 // disconnecting, a new pairing, a rejection, or a scale status change.
@@ -92,19 +138,15 @@ function refreshTray(): void {
 
   const profiles: TrayState['profiles'] = currentProfileIds().map(profileId => {
     const meta = readProfileMeta(profileId)
-    // MBM-279: read from the connected client's own in-memory config, not a
-    // fresh disk load — the client is the single source of truth for
-    // whichever business is actually active on this profile right now
-    // (loadWorkstationConfig() needs a businessId up front, which display
-    // code here shouldn't need to already know).
-    const workstation = workstationClients.get(profileId)?.getConfig()
+    const client = activeWorkstationClient(profileId)
+    const workstation = client?.getConfig()
     return {
       profileId,
       label: meta?.label || profileId,
       serverUrl: meta?.serverUrl || '',
       r710State: r710Clients.get(profileId)?.lastState,
       r710DeviceIp: loadConfig(profileId)?.deviceIpAddress,
-      workstationState: workstationClients.get(profileId)?.lastState,
+      workstationState: client?.lastState,
       businessName: workstation?.businessName,
       configuredPrinters: workstation?.configuredPrinters,
       scaleComPort: workstation?.scaleComPort,
@@ -119,7 +161,7 @@ function refreshTray(): void {
       profiles,
       scaleStatus: lastScaleStatus,
       scaleOwnerProfileId: owner?.profileId ?? null,
-      scaleOwnerLabel: owner ? (readProfileMeta(owner.profileId)?.label || owner.profileId) : null,
+      scaleOwnerLabel: scaleOwnerLabel(owner),
       printerNames,
     })
   } catch { /* tray optional */ }
@@ -133,15 +175,15 @@ function getManageSnapshot(): ManageSnapshot {
 
   const profiles: ManageSnapshot['profiles'] = currentProfileIds().map(profileId => {
     const meta = readProfileMeta(profileId)
-    // See refreshTray()'s identical comment — same reasoning applies here.
-    const workstation = workstationClients.get(profileId)?.getConfig()
+    const client = activeWorkstationClient(profileId)
+    const workstation = client?.getConfig()
     return {
       profileId,
       label: meta?.label || profileId,
       serverUrl: meta?.serverUrl || '',
       r710State: r710Clients.get(profileId)?.lastState,
       r710DeviceIp: loadConfig(profileId)?.deviceIpAddress,
-      workstationState: workstationClients.get(profileId)?.lastState,
+      workstationState: client?.lastState,
       businessName: workstation?.businessName,
       configuredPrinters: workstation?.configuredPrinters,
       qzPrinterName: workstation?.qzPrinterName,
@@ -155,7 +197,7 @@ function getManageSnapshot(): ManageSnapshot {
     profiles,
     scaleStatus: lastScaleStatus,
     scaleOwnerProfileId: owner?.profileId ?? null,
-    scaleOwnerLabel: owner ? (readProfileMeta(owner.profileId)?.label || owner.profileId) : null,
+    scaleOwnerLabel: scaleOwnerLabel(owner),
     autoStartEnabled: isAutoStartEnabled(),
     printerNames,
   }
@@ -169,7 +211,7 @@ function getManageSnapshot(): ManageSnapshot {
 function unpairProfile(profileId: string): void {
   r710Clients.get(profileId)?.stop()
   r710Clients.delete(profileId)
-  workstationClients.get(profileId)?.stop()
+  for (const client of workstationClients.get(profileId)?.values() ?? []) client.stop()
   workstationClients.delete(profileId)
 
   const owner = getScaleOwner()
@@ -187,7 +229,7 @@ function unpairProfile(profileId: string): void {
 // change, regardless of which code path triggered it.
 function broadcastAutoStart(enabled: boolean): void {
   for (const client of r710Clients.values()) client.reportAutoStart(enabled)
-  for (const client of workstationClients.values()) client.reportAutoStart(enabled)
+  for (const client of allWorkstationClients()) client.reportAutoStart(enabled)
 }
 
 function connectR710(profileId: string, config: AgentConfig): void {
@@ -220,19 +262,10 @@ function connectR710(profileId: string, config: AgentConfig): void {
 }
 
 function connectWorkstation(profileId: string, config: WorkstationAgentConfig): void {
-  workstationClients.get(profileId)?.stop()
+  const businessKey = config.businessId ?? LEGACY_BUSINESS_KEY
+  workstationClients.get(profileId)?.get(businessKey)?.stop()
 
-  // MBM-279 follow-up: every OTHER business's workstationAgentId stored on
-  // this same profile — lets the server re-point a shared printer still
-  // routed to one of them onto this agent (see agent-hub.ts's
-  // handleAgentConnect()), so a printer follows this active-business switch
-  // instead of staying wherever it was last manually pointed.
-  const siblingAgentIds = listWorkstationBusinessIds(profileId)
-    .filter(businessId => businessId !== config.businessId)
-    .map(businessId => loadWorkstationConfig(profileId, businessId)?.workstationAgentId)
-    .filter((id): id is string => !!id)
-
-  const client = new WorkstationSocketClient(profileId, config, siblingAgentIds)
+  const client = new WorkstationSocketClient(profileId, config)
   client.on('state', (state: WorkstationAgentConnectionState) => {
     client.lastState = state
     console.log(`[Workstation Agent] [${config.label}] Connection state: ${state}`)
@@ -245,7 +278,7 @@ function connectWorkstation(profileId: string, config: WorkstationAgentConfig): 
   client.on('rejected', (error?: string) => {
     console.error(`[Workstation Agent] [${config.label}] Pairing rejected by server (likely revoked from the admin panel):`, error || '(no reason given)')
     client.stop()
-    workstationClients.delete(profileId)
+    workstationClients.get(profileId)?.delete(businessKey)
     // MBM-279: config.businessId is only unset in the brief window before a
     // legacy (pre-businessId) pairing's first sync completes — if it's
     // rejected before ever syncing, there's nothing under businesses/<id>/
@@ -258,10 +291,11 @@ function connectWorkstation(profileId: string, config: WorkstationAgentConfig): 
     } else {
       deleteLegacyFlatWorkstationConfig(profileId)
     }
-    // If this profile happened to own the scale, release it rather than
-    // leaving scale-owner.json pointing at a profile with no live client.
+    // If this exact business happened to own the scale, release it rather
+    // than leaving scale-owner.json pointing at a business with no live
+    // client.
     const owner = getScaleOwner()
-    if (owner?.profileId === profileId) releaseScale()
+    if (owner?.profileId === profileId && owner?.businessId === businessKey) releaseScale()
     refreshTray()
   })
   // See socket-client.ts's identical 'config-updated' wiring — fired when a
@@ -272,72 +306,66 @@ function connectWorkstation(profileId: string, config: WorkstationAgentConfig): 
   // workstation-socket-client.ts's force-sync handler. The printer list is
   // whole-agent, not per-profile, and otherwise only read once at startup.
   client.on('force-refresh-printers', () => { refreshPrinterList(); refreshTray() })
+  // MBM-283: fired once, the moment a pre-MBM-279 legacy (flat, no
+  // businessId) pairing completes its first sync and learns its real
+  // businessId (see workstation-socket-client.ts's syncConfig()) — re-key
+  // this map's entry from the LEGACY_BUSINESS_KEY placeholder to match.
+  client.on('business-id-migrated', (realBusinessId: string) => {
+    const byBusiness = workstationClients.get(profileId)
+    if (byBusiness?.get(LEGACY_BUSINESS_KEY) === client) {
+      byBusiness.delete(LEGACY_BUSINESS_KEY)
+      byBusiness.set(realBusinessId, client)
+    }
+    refreshTray()
+  })
 
-  workstationClients.set(profileId, client)
+  if (!workstationClients.has(profileId)) workstationClients.set(profileId, new Map())
+  workstationClients.get(profileId)!.set(businessKey, client)
   client.start()
 }
 
-// Disconnects and releases whatever's currently active for this profile's
-// workstation capability, without connecting anything new. Used both by
-// activateWorkstationBusiness() below and directly whenever the requested
-// business turns out to have no pairing on this machine at all — MBM-279
-// plan Section 2: "if the newly selected business is not configured for
-// that agent, the agent must immediately clear or deactivate the prior
-// business's device configuration."
-function deactivateWorkstation(profileId: string): void {
-  const current = workstationClients.get(profileId)
-  if (!current) return
-  current.stop()
-  workstationClients.delete(profileId)
-  const owner = getScaleOwner()
-  if (owner?.profileId === profileId) releaseScale()
-  setActiveWorkstationBusinessId(profileId, null)
-  refreshTray()
-}
-
-// MBM-279: switches this profile's active workstation business — the one
-// operation the whole multi-business-per-workstation redesign exists for.
-// Disconnects whichever business's workstation socket is currently
-// connected (releasing the scale first if it owns it), then connects the
-// requested business's stored pairing if one exists. Called from
-// pairing-server.ts's /activate (an explicit switch — the browser's
-// business dropdown, or a manual tray "Switch to this") and right after a
-// fresh pairing (the admin is presumably standing at this exact machine, in
-// this exact business, when they pair it).
+// MBM-283: marks this business as the focused/active one for this profile,
+// for display purposes only — see this file's header comment. Deliberately
+// does NOT touch any workstation socket connection any more:
+// connectAllProfiles() already connects (and keeps connected) every
+// business paired to this profile on this machine, so there is nothing to
+// disconnect when focus moves to a different one, and nothing to connect
+// that isn't already connected. Called from pairing-server.ts's /activate
+// (an explicit switch — the browser's business dropdown, or a manual tray
+// "Switch to this") and right after a fresh pairing.
 function activateWorkstationBusiness(profileId: string, businessId: string): void {
-  if (workstationClients.get(profileId)?.getConfig().businessId === businessId) return // already active
-
-  deactivateWorkstation(profileId)
-
-  const config = loadWorkstationConfig(profileId, businessId)
-  if (!config) return // nothing paired for this business here — already deactivated above
-
-  connectWorkstation(profileId, config)
+  if (getActiveWorkstationBusinessId(profileId) === businessId) return // already active
   setActiveWorkstationBusinessId(profileId, businessId)
   refreshTray()
 }
 
-// MBM-282: which profile the browser most recently told this agent has OS/
-// browser focus — agent-wide, in-memory only (unlike scale-owner.json/
-// active-workstation.json, nothing here needs to survive a restart: if the
-// agent restarts, no tab has re-asserted focus yet, and the very next focus
-// event fixes it, exactly like today's behavior before this feature).
+// MBM-282: which (profile, business) the browser most recently told this
+// agent has OS/browser focus — agent-wide, in-memory only (unlike
+// scale-owner.json/active-workstation.json, nothing here needs to survive a
+// restart: if the agent restarts, no tab has re-asserted focus yet, and the
+// very next focus event fixes it, exactly like today's behavior before this
+// feature).
 //
 // Deliberately separate from activateWorkstationBusiness() above, and
 // called on EVERY focus-triggered /activate — not just ones where this
 // profile's own business changed. That distinction matters: the common
 // case is simply refocusing a tab that's already showing the right
-// business, where activateWorkstationBusiness() correctly no-ops (line
-// 307's early return) — but the scale still needs to be handed over from
-// whichever OTHER profile currently owns it, and that must not depend on
-// this profile's own business having changed.
-let focusedProfileId: string | null = null
-function noteFocusedProfile(profileId: string): void {
-  if (focusedProfileId === profileId) return
-  focusedProfileId = profileId
+// business, where activateWorkstationBusiness() correctly no-ops — but the
+// scale still needs to be handed over from whichever OTHER (profile,
+// business) currently owns it, and that must not depend on this profile's
+// own business having changed.
+//
+// MBM-283: now also handles hand-off between two BUSINESSES sharing the
+// SAME profile (previously only cross-profile hand-off existed, because
+// only one business per profile could ever be connected at a time).
+let focusedKey: string | null = null
+function noteFocusedProfile(profileId: string, businessId: string): void {
+  const key = `${profileId}:${businessId}`
+  if (focusedKey === key) return
+  focusedKey = key
   const owner = getScaleOwner()
-  if (owner && owner.profileId !== profileId) {
-    console.log(`[Agent] Focus moved to a different profile — releasing scale from ${owner.profileId}`)
+  if (owner && (owner.profileId !== profileId || owner.businessId !== businessId)) {
+    console.log(`[Agent] Focus moved to a different business — releasing scale from ${scaleOwnerLabel(owner)}`)
     releaseScale()
     refreshTray()
   }
@@ -351,18 +379,23 @@ function connectAllProfiles(): void {
     const r710 = loadConfig(profileId)
     if (r710) connectR710(profileId, r710)
 
-    // MBM-279: connect whichever business is currently marked active for
-    // this profile's workstation capability; if none has been marked active
-    // yet (still on the pre-MBM-279 flat file, not synced even once since
-    // upgrading), connect that instead — its first sync response migrates it
-    // and marks it active from then on (workstation-socket-client.ts).
-    const activeBusinessId = getActiveWorkstationBusinessId(profileId)
-    const workstation = activeBusinessId
-      ? loadWorkstationConfig(profileId, activeBusinessId)
-      : hasLegacyFlatWorkstationConfig(profileId)
-        ? loadLegacyFlatWorkstationConfig(profileId)
-        : null
-    if (workstation) connectWorkstation(profileId, workstation)
+    // MBM-283: connect a socket for EVERY business paired to this profile
+    // on this machine, not just whichever one is currently marked
+    // "active" — see this file's header comment. Only the scale itself
+    // needs exclusivity/hand-off (scale-owner.ts), never the socket.
+    const businessIds = listWorkstationBusinessIds(profileId)
+    if (businessIds.length > 0) {
+      for (const businessId of businessIds) {
+        const workstation = loadWorkstationConfig(profileId, businessId)
+        if (workstation) connectWorkstation(profileId, workstation)
+      }
+    } else if (hasLegacyFlatWorkstationConfig(profileId)) {
+      // MBM-279: pre-MBM-279 flat file, not yet migrated to per-business
+      // storage — there's only ever one business in this state; its first
+      // sync response migrates it (workstation-socket-client.ts).
+      const legacy = loadLegacyFlatWorkstationConfig(profileId)
+      if (legacy) connectWorkstation(profileId, legacy)
+    }
   }
   refreshTray()
 }
@@ -425,7 +458,7 @@ async function killExistingInstance(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  console.log('[Agent] Starting…')
+  console.log(`[Agent] Starting… (v${AGENT_VERSION})`)
 
   await killExistingInstance()
 
@@ -453,13 +486,18 @@ async function main(): Promise<void> {
   // to this" action — manual override for when no browser on this machine
   // is driving the switch (or several people share it).
   setOnSwitchWorkstationBusiness((profileId, businessId) => {
+    // A manual tray "Switch to this" click is just as much a focus signal
+    // as the web page's equivalent button (pairing-server.ts's
+    // /activate-business route) — same MBM-282/MBM-283 scale hand-off
+    // should apply here too.
+    noteFocusedProfile(profileId, businessId)
     activateWorkstationBusiness(profileId, businessId)
   })
 
   const onQuit = () => process.exit(0)
   const onRestart = () => {
     for (const client of r710Clients.values()) client.stop()
-    for (const client of workstationClients.values()) client.stop()
+    for (const client of allWorkstationClients()) client.stop()
     r710Clients.clear()
     workstationClients.clear()
     connectAllProfiles()
@@ -478,11 +516,12 @@ async function main(): Promise<void> {
     },
     onWorkstationPaired: (profileId, config) => {
       console.log(`[Agent] Workstation (scale/print) paired successfully (${config.label}) — connecting to central server.`)
-      // MBM-279: activate rather than connect directly — the admin pairing
-      // this is presumably standing at this exact machine, in this exact
-      // business, right now, so this should also take over from whatever
-      // business was previously active here, not just add a second live
-      // connection alongside it.
+      // MBM-283: connect this business's own socket (it stays connected
+      // alongside any other business already paired here — see this file's
+      // header comment) and mark it as the focused one, since the admin
+      // pairing this is presumably standing at this exact machine, in this
+      // exact business, right now.
+      connectWorkstation(profileId, config)
       activateWorkstationBusiness(profileId, config.businessId!)
     },
     getSnapshot: getManageSnapshot,
@@ -503,8 +542,8 @@ main().catch((error) => {
   process.exit(1)
 })
 
-process.on('SIGINT', () => { for (const c of r710Clients.values()) c.stop(); for (const c of workstationClients.values()) c.stop(); process.exit(0) })
-process.on('SIGTERM', () => { for (const c of r710Clients.values()) c.stop(); for (const c of workstationClients.values()) c.stop(); process.exit(0) })
+process.on('SIGINT', () => { for (const c of r710Clients.values()) c.stop(); for (const c of allWorkstationClients()) c.stop(); process.exit(0) })
+process.on('SIGTERM', () => { for (const c of r710Clients.values()) c.stop(); for (const c of allWorkstationClients()) c.stop(); process.exit(0) })
 
 // Defense in depth: the agent's one real job is keeping its connections to
 // the central server(s) alive. An uncaught exception anywhere in a

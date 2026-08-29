@@ -1,6 +1,6 @@
 {
   "name": "r710-local-agent",
-  "version": "0.4.14",
+  "version": "0.4.17",
   "private": true,
   "description": "MBM-272/MBM-275: local agent that lets a remote workstation's R710 device, MG-S8200 scale, and receipt printer be reached by the central app over a persistent Socket.io connection.",
   "type": "commonjs",

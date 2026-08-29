@@ -105,6 +105,31 @@ let systray: any = null
 let recreateTimer: ReturnType<typeof setTimeout> | null = null
 let recreating = false
 
+// MBM-283 follow-up: guards against a SECOND recreate cycle starting while
+// the FIRST one is still in flight (kill() not yet resolved, or the fresh
+// instance not yet confirmed ready). Real bug traced live once
+// connectAllProfiles() started connecting every paired business's socket
+// concurrently at startup (MBM-283): with several profiles' R710/
+// workstation sockets each independently transitioning connecting→
+// connected at different times (different servers, different network
+// latency), refreshTray() bursts are no longer reliably collapsed by the
+// flat 400ms debounce below — scheduleRecreate()'s timer only guards
+// against a NEW timer being scheduled while ANOTHER TIMER is pending, not
+// against a new one firing while a PREVIOUS recreateTray() call's own
+// kill()-then-create() work is still asynchronously running. Without this
+// guard, that lets a second createSysTrayInstance() spawn a brand new
+// native helper — pointed at systray2's fixed, shared cached-icon path
+// (copyDir:true) — while the FIRST instance's own startup (which is where
+// the Go binary's onReady handler calls SetIcon) hasn't finished, or while
+// its predecessor's kill() hasn't released that same cached file yet. Two
+// processes concurrently opening/rewriting the identical cached .ico file
+// is a very plausible explanation for "the volume for a file has been
+// externally altered" showing up WITHOUT any AV involved — self-inflicted,
+// not just a possible AV race as originally suspected.
+let recreateInFlight = false
+type PendingTrayAction = 'recreate' | 'clear-cache' | null
+let pendingAction: PendingTrayAction = null
+
 // Seen on a fresh Windows install (both Win10 and Win11): the native tray
 // helper's SetIcon call intermittently fails with "The volume for a file
 // has been externally altered so that the opened file is no longer valid"
@@ -131,29 +156,16 @@ let recreating = false
 const MAX_ICON_RETRIES = 2
 let iconRetryCount = 0
 
-// Mirrors recreateTray()'s own kill-then-create sequencing (see its
-// comment) — deliberately NOT just "delete the cache, then call
-// recreateTray()", because the current (broken) tray helper process is
-// still alive and holding that cached .exe open until it's actually
-// killed; deleting it out from under a running Windows process fails
-// (or at best races). Kill first, clear the cache once that's confirmed
-// done, then create fresh.
+// Goes through the same single-flight gate as scheduleRecreate() below
+// (runTrayAction) rather than killing/recreating directly — see
+// recreateInFlight's comment for why a second concurrent kill()-then-
+// create() cycle is unsafe. The delay lets the currently-broken process
+// settle before the retry's own kill() runs; clearing the cache happens
+// inside performTrayAction(), between that kill() and the fresh create, the
+// same ordering this always used (delete only after the old process has
+// actually released the cached .exe, never before).
 function clearSystrayCacheAndRetry(delayMs: number): void {
-  setTimeout(() => {
-    const old = systray
-    if (!old) { createSysTrayInstance(); return }
-    systray = null
-    recreating = true
-    old.kill(false).catch(() => { /* already gone — fine */ }).finally(() => {
-      try {
-        rmSync(join(homedir(), '.cache', 'node-systray'), { recursive: true, force: true })
-      } catch (error) {
-        console.error('[Agent] Failed to clear node-systray cache (continuing anyway):', error)
-      }
-      recreating = false
-      createSysTrayInstance()
-    })
-  }, delayMs)
+  setTimeout(() => runTrayAction('clear-cache'), delayMs)
 }
 
 export interface ProfileTrayInfo {
@@ -445,26 +457,69 @@ function scheduleRecreate(): void {
   if (recreateTimer) clearTimeout(recreateTimer)
   recreateTimer = setTimeout(() => {
     recreateTimer = null
-    recreateTray()
+    runTrayAction('recreate')
   }, 400)
+}
+
+function finishTrayCycle(): void {
+  recreateInFlight = false
+  if (pendingAction) {
+    const next = pendingAction
+    pendingAction = null
+    runTrayAction(next)
+  }
+}
+
+// Single entry point for every kind of tray-recreate request — state-
+// change-driven (scheduleRecreate() above) and SetIcon-failure-driven
+// (clearSystrayCacheAndRetry() above) alike — so at most one kill()-then-
+// create() cycle ever runs at a time (see recreateInFlight's own comment).
+// A request that arrives while one is already running is coalesced into a
+// single follow-up pass once the current one finishes, via `pendingAction`
+// — 'clear-cache' always wins over an already-queued plain 'recreate' and
+// is never downgraded to one, since silently dropping it would leave the
+// corrupted cached file in place for the next spawn to hit again.
+function runTrayAction(action: 'recreate' | 'clear-cache'): void {
+  if (recreateInFlight) {
+    if (pendingAction !== 'clear-cache') pendingAction = action
+    return
+  }
+  recreateInFlight = true
+  performTrayAction(action)
 }
 
 // Tears down the current native tray process and spins up a fresh one from
 // scratch — see the header comment above `recreateTimer` for why this
 // replaced the old incremental 'update-menu' approach. kill(false) stops
-// only the native helper, not this Node process.
-function recreateTray(): void {
-  if (!systray) {
-    createSysTrayInstance()
-    return
-  }
+// only the native helper, not this Node process. Awaits the FRESH
+// instance's own createSysTrayInstance() promise (which itself waits on
+// instance.ready()) before calling finishTrayCycle() — so any request
+// queued while this was running only starts once this instance is
+// confirmed up, never overlapping it.
+async function performTrayAction(action: 'recreate' | 'clear-cache'): Promise<void> {
   const old = systray
-  systray = null
-  recreating = true
-  old.kill(false).catch(() => { /* already gone — fine, we're recreating anyway */ }).finally(() => {
+  if (old) {
+    systray = null
+    recreating = true
+    try {
+      await old.kill(false)
+    } catch {
+      // Already gone — fine, we're recreating anyway.
+    }
     recreating = false
-    createSysTrayInstance()
-  })
+  }
+  if (action === 'clear-cache') {
+    try {
+      rmSync(join(homedir(), '.cache', 'node-systray'), { recursive: true, force: true })
+    } catch (error) {
+      console.error('[Agent] Failed to clear node-systray cache (continuing anyway):', error)
+    }
+  }
+  try {
+    await createSysTrayInstance()
+  } finally {
+    finishTrayCycle()
+  }
 }
 
 export function setOnReleaseScale(callback: () => void): void {
@@ -490,10 +545,15 @@ export function setOnAutoStartChanged(callback: (enabled: boolean) => void): voi
 
 // Spawns a fresh native tray helper process from the current `currentState`
 // and wires up its handlers — used both for the very first tray icon
-// (startTray()) and every subsequent recreation (recreateTray()), so there
-// is exactly one code path that renders the menu, and it's the one proven
-// correct by the icon actually appearing on first launch.
-function createSysTrayInstance(): void {
+// (startTray()) and every subsequent recreation (performTrayAction()), so
+// there is exactly one code path that renders the menu, and it's the one
+// proven correct by the icon actually appearing on first launch. Returns a
+// promise that settles once instance.ready() does (either way — success or
+// failure is already logged inside here) — performTrayAction() awaits this
+// before treating its own cycle as finished, so a QUEUED follow-up request
+// never starts spawning a second native helper before this one is actually
+// confirmed up.
+function createSysTrayInstance(): Promise<void> {
   const SysTray = loadSysTray()
   // Captured locally and used throughout this function — NOT re-read via
   // the module-level `systray` variable inside the async callbacks below.
@@ -528,12 +588,12 @@ function createSysTrayInstance(): void {
   // field, which onError/onExit need, is guaranteed set by then) and
   // rejects if the spawn itself failed — attaching onError/onExit any
   // earlier throws because _process is still null at that point.
-  instance.ready().then(() => {
+  const readiness = instance.ready().then(() => {
     instance.onError((error: unknown) => {
       console.error('[Agent] Tray helper process error:', error)
     })
     instance.onExit((code: number | null, signal: string | null) => {
-      // A deliberate recreate() kills and immediately respawns this same
+      // A deliberate recreate kills and immediately respawns this same
       // process — that exit is expected, not a crash, so stay quiet for it.
       if (recreating) return
       console.error('[Agent] Tray helper process exited unexpectedly:', { code, signal })
@@ -545,8 +605,11 @@ function createSysTrayInstance(): void {
       console.error('[Agent] [tray stderr]', text)
       // See MAX_ICON_RETRIES' own comment above. Detected by text since
       // this comes from the prebuilt Go helper binary, not code this
-      // project owns — there's no error code to check instead.
-      if (iconRetryCount < MAX_ICON_RETRIES && !recreating && /externally altered|Unable to set icon/i.test(text)) {
+      // project owns — there's no error code to check instead. No
+      // `recreating`/in-flight check needed here any more — runTrayAction()
+      // itself queues this safely even if another cycle happens to be
+      // running at the exact moment this fires.
+      if (iconRetryCount < MAX_ICON_RETRIES && /externally altered|Unable to set icon/i.test(text)) {
         iconRetryCount++
         const delayMs = iconRetryCount * 3000
         console.error(`[Agent] Tray icon failed to set — clearing the cached tray helper and retrying (attempt ${iconRetryCount}/${MAX_ICON_RETRIES}) in ${delayMs / 1000}s…`)
@@ -562,15 +625,20 @@ function createSysTrayInstance(): void {
   // always capture the current profile/callback references, never stale
   // ones from an earlier render) — the top-level handler just invokes
   // whichever one fired. Nested submenu items are dispatched the same way.
+  // Registered synchronously, not gated on readiness() — it doesn't need
+  // the native process confirmed up, only the instance object to exist.
   instance.onClick((action: { item: { click?: () => void } }) => {
     action.item.click?.()
   })
+
+  return readiness
 }
 
 export function startTray(onQuit: () => void, onRestart: () => void): void {
   onQuitCallback = onQuit
   onRestartCallback = onRestart
-  createSysTrayInstance()
+  recreateInFlight = true
+  createSysTrayInstance().finally(finishTrayCycle)
 }
 
 // Shared by the tray's own "Quit" menu item AND the pairing server's

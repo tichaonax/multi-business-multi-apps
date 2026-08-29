@@ -6,6 +6,13 @@
  * simultaneously with no restriction, because neither holds an exclusive
  * OS-level resource the way a serial port handle does.
  *
+ * MBM-283: extended to (profileId, businessId). A single profile can now
+ * have several businesses' workstation sockets connected simultaneously on
+ * this same machine (index.ts's connectAllProfiles()), but the scale is
+ * still one physical serial port shared by all of them — ownership must be
+ * exclusive per business, not just per profile, or two businesses under the
+ * same server could both believe they own it at once.
+ *
  * Persisted (not just in-memory) so a restart doesn't silently forget who
  * owned the scale — see reclaimOrClear() in workstation-job-handler.ts for
  * how ownership is reclaimed or released after a restart.
@@ -17,6 +24,7 @@ import os from 'os'
 
 export interface ScaleOwner {
   profileId: string
+  businessId: string
   since: string
 }
 
@@ -35,8 +43,8 @@ export function getScaleOwner(): ScaleOwner | null {
   }
 }
 
-export function setScaleOwner(profileId: string): void {
-  writeFileSync(ownerFilePath(), JSON.stringify({ profileId, since: new Date().toISOString() }, null, 2))
+export function setScaleOwner(profileId: string, businessId: string): void {
+  writeFileSync(ownerFilePath(), JSON.stringify({ profileId, businessId, since: new Date().toISOString() }, null, 2))
 }
 
 export function clearScaleOwner(): void {

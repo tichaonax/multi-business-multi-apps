@@ -121,17 +121,21 @@ export interface PairingCallbacks {
   releaseScale: () => void
   setAutoStart: (enabled: boolean) => void
   restart: () => void
-  // MBM-279: switches this profile's active workstation business — see
-  // index.ts's activateWorkstationBusiness() for the actual connect/
-  // disconnect/scale-handoff logic this triggers. Called by /activate below
-  // (an explicit switch, e.g. the browser's business dropdown) and is also
-  // how onWorkstationPaired below activates a freshly paired business.
+  // MBM-279: marks this business as the focused/active one for this
+  // profile (display + scale hand-off only as of MBM-283 — see index.ts's
+  // activateWorkstationBusiness() header comment; it no longer touches any
+  // socket connection). Called by /activate below (an explicit switch, e.g.
+  // the browser's business dropdown) and is also how onWorkstationPaired
+  // below activates a freshly paired business.
   activateWorkstationBusiness: (profileId: string, businessId: string) => void
-  // MBM-282: tells the agent this profile now has browser focus — called on
-  // EVERY /activate, not just ones where the business itself changed (see
-  // index.ts's noteFocusedProfile() for why that distinction matters). Hands
-  // the scale over from whichever other profile currently owns it.
-  noteFocusedProfile: (profileId: string) => void
+  // MBM-282: tells the agent this (profile, business) now has browser
+  // focus — called on EVERY /activate, not just ones where the business
+  // itself changed (see index.ts's noteFocusedProfile() for why that
+  // distinction matters). Hands the scale over from whichever other
+  // (profile, business) currently owns it. MBM-283: now takes businessId
+  // too — two businesses sharing one profile need hand-off between THEM,
+  // not just between different profiles/servers.
+  noteFocusedProfile: (profileId: string, businessId: string) => void
   // Same graceful shutdown the tray's own "Quit" menu item triggers —
   // closes the tray helper's icon via Windows' notification API before
   // exiting. Exposed over HTTP purely so the NEXT launch's self-kill-on-
@@ -228,7 +232,7 @@ export function startPairingServer(callbacks: PairingCallbacks): Server {
           // A human standing at this exact machine clicking this is at
           // least as good a focus signal as a browser tab's own focus event
           // — same MBM-282 hand-off applies.
-          callbacks.noteFocusedProfile(activateMatch[1])
+          callbacks.noteFocusedProfile(activateMatch[1], businessId)
           callbacks.activateWorkstationBusiness(activateMatch[1], businessId)
           res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true }))
         } catch {
@@ -324,7 +328,7 @@ export function startPairingServer(callbacks: PairingCallbacks): Server {
           return
         }
         const profileId = deriveProfileId(serverUrl)
-        callbacks.noteFocusedProfile(profileId)
+        callbacks.noteFocusedProfile(profileId, businessId)
         callbacks.activateWorkstationBusiness(profileId, businessId)
         res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true }))
       } catch {
