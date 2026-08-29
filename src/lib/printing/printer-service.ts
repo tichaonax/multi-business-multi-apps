@@ -44,6 +44,16 @@ export interface PrinterFilters {
   // workstationAgentId, still requiring remotePrintingEnabled) — never a
   // bypass for any other printer.
   ownWorkstationAgentId?: string;
+  // MBM-283 follow-up 3: when false (the default), an AGENT-mode printer
+  // whose owning workstation pairing has been revoked is excluded from
+  // EVERY listing, including the unscoped admin one (printer-list.tsx) —
+  // a revoked pairing can never reconnect (re-pairing the same physical
+  // workstation mints a brand new WorkstationAgents row rather than
+  // reusing the old one), so its printer isn't "another duplicate option,"
+  // it's permanently dead. The underlying row is disabled, never deleted
+  // (see the revoke route's own comment), specifically so it stays
+  // available to opt back into with includeRevoked: true if ever needed.
+  includeRevoked?: boolean;
 }
 
 export interface PrinterListOptions extends PrinterFilters {
@@ -154,6 +164,7 @@ export async function listPrinters(options: PrinterListOptions = {}): Promise<{
     search,
     businessId,
     ownWorkstationAgentId,
+    includeRevoked = false,
     limit = 50,
     offset = 0,
     sortBy = 'name',
@@ -219,6 +230,21 @@ export async function listPrinters(options: PrinterListOptions = {}): Promise<{
         ...(ownWorkstationAgentId
           ? [{ connectionMode: 'AGENT', remotePrintingEnabled: true, workstationAgentId: ownWorkstationAgentId, workstation_agent: { revokedAt: null } }]
           : []),
+      ],
+    });
+  }
+
+  // Applies regardless of businessId — even the unscoped admin list
+  // (printer-list.tsx) shouldn't show a printer whose owning pairing is
+  // gone for good. Separate from the businessId-scoped OR above (which
+  // ALSO already excludes it for a different reason — not assigned to
+  // that specific business's live agent) so this keeps working the same
+  // way when businessId isn't passed at all.
+  if (!includeRevoked) {
+    andConditions.push({
+      OR: [
+        { connectionMode: { not: 'AGENT' } },
+        { connectionMode: 'AGENT', workstation_agent: { revokedAt: null } },
       ],
     });
   }
@@ -598,6 +624,8 @@ function transformPrinterRecord(record: any): NetworkPrinter {
     // workstation_agent (listPrinters() does) — same pattern as
     // workstationLabel/workstationHostname above.
     businessName: record.connectionMode === 'AGENT' ? (record.workstation_agent?.businesses?.name ?? null) : null,
+    remotePrintingEnabled: record.remotePrintingEnabled,
+    remoteEnabled: record.remoteEnabled,
     receiptWidth: record.receiptWidth,
     lastSeen: new Date(record.lastSeen),
     createdAt: new Date(record.createdAt),

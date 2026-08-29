@@ -386,6 +386,17 @@ export function PrinterList({ printers, loading, onEdit, onDelete, onRefresh }: 
                           Shared
                         </Badge>
                       )}
+
+                      {/* A revoked pairing's printer is now excluded from
+                          this list entirely (see printer-service.ts) — this
+                          only ever fires for an admin's deliberate,
+                          still-reversible "pause" via Workstation Agents'
+                          "Enable remote printing" toggle on a LIVE agent. */}
+                      {!isLocal && printer.remotePrintingEnabled === false && (
+                        <Badge variant="outline" className="text-xs text-amber-600 dark:text-amber-400">
+                          ⏸️ Remote printing off
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -39,6 +39,14 @@ export interface NetworkPrinter {
   // Jiffy Lube" from "EPSON TM-T at Happy Eater" instead of two
   // identical-looking rows with no way to tell which business each serves.
   businessName?: string | null;
+  // MBM-283 follow-up 3: previously computed server-side (excluded from
+  // the business-scoped print-time picker) but never actually surfaced to
+  // any UI — so the unscoped admin list had no way to show that a printer
+  // tied to an already-revoked workstation pairing is deliberately
+  // disabled, not just another live option that happens to share a name.
+  // Real column on every printer, but only ever toggled for AGENT mode.
+  remotePrintingEnabled?: boolean;
+  remoteEnabled?: boolean;
   receiptWidth: number | null; // Receipt width in characters (32, 42, or 48)
   lastSeen: Date;
   createdAt: Date;
