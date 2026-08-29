@@ -27,13 +27,13 @@ import {
   type WorkstationAgentConfig,
 } from './workstation-config'
 import { getActiveWorkstationBusinessId, setActiveWorkstationBusinessId } from './active-workstation'
-import { startPairingServer, type ManageSnapshot, type OtherWorkstationBusiness } from './pairing-server'
+import { startPairingServer, PAIRING_PORT, type ManageSnapshot, type OtherWorkstationBusiness } from './pairing-server'
 import { AgentSocketClient, type AgentConnectionState } from './socket-client'
 import { WorkstationSocketClient, type WorkstationAgentConnectionState } from './workstation-socket-client'
 import { scaleDriver, releaseScale } from './workstation-job-handler'
 import { getScaleOwner } from './scale-owner'
 import type { ScaleStatus } from './scale-driver'
-import { startTray, updateTrayState, setOnReleaseScale, setOnAutoStartChanged, setOnSwitchWorkstationBusiness, isAutoStartEnabled, setAutoStart, type TrayState } from './tray'
+import { startTray, updateTrayState, setOnReleaseScale, setOnAutoStartChanged, setOnSwitchWorkstationBusiness, isAutoStartEnabled, setAutoStart, requestQuit, type TrayState } from './tray'
 import { listPrinters } from './print-driver'
 
 const r710Clients = new Map<string, AgentSocketClient>()
@@ -386,7 +386,7 @@ function connectAllProfiles(): void {
 // parent being killed and keep a stale icon temp file handle open, which
 // is a plausible contributor to the "volume externally altered" SetIcon
 // failures seen when a previous instance wasn't cleanly stopped first.
-function killExistingInstance(): void {
+function forceKillExistingInstance(): void {
   const selfPid = process.pid
   for (const imageName of ['r710-agent.exe', 'tray_windows_release.exe']) {
     try {
@@ -399,10 +399,35 @@ function killExistingInstance(): void {
   }
 }
 
-function main(): void {
+// Try asking a running instance to exit cleanly (its own tray icon gets
+// removed via Windows' notification API as part of that — see tray.ts's
+// requestQuit) before ever reaching for taskkill. A forceful kill doesn't
+// give the OLD instance's tray helper any chance to clean up its icon,
+// which is exactly what was leaving duplicate/ghost icons behind on every
+// relaunch. /shutdown responds immediately then quits in the background
+// (see pairing-server.ts), so a short pause after a successful call gives
+// it time to actually finish before this instance tries to bind the same
+// port. Falls back to the old forceful taskkill for anything that doesn't
+// answer — a crashed/hung instance, or one old enough not to have
+// /shutdown at all.
+async function killExistingInstance(): Promise<void> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${PAIRING_PORT}/shutdown`, { method: 'POST', signal: AbortSignal.timeout(1500) })
+    if (res.ok) {
+      await new Promise(resolve => setTimeout(resolve, 800))
+    }
+  } catch {
+    // Nothing answered — no previous instance running, or it's stuck/too
+    // old to have this endpoint. Either way, taskkill below is the
+    // necessary fallback.
+  }
+  forceKillExistingInstance()
+}
+
+async function main(): Promise<void> {
   console.log('[Agent] Starting…')
 
-  killExistingInstance()
+  await killExistingInstance()
 
   migrateLegacyConfigIfNeeded()
 
@@ -467,12 +492,16 @@ function main(): void {
     restart: onRestart,
     activateWorkstationBusiness,
     noteFocusedProfile,
+    quit: requestQuit,
   })
 
   connectAllProfiles()
 }
 
-main()
+main().catch((error) => {
+  console.error('[Agent] Fatal error during startup:', error)
+  process.exit(1)
+})
 
 process.on('SIGINT', () => { for (const c of r710Clients.values()) c.stop(); for (const c of workstationClients.values()) c.stop(); process.exit(0) })
 process.on('SIGTERM', () => { for (const c of r710Clients.values()) c.stop(); for (const c of workstationClients.values()) c.stop(); process.exit(0) })

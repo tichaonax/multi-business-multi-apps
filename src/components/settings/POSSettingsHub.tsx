@@ -11,7 +11,10 @@ import { SessionUser } from '@/lib/permission-utils'
 
 interface POSSettingsHubProps {
   businessId: string
-  businessType: 'restaurant' | 'grocery' | 'clothing' | 'hardware'
+  // Any business type — hasScale below is the only thing that actually
+  // narrows behavior by type (restaurant/grocery only), everything else
+  // (printing, sales performance) applies uniformly.
+  businessType: string
   posLink: string
 }
 

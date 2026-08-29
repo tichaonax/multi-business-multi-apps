@@ -27,7 +27,9 @@ interface Printer {
 }
 
 interface PrinterPreferencesSettingsProps {
-  businessType: 'restaurant' | 'grocery' | 'clothing' | 'hardware'
+  // Accepted for parity with the other POSSettingsHub tabs, not actually
+  // used here — printer preferences apply the same way to any business type.
+  businessType: string
   posLink: string
 }
 

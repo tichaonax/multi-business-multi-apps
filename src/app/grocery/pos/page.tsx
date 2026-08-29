@@ -21,6 +21,7 @@ import { UnifiedReceiptPreviewModal } from '@/components/receipts/unified-receip
 import { calcEcocashFeeFromBusiness, getEcocashSummary } from '@/lib/ecocash-utils'
 import { usePrintPreferences } from '@/hooks/use-print-preferences'
 import { buildReceiptWithBusinessInfo } from '@/lib/printing/receipt-builder'
+import { generatePlainTextReceipt } from '@/lib/printing/plain-text-receipt'
 import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
 import { CustomerLookup } from '@/components/pos/customer-lookup'
 import { SalespersonSelector, type SelectedSalesperson } from '@/components/pos/salesperson-selector'
@@ -171,7 +172,7 @@ function GroceryPOSContent() {
   // Which token section was just copied, for the inline fade-out
   // confirmation next to that section's Copy button — see
   // copyTokensToClipboard()'s comment for why this isn't a modal alert.
-  const [copiedKind, setCopiedKind] = useState<'wifi' | 'r710' | null>(null)
+  const [copiedKind, setCopiedKind] = useState<'wifi' | 'r710' | 'receipt' | null>(null)
   const [copiedVisible, setCopiedVisible] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelTarget, setCancelTarget] = useState<CancelOrderSummary | null>(null)
@@ -2217,6 +2218,23 @@ function GroceryPOSContent() {
     }
   }
 
+  // Copies the ENTIRE receipt as plain text (same information as what
+  // prints, minus the raw ESC/POS control bytes) so a cashier can paste it
+  // straight into an email to the customer — reuses the exact same
+  // completedOrder -> ReceiptData conversion the Print Receipt button uses.
+  const copyFullReceiptToClipboard = async () => {
+    if (!completedOrder) return
+    try {
+      const receiptData = buildReceiptDataFromCompletedOrder(completedOrder, businessDetails || currentBusiness)
+      await navigator.clipboard.writeText(generatePlainTextReceipt(receiptData))
+      setCopiedKind('receipt')
+      setCopiedVisible(true)
+      setTimeout(() => setCopiedVisible(false), 1200)
+    } catch {
+      await customAlert({ title: 'Error', description: 'Could not copy receipt to clipboard' })
+    }
+  }
+
   // Handle printing receipt to configured printer
   const handlePrintReceipt = async (receiptData: ReceiptData) => {
     try {
@@ -2545,6 +2563,15 @@ function GroceryPOSContent() {
                   className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                 >
                   🖨️ Print Receipt
+                </button>
+
+                {/* Copy Full Receipt — same content as what prints, as plain
+                    text, for pasting into an email to the customer. */}
+                <button
+                  onClick={copyFullReceiptToClipboard}
+                  className="w-full py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  {copiedKind === 'receipt' && copiedVisible ? '✅ Copied — paste into an email' : '📋 Copy Full Receipt'}
                 </button>
 
                 {/* Cancel Order Button — hidden for orders with WiFi tokens */}

@@ -26,6 +26,7 @@ import { useConfirm } from '@/components/ui/confirm-modal'
 import { getBusinessTypeConfig, getSupportedBusinessTypes } from './config/business-type-config'
 import { toast } from 'sonner'
 import type { ReceiptData } from '@/types/printing'
+import { generatePlainTextReceipt } from '@/lib/printing/plain-text-receipt'
 import { SalespersonEodModal } from '@/components/eod/salesperson-eod-modal'
 import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
 
@@ -70,7 +71,7 @@ export default function UniversalPOS() {
   // Which token section was just copied, for the inline fade-out
   // confirmation next to that section's Copy button — see
   // copyTokensToClipboard()'s comment for why this isn't a toast.
-  const [copiedKind, setCopiedKind] = useState<'wifi' | 'r710' | null>(null)
+  const [copiedKind, setCopiedKind] = useState<'wifi' | 'r710' | 'receipt' | null>(null)
   const [copiedVisible, setCopiedVisible] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelTarget, setCancelTarget] = useState<CancelOrderSummary | null>(null)
@@ -578,6 +579,22 @@ export default function UniversalPOS() {
     }
   }
 
+  // Copies the ENTIRE receipt as plain text (same information as what
+  // prints, minus the raw ESC/POS control bytes) so a cashier can paste it
+  // straight into an email to the customer. pendingReceiptData is already
+  // the real ReceiptData used to print, so no adapter needed here.
+  const copyFullReceiptToClipboard = async () => {
+    if (!pendingReceiptData) return
+    try {
+      await navigator.clipboard.writeText(generatePlainTextReceipt(pendingReceiptData))
+      setCopiedKind('receipt')
+      setCopiedVisible(true)
+      setTimeout(() => setCopiedVisible(false), 1200)
+    } catch {
+      toast.error('Could not copy receipt to clipboard')
+    }
+  }
+
   // Handle checkout
   const handleCheckout = async (
     paymentMethod: 'cash' | 'card' | 'mobile' | 'snap' | 'loyalty' | 'ecocash',
@@ -917,6 +934,14 @@ export default function UniversalPOS() {
                   className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                 >
                   🖨️ Print Receipt
+                </button>
+                {/* Copy Full Receipt — same content as what prints, as plain
+                    text, for pasting into an email to the customer. */}
+                <button
+                  onClick={copyFullReceiptToClipboard}
+                  className="w-full py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  {copiedKind === 'receipt' && copiedVisible ? '✅ Copied — paste into an email' : '📋 Copy Full Receipt'}
                 </button>
                 {((pendingReceiptData.wifiTokens && pendingReceiptData.wifiTokens.length > 0) || (pendingReceiptData.r710Tokens && pendingReceiptData.r710Tokens.length > 0)) && (
                   <p className="w-full py-2 text-center text-xs text-gray-400 border border-gray-200 dark:border-gray-600 rounded-lg">

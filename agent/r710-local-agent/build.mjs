@@ -66,9 +66,31 @@ function stopRunningAgent() {
   }
 }
 
+// Bumps the patch version (X.Y.Z -> X.Y.Z+1) on every build, automatically
+// — this used to be a manual edit, easy to forget, which is exactly what
+// happened: a real fix shipped in a rebuild with no version change, so
+// there was no way for anyone (including whoever's running the agent) to
+// tell a fixed build apart from the one before it short of comparing file
+// timestamps. tray.ts/pairing-server.ts both read AGENT_VERSION straight
+// from package.json at bundle time, so this alone is enough to make every
+// build distinguishable — no separate step needed. Patch-only (not
+// minor/major) so the number doesn't run away on routine rebuilds; bump
+// minor/major by hand for an actual intentional release milestone.
+function bumpPatchVersion() {
+  const pkgPath = join(__dirname, 'package.json')
+  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
+  const parts = pkg.version.split('.').map(Number)
+  parts[2] = (parts[2] || 0) + 1
+  pkg.version = parts.join('.')
+  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
+  console.log(`[build] Bumped agent version to ${pkg.version}`)
+  return pkg.version
+}
+
 async function main() {
   if (!existsSync(distDir)) mkdirSync(distDir, { recursive: true })
 
+  bumpPatchVersion()
   stopRunningAgent()
 
   console.log('[build] Bundling with esbuild…')

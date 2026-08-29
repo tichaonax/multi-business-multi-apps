@@ -235,6 +235,7 @@ export function MobileSidebar() {
         return (
           <>
             {navLink('/universal/pos', '💼', 'POS System')}
+            {(isAdmin || hasBusinessPermission('canViewBusiness')) && navLink('/universal/pos/settings', '⚙️', 'POS Settings')}
             {canReport && navLink('/restaurant/reports', '📊', 'Sales Reports')}
             {navLink('/services/list', '📋', 'Services List')}
             {navLink('/services/categories', '📂', 'Categories')}
@@ -246,6 +247,8 @@ export function MobileSidebar() {
         return (
           <>
             {navLink('/construction', '🏗️', 'Dashboard')}
+            {navLink('/universal/pos', '🧾', 'POS System')}
+            {(isAdmin || hasBusinessPermission('canViewBusiness')) && navLink('/universal/pos/settings', '⚙️', 'POS Settings')}
             {navLink('/construction/suppliers', '🤝', 'Suppliers')}
           </>
         )
@@ -253,6 +256,7 @@ export function MobileSidebar() {
         return (
           <>
             {navLink('/universal/pos', '🚗', 'POS System')}
+            {(isAdmin || hasBusinessPermission('canViewBusiness')) && navLink('/universal/pos/settings', '⚙️', 'POS Settings')}
             {canReport && navLink('/vehicle-service/reports', '📊', 'Sales Reports')}
             {navLink('/vehicle-service/jobs', '🛠️', 'Jobs')}
             {navLink('/vehicle-service/customers', '🧑‍🤝‍🧑', 'Customers')}
@@ -269,6 +273,8 @@ export function MobileSidebar() {
         return (
           <>
             {navLink('/dashboard', '📊', 'Dashboard')}
+            {navLink('/universal/pos', '🧾', 'POS System')}
+            {(isAdmin || hasBusinessPermission('canViewBusiness')) && navLink('/universal/pos/settings', '⚙️', 'POS Settings')}
             {navLink('/business/manage', '⚙️', 'Business Settings')}
           </>
         )

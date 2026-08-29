@@ -132,6 +132,14 @@ export interface PairingCallbacks {
   // index.ts's noteFocusedProfile() for why that distinction matters). Hands
   // the scale over from whichever other profile currently owns it.
   noteFocusedProfile: (profileId: string) => void
+  // Same graceful shutdown the tray's own "Quit" menu item triggers —
+  // closes the tray helper's icon via Windows' notification API before
+  // exiting. Exposed over HTTP purely so the NEXT launch's self-kill-on-
+  // startup (index.ts's killExistingInstance) can ask a running instance to
+  // exit cleanly instead of always force-killing it, which was leaving
+  // ghost/duplicate tray icons behind (the forcefully-killed process never
+  // got a chance to remove its own icon).
+  quit: () => void
 }
 
 function readBody(req: import('http').IncomingMessage): Promise<string> {
@@ -173,6 +181,17 @@ export function startPairingServer(callbacks: PairingCallbacks): Server {
     if (req.method === 'POST' && url.pathname === '/api/restart') {
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true }))
       callbacks.restart()
+      return
+    }
+    // No serverUrl/businessId scoping — this is a same-machine "you, the
+    // process currently holding this port, please exit" request, called
+    // only by this exact agent's own next launch (killExistingInstance in
+    // index.ts) before it falls back to a forceful taskkill. Respond THEN
+    // quit, same reasoning as /api/restart above — the process may be gone
+    // by the time quit()'s graceful shutdown finishes.
+    if (req.method === 'POST' && url.pathname === '/shutdown') {
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: true }))
+      callbacks.quit()
       return
     }
     if (req.method === 'POST' && url.pathname === '/api/auto-start') {

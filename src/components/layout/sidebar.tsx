@@ -1124,6 +1124,12 @@ export function Sidebar() {
                   <span className="text-lg">🚗</span>
                   <span>POS System</span>
                 </Link>
+                {(isSystemAdmin(currentUser) || hasPermission('canViewBusiness')) && (
+                  <Link href="/universal/pos/settings" className={getLinkClasses('/universal/pos/settings')}>
+                    <span className="text-lg">⚙️</span>
+                    <span>POS Settings</span>
+                  </Link>
+                )}
                 {(isSystemAdmin(currentUser) || hasPermission('canViewWifiReports') || hasPermission('canAccessFinancialData')) && (
                   <Link href="/vehicle-service/reports" className={getLinkClasses('/vehicle-service/reports')}>
                     <span className="text-lg">📊</span>
@@ -1184,6 +1190,12 @@ export function Sidebar() {
                   <span className="text-lg">💼</span>
                   <span>POS System</span>
                 </Link>
+                {(isSystemAdmin(currentUser) || hasPermission('canViewBusiness')) && (
+                  <Link href="/universal/pos/settings" className={getLinkClasses('/universal/pos/settings')}>
+                    <span className="text-lg">⚙️</span>
+                    <span>POS Settings</span>
+                  </Link>
+                )}
                 {/* Sales Reports - Only for managers/admins */}
                 {(isSystemAdmin(currentUser) || hasPermission('canViewWifiReports') || hasPermission('canAccessFinancialData')) && (
                   <Link href="/restaurant/reports" className={getLinkClasses('/restaurant/reports')}>
@@ -1238,13 +1250,28 @@ export function Sidebar() {
               </>
             )}
 
-            {/* Default Features for Other Business Types (retail, consulting, etc.) */}
-            {!['restaurant', 'grocery', 'clothing', 'hardware', 'services', 'construction', 'vehicle_service'].includes(currentBusiness.businessType) && (
+            {/* Default Features for Other Business Types (retail, consulting,
+                construction, and anything else). construction has no
+                dedicated block of its own despite being excluded here
+                historically — that left it with NOTHING business-specific at
+                all, not even this fallback; folding it in is strictly
+                better than the gap it had before. */}
+            {!['restaurant', 'grocery', 'clothing', 'hardware', 'services', 'vehicle_service'].includes(currentBusiness.businessType) && (
               <>
                 <Link href="/dashboard" className={getLinkClasses('/dashboard')}>
                   <span className="text-lg">📊</span>
                   <span>Dashboard</span>
                 </Link>
+                <Link href="/universal/pos" className={getLinkClasses('/universal/pos')}>
+                  <span className="text-lg">🧾</span>
+                  <span>POS System</span>
+                </Link>
+                {(isSystemAdmin(currentUser) || hasPermission('canViewBusiness')) && (
+                  <Link href="/universal/pos/settings" className={getLinkClasses('/universal/pos/settings')}>
+                    <span className="text-lg">⚙️</span>
+                    <span>POS Settings</span>
+                  </Link>
+                )}
                 <Link href="/business/manage" className={getLinkClasses('/business/manage')}>
                   <span className="text-lg">⚙️</span>
                   <span>Business Settings</span>

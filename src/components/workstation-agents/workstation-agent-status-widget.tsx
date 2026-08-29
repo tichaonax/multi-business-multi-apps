@@ -141,7 +141,7 @@ export function WorkstationAgentStatusWidget() {
         <p className="text-sm text-red-700 dark:text-red-400 mt-2">
           Already running it? A browser can't tell this page apart from "nothing's there" when something else is
           quietly blocking the connection — worth ruling that out directly:{' '}
-          <a href={`http://127.0.0.1:${PAIRING_PORT}/probe`} target="_blank" rel="noopener noreferrer" className="underline font-medium hover:no-underline">
+          <a href={`http://127.0.0.1:${PAIRING_PORT}/probe?serverUrl=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}`} target="_blank" rel="noopener noreferrer" className="underline font-medium hover:no-underline">
             Test the local connection →
           </a>{' '}
           If that opens fine but this banner still won't clear, try the same page in an <strong>Incognito/Private window</strong> — if it

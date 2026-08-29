@@ -3991,6 +3991,8 @@ This means:
 
 **Before you print** — the **Order Complete** confirmation that appears immediately after checkout (Universal POS, Restaurant POS, and Grocery POS) shows the same WiFi/R710 credentials on screen, each section with its own **📋 Copy** button. If the sale included more than one token, Copy grabs all of them at once, comma-separated — useful for pasting into a chat/SMS to the customer, or as a fallback if the printer is unavailable. A brief "✅ Copied" confirmation fades in next to the button that was clicked.
 
+**Copy Full Receipt** — right below **Print Receipt** on that same confirmation, this copies the *entire* receipt as plain text: business header, every line item, totals, payment details, and any WiFi/R710 tokens — the same information that prints, just without the printer's raw formatting codes, so it pastes cleanly into an email. Useful for emailing a copy to the customer instead of (or in addition to) printing one. Shows the same "✅ Copied — paste into an email" confirmation as the token Copy buttons.
+
 #### Checking and Restocking Token Availability
 
 On the POS product card, the available count is displayed. When availability drops below 5:

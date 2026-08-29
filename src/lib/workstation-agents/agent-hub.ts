@@ -160,24 +160,20 @@ class WorkstationAgentHub {
         },
       })
 
-      // MBM-279 follow-up: a shared printer's AGENT routing is otherwise
-      // "sticky" wherever an admin last pointed it via Printer Connection
-      // Mode — it doesn't know a business switch on the same physical
-      // workstation happened at all. Since siblingAgentIds only ever
-      // contains OTHER businesses actually paired on THIS exact machine
-      // (computed locally from disk, never cross-machine), this is safe:
-      // it only re-routes a printer that was already following one of this
-      // workstation's own other businesses, never a printer belonging to
-      // some unrelated machine/business elsewhere.
-      if (data.siblingAgentIds?.length) {
-        const moved = await prisma.networkPrinters.updateMany({
-          where: { workstationAgentId: { in: data.siblingAgentIds }, connectionMode: 'AGENT' },
-          data: { workstationAgentId: matched.id },
-        })
-        if (moved.count > 0) {
-          console.log(`[WorkstationAgentHub] Re-pointed ${moved.count} printer(s) from a sibling business to agent ${matched.id} (active-business switch)`)
-        }
-      }
+      // MBM-279 follow-up (RETIRED as of the "declare your own printer per
+      // business" redesign): this used to auto-move a printer between
+      // sibling businesses' agent rows on every connect/reconnect, under
+      // the old model where a shared physical workstation had only ONE
+      // printer row total, "following" whichever business was currently
+      // active. That model is gone — each business paired to this same
+      // machine now gets its own independently-declared printer row (see
+      // /admin/workstation-agents' "This workstation's printer" section),
+      // meant to coexist and print concurrently, not take turns. Leaving
+      // this active silently stole one business's declared printer the
+      // moment a sibling business's connection came back online — the
+      // exact "why did Jiffy Lube's printer setting disappear" bug traced
+      // live. data.siblingAgentIds may still arrive from older agent
+      // builds; it's simply ignored now rather than acted on.
 
       ack?.({ success: true })
       console.log(`[WorkstationAgentHub] Agent ${matched.id} (${data.hostLabel ?? 'unknown host'}) connected`)

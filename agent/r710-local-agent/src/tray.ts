@@ -22,7 +22,8 @@
  */
 
 import { join, dirname } from 'path'
-import { existsSync } from 'fs'
+import { existsSync, rmSync } from 'fs'
+import { homedir } from 'os'
 import { execSync } from 'child_process'
 import { createRequire } from 'module'
 import type { AgentConnectionState } from './socket-client'
@@ -103,6 +104,57 @@ let systray: any = null
 // event.
 let recreateTimer: ReturnType<typeof setTimeout> | null = null
 let recreating = false
+
+// Seen on a fresh Windows install (both Win10 and Win11): the native tray
+// helper's SetIcon call intermittently fails with "The volume for a file
+// has been externally altered so that the opened file is no longer valid"
+// — almost certainly AV real-time scanning (or OneDrive, if the install
+// lives in a synced folder) interfering with the tray helper binary right
+// as it's accessed.
+//
+// systray2's copyDir:true option (see createSysTrayInstance below) stages
+// the helper binary at a FIXED, PERSISTENT path —
+// `<homedir>/.cache/node-systray/<systray2-version>/tray_windows_release.exe`
+// — and, critically, only copies it there once: every later launch reuses
+// whatever's already sitting at that path (systray2/index.js's
+// getTrayBinPath: it `fs.stat`s the cached copy and skips re-copying if
+// that succeeds). If AV quarantines, corrupts, or holds a lock on that
+// FIRST copy, every subsequent launch — not just the first — keeps hitting
+// the exact same broken cached file, which is why this can persist across
+// relaunches rather than clearing up "the second time" as a simple
+// transient race would. Retrying just costs a `recreateTray()` here
+// wouldn't fix that; it would keep reusing the same bad cached copy. So on
+// detecting this failure, wipe the whole node-systray cache directory
+// first, forcing a genuinely fresh copy on retry — up to two attempts,
+// with a growing delay, since a corrupted cache needs an actual re-copy to
+// resolve, not just more time.
+const MAX_ICON_RETRIES = 2
+let iconRetryCount = 0
+
+// Mirrors recreateTray()'s own kill-then-create sequencing (see its
+// comment) — deliberately NOT just "delete the cache, then call
+// recreateTray()", because the current (broken) tray helper process is
+// still alive and holding that cached .exe open until it's actually
+// killed; deleting it out from under a running Windows process fails
+// (or at best races). Kill first, clear the cache once that's confirmed
+// done, then create fresh.
+function clearSystrayCacheAndRetry(delayMs: number): void {
+  setTimeout(() => {
+    const old = systray
+    if (!old) { createSysTrayInstance(); return }
+    systray = null
+    recreating = true
+    old.kill(false).catch(() => { /* already gone — fine */ }).finally(() => {
+      try {
+        rmSync(join(homedir(), '.cache', 'node-systray'), { recursive: true, force: true })
+      } catch (error) {
+        console.error('[Agent] Failed to clear node-systray cache (continuing anyway):', error)
+      }
+      recreating = false
+      createSysTrayInstance()
+    })
+  }, delayMs)
+}
 
 export interface ProfileTrayInfo {
   profileId: string
@@ -367,7 +419,7 @@ function buildItems(): any[] {
     ],
   })
   items.push({ title: 'Restart', tooltip: 'Restart the agent', checked: false, enabled: true, click: () => onRestartCallback?.() })
-  items.push({ title: 'Quit', tooltip: 'Stop the agent', checked: false, enabled: true, click: () => { systray?.kill(); onQuitCallback?.() } })
+  items.push({ title: 'Quit', tooltip: 'Stop the agent', checked: false, enabled: true, click: requestQuit })
 
   return items
 }
@@ -488,7 +540,19 @@ function createSysTrayInstance(): void {
     })
     const proc = instance.process
     proc?.stdout?.on('data', (chunk: Buffer) => console.error('[Agent] [tray stdout]', chunk.toString()))
-    proc?.stderr?.on('data', (chunk: Buffer) => console.error('[Agent] [tray stderr]', chunk.toString()))
+    proc?.stderr?.on('data', (chunk: Buffer) => {
+      const text = chunk.toString()
+      console.error('[Agent] [tray stderr]', text)
+      // See MAX_ICON_RETRIES' own comment above. Detected by text since
+      // this comes from the prebuilt Go helper binary, not code this
+      // project owns — there's no error code to check instead.
+      if (iconRetryCount < MAX_ICON_RETRIES && !recreating && /externally altered|Unable to set icon/i.test(text)) {
+        iconRetryCount++
+        const delayMs = iconRetryCount * 3000
+        console.error(`[Agent] Tray icon failed to set — clearing the cached tray helper and retrying (attempt ${iconRetryCount}/${MAX_ICON_RETRIES}) in ${delayMs / 1000}s…`)
+        clearSystrayCacheAndRetry(delayMs)
+      }
+    })
   }).catch((error: unknown) => {
     console.error('[Agent] Tray helper failed to start (continuing headless):', error)
   })
@@ -507,6 +571,32 @@ export function startTray(onQuit: () => void, onRestart: () => void): void {
   onQuitCallback = onQuit
   onRestartCallback = onRestart
   createSysTrayInstance()
+}
+
+// Shared by the tray's own "Quit" menu item AND the pairing server's
+// /shutdown route (used by the NEXT launch's self-kill-on-startup to ask a
+// running instance to exit cleanly before falling back to a forceful
+// taskkill). systray.kill() sends the helper a graceful 'exit' action and
+// waits for it to actually exit before resolving — letting the Go binary
+// remove its own tray icon via Windows' notification API first, instead of
+// vanishing mid-process and leaving a ghost icon behind until Explorer
+// notices on its own.
+//
+// kill(false) specifically — its default (true) would call process.exit(0)
+// itself the moment the graceful exit completes, but onQuitCallback (index.ts's
+// process.exit(0)) was ALSO being called immediately, synchronously,
+// without awaiting kill() at all — a pre-existing race where the process
+// exited before the graceful icon removal it just asked for had actually
+// finished, defeating the whole point. Awaiting here and calling
+// onQuitCallback only after fixes that for every caller, not just this
+// session's new one.
+export async function requestQuit(): Promise<void> {
+  try {
+    await systray?.kill(false)
+  } catch {
+    // Already gone, or never started — proceed to quit regardless.
+  }
+  onQuitCallback?.()
 }
 
 // ── Auto-start (MBM-276) — replaces the old "drag a shortcut into the

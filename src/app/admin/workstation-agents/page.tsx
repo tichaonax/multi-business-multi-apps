@@ -787,7 +787,7 @@ export default function WorkstationAgentsPage() {
               <span className="block mt-2">
                 Already running it? A browser can't tell this page apart from "nothing's there" when something else is quietly
                 blocking the connection —{' '}
-                <a href={`http://127.0.0.1:${PAIRING_PORT}/probe`} target="_blank" rel="noopener noreferrer" className="underline font-medium hover:no-underline">
+                <a href={`http://127.0.0.1:${PAIRING_PORT}/probe?serverUrl=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : '')}&businessId=${encodeURIComponent(currentBusinessId || '')}`} target="_blank" rel="noopener noreferrer" className="underline font-medium hover:no-underline">
                   test the local connection directly →
                 </a>{' '}
                 If that opens fine but this still won't detect, try this page in an <strong>Incognito/Private window</strong> — if it works

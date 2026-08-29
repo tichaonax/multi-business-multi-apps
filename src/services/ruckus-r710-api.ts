@@ -184,11 +184,12 @@ export class RuckusR710ApiService {
           'http_x_csrf_token': response.headers['http_x_csrf_token'] || '[NONE]'
         }, null, 2));
 
+        // Response bodies are deliberately NOT logged — guest voucher
+        // creation responses (mon_createguest.jsp and similar) return
+        // plaintext WiFi access tokens, sometimes dozens per batch. Logging
+        // them wrote real, usable credentials straight into server logs.
         if (response.data) {
-          const dataPreview = typeof response.data === 'string'
-            ? (response.data.length > 2000 ? response.data.substring(0, 2000) + '...[TRUNCATED]' : response.data)
-            : JSON.stringify(response.data, null, 2);
-          console.log('[R710] Response Body:', dataPreview);
+          console.log(`[R710] Response Body: [${typeof response.data === 'string' ? response.data.length : JSON.stringify(response.data).length} bytes, not logged]`);
         }
         console.log('=======================================\n');
 
@@ -213,11 +214,11 @@ export class RuckusR710ApiService {
             'content-type': error.response.headers['content-type']
           }, null, 2));
 
+          // Same reasoning as the success-path logging above — never dump
+          // the body, even on error (a partial batch failure can still
+          // contain real tokens for the guests that succeeded).
           if (error.response.data) {
-            const dataPreview = typeof error.response.data === 'string'
-              ? (error.response.data.length > 1000 ? error.response.data.substring(0, 1000) + '...[TRUNCATED]' : error.response.data)
-              : JSON.stringify(error.response.data, null, 2);
-            console.log('[R710] Error Response Body:', dataPreview);
+            console.log(`[R710] Error Response Body: [${typeof error.response.data === 'string' ? error.response.data.length : JSON.stringify(error.response.data).length} bytes, not logged]`);
           }
         } else if (error.request) {
           console.log('[R710] No response received');
@@ -264,7 +265,7 @@ export class RuckusR710ApiService {
         this.csrfToken = csrfToken;
         this.isAuthenticated = true;
 
-        console.log(`[R710] Login successful! Status: ${loginResponse.status}, CSRF Token: ${csrfToken}`);
+        console.log(`[R710] Login successful! Status: ${loginResponse.status}, CSRF Token: [present, not logged]`);
         return { success: true, csrfToken: this.csrfToken };
       } else {
         console.error(`[R710] Login failed. Status: ${loginResponse.status}, CSRF Token: ${csrfToken ? 'present' : 'missing'}`);
@@ -1437,7 +1438,11 @@ By accepting this agreement and accessing the wireless network, you acknowledge 
           try {
             jsonData = JSON.parse(jsonMatch[0]);
           } catch (parseError) {
-            console.error(`[R710] Token generation response was not valid JSON (likely a stale/expired router session) — first 500 chars: ${responseText.slice(0, 500)}`);
+            // Never log responseText here — a batch guest-creation response
+            // is raw JS containing every generated token in plaintext
+            // (batchEmailData.push('Guest-N|TOKEN|')...), even when this
+            // parse fails.
+            console.error(`[R710] Token generation response was not valid JSON (likely a stale/expired router session) — ${responseText.length} bytes, not logged`);
             if (allowRetry) {
               console.log('[R710] Forcing a fresh login and retrying token generation once...');
               this.isAuthenticated = false;
@@ -1491,7 +1496,9 @@ By accepting this agreement and accessing the wireless network, you acknowledge 
           }
         }
 
-        console.error(`[R710] Could not find a JSON result in the token generation response — first 500 chars: ${responseText.slice(0, 500)}`);
+        // Same reasoning as above — this response can contain plaintext
+        // guest tokens even when no JSON result was found in it.
+        console.error(`[R710] Could not find a JSON result in the token generation response — ${responseText.length} bytes, not logged`);
         if (allowRetry) {
           console.log('[R710] Forcing a fresh login and retrying token generation once...');
           this.isAuthenticated = false;
