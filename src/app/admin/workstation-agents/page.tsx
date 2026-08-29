@@ -227,6 +227,12 @@ export default function WorkstationAgentsPage() {
   // starts, giving no visible signal that printers were even found).
   const [printerSuggestionsOpen, setPrinterSuggestionsOpen] = useState(false)
   const [savingPrinterFor, setSavingPrinterFor] = useState<string | null>(null)
+  // Lets an admin verify a just-paired printer works without leaving this
+  // page for /admin/printers (a different print path entirely — QZ Tray,
+  // browser-driven — not this workstation's AGENT-relay printer being set
+  // up here). Reuses the same /api/print/receipt queue-based test every
+  // other printer admin surface already uses (see printer-list.tsx).
+  const [testingPrinterFor, setTestingPrinterFor] = useState<string | null>(null)
 
   // Restored per-workstation default override: lets several workstations in
   // this business each default to a *different* remote printer (e.g.
@@ -547,6 +553,50 @@ export default function WorkstationAgentsPage() {
       setEditingPrinterFor(null)
     } finally {
       setSavingPrinterFor(null)
+    }
+  }
+
+  const handleTestPrint = async (agentId: string) => {
+    const printer = agentPrinters[agentId]
+    if (!printer || !currentBusinessId || !currentBusiness) return
+    setTestingPrinterFor(agentId)
+    try {
+      const res = await fetch('/api/print/receipt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          printerId: printer.id,
+          businessId: currentBusinessId,
+          businessType: currentBusiness.businessType || 'other',
+          businessName: currentBusiness.businessName || 'Test Business',
+          businessAddress: currentBusiness.address || '',
+          businessPhone: currentBusiness.phone || '',
+          transactionId: `TEST-${Date.now()}`,
+          transactionDate: new Date().toISOString(),
+          salespersonName: 'Test Print',
+          items: [
+            { name: 'Test Print', sku: 'TEST-PRINT', quantity: 1, unitPrice: 0, totalPrice: 0 },
+          ],
+          subtotal: 0,
+          tax: 0,
+          discount: 0,
+          total: 0,
+          paymentMethod: 'cash',
+          footerMessage: `Test print — ${printer.printerName} — workstation pairing setup`,
+          copies: 1,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        await alert({ title: 'Test print failed', description: data.error || data.details || 'Unknown error' })
+        return
+      }
+      await alert({ title: 'Test print sent', description: `Queued to "${printer.printerName}" — check the printer for output.` })
+    } catch (error) {
+      await alert({ title: 'Test print failed', description: error instanceof Error ? error.message : 'Unknown error' })
+    } finally {
+      setTestingPrinterFor(null)
     }
   }
 
@@ -1015,7 +1065,17 @@ export default function WorkstationAgentsPage() {
                             </span>
                           )}
                         </div>
-                        <button onClick={() => startPrinterEdit(agent.id)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex-shrink-0">Edit</button>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <button
+                            onClick={() => handleTestPrint(agent.id)}
+                            disabled={testingPrinterFor === agent.id || !agentPrinters[agent.id]!.remotePrintingEnabled}
+                            title={agentPrinters[agent.id]!.remotePrintingEnabled ? 'Send a test receipt through this workstation\'s agent' : 'Enable remote printing first — this printer isn\'t reachable from the server yet'}
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
+                          >
+                            {testingPrinterFor === agent.id ? 'Testing…' : '🖨️ Test Print'}
+                          </button>
+                          <button onClick={() => startPrinterEdit(agent.id)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Edit</button>
+                        </div>
                       </div>
                     ) : (
                       <div className="flex items-center justify-between gap-2">

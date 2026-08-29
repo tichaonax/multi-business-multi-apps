@@ -130,8 +130,14 @@ export function UnifiedReceiptPreviewModal({
   const { data: session } = useSession()
   const userId = (session?.user as any)?.id
 
-  // User-scoped localStorage key so printer choice persists per user on shared machines
-  const printerKey = userId ? `lastSelectedPrinterId-${userId}` : 'lastSelectedPrinterId'
+  // User- AND business-scoped localStorage key so printer choice persists
+  // per user per business on shared machines. Business-scoping added after
+  // a real cross-business leak was traced live: a QZ Tray printer picked
+  // once (even just for testing, even for a different business entirely)
+  // was being remembered and auto-selected for EVERY other business this
+  // user later opened on the same browser — including ones with a properly
+  // configured, verified-online AGENT printer of their own.
+  const printerKey = userId ? `lastSelectedPrinterId-${userId}-${businessId}` : `lastSelectedPrinterId-${businessId}`
 
   // Ref-based guard to prevent double-clicks (more reliable than state)
   const isPrintingRef = useRef(false)
@@ -290,23 +296,21 @@ export function UnifiedReceiptPreviewModal({
 
   function autoSelectPrinter(availablePrinters: NetworkPrinter[], localAvailable: boolean, qzPrinterList: string[] = [], businessDefaultPrinterId: string | null = null, myWorkstationAgentId: string | null = null, workstationOverridePrinterId: string | null = null) {
     try {
-      let lastPrinterId = localStorage.getItem(printerKey)
-      if (!lastPrinterId) {
-        const globalValue = localStorage.getItem('lastSelectedPrinterId')
-        if (globalValue) {
-          lastPrinterId = globalValue
-          localStorage.setItem(printerKey, globalValue)
-        }
-      }
+      // No cross-key migration here on purpose (there used to be one, from
+      // a single global 'lastSelectedPrinterId' value) — printerKey is now
+      // business-scoped specifically to STOP an old cross-business choice
+      // from leaking into a business that never saw it; importing it here
+      // would silently reintroduce exactly that.
+      const lastPrinterId = localStorage.getItem(printerKey)
 
       let resolvedId: string | null = null
       if (lastPrinterId) {
         if (lastPrinterId === LOCAL_PRINTER_ID && localAvailable) {
           resolvedId = LOCAL_PRINTER_ID
-        } else if (lastPrinterId.startsWith(QZ_PRINTER_PREFIX)) {
-          const qzName = lastPrinterId.slice(QZ_PRINTER_PREFIX.length)
-          if (qzPrinterList.includes(qzName)) resolvedId = lastPrinterId
-        } else {
+        } else if (!lastPrinterId.startsWith(QZ_PRINTER_PREFIX)) {
+          // A real AGENT/DIRECT printer id — genuinely verifiable online,
+          // unlike QZ (see the dedicated QZ fallback step below for why a
+          // last-selected QZ choice is deliberately NOT honored here).
           const savedPrinter = availablePrinters.find((p: NetworkPrinter) => p.id === lastPrinterId)
           if (savedPrinter && savedPrinter.isOnline) resolvedId = lastPrinterId
         }
@@ -336,31 +340,30 @@ export function UnifiedReceiptPreviewModal({
         if (ownPrinter && ownPrinter.isOnline) resolvedId = ownPrinter.id
       }
 
-      // MBM-280: printerKey is cached per-USER, not per-business — a printer
-      // (or agent-relay id) valid for whichever business was used last often
-      // isn't valid for a different business on the same machine (e.g. an
-      // AGENT-relayed printer id tied to a different business's workstation
-      // agent). Previously that just left nothing selected. QZ Tray's own
-      // saved printer (getQzPrinterConfig()) is genuinely machine-wide, not
-      // business-scoped, so it's a safe universal fallback whenever the
-      // cached choice above doesn't apply here — not just when there was no
-      // cached choice at all — so QZ effectively works for every business
-      // sharing one workstation without a separate per-business setup step.
+      // MBM-283 Phase 3: this business's server-side default — what gives a
+      // device with nothing of its own configured yet a sensible printer
+      // instead of nothing at all. Ranked ahead of the QZ fallback just
+      // below: this is a verified-online AGENT/DIRECT printer (isOnline is
+      // checked same as every branch above), where QZ Tray's saved printer
+      // can never be verified as actually reachable without connecting to
+      // QZ Tray itself (deliberately not done here, to avoid a permission
+      // prompt on every load) — an unverified guess should never outrank
+      // something we can actually confirm is online.
+      if (!resolvedId && businessDefaultPrinterId) {
+        const defaultPrinter = availablePrinters.find((p: NetworkPrinter) => p.id === businessDefaultPrinterId)
+        if (defaultPrinter && defaultPrinter.isOnline) resolvedId = businessDefaultPrinterId
+      }
+
+      // Last resort: QZ Tray's own saved printer (getQzPrinterConfig()) is
+      // genuinely machine-wide, not business-scoped, so it's a safe
+      // universal fallback for a device with no AGENT printer of its own
+      // and no business default either — just never ahead of one, since it
+      // can't be confirmed reachable the way those can (see comment above).
       if (!resolvedId && qzPrinterList.length > 0) {
         const saved = getQzPrinterConfig()
         if (saved && qzPrinterList.includes(saved.printerName)) {
           resolvedId = QZ_PRINTER_PREFIX + saved.printerName
         }
-      }
-
-      // MBM-283 Phase 3: last resort — this business's server-side default,
-      // below both the user's own saved choice and QZ's machine-specific
-      // setup (which stays more specific/intentional than a business-wide
-      // fallback). This is what gives a mobile device with nothing of its
-      // own configured yet a sensible printer instead of nothing at all.
-      if (!resolvedId && businessDefaultPrinterId) {
-        const defaultPrinter = availablePrinters.find((p: NetworkPrinter) => p.id === businessDefaultPrinterId)
-        if (defaultPrinter && defaultPrinter.isOnline) resolvedId = businessDefaultPrinterId
       }
 
       if (resolvedId) setSelectedPrinterId(resolvedId)

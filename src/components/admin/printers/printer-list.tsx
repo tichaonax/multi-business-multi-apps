@@ -324,6 +324,22 @@ export function PrinterList({ printers, loading, onEdit, onDelete, onRefresh }: 
                           {printer.nodeId}
                         </Badge>
                       )}
+                      {/* This list is deliberately unscoped (every business's
+                          printers at once — see printer-service.ts's
+                          businessId comment), so two AGENT printers sharing
+                          a printer name are otherwise indistinguishable.
+                          businessName/workstationLabel are only ever
+                          populated for AGENT-mode printers. */}
+                      {printer.businessName && (
+                        <Badge variant="outline" className="text-xs text-amber-700 dark:text-amber-400">
+                          {printer.businessName}
+                        </Badge>
+                      )}
+                      {printer.workstationLabel && (
+                        <Badge variant="outline" className="text-xs text-gray-500">
+                          {printer.workstationLabel}
+                        </Badge>
+                      )}
                     </h3>
 
                     <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">

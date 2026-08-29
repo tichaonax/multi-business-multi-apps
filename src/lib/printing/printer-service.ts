@@ -203,13 +203,21 @@ export async function listPrinters(options: PrinterListOptions = {}): Promise<{
         // MBM-283 follow-up: also requires remotePrintingEnabled — a
         // "paused" printer (remote printing off) is unreachable for
         // everyone, share flag notwithstanding.
-        { connectionMode: 'AGENT', remotePrintingEnabled: true, workstation_agent: { businessId }, remoteEnabled: true },
+        // MBM-283 follow-up 2: also requires the owning agent to still be a
+        // live (non-revoked) pairing — self-heals a "zombie" printer left
+        // behind by an already-revoked pairing whose remotePrintingEnabled
+        // wasn't (or, for one revoked before that cleanup existed, isn't)
+        // disabled. Re-pairing the same physical workstation mints a brand
+        // new WorkstationAgents row rather than reusing the old one, so
+        // without this a revoked pairing's dead printer keeps showing up as
+        // a selectable option right alongside its live replacement.
+        { connectionMode: 'AGENT', remotePrintingEnabled: true, workstation_agent: { businessId, revokedAt: null }, remoteEnabled: true },
         // MBM-283 follow-up: a workstation can always discover its OWN
         // printer, share flag aside — it just can't be discovered by
         // anyone else while unshared. Still gated by remotePrintingEnabled
         // — paused means unreachable even for its own workstation.
         ...(ownWorkstationAgentId
-          ? [{ connectionMode: 'AGENT', remotePrintingEnabled: true, workstationAgentId: ownWorkstationAgentId }]
+          ? [{ connectionMode: 'AGENT', remotePrintingEnabled: true, workstationAgentId: ownWorkstationAgentId, workstation_agent: { revokedAt: null } }]
           : []),
       ],
     });
@@ -243,7 +251,7 @@ export async function listPrinters(options: PrinterListOptions = {}): Promise<{
     // `hostname` too: `label` is free text an admin typed with no
     // uniqueness enforced, so two workstations can share one — hostname is
     // what actually disambiguates them once a picker lists several.
-    include: { workstation_agent: { select: { connectionStatus: true, label: true, hostname: true } } },
+    include: { workstation_agent: { select: { connectionStatus: true, label: true, hostname: true, businesses: { select: { name: true } } } } },
   });
 
   return {
@@ -586,6 +594,10 @@ function transformPrinterRecord(record: any): NetworkPrinter {
     // so it defaults to printing to itself rather than to the business-wide
     // default, which may point at a different workstation entirely.
     workstationAgentId: record.connectionMode === 'AGENT' ? (record.workstationAgentId ?? null) : null,
+    // MBM-283 follow-up 2: only ever populated when the caller joined
+    // workstation_agent (listPrinters() does) — same pattern as
+    // workstationLabel/workstationHostname above.
+    businessName: record.connectionMode === 'AGENT' ? (record.workstation_agent?.businesses?.name ?? null) : null,
     receiptWidth: record.receiptWidth,
     lastSeen: new Date(record.lastSeen),
     createdAt: new Date(record.createdAt),

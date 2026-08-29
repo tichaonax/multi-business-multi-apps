@@ -61,13 +61,21 @@ export class PrinterAuthorizationError extends Error {
 export async function resolvePrinterForBusiness(printerId: string, businessId: string, requestingWorkstationAgentId?: string | null) {
   const printer = await prisma.networkPrinters.findUnique({
     where: { id: printerId },
-    include: { workstation_agent: { select: { businessId: true } } },
+    include: { workstation_agent: { select: { businessId: true, revokedAt: true } } },
   })
   if (!printer) throw new PrinterAuthorizationError('Printer not found')
 
   if (printer.connectionMode === 'AGENT') {
     if (!printer.workstation_agent || printer.workstation_agent.businessId !== businessId) {
       throw new PrinterAuthorizationError(`Printer "${printer.printerName}" is not assigned to this business`)
+    }
+    // Self-heals a "zombie" printer left behind by an already-revoked
+    // pairing (see the revoke route's cleanup comment) even for one revoked
+    // before that cleanup existed, i.e. remotePrintingEnabled wasn't
+    // actually turned off — the pairing being gone is reason enough on its
+    // own, independent of that flag.
+    if (printer.workstation_agent.revokedAt) {
+      throw new PrinterAuthorizationError(`Printer "${printer.printerName}"'s workstation pairing has been revoked`)
     }
     if (!printer.remotePrintingEnabled) {
       throw new PrinterAuthorizationError(`Printer "${printer.printerName}" has remote printing turned off on its workstation`)

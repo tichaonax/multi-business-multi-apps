@@ -25,10 +25,16 @@ import { execFileSync } from 'child_process'
 import { copyFileSync, mkdirSync, existsSync, writeFileSync, readFileSync, cpSync, createWriteStream } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { createHash } from 'crypto'
 import { ZipArchive } from 'archiver'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const distDir = join(__dirname, 'dist')
+// Persisted between builds (dist/ survives across `npm run build` runs on
+// the same machine — see stopRunningAgent()'s workflow comment; it's only
+// ever created if missing, never wiped at the start of a build) — see
+// computeSourceHash()/main() for what this drives.
+const sourceHashPath = join(distDir, '.source-hash')
 
 // npm hoists transitive deps flat into this package's own node_modules
 // (no nested node_modules/systray2/node_modules/fs-extra) — so copying just
@@ -87,10 +93,62 @@ function bumpPatchVersion() {
   return pkg.version
 }
 
+// Only bump when something that actually affects the shipped .exe changed
+// since the last build — otherwise every `npm run build` bumped the
+// version even for a no-op rebuild (e.g. just testing the packaging step
+// itself), making the version number a poor "did anything actually change"
+// signal. Determines that by hashing the exact set of real source files
+// esbuild would pull into the bundle — a dry run (write: false) purely to
+// get its metafile, not a hand-maintained file list, since the agent
+// imports straight from the main app's own src/ in a couple of places
+// (job-handler.ts's RuckusR710ApiService, print-driver.ts's printRawData —
+// see this file's header comment) whose OWN transitive imports would
+// silently go untracked by anything less than "ask esbuild what it
+// actually used."
+async function computeSourceHash() {
+  const result = await build({
+    entryPoints: [join(__dirname, 'src', 'index.ts')],
+    bundle: true,
+    platform: 'node',
+    target: 'node20',
+    format: 'cjs',
+    absWorkingDir: __dirname,
+    write: false,
+    metafile: true,
+    external: ['systray2', 'serialport'],
+  })
+
+  const inputPaths = Object.keys(result.metafile.inputs)
+    // package.json IS a real input (tray.ts imports it for AGENT_VERSION)
+    // but its own `version` field is exactly what bumpPatchVersion() below
+    // rewrites — hashing it would make every build look "changed" purely
+    // because of the PREVIOUS build's own bump, even with zero actual
+    // source changes in between. Deliberately excluded.
+    .filter((p) => !p.endsWith('package.json'))
+    .sort()
+
+  const hash = createHash('sha256')
+  for (const relPath of inputPaths) {
+    hash.update(relPath)
+    hash.update(readFileSync(join(__dirname, relPath)))
+  }
+  return hash.digest('hex')
+}
+
 async function main() {
   if (!existsSync(distDir)) mkdirSync(distDir, { recursive: true })
 
-  bumpPatchVersion()
+  console.log('[build] Checking whether any agent-relevant source file changed since the last build…')
+  const currentSourceHash = await computeSourceHash()
+  const previousSourceHash = existsSync(sourceHashPath) ? readFileSync(sourceHashPath, 'utf8').trim() : null
+
+  if (currentSourceHash !== previousSourceHash) {
+    bumpPatchVersion()
+  } else {
+    const pkg = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'))
+    console.log(`[build] No agent-relevant source changes since the last build — keeping version ${pkg.version}`)
+  }
+
   stopRunningAgent()
 
   console.log('[build] Bundling with esbuild…')
@@ -184,6 +242,11 @@ async function main() {
   console.log('[build] Zipping exe + stop script + systray2 helper folder + its runtime deps for a single-file download…')
   await zipDist(exePath, stopBatPath, join(distDir, 'node_modules'), join(distDir, 'r710-agent.zip'))
   console.log(`[build] Download bundle at: ${join(distDir, 'r710-agent.zip')}`)
+
+  // Only recorded once the build actually finished — a failed/aborted build
+  // must never mark this source state as "already accounted for," or a
+  // fix that failed to package correctly would look up-to-date forever.
+  writeFileSync(sourceHashPath, currentSourceHash)
 }
 
 function zipDist(exePath, stopBatPath, nodeModulesDir, zipPath) {

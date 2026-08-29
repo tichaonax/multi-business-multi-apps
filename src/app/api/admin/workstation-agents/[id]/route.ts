@@ -35,6 +35,22 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     // deleting the config outright rather than nulling the reference.
     await prisma.scaleDeviceConfigs.deleteMany({ where: { workstationAgentId: id } })
 
+    // Same underlying gap as the ScaleDeviceConfigs cleanup above, for the
+    // printer this workstation declared: revoking never deletes this row
+    // (an admin can always re-pair the same physical machine, which mints a
+    // brand new WorkstationAgents row rather than reusing this one), so
+    // without this its NetworkPrinters row is left remotePrintingEnabled —
+    // a permanently-offline "zombie" printer that keeps showing up
+    // everywhere (the print-time picker, /admin/printers) as if it were
+    // still a real, live option, right alongside whatever printer the
+    // re-paired workstation declares next. Disabled, not deleted — deleting
+    // would cascade-delete real print job history via NetworkPrinters'
+    // onDelete: Cascade FKs (print_jobs, default_receipt_printer_configs).
+    await prisma.networkPrinters.updateMany({
+      where: { workstationAgentId: id },
+      data: { remotePrintingEnabled: false, remoteEnabled: false },
+    })
+
     workstationAgentHub.disconnectAgent(id)
 
     return NextResponse.json({ success: true })

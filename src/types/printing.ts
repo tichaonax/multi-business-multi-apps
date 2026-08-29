@@ -32,6 +32,13 @@ export interface NetworkPrinter {
   // MBM-283 follow-up: which paired workstation owns this AGENT printer —
   // lets a client that IS that workstation recognize its own printer.
   workstationAgentId?: string | null;
+  // MBM-283 follow-up 2: which business this AGENT printer's pairing
+  // belongs to — null for DIRECT printers (no business scoping exists for
+  // them yet). Lets the unscoped admin printer list (which intentionally
+  // shows every business's printers at once) distinguish "EPSON TM-T at
+  // Jiffy Lube" from "EPSON TM-T at Happy Eater" instead of two
+  // identical-looking rows with no way to tell which business each serves.
+  businessName?: string | null;
   receiptWidth: number | null; // Receipt width in characters (32, 42, or 48)
   lastSeen: Date;
   createdAt: Date;
