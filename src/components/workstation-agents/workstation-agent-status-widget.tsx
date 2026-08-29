@@ -138,6 +138,17 @@ export function WorkstationAgentStatusWidget() {
           <a href="/api/admin/r710/agents/download" onClick={handleDownloadClick} className="underline font-medium hover:no-underline">Download the latest r710-agent.zip →</a>{' '}
           then run <code className="text-xs bg-red-100 dark:bg-red-900/40 px-1 rounded">r710-agent.exe</code> on this workstation.
         </p>
+        <p className="text-sm text-red-700 dark:text-red-400 mt-2">
+          Already running it? A browser can't tell this page apart from "nothing's there" when something else is
+          quietly blocking the connection — worth ruling that out directly:{' '}
+          <a href={`http://127.0.0.1:${PAIRING_PORT}/probe`} target="_blank" rel="noopener noreferrer" className="underline font-medium hover:no-underline">
+            Test the local connection →
+          </a>{' '}
+          If that opens fine but this banner still won't clear, try the same page in an <strong>Incognito/Private window</strong> — if it
+          works there, an ad-blocker or privacy extension on this browser's normal profile is blocking it (check{' '}
+          <code className="text-xs bg-red-100 dark:bg-red-900/40 px-1 rounded">chrome://extensions</code>). If the direct test link
+          itself won't load, the agent isn't actually reachable here — check it's really running.
+        </p>
       </div>
     )
   }

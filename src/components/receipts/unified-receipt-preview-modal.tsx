@@ -55,6 +55,12 @@ interface PrinterCacheEntry {
   // ahead of the business-wide default, which may point at a different
   // workstation's printer entirely.
   myWorkstationAgentId: string | null
+  // Restored per-workstation admin override: an admin can explicitly set
+  // "this workstation always prints through THAT OTHER workstation's
+  // printer" (Admin → Workstation Agents), independent of both this
+  // workstation's own printer and the business-wide default — outranks
+  // both when set.
+  workstationOverridePrinterId: string | null
 }
 
 // Module-level cache — persists across modal opens within the same page
@@ -139,7 +145,7 @@ export function UnifiedReceiptPreviewModal({
       const cached = getCache()
       if (cached) {
         // Cache hit — auto-select printer without any network call or loading state
-        autoSelectPrinter(cached.printers, cached.hasLocalPrinter, cached.qzPrinters, cached.businessDefaultPrinterId, cached.myWorkstationAgentId)
+        autoSelectPrinter(cached.printers, cached.hasLocalPrinter, cached.qzPrinters, cached.businessDefaultPrinterId, cached.myWorkstationAgentId, cached.workstationOverridePrinterId)
       } else {
         loadPrinters()
       }
@@ -153,7 +159,7 @@ export function UnifiedReceiptPreviewModal({
       setPrinters(cached.printers)
       setHasLocalPrinter(cached.hasLocalPrinter)
       setLocalPrinterName(cached.localPrinterName)
-      autoSelectPrinter(cached.printers, cached.hasLocalPrinter, cached.qzPrinters, cached.businessDefaultPrinterId, cached.myWorkstationAgentId)
+      autoSelectPrinter(cached.printers, cached.hasLocalPrinter, cached.qzPrinters, cached.businessDefaultPrinterId, cached.myWorkstationAgentId, cached.workstationOverridePrinterId)
       setPrintersLoading(false)
       return
     }
@@ -208,15 +214,30 @@ export function UnifiedReceiptPreviewModal({
         }
       }
 
-      // This business's default — terminal-specific if this browser is a
-      // registered print terminal, else the plain business-wide fallback.
-      const identityParam = myTerminal ? `&printTerminalId=${encodeURIComponent(myTerminal.id)}` : ''
-      const defaultResponse = businessId
-        ? await fetch(`/api/printing/default-printer?businessId=${encodeURIComponent(businessId)}${identityParam}`).catch(() => null)
-        : null
-      const businessDefaultPrinterId: string | null = defaultResponse && defaultResponse.ok
-        ? (await defaultResponse.json())?.printerId ?? null
-        : null
+      // This business's default. Print terminals: one combined call, server
+      // resolves terminal-specific → business-wide internally (terminals
+      // have no "own printer" tier to slot in between, so one call is fine).
+      // Workstations: TWO separate strict=true calls instead, because an
+      // admin-set override for THIS workstation (e.g. "workstation C
+      // always prints through workstation D's printer") must outrank this
+      // workstation's own declared printer, which must in turn outrank the
+      // generic business-wide fallback — three distinct tiers, not two —
+      // see autoSelectPrinter() below for where each is actually applied.
+      let businessDefaultPrinterId: string | null = null
+      let workstationOverridePrinterId: string | null = null
+      if (businessId && myTerminal) {
+        const res = await fetch(`/api/printing/default-printer?businessId=${encodeURIComponent(businessId)}&printTerminalId=${encodeURIComponent(myTerminal.id)}`).catch(() => null)
+        businessDefaultPrinterId = res?.ok ? (await res.json())?.printerId ?? null : null
+      } else if (businessId) {
+        const [overrideRes, businessRes] = await Promise.all([
+          myWorkstationAgentId
+            ? fetch(`/api/printing/default-printer?businessId=${encodeURIComponent(businessId)}&workstationAgentId=${encodeURIComponent(myWorkstationAgentId)}&strict=true`).catch(() => null)
+            : Promise.resolve(null),
+          fetch(`/api/printing/default-printer?businessId=${encodeURIComponent(businessId)}&strict=true`).catch(() => null),
+        ])
+        workstationOverridePrinterId = overrideRes?.ok ? (await overrideRes.json())?.printerId ?? null : null
+        businessDefaultPrinterId = businessRes?.ok ? (await businessRes.json())?.printerId ?? null : null
+      }
 
       // Check for local USB printer (Web Serial) and QZ Tray printers in parallel
       let localAvailable = false
@@ -246,13 +267,14 @@ export function UnifiedReceiptPreviewModal({
         qzPrinters: detectedQzPrinters,
         businessDefaultPrinterId,
         myWorkstationAgentId,
+        workstationOverridePrinterId,
       })
 
       setPrinters(availablePrinters)
       setHasLocalPrinter(localAvailable)
       setLocalPrinterName(localName)
       setQzPrinters(detectedQzPrinters)
-      autoSelectPrinter(availablePrinters, localAvailable, detectedQzPrinters, businessDefaultPrinterId, myWorkstationAgentId)
+      autoSelectPrinter(availablePrinters, localAvailable, detectedQzPrinters, businessDefaultPrinterId, myWorkstationAgentId, workstationOverridePrinterId)
 
       if (availablePrinters.length === 0 && !localAvailable && detectedQzPrinters.length === 0) {
         toast.error('No printers found. Configure a network printer in Admin > Printers, or set up a local USB printer.')
@@ -266,7 +288,7 @@ export function UnifiedReceiptPreviewModal({
     }
   }
 
-  function autoSelectPrinter(availablePrinters: NetworkPrinter[], localAvailable: boolean, qzPrinterList: string[] = [], businessDefaultPrinterId: string | null = null, myWorkstationAgentId: string | null = null) {
+  function autoSelectPrinter(availablePrinters: NetworkPrinter[], localAvailable: boolean, qzPrinterList: string[] = [], businessDefaultPrinterId: string | null = null, myWorkstationAgentId: string | null = null, workstationOverridePrinterId: string | null = null) {
     try {
       let lastPrinterId = localStorage.getItem(printerKey)
       if (!lastPrinterId) {
@@ -288,6 +310,17 @@ export function UnifiedReceiptPreviewModal({
           const savedPrinter = availablePrinters.find((p: NetworkPrinter) => p.id === lastPrinterId)
           if (savedPrinter && savedPrinter.isOnline) resolvedId = lastPrinterId
         }
+      }
+
+      // Restored per-workstation admin override: lets several workstations
+      // in one business each default to a *different* remote printer (e.g.
+      // "workstation C always prints through workstation D's printer") —
+      // an explicit admin decision for THIS specific workstation, so it
+      // outranks even this workstation's own declared printer just below.
+      // Set on this workstation's own row, Admin → Workstation Agents.
+      if (!resolvedId && workstationOverridePrinterId) {
+        const overridePrinter = availablePrinters.find((p: NetworkPrinter) => p.id === workstationOverridePrinterId)
+        if (overridePrinter && overridePrinter.isOnline) resolvedId = workstationOverridePrinterId
       }
 
       // MBM-283 follow-up: a workstation with its own declared printer

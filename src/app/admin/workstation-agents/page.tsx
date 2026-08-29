@@ -20,6 +20,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { useScale } from '@/contexts/ScaleContext'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useAlert } from '@/components/ui/confirm-modal'
+import { formatPrinterName } from '@/lib/printing/format-printer-label'
 
 const PAIRING_PORT = 47710
 
@@ -222,6 +223,17 @@ export default function WorkstationAgentsPage() {
   const [listingRemotePrinters, setListingRemotePrinters] = useState(false)
   const [savingPrinterFor, setSavingPrinterFor] = useState<string | null>(null)
 
+  // Restored per-workstation default override: lets several workstations in
+  // this business each default to a *different* remote printer (e.g.
+  // workstation C always prints through workstation D's shared printer),
+  // independent of both a workstation's own declared printer and the
+  // business-wide default. businessPrinters is every printer currently
+  // available to this business (shared AGENT ones + DIRECT ones) — the
+  // exact same pool the receipt-preview picker offers.
+  const [businessPrinters, setBusinessPrinters] = useState<{ id: string; printerName: string; isOnline: boolean; workstationLabel?: string | null; workstationHostname?: string | null }[]>([])
+  const [workstationOverrides, setWorkstationOverrides] = useState<Record<string, string>>({})
+  const [savingOverrideFor, setSavingOverrideFor] = useState<string | null>(null)
+
   // Scale setup state
   const [selectedAgentId, setSelectedAgentId] = useState('')
   const [ports, setPorts] = useState<{ path: string; manufacturer: string | null }[]>([])
@@ -277,20 +289,40 @@ export default function WorkstationAgentsPage() {
         }
       }
 
-      // Each paired workstation's own printer, if it's declared one — no
-      // bulk endpoint exists; N small requests is fine here since a
-      // business rarely has more than a handful of workstations.
+      // Each paired workstation's own printer, if it's declared one, and its
+      // default-printer override, if an admin set one — no bulk endpoint
+      // exists for either; N small requests is fine here since a business
+      // rarely has more than a handful of workstations.
       if (loadedAgents.length > 0) {
-        const printerResults = await Promise.all(
-          loadedAgents.map(a =>
-            fetch(`/api/admin/workstation-agents/${a.id}/printer`, { credentials: 'include' })
-              .then(r => r.ok ? r.json() : null)
-              .catch(() => null)
-          )
-        )
+        const [printerResults, overrideResults, businessPrintersRes] = await Promise.all([
+          Promise.all(
+            loadedAgents.map(a =>
+              fetch(`/api/admin/workstation-agents/${a.id}/printer`, { credentials: 'include' })
+                .then(r => r.ok ? r.json() : null)
+                .catch(() => null)
+            )
+          ),
+          Promise.all(
+            loadedAgents.map(a =>
+              fetch(`/api/printing/default-printer?businessId=${currentBusinessId}&workstationAgentId=${a.id}&strict=true`, { credentials: 'include' })
+                .then(r => r.ok ? r.json() : null)
+                .catch(() => null)
+            )
+          ),
+          fetch(`/api/printers?businessId=${currentBusinessId}&printerType=receipt`, { credentials: 'include' }),
+        ])
         const printers: Record<string, AgentPrinter | null> = {}
         loadedAgents.forEach((a, i) => { printers[a.id] = printerResults[i]?.printer ?? null })
         setAgentPrinters(printers)
+
+        const overrides: Record<string, string> = {}
+        loadedAgents.forEach((a, i) => { if (overrideResults[i]?.printerId) overrides[a.id] = overrideResults[i].printerId })
+        setWorkstationOverrides(overrides)
+
+        if (businessPrintersRes.ok) {
+          const data = await businessPrintersRes.json()
+          setBusinessPrinters(data.printers || [])
+        }
       }
     } finally {
       setLoading(false)
@@ -507,6 +539,35 @@ export default function WorkstationAgentsPage() {
     }
   }
 
+  const handleSaveOverride = async (agentId: string, printerId: string) => {
+    if (!currentBusinessId) return
+    setSavingOverrideFor(agentId)
+    try {
+      if (!printerId) {
+        await fetch(`/api/printing/default-printer?businessId=${currentBusinessId}&workstationAgentId=${agentId}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        })
+        setWorkstationOverrides(prev => { const next = { ...prev }; delete next[agentId]; return next })
+        return
+      }
+      const res = await fetch('/api/printing/default-printer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ businessId: currentBusinessId, workstationAgentId: agentId, printerId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        await alert({ title: 'Error', description: data.error || 'Failed to save default printer' })
+        return
+      }
+      setWorkstationOverrides(prev => ({ ...prev, [agentId]: data.printerId }))
+    } finally {
+      setSavingOverrideFor(null)
+    }
+  }
+
   const handleListPorts = async () => {
     if (!selectedAgentId) return
     setListingPorts(true)
@@ -625,6 +686,11 @@ export default function WorkstationAgentsPage() {
               <a href="/api/admin/r710/agents/download" className="underline font-medium hover:no-underline">Download the latest r710-agent.zip →</a>{' '}
               then run <code className="text-xs bg-red-100 dark:bg-red-900/40 px-1 rounded">r710-agent.exe</code> on this workstation and pair it below.
             </p>
+            <p className="text-sm text-red-700 dark:text-red-400 mt-2">
+              Only relevant if THIS workstation has a {hasScale ? 'scale or printer' : 'printer'} physically attached. A device with none of its own — one
+              that'll only ever print through some other workstation's shared printer — doesn't need any of this; use{' '}
+              <Link href="/admin/print-terminals" className="underline font-medium">Print Terminals</Link> instead.
+            </p>
           </div>
         )}
 
@@ -668,8 +734,15 @@ export default function WorkstationAgentsPage() {
         {/* Pairing */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
           <h3 className="font-medium text-gray-900 dark:text-white mb-2">Pair This Workstation</h3>
+          <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md p-3 mb-3">
+            ⚠️ <strong>Does this workstation have {hasScale ? 'no scale or printer' : 'no printer'} of its own</strong> — it'll only ever print through some
+            OTHER workstation's shared printer? You don't need any of this. Skip pairing entirely and use{' '}
+            <Link href="/admin/print-terminals" className="underline font-medium">Print Terminals</Link> instead — register the device in one click
+            (Settings → POS Settings → Printer Preferences → This Device), no agent, no download, then assign its default printer from anywhere.
+          </p>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-            Open this page from the workstation you want to pair (the one with the {hasScale ? 'scale and/or printer' : 'printer'} physically attached).
+            Pairing below is only for a workstation that has a {hasScale ? 'scale and/or printer' : 'printer'} physically attached to it.
+            Open this page from that workstation.
             {' '}<a href="/api/admin/r710/agents/download" className="text-blue-600 dark:text-blue-400 hover:underline">Download r710-agent.zip</a>{' '}
             (same agent used for R710) and run it there first if it isn't already running.
           </p>
@@ -710,6 +783,17 @@ export default function WorkstationAgentsPage() {
               🔴 No local agent detected on this machine yet — the label field and <strong>Pair this machine</strong> button below stay disabled until it is.
               Download and run <code className="text-xs bg-amber-100 dark:bg-amber-900/40 px-1 rounded">r710-agent.exe</code> (link above) if you haven't already.
               This page checks automatically every couple of seconds — <strong>no need to reload</strong> once the agent is running; the button will activate on its own.
+              <br />
+              <span className="block mt-2">
+                Already running it? A browser can't tell this page apart from "nothing's there" when something else is quietly
+                blocking the connection —{' '}
+                <a href={`http://127.0.0.1:${PAIRING_PORT}/probe`} target="_blank" rel="noopener noreferrer" className="underline font-medium hover:no-underline">
+                  test the local connection directly →
+                </a>{' '}
+                If that opens fine but this still won't detect, try this page in an <strong>Incognito/Private window</strong> — if it works
+                there, an ad-blocker or privacy extension on this browser's normal profile is blocking it (check{' '}
+                <code className="text-xs bg-amber-100 dark:bg-amber-900/40 px-1 rounded">chrome://extensions</code>).
+              </span>
             </p>
           )}
           {!existingAgentInThisBusiness && (
@@ -898,6 +982,32 @@ export default function WorkstationAgentsPage() {
                       </div>
                     )}
                   </div>
+                  {/* Restored per-workstation default override — separate
+                      from "This workstation's own printer" above (that
+                      declares hardware physically attached HERE; this picks
+                      which printer THIS workstation should print through by
+                      default, which can be a completely different
+                      workstation's shared printer). Lets several
+                      workstations in one business each default to a
+                      different remote printer instead of one shared
+                      business-wide value. */}
+                  {businessPrinters.length > 0 && (
+                    <div className="border-t border-gray-200 dark:border-gray-700 px-3 py-2 flex items-center gap-2">
+                      <label className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">Default printer for this workstation:</label>
+                      <select
+                        value={workstationOverrides[agent.id] || ''}
+                        onChange={(e) => handleSaveOverride(agent.id, e.target.value)}
+                        disabled={savingOverrideFor === agent.id}
+                        className="flex-1 text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white disabled:opacity-50"
+                      >
+                        <option value="">No override — use its own printer, then the business default</option>
+                        {businessPrinters.map(p => (
+                          <option key={p.id} value={p.id}>{formatPrinterName(p)}{p.isOnline ? '' : ' (offline)'}</option>
+                        ))}
+                      </select>
+                      {savingOverrideFor === agent.id && <span className="text-xs text-gray-400 flex-shrink-0">Saving…</span>}
+                    </div>
+                  )}
                   {expandedAgentId === agent.id && (
                     <div className="border-t border-gray-200 dark:border-gray-700 p-3">
                       {loadingActivity ? (

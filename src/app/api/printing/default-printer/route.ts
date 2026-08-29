@@ -35,6 +35,13 @@ export async function GET(request: NextRequest) {
   const businessId = request.nextUrl.searchParams.get('businessId')
   const workstationAgentId = request.nextUrl.searchParams.get('workstationAgentId') || undefined
   const printTerminalId = request.nextUrl.searchParams.get('printTerminalId') || undefined
+  // MBM-283 follow-up: when true, return only the row matching the exact
+  // identity passed (or null) — skip the business-wide fallback below. Lets
+  // a caller ask "does THIS workstation specifically have an admin-set
+  // override?" as a distinct question from "what should it use by default"
+  // (the unified-receipt-preview-modal needs both, at different priority
+  // tiers — see its own comment on why).
+  const strict = request.nextUrl.searchParams.get('strict') === 'true'
   if (!businessId) return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
   // Read access is any active member of the business — this just resolves
   // a print-time default, not a management action.
@@ -48,7 +55,7 @@ export async function GET(request: NextRequest) {
   } else if (workstationAgentId) {
     config = await prisma.defaultReceiptPrinterConfigs.findFirst({ where: { businessId, workstationAgentId } })
   }
-  if (!config) {
+  if (!config && !strict) {
     config = await prisma.defaultReceiptPrinterConfigs.findFirst({ where: { businessId, workstationAgentId: null, printTerminalId: null } })
   }
 
