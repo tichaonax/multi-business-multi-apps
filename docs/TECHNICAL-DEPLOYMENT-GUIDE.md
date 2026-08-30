@@ -493,6 +493,7 @@ This produces an installer in `electron/dist/`. Copy just that installer to the 
 The Windows installer is configured as a **single, per-machine install** — installed once, available to every Windows user account on that workstation (Program Files, shortcuts in the all-users Desktop/Start Menu), not just whoever happened to run the installer. This means:
 - It's a **one-click install** — no wizard, no install-location picker, nothing to configure. Run it and it installs, creates both shortcuts, and launches itself.
 - Because it writes to Program Files and the all-users shortcut locations, Windows will show a **UAC elevation prompt** ("Do you want to allow this app to make changes to your device?") during install — expected for a per-machine install, not an error.
+- **Running the installer over an existing install force-closes any running instance of the app first** (`electron/installer.nsh`, an NSIS `customInit` hook) — upgrading a workstation while the app happens to be open won't fail with a "file in use" error the way it otherwise would; it just closes and gets replaced.
 
 Either way, once running, registering the actual server the workstation should use happens entirely inside the app's own "Select Server" screen — no environment variables, no config file to hand-edit.
 

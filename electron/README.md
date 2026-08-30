@@ -132,6 +132,8 @@ Before building for real distribution, two things this repo doesn't ship with:
 
 The Windows build (`package.json`'s `nsis` config) is set up as a **single, per-machine install** — one install, available to every Windows user account on that workstation, not just whoever ran the installer. It's a one-click install (no wizard, nothing to configure) that will show a **UAC elevation prompt** during install — expected, since a per-machine install writes to Program Files and the all-users shortcut locations. If you'd rather have a per-user install (no elevation prompt, but only usable by the account that installed it) or the traditional wizard UI, both are separate `nsis` options — ask before changing this, it affects how every future install of this app behaves.
 
+**Upgrading an existing install**: running the installer again over a workstation that already has this app — with it currently running — closes that running instance automatically first (`installer.nsh`'s `customInit` hook, force-kills `Multi-Business POS.exe` before any files are touched), then installs normally. No need to manually close the app before re-running the installer. Keep the hardcoded exe name in `installer.nsh` and `scripts/stop-running-app.js` in sync with `package.json`'s `build.productName` if that's ever renamed.
+
 ## Production Build
 
 ### Windows

@@ -23,6 +23,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { isMobileDevice } from '@/lib/workstation-agents/local-agent-sync'
+import { compareVersions } from '@/lib/workstation-agents/agent-version'
 
 const PAIRING_PORT = 47710
 const BASE_POLL_MS = 30000
@@ -105,8 +106,16 @@ export function WorkstationAgentStatusWidget() {
     return () => { cancelled = true }
   }, [isAdmin])
 
-  const outdated = !!(agentVersion && latestAgentVersion && agentVersion !== latestAgentVersion)
-  const hasIssue = checked && (!agentRunning || outdated)
+  // MBM-284: direction matters. `agentBehind` is the original "this
+  // workstation needs updating" case. `agentAhead` is the opposite — this
+  // agent already exceeds what THIS server expects, most likely because the
+  // machine was pointed at a different, less-recently-updated server — and
+  // needs a completely different message (that server's admin needs to
+  // update it, not this workstation).
+  const versionCompare = agentVersion && latestAgentVersion ? compareVersions(agentVersion, latestAgentVersion) : 0
+  const agentBehind = versionCompare < 0
+  const agentAhead = versionCompare > 0
+  const hasIssue = checked && (!agentRunning || agentBehind || agentAhead)
 
   // Fast-poll window, active only while fastPolling is true and there's
   // still actually something to resolve — stops itself the moment hasIssue
@@ -153,7 +162,27 @@ export function WorkstationAgentStatusWidget() {
     )
   }
 
-  if (!outdated) return null
+  if (agentAhead) {
+    return (
+      <div className="bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700 rounded-lg p-4 mt-6">
+        <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+          ⚠️ This server is running an older agent build than this workstation has
+        </p>
+        <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
+          This workstation's agent (v{agentVersion}) is newer than what this server currently expects (v{latestAgentVersion}).
+          This usually means this machine was switched to a different server that hasn't been updated as recently.
+          The connection should keep working for now — newer agent builds stay backward compatible — but a feature
+          added since v{latestAgentVersion} may not work against this server until it's updated.
+        </p>
+        <p className="text-sm text-amber-700 dark:text-amber-400 mt-2">
+          Nothing to do on this workstation — do not downgrade or reinstall the agent here. This server's administrator
+          needs to redeploy a newer r710-agent build on their end.
+        </p>
+      </div>
+    )
+  }
+
+  if (!agentBehind) return null
 
   return (
     <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg p-4 mt-6">

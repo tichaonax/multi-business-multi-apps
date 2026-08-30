@@ -21,6 +21,7 @@ import { useScale } from '@/contexts/ScaleContext'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { formatPrinterName } from '@/lib/printing/format-printer-label'
+import { compareVersions } from '@/lib/workstation-agents/agent-version'
 
 const PAIRING_PORT = 47710
 
@@ -774,20 +775,44 @@ export default function WorkstationAgentsPage() {
             protocol change (e.g. the MBM-279 business-switching work) can
             silently fail to support newer features (like /activate) with no
             visible error at all, which is worse than a loud one. Shown above
-            everything else on the page, not just as a per-row detail. */}
-        {latestAgentVersion && agents.some(a => a.agentVersion && a.agentVersion !== latestAgentVersion) && (
+            everything else on the page, not just as a per-row detail.
+
+            MBM-284: split direction-aware — a workstation's agent can also be
+            AHEAD of what this server expects (e.g. it was previously paired
+            to, or switched from, a different/newer server). That's a
+            different problem with a different owner: nothing to do on the
+            workstation, this SERVER needs its own agent bundle updated. */}
+        {latestAgentVersion && agents.some(a => a.agentVersion && compareVersions(a.agentVersion, latestAgentVersion) < 0) && (
           <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg p-4">
             <p className="text-sm font-semibold text-red-800 dark:text-red-300">
               ⚠️ Agent update required
             </p>
             <p className="text-sm text-red-700 dark:text-red-400 mt-1">
-              {agents.filter(a => a.agentVersion && a.agentVersion !== latestAgentVersion).map(a => `"${a.label}"`).join(', ')}{' '}
-              {agents.filter(a => a.agentVersion && a.agentVersion !== latestAgentVersion).length === 1 ? 'is' : 'are'} running an older agent build than this server now expects.
+              {agents.filter(a => a.agentVersion && compareVersions(a.agentVersion, latestAgentVersion) < 0).map(a => `"${a.label}"`).join(', ')}{' '}
+              {agents.filter(a => a.agentVersion && compareVersions(a.agentVersion, latestAgentVersion) < 0).length === 1 ? 'is' : 'are'} running an older agent build than this server now expects.
               Business switching, printer routing, and other recent features may silently not work until it's updated — the connection itself won't necessarily show as broken.
             </p>
             <p className="text-sm text-red-700 dark:text-red-400 mt-2">
               <a href="/api/admin/r710/agents/download" className="underline font-medium hover:no-underline">Download the latest r710-agent.zip →</a>{' '}
               then on that workstation: run <code className="text-xs bg-red-100 dark:bg-red-900/40 px-1 rounded">Stop R710 Agent.bat</code>, extract the new download, and run the new <code className="text-xs bg-red-100 dark:bg-red-900/40 px-1 rounded">r710-agent.exe</code>. Existing pairings stay intact — no need to re-pair.
+            </p>
+          </div>
+        )}
+
+        {latestAgentVersion && agents.some(a => a.agentVersion && compareVersions(a.agentVersion, latestAgentVersion) > 0) && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700 rounded-lg p-4">
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+              ⚠️ This server is behind the agent build these workstations are running
+            </p>
+            <p className="text-sm text-amber-700 dark:text-amber-400 mt-1">
+              {agents.filter(a => a.agentVersion && compareVersions(a.agentVersion, latestAgentVersion) > 0).map(a => `"${a.label}"`).join(', ')}{' '}
+              {agents.filter(a => a.agentVersion && compareVersions(a.agentVersion, latestAgentVersion) > 0).length === 1 ? 'is' : 'are'} running an agent build newer than v{latestAgentVersion}, which is
+              what this server currently expects. The connection should keep working — newer agent builds stay backward compatible — but a feature added
+              since v{latestAgentVersion} may not work against this server.
+            </p>
+            <p className="text-sm text-amber-700 dark:text-amber-400 mt-2">
+              Nothing to do on those workstations — do not downgrade or reinstall the agent there. This server needs a newer r710-agent build
+              redeployed on it instead.
             </p>
           </div>
         )}
@@ -889,7 +914,9 @@ export default function WorkstationAgentsPage() {
           ) : (
             <div className="space-y-2">
               {agents.map(agent => {
-                const isOutdated = !!(latestAgentVersion && agent.agentVersion && agent.agentVersion !== latestAgentVersion)
+                const versionCompare = latestAgentVersion && agent.agentVersion ? compareVersions(agent.agentVersion, latestAgentVersion) : 0
+                const isOutdated = versionCompare < 0
+                const isAheadOfServer = versionCompare > 0
                 return (
                 <div key={agent.id} className="border border-gray-200 dark:border-gray-700 rounded-md">
                   <div className="flex items-center justify-between p-3">
@@ -899,8 +926,8 @@ export default function WorkstationAgentsPage() {
                         {agent.connectionStatus === 'ONLINE' ? '🟢 Connected' : '🔴 Offline'}
                       </span>
                       {agent.agentVersion && (
-                        <span className={`ml-2 text-xs ${isOutdated ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500'}`}>
-                          v{agent.agentVersion}{isOutdated && ' — update required'}
+                        <span className={`ml-2 text-xs ${isOutdated ? 'text-red-600 dark:text-red-400 font-medium' : isAheadOfServer ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-gray-500'}`}>
+                          v{agent.agentVersion}{isOutdated && ' — update required'}{isAheadOfServer && ' — newer than this server'}
                         </span>
                       )}
                       {agent.lastError && (

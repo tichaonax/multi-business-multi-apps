@@ -11,6 +11,19 @@
  * after, whether the test succeeds or fails. Whoever actually uses the
  * kiosk day-to-day logs in fresh, with their own credentials, the normal
  * way — this test only ever proves the server + admin account are real.
+ *
+ * Cookie handling is explicit here, not left to net.request's session
+ * binding — NextAuth's credentials flow is a two-hop dance (GET /csrf sets
+ * a csrf cookie that the POST must send back and that NextAuth validates
+ * server-side; a successful POST sets the real session cookie that the
+ * following GET /session must send back in turn) and relying on implicit
+ * session-cookie-jar behavior made a real failure ("csrf cookie never made
+ * it to the POST") indistinguishable from a genuinely wrong password —
+ * traced live from a report of correct admin credentials being rejected.
+ * Manually accumulating Set-Cookie headers into a jar and sending them back
+ * verbatim removes that whole class of doubt, and the DEBUG logging below
+ * makes the next failure (if any) diagnosable from the console instead of
+ * guessed at.
  */
 
 const nodeNet = require('net')
@@ -50,9 +63,36 @@ function friendlyNetError(code) {
   }
 }
 
+// ── Explicit cookie jar — a plain name->value map, sent back verbatim as a
+// single "Cookie" header on every subsequent request. Deliberately not
+// relying on net.request's own session-cookie-jar behavior — see the file
+// header comment for why. ─────────────────────────────────────────────────
+function parseSetCookie(headerValues) {
+  const cookies = {}
+  const values = Array.isArray(headerValues) ? headerValues : (headerValues ? [headerValues] : [])
+  for (const raw of values) {
+    const firstPart = String(raw).split(';')[0]
+    const eqIdx = firstPart.indexOf('=')
+    if (eqIdx === -1) continue
+    const name = firstPart.slice(0, eqIdx).trim()
+    const value = firstPart.slice(eqIdx + 1).trim()
+    if (name) cookies[name] = value
+  }
+  return cookies
+}
+
+function cookieHeader(jar) {
+  return Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; ')
+}
+
 function httpRequest(session, { method, url, headers, body }) {
   return new Promise((resolve, reject) => {
-    const request = electronNet.request({ method, url, session, redirect: 'follow' })
+    // 'manual' — never auto-follow a redirect. NextAuth's credentials
+    // callback, with json:true in the body, responds 200+JSON directly on
+    // both success and failure (that's the whole point of json:true); we
+    // only ever care about the raw response + its Set-Cookie headers here,
+    // never about actually navigating to whatever it might redirect to.
+    const request = electronNet.request({ method, url, session, redirect: 'manual' })
     for (const [key, value] of Object.entries(headers || {})) {
       request.setHeader(key, value)
     }
@@ -71,7 +111,7 @@ function httpRequest(session, { method, url, headers, body }) {
         if (settled) return
         settled = true
         clearTimeout(timer)
-        resolve({ statusCode: response.statusCode, body: Buffer.concat(chunks).toString('utf-8') })
+        resolve({ statusCode: response.statusCode, headers: response.headers, body: Buffer.concat(chunks).toString('utf-8') })
       })
       response.on('error', (error) => {
         if (settled) return
@@ -113,6 +153,7 @@ async function testConnection({ host, fullUrlOverride, identifier, password, tru
   }
 
   const testSession = electronSession.fromPartition(`test-connection-${Date.now()}-${Math.random().toString(36).slice(2)}`, { cache: false })
+  const jar = {}
 
   let encounteredCert = null
   testSession.setCertificateVerifyProc((request, callback) => {
@@ -143,6 +184,8 @@ async function testConnection({ host, fullUrlOverride, identifier, password, tru
       }
       return { ok: false, reason: 'unreachable', message: friendlyNetError(error.code), url }
     }
+    Object.assign(jar, parseSetCookie(csrfRes.headers?.['set-cookie']))
+    console.log('[connection-test] GET /api/auth/csrf ->', csrfRes.statusCode, 'cookies received:', Object.keys(jar))
 
     let csrfToken
     try {
@@ -153,6 +196,15 @@ async function testConnection({ host, fullUrlOverride, identifier, password, tru
     if (!csrfToken) {
       return { ok: false, reason: 'unexpected-response', message: 'That address responded, but not with what this app expects — is it definitely running the right server?', url }
     }
+    if (Object.keys(jar).length === 0) {
+      // No cookie at all came back from /api/auth/csrf — the POST below is
+      // guaranteed to fail CSRF validation server-side no matter how
+      // correct the password is. Surfaced as its own reason rather than
+      // silently falling through to the generic "invalid credentials"
+      // message, which would be actively misleading here.
+      console.warn('[connection-test] No Set-Cookie on /api/auth/csrf response — CSRF cookie missing, login will fail regardless of credentials')
+      return { ok: false, reason: 'unexpected-response', message: "The server didn't set a session cookie on the initial connection — check it's serving over the expected protocol/port and isn't behind something stripping cookies (a proxy, mixed HTTP/HTTPS, etc.).", url }
+    }
 
     const loginBody = new URLSearchParams({
       csrfToken,
@@ -162,23 +214,39 @@ async function testConnection({ host, fullUrlOverride, identifier, password, tru
       callbackUrl: parsedUrl.origin,
     }).toString()
 
+    let loginRes
     try {
-      await httpRequest(testSession, {
+      loginRes = await httpRequest(testSession, {
         method: 'POST',
         url: `${parsedUrl.origin}/api/auth/callback/credentials`,
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Cookie': cookieHeader(jar),
+          // Matches next-auth/react's own signIn() client exactly — some
+          // NextAuth versions key off this header (not just json:true in
+          // the body) to decide whether to respond with JSON instead of a
+          // redirect.
+          'X-Auth-Return-Redirect': '1',
+        },
         body: loginBody,
       })
     } catch (error) {
       return { ok: false, reason: 'unreachable', message: friendlyNetError(error.code), url }
     }
+    Object.assign(jar, parseSetCookie(loginRes.headers?.['set-cookie']))
+    console.log('[connection-test] POST /api/auth/callback/credentials ->', loginRes.statusCode, 'cookies now:', Object.keys(jar))
 
     let sessionRes
     try {
-      sessionRes = await httpRequest(testSession, { method: 'GET', url: `${parsedUrl.origin}/api/auth/session` })
+      sessionRes = await httpRequest(testSession, {
+        method: 'GET',
+        url: `${parsedUrl.origin}/api/auth/session`,
+        headers: { 'Cookie': cookieHeader(jar) },
+      })
     } catch (error) {
       return { ok: false, reason: 'unreachable', message: friendlyNetError(error.code), url }
     }
+    console.log('[connection-test] GET /api/auth/session ->', sessionRes.statusCode, 'body:', sessionRes.body)
 
     let sessionData
     try {

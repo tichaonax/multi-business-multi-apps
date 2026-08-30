@@ -18,6 +18,12 @@ package-lock.json
 agent/r710-local-agent/node_modules/
 agent/r710-local-agent/dist/
 
+# Electron desktop shell build output (installer .exe/.dmg/.AppImage) — built
+# via `npm run build:win`/`:mac`/`:linux` in electron/ (its node_modules is
+# already ignored separately below)
+electron/dist/
+electron/dist-alt/
+
 # next.js
 /.next/
 /out/
