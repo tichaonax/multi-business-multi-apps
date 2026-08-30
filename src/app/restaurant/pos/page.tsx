@@ -29,6 +29,7 @@ import type { ReceiptData } from '@/types/printing'
 import { formatDuration, formatDataAmount } from '@/lib/printing/format-utils'
 import { useCustomerDisplaySync, useOpenCustomerDisplay } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
+import { isMobileDevice } from '@/lib/workstation-agents/local-agent-sync'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { ManualEntryTab } from '@/components/pos/manual-entry-tab'
 import type { ManualCartItem } from '@/components/pos/manual-entry-tab'
@@ -342,6 +343,13 @@ export default function RestaurantPOS() {
     localStorage.setItem('pos-terminal-id', newId)
     return newId
   })
+  // A phone/tablet has only one screen — there's no second monitor for a
+  // customer-facing display to ever go on, so the manual "Open Customer
+  // Display" button is pointless there and just invites a confusing popup
+  // attempt. Desktop's own auto-launch is handled entirely by Electron's
+  // main process (only when it detects a real second monitor) — this page
+  // no longer auto-opens anything itself; see initializeDisplay() below.
+  const [isMobile] = useState(() => isMobileDevice())
 
   // Customer Display Sync - broadcast cart updates to customer-facing display
   const { send: sendToDisplay } = useCustomerDisplaySync({
@@ -763,12 +771,16 @@ export default function RestaurantPOS() {
           total: 0
         })
 
-        // Try to open display (may fail if already open or popup blocked - that's OK)
-        try {
-          await openDisplay()
-        } catch (displayError) {
-          // Display may already be open from home page
-        }
+        // Deliberately no auto-openDisplay() here any more. On Electron,
+        // the customer window is already created natively by main.js
+        // (only when it detects a real second monitor) before this page
+        // ever loads — calling openDisplay() here too risked opening a
+        // second, redundant window via the renderer's own window.open().
+        // On a plain desktop browser, opening a display window/prompting
+        // for the Window Management API permission without the user
+        // having asked for it is exactly the unwanted auto-launch this
+        // removes — the "🖥️ Display" button below is how that's opened
+        // now, a deliberate click, same as it always should have been.
 
         // Fetch full business details from API to get all fields
         const response = await fetch(`/api/business/${currentBusinessId}`)
@@ -3194,19 +3206,23 @@ export default function RestaurantPOS() {
             <div className="space-y-2">
               <h1 className="text-lg sm:text-2xl font-bold text-primary">Point of Sale</h1>
               <div className="flex gap-1.5 sm:gap-2 flex-wrap">
-                <button
-                  onClick={async () => {
-                    try {
-                      await openDisplay()
-                    } catch (error) {
-                      toast.error('Failed to open customer display. Please allow popups for this site.')
-                    }
-                  }}
-                  className="px-2 sm:px-4 py-1.5 sm:py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs sm:text-sm font-medium"
-                  title="Open Customer Display"
-                >
-                  🖥️ <span className="hidden sm:inline">Display</span>
-                </button>
+                {/* No second screen to put this on a phone/tablet — see
+                    the isMobile comment above. */}
+                {!isMobile && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await openDisplay()
+                      } catch (error) {
+                        toast.error('Failed to open customer display. Please allow popups for this site.')
+                      }
+                    }}
+                    className="px-2 sm:px-4 py-1.5 sm:py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-xs sm:text-sm font-medium"
+                    title="Open Customer Display"
+                  >
+                    🖥️ <span className="hidden sm:inline">Display</span>
+                  </button>
+                )}
                 <Link
                   href="/restaurant/settings/pos"
                   className="px-2 sm:px-4 py-1.5 sm:py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-xs sm:text-sm font-medium"

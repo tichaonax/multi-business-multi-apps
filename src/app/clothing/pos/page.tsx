@@ -23,6 +23,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import Link from 'next/link'
 import { useOpenCustomerDisplay, useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
+import { isMobileDevice } from '@/lib/workstation-agents/local-agent-sync'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { ManualEntryTab } from '@/components/pos/manual-entry-tab'
 import type { ManualCartItem } from '@/components/pos/manual-entry-tab'
@@ -183,6 +184,11 @@ export default function ClothingPOSPage() {
     localStorage.setItem('pos-terminal-id', newId)
     return newId
   })
+  // No second screen on a phone/tablet — hides the manual "Open Customer
+  // Display" button(s) below. Electron's own auto-launch (only with a real
+  // second monitor detected) is handled entirely by its main process, not
+  // this page — see the removed auto-openDisplay() call below.
+  const [isMobile] = useState(() => isMobileDevice())
 
   const { openDisplay } = useOpenCustomerDisplay(currentBusinessId || '', terminalId)
 
@@ -320,12 +326,14 @@ export default function ClothingPOSPage() {
       try {
         console.log('[Clothing POS] Starting customer display initialization...')
 
-        // Try to open display (may fail if already open or popup blocked - that's OK)
-        try {
-          await openDisplay()
-          console.log('[Clothing POS] Customer display window opened')
-        } catch (displayError) {
-          }
+        // Deliberately no auto-openDisplay() here any more — see the
+        // isMobile comment above. Electron's own main process already
+        // creates the customer window natively when a second monitor is
+        // present, before this page even loads; calling openDisplay() here
+        // too risked a redundant second window. On a plain browser this
+        // used to auto-prompt for the Window Management API permission
+        // (or silently pop up a window) with no user action at all — the
+        // "🖥️ Display" button is the deliberate-click alternative now.
 
         // Fetch full business details from API to get all fields
         console.log('[Clothing POS] Fetching business details for:', currentBusinessId)
@@ -511,16 +519,18 @@ export default function ClothingPOSPage() {
                     Manual Entry
                   </button>
                 )}
-                <button
-                  onClick={async () => {
-                    try { await openDisplay() } catch (error) {
-                      customAlert({ title: 'Failed to Open Display', description: 'Please allow popups for this site.' })
-                    }
-                  }}
-                  className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-xs font-medium"
-                >
-                  🖥️ Display
-                </button>
+                {!isMobile && (
+                  <button
+                    onClick={async () => {
+                      try { await openDisplay() } catch (error) {
+                        customAlert({ title: 'Failed to Open Display', description: 'Please allow popups for this site.' })
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-xs font-medium"
+                  >
+                    🖥️ Display
+                  </button>
+                )}
                 <button
                   onClick={() => setUseAdvancedPOS(false)}
                   className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-xs font-medium"
@@ -589,22 +599,24 @@ export default function ClothingPOSPage() {
               </div>
 
               <div className="flex gap-2">
-                <button
-                  onClick={async () => {
-                    try {
-                      await openDisplay()
-                    } catch (error) {
-                      customAlert({
-                        title: 'Failed to Open Display',
-                        description: 'Failed to open customer display. Please allow popups for this site and ensure you have a secondary monitor connected.'
-                      })
-                    }
-                  }}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-                  title="Open Customer Display"
-                >
-                  🖥️ Display
-                </button>
+                {!isMobile && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await openDisplay()
+                      } catch (error) {
+                        customAlert({
+                          title: 'Failed to Open Display',
+                          description: 'Failed to open customer display. Please allow popups for this site and ensure you have a secondary monitor connected.'
+                        })
+                      }
+                    }}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                    title="Open Customer Display"
+                  >
+                    🖥️ Display
+                  </button>
+                )}
                 <button
                   onClick={() => setUseAdvancedPOS(!useAdvancedPOS)}
                   className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"

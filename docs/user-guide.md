@@ -574,13 +574,18 @@ This works in both the **Restaurant POS** and **Grocery POS**. Admins and manage
 
 ### Customer Display Screen
 
-If your till has a second screen facing the customer, it will automatically show:
+If your till has a second screen facing the customer, it shows:
 - Items currently in the cart.
 - The running total.
 - Promotions and advertisements when the till is idle.
 - The **salesperson's name and photo** — if a salesperson has been selected using the Salesperson Selector at the top of the POS, the display shows that person's name, not the logged-in user's name. This lets you correctly identify which staff member is serving the customer even if multiple people share the same login session.
 
 > **Note:** The customer display updates automatically when a salesperson is selected or changed. The display always reflects the salesperson currently active on the POS, not the account used to sign in.
+
+**How the second screen actually opens depends on how you're running the POS:**
+- **Desktop app (Electron) with a second monitor connected** — opens automatically, full screen, the moment the app starts. Nothing to click.
+- **Desktop, plain browser** — never opens on its own. Click the **🖥️ Display** button at the top of the POS to open it (a one-time browser permission prompt appears the first time). Use this to test the customer display on a regular browser without installing the desktop app.
+- **Phone or tablet** — the **🖥️ Display** button doesn't appear at all. A mobile device has only one screen, so there's nothing for a second display to open on.
 
 > **Applies to every business type**, including vehicle_service, services, vehicles, construction, and consulting — these share the Universal POS page, which didn't broadcast cart/order updates to the customer display at all until this was fixed; restaurant/grocery/clothing/hardware (each with their own dedicated POS page) always had it. If a second screen on one of these business types still shows nothing, confirm the workstation is on a build that includes this fix rather than assuming it's unsupported for that business type.
 

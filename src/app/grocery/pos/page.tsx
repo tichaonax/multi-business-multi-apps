@@ -34,6 +34,7 @@ import { useToastContext } from '@/components/ui/toast'
 import { formatDuration, formatDataAmount } from '@/lib/printing/format-utils'
 import { useCustomerDisplaySync, useOpenCustomerDisplay } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
+import { isMobileDevice } from '@/lib/workstation-agents/local-agent-sync'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { ManualEntryTab } from '@/components/pos/manual-entry-tab'
 import type { ManualCartItem } from '@/components/pos/manual-entry-tab'
@@ -294,6 +295,11 @@ function GroceryPOSContent() {
     localStorage.setItem('pos-terminal-id', newId)
     return newId
   })
+  // No second screen on a phone/tablet — hides the manual "Open Customer
+  // Display" button below. Electron's own auto-launch (only with a real
+  // second monitor detected) is handled entirely by its main process, not
+  // this page — see the removed auto-openDisplay() call below.
+  const [isMobile] = useState(() => isMobileDevice())
 
   // Customer Display Sync - broadcast cart updates to customer-facing display
   const { send: sendToDisplay } = useCustomerDisplaySync({
@@ -1192,12 +1198,14 @@ function GroceryPOSContent() {
       try {
         console.log('[Grocery POS] Starting customer display initialization...')
 
-        // Try to open display (may fail if already open or popup blocked - that's OK)
-        try {
-          await openDisplay()
-          console.log('[Grocery POS] Customer display window opened')
-        } catch (displayError) {
-          }
+        // Deliberately no auto-openDisplay() here any more — see the
+        // isMobile comment above. Electron's own main process already
+        // creates the customer window natively when a second monitor is
+        // present, before this page even loads; calling openDisplay() here
+        // too risked a redundant second window. On a plain browser this
+        // used to auto-prompt for the Window Management API permission
+        // (or silently pop up a window) with no user action at all — the
+        // "🖥️ Display" button is the deliberate-click alternative now.
 
         // Fetch full business details from API to get all fields
         console.log('[Grocery POS] Fetching business details for:', currentBusinessId)
@@ -2951,18 +2959,20 @@ function GroceryPOSContent() {
 
       {/* Quick Actions */}
       <div className="mb-4 flex gap-3">
-        <button
-          onClick={async () => {
-            try {
-              await openDisplay()
-            } catch (error) {
-              toast.error('Failed to open customer display. Please allow popups for this site.')
-            }
-          }}
-          className="inline-block px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg font-medium"
-        >
-          🖥️ Open Customer Display
-        </button>
+        {!isMobile && (
+          <button
+            onClick={async () => {
+              try {
+                await openDisplay()
+              } catch (error) {
+                toast.error('Failed to open customer display. Please allow popups for this site.')
+              }
+            }}
+            className="inline-block px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg font-medium"
+          >
+            🖥️ Open Customer Display
+          </button>
+        )}
         {/* Reports - Only for users with report access */}
         {(isAdmin || hasPermission('canViewWifiReports') || hasPermission('canAccessFinancialData')) && (
           <a
