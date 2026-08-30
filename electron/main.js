@@ -462,11 +462,22 @@ app.whenReady().then(() => {
   })
 })
 
-// Quit when all windows are closed (except on macOS)
+// Quit when all windows are closed (except on macOS) — but not on the
+// transient zero-window instant that happens mid-switch: openServer() and
+// handleServerLoadFailure() both destroy the old window(s) before creating
+// the new one (or the picker), and BrowserWindow's 'closed'/'window-all-closed'
+// events fire synchronously from destroy(), so this can see 0 windows before
+// the replacement exists in the very same call stack. Deferring one tick lets
+// that replacement window finish being created first — a real "operator
+// closed the last window" case still has 0 windows on the next tick and
+// quits exactly as before.
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
+  if (process.platform === 'darwin') return
+  setImmediate(() => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      app.quit()
+    }
+  })
 })
 
 // Fallback: if app.quit() is called without the window close path running
