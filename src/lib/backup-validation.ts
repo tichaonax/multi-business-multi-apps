@@ -192,6 +192,8 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   // Payment Cancellation & Manager Override (MBM-192)
   'managerOverrideLogs': 'managerOverrideLog',
   'orderCancellations': 'orderCancellation',
+  // Smart Customer Display configs (MBM-232) — model name is singular (DisplayProductConfig)
+  'displayProductConfigs': 'displayProductConfig',
 }
 
 /**
@@ -344,6 +346,21 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'displayGlobalSettings',       // @unique businessId, backed up globally
   // Daily Special child table — no businessId (linked via dailySpecialId)
   'dailySpecialAddOn',           // dailySpecialId FK, no businessId field
+  // Vehicle Service business type (MBM-262) — child tables without businessId
+  'vehicleServiceContractorSkills',      // contractorId FK, no businessId
+  'vehicleServiceContractorServices',    // contractorId FK, no businessId
+  'vehicleServiceTasks',                 // jobId FK, no businessId
+  'vehicleServiceContractorPayoutItems', // payoutId FK, no businessId
+  'vehicleServicePartsRequests',         // jobId FK, no businessId
+  'vehicleServiceJobParts',              // jobId FK, no businessId
+  'vehiclePartCompatibility',            // productId FK, no businessId
+  // Advance receipt review workflow (MBM-262) — expensePaymentId FK, no businessId
+  'expensePaymentReceiptReviews',
+  // R710 remote agents (MBM-272) — global, no businessId
+  'r710RemoteAgents',
+  'r710AgentRequestLog',
+  // Workstation agent request log (MBM-275/283) — workstationAgentId FK, no businessId
+  'workstationAgentRequestLog',
 ])
 
 /**

@@ -90,6 +90,18 @@ const NEW_TABLE_KEYS = [
   'ayliPricingCalibrations',
   // Cash Rounding Logs (MBM-239)
   'cashRoundingLogs',
+  // Vehicle Service business type (MBM-262)
+  'vehicleServiceContractors', 'vehicleServiceLabourRates', 'vehicleServiceJobs',
+  'vehicleServiceTasks', 'vehicleServiceContractorSkills', 'vehicleServiceContractorServices',
+  'vehicleServiceContractorPayouts', 'vehicleServiceContractorPayoutItems',
+  'vehicleServicePartsRequests', 'vehicleServiceJobParts', 'vehiclePartCompatibility',
+  // Advance Receipt Review Workflow (MBM-262)
+  'expensePaymentReceiptReviews',
+  // R710 Remote Agent Support (MBM-272)
+  'r710RemoteAgents', 'r710AgentRequestLog',
+  // Workstation Agents & Remote Printing (MBM-275/283)
+  'workstationAgents', 'scaleDeviceConfigs', 'workstationAgentRequestLog',
+  'qzPrinterConfigs', 'printTerminals', 'defaultReceiptPrinterConfigs',
 ]
 
 async function main() {

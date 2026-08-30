@@ -222,6 +222,7 @@ const RESTORE_ORDER = [
   'expenseAccountPayments',     // depends on expenseAccounts + businessTransferLedger + paymentBatchSubmissions + eodPaymentBatches
   'expensePaymentVouchers',     // depends on expenseAccountPayments + businesses + employees
   'expensePaymentReceipts',     // depends on expenseAccountPayments
+  'expensePaymentReceiptReviews', // depends on expenseAccountPayments + users
   'expenseAccountUserAccess',   // depends on expenseAccounts + users (MBM-197)
   'comboPaymentRequests',       // depends on expenseAccounts + users + expenseAccountPayments (MBM-197)
   'comboPaymentRequestSections', // depends on comboPaymentRequests + persons + users + employees + businesses + businessSuppliers
@@ -286,6 +287,19 @@ const RESTORE_ORDER = [
   'vehicleExemptions',     // depends on vehicles only
   'issuingAuthorities',    // global lookup table, no FK dependencies
 
+  // Vehicle Service business type (MBM-262)
+  'vehicleServiceLabourRates',            // Depends on businesses + inventorySubcategories + users
+  'vehicleServiceContractors',            // Depends on businesses + persons + users
+  'vehicleServiceJobs',                   // Depends on businesses + businessCustomers + businessOrders + users + vehicleServiceContractors (self-ref: reworkOfJobId)
+  'vehicleServiceTasks',                  // Depends on vehicleServiceJobs + inventorySubcategories + vehicleServiceContractors
+  'vehicleServiceContractorSkills',       // Depends on vehicleServiceContractors
+  'vehicleServiceContractorServices',     // Depends on vehicleServiceContractors + inventorySubcategories
+  'vehicleServiceContractorPayouts',      // Depends on vehicleServiceContractors + businesses + expenseAccountPayments + users
+  'vehicleServiceContractorPayoutItems',  // Depends on vehicleServiceContractorPayouts + vehicleServiceTasks
+  'vehicleServicePartsRequests',          // Depends on vehicleServiceJobs + vehicleServiceTasks + vehicleServiceContractors + users + productVariants
+  'vehicleServiceJobParts',               // Depends on vehicleServiceJobs + productVariants + vehicleServicePartsRequests
+  'vehiclePartCompatibility',             // Depends on businessProducts
+
   // WiFi Portal - Token Configurations (ESP32 system)
   'tokenConfigurations',  // Must come before wifiTokens and businessTokenMenuItems
   'businessTokenMenuItems',  // Depends on tokenConfigurations and businesses
@@ -304,6 +318,8 @@ const RESTORE_ORDER = [
   'r710DeviceTokens',  // Depends on r710Tokens
   'r710BusinessTokenMenuItems',  // Depends on r710TokenConfigs and businesses
   'r710SyncLogs',  // No critical FKs
+  'r710RemoteAgents',     // Depends on r710DeviceRegistry + users (MBM-272)
+  'r710AgentRequestLog',  // Depends on r710RemoteAgents (MBM-272)
 
   // Restaurant/Menu (AFTER r710TokenConfigs!)
   'menuItems',
@@ -332,8 +348,17 @@ const RESTORE_ORDER = [
   'orders',
   'orderItems',
 
+  // Workstation Agents & Remote Printing (MBM-275/283) — MUST come before
+  // networkPrinters (workstationAgentId FK) and defaultReceiptPrinterConfigs
+  'workstationAgents',          // Depends on businesses + users
+  'scaleDeviceConfigs',         // Depends on businesses + workstationAgents
+  'workstationAgentRequestLog', // Depends on workstationAgents
+  'qzPrinterConfigs',           // Depends on businesses + workstationAgents (optional) + users
+  'printTerminals',             // Depends on businesses + users
+
   // Barcode Management System
   'networkPrinters',  // No FK dependencies (device-level)
+  'defaultReceiptPrinterConfigs', // Depends on businesses + workstationAgents (optional) + printTerminals (optional) + networkPrinters + users
   'barcodeTemplates',  // Depends on businesses
   'barcodeInventoryItems',  // Depends on businesses
   'barcodePrintJobs',  // Depends on businesses
@@ -458,7 +483,8 @@ const RESTORE_ORDER = [
  */
 const SELF_REFERENTIAL_TABLES: Record<string, string[]> = {
   'employees': ['supervisorId'],
-  'employeeContracts': ['supervisorId']  // References employees.id - needs deferred insert
+  'employeeContracts': ['supervisorId'],  // References employees.id - needs deferred insert
+  'vehicleServiceJobs': ['reworkOfJobId']  // References vehicleServiceJobs.id (MBM-262)
 }
 
 /**
@@ -563,6 +589,25 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   // Policy Management: composite unique constraints
   'policyVersions': { fields: ['policyId', 'version'] },             // @@unique([policyId, version])
   'policyAcknowledgments': { fields: ['policyAssignmentId', 'userId'] }, // @@unique([policyAssignmentId, userId])
+
+  // Vehicle Service business type (MBM-262)
+  'vehicleServiceContractors': 'personId',       // Also unique on userId, but one-contractor-per-person is the primary natural key
+  'vehicleServiceLabourRates': { fields: ['businessId', 'subcategoryId'] },
+  'vehicleServiceContractorServices': { fields: ['contractorId', 'subcategoryId'] },
+  'vehicleServiceJobs': 'orderId',                // Optional — falls through to id-based upsert when null
+  'vehicleServiceContractorPayouts': 'paymentId',
+  'vehicleServiceContractorPayoutItems': 'taskId',
+  'vehicleServiceJobParts': 'partsRequestId',     // Optional — falls through to id-based upsert when null
+
+  // Expense payment receipt reviews: unique on expensePaymentId
+  'expensePaymentReceiptReviews': 'expensePaymentId',
+
+  // R710 remote agents (MBM-272)
+  'r710RemoteAgents': 'deviceRegistryId',
+  'r710AgentRequestLog': 'jobId',
+
+  // Workstation agents (MBM-275/283)
+  'workstationAgentRequestLog': 'jobId',
 }
 
 // (Composite unique and child dependency configs removed — replaced by ID remapping approach)
@@ -632,6 +677,8 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   'chickenInventoryMovements': 'chickenInventoryMovement',
   'chickenUtilityCosts': 'chickenUtilityCost',
   'chickenLaborLogs': 'chickenLaborLog',
+  // Smart Customer Display configs (MBM-232) — model name is singular (DisplayProductConfig)
+  'displayProductConfigs': 'displayProductConfig',
 }
 
 /**

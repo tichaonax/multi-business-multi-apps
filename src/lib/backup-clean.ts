@@ -614,6 +614,20 @@ export async function createCleanBackup(
     }
   })
 
+  // Advance receipt review workflow (MBM-262 Phase D)
+  businessData.expensePaymentReceiptReviews = await (prisma as any).expensePaymentReceiptReviews.findMany({
+    where: {
+      expensePayment: {
+        expenseAccount: {
+          OR: [
+            { businessId: { in: businessIds } },
+            { businessId: null }
+          ]
+        }
+      }
+    }
+  })
+
   // 9. Payroll system
   // Payroll tax reference tables (global — no businessId filter needed)
   businessData.payeTaxBrackets = await prisma.payeTaxBrackets.findMany()
@@ -820,6 +834,41 @@ export async function createCleanBackup(
   // Issuing Authorities — global lookup table, no business scope
   businessData.issuingAuthorities = await prisma.issuingAuthorities.findMany()
 
+  // Vehicle Service business type (MBM-262)
+  businessData.vehicleServiceLabourRates = await (prisma as any).vehicleServiceLabourRates.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.vehicleServiceContractors = await (prisma as any).vehicleServiceContractors.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.vehicleServiceJobs = await (prisma as any).vehicleServiceJobs.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.vehicleServiceTasks = await (prisma as any).vehicleServiceTasks.findMany({
+    where: { job: { businessId: { in: businessIds } } }
+  })
+  businessData.vehicleServiceContractorSkills = await (prisma as any).vehicleServiceContractorSkills.findMany({
+    where: { contractor: { businessId: { in: businessIds } } }
+  })
+  businessData.vehicleServiceContractorServices = await (prisma as any).vehicleServiceContractorServices.findMany({
+    where: { contractor: { businessId: { in: businessIds } } }
+  })
+  businessData.vehicleServiceContractorPayouts = await (prisma as any).vehicleServiceContractorPayouts.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.vehicleServiceContractorPayoutItems = await (prisma as any).vehicleServiceContractorPayoutItems.findMany({
+    where: { payout: { businessId: { in: businessIds } } }
+  })
+  businessData.vehicleServicePartsRequests = await (prisma as any).vehicleServicePartsRequests.findMany({
+    where: { job: { businessId: { in: businessIds } } }
+  })
+  businessData.vehicleServiceJobParts = await (prisma as any).vehicleServiceJobParts.findMany({
+    where: { job: { businessId: { in: businessIds } } }
+  })
+  businessData.vehiclePartCompatibility = await (prisma as any).vehiclePartCompatibility.findMany({
+    where: { product: { businessId: { in: businessIds } } }
+  })
+
   // 13. Restaurant/Menu data
   businessData.menuItems = await prisma.menuItems.findMany()
 
@@ -976,9 +1025,34 @@ export async function createCleanBackup(
 
   businessData.r710SyncLogs = await prisma.r710SyncLogs.findMany()
 
+  // R710 remote agent support (MBM-272) — no businessId, scoped via r710DeviceRegistry (already unscoped above)
+  businessData.r710RemoteAgents = await (prisma as any).r710RemoteAgents.findMany()
+  businessData.r710AgentRequestLog = await (prisma as any).r710AgentRequestLog.findMany()
+
+  // Workstation Agents & Remote Printing (MBM-275/283)
+  businessData.workstationAgents = await (prisma as any).workstationAgents.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.scaleDeviceConfigs = await (prisma as any).scaleDeviceConfigs.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.workstationAgentRequestLog = await (prisma as any).workstationAgentRequestLog.findMany({
+    where: { workstation_agent: { businessId: { in: businessIds } } }
+  })
+  businessData.qzPrinterConfigs = await (prisma as any).qzPrinterConfigs.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.printTerminals = await (prisma as any).printTerminals.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
   // 23. Barcode Management System (6 tables) - NEW
   // NetworkPrinters is device-level (has nodeId, not businessId) - include all
   businessData.networkPrinters = await prisma.networkPrinters.findMany()
+
+  businessData.defaultReceiptPrinterConfigs = await (prisma as any).defaultReceiptPrinterConfigs.findMany({
+    where: { businessId: { in: businessIds } }
+  })
 
   businessData.barcodeTemplates = await prisma.barcodeTemplates.findMany({
     where: { businessId: { in: businessIds } }
@@ -1615,7 +1689,7 @@ export async function createCleanBackup(
       deviceRecords,
       uncompressedSize
     },
-    schemaVersion: '6.37.0',
+    schemaVersion: '6.38.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum
