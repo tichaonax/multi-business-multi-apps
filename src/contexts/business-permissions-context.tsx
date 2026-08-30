@@ -222,6 +222,17 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
   // whichever tab last explicitly switched business, not whichever tab is
   // actually focused right now. Debounced so rapid alt-tabbing doesn't spam
   // the agent with back-to-back activate calls.
+  //
+  // Electron follow-up: a kiosk-mode Electron window can go an entire shift
+  // without ever losing OS-level focus at all (nothing else is ever opened
+  // on that machine), so focus/visibilitychange alone could go a whole day
+  // without firing even once after initial launch — this was traced live as
+  // "agent/pairing changes don't take effect until Electron is restarted."
+  // A plain periodic re-assert closes that gap unconditionally, in every
+  // environment, without depending on an OS focus transition that may never
+  // happen — mirrors the same base-interval-plus-focus-trigger shape
+  // health-indicator.tsx and workstation-agent-status-widget.tsx already
+  // use for their own agent-status polling.
   useEffect(() => {
     if (!currentBusinessId) return;
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -232,10 +243,12 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
     const onVisibility = () => { if (document.visibilityState === 'visible') notify(); };
     window.addEventListener('focus', notify);
     document.addEventListener('visibilitychange', onVisibility);
+    const periodicResync = setInterval(() => syncLocalAgentActiveBusiness(currentBusinessId), 90_000);
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       window.removeEventListener('focus', notify);
       document.removeEventListener('visibilitychange', onVisibility);
+      clearInterval(periodicResync);
     };
   }, [currentBusinessId]);
 

@@ -18,7 +18,6 @@
   "dependencies": {
     "electron": "^28.1.0",
     "electron-store": "^7.0.3",
-    "multi-business-multi-apps": "file:..",
     "serialport": "^12.0.0"
   },
   "devDependencies": {
@@ -34,7 +33,10 @@
     "files": [
       "main.js",
       "preload.js",
-      "scale-service.js"
+      "scale-service.js",
+      "server-registry.js",
+      "connection-test.js",
+      "renderer/**/*"
     ],
     "win": {
       "target": "nsis",

@@ -980,14 +980,21 @@ export default function RestaurantPOS() {
       : subtotal * (taxRate / 100)
     const baseTotal = taxIncludedInPrice ? subtotal : subtotal + tax
     const total = Math.max(0, baseTotal - rewardCredit - couponDiscount)
+    // Cash rounding (amber panel below) adjusts the total the cashier and
+    // customer actually settle on — this effect used to ignore it entirely
+    // and recompute the pre-rounding total on every keystroke in "Amount
+    // Received," silently clobbering the correctly-rounded PAYMENT_STARTED
+    // broadcast sent when rounding was confirmed. Matches the same
+    // effectiveTotal pattern used at order-submission time below.
+    const effectiveTotal = (paymentMethod === 'CASH' && cashRoundedTotal !== null) ? cashRoundedTotal : total
     const tendered = parseFloat(amountReceived) || 0
     // A5 — subtract credit before computing EcoCash display total
     const creditAvailableForDisplay = (applyCredit && (deliveryAccount?.balance ?? 0) > 0 && orderType !== 'delivery')
-      ? Math.min(deliveryAccount!.balance, total) : 0
-    const ecoBaseForDisplay = Math.max(0, total - creditAvailableForDisplay)
+      ? Math.min(deliveryAccount!.balance, effectiveTotal) : 0
+    const ecoBaseForDisplay = Math.max(0, effectiveTotal - creditAvailableForDisplay)
     const displayTotal2 = paymentMethod === 'ECOCASH'
       ? getEcocashSummary(ecoBaseForDisplay, currentBusiness).total
-      : total
+      : effectiveTotal
 
     sendToDisplay('PAYMENT_AMOUNT', {
       subtotal,
@@ -996,7 +1003,7 @@ export default function RestaurantPOS() {
       amountTendered: tendered,
       paymentMethod: paymentMethod
     })
-  }, [amountReceived, showPaymentModal, cart, taxRate, taxIncludedInPrice, paymentMethod])
+  }, [amountReceived, showPaymentModal, cart, taxRate, taxIncludedInPrice, paymentMethod, cashRoundedTotal])
 
   // Re-broadcast PAYMENT_STARTED when payment method changes inside the modal
   // (handles switching to EcoCash after modal is already open)
@@ -1008,20 +1015,24 @@ export default function RestaurantPOS() {
       : subtotal * (taxRate / 100)
     const baseTotal = taxIncludedInPrice ? subtotal : subtotal + tax
     const total = Math.max(0, baseTotal - rewardCredit - couponDiscount)
+    // See the PAYMENT_AMOUNT effect above — same rounding-clobbering bug:
+    // switching payment method after rounding was confirmed must not
+    // silently revert the customer display back to the pre-rounding total.
+    const effectiveTotal = (paymentMethod === 'CASH' && cashRoundedTotal !== null) ? cashRoundedTotal : total
     // A5 — subtract credit before computing EcoCash display total
     const creditAvailableForStarted = (applyCredit && (deliveryAccount?.balance ?? 0) > 0 && orderType !== 'delivery')
-      ? Math.min(deliveryAccount!.balance, total) : 0
-    const ecoBaseForStarted = Math.max(0, total - creditAvailableForStarted)
+      ? Math.min(deliveryAccount!.balance, effectiveTotal) : 0
+    const ecoBaseForStarted = Math.max(0, effectiveTotal - creditAvailableForStarted)
     const { fee, total: displayTotal } = paymentMethod === 'ECOCASH'
       ? getEcocashSummary(ecoBaseForStarted, currentBusiness)
-      : { fee: 0, total }
+      : { fee: 0, total: effectiveTotal }
     sendToDisplay('PAYMENT_STARTED', {
       subtotal, tax,
       total: displayTotal,
       ecocashFee: fee,
       paymentMethod
     })
-  }, [paymentMethod, showPaymentModal])
+  }, [paymentMethod, showPaymentModal, cashRoundedTotal])
 
   // Check if current business is a restaurant business
   const isRestaurantBusiness = currentBusiness?.businessType === 'restaurant'
@@ -2913,10 +2924,14 @@ export default function RestaurantPOS() {
         setShowReceiptModal(true)
 
         // Broadcast payment complete to customer display (cart will clear after 4 seconds on display)
+        // effectiveTotal (not total) — the actual order was submitted with
+        // the rounded total (see requestBody.total above); the customer's
+        // final on-screen confirmation must match what they were actually
+        // charged, not the pre-rounding figure.
         sendToDisplay('PAYMENT_COMPLETE', {
-          subtotal: total,
+          subtotal: effectiveTotal,
           tax: 0,
-          total: total,
+          total: effectiveTotal,
           customerName: selectedCustomer?.name || null
         })
 

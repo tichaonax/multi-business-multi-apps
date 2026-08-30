@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Select Server</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px; min-height: 100vh;
+    background: #0f172a; color: #e2e8f0;
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: #94a3b8; font-size: 13px; margin-bottom: 20px; }
+  .banner {
+    background: #7f1d1d; border: 1px solid #b91c1c; color: #fecaca;
+    padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 14px;
+  }
+  .banner b { color: #fff; }
+  .card {
+    background: #1e293b; border: 1px solid #334155; border-radius: 10px;
+    padding: 16px; margin-bottom: 12px;
+  }
+  .server-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .server-info { flex: 1; min-width: 0; }
+  .server-name { font-weight: 600; font-size: 15px; }
+  .server-meta { color: #94a3b8; font-size: 12px; margin-top: 2px; }
+  .row-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+  button {
+    font: inherit; cursor: pointer; border-radius: 6px; border: 1px solid transparent;
+    padding: 8px 14px; font-size: 13px; font-weight: 500;
+  }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-primary:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
+  .btn-secondary { background: #334155; color: #e2e8f0; }
+  .btn-danger { background: transparent; color: #f87171; border: 1px solid #7f1d1d; padding: 6px 10px; }
+  .btn-link { background: none; color: #60a5fa; padding: 4px 0; }
+  .empty { color: #64748b; font-size: 14px; text-align: center; padding: 24px; }
+  .add-form { display: none; margin-top: 8px; }
+  .add-form.open { display: block; }
+  label { display: block; font-size: 12px; color: #94a3b8; margin: 12px 0 4px; }
+  input[type=text], input[type=email], input[type=password] {
+    width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 6px;
+    color: #e2e8f0; padding: 8px 10px; font-size: 14px; font-family: inherit;
+  }
+  input.invalid { border-color: #dc2626; }
+  .field-error { color: #f87171; font-size: 12px; margin-top: 4px; }
+  .advanced-toggle { font-size: 12px; color: #60a5fa; cursor: pointer; margin-top: 10px; display: inline-block; }
+  .advanced-field { display: none; margin-top: 8px; }
+  .advanced-field.open { display: block; }
+  .test-result { margin-top: 12px; padding: 10px 12px; border-radius: 6px; font-size: 13px; }
+  .test-result.ok { background: #14532d; color: #bbf7d0; border: 1px solid #16a34a; }
+  .test-result.fail { background: #450a0a; color: #fecaca; border: 1px solid #7f1d1d; }
+  .test-result.pending { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+  .cert-confirm {
+    background: #451a03; border: 1px solid #92400e; color: #fed7aa;
+    padding: 12px; border-radius: 6px; margin-top: 12px; font-size: 13px;
+  }
+  .cert-confirm .cert-detail { font-family: monospace; font-size: 12px; margin: 6px 0; word-break: break-all; }
+  .form-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center; z-index: 10;
+  }
+  .modal { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 24px; width: 320px; }
+  .modal h2 { margin: 0 0 8px; font-size: 16px; }
+  .modal p { color: #94a3b8; font-size: 13px; margin: 0 0 16px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+  <h1>Select Server</h1>
+  <div class="sub">Choose which server this workstation should connect to.</div>
+
+  <div id="failureBanner" class="banner hidden"></div>
+
+  <div class="card">
+    <div id="serverList"></div>
+    <div id="emptyState" class="empty hidden">No servers registered yet. Add one below.</div>
+  </div>
+
+  <button id="addServerToggle" class="btn-secondary">+ Add Server</button>
+
+  <div id="addForm" class="add-form card">
+    <label>Label</label>
+    <input type="text" id="fLabel" placeholder="e.g. Head Office" />
+
+    <label>Server IP</label>
+    <input type="text" id="fHost" placeholder="e.g. 192.168.1.50" />
+    <div id="hostError" class="field-error hidden">Enter a valid IP address.</div>
+
+    <span class="advanced-toggle" id="advToggle">Advanced: use a full URL instead</span>
+    <div id="advField" class="advanced-field">
+      <label>Full URL (overrides the IP above)</label>
+      <input type="text" id="fFullUrl" placeholder="https://myserver.example.com:9443" />
+    </div>
+
+    <label>Admin Email (used once, to verify — never stored)</label>
+    <input type="email" id="fEmail" />
+
+    <label>Admin Password (used once, to verify — never stored)</label>
+    <input type="password" id="fPassword" />
+
+    <label>Support Contact (optional — shown if this server can't be reached later)</label>
+    <input type="text" id="fSupport" placeholder="e.g. IT: +263 78 000 0000" />
+
+    <div id="testResult"></div>
+    <div id="certConfirm" class="cert-confirm hidden">
+      <div><b>This server's certificate isn't from a trusted authority.</b></div>
+      <div class="cert-detail" id="certIssuer"></div>
+      <div class="cert-detail" id="certFingerprint"></div>
+      <div style="margin-top:8px;">Only trust this if you know this is the correct server.</div>
+      <div class="form-actions">
+        <button id="trustCertBtn" class="btn-primary">Trust This Certificate</button>
+        <button id="cancelCertBtn" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button id="testBtn" class="btn-secondary">Test Connection</button>
+      <button id="saveBtn" class="btn-primary" disabled>Save Server</button>
+      <button id="cancelAddBtn" class="btn-secondary">Cancel</button>
+    </div>
+  </div>
+
+  <!-- PIN prompts -->
+  <div id="pinSetupModal" class="modal-overlay hidden">
+    <div class="modal">
+      <h2>Set a PIN</h2>
+      <p>This PIN protects adding or removing servers on this kiosk. Switching between already-registered servers never needs it.</p>
+      <label>New PIN</label>
+      <input type="password" id="pinNew1" />
+      <label>Confirm PIN</label>
+      <input type="password" id="pinNew2" />
+      <div id="pinSetupError" class="field-error hidden"></div>
+      <div class="form-actions">
+        <button id="pinSetupSave" class="btn-primary">Set PIN</button>
+        <button id="pinSetupCancel" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="pinEntryModal" class="modal-overlay hidden">
+    <div class="modal">
+      <h2>Enter PIN</h2>
+      <p id="pinEntryReason">Enter the PIN to continue.</p>
+      <input type="password" id="pinEntryValue" />
+      <div id="pinEntryError" class="field-error hidden"></div>
+      <div class="form-actions">
+        <button id="pinEntryConfirm" class="btn-primary">Continue</button>
+        <button id="pinEntryCancel" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  let servers = []
+  let lastPassedTest = null // { url, certFingerprint, formSnapshot }
+  let pendingCertTrust = null // certInfo from a failed test, awaiting confirm/cancel
+
+  const el = (id) => document.getElementById(id)
+
+  function formSnapshot() {
+    return JSON.stringify({
+      host: el('fHost').value.trim(),
+      fullUrl: el('fFullUrl').value.trim(),
+      email: el('fEmail').value.trim(),
+      password: el('fPassword').value,
+    })
+  }
+
+  function invalidateTest() {
+    lastPassedTest = null
+    el('saveBtn').disabled = true
+  }
+
+  async function refreshServerList() {
+    servers = await window.pickerAPI.listServers()
+    const list = el('serverList')
+    list.innerHTML = ''
+    el('emptyState').classList.toggle('hidden', servers.length > 0)
+    for (const s of servers) {
+      const row = document.createElement('div')
+      row.className = 'server-row'
+      row.style.marginBottom = '10px'
+      row.innerHTML = `
+        <div class="server-info">
+          <div class="server-name">${escapeHtml(s.label)} (${escapeHtml(s.host || s.url)})</div>
+          ${s.supportContact ? `<div class="server-meta">Support: ${escapeHtml(s.supportContact)}</div>` : ''}
+        </div>
+        <div class="row-actions">
+          <button class="btn-primary" data-connect="${s.id}">Connect</button>
+          <button class="btn-danger" data-remove="${s.id}" title="Remove">Remove</button>
+        </div>
+      `
+      list.appendChild(row)
+    }
+    list.querySelectorAll('[data-connect]').forEach((btn) => {
+      btn.addEventListener('click', () => window.pickerAPI.switchTo(btn.dataset.connect))
+    })
+    list.querySelectorAll('[data-remove]').forEach((btn) => {
+      btn.addEventListener('click', () => requestPinThen('remove this server', () => removeServer(btn.dataset.remove)))
+    })
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement('div')
+    d.textContent = str ?? ''
+    return d.innerHTML
+  }
+
+  async function removeServer(id) {
+    await window.pickerAPI.removeServer(id, currentPin)
+    currentPin = null
+    refreshServerList()
+  }
+
+  // ── PIN flow ────────────────────────────────────────────────────────────
+  let currentPin = null
+  let pinResolve = null
+
+  function requestPinThen(reasonText, onConfirmed) {
+    window.pickerAPI.hasPin().then((has) => {
+      if (!has) {
+        openPinSetup(() => requestPinThen(reasonText, onConfirmed))
+        return
+      }
+      openPinEntry(reasonText, async (pin) => {
+        const ok = await window.pickerAPI.verifyPin(pin)
+        if (!ok) {
+          el('pinEntryError').textContent = 'Incorrect PIN.'
+          el('pinEntryError').classList.remove('hidden')
+          return false
+        }
+        currentPin = pin
+        el('pinEntryModal').classList.add('hidden')
+        onConfirmed()
+        return true
+      })
+    })
+  }
+
+  function openPinSetup(onDone) {
+    el('pinSetupError').classList.add('hidden')
+    el('pinNew1').value = ''
+    el('pinNew2').value = ''
+    el('pinSetupModal').classList.remove('hidden')
+    el('pinSetupSave').onclick = async () => {
+      const p1 = el('pinNew1').value
+      const p2 = el('pinNew2').value
+      if (!p1 || p1.length < 4) {
+        el('pinSetupError').textContent = 'PIN must be at least 4 characters.'
+        el('pinSetupError').classList.remove('hidden')
+        return
+      }
+      if (p1 !== p2) {
+        el('pinSetupError').textContent = 'PINs do not match.'
+        el('pinSetupError').classList.remove('hidden')
+        return
+      }
+      await window.pickerAPI.setPin(p1)
+      el('pinSetupModal').classList.add('hidden')
+      if (onDone) onDone()
+    }
+    el('pinSetupCancel').onclick = () => el('pinSetupModal').classList.add('hidden')
+  }
+
+  function openPinEntry(reasonText, onConfirm) {
+    el('pinEntryReason').textContent = `Enter the PIN to ${reasonText}.`
+    el('pinEntryError').classList.add('hidden')
+    el('pinEntryValue').value = ''
+    el('pinEntryModal').classList.remove('hidden')
+    el('pinEntryConfirm').onclick = () => onConfirm(el('pinEntryValue').value)
+    el('pinEntryCancel').onclick = () => el('pinEntryModal').classList.add('hidden')
+  }
+
+  // ── Add Server form ─────────────────────────────────────────────────────
+  el('addServerToggle').addEventListener('click', () => {
+    requestPinThen('add a server', () => {
+      resetAddForm()
+      el('addForm').classList.add('open')
+      el('addServerToggle').classList.add('hidden')
+    })
+  })
+
+  el('cancelAddBtn').addEventListener('click', () => {
+    el('addForm').classList.remove('open')
+    el('addServerToggle').classList.remove('hidden')
+  })
+
+  el('advToggle').addEventListener('click', () => {
+    el('advField').classList.toggle('open')
+  })
+
+  function resetAddForm() {
+    ;['fLabel', 'fHost', 'fFullUrl', 'fEmail', 'fPassword', 'fSupport'].forEach((id) => (el(id).value = ''))
+    el('advField').classList.remove('open')
+    el('hostError').classList.add('hidden')
+    el('testResult').innerHTML = ''
+    el('certConfirm').classList.add('hidden')
+    invalidateTest()
+    pendingCertTrust = null
+  }
+  ;['fHost', 'fFullUrl', 'fEmail', 'fPassword'].forEach((id) => {
+    el(id).addEventListener('input', () => {
+      invalidateTest()
+      el('certConfirm').classList.add('hidden')
+    })
+  })
+
+  el('testBtn').addEventListener('click', () => runTest(null))
+
+  el('trustCertBtn').addEventListener('click', () => {
+    if (pendingCertTrust) runTest(pendingCertTrust.fingerprint)
+  })
+  el('cancelCertBtn').addEventListener('click', () => {
+    el('certConfirm').classList.add('hidden')
+    pendingCertTrust = null
+  })
+
+  async function runTest(trustFingerprint) {
+    const host = el('fHost').value.trim()
+    const fullUrlOverride = el('fFullUrl').value.trim()
+    const identifier = el('fEmail').value.trim()
+    const password = el('fPassword').value
+
+    if (!fullUrlOverride && !isValidIpFormat(host)) {
+      el('hostError').classList.remove('hidden')
+      return
+    }
+    el('hostError').classList.add('hidden')
+
+    el('certConfirm').classList.add('hidden')
+    el('testResult').innerHTML = `<div class="test-result pending">Testing connection…</div>`
+    el('testBtn').disabled = true
+
+    const result = await window.pickerAPI.testConnection({ host, fullUrlOverride, identifier, password, trustFingerprint })
+
+    el('testBtn').disabled = false
+
+    if (result.ok) {
+      el('testResult').innerHTML = `<div class="test-result ok">✓ Connected and verified as admin (${escapeHtml(result.adminEmail)}).</div>`
+      lastPassedTest = { url: result.url, certFingerprint: result.certFingerprint, snapshot: formSnapshot() }
+      el('saveBtn').disabled = false
+      return
+    }
+
+    if (result.reason === 'untrusted-certificate') {
+      pendingCertTrust = result.certInfo
+      el('certIssuer').textContent = `Issuer: ${result.certInfo.issuer}`
+      el('certFingerprint').textContent = `Fingerprint: ${result.certInfo.fingerprint}`
+      el('certConfirm').classList.remove('hidden')
+      el('testResult').innerHTML = ''
+      return
+    }
+
+    el('testResult').innerHTML = `<div class="test-result fail">✗ ${escapeHtml(result.message || 'Test failed.')}</div>`
+    invalidateTest()
+  }
+
+  function isValidIpFormat(str) {
+    // Mirrors the main-process check (Node's net.isIP) closely enough for
+    // instant client-side feedback; the main process re-validates for real.
+    const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
+    const m = str.match(v4)
+    if (m) return m.slice(1).every((n) => Number(n) >= 0 && Number(n) <= 255)
+    return /^[0-9a-fA-F:]+$/.test(str) && str.includes(':')
+  }
+
+  el('saveBtn').addEventListener('click', async () => {
+    if (!lastPassedTest || lastPassedTest.snapshot !== formSnapshot()) {
+      el('testResult').innerHTML = `<div class="test-result fail">Please re-test — the form changed since the last successful test.</div>`
+      return
+    }
+    await window.pickerAPI.addServer({
+      pin: currentPin,
+      label: el('fLabel').value.trim() || el('fHost').value.trim(),
+      host: el('fHost').value.trim(),
+      url: lastPassedTest.url,
+      supportContact: el('fSupport').value.trim(),
+      certFingerprint: lastPassedTest.certFingerprint,
+    })
+    currentPin = null
+    el('addForm').classList.remove('open')
+    el('addServerToggle').classList.remove('hidden')
+    refreshServerList()
+  })
+
+  // ── Failure banner (opened because the last-used server failed to load) ─
+  async function init() {
+    const ctx = await window.pickerAPI.getOpenContext()
+    if (ctx && ctx.failure) {
+      const f = ctx.failure
+      el('failureBanner').classList.remove('hidden')
+      el('failureBanner').innerHTML = `
+        <b>Couldn't reach ${escapeHtml(f.label)} (${escapeHtml(f.host)}).</b> ${escapeHtml(f.message || '')}
+        ${f.supportContact ? `<br/>Contact: ${escapeHtml(f.supportContact)}` : ''}
+      `
+    }
+    refreshServerList()
+  }
+  init()
+</script>
+</body>
+</html>

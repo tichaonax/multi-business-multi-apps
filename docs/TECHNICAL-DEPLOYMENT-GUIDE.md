@@ -463,20 +463,63 @@ Both boil down to: install the manufacturer's Windows driver (or let Windows aut
 
 ### 10.5 Electron dual-monitor POS kiosk (optional, customer-facing display setups only)
 
-If a POS terminal needs a second, customer-facing monitor showing a live order/cart display in kiosk mode (no browser chrome, can't be accidentally closed), that workstation can run the bundled Electron shell instead of a plain browser tab, from `electron/` in this repo:
+If a POS terminal needs a second, customer-facing monitor showing a live order/cart display in kiosk mode (no browser chrome, can't be accidentally closed), that workstation can run the bundled Electron shell instead of a plain browser tab.
+
+**This no longer has to run on the same machine as the server.** Earlier versions hardcoded `localhost` as the only server address Electron would ever load — Electron now registers one or more servers by address (any workstation on the network, or several different servers entirely — see §11.7's admin flow, the same idea applied here) and connects to whichever one is selected, with each server's login kept completely isolated from the others via its own session partition. Certificate trust for a self-signed server cert is handled inside Electron itself at registration time (trust-on-first-use, then pinned to that exact certificate) — separate from, and not requiring, the browser-side `rootCA.pem` trust dance in §10.1.
+
+**Quick path — running from source** (needs Node and a full checkout of this repo on the workstation, same as any dev environment):
 
 ```bash
 cd electron
 npm install
-npm start              # auto-detects POS type + opens customer display on the second monitor
-# or a specific POS type:
-npm run start:restaurant
-npm run start:grocery
-npm run start:hardware
-npm run start:clothing
+npm start
 ```
 
-This is purely a client-side convenience wrapper around the same app pages — it still connects to the same server URL and needs the same certificate trust as §10.1. Most workstations don't need this; it's only for a physical dual-monitor customer-display setup. See `electron/README.md` for packaging it as a standalone installable app rather than running from source.
+On first launch (or if no server has been registered yet), a local "Select Server" screen appears — nothing remote loads until a server is added and its connection is verified.
+
+**Production path — a standalone installer, no Node or repo needed on the workstation** (recommended for an actual kiosk, same reasoning as shipping `r710-agent.exe` as a standalone `.exe` rather than asking a workstation to run from source):
+
+```bash
+cd electron
+npm install
+npm run build:win      # or build:mac / build:linux
+```
+
+This produces an installer in `electron/dist/`. Copy just that installer to the target workstation and run it — no checkout of this repo, no Node.js, no npm install needed there at all. Before building for real distribution:
+
+- **Supply real icon files** — `electron/icon.ico` (Windows), `icon.icns` (macOS), `icon.png` (Linux) are referenced in `electron/package.json`'s build config but don't ship with this repo; `electron-builder` will fall back to its own placeholder icon without them, which is fine for testing but not for something handed to a business.
+- **The installer is unsigned** unless you separately obtain and configure a code-signing certificate — Windows SmartScreen will show an "unrecognized app" warning on first run (the same "More info → Run anyway" click-through most unsigned internal tools require). Not a bug, just worth setting expectations for whoever's installing it.
+
+Either way, once running, registering the actual server the workstation should use happens entirely inside the app's own "Select Server" screen — no environment variables, no config file to hand-edit.
+
+#### 10.5.1 Registering and switching servers
+
+This kiosk can hold several registered servers at once — different companies, or a test server alongside a real production one — and switch between them, each with a **completely separate login**. Server B never sees Server A's cookies or session, even mid-shift on the same kiosk.
+
+**Adding a server:**
+1. Click **+ Add Server** (the first time, you'll be asked to set a local PIN — this protects add/remove only; switching between already-registered servers never needs it).
+2. Enter a label, the server's IP address, and an **admin** email/password for that server.
+3. Click **Test Connection** — a real connection attempt, not a ping: validates the IP, checks reachability, and actually signs in with the given credentials to confirm they're a real admin account on that specific server. If the server presents a self-signed certificate that isn't already trusted, its details are shown and trust must be explicitly confirmed before the test proceeds — that exact certificate is then pinned to this one server going forward, never blanket-trusted by hostname.
+4. The credentials are used only for this one-time check and are never stored — whoever actually uses the kiosk logs in fresh, with their own account, once the server is open.
+5. **Save Server** only enables once a test has passed for the exact values currently in the form — editing anything afterward requires re-testing.
+
+A bare IP expands to `https://<ip>:8080` (this app's standard port) by default; use **Advanced: use a full URL instead** for a custom port or a different setup.
+
+**Switching servers:** click **Connect** next to any registered server, or use the **Server → Switch Server…** menu item (bound to `Ctrl+Shift+S` / `Cmd+Shift+S`, which works even with the menu bar hidden in kiosk mode). Switching briefly tears down and recreates both windows — deliberate, not a bug, since a session partition can't be swapped on a live window without risking leaking state between servers.
+
+**Every later launch automatically reopens whichever server was used last** — the picker only reappears if that server can't be reached (with the failure and its registered support-contact number shown right there), if it's been removed, or if you explicitly switch back to it.
+
+#### 10.5.2 Troubleshooting
+
+| Problem | Likely cause / fix |
+|---|---|
+| Stuck on the server picker / "Couldn't reach \<server\>" | Confirm the server is actually running and reachable from this machine (try its address in a regular browser first). If it moved or changed IP, use **+ Add Server** to register the new address rather than editing the old entry — each registration is tied to a specific URL. Check the support-contact number on the failure banner, if one was set when this server was registered. |
+| "No secondary display detected" | Connect the second monitor before starting Electron, check display settings in the OS, restart Electron after connecting. |
+| Customer display not fullscreen | Normal — kiosk mode handles it automatically once the page finishes loading; use `Esc` to exit kiosk mode for testing only. |
+| DevTools not opening | Set `NODE_ENV=development` before launching, or use `npm run dev` from `electron/`. |
+| Cart/order updates never appear on the customer-facing monitor | Confirm the business is on a build that includes the customer-display broadcast fix for its POS page — restaurant/grocery/clothing/hardware always had this; vehicle_service, services, vehicles, construction, and consulting (all sharing Universal POS) only got it in a later fix (cart state, payment-complete, and order-cancellation broadcasts all included). |
+
+Alternative to Electron entirely: a plain browser on Chrome/Edge 100+ can position a customer display on a secondary monitor itself via the Window Management API — the "🖥️ Display" button in the POS, with a one-time permission prompt. No install at all, but without kiosk-mode lockdown or dual-monitor auto-detection on launch.
 
 ---
 

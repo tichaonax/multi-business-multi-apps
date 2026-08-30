@@ -582,6 +582,8 @@ If your till has a second screen facing the customer, it will automatically show
 
 > **Note:** The customer display updates automatically when a salesperson is selected or changed. The display always reflects the salesperson currently active on the POS, not the account used to sign in.
 
+> **Applies to every business type**, including vehicle_service, services, vehicles, construction, and consulting — these share the Universal POS page, which didn't broadcast cart/order updates to the customer display at all until this was fixed; restaurant/grocery/clothing/hardware (each with their own dedicated POS page) always had it. If a second screen on one of these business types still shows nothing, confirm the workstation is on a build that includes this fix rather than assuming it's unsupported for that business type.
+
 ---
 
 ## 3. Cash Office — Cash Handling & End of Day
@@ -9577,6 +9579,8 @@ For Cash and Card orders, the full order total is refunded (no deduction).
 ### Customer Display
 
 If a customer-facing display screen is connected, it automatically shows a cancellation confirmation when the order is cancelled — including the refund amount and EcoCash fee breakdown where applicable. The display clears after 10 seconds and returns to the normal idle screen.
+
+> **Applies to every business type**, including vehicle_service, services, vehicles, construction, and consulting — Universal POS now sends this same cancellation broadcast.
 
 ---
 

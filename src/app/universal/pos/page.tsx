@@ -23,6 +23,8 @@ import { useCoupon } from './hooks/useCoupon'
 import { useCustomerRewards } from './hooks/useCustomerRewards'
 import type { CustomerReward } from './hooks/useCustomerRewards'
 import { useConfirm } from '@/components/ui/confirm-modal'
+import { useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
+import { SyncMode } from '@/lib/customer-display/sync-manager'
 import { getBusinessTypeConfig, getSupportedBusinessTypes } from './config/business-type-config'
 import { toast } from 'sonner'
 import type { ReceiptData } from '@/types/printing'
@@ -109,6 +111,62 @@ export default function UniversalPOS() {
     setDiscount,
     totals
   } = useUniversalCart()
+
+  // Customer Display Sync — every other POS page (restaurant/grocery/
+  // clothing/hardware) broadcasts cart state to the customer-facing
+  // display; Universal POS (used by vehicle_service, services, vehicles,
+  // construction, consulting, and every other business type without its
+  // own dedicated POS page) never did this at all, so those business
+  // types' customer-facing monitor never showed anything — traced live as
+  // "the customer facing monitor doesn't load" for vehicle_service. Same
+  // terminalId convention as restaurant/hardware (persisted per-browser),
+  // and the same SyncMode.BROADCAST — the customer-display page listens
+  // for these regardless of the exact terminalId, scoped by businessId.
+  const [terminalId] = useState(() => {
+    if (typeof window === 'undefined') return 'terminal-default'
+    const stored = localStorage.getItem('pos-terminal-id')
+    if (stored) return stored
+    const newId = `terminal-${Date.now()}`
+    localStorage.setItem('pos-terminal-id', newId)
+    return newId
+  })
+  const { send: sendToDisplay } = useCustomerDisplaySync({
+    businessId: currentBusinessId || '',
+    terminalId,
+    mode: SyncMode.BROADCAST,
+    autoConnect: true,
+    onError: (error) => console.error('[Customer Display] Sync error:', error),
+  })
+
+  // Broadcast cart state to the customer display whenever it changes —
+  // mirrors restaurant/pos/page.tsx's broadcastCartState(). SET_ACTIVE_
+  // BUSINESS/SET_PAGE_CONTEXT go first so a display that opens after this
+  // page already loaded still ends up showing the right business.
+  useEffect(() => {
+    if (!currentBusinessId) return
+    sendToDisplay('SET_ACTIVE_BUSINESS', { subtotal: 0, tax: 0, total: 0 })
+    sendToDisplay('SET_PAGE_CONTEXT', { pageContext: 'pos', subtotal: 0, tax: 0, total: 0 })
+    sendToDisplay('CART_STATE', {
+      items: cart.map(item => ({
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        price: item.unitPrice,
+        variant: item.categoryId || undefined,
+        imageUrl: item.imageUrl,
+      })),
+      subtotal: totals.subtotal,
+      tax: totals.tax,
+      total: totals.total,
+      discountAmount: totals.discount > 0 ? totals.discount : undefined,
+    })
+    // sendToDisplay deliberately omitted — it's not a stable reference
+    // (recreated whenever the inline onError callback above is), and
+    // restaurant/pos/page.tsx's identical broadcast effect has the same
+    // omission for the same reason: including it would re-broadcast on
+    // every render, not just on an actual cart/business change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart, totals, currentBusinessId])
 
   // Load products for current business
   const {
@@ -309,6 +367,16 @@ export default function UniversalPOS() {
         console.log('✅ Order completed:', orderId)
 
         const customerForReward = selectedCustomer
+
+        // Same broadcast restaurant/pos/page.tsx sends on order completion —
+        // the customer display shows a "thank you"/complete state briefly
+        // before its cart clears.
+        sendToDisplay('PAYMENT_COMPLETE', {
+          subtotal: receiptData.total,
+          tax: 0,
+          total: receiptData.total,
+          customerName: customerForReward?.name || null,
+        })
 
         clearCart()
         globalCart.clearCart()
@@ -794,6 +862,19 @@ export default function UniversalPOS() {
                 setPendingReceiptData(null)
                 setPendingOrderId(null)
                 setCancelTarget(null)
+                // Same broadcast restaurant/pos/page.tsx sends — the
+                // customer display shows a cancellation confirmation
+                // (refund/EcoCash-fee breakdown) instead of just clearing
+                // silently. Same /api/orders/[id]/cancel endpoint, same
+                // response shape.
+                sendToDisplay('ORDER_CANCELLED', {
+                  orderNumber: data.orderNumber,
+                  grossAmount: data.grossAmount,
+                  feeDeducted: data.feeDeducted,
+                  refundAmount: data.refundAmount,
+                  isEcocash: data.isEcocash,
+                  subtotal: 0, tax: 0, total: 0,
+                })
               } catch { toast.error('Connection error — please try again') }
             }}
             onAborted={() => setShowCancelModal(false)}
