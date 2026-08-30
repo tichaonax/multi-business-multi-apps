@@ -29,7 +29,7 @@
     "appId": "com.multibusiness.pos",
     "productName": "Multi-Business POS",
     "directories": {
-      "output": "dist"
+      "output": "../../multi-business-electron-dist"
     },
     "files": [
       "main.js",

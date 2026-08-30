@@ -485,7 +485,7 @@ npm install
 npm run build:win      # or build:mac / build:linux
 ```
 
-This produces an installer in `electron/dist/`. Copy just that installer to the target workstation and run it — no checkout of this repo, no Node.js, no npm install needed there at all. Before building for real distribution:
+This produces an installer in `multi-business-electron-dist/` — a sibling folder next to the repo root, not inside it (see `electron/scripts/stop-running-app.js` for why: keeping the build output outside the repo avoids a Windows file-lock conflict with VS Code's file watcher). Copy just that installer to the target workstation and run it — no checkout of this repo, no Node.js, no npm install needed there at all. Before building for real distribution:
 
 - **Supply real icon files** — `electron/icon.ico` (Windows), `icon.icns` (macOS), `icon.png` (Linux) are referenced in `electron/package.json`'s build config but don't ship with this repo; `electron-builder` will fall back to its own placeholder icon without them, which is fine for testing but not for something handed to a business.
 - **The installer is unsigned** unless you separately obtain and configure a code-signing certificate — Windows SmartScreen will show an "unrecognized app" warning on first run (the same "More info → Run anyway" click-through most unsigned internal tools require). Not a bug, just worth setting expectations for whoever's installing it.

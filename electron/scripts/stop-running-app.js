@@ -3,21 +3,34 @@
  * before a rebuild — same problem agent/r710-local-agent/build.mjs's
  * stopRunningAgent() solves for that project's own standalone .exe: a
  * process (or an editor's file watcher) holding
- * dist/win-unpacked/resources/app.asar open makes Windows refuse to let
+ * <output>/win-unpacked/resources/app.asar open makes Windows refuse to let
  * electron-builder clean/overwrite it, failing the whole build with a bare
  * "file in use" error instead of anything actionable.
  *
  * Root cause, found live with Sysinternals handle.exe: it wasn't a build
  * process or antivirus at all — VS Code's own file watcher had app.asar
- * open simply because it lives inside the open workspace. Fixed at the
- * source via .vscode/settings.json's files.watcherExclude (and
- * files.exclude/search.exclude) for electron/dist and
- * agent/r710-local-agent/dist, so VS Code never opens a handle on either
- * in the first place going forward. What's left here is now just a light
+ * open simply because it lives inside the open workspace. Excluding the
+ * folder via .vscode/settings.json's files.watcherExclude was tried first
+ * (moving output from `dist` to `dist-alt`) but proved unreliable: killing
+ * the specific VS Code utility-process PID holding the handle just had a
+ * *different* PID re-acquire a handle on the same path within seconds
+ * (confirmed live) — the exclude doesn't reliably win against every VS Code
+ * window/process that might have this workspace open. Excluding a folder
+ * only stops *new* handles from that one window's watcher anyway; it can
+ * never guarantee no VS Code process anywhere holds one.
+ *
+ * The actual fix: build.directories.output in package.json now points
+ * OUTSIDE this repo entirely (`../../multi-business-electron-dist`, a
+ * sibling of the repo root) — a path no VS Code window watching this
+ * workspace can ever open a handle on, regardless of exclude settings,
+ * how many windows are open, or timing. The stale `electron/dist/` and
+ * `electron/dist-alt/` folders from earlier attempts may still be sitting
+ * there locked; they're harmless leftovers — delete by hand once VS Code
+ * is closed, or just ignore them. What's left here is now just a light
  * safety net for the genuinely rare case (a leftover build-tool process,
- * or an editor that hasn't picked up the new exclude setting yet without a
- * reload) — no need for a long wait when the actual cause is prevented
- * upstream.
+ * or a stray running copy of the packaged app, still holding the new
+ * output open from a previous build) — no need for a long wait when the
+ * actual cause (VS Code) is structurally prevented from reaching it.
  *
  * Deliberately chained directly into build:win/:mac/:linux via `&&` in
  * package.json, not left as a separate prebuild:* script relying on npm's
@@ -55,11 +68,11 @@ if (process.platform === 'win32') {
 // Belt and suspenders on top of the process-killing above: remove the
 // previous output directly here, with a short retry, rather than let
 // electron-builder find out it's locked three steps into packaging. Kept
-// deliberately brief now that the actual known cause (VS Code's watcher)
-// is prevented at the source — this is just smoothing over genuine
-// millisecond-scale timing, not waiting out something that was never
-// going to release on its own.
-const unpackedDir = path.join(__dirname, '..', 'dist', 'win-unpacked')
+// deliberately brief now that the actual known cause (VS Code) structurally
+// can't reach this directory at all — this is just smoothing over genuine
+// millisecond-scale timing, not waiting out something that was never going
+// to release on its own.
+const unpackedDir = path.join(__dirname, '..', '..', '..', 'multi-business-electron-dist', 'win-unpacked')
 if (fs.existsSync(unpackedDir)) {
   const MAX_ATTEMPTS = 3
   const RETRY_DELAY_MS = 500
@@ -85,7 +98,7 @@ if (fs.existsSync(unpackedDir)) {
   }
   if (lastError) {
     console.error(`[build] Could not remove ${unpackedDir} — something still has a file inside it open.`)
-    console.error('[build] Most likely an editor with this workspace open (VS Code\'s own watcher was the actual cause when this was traced live) — .vscode/settings.json now excludes electron/dist from VS Code\'s watcher, but an already-open handle from before that setting existed needs a window reload to actually release. Reload/restart the editor, or check Resource Monitor → "Find Handle" for app.asar, then retry.')
+    console.error('[build] This directory lives outside the repo specifically so VS Code can\'t have opened a handle inside it, so this is unexpected — check for a leftover build-tool process (Task Manager) or a stray running copy of the packaged app, or use Sysinternals handle.exe / Resource Monitor → "Find Handle" for app.asar to see what has it open, then retry.')
     console.error(`[build] Underlying error: ${lastError.message}`)
     process.exit(1)
   }

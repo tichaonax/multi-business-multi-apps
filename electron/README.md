@@ -140,19 +140,19 @@ The Windows build (`package.json`'s `nsis` config) is set up as a **single, per-
 ```bash
 npm run build:win
 ```
-Creates installer in `dist/` folder.
+Creates installer in `../../multi-business-electron-dist/` (a sibling of the repo root, outside VS Code's workspace — see `scripts/stop-running-app.js` for why).
 
 ### macOS
 ```bash
 npm run build:mac
 ```
-Creates DMG in `dist/` folder.
+Creates DMG in `../../multi-business-electron-dist/` (see the Windows note above).
 
 ### Linux
 ```bash
 npm run build:linux
 ```
-Creates AppImage in `dist/` folder.
+Creates AppImage in `../../multi-business-electron-dist/` (see the Windows note above).
 
 ## Troubleshooting
 
