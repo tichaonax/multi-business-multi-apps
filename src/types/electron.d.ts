@@ -21,12 +21,20 @@ export interface ComPort {
   productId: string | null
 }
 
+export interface ActiveServer {
+  id: string
+  label: string
+  host: string
+  url: string
+}
+
 export interface ElectronAPI {
   isElectron: true
   getDisplays: () => Promise<unknown[]>
   reopenCustomerDisplay: () => void
   quit: () => void
   switchServer: () => Promise<boolean>
+  getActiveServer: () => Promise<ActiveServer | null>
   scale: {
     listPorts: () => Promise<ComPort[]>
     getSavedPort: () => Promise<string | null>

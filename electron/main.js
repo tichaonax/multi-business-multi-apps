@@ -380,6 +380,11 @@ ipcMain.handle('servers:switchTo', async (_e, id) => {
   return { ok: true }
 })
 
+// Lets the renderer show "Connected to: <label>" on the landing/sign-in
+// screens — returns the same registry entry openServer() was called with,
+// not just the id, so the label/host are available without a second lookup.
+ipcMain.handle('servers:getActive', () => (activeServerId ? registry.get(activeServerId) : null))
+
 ipcMain.handle('servers:getOpenContext', () => {
   const ctx = pendingOpenContext
   pendingOpenContext = null

@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('electron', {
 
   switchServer: () => ipcRenderer.invoke('servers:showPicker'),
 
+  getActiveServer: () => ipcRenderer.invoke('servers:getActive'),
+
   // ── Scale API ──────────────────────────────────────────────────────────────
   scale: {
     listPorts: () => ipcRenderer.invoke('scale:list-ports'),
