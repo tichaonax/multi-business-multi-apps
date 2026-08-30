@@ -386,6 +386,15 @@ ipcMain.handle('servers:getOpenContext', () => {
   return ctx
 })
 
+// Lets the main app's own window (not just the picker) ask to reopen the
+// picker — used by the "Switch Server" link on the sign-in page, since
+// otherwise the only way back to the picker is the hidden app menu /
+// Ctrl+Shift+S accelerator.
+ipcMain.handle('servers:showPicker', () => {
+  showPicker()
+  return true
+})
+
 // ─── IPC Handlers — displays / scale (unchanged) ────────────────────────────
 
 ipcMain.handle('get-displays', () => screen.getAllDisplays())

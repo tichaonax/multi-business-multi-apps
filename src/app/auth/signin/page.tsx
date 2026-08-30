@@ -13,6 +13,7 @@ export default function SignIn() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [logoImageId, setLogoImageId] = useState<string | null>(null)
+  const [isElectron, setIsElectron] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -20,6 +21,10 @@ export default function SignIn() {
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.logoImageId) setLogoImageId(data.logoImageId) })
       .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (window.electron?.isElectron) setIsElectron(true)
   }, [])
 
   // ── Normal login submit ────────────────────────────────────────────────────
@@ -158,6 +163,17 @@ export default function SignIn() {
                 Create one here
               </a>
             </div>
+            {isElectron && (
+              <div className="text-center text-sm mb-4">
+                <button
+                  type="button"
+                  onClick={() => window.electron?.switchServer()}
+                  className="font-medium text-blue-600 hover:text-blue-500"
+                >
+                  Switch Server
+                </button>
+              </div>
+            )}
             {process.env.NODE_ENV === 'development' && (
               <div className="text-center text-sm text-gray-500">
                 <p className="mb-2">Demo Credentials:</p>

@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('electron', {
 
   quit: () => ipcRenderer.send('quit-app'),
 
+  switchServer: () => ipcRenderer.invoke('servers:showPicker'),
+
   // ── Scale API ──────────────────────────────────────────────────────────────
   scale: {
     listPorts: () => ipcRenderer.invoke('scale:list-ports'),

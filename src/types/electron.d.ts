@@ -26,6 +26,7 @@ export interface ElectronAPI {
   getDisplays: () => Promise<unknown[]>
   reopenCustomerDisplay: () => void
   quit: () => void
+  switchServer: () => Promise<boolean>
   scale: {
     listPorts: () => Promise<ComPort[]>
     getSavedPort: () => Promise<string | null>
