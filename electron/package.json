@@ -42,6 +42,14 @@
       "target": "nsis",
       "icon": "icon.ico"
     },
+    "nsis": {
+      "perMachine": true,
+      "oneClick": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true
+    },
     "mac": {
       "target": "dmg",
       "icon": "icon.icns"

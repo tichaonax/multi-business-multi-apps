@@ -490,6 +490,10 @@ This produces an installer in `electron/dist/`. Copy just that installer to the 
 - **Supply real icon files** — `electron/icon.ico` (Windows), `icon.icns` (macOS), `icon.png` (Linux) are referenced in `electron/package.json`'s build config but don't ship with this repo; `electron-builder` will fall back to its own placeholder icon without them, which is fine for testing but not for something handed to a business.
 - **The installer is unsigned** unless you separately obtain and configure a code-signing certificate — Windows SmartScreen will show an "unrecognized app" warning on first run (the same "More info → Run anyway" click-through most unsigned internal tools require). Not a bug, just worth setting expectations for whoever's installing it.
 
+The Windows installer is configured as a **single, per-machine install** — installed once, available to every Windows user account on that workstation (Program Files, shortcuts in the all-users Desktop/Start Menu), not just whoever happened to run the installer. This means:
+- It's a **one-click install** — no wizard, no install-location picker, nothing to configure. Run it and it installs, creates both shortcuts, and launches itself.
+- Because it writes to Program Files and the all-users shortcut locations, Windows will show a **UAC elevation prompt** ("Do you want to allow this app to make changes to your device?") during install — expected for a per-machine install, not an error.
+
 Either way, once running, registering the actual server the workstation should use happens entirely inside the app's own "Select Server" screen — no environment variables, no config file to hand-edit.
 
 #### 10.5.1 Registering and switching servers

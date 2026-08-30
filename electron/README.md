@@ -130,6 +130,8 @@ Before building for real distribution, two things this repo doesn't ship with:
 - **Icon files** — `icon.ico` / `icon.icns` / `icon.png` in this folder, referenced by the `build` config in `package.json`. Without them, `electron-builder` falls back to its own placeholder — fine for testing, not for handing to a business.
 - **Code signing** — without it, the installer is unsigned and Windows SmartScreen will show an "unrecognized app" warning on first run (click through "More info → Run anyway"). Expected for an internal tool without a signing certificate, not a bug.
 
+The Windows build (`package.json`'s `nsis` config) is set up as a **single, per-machine install** — one install, available to every Windows user account on that workstation, not just whoever ran the installer. It's a one-click install (no wizard, nothing to configure) that will show a **UAC elevation prompt** during install — expected, since a per-machine install writes to Program Files and the all-users shortcut locations. If you'd rather have a per-user install (no elevation prompt, but only usable by the account that installed it) or the traditional wizard UI, both are separate `nsis` options — ask before changing this, it affects how every future install of this app behaves.
+
 ## Production Build
 
 ### Windows
