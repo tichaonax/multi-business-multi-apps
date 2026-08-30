@@ -31,19 +31,39 @@ const { net: electronNet, session: electronSession } = require('electron')
 
 const REQUEST_TIMEOUT_MS = 8000
 
+// "localhost" is the one hostname (not an IP) accepted here, deliberately —
+// for testing against a local `npm run dev` server (README's documented
+// default: http://localhost:8080) without needing the "Advanced: full URL"
+// field for something this common.
 function isValidIp(str) {
-  return nodeNet.isIP(String(str || '').trim()) !== 0
+  const value = String(str || '').trim()
+  if (value.toLowerCase() === 'localhost') return true
+  return nodeNet.isIP(value) !== 0
 }
 
-// Bare IP -> https://<ip>:8080 (the documented standard default port this
-// app's own deployment guide uses everywhere). A caller-supplied full URL
-// (custom port, hostname, even http:// for a quick unsecured test box) is
-// respected as-is instead — see the "Advanced: full URL" field.
+// 127.0.0.1 / ::1 / "localhost" are always the same machine this Electron
+// process is running on, never a real network path — so unlike a genuine
+// LAN server, there's no reason to expect TLS there, and a local `npm run
+// dev` server is plain HTTP by default (see README). Defaulting those to
+// https:// would fail with a protocol mismatch for the common case this
+// exists to support.
+function isLoopbackHost(str) {
+  const value = String(str || '').trim().toLowerCase()
+  return value === 'localhost' || value === '127.0.0.1' || value === '::1' || value.startsWith('127.')
+}
+
+// Bare IP/host -> https://<host>:8080 (the documented standard default port
+// this app's own deployment guide uses everywhere), except loopback hosts
+// which default to http:// instead (see isLoopbackHost). A caller-supplied
+// full URL (custom port, hostname, explicit http:// for a quick unsecured
+// test box) is respected as-is instead — see the "Advanced: full URL" field.
 function buildUrl({ host, fullUrlOverride }) {
   if (fullUrlOverride && fullUrlOverride.trim()) {
     return fullUrlOverride.trim().replace(/\/+$/, '')
   }
-  return `https://${host}:8080`
+  const trimmedHost = String(host || '').trim()
+  const scheme = isLoopbackHost(trimmedHost) ? 'http' : 'https'
+  return `${scheme}://${trimmedHost}:8080`
 }
 
 function friendlyNetError(code) {
@@ -141,7 +161,7 @@ function httpRequest(session, { method, url, headers, body }) {
 // check and returns the fingerprint for the caller to pin on success.
 async function testConnection({ host, fullUrlOverride, identifier, password, trustFingerprint }) {
   if (!fullUrlOverride && !isValidIp(host)) {
-    return { ok: false, reason: 'invalid-ip', message: 'That is not a valid IP address.' }
+    return { ok: false, reason: 'invalid-ip', message: 'That is not a valid IP address (or "localhost").' }
   }
 
   const url = buildUrl({ host, fullUrlOverride })

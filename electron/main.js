@@ -146,7 +146,7 @@ async function openServer(serverEntry) {
     y: primary.bounds.y,
     width: primary.bounds.width,
     height: primary.bounds.height,
-    title: 'Multi-Business Management Platform',
+    title: `Multi-Business Management Platform v${app.getVersion()}`,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -312,7 +312,7 @@ function showPicker() {
   pickerWindow = new BrowserWindow({
     width: 900,
     height: 720,
-    title: 'Select Server',
+    title: `Select Server — v${app.getVersion()}`,
     autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: false,
@@ -442,6 +442,7 @@ function buildMenu() {
 // ─── App ready ────────────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
+  console.log(`[App] Multi-Business Management Platform v${app.getVersion()} starting…`)
   buildMenu()
 
   const lastUsed = registry.getLastUsed()
