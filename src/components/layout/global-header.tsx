@@ -18,6 +18,7 @@ import { usePendingActionsCount, usePendingActions } from '@/hooks/use-pending-a
 import { useNotifications } from '@/components/providers/notification-provider'
 import HealthIndicator from '@/components/ui/health-indicator'
 import { usePolicyOverdue } from '@/hooks/use-policy-overdue'
+import { useActiveServerLabel } from '@/hooks/use-active-server-label'
 
 interface GlobalHeaderProps {
   title?: string
@@ -28,6 +29,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const { data: session } = useSession()
   const pathname = usePathname()
   const router = useRouter()
+  const activeServerLabel = useActiveServerLabel()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showThemeMenu, setShowThemeMenu] = useState(false)
   const [showBusinessMenu, setShowBusinessMenu] = useState(false)
@@ -1877,8 +1879,17 @@ function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity, onTestBarc
                 </div>
               </Link>
 
+              {activeServerLabel && (
+                <div className="px-4 py-2">
+                  <span className="flex items-center gap-1.5 rounded-full border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300 w-fit">
+                    <span className="h-2 w-2 rounded-full bg-blue-500" />
+                    Connected to: {activeServerLabel}
+                  </span>
+                </div>
+              )}
+
               <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
-              
+
               <button
                 onClick={handleSignOut}
                 className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
