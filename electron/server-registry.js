@@ -87,6 +87,21 @@ function remove(id) {
   save(data)
 }
 
+// Device-level "always open on this business" setting — deliberately stored
+// per-server (a default business only means anything in the context of
+// whichever server's data it refers to), and deliberately separate from
+// anything in the app's own localStorage/session state, which is
+// per-user and per-login, not a kiosk-wide device setting.
+function setDefaultBusiness(id, businessId, businessLabel) {
+  const data = load()
+  const entry = data.servers.find((s) => s.id === id)
+  if (!entry) return null
+  entry.defaultBusinessId = businessId || null
+  entry.defaultBusinessLabel = businessLabel || null
+  save(data)
+  return entry
+}
+
 function setLastUsed(id) {
   const data = load()
   data.lastUsedServerId = id
@@ -167,6 +182,7 @@ module.exports = {
   remove,
   setLastUsed,
   getLastUsed,
+  setDefaultBusiness,
   setCertFingerprint,
   hasPin,
   setPin,

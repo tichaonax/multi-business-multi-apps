@@ -28,6 +28,16 @@ export interface ActiveServer {
   url: string
 }
 
+export interface DefaultBusiness {
+  id: string
+  label: string
+}
+
+export interface SetDefaultBusinessResult {
+  ok: boolean
+  message?: string
+}
+
 export interface ElectronAPI {
   isElectron: true
   getDisplays: () => Promise<unknown[]>
@@ -35,6 +45,10 @@ export interface ElectronAPI {
   quit: () => void
   switchServer: () => Promise<boolean>
   getActiveServer: () => Promise<ActiveServer | null>
+  getDefaultBusiness: () => Promise<DefaultBusiness | null>
+  setDefaultBusiness: (pin: string, businessId: string, businessLabel: string) => Promise<SetDefaultBusinessResult>
+  hasPin: () => Promise<boolean>
+  setPin: (pin: string) => Promise<boolean>
   scale: {
     listPorts: () => Promise<ComPort[]>
     getSavedPort: () => Promise<string | null>

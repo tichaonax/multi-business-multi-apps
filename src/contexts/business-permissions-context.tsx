@@ -82,8 +82,29 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
         const memberships: BusinessMembership[] = await res.json();
         setBusinesses(memberships);
 
+        // Electron kiosk device default — always wins on a fresh session load
+        // (overriding whatever localStorage last had), matching how a kiosk
+        // permanently stationed at one business should behave. Falls through
+        // to the normal logic below if unset, or if this user doesn't
+        // actually have access to that business.
+        let deviceDefaultApplied = false;
+        if (typeof window !== 'undefined' && window.electron?.isElectron) {
+          try {
+            const deviceDefault = await window.electron.getDefaultBusiness();
+            if (deviceDefault?.id && memberships.some(m => m.businessId === deviceDefault.id && m.isActive)) {
+              setCurrentBusinessId(deviceDefault.id);
+              localStorage.setItem('currentBusinessId', deviceDefault.id);
+              deviceDefaultApplied = true;
+            }
+          } catch {
+            /* ignore — fall through to normal default-selection logic */
+          }
+        }
+
         // If we don't have a current business set, select a sensible default
-        if (!currentBusinessId) {
+        if (deviceDefaultApplied) {
+          // handled above
+        } else if (!currentBusinessId) {
           const activeMemberships = getActiveBusinesses(memberships);
           if (activeMemberships.length > 0) {
             // Default to first active business

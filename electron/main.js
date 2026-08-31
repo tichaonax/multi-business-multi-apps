@@ -405,6 +405,44 @@ ipcMain.handle('servers:showPicker', () => {
   return true
 })
 
+// ─── IPC Handlers — device-level default business ──────────────────────────
+// A kiosk-wide "always open on this business, regardless of who logs in"
+// setting — deliberately separate from the app's own per-user/per-login
+// business selection (localStorage-based, see business-permissions-context.tsx).
+// Stored per-server in server-registry.js, since a default business only
+// means anything in the context of whichever server it refers to. PIN-gated
+// with the same admin PIN used for add/remove server — switching *to* an
+// already-registered server stays unrestricted (see servers:switchTo above),
+// but changing what this device defaults into is deliberately not.
+
+ipcMain.handle('business:getDefault', () => {
+  if (!activeServerId) return null
+  const entry = registry.get(activeServerId)
+  if (!entry || !entry.defaultBusinessId) return null
+  return { id: entry.defaultBusinessId, label: entry.defaultBusinessLabel }
+})
+
+ipcMain.handle('business:setDefault', (_e, { pin, businessId, businessLabel }) => {
+  if (!registry.verifyPin(pin)) {
+    return { ok: false, message: 'Incorrect PIN.' }
+  }
+  if (!activeServerId) {
+    return { ok: false, message: 'No server connected.' }
+  }
+  registry.setDefaultBusiness(activeServerId, businessId, businessLabel)
+  return { ok: true }
+})
+
+// Same admin PIN used everywhere else in this app (add/remove server) —
+// exposed generically here (not under the "business:" namespace) since the
+// landing page's "Switch Business" UI needs the full has-PIN/set-PIN-if-missing
+// dance the server picker already does internally, not just verification.
+ipcMain.handle('pin:has', () => registry.hasPin())
+ipcMain.handle('pin:set', (_e, pin) => {
+  registry.setPin(pin)
+  return true
+})
+
 // ─── IPC Handlers — displays / scale (unchanged) ────────────────────────────
 
 ipcMain.handle('get-displays', () => screen.getAllDisplays())

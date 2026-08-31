@@ -9,11 +9,18 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { CardScanOverlay } from '@/components/clock-in/card-scan-overlay'
+import { SwitchBusinessModal } from '@/components/electron/switch-business-modal'
 
 export default function HomePage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const { currentBusinessId } = useBusinessPermissionsContext()
+  const [isElectron, setIsElectron] = useState(false)
+  const [showSwitchBusiness, setShowSwitchBusiness] = useState(false)
+
+  useEffect(() => {
+    if (window.electron?.isElectron) setIsElectron(true)
+  }, [])
 
   // Keep a reference to the opened customer display window so we don't re-open it
   const customerDisplayRef = useRef<Window | null>(null)
@@ -137,14 +144,36 @@ export default function HomePage() {
               Sign In to Get Started
             </Link>
             <p className="text-xs text-gray-400 mt-3">Employees — scan your ID card to clock in</p>
-            
+
+            {isElectron && (
+              <div className="flex items-center justify-center gap-4 mt-4 text-sm">
+                <button
+                  type="button"
+                  onClick={() => window.electron?.switchServer()}
+                  className="font-medium text-blue-600 hover:text-blue-500"
+                >
+                  Switch Server
+                </button>
+                <span className="text-gray-300">|</span>
+                <button
+                  type="button"
+                  onClick={() => setShowSwitchBusiness(true)}
+                  className="font-medium text-blue-600 hover:text-blue-500"
+                >
+                  Switch Business
+                </button>
+              </div>
+            )}
           </div>
-          
+
           <div className="text-sm text-secondary">
             Secure • Role-based Access • Multi-tenant
           </div>
         </div>
       </div>
+      {showSwitchBusiness && (
+        <SwitchBusinessModal onClose={() => setShowSwitchBusiness(false)} />
+      )}
     </div>
   )
 }

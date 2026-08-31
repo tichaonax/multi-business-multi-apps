@@ -21,6 +21,16 @@ contextBridge.exposeInMainWorld('electron', {
 
   getActiveServer: () => ipcRenderer.invoke('servers:getActive'),
 
+  // ── Device-level default business ─────────────────────────────────────────
+  getDefaultBusiness: () => ipcRenderer.invoke('business:getDefault'),
+
+  setDefaultBusiness: (pin, businessId, businessLabel) =>
+    ipcRenderer.invoke('business:setDefault', { pin, businessId, businessLabel }),
+
+  hasPin: () => ipcRenderer.invoke('pin:has'),
+
+  setPin: (pin) => ipcRenderer.invoke('pin:set', pin),
+
   // ── Scale API ──────────────────────────────────────────────────────────────
   scale: {
     listPorts: () => ipcRenderer.invoke('scale:list-ports'),
