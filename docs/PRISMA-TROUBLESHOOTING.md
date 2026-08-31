@@ -210,5 +210,5 @@ Contact support if:
 
 ## Additional Resources
 
-- [PRODUCTION-SETUP.md](./PRODUCTION-SETUP.md) - Production deployment guide
+- [ADMIN-INSTALLATION-GUIDE.md](../ADMIN-INSTALLATION-GUIDE.md) - Production deployment guide
 - [prisma-windows-locking-fix.md](./prisma-windows-locking-fix.md) - Technical details on Windows locking

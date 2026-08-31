@@ -508,7 +508,7 @@ npm run build:service
 
 ## Additional Resources
 
-- **Main Deployment Guide**: See `DEPLOYMENT.md` for full deployment workflow
+- **Main Deployment Guide**: See `ADMIN-INSTALLATION-GUIDE.md` for full deployment workflow
 - **Prisma Documentation**: https://www.prisma.io/docs
 - **Migration Reference**: https://www.prisma.io/docs/concepts/components/prisma-migrate
 - **Schema Reference**: https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference

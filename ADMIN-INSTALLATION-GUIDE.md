@@ -179,53 +179,89 @@ This runs:
 
 The app auto-detects HTTPS by checking the `certs/` folder for `.pem` files. If certs are present, the server starts on HTTPS; otherwise it falls back to HTTP.
 
-### Generating certificates (first time, on any machine with mkcert)
+**One shared certificate covers every server on the LAN** — generated once on a
+single "certificate authority" machine and copied out to each server. Only
+that one machine needs `mkcert` installed; every other server just receives
+the already-generated files.
 
-Certificates are generated once and copied to each server. They are **not** committed to git.
+### 6a. One-time setup — the certificate authority machine only
 
+Pick one machine to be the permanent cert authority (this only needs to be
+done once, ever — subsequent servers never repeat this step). `mkcert` isn't
+on the Node/Git installers used elsewhere in this guide, so download it
+directly rather than assuming Scoop/Chocolatey are available:
+
+1. Download the Windows binary from the
+   [mkcert releases page](https://github.com/FiloSottile/mkcert/releases) —
+   grab `mkcert-vX.Y.Z-windows-amd64.exe`.
+2. Rename it to `mkcert.exe` and place it somewhere on `PATH` (e.g.
+   `C:\mkcert\mkcert.exe`, then add `C:\mkcert` to your `PATH` environment
+   variable) — no installer, no admin rights needed for the binary itself.
+3. Install the local CA once:
+   ```bash
+   mkcert -install
+   ```
+4. In this repo, maintain the list of every server's IP in
+   `scripts/lan-server-ips.json`, then generate the shared certificate:
+   ```bash
+   npm run cert:generate
+   ```
+   This writes `certs/<ip>+N.pem` and `certs/<ip>+N-key.pem`, covering every
+   IP in that list plus `localhost`/`127.0.0.1`.
+
+> `openssl` (used only to verify a cert's coverage, in `install-server-cert.ps1`)
+> is **not** a separate install — it ships with Git for Windows, already a
+> prerequisite for every server per [§1](#1-prerequisites). No server other
+> than the cert-authority machine ever needs `mkcert` itself.
+
+### 6b. Adding or setting up a new server (do this on every other server)
+
+1. On the cert-authority machine, add the new server's IP and regenerate in
+   one step:
+   ```bash
+   npm run cert:generate -- --add <new-server-ip>
+   ```
+   (Existing servers are unaffected — they keep using their already-installed
+   cert with no changes.)
+2. Copy the two regenerated files (`certs/<ip>+N.pem` and
+   `certs/<ip>+N-key.pem`) to the new server — USB stick, shared folder, SCP;
+   the `certs/` folder is in `.gitignore`, so this is always a manual/out-of-band
+   transfer, never a `git pull`.
+3. On the new server, from the app root:
+   ```bash
+   npm run cert:install -- "<path containing the copied files>"
+   ```
+   This places the files in `certs/`, warns if the server's own IP wasn't
+   actually included in the certificate (the most common mistake — forgetting
+   step 1), and restarts the service for you.
+4. Confirm the service log shows `[Server] HTTPS enabled — certs loaded from ./certs/`.
+
+Every machine that opens the app in a browser also needs to trust the root
+CA once — that's covered separately in [§10](#10-client-machine-setup), since
+it's a one-time step per *client*, not per server.
+
+### 6c. Certificate renewal
+
+Check the current expiry:
 ```bash
-# Install mkcert (Windows, via Scoop or Chocolatey)
-scoop install mkcert
-# or
-choco install mkcert
-
-# Install the local CA
-mkcert -install
-
-# Generate cert covering your server IPs + localhost
-mkcert 192.168.0.108 192.168.1.211 localhost 127.0.0.1
+openssl x509 -noout -enddate -in certs/<name>+N.pem
 ```
 
-This creates two files (e.g. `192.168.0.108+3.pem` and `192.168.0.108+3-key.pem`) plus a `rootCA.pem` in the mkcert data directory.
+Renewing is the same as adding a server, minus changing the IP list:
 
-### Placing certificates on the server
-
-Copy the following into `certs/` in the app root (create the folder if it doesn't exist):
-
-```
-certs/
-  192.168.0.108+3.pem        ← SSL certificate
-  192.168.0.108+3-key.pem    ← Private key
-  rootCA.pem                 ← Root CA (for client trust)
-  setup-ssl.bat              ← One-click CA installer for client machines
-```
-
-> The `certs/` folder is in `.gitignore` — copy it manually (USB, shared folder, SCP).
-
-### Trusting the certificate on the server
-
-Run once on the server machine (so the server's own browser trusts it):
-
-```bash
-certs\setup-ssl.bat
-```
+1. On the cert-authority machine: `npm run cert:generate`
+2. Redistribute the regenerated `.pem` files to **every** server this time
+   (a renewal changes the file every existing server uses, unlike adding one
+   new server)
+3. Restart every server
+4. No client reinstallation needed — the root CA outlives any individual leaf certificate
 
 ### Update NEXTAUTH_URL
 
-After SSL is working, update `.env.local`:
+After SSL is working, update `.env.local` on that server to use its own IP:
 
 ```env
-NEXTAUTH_URL="https://192.168.0.108:8080"
+NEXTAUTH_URL="https://<this-server-ip>:8080"
 ```
 
 Restart the service after this change.
@@ -234,7 +270,7 @@ Restart the service after this change.
 
 ## 7. Windows Service Installation
 
-The app runs as a Windows service via `node-windows`. The service starts PostgreSQL → runs migrations → seeds reference data → starts the Next.js app.
+The app runs as a Windows service via `node-windows`. The service starts PostgreSQL → runs migrations → seeds reference data (including the default `admin@business.local` / `admin123` login — no separate step needed) → starts the Next.js app.
 
 ### Install (run as Administrator)
 
@@ -286,6 +322,15 @@ QZ Tray is a Java desktop app that lets the browser print to local/network print
 
 Download version **2.2.6** from [qz.io](https://qz.io/download/) and install on each machine that will print receipts. Start QZ Tray — it runs in the system tray.
 
+### First connection (before signing is set up)
+
+Without the signed-certificate setup below, QZ Tray shows an **Allow/Deny** popup the first time the app tries to print on each machine:
+1. Click **Allow**
+2. Check **"Remember this decision"**
+3. Done — future connections on that machine are automatic
+
+This is fine for a small number of machines; the signed-certificate setup below eliminates the popup entirely, which matters more as client machines scale up.
+
 ### Set up signed certificates (eliminates the Allow/Deny popup)
 
 > **How this differs from SSL certs:** The SSL `rootCA.pem` must be a physical file on the server. The QZ certificate is different — the server reads it from `.env.local` env vars, not from a file. Only client machines (where QZ Tray is installed) need the physical `qz-certificate.pem` file.
@@ -321,8 +366,7 @@ Copy `certs/qz-certificate.pem` to each machine where QZ Tray is installed (USB,
 
 ```bash
 npm run build
-npm run service:stop
-npm run service:start
+npm run service:restart
 ```
 
 From this point, QZ Tray will silently trust all print requests from the app — no more popups.
@@ -352,7 +396,7 @@ This creates a shortcut in `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Star
 ### Launch manually
 
 ```bash
-npm run electron
+npm run electron:start
 ```
 
 ### How Electron detects HTTPS
@@ -404,8 +448,7 @@ npm run db:deploy
 npm run build
 
 # 5. Restart the service
-npm run service:stop
-npm run service:start
+npm run service:restart
 ```
 
 > If only `server.ts` changed (no UI changes), you can skip the full build and just run `npm run build:server` then restart the service. The service will detect the code change and skip the Next.js rebuild automatically.
@@ -461,12 +504,29 @@ The server logs this on startup:
 Fix:
 1. Ensure `certs/` folder exists in the app root (`C:\Users\...\multi-business-multi-apps\certs\`)
 2. Ensure it contains both a `.pem` cert file and a `-key.pem` key file
-3. Ensure `dist/server.js` was compiled from the latest `server.ts` (run `npm run build:server`)
-4. Restart the service
+3. Ensure this server's own IP is actually in `scripts/lan-server-ips.json` and
+   was included when the certificate was generated — a cert loading fine but
+   still showing "not secure"/mismatch warnings usually means this, not a
+   missing-file problem. Re-run `npm run cert:install` — it warns explicitly
+   if the local IP isn't covered.
+4. Ensure `dist/server.js` was compiled from the latest `server.ts` (run `npm run build:server`)
+5. Restart the service
 
 ### QZ Tray popup appears every print job
 
 The `QZ_PRIVATE_KEY` and `QZ_CERTIFICATE` are not set in `.env.local`, or the cert hasn't been added to QZ Tray. Follow Section 8 fully.
+
+### QZ Tray popup not appearing at all
+
+Make sure the app is actually being accessed over HTTPS (QZ Tray's popup is triggered by the page, and won't fire from a plain `http://` origin), then refresh the printers page.
+
+### QZ Tray shows "connected" but can't list printers
+
+Click **Allow** on the QZ Tray popup and check **"Remember this decision"** — a dismissed or denied popup leaves QZ Tray connected at the socket level but unauthorized to enumerate printers.
+
+### Chrome/Edge shows "Not secure" despite certs being installed
+
+The root CA hasn't been trusted on *that specific client machine* yet — this is a per-client step, unrelated to whether the server's cert is correct. Run `certs\setup-ssl.bat` on that machine (see Section 10) and restart the browser.
 
 ### Electron shows ERR_TIMED_OUT
 
@@ -494,6 +554,9 @@ Old session cookies become invalid when `NEXTAUTH_SECRET` changes or the server 
 | `npm run build:server` | Compile server.ts only (fast) |
 | `npm run electron:install-startup` | Install/update Electron startup shortcut |
 | `npm run qz:generate-cert` | Generate QZ Tray signing certificate |
+| `npm run cert:generate` | Regenerate the shared LAN HTTPS certificate (cert-authority machine only) |
+| `npm run cert:generate -- --add <ip>` | Add a new server's IP and regenerate in one step |
+| `npm run cert:install -- <path>` | Install a copied certificate on this server and restart |
 
 ### Log file locations
 
@@ -527,8 +590,10 @@ npm run db:deploy
 # 6. Build
 npm run build
 
-# 7. Copy certs/ folder from another server or generate new ones
-#    Place cert + key .pem files in certs/ in the app root
+# 7. Get the shared HTTPS certificate onto this server (see Section 6)
+#    On the cert-authority machine: npm run cert:generate -- --add <this-server-ip>
+#    Copy the two regenerated certs/*.pem files here, then:
+npm run cert:install -- "<path to the copied files>"
 
 # 8. Install Windows service (Admin shell)
 npm run service:install
@@ -538,7 +603,7 @@ npm run service:start
 npm run qz:generate-cert
 # → add QZ_PRIVATE_KEY and QZ_CERTIFICATE to .env.local
 # → add certs/qz-certificate.pem to QZ Tray trusted list
-npm run service:stop && npm run service:start
+npm run service:restart
 
 # 10. Install Electron startup shortcut
 npm run electron:install-startup

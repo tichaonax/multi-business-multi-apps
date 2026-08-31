@@ -83,6 +83,6 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
 ## See Also
 
-- `DEPLOYMENT.md` - Full deployment documentation
+- `ADMIN-INSTALLATION-GUIDE.md` - Full deployment documentation
 - `scripts/install-git-hooks.js` - Hook installation script
 - `scripts/setup-after-pull.js` - Setup script called by hooks

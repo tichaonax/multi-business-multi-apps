@@ -70,7 +70,7 @@ npm run setup:update
 npm run service:restart  # As Administrator
 ```
 
-**📖 For complete deployment instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md)**
+**📖 For complete deployment instructions, see [ADMIN-INSTALLATION-GUIDE.md](./ADMIN-INSTALLATION-GUIDE.md)**
 
 ## Windows Service Commands
 
@@ -87,7 +87,7 @@ npm run service:diagnose    # Diagnose issues
 npm run service:uninstall   # Uninstall service
 ```
 
-**📖 For troubleshooting and advanced service management, see [DEPLOYMENT.md](./DEPLOYMENT.md)**
+**📖 For troubleshooting and advanced service management, see [ADMIN-INSTALLATION-GUIDE.md](./ADMIN-INSTALLATION-GUIDE.md)**
 
 ## Project Structure
 
@@ -145,7 +145,7 @@ node -e "console.log(require('crypto').randomBytes(8).toString('hex'))"
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-**📖 See [DEPLOYMENT.md](./DEPLOYMENT.md) for complete environment configuration guide**
+**📖 See [ADMIN-INSTALLATION-GUIDE.md](./ADMIN-INSTALLATION-GUIDE.md) for complete environment configuration guide**
 
 ## Available Scripts
 
@@ -176,7 +176,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 - `npm run db:migrate` - Create migration (development)
 - `npm run db:deploy` - Apply migrations (production)
 
-**📖 For complete command reference, see [DEPLOYMENT.md](./DEPLOYMENT.md)**
+**📖 For complete command reference, see [ADMIN-INSTALLATION-GUIDE.md](./ADMIN-INSTALLATION-GUIDE.md)**
 
 ## Module Overview
 
@@ -217,7 +217,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ## Documentation
 
 ### Deployment & Operations
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Complete deployment guide
+- **[ADMIN-INSTALLATION-GUIDE.md](./ADMIN-INSTALLATION-GUIDE.md)** - Complete deployment guide
   - Fresh installation workflow
   - Production updates
   - Windows service management
@@ -235,7 +235,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 - **[projectplan.md](./projectplan.md)** - Current project planning and implementation notes
 
 ### Getting Help
-- For deployment issues, see [DEPLOYMENT.md - Troubleshooting](./DEPLOYMENT.md#troubleshooting)
+- For deployment issues, see [ADMIN-INSTALLATION-GUIDE.md - Troubleshooting](./ADMIN-INSTALLATION-GUIDE.md#12-troubleshooting)
 - For Prisma/database issues, see [PRISMA_GUIDE.md](./PRISMA_GUIDE.md)
 - Check service logs: `logs/service.log` and `windows-service/daemon/service.log`
 

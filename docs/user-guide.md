@@ -4186,7 +4186,7 @@ Each physical R710 router is registered once in a global **Device Registry**, th
 > 2. Add it to the server's `.env` file as `ENCRYPTION_KEY=<the generated value>`.
 > 3. Restart the application server so it picks up the new environment variable.
 >
-> Once set, this never needs to be done again for that server — it's a one-time step per server install, not per device or per business. See `INSTALLATION.md` in the project repository for the full server setup checklist (this key is one of several required environment variables).
+> Once set, this never needs to be done again for that server — it's a one-time step per server install, not per device or per business. See `ADMIN-INSTALLATION-GUIDE.md` in the project repository for the full server setup checklist (this key is one of several required environment variables).
 
 **Editing a device** (e.g. the router's IP changed): open **R710 Portal → Devices**, click **Edit** on the device, update the fields, and save. If you change the IP or password, the system re-tests the connection before saving — this protects against typos, but it also means the save is blocked if the router is only temporarily unreachable (network issue, reboot, wrong subnet from the server). If a test-gated save fails and you're confident the value you entered is correct, a **"Save Anyway (Skip Test)"** option appears — use it only when you're sure, since it skips live verification. The device is marked "Disconnected" until the next successful test confirms it.
 

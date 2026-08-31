@@ -18,6 +18,8 @@
     "build": "prisma generate && cross-env NODE_OPTIONS=--max-old-space-size=8192 next build && npm run build:server",
     "build:server": "tsc --project tsconfig.server.json",
     "qz:generate-cert": "node scripts/generate-qz-cert.js",
+    "cert:generate": "node scripts/generate-server-cert.js",
+    "cert:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-server-cert.ps1",
     "postbuild": "node scripts/mark-build-complete.js && node scripts/build-agent.js",
     "postinstall": "node scripts/postinstall.js",
     "build:service": "node scripts/build-service.js",

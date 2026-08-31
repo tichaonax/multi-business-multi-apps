@@ -1,0 +1,9 @@
+{
+  "_comment": "Canonical list of LAN app servers covered by the shared HTTPS certificate (certs/*.pem). Add a new server's IP here — or just run 'npm run cert:generate -- --add <ip>', which does it for you — then regenerate and redistribute the cert. Every server that already has a cert signed by the same root CA (certs/rootCA.pem) keeps working after a regen; only the NEW server actually needs the freshly generated files.",
+  "ips": [
+    "192.168.8.166",
+    "192.168.8.109",
+    "192.168.1.211",
+    "192.168.1.212"
+  ]
+}

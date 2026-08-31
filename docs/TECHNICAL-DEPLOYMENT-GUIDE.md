@@ -2,7 +2,7 @@
 
 **Audience:** a system administrator comfortable with git, Node.js, PostgreSQL, and Windows Server administration, who has **not** worked with this codebase before. This document takes you from `git clone` to a running production server **and** covers what needs to happen on the individual workstations (POS terminals, printer/scale machines, remote sites) that connect to it.
 
-**Status:** this supersedes the scattered, partly stale deployment notes at the repo root (`DEPLOYMENT.md`, `INSTALLATION.md`, `SETUP.md`, `QUICK_DEPLOY.md`, `FRESH-INSTALL*.md`, `PRODUCTION-DEPLOYMENT-PROCEDURE.md`, etc.) for the core "get the server running" path. Those files haven't been deleted and may still hold useful historical context for specific past incidents, but where they disagree with this guide, **this guide reflects the actual current code** — every claim below was verified against the scripts and source, not just against prose in those files.
+**Status:** the repo's deployment documentation was consolidated down to two co-canonical files, each verified against the actual current code and scripts rather than carried forward from older prose. This file covers architecture, the full narrative walkthrough, workstation/agent/printer deep-dives, and troubleshooting playbooks. **`ADMIN-INSTALLATION-GUIDE.md`** covers the same install in step-by-step numbered-checklist form, plus SSL certificate setup and client-machine trust — the two cross-reference each other throughout and neither supersedes the other. The various older, single-purpose deployment/setup/fresh-install notes that used to sit at the repo root have been deleted (fully superseded, some actively wrong — e.g. a stale `.env` vs `.env.local` instruction) or archived to `ai-contexts/project-plans/completed/` (historical, ticket-specific incident writeups, not general install instructions).
 
 ---
 
@@ -88,7 +88,7 @@ These are enforced or required by code — the app will error or misbehave witho
 | `DATABASE_URL` | Yes | PostgreSQL connection string, read by Prisma | `postgresql://<user>:<password>@<host>:5432/<database>` |
 | `NEXTAUTH_SECRET` | Yes | Session/token signing secret for NextAuth (`src/lib/auth.ts`) | `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` |
 | `ENCRYPTION_KEY` ⚠️ | **Yes** | AES-256 key used to encrypt sensitive stored fields (e.g. device admin passwords) — `src/lib/encryption.ts` **throws on first use** if this is unset or not exactly 64 hex characters (32 bytes) | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
-| `QZ_PRIVATE_KEY` / `QZ_CERTIFICATE` ⚠️ | Only if using QZ Tray printing | Signing keypair for QZ Tray print requests — see the full walkthrough in §7.2 | `node scripts/generate-qz-cert.js` (requires `openssl` on PATH) — writes both values for you |
+| `QZ_PRIVATE_KEY` / `QZ_CERTIFICATE` ⚠️ | Only if using QZ Tray printing | Signing keypair for QZ Tray print requests — see the full walkthrough in §7.2 | `npm run qz:generate-cert` (requires `openssl` on PATH) — writes both values for you |
 
 > A missing `ENCRYPTION_KEY` is a real, previously-hit failure mode: it surfaces as a generic `500` error with `"Encryption failed: ENCRYPTION_KEY environment variable is not set"` the first time any code path touches an encrypted field (e.g. registering a remote R710 device). Set it before first boot, not after something breaks.
 
@@ -123,7 +123,7 @@ If you use the automated installer (§8.1) with a custom database name/user, set
 
 ## 5. Database setup
 
-You can do this manually (below) or via the automated installer (§8.1), which wraps the same steps. Manual steps, for full control:
+You can do this manually (below) or via the automated installer, `npm run install:full` (§8), which wraps the same steps. Manual steps, for full control:
 
 ### 5.1 Create the database and user
 
@@ -140,7 +140,7 @@ Put the resulting connection string in `.env.local` as `DATABASE_URL`.
 
 ```bash
 npm install
-npx prisma generate
+npm run db:generate   # equivalent to: npx prisma generate
 ```
 
 ### 5.3 Apply migrations
@@ -158,7 +158,8 @@ npm run db:deploy
 A migrated-but-unseeded database is **not usable** — dropdowns, ID-number templates, phone/date format templates, job titles, compensation/benefit types, business categories, and permission templates all come from seed data, not from the schema itself. Run:
 
 ```bash
-node scripts/production-setup.js --no-admin --ignore-missing-models
+npm run setup:production -- --no-admin --ignore-missing-models
+# equivalent to: node scripts/production-setup.js --no-admin --ignore-missing-models
 ```
 
 `--no-admin` is important here — see §5.5 for why.
@@ -168,7 +169,8 @@ Do **not** confuse this with the various `npm run seed:*` scripts (`seed:hardwar
 ### 5.5 Create the first admin user
 
 ```bash
-node scripts/create-admin.js
+npm run create-admin
+# equivalent to: node scripts/create-admin.js
 ```
 
 This creates:
@@ -257,6 +259,15 @@ mkcert -version
 
 #### Generating and installing the TLS certificate
 
+> **Prefer the scripted path** (`npm run cert:generate` / `npm run cert:install`,
+> documented in `ADMIN-INSTALLATION-GUIDE.md` §6) over the manual
+> commands below — it maintains the server IP list in
+> `scripts/lan-server-ips.json`, always copies the correct current
+> `rootCA.pem` from `mkcert -CAROOT` (avoiding the second ⚠️ below entirely),
+> and warns if a server's own IP isn't actually covered. The manual steps
+> here remain as the underlying mechanism and for troubleshooting when
+> something's gone wrong.
+
 ```bash
 # on the machine running the server, or anywhere with mkcert installed
 mkcert -install                      # only needed once per machine, sets up mkcert's local root CA
@@ -294,7 +305,8 @@ By default, QZ Tray shows the operator a trust popup on every single print job u
 **On the server**, one-time:
 
 ```bash
-node scripts/generate-qz-cert.js
+npm run qz:generate-cert
+# equivalent to: node scripts/generate-qz-cert.js
 ```
 
 This requires `openssl` on PATH (see §2) and:
@@ -302,7 +314,7 @@ This requires `openssl` on PATH (see §2) and:
 1. Generates a 2048-bit RSA key pair and a self-signed certificate (10-year validity) with `openssl`.
 2. Writes the public certificate to `certs/qz-certificate.pem`.
 3. Prints two lines to the console — `QZ_PRIVATE_KEY=...` and `QZ_CERTIFICATE=...` (both base64-encoded) — **copy both into `.env.local`**. These are what the server uses to sign every print request it sends to a workstation's QZ Tray.
-4. Restart the server (or the Windows Service — `npm run service:stop && npm run service:start`) so it picks up the new env vars.
+4. Restart the server (or the Windows Service — `npm run service:restart`) so it picks up the new env vars.
 
 At this point the server is signing its requests, but no workstation trusts the certificate yet — that half of the setup is per-workstation and covered in §10.2.
 
@@ -368,9 +380,11 @@ Practical implication: with this service installed, a normal deployment update i
 
 ```bash
 git pull
-# no need to manually rebuild or restart — restart the Windows service
-# (Services console, or: net stop MultiBusinessSyncService && net start MultiBusinessSyncService)
-# the wrapper detects the new commit and rebuilds automatically on that start
+npm run service:restart
+# no need to manually rebuild first — the wrapper detects the new commit
+# and rebuilds automatically on that start.
+# (equivalent manual form: open the Services console, or
+#  net stop MultiBusinessSyncService && net start MultiBusinessSyncService)
 ```
 
 **Prerequisites for this step:**
@@ -389,6 +403,52 @@ There's no equivalent of §8.2's auto-rebuilding wrapper. Run the plain systemd 
 - **No reverse proxy config is checked into this repo** — no nginx, IIS, Caddy, or similar. If you want one in front of the app (for a stable hostname, additional TLS termination, rate limiting, etc.), that setup is entirely up to you; the app has no expectations about being behind one.
 - `CORS_ORIGINS` (§4.3) needs to include whatever origin(s) the app is actually accessed from — the shipped default only covers `localhost`, `127.0.0.1`, and the `192.168.0.0/16` / `10.0.0.0/8` private ranges.
 - Tailscale, if you see it mentioned anywhere in ops discussion for this project, is an operational choice for a specific site's remote access — it is not referenced anywhere in the application code or install scripts and is not a deployment requirement.
+
+### 9.1 Firewall ports for the peer-to-peer sync service
+
+Each server also runs a peer discovery/sync service alongside the main app (§8.2/8.3), which needs its own inbound firewall rules — separate from the app's own port 8080:
+
+| Port | Protocol | Purpose |
+|---|---|---|
+| `SYNC_PORT` (default **8765**) | TCP | Sync data transfer between peer servers |
+| **5353** | UDP | mDNS peer discovery (multicast) |
+
+**Automated (PowerShell, as Administrator):**
+```powershell
+New-NetFirewallRule -DisplayName "Multi-Business Sync Service" -Direction Inbound -Protocol TCP -LocalPort 8765 -Action Allow
+New-NetFirewallRule -DisplayName "Multi-Business Sync Discovery" -Direction Inbound -Protocol UDP -LocalPort 5353 -Action Allow
+```
+
+**Manual (Windows Defender Firewall with Advanced Security):**
+1. **Inbound Rules** → **New Rule** → **Rule Type: Port**
+2. **Protocol**: TCP, **Specific local ports**: `8765` → Allow → all profiles → name it "Multi-Business Sync Service"
+3. Repeat for **UDP** port `5353`, named "Multi-Business Sync Discovery"
+
+**Verify from another machine on the LAN:**
+```powershell
+Test-NetConnection -ComputerName <this-server-ip> -Port 8765
+```
+
+### 9.2 Initial Load — syncing an existing server's data to a brand-new one
+
+If a new server should start with a copy of an **existing** server's data (rather than a fresh empty database, or a manually restored `pg_dump`), the sync service has a built-in one-way transfer for exactly this — separate from its normal ongoing peer-to-peer sync, and **never triggered automatically** by deployment, a `git pull`, or a service restart.
+
+**Deploy the new (target) server first, as a completely normal fresh install** (§2–§8) — empty database, migrated and seeded, service running. Do not run Initial Load until the target is actually up and reachable.
+
+**Then, from the Admin UI on the SOURCE server** (the one that already has the data):
+1. Open `http://localhost:8080/admin/sync`
+2. Click the **Initial Load** tab
+3. Select the target peer from the list
+4. Click **Start Initial Load** and monitor progress in real time
+
+Advanced/scripted equivalent — `POST` to the source server's own API:
+```bash
+curl -X POST http://localhost:8080/api/admin/sync/initial-load \
+  -H "Content-Type: application/json" \
+  -d '{"action": "initiate", "targetPeer": {"nodeId": "<target-node-id>", "ipAddress": "<target-ip>"}}'
+```
+
+**Common mistake:** triggering this as part of a deployment script (`git pull && npm run service:restart && curl .../initial-load`) — always deploy, verify the target is actually up, *then* trigger the load as a separate manual step from the source.
 
 ---
 
@@ -806,7 +866,7 @@ wraps `scripts/backup-database.js`. There isn't a separate, dedicated backup/res
 - [ ] `NEXTAUTH_SECRET` set to a real generated value, not the placeholder in `.env.example`
 - [ ] Logged in as `admin@business.local` and **changed the default password**
 - [ ] `npm run db:deploy` completed with no errors (453+ migrations applied)
-- [ ] `node scripts/production-setup.js --no-admin --ignore-missing-models` completed (reference data seeded)
+- [ ] `npm run setup:production -- --no-admin --ignore-missing-models` completed (reference data seeded)
 - [ ] `npm run build` completed, `dist/server.js` and `.next/BUILD_ID` both exist
 - [ ] Decided TLS vs HTTP (§7.1) and, if TLS, confirmed the `HTTPS enabled` log line
 - [ ] If using QZ Tray anywhere: generated the server's own QZ signing certificate (§7.2) rather than relying on QZ's demo cert long-term
