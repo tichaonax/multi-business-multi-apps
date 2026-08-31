@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('electron', {
 
   getActiveServer: () => ipcRenderer.invoke('servers:getActive'),
 
+  getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
+
   // ── Device-level default business ─────────────────────────────────────────
   getDefaultBusiness: () => ipcRenderer.invoke('business:getDefault'),
 

@@ -45,6 +45,7 @@ export interface ElectronAPI {
   quit: () => void
   switchServer: () => Promise<boolean>
   getActiveServer: () => Promise<ActiveServer | null>
+  getAppVersion: () => Promise<string>
   getDefaultBusiness: () => Promise<DefaultBusiness | null>
   setDefaultBusiness: (pin: string, businessId: string, businessLabel: string) => Promise<SetDefaultBusinessResult>
   hasPin: () => Promise<boolean>

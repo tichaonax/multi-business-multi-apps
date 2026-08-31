@@ -459,6 +459,14 @@ ipcMain.handle('servers:switchTo', async (_e, id) => {
 // not just the id, so the label/host are available without a second lookup.
 ipcMain.handle('servers:getActive', () => (activeServerId ? registry.get(activeServerId) : null))
 
+// Lets the renderer show which build of this kiosk shell is installed —
+// same "surface it before login, don't make someone dig for it" idea as the
+// server indicator above, so an operator can tell at a glance whether this
+// machine is behind the server's expected version (see
+// /api/public/electron/latest-version, which reads electron/package.json
+// the same way the r710-agent update check reads its own).
+ipcMain.handle('app:getVersion', () => app.getVersion())
+
 ipcMain.handle('servers:getOpenContext', () => {
   const ctx = pendingOpenContext
   pendingOpenContext = null

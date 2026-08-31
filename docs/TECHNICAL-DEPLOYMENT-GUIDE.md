@@ -578,6 +578,8 @@ The server this kiosk is currently connected to is highlighted blue in the list 
 
 **Every later launch automatically reopens whichever server was used last** — the picker only reappears if that server can't be reached (with the failure and its registered support-contact number shown right there), if it's been removed, or if you explicitly switch back to it.
 
+**Kiosk shell version:** the landing and sign-in screens show a small badge — "Connected to: \<server\> · v\<version\>" — naming the installed build of this kiosk shell (`electron/package.json`'s version), so an operator can tell at a glance without opening any menu. It turns amber with an "update available" tag if this install is older than what the connected server's own checkout currently expects (read from that server's own `electron/package.json` — same idea as the r710-agent's own update check in §11).
+
 #### 10.5.2 Troubleshooting
 
 | Problem | Likely cause / fix |
