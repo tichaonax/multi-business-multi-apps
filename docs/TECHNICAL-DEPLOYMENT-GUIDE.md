@@ -580,6 +580,8 @@ The server this kiosk is currently connected to is highlighted blue in the list 
 
 **Kiosk shell version:** the landing and sign-in screens show a small badge — "Connected to: \<server\> · v\<version\>" — naming the installed build of this kiosk shell (`electron/package.json`'s version), so an operator can tell at a glance without opening any menu. It turns amber with an "update available" tag if this install is older than what the connected server's own checkout currently expects (read from that server's own `electron/package.json` — same idea as the r710-agent's own update check in §11).
 
+**On every launch (and every server switch)**, a brief "Connecting to \<server\>…" spinner screen shows while the app reaches out to that server — this can take a little while against a slow connection, and considerably longer if the server has actually gone unreachable (there's no engineered timeout; it's whatever the OS's own network stack takes to give up). The spinner is there so that wait reads as "still connecting," not "the app has hung" — if the connection does eventually fail, the picker reopens with the failure banner as described above.
+
 #### 10.5.2 Troubleshooting
 
 | Problem | Likely cause / fix |

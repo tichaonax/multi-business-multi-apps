@@ -220,7 +220,22 @@ async function openServer(serverEntry) {
     console.log(`[Renderer:${levelName}] ${message} (${sourceId}:${line})`)
   })
 
-  mainWindow.loadURL(`${serverEntry.url}/`)
+  // Show a local "Connecting…" spinner immediately — the loadURL() below can
+  // take a while, or time out entirely, against a slow or unreachable
+  // server, and without this the window just sits on its blank default
+  // background the whole time, which reads as "the app has hung" rather
+  // than "still connecting" (see handleServerLoadFailure below for what
+  // happens once it actually does time out). Chromium keeps this page
+  // visible until the real one is ready to replace it, so there's no flash
+  // back to blank in between. .catch() swallows the (essentially
+  // impossible) case of this bundled local file itself failing to load —
+  // either way, move on to the real target.
+  mainWindow
+    .loadFile(path.join(__dirname, 'renderer', 'loading.html'), { query: { label: serverEntry.label } })
+    .catch(() => {})
+    .then(() => {
+      mainWindow?.loadURL(`${serverEntry.url}/`)
+    })
 
   mainWindow.on('close', (event) => {
     if (app.isQuitting) return
