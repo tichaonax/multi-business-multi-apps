@@ -26,6 +26,7 @@ function defaultData() {
     pinSalt: null,
     lastUsedServerId: null,
     servers: [],
+    theme: null,
   }
 }
 
@@ -127,6 +128,24 @@ function setCertFingerprint(id, fingerprint) {
   }
 }
 
+// Device-wide light/dark preference — deliberately stored here rather than
+// relying solely on the web app's own localStorage. Each server's window
+// runs in a non-persistent session partition (see main.js's
+// partitionNameFor) so cookies/login never survive an app restart, by
+// design — but that same in-memory storage also holds localStorage, so a
+// display preference like theme was getting wiped along with it on every
+// restart. This gives theme a home outside that per-session storage, same
+// idea as the PIN and the default-business setting above.
+function getTheme() {
+  return load().theme
+}
+
+function setTheme(theme) {
+  const data = load()
+  data.theme = theme
+  save(data)
+}
+
 // ── PIN (add/remove gate) ───────────────────────────────────────────────
 // Deliberately a light deterrent, not a strong security boundary — see the
 // design discussion this shipped from. Anyone with real file access to this
@@ -183,6 +202,8 @@ module.exports = {
   setLastUsed,
   getLastUsed,
   setDefaultBusiness,
+  getTheme,
+  setTheme,
   setCertFingerprint,
   hasPin,
   setPin,

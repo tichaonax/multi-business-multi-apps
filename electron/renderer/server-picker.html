@@ -33,6 +33,15 @@
     color: #f59e0b; border: 1px solid #f59e0b; border-radius: 999px; padding: 1px 8px;
     vertical-align: middle;
   }
+  /* Marks the row this workstation is already connected to — its "Connect"
+     button is disabled below since reconnecting to yourself is a no-op, and
+     the highlight doubles as an at-a-glance "you are here". */
+  .server-row-active { border-left-color: #2563eb; background: rgba(37, 99, 235, 0.12); }
+  .server-row-active .server-name::after {
+    content: 'Connected'; margin-left: 8px; font-size: 11px; font-weight: 600;
+    color: #60a5fa; border: 1px solid #2563eb; border-radius: 999px; padding: 1px 8px;
+    vertical-align: middle;
+  }
   .server-info { flex: 1; min-width: 0; }
   .server-name { font-weight: 600; font-size: 15px; }
   .server-meta { color: #94a3b8; font-size: 12px; margin-top: 2px; }
@@ -168,6 +177,7 @@
 <script>
   let servers = []
   let failedServerId = null // id of the server the last connection attempt failed on, if any — see refreshServerList()
+  let activeServerId = null // id of the server this workstation is currently connected to, if any — see refreshServerList()
   let lastPassedTest = null // { url, certFingerprint, formSnapshot }
   let pendingCertTrust = null // certInfo from a failed test, awaiting confirm/cancel
 
@@ -193,8 +203,13 @@
     list.innerHTML = ''
     el('emptyState').classList.toggle('hidden', servers.length > 0)
     for (const s of servers) {
+      const isActive = s.id === activeServerId
       const row = document.createElement('div')
-      row.className = s.id === failedServerId ? 'server-row server-row-error' : 'server-row'
+      row.className = isActive
+        ? 'server-row server-row-active'
+        : s.id === failedServerId
+        ? 'server-row server-row-error'
+        : 'server-row'
       row.style.marginBottom = '10px'
       row.innerHTML = `
         <div class="server-info">
@@ -202,13 +217,13 @@
           ${s.supportContact ? `<div class="server-meta">Support: ${escapeHtml(s.supportContact)}</div>` : ''}
         </div>
         <div class="row-actions">
-          <button class="btn-primary" data-connect="${s.id}">Connect</button>
+          <button class="btn-primary" data-connect="${s.id}" ${isActive ? 'disabled' : ''}>${isActive ? 'Connected' : 'Connect'}</button>
           <button class="btn-danger" data-remove="${s.id}" title="Remove">Remove</button>
         </div>
       `
       list.appendChild(row)
     }
-    list.querySelectorAll('[data-connect]').forEach((btn) => {
+    list.querySelectorAll('[data-connect]:not(:disabled)').forEach((btn) => {
       btn.addEventListener('click', () => window.pickerAPI.switchTo(btn.dataset.connect))
     })
     list.querySelectorAll('[data-remove]').forEach((btn) => {
@@ -225,6 +240,7 @@
   async function removeServer(id) {
     await window.pickerAPI.removeServer(id, currentPin)
     currentPin = null
+    if (id === activeServerId) activeServerId = null
     refreshServerList()
   }
 
@@ -404,6 +420,8 @@
 
   // ── Failure banner (opened because the last-used server failed to load) ─
   async function init() {
+    const active = await window.pickerAPI.getActiveServer()
+    activeServerId = active ? active.id : null
     const ctx = await window.pickerAPI.getOpenContext()
     if (ctx && ctx.failure) {
       const f = ctx.failure

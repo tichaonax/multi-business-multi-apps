@@ -31,6 +31,11 @@ contextBridge.exposeInMainWorld('electron', {
 
   setPin: (pin) => ipcRenderer.invoke('pin:set', pin),
 
+  // ── Device-level theme preference (survives app restarts; see main.js) ──
+  getTheme: () => ipcRenderer.invoke('theme:get'),
+
+  setTheme: (theme) => ipcRenderer.invoke('theme:set', theme),
+
   // ── Scale API ──────────────────────────────────────────────────────────────
   scale: {
     listPorts: () => ipcRenderer.invoke('scale:list-ports'),

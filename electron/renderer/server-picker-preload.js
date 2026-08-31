@@ -10,4 +10,5 @@ contextBridge.exposeInMainWorld('pickerAPI', {
   removeServer: (id, pin) => ipcRenderer.invoke('servers:remove', { id, pin }),
   switchTo: (id) => ipcRenderer.invoke('servers:switchTo', id),
   getOpenContext: () => ipcRenderer.invoke('servers:getOpenContext'),
+  getActiveServer: () => ipcRenderer.invoke('servers:getActive'),
 })

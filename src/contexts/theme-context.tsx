@@ -37,6 +37,25 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     return initialTheme
   })
 
+  // Electron's per-server window runs a deliberately non-persistent session
+  // partition (see electron/main.js's partitionNameFor) so login never
+  // survives an app restart — but that wipes the *entire* in-memory
+  // storage for that partition, localStorage included, taking the theme
+  // choice down with it even though it has nothing to do with login. If
+  // localStorage came up empty (a fresh post-restart session) and this is
+  // Electron, fall back to the device-level copy kept outside that session
+  // in electron-store (see electron/server-registry.js's getTheme/setTheme)
+  // instead of silently reverting to 'system'.
+  useEffect(() => {
+    if (!window.electron || localStorage.getItem('theme')) return
+    window.electron.getTheme().then((stored) => {
+      if (stored && ['light', 'dark', 'system'].includes(stored)) {
+        setThemeState(stored)
+        localStorage.setItem('theme', stored)
+      }
+    })
+  }, [])
+
   // Update resolved theme based on system preference and current theme
   useEffect(() => {
     const updateResolvedTheme = () => {
@@ -75,6 +94,9 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme)
     localStorage.setItem('theme', newTheme)
+    // Also persist outside the session's own storage so it survives an
+    // Electron app restart — see the effect above for why that's needed.
+    window.electron?.setTheme(newTheme)
   }
 
   return (

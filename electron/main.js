@@ -157,6 +157,15 @@ async function openServer(serverEntry) {
     fullscreen: false,
   })
 
+  // Windows only auto-hides the taskbar for a window it considers truly
+  // "maximized" (win32 IsZoomed) — a window merely *sized* to the display's
+  // full bounds (above) doesn't count, even though it visually fills the
+  // screen, so an auto-hide taskbar stays stuck on-screen over it. Explicitly
+  // maximizing also has the taskbar's own on/off state size the window
+  // correctly (full bounds when auto-hide is on, workArea when it's off)
+  // without this app needing to track that setting itself.
+  mainWindow.maximize()
+
   let loadFailed = false
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     // Only the top-level page navigation counts — a failed sub-resource
@@ -453,6 +462,19 @@ ipcMain.handle('servers:showPicker', () => {
 // with the same admin PIN used for add/remove server — switching *to* an
 // already-registered server stays unrestricted (see servers:switchTo above),
 // but changing what this device defaults into is deliberately not.
+
+// ─── IPC Handlers — device-level theme preference ──────────────────────────
+// Backs up the web app's light/dark choice outside the per-server session
+// partition, which is deliberately non-persistent (see partitionNameFor) —
+// without this, the theme stored in that session's localStorage would be
+// wiped on every app restart right along with the login it's non-persistent
+// for. Unrestricted, unlike add/remove server or the default-business
+// setting — a display preference isn't something that needs PIN protection.
+ipcMain.handle('theme:get', () => registry.getTheme())
+ipcMain.handle('theme:set', (_e, theme) => {
+  registry.setTheme(theme)
+  return true
+})
 
 ipcMain.handle('business:getDefault', () => {
   if (!activeServerId) return null

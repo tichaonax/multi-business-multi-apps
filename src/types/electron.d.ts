@@ -49,6 +49,8 @@ export interface ElectronAPI {
   setDefaultBusiness: (pin: string, businessId: string, businessLabel: string) => Promise<SetDefaultBusinessResult>
   hasPin: () => Promise<boolean>
   setPin: (pin: string) => Promise<boolean>
+  getTheme: () => Promise<'light' | 'dark' | 'system' | null>
+  setTheme: (theme: 'light' | 'dark' | 'system') => Promise<boolean>
   scale: {
     listPorts: () => Promise<ComPort[]>
     getSavedPort: () => Promise<string | null>

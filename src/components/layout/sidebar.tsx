@@ -422,7 +422,7 @@ export function Sidebar() {
   const getLinkClasses = (href: string): string => {
     const baseClasses = "sidebar-link flex items-center space-x-3"
     const activeClasses = "bg-blue-600 text-white border-l-4 border-blue-400"
-    const inactiveClasses = "text-gray-300 hover:text-white hover:bg-gray-800"
+    const inactiveClasses = "text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800"
 
     return isActiveLink(href)
       ? `${baseClasses} ${activeClasses}`
@@ -595,19 +595,19 @@ export function Sidebar() {
   }
 
   return (
-    <div className="w-full h-full bg-gray-900 text-white flex flex-col shadow-xl">
-      <div className="p-4 xl:p-6 border-b border-gray-700">
-        <h1 className="text-xl xl:text-2xl font-bold text-blue-400">Business Hub</h1>
-        <p className="text-xs xl:text-sm text-gray-400 mt-1">Multi-Platform Management</p>
+    <div className="w-full h-full bg-white dark:bg-gray-900 text-gray-900 dark:text-white flex flex-col shadow-xl">
+      <div className="p-4 xl:p-6 border-b border-gray-200 dark:border-gray-700">
+        <h1 className="text-xl xl:text-2xl font-bold text-blue-600 dark:text-blue-400">Business Hub</h1>
+        <p className="text-xs xl:text-sm text-gray-500 dark:text-gray-400 mt-1">Multi-Platform Management</p>
         {currentBusiness && (
-          <div className="mt-3 p-2 bg-gray-800 rounded-lg">
-            <p className="text-xs text-gray-400">Current Business:</p>
-            <p className="text-sm text-white font-medium truncate">{currentBusiness.businessName}</p>
+          <div className="mt-3 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Current Business:</p>
+            <p className="text-sm text-gray-900 dark:text-white font-medium truncate">{currentBusiness.businessName}</p>
           </div>
         )}
       </div>
       
-  <nav className="flex-1 p-4 space-y-1 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent pr-2 max-h-[calc(100vh-4rem)]">
+  <nav className="flex-1 p-4 space-y-1 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent pr-2 max-h-[calc(100vh-4rem)]">
         <Link
           href="/dashboard"
           className="sidebar-link flex items-center space-x-3"
@@ -631,7 +631,7 @@ export function Sidebar() {
         {businessGroups.length > 0 && (
           <>
             <div className="pt-4 pb-2">
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Business Types</h3>
+              <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Business Types</h3>
             </div>
 
             {businessGroups.map((group) => (
@@ -639,12 +639,12 @@ export function Sidebar() {
                 {/* Business Type Header - Collapsible */}
                 <button
                   onClick={() => toggleBusinessType(group.type)}
-                  className="w-full sidebar-link flex items-center space-x-3 justify-between hover:bg-gray-800 transition-colors"
+                  className="w-full sidebar-link flex items-center space-x-3 justify-between hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
                 >
                   <div className="flex items-center space-x-3">
                     <span className="text-lg">{group.icon}</span>
                     <span>{getBusinessTypeName(group.type)}</span>
-                    <span className="text-xs text-gray-400">({group.businesses.length})</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">({group.businesses.length})</span>
                     {/* Cart indicator on collapsed business type — shows when any business in group has items in cart */}
                     {!expandedBusinessTypes.has(group.type) && group.businesses.some(b =>
                       (b.id === currentBusinessId ? getGlobalCartCount() : (businessCartCounts[b.id] || 0)) > 0
@@ -652,7 +652,7 @@ export function Sidebar() {
                       <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
                     )}
                   </div>
-                  <span className="text-sm text-gray-400">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
                     {expandedBusinessTypes.has(group.type) ? '▼' : '▶'}
                   </span>
                 </button>
@@ -667,7 +667,7 @@ export function Sidebar() {
                         className={`w-full text-left text-sm px-3 py-2 rounded transition-colors relative ${
                           currentBusiness?.businessId === business.id
                             ? 'bg-blue-600 text-white'
-                            : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
                         }`}
                       >
                         <div className="flex items-center justify-between">
@@ -688,7 +688,7 @@ export function Sidebar() {
                             </div>
                             {/* Show business type badge for "Other" category */}
                             {group.type === 'other' && (
-                              <span className="text-xs text-gray-400 capitalize">
+                              <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
                                 {getBusinessTypeIcon(business.type)} {getBusinessTypeName(business.type)}
                               </span>
                             )}
@@ -707,7 +707,7 @@ export function Sidebar() {
         )}
 
         {loadingBusinesses && (
-          <div className="text-gray-400 text-sm px-3 py-2">
+          <div className="text-gray-500 dark:text-gray-400 text-sm px-3 py-2">
             Loading businesses...
           </div>
         )}
@@ -720,10 +720,10 @@ export function Sidebar() {
               onClick={() => setBusinessSectionExpanded(prev => !prev)}
               className="w-full flex items-center justify-between pt-4 pb-2 text-left"
             >
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 {currentBusiness.businessName}
               </h3>
-              <span className="text-gray-400 text-xs">{businessSectionExpanded ? '▼' : '▶'}</span>
+              <span className="text-gray-500 dark:text-gray-400 text-xs">{businessSectionExpanded ? '▼' : '▶'}</span>
             </button>
 
             {businessSectionExpanded && (<>
@@ -735,7 +735,7 @@ export function Sidebar() {
                   <span>POS System</span>
                 </Link>
                 {(isSystemAdmin(currentUser) || hasPermission('canViewDeliveryQueue')) && (
-                  <Link href="/restaurant/delivery" className={pathname === '/restaurant/delivery' ? 'sidebar-link flex items-center space-x-3 bg-blue-600 text-white border-l-4 border-blue-400' : 'sidebar-link flex items-center space-x-3 text-gray-300 hover:text-white hover:bg-gray-800'}>
+                  <Link href="/restaurant/delivery" className={pathname === '/restaurant/delivery' ? 'sidebar-link flex items-center space-x-3 bg-blue-600 text-white border-l-4 border-blue-400' : 'sidebar-link flex items-center space-x-3 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800'}>
                     <span className="text-lg">🛵</span>
                     <span>Delivery Orders</span>
                   </Link>
@@ -1276,7 +1276,7 @@ export function Sidebar() {
                   <span className="text-lg">⚙️</span>
                   <span>Business Settings</span>
                 </Link>
-                <div className="px-3 py-2 text-xs text-gray-400">
+                <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
                   <div className="flex items-center gap-2 mb-2">
                     <span>{getBusinessTypeIcon(currentBusiness.businessType)}</span>
                     <span className="capitalize">{getBusinessTypeName(currentBusiness.businessType)} Business</span>
@@ -1501,8 +1501,8 @@ export function Sidebar() {
           onClick={() => setFinanceOpsSectionExpanded(prev => !prev)}
           className="w-full flex items-center justify-between pt-4 pb-2 text-left"
         >
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Finance &amp; Operations</h3>
-          <span className="text-gray-400 text-xs">{financeOpsSectionExpanded ? '▼' : '▶'}</span>
+          <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Finance &amp; Operations</h3>
+          <span className="text-gray-500 dark:text-gray-400 text-xs">{financeOpsSectionExpanded ? '▼' : '▶'}</span>
         </button>
           )
         })()}
@@ -1600,7 +1600,7 @@ export function Sidebar() {
                 {(isSystemAdmin(currentUser) || hasPermission('canMakePayrollDeposits')) && (
                   <Link
                     href="/payroll/account/deposits"
-                    className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                    className="text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
                   >
                     <span>💸</span>
                     <span>Deposits</span>
@@ -1611,7 +1611,7 @@ export function Sidebar() {
                   <>
                     <Link
                       href="/payroll/account/payments"
-                      className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                      className="text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
                     >
                       <span>💳</span>
                       <span>Batch Payments</span>
@@ -1619,7 +1619,7 @@ export function Sidebar() {
 
                     <Link
                       href="/payroll/account/payments/advance"
-                      className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                      className="text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
                     >
                       <span>⚡</span>
                       <span>Salary Advance</span>
@@ -1630,7 +1630,7 @@ export function Sidebar() {
                 {(isSystemAdmin(currentUser) || hasPermission('canViewPayrollHistory')) && (
                   <Link
                     href="/payroll/account/payments/history"
-                    className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                    className="text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
                   >
                     <span>📜</span>
                     <span>Payment History</span>
@@ -1674,7 +1674,7 @@ export function Sidebar() {
                 {hasPermission('canCreateExpenseAccount') && (
                   <Link
                     href="/expense-accounts/new"
-                    className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                    className="text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
                   >
                     <span>➕</span>
                     <span>Create Account</span>
@@ -1684,7 +1684,7 @@ export function Sidebar() {
                 {hasPermission('canViewExpenseReports') && (
                   <Link
                     href="/expense-accounts/lenders"
-                    className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                    className="text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
                   >
                     <span>🏦</span>
                     <span>Lenders</span>
@@ -1694,7 +1694,7 @@ export function Sidebar() {
                 {(isSystemAdmin(currentUser) || hasPermission('canAccessExpenseAccount')) && (
                   <Link
                     href="/expense-accounts/auto-deposits"
-                    className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                    className="text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
                   >
                     <span>💳</span>
                     <span>EOD Auto-Deposits</span>
@@ -1704,7 +1704,7 @@ export function Sidebar() {
                 {(isSystemAdmin(currentUser) || hasPermission('canSubmitPaymentBatch')) && (
                   <Link
                     href="/expense-accounts/payment-batches"
-                    className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                    className="text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
                   >
                     <span>📋</span>
                     <span>Payment Batches</span>
@@ -1719,7 +1719,7 @@ export function Sidebar() {
                 {(isSystemAdmin(currentUser) || hasPermission('canSubmitPaymentBatch')) && (
                   <Link
                     href="/cash-bucket"
-                    className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                    className="text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
                   >
                     <span>🪣</span>
                     <span>Cash Bucket</span>
@@ -1729,7 +1729,7 @@ export function Sidebar() {
                 {(isSystemAdmin(currentUser) || hasPermission('canViewCashBucketReport')) && (
                   <Link
                     href="/cash-bucket/report"
-                    className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                    className="text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
                   >
                     <span>📊</span>
                     <span>Cash Bucket Report</span>
@@ -1740,63 +1740,63 @@ export function Sidebar() {
                   <>
                     <Link
                       href="/expense-accounts/reports"
-                      className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                      className="text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
                     >
                       <span>📊</span>
                       <span>Reports Hub</span>
                     </Link>
                     <Link
                       href="/expense-accounts/reports/accounts-overview"
-                      className="text-xs text-gray-400 hover:text-white hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
+                      className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
                     >
                       <span>🏦</span>
                       <span>Accounts Overview</span>
                     </Link>
                     <Link
                       href="/expense-accounts/reports/loans"
-                      className="text-xs text-gray-400 hover:text-white hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
+                      className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
                     >
                       <span>💼</span>
                       <span>Loan Portfolio</span>
                     </Link>
                     <Link
                       href="/expense-accounts/reports/categories"
-                      className="text-xs text-gray-400 hover:text-white hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
+                      className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
                     >
                       <span>🏷️</span>
                       <span>Category Analysis</span>
                     </Link>
                     <Link
                       href="/expense-accounts/reports/payees"
-                      className="text-xs text-gray-400 hover:text-white hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
+                      className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
                     >
                       <span>👥</span>
                       <span>Payee Analysis</span>
                     </Link>
                     <Link
                       href="/expense-accounts/reports/trends"
-                      className="text-xs text-gray-400 hover:text-white hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
+                      className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
                     >
                       <span>📈</span>
                       <span>Monthly Trends</span>
                     </Link>
                     <Link
                       href="/expense-accounts/reports/transfers"
-                      className="text-xs text-gray-400 hover:text-white hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
+                      className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
                     >
                       <span>🔄</span>
                       <span>Transfer Report</span>
                     </Link>
                     <Link
                       href="/expense-accounts/reports/payee-history"
-                      className="text-xs text-gray-400 hover:text-white hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
+                      className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
                     >
                       <span>🧾</span>
                       <span>Payee History</span>
                     </Link>
                     <Link
                       href="/expense-accounts/reports/payee-insights"
-                      className="text-xs text-gray-400 hover:text-white hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
+                      className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
                     >
                       <span>📊</span>
                       <span>Payee Insights</span>
@@ -1807,7 +1807,7 @@ export function Sidebar() {
                 {hasTransferrableAccounts && (
                   <Link
                     href="/expense-accounts/transfer"
-                    className={`text-sm px-3 py-2 rounded flex items-center space-x-2 ${pathname === '/expense-accounts/transfer' ? 'bg-gray-700 text-white' : 'text-gray-300 hover:text-white hover:bg-gray-800'}`}
+                    className={`text-sm px-3 py-2 rounded flex items-center space-x-2 ${pathname === '/expense-accounts/transfer' ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800'}`}
                   >
                     <span>🔄</span>
                     <span>Transfer Funds</span>
@@ -1849,7 +1849,7 @@ export function Sidebar() {
               {hasPermission('canViewSupplierPaymentQueue') && (
                 <Link
                   href="/supplier-payments"
-                  className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                  className="text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
                 >
                   <span>📋</span>
                   <span>Approval Queue</span>
@@ -1858,7 +1858,7 @@ export function Sidebar() {
               {hasPermission('canViewSupplierPaymentReports') && (
                 <Link
                   href="/supplier-payments/reports"
-                  className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                  className="text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
                 >
                   <span>📊</span>
                   <span>Reports</span>
@@ -1867,7 +1867,7 @@ export function Sidebar() {
               {hasPermission('canSubmitSupplierPaymentRequests') && (
                 <Link
                   href="/supplier-payments/request"
-                  className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                  className="text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
                 >
                   <span>➕</span>
                   <span>Submit Request</span>
@@ -1876,7 +1876,7 @@ export function Sidebar() {
               {hasPermission('canSubmitSupplierPaymentRequests') && (
                 <Link
                   href="/supplier-payments/my-requests"
-                  className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
+                  className="text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 px-3 py-2 rounded flex items-center space-x-2"
                 >
                   <span>📄</span>
                   <span>My Requests</span>
@@ -1894,7 +1894,7 @@ export function Sidebar() {
               <Link
                 key={acct.id}
                 href={`/expense-accounts/${acct.id}`}
-                className="text-sm text-gray-300 hover:text-white hover:bg-gray-800 px-3 py-2 rounded flex items-center justify-between"
+                className="text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 px-3 py-2 rounded flex items-center justify-between"
               >
                 <span className="truncate">{acct.accountName}</span>
                 {acct.permissionLevel === 'VIEW' && (
@@ -2031,8 +2031,8 @@ export function Sidebar() {
           onClick={() => setToolsSectionExpanded(prev => !prev)}
           className="w-full flex items-center justify-between pt-4 pb-2 text-left"
         >
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Tools</h3>
-          <span className="text-gray-400 text-xs">{toolsSectionExpanded ? '▼' : '▶'}</span>
+          <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tools</h3>
+          <span className="text-gray-500 dark:text-gray-400 text-xs">{toolsSectionExpanded ? '▼' : '▶'}</span>
         </button>
 
         {toolsSectionExpanded && (<>
@@ -2204,8 +2204,8 @@ export function Sidebar() {
               onClick={() => setEmployeeSectionExpanded(prev => !prev)}
               className="w-full flex items-center justify-between pt-4 pb-2 text-left"
             >
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Employee Management</h3>
-              <span className="text-gray-400 text-xs">{employeeSectionExpanded ? '▼' : '▶'}</span>
+              <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Employee Management</h3>
+              <span className="text-gray-500 dark:text-gray-400 text-xs">{employeeSectionExpanded ? '▼' : '▶'}</span>
             </button>
 
             {employeeSectionExpanded && (<>
@@ -2299,8 +2299,8 @@ export function Sidebar() {
               onClick={() => setAdminSectionExpanded(prev => !prev)}
               className="w-full flex items-center justify-between pt-4 pb-2 text-left"
             >
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Administration</h3>
-              <span className="text-gray-400 text-xs">{adminSectionExpanded ? '▼' : '▶'}</span>
+              <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Administration</h3>
+              <span className="text-gray-500 dark:text-gray-400 text-xs">{adminSectionExpanded ? '▼' : '▶'}</span>
             </button>
 
             {adminSectionExpanded && (<>
@@ -2450,9 +2450,9 @@ export function Sidebar() {
         )}
       </nav>
       
-      <div className="p-4 border-t border-gray-700">
+      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
         <div className="flex items-center space-x-3 mb-3">
-          <div className="w-8 h-8 rounded-full overflow-hidden bg-blue-600 flex items-center justify-center text-sm font-medium shrink-0">
+          <div className="w-8 h-8 rounded-full overflow-hidden bg-blue-600 text-white flex items-center justify-center text-sm font-medium shrink-0">
             {profilePhotoUrl ? (
               <img
                 src={profilePhotoUrl}
@@ -2466,7 +2466,7 @@ export function Sidebar() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{currentUser?.name}</p>
-            <p className="text-xs text-gray-400 truncate">{currentUser?.email}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{currentUser?.email}</p>
           </div>
         </div>
         <button 
@@ -2474,7 +2474,7 @@ export function Sidebar() {
             callbackUrl: window.location.origin,
             redirect: true 
           })}
-          className="w-full text-left text-sm text-gray-400 hover:text-white transition-colors py-1"
+          className="w-full text-left text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors py-1"
         >
           🚪 Sign Out
         </button>

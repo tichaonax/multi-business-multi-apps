@@ -116,8 +116,8 @@ export function MobileSidebar() {
 
   const close = () => setIsOpen(false)
 
-  const linkClass = "flex items-center gap-2 px-4 py-2 rounded text-sm text-gray-300 hover:bg-gray-700 transition-colors"
-  const sectionLinkClass = "block px-4 py-2.5 rounded hover:bg-gray-700"
+  const linkClass = "flex items-center gap-2 px-4 py-2 rounded text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+  const sectionLinkClass = "block px-4 py-2.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
 
   const navLink = (href: string, icon: string, label: string) => (
     <Link key={href} href={href} className={linkClass} onClick={close}>
@@ -287,8 +287,8 @@ export function MobileSidebar() {
       onClick={onToggle}
       className="w-full flex items-center justify-between px-4 pt-3 pb-1 text-left"
     >
-      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</span>
-      <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{label}</span>
+      <svg className={`w-3.5 h-3.5 text-gray-500 dark:text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
       </svg>
     </button>
@@ -298,7 +298,7 @@ export function MobileSidebar() {
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="lg:hidden fixed top-20 left-3 z-30 p-2 bg-gray-800 text-white rounded-md shadow-lg hover:bg-gray-700 transition-colors"
+        className="lg:hidden fixed top-20 left-3 z-30 p-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-md shadow-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
         aria-label="Open menu"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -310,10 +310,10 @@ export function MobileSidebar() {
         <div className="lg:hidden fixed inset-0 z-40 flex">
           <div className="fixed inset-0 bg-black bg-opacity-50" onClick={close} />
 
-          <div className="relative w-72 bg-gray-800 text-white p-4 overflow-y-auto max-h-full">
+          <div className="relative w-72 bg-white dark:bg-gray-800 text-gray-900 dark:text-white p-4 overflow-y-auto max-h-full">
             <div className="flex justify-between items-center mb-6">
               <h1 className="text-lg font-bold">Business Hub</h1>
-              <button onClick={close} className="text-white hover:text-gray-300 p-1" aria-label="Close menu">
+              <button onClick={close} className="text-gray-900 dark:text-white hover:text-gray-600 dark:hover:text-gray-300 p-1" aria-label="Close menu">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -321,14 +321,14 @@ export function MobileSidebar() {
             </div>
 
             <nav className="space-y-1">
-              <Link href="/dashboard" className="block px-4 py-3 rounded hover:bg-gray-700" onClick={close}>
+              <Link href="/dashboard" className="block px-4 py-3 rounded hover:bg-gray-200 dark:hover:bg-gray-700" onClick={close}>
                 📊 Dashboard
               </Link>
 
               {/* Business types with expandable business lists */}
               {Object.keys(businessesByType).length > 0 && (
                 <div className="pt-3 pb-1">
-                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4 mb-2">Businesses</div>
+                  <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-4 mb-2">Businesses</div>
                 </div>
               )}
 
@@ -339,13 +339,13 @@ export function MobileSidebar() {
                   <div key={type}>
                     <button
                       onClick={() => toggleType(type)}
-                      className="w-full flex items-center justify-between px-4 py-2.5 rounded hover:bg-gray-700 text-left"
+                      className="w-full flex items-center justify-between px-4 py-2.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-left"
                     >
                       <span>
                         {icon} {type.charAt(0).toUpperCase() + type.slice(1)}
-                        <span className="ml-2 text-xs text-gray-400">({typedBusinesses.length})</span>
+                        <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({typedBusinesses.length})</span>
                       </span>
-                      <svg className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
@@ -357,8 +357,8 @@ export function MobileSidebar() {
                             onClick={() => handleSelectBusiness(biz.businessId, type)}
                             className={`w-full text-left px-4 py-2 rounded text-sm transition-colors ${
                               currentBusinessId === biz.businessId
-                                ? 'bg-blue-600/30 text-blue-200 font-medium'
-                                : 'text-gray-300 hover:bg-gray-700'
+                                ? 'bg-blue-100 dark:bg-blue-600/30 text-blue-700 dark:text-blue-200 font-medium'
+                                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                             }`}
                           >
                             {biz.businessName}
@@ -375,7 +375,7 @@ export function MobileSidebar() {
               {currentBusiness && (
                 <>
                   <div className="pt-3 pb-1">
-                    <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4 mb-2">
+                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-4 mb-2">
                       {currentBusiness.businessName}
                     </div>
                   </div>
@@ -387,7 +387,7 @@ export function MobileSidebar() {
 
               {/* ── Finance & Operations ── */}
               <div className="pt-3 pb-1">
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4 mb-2">Finance & Operations</div>
+                <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-4 mb-2">Finance & Operations</div>
               </div>
 
               {(hasUserPermission(user, 'canAccessPersonalFinance') || isAdmin) && (
@@ -575,7 +575,7 @@ export function MobileSidebar() {
                     window.location.href = isDriver ? '/driver' : '/vehicles'
                     close()
                   }}
-                  className="block w-full text-left px-4 py-2.5 rounded hover:bg-gray-700"
+                  className="block w-full text-left px-4 py-2.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
                 >
                   🚗 Fleet Management
                 </button>
@@ -726,7 +726,7 @@ export function MobileSidebar() {
 
                   <button
                     type="button"
-                    className="block w-full text-left px-4 py-2.5 rounded hover:bg-gray-700"
+                    className="block w-full text-left px-4 py-2.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
                     onClick={() => { close(); window.dispatchEvent(new CustomEvent('chat:open')) }}
                   >
                     💬 Team Chat
@@ -781,10 +781,10 @@ export function MobileSidebar() {
                 </>
               )}
 
-              <div className="pt-4 border-t border-gray-700">
+              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                 <button
                   onClick={() => signOut({ callbackUrl: window.location.origin, redirect: true })}
-                  className="block w-full text-left px-4 py-3 rounded hover:bg-gray-700"
+                  className="block w-full text-left px-4 py-3 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
                 >
                   🚪 Sign Out
                 </button>

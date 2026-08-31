@@ -572,6 +572,8 @@ A bare IP expands to `https://<ip>:8080` (this app's standard port) by default; 
 
 **Switching servers:** click **Connect** next to any registered server, or use the **Server → Switch Server…** menu item (bound to `Ctrl+Shift+S` / `Cmd+Shift+S`, which works even with the menu bar hidden in kiosk mode). Switching briefly tears down and recreates both windows — deliberate, not a bug, since a session partition can't be swapped on a live window without risking leaking state between servers.
 
+The server this kiosk is currently connected to is highlighted blue in the list with a "Connected" tag, and its **Connect** button is disabled — reconnecting to the server you're already on is a no-op, and the highlight doubles as an at-a-glance "you are here". If a connection attempt to some other server just failed, that server's row is highlighted amber with an "Unreachable" tag instead (see §10.5.2).
+
 **Every later launch automatically reopens whichever server was used last** — the picker only reappears if that server can't be reached (with the failure and its registered support-contact number shown right there), if it's been removed, or if you explicitly switch back to it.
 
 #### 10.5.2 Troubleshooting
