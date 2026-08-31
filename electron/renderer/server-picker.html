@@ -22,7 +22,17 @@
     background: #1e293b; border: 1px solid #334155; border-radius: 10px;
     padding: 16px; margin-bottom: 12px;
   }
-  .server-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .server-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px; border-radius: 8px; border-left: 4px solid transparent; }
+  /* Marks the specific row a connection attempt just failed on — scales to
+     any number of registered servers without the failure banner itself
+     needing to stretch or repeat per-server; the banner still carries the
+     actual error text, this is just "which one, at a glance". */
+  .server-row-error { border-left-color: #f59e0b; background: rgba(245, 158, 11, 0.12); }
+  .server-row-error .server-name::after {
+    content: 'Unreachable'; margin-left: 8px; font-size: 11px; font-weight: 600;
+    color: #f59e0b; border: 1px solid #f59e0b; border-radius: 999px; padding: 1px 8px;
+    vertical-align: middle;
+  }
   .server-info { flex: 1; min-width: 0; }
   .server-name { font-weight: 600; font-size: 15px; }
   .server-meta { color: #94a3b8; font-size: 12px; margin-top: 2px; }
@@ -157,6 +167,7 @@
 
 <script>
   let servers = []
+  let failedServerId = null // id of the server the last connection attempt failed on, if any — see refreshServerList()
   let lastPassedTest = null // { url, certFingerprint, formSnapshot }
   let pendingCertTrust = null // certInfo from a failed test, awaiting confirm/cancel
 
@@ -183,7 +194,7 @@
     el('emptyState').classList.toggle('hidden', servers.length > 0)
     for (const s of servers) {
       const row = document.createElement('div')
-      row.className = 'server-row'
+      row.className = s.id === failedServerId ? 'server-row server-row-error' : 'server-row'
       row.style.marginBottom = '10px'
       row.innerHTML = `
         <div class="server-info">
@@ -396,6 +407,7 @@
     const ctx = await window.pickerAPI.getOpenContext()
     if (ctx && ctx.failure) {
       const f = ctx.failure
+      failedServerId = f.id || null
       el('failureBanner').classList.remove('hidden')
       el('failureBanner').innerHTML = `
         <b>Couldn't reach ${escapeHtml(f.label)} (${escapeHtml(f.host)}).</b> ${escapeHtml(f.message || '')}

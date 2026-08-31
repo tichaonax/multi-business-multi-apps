@@ -332,6 +332,7 @@ function handleServerLoadFailure(serverEntry, message) {
   activeServerId = null
   pendingOpenContext = {
     failure: {
+      id: serverEntry.id,
       label: serverEntry.label,
       host: serverEntry.host || serverEntry.url,
       message,
