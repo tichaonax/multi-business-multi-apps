@@ -464,6 +464,15 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                 </span>
               </div>
             )}
+            {/* Electron: which server this is — needs to be visible at a
+                glance (that's the whole point of it), not tucked away in
+                the account dropdown where it was easy to miss entirely. */}
+            {activeServerLabel && (
+              <span className="hidden lg:flex items-center gap-1.5 ml-4 rounded-full border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 text-xs font-medium text-blue-700 dark:text-blue-300 shrink-0">
+                <span className="h-2 w-2 rounded-full bg-blue-500" />
+                {activeServerLabel}
+              </span>
+            )}
             {showBreadcrumb && <div className="hidden sm:block min-w-0 overflow-hidden"><Breadcrumb pathname={pathname} title={title} /></div>}
           </div>
 
@@ -1878,15 +1887,6 @@ function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity, onTestBarc
                   <span>Contact Support</span>
                 </div>
               </Link>
-
-              {activeServerLabel && (
-                <div className="px-4 py-2">
-                  <span className="flex items-center gap-1.5 rounded-full border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300 w-fit">
-                    <span className="h-2 w-2 rounded-full bg-blue-500" />
-                    Connected to: {activeServerLabel}
-                  </span>
-                </div>
-              )}
 
               <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
 

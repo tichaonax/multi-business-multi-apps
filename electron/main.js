@@ -173,16 +173,24 @@ async function openServer(serverEntry) {
     handleServerLoadFailure(serverEntry, `${errorDescription} (${errorCode})`)
   })
 
-  // Ctrl+=/Ctrl+-/Ctrl+0 zoom — restores the standard browser shortcuts that
-  // Menu.setApplicationMenu's custom template (below) silently drops: they're
-  // normally wired to Electron's default View menu, which this app replaces
-  // entirely with its own "Server" menu. Deliberately scoped to mainWindow's
-  // own webContents only, not applied via the application menu/a global
-  // accelerator — the customer-facing display must never be zoomable by
-  // whoever's standing in front of it, and a menu-role zoom accelerator
-  // would apply to whatever window happens to be focused, not just this one.
+  // Ctrl+=/Ctrl+-/Ctrl+0 zoom, and F12/Ctrl+Shift+I for DevTools — restores
+  // standard browser shortcuts that Menu.setApplicationMenu's custom template
+  // (below) silently drops: they're normally wired to Electron's default View
+  // menu, which this app replaces entirely with its own "Server" menu — with
+  // no menu bar visible in kiosk mode, there'd otherwise be no way to open
+  // DevTools on an installed build at all short of a --remote-debugging-port
+  // relaunch. Deliberately scoped to mainWindow's own webContents only, not
+  // applied via the application menu/a global accelerator — the
+  // customer-facing display must never be zoomable or inspectable by
+  // whoever's standing in front of it, and a menu-role accelerator would
+  // apply to whatever window happens to be focused, not just this one.
   mainWindow.webContents.on('before-input-event', (_event, input) => {
-    if (input.type !== 'keyDown' || !input.control) return
+    if (input.type !== 'keyDown') return
+    if (input.key === 'F12' || (input.control && input.shift && input.key.toLowerCase() === 'i')) {
+      mainWindow.webContents.toggleDevTools()
+      return
+    }
+    if (!input.control) return
     if (input.key === '=' || input.key === '+') {
       mainWindow.webContents.zoomFactor = Math.min(2.0, mainWindow.webContents.zoomFactor + 0.1)
     } else if (input.key === '-') {
@@ -190,6 +198,17 @@ async function openServer(serverEntry) {
     } else if (input.key === '0') {
       mainWindow.webContents.zoomFactor = 1.0
     }
+  })
+
+  // Pipe the renderer's own console output into the main process's log —
+  // independent of whether DevTools/F12 actually works on a given machine
+  // (confirmed unreliable on at least one install), this always captures
+  // whatever the page itself logs, including the real error behind Next.js's
+  // generic "Application error" screen, straight into this app's existing
+  // log files with zero extra setup needed on the machine reproducing it.
+  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    const levelName = ['LOG', 'WARN', 'ERROR'][level] || 'LOG'
+    console.log(`[Renderer:${levelName}] ${message} (${sourceId}:${line})`)
   })
 
   mainWindow.loadURL(`${serverEntry.url}/`)
@@ -495,6 +514,21 @@ function buildMenu() {
         },
         { type: 'separator' },
         { label: 'Quit', accelerator: 'CmdOrCtrl+Q', click: () => app.quit() },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        // Using the built-in role (not a manual click handler calling
+        // toggleDevTools ourselves) deliberately — it's the same
+        // battle-tested accelerator-registration path Electron's own
+        // default menu used before this custom menu replaced it, more
+        // reliable than re-implementing the shortcut by hand. Kept as a
+        // second, independent path alongside the before-input-event
+        // handler above (which still covers Ctrl+Shift+I) rather than a
+        // replacement for it, since F12 not working turned out to need a
+        // second attempt on at least one real machine.
+        { role: 'toggleDevTools', label: 'Toggle Developer Tools', accelerator: 'F12' },
       ],
     },
   ]
