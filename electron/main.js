@@ -426,6 +426,27 @@ ipcMain.handle('servers:remove', (_e, { id, pin }) => {
   return { ok: true }
 })
 
+ipcMain.handle('servers:update', (_e, params) => {
+  if (!registry.verifyPin(params.pin)) {
+    return { ok: false, message: 'Incorrect PIN.' }
+  }
+  const entry = registry.update(params.id, {
+    label: params.label,
+    host: params.host,
+    url: params.url,
+    supportContact: params.supportContact,
+    certFingerprint: params.certFingerprint,
+  })
+  if (!entry) return { ok: false, message: 'Server not found.' }
+  // The id may have changed (URL edits re-derive it) — keep the "currently
+  // connected" marker pointed at the same real server rather than orphaning
+  // it under an id that no longer exists in the registry.
+  if (params.id === activeServerId) {
+    activeServerId = entry.id
+  }
+  return { ok: true, entry }
+})
+
 ipcMain.handle('servers:switchTo', async (_e, id) => {
   const entry = registry.get(id)
   if (!entry) return { ok: false }

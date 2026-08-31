@@ -570,6 +570,8 @@ This kiosk can hold several registered servers at once — different companies, 
 
 A bare IP expands to `https://<ip>:8080` (this app's standard port) by default; use **Advanced: use a full URL instead** for a custom port or a different setup.
 
+**Editing a server:** click **Edit** next to any registered server (PIN-gated, same as add/remove) to open the same form pre-filled with its current label, IP/URL, and support contact — admin credentials are never stored, so re-verifying them via **Test Connection** is required before **Save Changes** enables, exactly like adding a new one. Use this when a server's IP address changes, rather than registering a duplicate entry: changing the IP re-derives that server's internal id, which carries its default-business setting and other saved details across to the new address automatically.
+
 **Switching servers:** click **Connect** next to any registered server, or use the **Server → Switch Server…** menu item (bound to `Ctrl+Shift+S` / `Cmd+Shift+S`, which works even with the menu bar hidden in kiosk mode). Switching briefly tears down and recreates both windows — deliberate, not a bug, since a session partition can't be swapped on a live window without risking leaking state between servers.
 
 The server this kiosk is currently connected to is highlighted blue in the list with a "Connected" tag, and its **Connect** button is disabled — reconnecting to the server you're already on is a no-op, and the highlight doubles as an at-a-glance "you are here". If a connection attempt to some other server just failed, that server's row is highlighted amber with an "Unreachable" tag instead (see §10.5.2).
@@ -580,7 +582,7 @@ The server this kiosk is currently connected to is highlighted blue in the list 
 
 | Problem | Likely cause / fix |
 |---|---|
-| Stuck on the server picker / "Couldn't reach \<server\>" | Confirm the server is actually running and reachable from this machine (try its address in a regular browser first). If it moved or changed IP, use **+ Add Server** to register the new address rather than editing the old entry — each registration is tied to a specific URL. Check the support-contact number on the failure banner, if one was set when this server was registered. |
+| Stuck on the server picker / "Couldn't reach \<server\>" | Confirm the server is actually running and reachable from this machine (try its address in a regular browser first). If it moved or changed IP, use that server's **Edit** button to update its address in place (see below) rather than registering a duplicate entry. Check the support-contact number on the failure banner, if one was set when this server was registered. |
 | "No secondary display detected" | Connect the second monitor before starting Electron, check display settings in the OS, restart Electron after connecting. |
 | Customer display not fullscreen | Normal — kiosk mode handles it automatically once the page finishes loading; use `Esc` to exit kiosk mode for testing only. |
 | DevTools not opening | Set `NODE_ENV=development` before launching, or use `npm run dev` from `electron/`. |

@@ -103,6 +103,7 @@
   <button id="addServerToggle" class="btn-secondary">+ Add Server</button>
 
   <div id="addForm" class="add-form card">
+    <h2 id="formTitle" style="margin:0 0 4px;font-size:16px;">Add Server</h2>
     <label>Label</label>
     <input type="text" id="fLabel" placeholder="e.g. Head Office" />
 
@@ -180,6 +181,7 @@
   let activeServerId = null // id of the server this workstation is currently connected to, if any — see refreshServerList()
   let lastPassedTest = null // { url, certFingerprint, formSnapshot }
   let pendingCertTrust = null // certInfo from a failed test, awaiting confirm/cancel
+  let editingServerId = null // id of the server being edited, or null when the form is adding a new one
 
   const el = (id) => document.getElementById(id)
 
@@ -218,6 +220,7 @@
         </div>
         <div class="row-actions">
           <button class="btn-primary" data-connect="${s.id}" ${isActive ? 'disabled' : ''}>${isActive ? 'Connected' : 'Connect'}</button>
+          <button class="btn-secondary" data-edit="${s.id}" title="Edit">Edit</button>
           <button class="btn-danger" data-remove="${s.id}" title="Remove">Remove</button>
         </div>
       `
@@ -225,6 +228,12 @@
     }
     list.querySelectorAll('[data-connect]:not(:disabled)').forEach((btn) => {
       btn.addEventListener('click', () => window.pickerAPI.switchTo(btn.dataset.connect))
+    })
+    list.querySelectorAll('[data-edit]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const s = servers.find((srv) => srv.id === btn.dataset.edit)
+        if (s) requestPinThen('edit this server', () => openEditForm(s))
+      })
     })
     list.querySelectorAll('[data-remove]').forEach((btn) => {
       btn.addEventListener('click', () => requestPinThen('remove this server', () => removeServer(btn.dataset.remove)))
@@ -303,16 +312,43 @@
     el('pinEntryCancel').onclick = () => el('pinEntryModal').classList.add('hidden')
   }
 
-  // ── Add Server form ─────────────────────────────────────────────────────
+  // ── Add / Edit Server form ───────────────────────────────────────────────
   el('addServerToggle').addEventListener('click', () => {
     requestPinThen('add a server', () => {
+      editingServerId = null
       resetAddForm()
+      el('formTitle').textContent = 'Add Server'
+      el('saveBtn').textContent = 'Save Server'
       el('addForm').classList.add('open')
       el('addServerToggle').classList.add('hidden')
     })
   })
 
+  // Reuses the same form as Add — prefilled with the existing entry's
+  // values, minus credentials (never stored, see the Admin Password label —
+  // re-verifying them is exactly what forces a fresh Test Connection before
+  // Save re-enables, same as adding). Editing the IP/URL re-derives this
+  // server's id (see server-registry.js's update()); label/support-contact-only
+  // edits keep the same id and session partition.
+  function openEditForm(s) {
+    editingServerId = s.id
+    resetAddForm()
+    el('fLabel').value = s.label || ''
+    if (s.host) {
+      el('fHost').value = s.host
+    } else {
+      el('fFullUrl').value = s.url || ''
+      el('advField').classList.add('open')
+    }
+    el('fSupport').value = s.supportContact || ''
+    el('formTitle').textContent = 'Edit Server'
+    el('saveBtn').textContent = 'Save Changes'
+    el('addForm').classList.add('open')
+    el('addServerToggle').classList.add('hidden')
+  }
+
   el('cancelAddBtn').addEventListener('click', () => {
+    editingServerId = null
     el('addForm').classList.remove('open')
     el('addServerToggle').classList.remove('hidden')
   })
@@ -404,15 +440,25 @@
       el('testResult').innerHTML = `<div class="test-result fail">Please re-test — the form changed since the last successful test.</div>`
       return
     }
-    await window.pickerAPI.addServer({
+    const fields = {
       pin: currentPin,
       label: el('fLabel').value.trim() || el('fHost').value.trim(),
       host: el('fHost').value.trim(),
       url: lastPassedTest.url,
       supportContact: el('fSupport').value.trim(),
       certFingerprint: lastPassedTest.certFingerprint,
-    })
+    }
+    if (editingServerId) {
+      await window.pickerAPI.updateServer({ id: editingServerId, ...fields })
+      // The id may have changed (an IP/URL edit re-derives it) — re-fetch
+      // rather than assume, so the active-row highlight stays correct.
+      const active = await window.pickerAPI.getActiveServer()
+      activeServerId = active ? active.id : null
+    } else {
+      await window.pickerAPI.addServer(fields)
+    }
     currentPin = null
+    editingServerId = null
     el('addForm').classList.remove('open')
     el('addServerToggle').classList.remove('hidden')
     refreshServerList()

@@ -88,6 +88,41 @@ function remove(id) {
   save(data)
 }
 
+// Edits an already-registered server's label, host/URL, or support contact.
+// A server's id is derived from its URL (deriveServerId) and doubles as its
+// session partition name, so changing the URL here re-derives a new id —
+// this migrates the entry (default business, last-used marker, cert pin)
+// across to that new id rather than leaving the old one orphaned, since from
+// the operator's point of view it's still "the same server," just at a new
+// address (see the picker's own troubleshooting note about a server that
+// moved or changed IP — this replaces the old "just re-add it" workaround).
+function update(id, { label, host, url, supportContact, certFingerprint }) {
+  const data = load()
+  const existing = data.servers.find((s) => s.id === id)
+  if (!existing) return null
+
+  const newId = deriveServerId(url)
+  const entry = {
+    ...existing,
+    id: newId,
+    label,
+    host,
+    url,
+    supportContact: supportContact || null,
+    certFingerprint: certFingerprint || null,
+  }
+
+  if (newId === id) {
+    Object.assign(existing, entry)
+  } else {
+    data.servers = data.servers.filter((s) => s.id !== id)
+    data.servers.push(entry)
+    if (data.lastUsedServerId === id) data.lastUsedServerId = newId
+  }
+  save(data)
+  return entry
+}
+
 // Device-level "always open on this business" setting — deliberately stored
 // per-server (a default business only means anything in the context of
 // whichever server's data it refers to), and deliberately separate from
@@ -198,6 +233,7 @@ module.exports = {
   list,
   get,
   add,
+  update,
   remove,
   setLastUsed,
   getLastUsed,
