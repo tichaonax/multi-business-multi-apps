@@ -27,7 +27,11 @@ export function ConditionalServerIndicator() {
   if (!label) return null
 
   return (
-    <div className="fixed top-4 left-4 z-[9999] flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-md">
+    // bottom-left, not top-left: the real app header already fills that
+    // corner on every authenticated page (logo/branding), so the pill sat
+    // on top of it. FloatingChat and HealthIndicator both live bottom-right,
+    // so bottom-left is the one corner nothing else already occupies.
+    <div className="fixed bottom-4 left-4 z-[9999] flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 shadow-md">
       <span className="h-2 w-2 rounded-full bg-blue-500" />
       Connected to: {label}
     </div>
