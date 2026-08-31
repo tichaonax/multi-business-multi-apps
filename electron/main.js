@@ -173,6 +173,25 @@ async function openServer(serverEntry) {
     handleServerLoadFailure(serverEntry, `${errorDescription} (${errorCode})`)
   })
 
+  // Ctrl+=/Ctrl+-/Ctrl+0 zoom — restores the standard browser shortcuts that
+  // Menu.setApplicationMenu's custom template (below) silently drops: they're
+  // normally wired to Electron's default View menu, which this app replaces
+  // entirely with its own "Server" menu. Deliberately scoped to mainWindow's
+  // own webContents only, not applied via the application menu/a global
+  // accelerator — the customer-facing display must never be zoomable by
+  // whoever's standing in front of it, and a menu-role zoom accelerator
+  // would apply to whatever window happens to be focused, not just this one.
+  mainWindow.webContents.on('before-input-event', (_event, input) => {
+    if (input.type !== 'keyDown' || !input.control) return
+    if (input.key === '=' || input.key === '+') {
+      mainWindow.webContents.zoomFactor = Math.min(2.0, mainWindow.webContents.zoomFactor + 0.1)
+    } else if (input.key === '-') {
+      mainWindow.webContents.zoomFactor = Math.max(0.5, mainWindow.webContents.zoomFactor - 0.1)
+    } else if (input.key === '0') {
+      mainWindow.webContents.zoomFactor = 1.0
+    }
+  })
+
   mainWindow.loadURL(`${serverEntry.url}/`)
 
   mainWindow.on('close', (event) => {
