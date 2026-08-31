@@ -314,6 +314,11 @@ function showPicker() {
     height: 720,
     title: `Select Server — v${app.getVersion()}`,
     autoHideMenuBar: true,
+    // Not minimizable — this window has no taskbar-recovery story on a kiosk
+    // machine (taskbar is typically hidden), so a minimized picker becomes
+    // permanently unreachable with no way back except killing the app. The
+    // operator's only two ways out are meant to be: pick a server, or close it.
+    minimizable: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

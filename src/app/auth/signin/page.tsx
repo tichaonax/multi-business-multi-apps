@@ -14,7 +14,6 @@ export default function SignIn() {
   const [loading, setLoading] = useState(false)
   const [logoImageId, setLogoImageId] = useState<string | null>(null)
   const [isElectron, setIsElectron] = useState(false)
-  const [activeServerLabel, setActiveServerLabel] = useState<string | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -25,11 +24,7 @@ export default function SignIn() {
   }, [])
 
   useEffect(() => {
-    if (!window.electron?.isElectron) return
-    setIsElectron(true)
-    window.electron.getActiveServer()
-      .then((server) => setActiveServerLabel(server?.label ?? null))
-      .catch(() => {})
+    if (window.electron?.isElectron) setIsElectron(true)
   }, [])
 
   // ── Normal login submit ────────────────────────────────────────────────────
@@ -99,11 +94,6 @@ export default function SignIn() {
           <p className="text-xs text-gray-400 mt-1">
             Employees — scan your ID card to clock in
           </p>
-          {isElectron && activeServerLabel && (
-            <div className="inline-block mt-3 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium">
-              Connected to: {activeServerLabel}
-            </div>
-          )}
         </div>
 
         <div className="card p-8">

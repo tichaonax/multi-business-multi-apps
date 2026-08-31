@@ -14,7 +14,6 @@ export default function HomePage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const { currentBusinessId } = useBusinessPermissionsContext()
-  const [activeServerLabel, setActiveServerLabel] = useState<string | null>(null)
 
   // Keep a reference to the opened customer display window so we don't re-open it
   const customerDisplayRef = useRef<Window | null>(null)
@@ -31,13 +30,6 @@ export default function HomePage() {
 
   // No need to send SET_ACTIVE_BUSINESS here anymore
   // It's now handled globally in BusinessPermissionsContext
-
-  useEffect(() => {
-    if (!window.electron?.isElectron) return
-    window.electron.getActiveServer()
-      .then((server) => setActiveServerLabel(server?.label ?? null))
-      .catch(() => {})
-  }, [])
 
   // Auto-open customer display when logged in and business is selected
   useEffect(() => {
@@ -116,11 +108,6 @@ export default function HomePage() {
             <p className="text-lg text-secondary">
               Unified platform for managing multiple business operations
             </p>
-            {activeServerLabel && (
-              <div className="inline-block mt-3 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium">
-                Connected to: {activeServerLabel}
-              </div>
-            )}
           </div>
           
           <div className="card p-8">

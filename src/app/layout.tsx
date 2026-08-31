@@ -12,6 +12,7 @@ import PromptProvider from '@/components/ui/input-modal'
 import { NavigationProvider } from '@/contexts/navigation-context'
 import { ConditionalGlobalHeader } from '@/components/layout/conditional-global-header'
 import { ConditionalHealthIndicator } from '@/components/layout/conditional-health-indicator'
+import { ConditionalServerIndicator } from '@/components/layout/conditional-server-indicator'
 import { GlobalBarcodeModalManager } from '@/components/global/global-barcode-modal-manager'
 import { GlobalBarcodeProvider } from '@/contexts/global-barcode-context'
 import ConfirmProvider from '@/components/ui/confirm-modal'
@@ -92,6 +93,7 @@ export default function RootLayout({
                               so it must render inside them, not after </CustomSessionProvider>
                               like the old (permanently-disabled) placement below the tree. */}
                           <ConditionalHealthIndicator />
+                          <ConditionalServerIndicator />
                         </GlobalBarcodeProvider>
                       </NavigationProvider>
                       </NotificationProvider>
