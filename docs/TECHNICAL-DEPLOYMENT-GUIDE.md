@@ -568,7 +568,7 @@ This kiosk can hold several registered servers at once — different companies, 
 4. The credentials are used only for this one-time check and are never stored — whoever actually uses the kiosk logs in fresh, with their own account, once the server is open.
 5. **Save Server** only enables once a test has passed for the exact values currently in the form — editing anything afterward requires re-testing.
 
-A bare IP expands to `https://<ip>:8080` (this app's standard port) by default; use **Advanced: use a full URL instead** for a custom port or a different setup.
+A bare IP expands to `https://<ip>:8080` (this app's standard port) by default; use **Advanced: use a full URL instead** for a custom port or a different setup. If the server being registered runs on this same machine, check **This server runs on this machine (localhost)** instead of typing it — the IP field fills itself in and locks.
 
 **Editing a server:** click **Edit** next to any registered server (PIN-gated, same as add/remove) to open the same form pre-filled with its current label, IP/URL, and support contact — admin credentials are never stored, so re-verifying them via **Test Connection** is required before **Save Changes** enables, exactly like adding a new one. Use this when a server's IP address changes, rather than registering a duplicate entry: changing the IP re-derives that server's internal id, which carries its default-business setting and other saved details across to the new address automatically.
 

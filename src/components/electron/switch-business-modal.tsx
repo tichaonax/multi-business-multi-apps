@@ -24,6 +24,7 @@ export function SwitchBusinessModal({ onClose }: { onClose: () => void }) {
   const [pinConfirm, setPinConfirm] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [hasExistingDefault, setHasExistingDefault] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -34,7 +35,10 @@ export function SwitchBusinessModal({ onClose }: { onClose: () => void }) {
       .then(([bizRes, hasPin, current]) => {
         setBusinesses(bizRes.businesses || [])
         setNeedsPinSetup(!hasPin)
-        if (current?.id) setSelectedId(current.id)
+        if (current?.id) {
+          setSelectedId(current.id)
+          setHasExistingDefault(true)
+        }
       })
       .finally(() => setLoading(false))
   }, [])
@@ -68,6 +72,33 @@ export function SwitchBusinessModal({ onClose }: { onClose: () => void }) {
       const result = await window.electron?.setDefaultBusiness(pin, selectedId, business?.name || '')
       if (!result?.ok) {
         setError(result?.message || 'Failed to save.')
+        return
+      }
+      onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Clears the device-level default without needing a business selected —
+  // registry.setDefaultBusiness() already treats a falsy id as "no default"
+  // (falls back to this app's normal per-login business selection), this
+  // was simply never exposed anywhere in this UI.
+  const handleClear = async () => {
+    setError('')
+    if (needsPinSetup) {
+      setError('No PIN is set, so there is no default business to clear.')
+      return
+    }
+    if (!pin) {
+      setError('Enter the PIN.')
+      return
+    }
+    setSaving(true)
+    try {
+      const result = await window.electron?.setDefaultBusiness(pin, '', '')
+      if (!result?.ok) {
+        setError(result?.message || 'Failed to clear.')
         return
       }
       onClose()
@@ -149,6 +180,17 @@ export function SwitchBusinessModal({ onClose }: { onClose: () => void }) {
                 {saving ? 'Saving…' : 'Save'}
               </button>
             </div>
+
+            {hasExistingDefault && (
+              <button
+                type="button"
+                onClick={handleClear}
+                disabled={saving}
+                className="w-full mt-2 py-2 rounded-lg border border-red-200 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-900 dark:hover:bg-red-900/20 disabled:opacity-50"
+              >
+                Clear Default Business
+              </button>
+            )}
           </>
         )}
       </div>
