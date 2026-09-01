@@ -23,6 +23,23 @@ function getMonthDates(year: number, month: number) {
   return { periodStart: firstDay, periodEnd: lastDayStr }
 }
 
+// A payroll period can only be for a month that's already fully ended (the
+// API enforces this too — see POST /api/payroll/periods) — this is the most
+// recently completed one, i.e. what an admin almost always actually means
+// when creating a new period right after a month closes.
+function getMostRecentCompletedMonth(now: Date) {
+  const currentMonth = now.getMonth() + 1 // 1-based
+  const currentYear = now.getFullYear()
+  return currentMonth === 1
+    ? { year: currentYear - 1, month: 12 }
+    : { year: currentYear, month: currentMonth - 1 }
+}
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+]
+
 export function CreatePayrollPeriodModal({
   isOpen,
   onClose,
@@ -35,9 +52,19 @@ export function CreatePayrollPeriodModal({
   const [loading, setLoading] = useState(false)
   const toast = useToastContext()
   const now = new Date()
+  const currentMonth = now.getMonth() + 1
+  const currentYear = now.getFullYear()
+  // Selectable years: this year and the two before it — never a future year.
+  const yearOptions = [currentYear - 2, currentYear - 1, currentYear]
+  // For the current year, only months strictly before this one are
+  // selectable (a fully-completed month); any earlier year allows all 12.
+  const monthOptionsFor = (year: number) =>
+    year === currentYear
+      ? MONTH_NAMES.map((label, i) => ({ value: i + 1, label })).filter((m) => m.value < currentMonth)
+      : MONTH_NAMES.map((label, i) => ({ value: i + 1, label }))
+
   const [formData, setFormData] = useState(() => {
-    const year = now.getFullYear()
-    const month = now.getMonth() + 1
+    const { year, month } = getMostRecentCompletedMonth(now)
     return { year, month, ...getMonthDates(year, month), notes: '' }
   })
 
@@ -56,8 +83,7 @@ export function CreatePayrollPeriodModal({
       toast.push('Payroll period created successfully')
   try { onSuccess({ message: 'Payroll period created successfully', id: result.id, refresh: false }) } catch (e) { }
       onClose()
-      const resetYear = new Date().getFullYear()
-      const resetMonth = new Date().getMonth() + 1
+      const { year: resetYear, month: resetMonth } = getMostRecentCompletedMonth(new Date())
       setFormData({ year: resetYear, month: resetMonth, ...getMonthDates(resetYear, resetMonth), notes: '' })
     } catch (error) {
       console.error('Create payroll period error:', error)
@@ -85,11 +111,22 @@ export function CreatePayrollPeriodModal({
               </label>
               <select
                 value={formData.year}
-                onChange={(e) => { const year = parseInt(e.target.value); setFormData({ ...formData, year, ...getMonthDates(year, formData.month) }) }}
+                onChange={(e) => {
+                  const year = parseInt(e.target.value)
+                  // If the currently selected month isn't valid for the
+                  // newly selected year (e.g. year becomes this year and
+                  // the month was set to one still in progress or later),
+                  // clamp down to the latest valid month for it instead.
+                  const validMonths = monthOptionsFor(year)
+                  const month = validMonths.some((m) => m.value === formData.month)
+                    ? formData.month
+                    : validMonths[validMonths.length - 1].value
+                  setFormData({ ...formData, year, month, ...getMonthDates(year, month) })
+                }}
                 className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               >
-                {[2024, 2025, 2026, 2027].map(year => (
+                {yearOptions.map(year => (
                   <option key={year} value={year}>{year}</option>
                 ))}
               </select>
@@ -105,11 +142,8 @@ export function CreatePayrollPeriodModal({
                 className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               >
-                {[
-                  'January', 'February', 'March', 'April', 'May', 'June',
-                  'July', 'August', 'September', 'October', 'November', 'December'
-                ].map((month, index) => (
-                  <option key={index + 1} value={index + 1}>{month}</option>
+                {monthOptionsFor(formData.year).map(({ value, label }) => (
+                  <option key={value} value={value}>{label}</option>
                 ))}
               </select>
             </div>

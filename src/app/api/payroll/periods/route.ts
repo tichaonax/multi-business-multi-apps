@@ -212,6 +212,74 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Same checks as periodStart above, plus that it's actually a real
+    // calendar date and falls on/after periodStart and within the same
+    // month/year — none of this was validated before, which is exactly how
+    // a period could end up with a periodEnd that isn't even a valid day
+    // for that month.
+    const endDateMatch = periodEnd.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (!endDateMatch) {
+      return NextResponse.json(
+        { error: 'Invalid periodEnd date format. Expected YYYY-MM-DD.' },
+        { status: 400 }
+      )
+    }
+    const endYear = parseInt(endDateMatch[1], 10)
+    const endMonth = parseInt(endDateMatch[2], 10)
+    const endDay = parseInt(endDateMatch[3], 10)
+
+    if (endYear !== startYear || endMonth !== startMonth) {
+      return NextResponse.json(
+        { error: `periodEnd (${periodEnd}) must be in the same month as periodStart (${periodStart}).` },
+        { status: 400 }
+      )
+    }
+
+    // Reject calendar-invalid days (e.g. day 31 in a 30-day month) instead
+    // of silently rolling over into the next month, which is exactly how a
+    // typo'd "31" for September became a real, stored date.
+    const daysInStartMonth = new Date(startYear, startMonth, 0).getDate()
+    if (startDay < 1 || startDay > daysInStartMonth) {
+      return NextResponse.json(
+        { error: `${periodStart} is not a valid date — ${startYear}-${String(startMonth).padStart(2, '0')} only has ${daysInStartMonth} days.` },
+        { status: 400 }
+      )
+    }
+    const daysInEndMonth = new Date(endYear, endMonth, 0).getDate()
+    if (endDay < 1 || endDay > daysInEndMonth) {
+      return NextResponse.json(
+        { error: `${periodEnd} is not a valid date — ${endYear}-${String(endMonth).padStart(2, '0')} only has ${daysInEndMonth} days.` },
+        { status: 400 }
+      )
+    }
+    if (endDay < startDay) {
+      return NextResponse.json(
+        { error: `periodEnd (${periodEnd}) cannot be before periodStart (${periodStart}).` },
+        { status: 400 }
+      )
+    }
+
+    // A payroll period can only be created for a month that has already
+    // fully ended — creating one for the current (still in-progress) or a
+    // future month is how a period meant for last month ends up labeled
+    // with the wrong one (e.g. the "current month" dropdown default gets
+    // left selected by mistake instead of switched back). Compares against
+    // the database's own CURRENT_DATE rather than a JS Date computed here —
+    // production runs in Africa/Harare (UTC+2) and Prisma's @db.Date
+    // serialization extracts the UTC date of a JS Date object, which can be
+    // a day off from the server's real local date (see
+    // project_timezone_and_environments.md) — CURRENT_DATE sidesteps that
+    // entirely since Postgres itself is in the same timezone as the app.
+    const [{ today }] = await prisma.$queryRaw<[{ today: Date }]>`SELECT CURRENT_DATE AS today`
+    const currentYear = today.getUTCFullYear()
+    const currentMonth = today.getUTCMonth() + 1
+    if (startYear > currentYear || (startYear === currentYear && startMonth >= currentMonth)) {
+      return NextResponse.json(
+        { error: `Cannot create a payroll period for ${startYear}-${String(startMonth).padStart(2, '0')} — that month hasn't ended yet. Payroll periods can only be created for a month that has already fully completed.` },
+        { status: 400 }
+      )
+    }
+
     // Check if period already exists
     const existingPeriod = await prisma.payrollPeriods.findUnique({
       where: {
