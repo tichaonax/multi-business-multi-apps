@@ -10,11 +10,13 @@ import { useNavigation } from '@/contexts/navigation-context'
 import { useScale } from '@/contexts/ScaleContext'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { BusinessRevenueBreakdownModal } from '@/components/dashboard/business-revenue-breakdown-modal'
+import { getDefaultPagePath } from '@/lib/business-default-pages'
 
 interface Business {
   id: string
   name: string
   type: string
+  defaultPage?: string | null
 }
 
 interface BusinessGroup {
@@ -489,14 +491,16 @@ export function Sidebar() {
 
         // Define business types with universal module support (inventory, products, pos, reports, orders, employees, suppliers, customers)
         const universalModuleBusinessTypes = ['restaurant', 'grocery', 'clothing', 'hardware']
-        const allPrimaryBusinessTypes = ['restaurant', 'grocery', 'clothing', 'hardware', 'construction', 'services']
-        const hasDedicatedPages = allPrimaryBusinessTypes.includes(business.type)
 
         // Define universal modules shared across restaurant, grocery, clothing, hardware
         const universalModules = ['inventory', 'products', 'pos', 'reports', 'orders', 'employees', 'suppliers', 'customers']
 
-        // Default path: use business type page if it exists, otherwise go to dashboard
-        let targetPath = hasDedicatedPages ? `/${business.type}` : '/dashboard'
+        // Default path: the business's own configured default landing page
+        // (falls back to its bare homepage/dashboard inside getDefaultPagePath
+        // when unset) — previously hardcoded to the bare business-type page,
+        // which silently ignored a business's own defaultPage (e.g. "POS
+        // System") whenever the module-preservation rules below didn't apply.
+        let targetPath = getDefaultPagePath(business.type, business.defaultPage ?? null)
 
         // Parse current path to extract business type and module
         const pathSegments = currentPath.split('/').filter(Boolean)

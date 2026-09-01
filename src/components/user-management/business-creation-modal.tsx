@@ -182,8 +182,14 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
 
   return (
     <>
-    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-neutral-800 text-gray-900 dark:text-neutral-100 rounded-lg w-full max-w-5xl shadow-lg border border-gray-200 dark:border-neutral-700">
+    <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-black/60 flex items-center justify-center z-50 p-4">
+      {/* max-h + overflow-y-auto make this card itself the scroll container —
+          without it, content taller than the viewport just clips equally off
+          the top and bottom when centered, with no scrollbar anywhere to
+          reach either end (the fixed overlay above has no overflow handling
+          of its own), and the sticky header below does nothing since it has
+          no scrollable ancestor to stick within. */}
+      <div className="bg-white dark:bg-neutral-800 text-gray-900 dark:text-neutral-100 rounded-lg w-full max-w-5xl max-h-[90vh] overflow-y-auto shadow-lg border border-gray-200 dark:border-neutral-700">
         {/* Sticky Header */}
         <div className="sticky top-0 z-10 bg-white dark:bg-neutral-800 p-6 border-b border-gray-200 dark:border-neutral-700">
           <div className="flex justify-between items-center">

@@ -155,13 +155,19 @@ async function openServer(serverEntry) {
     },
     autoHideMenuBar: true,
     fullscreen: false,
-    // Always fully expanded, with no way for the operator to leave that
-    // state — resizable/maximizable both false so there's no drag-to-resize
-    // handle and no restore-down affordance (double-click title bar, Win+Down,
-    // the frame's own maximize button). Minimize and close still work — those
-    // aren't governed by either flag.
+    // Always fully expanded, with no way for the operator to resize it —
+    // resizable:false removes the drag-to-resize border. Deliberately NOT
+    // setting maximizable:false here: on Windows that flag appears to strip
+    // the native window style .maximize() itself relies on (WS_MAXIMIZEBOX),
+    // so a maximizable:false window can be *sized* to fill the screen but
+    // never actually enters the true "maximized" (IsZoomed) OS state —
+    // breaking both taskbar auto-hide (below) and, worse, restoring small
+    // and un-maximizable after a minimize/restore cycle, since Windows had
+    // no real "maximized" placement to restore back to. Minimize and close
+    // still work regardless of either flag; the maximize/restore-down title
+    // bar button stays enabled, but the 'maximize'/'unmaximize' listeners
+    // below immediately force it back, so it's a no-op in practice.
     resizable: false,
-    maximizable: false,
   })
 
   // Windows only auto-hides the taskbar for a window it considers truly
@@ -173,21 +179,17 @@ async function openServer(serverEntry) {
   // without this app needing to track that setting itself.
   mainWindow.maximize()
 
-  // Safety net: if anything ever un-maximizes the window (a stray OS
-  // shortcut, a future code path, Windows restoring window state on
-  // display-topology changes), snap straight back — the window must never be
-  // seen in a restored/resized state.
-  mainWindow.on('unmaximize', () => {
+  // Safety net: if anything ever un-maximizes the window (the title bar's
+  // own restore-down button, a stray OS shortcut, Windows restoring window
+  // state on display-topology changes), snap straight back — the window
+  // must never be seen in a restored/resized state. Also covers the
+  // minimize → click-the-taskbar-icon path, which fires 'restore' rather
+  // than 'unmaximize'.
+  const forceMaximize = () => {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.maximize()
-  })
-
-  // Minimize → click the taskbar icon to bring it back fires 'restore', not
-  // 'unmaximize' — Windows restores a maximizable:false window to its small
-  // constructor bounds instead of back to maximized. Force it straight back
-  // to maximized every time it un-minimizes.
-  mainWindow.on('restore', () => {
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.maximize()
-  })
+  }
+  mainWindow.on('unmaximize', forceMaximize)
+  mainWindow.on('restore', forceMaximize)
 
   let loadFailed = false
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {

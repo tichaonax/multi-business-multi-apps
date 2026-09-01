@@ -36,6 +36,7 @@ export async function GET() {
           description: true,
           isActive: true,
           isDemo: true,
+          defaultPage: true,
           createdAt: true,
           updatedAt: true,
           business_accounts: {
