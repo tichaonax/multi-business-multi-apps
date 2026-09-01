@@ -434,24 +434,31 @@ Each client machine that prints needs:
 
 ## 11. Deploying Updates
 
+**Stop the service first.** `npm install` (its `postinstall` hook runs `prisma generate`) and `npm run build` (which also runs `prisma generate`) both need to overwrite the Prisma query engine DLL — and Windows refuses to do that while any running process, including this app's own service, still has it loaded. Building before stopping the service fails with an `EPERM`/file-lock error on that DLL.
+
 ```bash
-# 1. Pull latest code
+# 1. Stop the service — releases the Prisma engine lock
+npm run service:stop
+
+# 2. Pull latest code
 git pull
 
-# 2. Install any new dependencies
+# 3. Install any new dependencies
 npm install
 
-# 3. Run new migrations
+# 4. Run new migrations
 npm run db:deploy
 
-# 4. Rebuild
+# 5. Rebuild
 npm run build
 
-# 5. Restart the service
-npm run service:restart
+# 6. Start the service back up
+npm run service:start
 ```
 
-> If only `server.ts` changed (no UI changes), you can skip the full build and just run `npm run build:server` then restart the service. The service will detect the code change and skip the Next.js rebuild automatically.
+> If only `server.ts` changed (no UI changes), you can skip the full build and just run `npm run build:server` instead of step 5.
+>
+> You can skip step 5 entirely if you'd rather let the service rebuild itself: the hybrid service wrapper (§7) detects a stale commit on startup and runs `npm run build` on its own before serving requests — since the service is already stopped at that point (step 1), it hits none of the locking issues a manual mid-run build would. Either way, the service must be stopped before step 3.
 
 ### After a failed migration
 

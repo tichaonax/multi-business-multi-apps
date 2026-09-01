@@ -393,7 +393,7 @@ npm run service:restart
 
 ### Linux
 
-There's no equivalent of §8.2's auto-rebuilding wrapper. Run the plain systemd unit `scripts/install/install-service.js` generates (`installUnixService()`), or write your own — either way, it starts `node dist/server.js` directly with no auto-build-on-stale-commit behavior, so **you are responsible for running `npm run build` yourself after every `git pull`** before restarting the service.
+There's no equivalent of §8.2's auto-rebuilding wrapper. Run the plain systemd unit `scripts/install/install-service.js` generates (`installUnixService()`), or write your own — either way, it starts `node dist/server.js` directly with no auto-build-on-stale-commit behavior, so **you are responsible for running `npm run build` yourself after every `git pull`.** Stop the service *before* building, not after — `npm run build` (and `npm install`, via its `postinstall` hook) both run `prisma generate`, which needs to overwrite the Prisma query engine binary; a still-running service process holding that file open makes the build fail outright, not just warn.
 
 ---
 
