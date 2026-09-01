@@ -420,6 +420,10 @@ ipcMain.handle('servers:add', (_e, params) => {
   if (!registry.verifyPin(params.pin)) {
     return { ok: false, message: 'Incorrect PIN.' }
   }
+  const duplicate = registry.findDuplicateHost(params.host)
+  if (duplicate) {
+    return { ok: false, message: `"${duplicate.label}" is already registered at this address.` }
+  }
   const entry = registry.add({
     label: params.label,
     host: params.host,
@@ -444,6 +448,10 @@ ipcMain.handle('servers:remove', (_e, { id, pin }) => {
 ipcMain.handle('servers:update', (_e, params) => {
   if (!registry.verifyPin(params.pin)) {
     return { ok: false, message: 'Incorrect PIN.' }
+  }
+  const duplicate = registry.findDuplicateHost(params.host, params.id)
+  if (duplicate) {
+    return { ok: false, message: `"${duplicate.label}" is already registered at this address.` }
   }
   const entry = registry.update(params.id, {
     label: params.label,

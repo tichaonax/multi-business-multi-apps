@@ -471,15 +471,25 @@
       supportContact: el('fSupport').value.trim(),
       certFingerprint: lastPassedTest.certFingerprint,
     }
+    const result = editingServerId
+      ? await window.pickerAPI.updateServer({ id: editingServerId, ...fields })
+      : await window.pickerAPI.addServer(fields)
+
+    if (!result?.ok) {
+      // Keep the form open with whatever was entered — e.g. a duplicate-IP
+      // or incorrect-PIN rejection from the main process — so the operator
+      // can fix it and retry rather than losing their input.
+      el('testResult').innerHTML = `<div class="test-result fail">${escapeHtml(result?.message || 'Failed to save.')}</div>`
+      return
+    }
+
     if (editingServerId) {
-      await window.pickerAPI.updateServer({ id: editingServerId, ...fields })
       // The id may have changed (an IP/URL edit re-derives it) — re-fetch
       // rather than assume, so the active-row highlight stays correct.
       const active = await window.pickerAPI.getActiveServer()
       activeServerId = active ? active.id : null
-    } else {
-      await window.pickerAPI.addServer(fields)
     }
+
     currentPin = null
     editingServerId = null
     el('addForm').classList.remove('open')

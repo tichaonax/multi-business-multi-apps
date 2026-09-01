@@ -59,6 +59,20 @@ function get(id) {
   return load().servers.find((s) => s.id === id) || null
 }
 
+// Finds an already-registered server at the same host/IP, if any — two
+// entries pointing at the same physical machine under different labels is
+// almost always a mistake (a typo'd new registration, or the same server
+// re-added instead of using Edit), not an intentional setup. Excludes
+// `excludeId` so editing a server's own other fields doesn't flag itself.
+// Only meaningful for a bare IP/hostname — an "Advanced: full URL"
+// registration can leave `host` empty, which must never be treated as a
+// match against every other empty-host entry.
+function findDuplicateHost(host, excludeId) {
+  const trimmed = String(host || '').trim().toLowerCase()
+  if (!trimmed) return null
+  return load().servers.find((s) => s.id !== excludeId && String(s.host || '').trim().toLowerCase() === trimmed) || null
+}
+
 function add({ label, host, url, supportContact, certFingerprint }) {
   const data = load()
   const id = deriveServerId(url)
@@ -235,6 +249,7 @@ module.exports = {
   add,
   update,
   remove,
+  findDuplicateHost,
   setLastUsed,
   getLastUsed,
   setDefaultBusiness,
