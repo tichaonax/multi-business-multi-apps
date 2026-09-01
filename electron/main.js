@@ -155,6 +155,13 @@ async function openServer(serverEntry) {
     },
     autoHideMenuBar: true,
     fullscreen: false,
+    // Always fully expanded, with no way for the operator to leave that
+    // state — resizable/maximizable both false so there's no drag-to-resize
+    // handle and no restore-down affordance (double-click title bar, Win+Down,
+    // the frame's own maximize button). Minimize and close still work — those
+    // aren't governed by either flag.
+    resizable: false,
+    maximizable: false,
   })
 
   // Windows only auto-hides the taskbar for a window it considers truly
@@ -165,6 +172,14 @@ async function openServer(serverEntry) {
   // correctly (full bounds when auto-hide is on, workArea when it's off)
   // without this app needing to track that setting itself.
   mainWindow.maximize()
+
+  // Safety net: if anything ever un-maximizes the window (a stray OS
+  // shortcut, a future code path, Windows restoring window state on
+  // display-topology changes), snap straight back — the window must never be
+  // seen in a restored/resized state.
+  mainWindow.on('unmaximize', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.maximize()
+  })
 
   let loadFailed = false
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
@@ -372,9 +387,18 @@ function showPicker() {
     pickerWindow.focus()
     return
   }
+  // Clamp to the actual available work area — a flat 900x720 could exceed a
+  // smaller/scaled display's usable height, and with the window itself
+  // non-resizable there'd be no way to reach content (e.g. the Add Server
+  // form's Save button) past the bottom edge. The page itself scrolls fine
+  // once it fits on-screen at all.
+  const pickerWorkArea = screen.getPrimaryDisplay().workAreaSize
+  const pickerWidth = Math.min(900, pickerWorkArea.width)
+  const pickerHeight = Math.min(720, pickerWorkArea.height)
   pickerWindow = new BrowserWindow({
-    width: 900,
-    height: 720,
+    width: pickerWidth,
+    height: pickerHeight,
+    useContentSize: true,
     title: `Select Server — v${app.getVersion()}`,
     autoHideMenuBar: true,
     // Not minimizable — this window has no taskbar-recovery story on a kiosk

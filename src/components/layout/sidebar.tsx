@@ -602,7 +602,7 @@ export function Sidebar() {
         {currentBusiness && (
           <div className="mt-3 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
             <p className="text-xs text-gray-500 dark:text-gray-400">Current Business:</p>
-            <p className="text-sm text-gray-900 dark:text-white font-medium truncate">{currentBusiness.businessName}</p>
+            <p title={currentBusiness.businessName} className="text-sm text-gray-900 dark:text-white font-medium truncate">{currentBusiness.businessName}</p>
           </div>
         )}
       </div>

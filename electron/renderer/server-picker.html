@@ -6,10 +6,16 @@
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
+  html, body { height: 100%; }
   body {
     margin: 0; padding: 32px; min-height: 100vh;
     background: #0f172a; color: #e2e8f0;
     font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    /* Explicit, not relied-on-by-default: the window is clamped to the
+       screen's work area (main.js) and may still be shorter than this
+       page's content once the Add Server form is open — always let the
+       page scroll rather than clip the Save button off the bottom edge. */
+    overflow-y: auto;
   }
   h1 { font-size: 20px; margin: 0 0 4px; }
   .sub { color: #94a3b8; font-size: 13px; margin-bottom: 20px; }

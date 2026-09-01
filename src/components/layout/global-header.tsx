@@ -19,6 +19,7 @@ import { useNotifications } from '@/components/providers/notification-provider'
 import HealthIndicator from '@/components/ui/health-indicator'
 import { usePolicyOverdue } from '@/hooks/use-policy-overdue'
 import { useActiveServerLabel } from '@/hooks/use-active-server-label'
+import { getDefaultPagePath } from '@/lib/business-default-pages'
 
 interface GlobalHeaderProps {
   title?: string
@@ -323,7 +324,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   }
 
   // Function to get navigation path that preserves current module when switching businesses
-  const getBusinessNavigationPath = (targetBusinessType: string, targetBiz?: { businessId: string; expenseAccounts?: { id: string; accountName: string }[] } | null): string => {
+  const getBusinessNavigationPath = (targetBusinessType: string, targetBiz?: { businessId: string; defaultPage?: string | null; expenseAccounts?: { id: string; accountName: string }[] } | null): string => {
     // vehicle_service has no page at /vehicle_service (or /vehicle-service) — none of
     // the generic /{businessType}/* module-preservation logic below applies to it, so
     // short-circuit straight to its own home page (Jobs) regardless of the current path.
@@ -341,7 +342,12 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
     }
 
     const currentPath = pathname
-    let targetPath = `/${targetBusinessType}` // Default to business homepage
+    // Default to the business's configured default landing page (falls back
+    // to its bare homepage/dashboard inside getDefaultPagePath when unset) —
+    // previously hardcoded to `/${targetBusinessType}`, which silently
+    // ignored a business's own defaultPage (e.g. "POS System") whenever the
+    // module-preservation rules below didn't apply.
+    let targetPath = getDefaultPagePath(targetBusinessType, targetBiz?.defaultPage ?? null)
 
     // ── Cross-module paths ──────────────────────────────────────────────────
     // Expense account detail page — navigate to the equivalent account in the target business
@@ -579,6 +585,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                 <button
                                   disabled={!!switchingToBusinessId}
                                   onClick={() => handleSwitchBusiness(otherBusinesses[0].businessId, otherBusinesses[0].businessType)}
+                                  title={`Switch to ${otherBusinesses[0].businessName} - ${formatBusinessTypeLabel(otherBusinesses[0].businessType)}`}
                                   className="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-700 dark:hover:text-blue-300 transition-colors w-full text-left disabled:opacity-60"
                                 >
                                   <span className={switchingToBusinessId === otherBusinesses[0].businessId ? 'animate-spin inline-block' : ''}>
@@ -610,7 +617,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                       {/* Current business indicator — with edit shortcut for permitted users */}
                                       <div className="flex items-center gap-2 px-6 py-1.5">
                                         <span className="text-green-500 text-xs shrink-0">✓</span>
-                                        <span className="text-xs text-gray-400 dark:text-gray-500 truncate">{currentBusiness.businessName}</span>
+                                        <span title={currentBusiness.businessName} className="text-xs text-gray-400 dark:text-gray-500 truncate">{currentBusiness.businessName}</span>
                                         <span className="ml-auto text-gray-300 dark:text-gray-600 text-xs shrink-0">{formatBusinessTypeLabel(currentBusiness.businessType)}</span>
                                         {(isSystemAdmin(session.user as SessionUser) || hasPermission('canEditBusiness')) && (
                                           <button
@@ -694,6 +701,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                               key={biz.businessId}
                                               disabled={!!switchingToBusinessId}
                                               onClick={() => handleSwitchBusiness(biz.businessId, biz.businessType)}
+                                              title={`${biz.businessName} - ${formatBusinessTypeLabel(biz.businessType)}`}
                                               className="flex items-center gap-2 w-full px-6 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-700 dark:hover:text-blue-300 transition-colors text-left disabled:opacity-60"
                                             >
                                               <span className={`shrink-0 ${switchingToBusinessId === biz.businessId ? 'animate-spin inline-block' : ''}`}>
