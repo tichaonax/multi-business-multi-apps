@@ -167,7 +167,7 @@ export default function SignIn() {
               <div className="text-center text-sm mb-4">
                 <button
                   type="button"
-                  onClick={() => window.electron?.switchServer()}
+                  onClick={() => window.electron?.switchServer?.()}
                   className="font-medium text-blue-600 hover:text-blue-500"
                 >
                   Switch Server

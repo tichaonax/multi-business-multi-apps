@@ -21,6 +21,13 @@ export function useElectronAppVersion(): ElectronAppVersionInfo {
 
   useEffect(() => {
     if (!window.electron?.isElectron) return
+    // getAppVersion() is a newer preload method — an Electron shell installed
+    // before this feature shipped exposes window.electron without it, and
+    // calling a non-existent method throws synchronously (not a promise
+    // rejection .catch() would ever see), crashing the whole page. Guard
+    // the version check itself the same way as an update-required banner:
+    // an older kiosk should just not show this badge, not crash on it.
+    if (typeof window.electron.getAppVersion !== 'function') return
     window.electron.getAppVersion().then(setVersion).catch(() => {})
     fetch('/api/public/electron/latest-version')
       .then((res) => res.json())

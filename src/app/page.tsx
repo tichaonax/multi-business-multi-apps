@@ -149,7 +149,7 @@ export default function HomePage() {
               <div className="flex items-center justify-center gap-4 mt-4 text-sm">
                 <button
                   type="button"
-                  onClick={() => window.electron?.switchServer()}
+                  onClick={() => window.electron?.switchServer?.()}
                   className="font-medium text-blue-600 hover:text-blue-500"
                 >
                   Switch Server

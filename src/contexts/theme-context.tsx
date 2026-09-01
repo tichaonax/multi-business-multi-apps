@@ -48,6 +48,11 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   // instead of silently reverting to 'system'.
   useEffect(() => {
     if (!window.electron || localStorage.getItem('theme')) return
+    // getTheme/setTheme are newer preload methods — an Electron shell
+    // installed before this feature shipped exposes window.electron without
+    // them, and calling a non-existent method throws synchronously (not a
+    // promise rejection anything downstream would catch), crashing the page.
+    if (typeof window.electron.getTheme !== 'function') return
     window.electron.getTheme().then((stored) => {
       if (stored && ['light', 'dark', 'system'].includes(stored)) {
         setThemeState(stored)
@@ -96,7 +101,9 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     localStorage.setItem('theme', newTheme)
     // Also persist outside the session's own storage so it survives an
     // Electron app restart — see the effect above for why that's needed.
-    window.electron?.setTheme(newTheme)
+    // Double optional-chain: an older Electron shell has window.electron
+    // but not this method, and calling a non-function throws.
+    window.electron?.setTheme?.(newTheme)
   }
 
   return (

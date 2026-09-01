@@ -14,6 +14,11 @@ export function useActiveServerLabel(): string | null {
 
   useEffect(() => {
     if (!window.electron?.isElectron) return
+    // A method missing on an older installed Electron shell throws
+    // synchronously when called, not as a promise rejection .catch() would
+    // see — guard its existence explicitly rather than let that crash the
+    // page (see use-electron-app-version.ts's identical guard/comment).
+    if (typeof window.electron.getActiveServer !== 'function') return
     window.electron.getActiveServer()
       .then((server) => setLabel(server?.label ?? null))
       .catch(() => {})

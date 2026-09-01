@@ -29,8 +29,8 @@ export function SwitchBusinessModal({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     Promise.all([
       fetch('/api/public/businesses').then((r) => (r.ok ? r.json() : { businesses: [] })),
-      window.electron?.hasPin() ?? Promise.resolve(false),
-      window.electron?.getDefaultBusiness() ?? Promise.resolve(null),
+      window.electron?.hasPin?.() ?? Promise.resolve(false),
+      window.electron?.getDefaultBusiness?.() ?? Promise.resolve(null),
     ])
       .then(([bizRes, hasPin, current]) => {
         setBusinesses(bizRes.businesses || [])
@@ -66,10 +66,10 @@ export function SwitchBusinessModal({ onClose }: { onClose: () => void }) {
     setSaving(true)
     try {
       if (needsPinSetup) {
-        await window.electron?.setPin(pin)
+        await window.electron?.setPin?.(pin)
       }
       const business = businesses.find((b) => b.id === selectedId)
-      const result = await window.electron?.setDefaultBusiness(pin, selectedId, business?.name || '')
+      const result = await window.electron?.setDefaultBusiness?.(pin, selectedId, business?.name || '')
       if (!result?.ok) {
         setError(result?.message || 'Failed to save.')
         return
@@ -96,7 +96,7 @@ export function SwitchBusinessModal({ onClose }: { onClose: () => void }) {
     }
     setSaving(true)
     try {
-      const result = await window.electron?.setDefaultBusiness(pin, '', '')
+      const result = await window.electron?.setDefaultBusiness?.(pin, '', '')
       if (!result?.ok) {
         setError(result?.message || 'Failed to clear.')
         return
