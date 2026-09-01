@@ -2,9 +2,15 @@
  * GET /api/cash-bucket/allocation-detail?businessId=&entryType=&notes=
  *
  * Drill-down for one earmarked line on the Cash Box "Per-Business Breakdown" —
- * lists the individual CashBucketEntry rows that sum to that line's amount within
- * the same rolling window the summary line uses (see cash-bucket-earmark-window.ts),
- * plus the real expense account it belongs to.
+ * lists the individual CashBucketEntry rows that sum to that line's lifetime
+ * contribution, plus the real expense account it belongs to.
+ *
+ * MBM-287: previously capped to a rolling 7-day window (see
+ * cash-bucket-earmark-window.ts) — that cap is dropped here too, same as the
+ * new Cash Position card's per-purpose breakdown (calculateSetAsideBreakdown),
+ * which this route now calls for its lifetimeDisbursed/stillAvailable
+ * figures specifically so this modal can never show a different "still
+ * reserved" number than the summary card it was opened from.
  *
  * The earmarked line's own grouping key IS the account name (CashBucketEntry.notes
  * for CASH_ALLOCATION is set to `account.accountName` at creation time — see
@@ -19,7 +25,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
-import { getEarmarkWindowStart } from '@/lib/cash-bucket-earmark-window'
+import { calculateSetAsideBreakdown } from '@/lib/cash-position/calculate-set-aside-breakdown'
 
 export async function GET(request: NextRequest) {
   try {
@@ -42,15 +48,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'entryType must be CASH_ALLOCATION or PAYROLL_FUNDING' }, { status: 400 })
     }
 
-    const windowStart = getEarmarkWindowStart()
-
     const entries = await prisma.cashBucketEntry.findMany({
       where: {
         businessId,
         entryType,
         direction: 'OUTFLOW',
         deletedAt: null,
-        entryDate: { gte: windowStart },
         ...(entryType === 'CASH_ALLOCATION' ? { notes: notes ?? undefined } : {}),
       },
       select: {
@@ -62,6 +65,18 @@ export async function GET(request: NextRequest) {
       },
       orderBy: { entryDate: 'desc' },
     })
+
+    // Same netting the Cash Position card's Set Aside breakdown already
+    // shows — pulling the matching purpose's row out of it rather than
+    // recomputing separately, so this modal's "still reserved" total is
+    // guaranteed identical to the summary line it was opened from.
+    const purpose = entryType === 'PAYROLL_FUNDING' ? 'Payroll' : (notes ?? 'Unspecified')
+    const breakdown = await calculateSetAsideBreakdown({
+      businessIds: [businessId],
+      periodStart: new Date(),
+      periodEnd: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    })
+    const purposeRow = breakdown.find(r => r.entryType === entryType && r.purpose === purpose)
 
     // Resolve the one account this whole group belongs to (see file header) — a
     // single lookup, not one per row. Try this business's own account first, then
@@ -87,7 +102,13 @@ export async function GET(request: NextRequest) {
       accountNumber: entryType === 'PAYROLL_FUNDING' ? null : (resolvedAccount?.accountNumber ?? null),
     }))
 
-    return NextResponse.json({ success: true, items })
+    return NextResponse.json({
+      success: true,
+      items,
+      lifetimeContributed: purposeRow?.lifetimeContributed ?? items.reduce((s, i) => s + i.amount, 0),
+      lifetimeDisbursed: purposeRow?.lifetimeDisbursed ?? 0,
+      stillAvailable: purposeRow?.stillAvailable ?? items.reduce((s, i) => s + i.amount, 0),
+    })
   } catch (err) {
     console.error('[GET /api/cash-bucket/allocation-detail]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

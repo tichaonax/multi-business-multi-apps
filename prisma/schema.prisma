@@ -476,6 +476,11 @@ model Businesses {
   umbrellaBusinessRegistration                                             String?
   shortName                                                                String?
   isDemo                                                                   Boolean                           @default(false)
+  // MBM-287: admin-configurable hex colour for consistent business
+  // identification across the dashboard, Cash Bucket, and reports — nullable
+  // so nothing needs backfilling; unset businesses fall back to a
+  // deterministic hash-of-id palette pick (src/lib/cash-position/business-color.ts).
+  displayColor                                                             String?
   wifiIntegrationEnabled                                                   Boolean                           @default(false)
   sku_format                                                               String?                           @default("{BUSINESS}-{SEQ}") @db.VarChar(50)
   sku_prefix                                                               String?                           @db.VarChar(20)

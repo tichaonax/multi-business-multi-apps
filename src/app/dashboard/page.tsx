@@ -20,6 +20,7 @@ import { LaybyAlertsWidget } from '@/components/laybys/layby-alerts-widget'
 import { LowBalanceAlert } from '@/components/expense-account/low-balance-alert'
 import { R710AlertsWidget } from '@/components/r710/r710-alerts-widget'
 import { WorkstationAgentStatusWidget } from '@/components/workstation-agents/workstation-agent-status-widget'
+import { CashPositionCards, type CashPositionData } from '@/components/cash-position/cash-position-cards'
 import { BusinessBalanceDisplay } from '@/components/business/business-balance-display'
 import { LoanBreakdownCard } from '@/components/business/loan-breakdown-card'
 import { LoanPendingActionsWidget } from '@/components/loans/loan-pending-actions-widget'
@@ -61,6 +62,12 @@ function DashboardContent() {
     pendingTasks: 0
   })
   const [statsLoading, setStatsLoading] = useState<boolean>(true)
+  // MBM-287: same Opening/Cash In/Set Aside/Expenses/Available/Closing
+  // summary the Cash Bucket page shows, from the same API — GET
+  // /api/cash-bucket, not revenue-breakdown-detailed, since that's the one
+  // route that returns the shared calculateCashPosition() result.
+  const [cashPosition, setCashPosition] = useState<CashPositionData | null>(null)
+  const [cashPositionPeriod, setCashPositionPeriod] = useState<{ start: string; end: string } | null>(null)
   const [showPendingTasks, setShowPendingTasks] = useState<boolean>(false)
   const [pendingTasks, setPendingTasks] = useState<any[]>([])
   const [showRevenueBreakdown, setShowRevenueBreakdown] = useState<boolean>(false)
@@ -179,6 +186,29 @@ function DashboardContent() {
       fetchAvailableBusinesses()
     }
   }, [session, currentBusiness])
+
+  // MBM-287: same-shaped fetch as the Cash Bucket page — scoped to the
+  // currently selected business, or combined across all when none is
+  // selected (e.g. the umbrella "All" view), matching GET /api/cash-bucket's
+  // existing optional businessId behavior.
+  useEffect(() => {
+    if (!currentUser) return
+    const fetchCashPosition = async () => {
+      try {
+        const params = new URLSearchParams()
+        if (businessId) params.set('businessId', businessId)
+        const response = await fetch(`/api/cash-bucket?${params}`, { credentials: 'include' })
+        if (response.ok) {
+          const json = await response.json()
+          setCashPosition(json.data?.cashPosition ?? null)
+          setCashPositionPeriod(json.data?.cashPositionPeriod ?? null)
+        }
+      } catch (error) {
+        console.error('Failed to fetch cash position:', error)
+      }
+    }
+    fetchCashPosition()
+  }, [currentUser, businessId])
 
   // Auto-apply filter when scope changes
   useEffect(() => {
@@ -539,6 +569,18 @@ function DashboardContent() {
             specifically about "is anything even working right now" and
             should be visible without scrolling. */}
         <WorkstationAgentStatusWidget />
+
+        {/* MBM-287: same Cash Position card row as the Cash Bucket page —
+            Opening/Cash In/Set Aside/Expenses/Available/Closing, always in
+            agreement since both pull from the same calculateCashPosition().
+            Silently omitted for users without cash-bucket access (the fetch
+            above just leaves cashPosition null on a 403) and for drivers,
+            who have no use for it. */}
+        {!isDriver && cashPosition && (
+          <div className="mb-6">
+            <CashPositionCards cashPosition={cashPosition} period={cashPositionPeriod} title="Cash Position — Today" />
+          </div>
+        )}
 
         {isDriver ? (
           // Driver-specific dashboard

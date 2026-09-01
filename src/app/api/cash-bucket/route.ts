@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
-import { getEarmarkWindowStart } from '@/lib/cash-bucket-earmark-window'
+import { calculateCashPosition } from '@/lib/cash-position/calculate-cash-position'
+import { calculateSetAsideBreakdown } from '@/lib/cash-position/calculate-set-aside-breakdown'
 
 /**
  * GET /api/cash-bucket
@@ -123,81 +124,37 @@ export async function GET(request: NextRequest) {
     })
     const bizMap = new Map(businesses.map((b) => [b.id, b]))
 
-    // CASH_ALLOCATION outflow breakdown (rolling window) — earmarked funds still physically in the box
-    const windowStart = getEarmarkWindowStart()
-
-    const allocationRows = await prisma.cashBucketEntry.groupBy({
-      by: ['businessId', 'notes'] as any,
-      where: {
-        entryType: 'CASH_ALLOCATION',
-        direction: 'OUTFLOW',
-        deletedAt: null,
-        entryDate: { gte: windowStart },
-        ...(businessId && { businessId }),
-      },
-      _sum: { amount: true },
-    })
-
-    const allocMap = new Map<string, { accountName: string; amount: number; entryType: string; notes: string | null }[]>()
-    for (const row of allocationRows as any[]) {
-      const items = allocMap.get(row.businessId) ?? []
-      items.push({ accountName: row.notes ?? 'Unspecified', amount: Number(row._sum.amount ?? 0), entryType: 'CASH_ALLOCATION', notes: row.notes ?? null })
-      allocMap.set(row.businessId, items)
-    }
-
-    // PAYROLL_FUNDING outflow breakdown (rolling window) — payroll reserved in the box
-    const payrollRows = await prisma.cashBucketEntry.groupBy({
-      by: ['businessId'] as any,
-      where: {
-        entryType: 'PAYROLL_FUNDING',
-        direction: 'OUTFLOW',
-        deletedAt: null,
-        entryDate: { gte: windowStart },
-        ...(businessId && { businessId }),
-      },
-      _sum: { amount: true },
-    })
-    for (const row of payrollRows as any[]) {
-      const items = allocMap.get(row.businessId) ?? []
-      items.push({ accountName: 'Payroll Funding', amount: Number(row._sum.amount ?? 0), entryType: 'PAYROLL_FUNDING', notes: null })
-      allocMap.set(row.businessId, items)
-    }
-
-    // PAYMENT_APPROVAL outflows in the same window — cash that already physically left the box.
-    // These reduce the earmarked display: earmarks that have been disbursed should clear.
-    const approvalRows = await prisma.cashBucketEntry.groupBy({
-      by: ['businessId'] as any,
-      where: {
-        entryType: 'PAYMENT_APPROVAL',
-        direction: 'OUTFLOW',
-        paymentChannel: 'CASH',
-        deletedAt: null,
-        entryDate: { gte: windowStart },
-        ...(businessId && { businessId }),
-      },
-      _sum: { amount: true },
-    })
-    const approvalMap = new Map<string, number>()
-    for (const row of approvalRows as any[]) {
-      approvalMap.set(row.businessId, Number(row._sum.amount ?? 0))
-    }
+    // MBM-287: earmarked/allocation breakdown — was a rolling 7-day window,
+    // now unbounded via the same shared calculateSetAsideBreakdown() the
+    // new Cash Position card and the allocation-detail drill-down modal
+    // both already use, so all three surfaces can never disagree again.
+    // Looped per business (not one grouped query) since the shared
+    // function's purpose-grouping is written for one business's lifetime
+    // view at a time — bounded by the number of businesses with any cash
+    // bucket activity, not by total entry volume.
+    const setAsideByBusiness = new Map<string, Awaited<ReturnType<typeof calculateSetAsideBreakdown>>>()
+    await Promise.all(businessIds.map(async (id) => {
+      const rows = await calculateSetAsideBreakdown({
+        businessIds: [id],
+        periodStart: new Date(),
+        periodEnd: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      })
+      setAsideByBusiness.set(id, rows)
+    }))
 
     const balances = businessIds.map((id) => {
       const { cashInflow, cashOutflow, ecocashInflow, ecocashOutflow } = map.get(id)!
       const cashBalance = cashInflow - cashOutflow
       const ecocashBalance = ecocashInflow - ecocashOutflow
 
-      // Net earmarks against disbursements: reduce line items proportionally until paid amounts consumed
-      const rawAllocations = (allocMap.get(id) ?? []).sort((a, b) => b.amount - a.amount)
-      let remaining = approvalMap.get(id) ?? 0
-      const allocations = rawAllocations
-        .map((a) => {
-          if (remaining <= 0) return a
-          const reduction = Math.min(a.amount, remaining)
-          remaining -= reduction
-          return { ...a, amount: a.amount - reduction }
-        })
-        .filter((a) => a.amount > 0.009)
+      const allocations = (setAsideByBusiness.get(id) ?? [])
+        .filter((r) => r.stillAvailable > 0.009)
+        .map((r) => ({
+          accountName: r.entryType === 'PAYROLL_FUNDING' ? 'Payroll Funding' : r.purpose,
+          amount: r.stillAvailable,
+          entryType: r.entryType,
+          notes: r.entryType === 'PAYROLL_FUNDING' ? null : r.purpose,
+        }))
 
       const allocatedTotal = allocations.reduce((s, a) => s + a.amount, 0)
       return {
@@ -249,9 +206,28 @@ export async function GET(request: NextRequest) {
     const pettyCashStatusMap = new Map(pettyCashStatuses.map((r) => [r.id, r.status]))
     const pettyCashRequestedAtMap = new Map(pettyCashStatuses.map((r) => [r.id, r.requestedAt.toISOString()]))
 
+    // MBM-287: period-scoped Opening/Cash In/Set Aside/Expenses/Closing/
+    // Available — fixes the bug where this endpoint's own totalBalance/
+    // totalAllocated/totalPhysicalCash above never respected startDate/
+    // endDate at all (always a lifetime running total). Those fields are
+    // left as-is for existing callers; this is additive. Defaults to
+    // "today" when no explicit range is given, rather than "all time" —
+    // day-to-day performance is the more useful default for a summary card.
+    const periodStart = startDate ? new Date(startDate) : (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d })()
+    const periodEnd = endDate
+      ? (() => { const d = new Date(endDate); d.setDate(d.getDate() + 1); return d })()
+      : (() => { const d = new Date(periodStart); d.setDate(d.getDate() + 1); return d })()
+    const cashPosition = await calculateCashPosition({
+      businessIds: businessId ? [businessId] : undefined,
+      periodStart,
+      periodEnd,
+    })
+
     return NextResponse.json({
       success: true,
       data: {
+        cashPosition,
+        cashPositionPeriod: { start: periodStart.toISOString(), end: periodEnd.toISOString() },
         totalBalance,
         totalAllocated,
         totalPhysicalCash,

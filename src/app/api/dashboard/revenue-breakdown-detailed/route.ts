@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client'
 import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 import { getBusinessBalance } from '@/lib/business-balance-utils'
-import { getEarmarkWindowStart } from '@/lib/cash-bucket-earmark-window'
+import { calculateCashPosition } from '@/lib/cash-position/calculate-cash-position'
 
 export async function GET(req: NextRequest) {
   try {
@@ -73,45 +73,42 @@ export async function GET(req: NextRequest) {
       inventoryValueMap.set(row.businessId, existing + Number(row.inventoryValue))
     }
 
-    // --- Batch fetch cash bucket balances split by paymentChannel ---
-    const cashBucketRows = await prisma.cashBucketEntry.groupBy({
-      by: ['businessId', 'direction', 'paymentChannel'] as any,
-      where: { businessId: { in: allBusinessIds } },
-      _sum: { amount: true },
-    })
+    // --- Batch fetch cash bucket balances (MBM-287: shared calculation
+    // service, no longer a separately hand-written query — see the plan
+    // doc's finding #2 on this exact duplication). cashBoxMap is the CASH
+    // channel's lifetime-to-date closing balance (already net of
+    // CASH_ALLOCATION/PAYROLL_FUNDING outflows, same as "Free/Available" on
+    // the Cash Bucket page); earmarkedMap is now unbounded rather than
+    // capped to a rolling 7-day window (MBM-287 §2.1 — dropped since it's
+    // no longer standing in for a lifetime figure, it *is* the lifetime
+    // figure). EcoCash stays a separate, small, unchanged query — it's
+    // explicitly not part of this "physical cash box" model.
     const cashBoxMap = new Map<string, number>()
-    const ecocashBoxMap = new Map<string, number>()
-    for (const row of cashBucketRows as any[]) {
-      const amt = Number(row._sum.amount ?? 0)
-      if (row.paymentChannel === 'ECOCASH') {
-        const cur = ecocashBoxMap.get(row.businessId) ?? 0
-        ecocashBoxMap.set(row.businessId, row.direction === 'INFLOW' ? cur + amt : cur - amt)
-      } else {
-        const cur = cashBoxMap.get(row.businessId) ?? 0
-        cashBoxMap.set(row.businessId, row.direction === 'INFLOW' ? cur + amt : cur - amt)
+    const earmarkedMap = new Map<string, number>()
+    if (allBusinessIds.length > 0) {
+      const cashPosition = await calculateCashPosition({
+        businessIds: allBusinessIds,
+        periodStart: new Date(0),
+        periodEnd: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      })
+      for (const row of cashPosition.businesses) {
+        cashBoxMap.set(row.businessId, row.closingBalance)
+        earmarkedMap.set(row.businessId, row.currentlyEarmarked)
       }
     }
-    // cashBoxMap above is the FREE/AVAILABLE portion only — CASH_ALLOCATION and
-    // PAYROLL_FUNDING outflows already reduced it, same as "Free / available" on the
-    // Cash Bucket page. This "Earmarked" figure is that reduction, shown separately
-    // so the two pages agree on what "Cash Box" means instead of silently differing.
-    const earmarkWindowStart = getEarmarkWindowStart()
-    const earmarkRows = allBusinessIds.length > 0
+    const ecocashBoxMap = new Map<string, number>()
+    const ecocashRows = allBusinessIds.length > 0
       ? await prisma.cashBucketEntry.groupBy({
-          by: ['businessId'] as any,
-          where: {
-            businessId: { in: allBusinessIds },
-            entryType: { in: ['CASH_ALLOCATION', 'PAYROLL_FUNDING'] },
-            direction: 'OUTFLOW',
-            deletedAt: null,
-            entryDate: { gte: earmarkWindowStart },
-          },
+          by: ['businessId', 'direction'] as any,
+          where: { businessId: { in: allBusinessIds }, paymentChannel: 'ECOCASH' },
           _sum: { amount: true },
         })
       : []
-    const earmarkedMap = new Map(
-      (earmarkRows as any[]).map(r => [r.businessId, Number(r._sum.amount ?? 0)])
-    )
+    for (const row of ecocashRows as any[]) {
+      const amt = Number(row._sum.amount ?? 0)
+      const cur = ecocashBoxMap.get(row.businessId) ?? 0
+      ecocashBoxMap.set(row.businessId, row.direction === 'INFLOW' ? cur + amt : cur - amt)
+    }
 
     // --- Batch fetch each business's own primary (GENERAL) expense account balance ---
     // Same "no isPrimary field" resolution used everywhere else in the app — the

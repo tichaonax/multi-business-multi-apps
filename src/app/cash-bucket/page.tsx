@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { ContentLayout } from '@/components/layout/content-layout'
+import { CashPositionCards, type CashPositionData } from '@/components/cash-position/cash-position-cards'
 import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { EcocashConversionRequestForm } from '@/components/ecocash-conversion/EcocashConversionRequestForm'
@@ -51,6 +52,7 @@ interface BucketBalance {
   allocatedTotal: number
   physicalCash: number
 }
+
 
 interface BucketEntry {
   id: string
@@ -355,6 +357,12 @@ export default function CashBucketPage() {
   const [totalBalance, setTotalBalance] = useState(0)
   const [totalAllocated, setTotalAllocated] = useState(0)
   const [totalPhysicalCash, setTotalPhysicalCash] = useState(0)
+  // MBM-287: period-scoped Opening/Cash In/Set Aside/Expenses/Closing/
+  // Available — unlike totalBalance/totalAllocated/totalPhysicalCash above,
+  // this actually respects the selected date range (see the plan doc's
+  // finding #1 — those three never did).
+  const [cashPosition, setCashPosition] = useState<CashPositionData | null>(null)
+  const [cashPositionPeriod, setCashPositionPeriod] = useState<{ start: string; end: string } | null>(null)
   const [balances, setBalances] = useState<BucketBalance[]>([])
   const [entries, setEntries] = useState<BucketEntry[]>([])
   const [businesses, setBusinesses] = useState<Business[]>([])
@@ -390,6 +398,7 @@ export default function CashBucketPage() {
   // Earmarked-line drill-down modal state
   const [allocationDetail, setAllocationDetail] = useState<{
     businessName: string; accountName: string; items: AllocationDetailItem[]
+    lifetimeContributed?: number; lifetimeDisbursed?: number; stillAvailable?: number
   } | null>(null)
   const [allocationDetailLoading, setAllocationDetailLoading] = useState(false)
 
@@ -460,6 +469,8 @@ export default function CashBucketPage() {
       setTotalBalance(json.data.totalBalance)
       setTotalAllocated(json.data.totalAllocated ?? 0)
       setTotalPhysicalCash(json.data.totalPhysicalCash ?? 0)
+      setCashPosition(json.data.cashPosition ?? null)
+      setCashPositionPeriod(json.data.cashPositionPeriod ?? null)
       setBalances(json.data.balances)
       setEntries(json.data.entries)
     } finally {
@@ -550,7 +561,14 @@ export default function CashBucketPage() {
       const res = await fetch(`/api/cash-bucket/allocation-detail?${params}`, { credentials: 'include' })
       const data = await res.json()
       if (res.ok) {
-        setAllocationDetail({ businessName, accountName: alloc.accountName, items: data.items || [] })
+        setAllocationDetail({
+          businessName,
+          accountName: alloc.accountName,
+          items: data.items || [],
+          lifetimeContributed: data.lifetimeContributed,
+          lifetimeDisbursed: data.lifetimeDisbursed,
+          stillAvailable: data.stillAvailable,
+        })
       } else {
         await alert({ title: 'Error', description: data.error || 'Failed to load detail.' })
         setAllocationDetail(null)
@@ -691,6 +709,12 @@ export default function CashBucketPage() {
     >
       <div className="space-y-6">
 
+        {/* MBM-287: period-scoped cash position — the numbers below actually
+            change with the date filter, unlike the "Total Balance" banner
+            further down (which is always a lifetime running total, kept
+            as-is for backward compatibility). */}
+        {cashPosition && <CashPositionCards cashPosition={cashPosition} period={cashPositionPeriod} />}
+
         {/* Total balance banner */}
         {(() => {
           const totalEcocash = balances.reduce((s, b) => s + b.ecocashBalance, 0)
@@ -720,7 +744,7 @@ export default function CashBucketPage() {
                     </div>
                     {totalAllocated > 0 && (
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-500 dark:text-gray-400">└── 🔒 Earmarked (set aside, last 7 days)</span>
+                        <span className="text-gray-500 dark:text-gray-400">└── 🔒 Earmarked (set aside, still reserved)</span>
                         <span className="font-semibold text-amber-600 dark:text-amber-400">{fmt(totalAllocated)}</span>
                       </div>
                     )}
@@ -882,7 +906,7 @@ export default function CashBucketPage() {
                             ))}
                           </>
                         ) : (
-                          <div className="pl-3 text-gray-400 dark:text-gray-500">└── no earmarked funds in the last 7 days</div>
+                          <div className="pl-3 text-gray-400 dark:text-gray-500">└── no funds currently earmarked</div>
                         )}
                       </div>
 
@@ -929,7 +953,7 @@ export default function CashBucketPage() {
                       {combinedAllocs.length > 0 && (
                         <>
                           <div className="flex justify-between items-center pl-3">
-                            <span className="text-gray-400 dark:text-gray-500">└── 🔒 Earmarked, last 7 days ({combinedAllocs.length} item{combinedAllocs.length !== 1 ? 's' : ''})</span>
+                            <span className="text-gray-400 dark:text-gray-500">└── 🔒 Earmarked, still reserved ({combinedAllocs.length} item{combinedAllocs.length !== 1 ? 's' : ''})</span>
                             <span className="font-semibold text-amber-600 dark:text-amber-400">{fmt(totalAllocated)}</span>
                           </div>
                           {combinedAllocs.map((a, i) => (
@@ -1645,7 +1669,24 @@ export default function CashBucketPage() {
             onClick={e => e.stopPropagation()}
           >
             <h3 className="text-sm font-semibold text-primary mb-1">{allocationDetail.accountName}</h3>
-            <p className="text-xs text-secondary mb-4">{allocationDetail.businessName} — what makes up this earmarked total (last 7 days)</p>
+            <p className="text-xs text-secondary mb-2">{allocationDetail.businessName} — every contribution to date</p>
+
+            {!allocationDetailLoading && allocationDetail.lifetimeContributed !== undefined && (
+              <div className="grid grid-cols-3 gap-2 mb-4 text-xs">
+                <div className="rounded-md bg-gray-50 dark:bg-gray-900/40 px-2 py-1.5">
+                  <p className="text-gray-500 dark:text-gray-400">Lifetime Contributed</p>
+                  <p className="font-semibold text-gray-900 dark:text-gray-100">{fmt(allocationDetail.lifetimeContributed ?? 0)}</p>
+                </div>
+                <div className="rounded-md bg-gray-50 dark:bg-gray-900/40 px-2 py-1.5">
+                  <p className="text-gray-500 dark:text-gray-400">Lifetime Disbursed</p>
+                  <p className="font-semibold text-gray-900 dark:text-gray-100">{fmt(allocationDetail.lifetimeDisbursed ?? 0)}</p>
+                </div>
+                <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 px-2 py-1.5">
+                  <p className="text-amber-700 dark:text-amber-400">Still Available</p>
+                  <p className="font-semibold text-amber-700 dark:text-amber-400">{fmt(allocationDetail.stillAvailable ?? 0)}</p>
+                </div>
+              </div>
+            )}
 
             {allocationDetailLoading ? (
               <p className="text-sm text-secondary">Loading…</p>
