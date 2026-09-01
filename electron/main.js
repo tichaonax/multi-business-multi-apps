@@ -181,6 +181,14 @@ async function openServer(serverEntry) {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.maximize()
   })
 
+  // Minimize → click the taskbar icon to bring it back fires 'restore', not
+  // 'unmaximize' — Windows restores a maximizable:false window to its small
+  // constructor bounds instead of back to maximized. Force it straight back
+  // to maximized every time it un-minimizes.
+  mainWindow.on('restore', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.maximize()
+  })
+
   let loadFailed = false
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
     // Only the top-level page navigation counts — a failed sub-resource
