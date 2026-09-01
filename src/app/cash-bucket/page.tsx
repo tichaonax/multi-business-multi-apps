@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { CashPositionCards, type CashPositionData } from '@/components/cash-position/cash-position-cards'
+import { getBusinessColor } from '@/lib/cash-position/business-color'
 import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { EcocashConversionRequestForm } from '@/components/ecocash-conversion/EcocashConversionRequestForm'
@@ -17,6 +18,7 @@ interface Business {
   id: string
   name: string
   type: string
+  displayColor?: string | null
 }
 
 interface AllocationItem {
@@ -864,9 +866,19 @@ export default function CashBucketPage() {
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {balances.map(b => (
-                    <div key={b.businessId} className="rounded-lg border border-border bg-card px-4 py-3 space-y-3">
+                    <div
+                      key={b.businessId}
+                      className="rounded-lg border border-border bg-card px-4 py-3 space-y-3 border-l-4"
+                      style={{ borderLeftColor: getBusinessColor({ id: b.businessId, displayColor: b.business?.displayColor }) }}
+                    >
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs font-medium text-secondary uppercase tracking-wide truncate">{b.business?.name ?? b.businessId}</p>
+                        <p className="text-xs font-medium text-secondary uppercase tracking-wide truncate flex items-center gap-1.5">
+                          <span
+                            className="inline-block w-2 h-2 rounded-full shrink-0"
+                            style={{ backgroundColor: getBusinessColor({ id: b.businessId, displayColor: b.business?.displayColor }) }}
+                          />
+                          {b.business?.name ?? b.businessId}
+                        </p>
                         {isAdmin && (
                           <button
                             onClick={() => openAdjustBalanceModal(b)}

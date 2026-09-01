@@ -34,19 +34,22 @@ export function CashPositionCards({
   cashPosition,
   period,
   title = 'Cash Position',
+  onCardClick,
 }: {
   cashPosition: CashPositionData
   period?: { start: string; end: string } | null
   title?: string
+  /** MBM-287 §4: optional drill-down — omit a key to leave that card inert. */
+  onCardClick?: Partial<Record<'cashIn' | 'setAside' | 'expenses' | 'availableBalance' | 'closingBalance', () => void>>
 }) {
   const c = cashPosition.combined
   const cards = [
-    { label: 'Opening Balance', value: c.openingBalance, color: 'text-gray-700 dark:text-gray-300' },
-    { label: 'Cash In', value: c.cashIn, color: 'text-green-600 dark:text-green-400' },
-    { label: 'Set Aside', value: c.setAside, color: 'text-amber-600 dark:text-amber-400' },
-    { label: 'Expenses', value: c.expenses, color: 'text-red-600 dark:text-red-400' },
-    { label: 'Available Cash', value: c.availableBalance, color: 'text-emerald-700 dark:text-emerald-300 font-bold' },
-    { label: 'Closing Balance', value: c.closingBalance, color: 'text-gray-900 dark:text-gray-100 font-bold' },
+    { label: 'Opening Balance', value: c.openingBalance, color: 'text-gray-700 dark:text-gray-300', onClick: undefined },
+    { label: 'Cash In', value: c.cashIn, color: 'text-green-600 dark:text-green-400', onClick: onCardClick?.cashIn },
+    { label: 'Set Aside', value: c.setAside, color: 'text-amber-600 dark:text-amber-400', onClick: onCardClick?.setAside },
+    { label: 'Expenses', value: c.expenses, color: 'text-red-600 dark:text-red-400', onClick: onCardClick?.expenses },
+    { label: 'Available Cash', value: c.availableBalance, color: 'text-emerald-700 dark:text-emerald-300 font-bold', onClick: onCardClick?.availableBalance },
+    { label: 'Closing Balance', value: c.closingBalance, color: 'text-gray-900 dark:text-gray-100 font-bold', onClick: onCardClick?.closingBalance },
   ]
 
   return (
@@ -63,7 +66,12 @@ export function CashPositionCards({
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {cards.map(card => (
-          <div key={card.label} className="rounded-md bg-gray-50 dark:bg-gray-900/40 px-3 py-2.5">
+          <div
+            key={card.label}
+            onClick={card.onClick}
+            className={`rounded-md bg-gray-50 dark:bg-gray-900/40 px-3 py-2.5 ${card.onClick ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors' : ''}`}
+            title={card.onClick ? 'Click to see the underlying transactions' : undefined}
+          >
             <p className="text-xs text-gray-500 dark:text-gray-400">{card.label}</p>
             <p className={`text-lg mt-0.5 ${card.color}`}>{fmt(card.value)}</p>
           </div>

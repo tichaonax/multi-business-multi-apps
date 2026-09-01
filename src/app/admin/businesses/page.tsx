@@ -14,6 +14,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { RentAccountSetupForm, defaultRentAccountFormData, validateRentAccountFormData, type RentAccountFormData } from '@/components/rent-account/rent-account-setup-form'
 import { RentAccountSetupModal } from '@/components/rent-account/rent-account-setup-modal'
 import { RentAccountManageModal } from '@/components/rent-account/rent-account-manage-modal'
+import { getBusinessColor } from '@/lib/cash-position/business-color'
 
 interface Business {
   id: string
@@ -21,6 +22,7 @@ interface Business {
   type: string
   description: string | null
   isActive: boolean
+  displayColor: string | null
   wifiIntegrationEnabled: boolean
   couponsEnabled: boolean
   receiptReturnPolicy: string | null
@@ -47,6 +49,7 @@ export default function AdminBusinessesPage() {
     name: '',
     type: 'retail',
     description: '',
+    displayColor: '',
     wifiIntegrationEnabled: false,
     couponsEnabled: false,
     receiptReturnPolicy: 'All sales are final, returns not accepted',
@@ -159,6 +162,7 @@ export default function AdminBusinessesPage() {
           name: '',
           type: 'retail',
           description: '',
+          displayColor: '',
           wifiIntegrationEnabled: false,
           receiptReturnPolicy: 'All sales are final, returns not accepted',
           taxIncludedInPrice: true,
@@ -186,6 +190,7 @@ export default function AdminBusinessesPage() {
       name: business.name,
       type: business.type,
       description: business.description || '',
+      displayColor: business.displayColor || '',
       wifiIntegrationEnabled: business.wifiIntegrationEnabled || false,
       couponsEnabled: business.couponsEnabled || false,
       receiptReturnPolicy: business.receiptReturnPolicy || 'All sales are final, returns not accepted',
@@ -257,6 +262,7 @@ export default function AdminBusinessesPage() {
       name: '',
       type: 'retail',
       description: '',
+      displayColor: '',
       wifiIntegrationEnabled: false,
       receiptReturnPolicy: 'All sales are final, returns not accepted',
       taxIncludedInPrice: true,
@@ -271,6 +277,7 @@ export default function AdminBusinessesPage() {
         name: selectedBusiness.name,
         type: selectedBusiness.type,
         description: selectedBusiness.description || '',
+        displayColor: selectedBusiness.displayColor || '',
         wifiIntegrationEnabled: selectedBusiness.wifiIntegrationEnabled || false,
         couponsEnabled: selectedBusiness.couponsEnabled || false,
         receiptReturnPolicy: selectedBusiness.receiptReturnPolicy || 'All sales are final, returns not accepted',
@@ -376,7 +383,13 @@ export default function AdminBusinessesPage() {
         {businesses.map((business) => (
           <div key={business.id} className="card p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-primary">{business.name}</h3>
+              <h3 className="text-lg font-semibold text-primary flex items-center gap-2">
+                <span
+                  className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: getBusinessColor({ id: business.id, displayColor: business.displayColor }) }}
+                />
+                {business.name}
+              </h3>
               <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                 business.isActive 
                   ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200'
@@ -494,6 +507,35 @@ export default function AdminBusinessesPage() {
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Optional description"
                   />
+                </div>
+
+                {/* MBM-287: consistent business colour across the dashboard,
+                    Cash Bucket, and reports — optional, falls back to a
+                    deterministic auto-assigned colour when left blank. */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Display Colour
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={formData.displayColor || '#2563eb'}
+                      onChange={(e) => setFormData({...formData, displayColor: e.target.value})}
+                      className="h-9 w-14 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 cursor-pointer"
+                    />
+                    <span className="text-xs text-secondary">
+                      {formData.displayColor || 'Not set — an automatic colour will be used'}
+                    </span>
+                    {formData.displayColor && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({...formData, displayColor: ''})}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        Reset to automatic
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* WiFi Integration Toggle - Only for restaurant and grocery */}
@@ -738,6 +780,35 @@ export default function AdminBusinessesPage() {
                         rows={5}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
+                    </div>
+
+                    {/* MBM-287: consistent business colour across the dashboard,
+                        Cash Bucket, and reports — optional, falls back to a
+                        deterministic auto-assigned colour when left blank. */}
+                    <div>
+                      <label className="block text-sm font-medium text-secondary mb-2">
+                        Display Colour
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="color"
+                          value={formData.displayColor || '#2563eb'}
+                          onChange={(e) => setFormData({...formData, displayColor: e.target.value})}
+                          className="h-9 w-14 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 cursor-pointer"
+                        />
+                        <span className="text-xs text-secondary">
+                          {formData.displayColor || 'Not set — an automatic colour will be used'}
+                        </span>
+                        {formData.displayColor && (
+                          <button
+                            type="button"
+                            onClick={() => setFormData({...formData, displayColor: ''})}
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            Reset to automatic
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -1059,6 +1130,34 @@ export default function AdminBusinessesPage() {
                       className="input-field"
                       placeholder="Optional description"
                     />
+                  </div>
+
+                  {/* MBM-287: consistent business colour across the
+                      dashboard, Cash Bucket, and reports. */}
+                  <div>
+                    <label className="block text-sm font-medium text-secondary mb-2">
+                      Display Colour
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={formData.displayColor || '#2563eb'}
+                        onChange={(e) => setFormData({...formData, displayColor: e.target.value})}
+                        className="h-9 w-14 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 cursor-pointer"
+                      />
+                      <span className="text-xs text-secondary">
+                        {formData.displayColor || 'Not set — an automatic colour will be used'}
+                      </span>
+                      {formData.displayColor && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData({...formData, displayColor: ''})}
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          Reset to automatic
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Rent Account Section */}

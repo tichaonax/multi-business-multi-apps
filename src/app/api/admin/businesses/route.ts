@@ -69,11 +69,17 @@ export async function POST(req: NextRequest) {
       taxLabel,
       defaultPage,
       slogan,
-      showSlogan
+      showSlogan,
+      displayColor
     } = await req.json()
 
     if (!name || !type) {
       return NextResponse.json({ error: 'Business name and type are required' }, { status: 400 })
+    }
+
+    const normalizedDisplayColor = displayColor || null
+    if (normalizedDisplayColor !== null && !/^#[0-9A-Fa-f]{6}$/.test(normalizedDisplayColor)) {
+      return NextResponse.json({ error: 'displayColor must be a hex colour like #2563eb, or null' }, { status: 400 })
     }
 
     const shortName = await generateUniqueShortName(prisma as any, name.trim())
@@ -115,6 +121,7 @@ export async function POST(req: NextRequest) {
         defaultPage: defaultPage?.trim() || null,
         slogan: slogan?.trim() || 'Where Customer Is King',
         showSlogan: showSlogan !== undefined ? showSlogan : true,
+        displayColor: normalizedDisplayColor,
         settings: {},
         createdBy: creatorId
       } as any)

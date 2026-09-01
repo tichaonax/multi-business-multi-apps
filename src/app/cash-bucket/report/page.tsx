@@ -1,7 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -9,8 +9,9 @@ import { SearchableSelect } from '@/components/ui/searchable-select'
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getLocalDateString } from '@/lib/utils'
 import { CashPositionCards, type CashPositionData } from '@/components/cash-position/cash-position-cards'
+import { getBusinessColor } from '@/lib/cash-position/business-color'
 
-interface Business { id: string; name: string; type: string }
+interface Business { id: string; name: string; type: string; displayColor?: string | null }
 
 interface BucketBalance {
   businessId: string
@@ -94,6 +95,19 @@ export default function CashBucketReportPage() {
   const [selectedEntry, setSelectedEntry] = useState<BucketEntry | null>(null)
   const [entryDetail, setEntryDetail] = useState<any>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+
+  // MBM-287 §4: lightweight drill-down — clicking a Cash Position card
+  // filters the existing Ledger table to that card's underlying entries
+  // rather than opening a new, separate view.
+  const ledgerRef = useRef<HTMLDivElement | null>(null)
+  const setAsideRef = useRef<HTMLDivElement | null>(null)
+  const filterLedgerTo = (dir: string, types: string[]) => {
+    setDirFilter(dir)
+    setTypeFilter(types.join(','))
+    setOffset(0)
+    setTimeout(() => ledgerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+  }
+  const scrollToSetAside = () => setAsideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
   const buildUrl = useCallback(() => {
     const p = new URLSearchParams()
@@ -214,7 +228,18 @@ export default function CashBucketReportPage() {
             </div>
           </div>
         ) : (
-          cashPosition && <CashPositionCards cashPosition={cashPosition} period={cashPositionPeriod} title="Cash Position" />
+          cashPosition && (
+            <CashPositionCards
+              cashPosition={cashPosition}
+              period={cashPositionPeriod}
+              title="Cash Position"
+              onCardClick={{
+                cashIn: () => filterLedgerTo('INFLOW', ['EOD_RECEIPT', 'DIRECT_DEPOSIT', 'PETTY_CASH_RETURN', 'ECOCASH_CONVERSION']),
+                setAside: scrollToSetAside,
+                expenses: () => filterLedgerTo('OUTFLOW', ['PAYMENT_APPROVAL', 'PETTY_CASH']),
+              }}
+            />
+          )
         )}
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -232,7 +257,7 @@ export default function CashBucketReportPage() {
             / Lifetime Disbursed / Still Available, same figures the Cash
             Bucket page's "Earmarked" drill-down shows. */}
         {setAsideBreakdown.length > 0 && (
-          <div className="print:break-inside-avoid">
+          <div ref={setAsideRef} className="print:break-inside-avoid">
             <h2 className="text-sm font-semibold text-primary mb-2">Set Aside by Purpose</h2>
             <div className="rounded-lg border border-border overflow-hidden">
               <table className="w-full text-sm">
@@ -295,7 +320,15 @@ export default function CashBucketReportPage() {
               <tbody className="divide-y divide-border">
                 {balances.filter(b => !bizFilter || b.businessId === bizFilter).map(b => (
                   <tr key={b.businessId} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                    <td className="px-3 py-2 font-medium text-primary">{b.business?.name ?? b.businessId}</td>
+                    <td className="px-3 py-2 font-medium text-primary">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span
+                          className="inline-block w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: getBusinessColor({ id: b.businessId, displayColor: b.business?.displayColor }) }}
+                        />
+                        {b.business?.name ?? b.businessId}
+                      </span>
+                    </td>
                     <td className="px-3 py-2 text-right text-emerald-600 dark:text-emerald-400">{fmt(b.inflow)}</td>
                     <td className="px-3 py-2 text-right text-red-600 dark:text-red-400">{fmt(b.outflow)}</td>
                     <td className={`px-3 py-2 text-right font-semibold ${b.balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
@@ -370,7 +403,7 @@ export default function CashBucketReportPage() {
         </div>
 
         {/* Ledger */}
-        <div>
+        <div ref={ledgerRef}>
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-sm font-semibold text-primary">
               Ledger {total > 0 && <span className="text-secondary font-normal">({displayedEntries.length}{displayedEntries.length !== total ? ` of ${total}` : ''} entries)</span>}

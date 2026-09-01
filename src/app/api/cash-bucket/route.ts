@@ -28,7 +28,13 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('businessId') || undefined
     const direction  = searchParams.get('direction')  || undefined
-    const entryType  = searchParams.get('entryType')  || undefined
+    const entryTypeParam = searchParams.get('entryType') || undefined
+    // MBM-287 §4 drill-downs: a card like "Cash In" spans several entry
+    // types (EOD_RECEIPT, DIRECT_DEPOSIT, ...), so accept a comma-separated
+    // list here — a single value behaves exactly as before.
+    const entryType = entryTypeParam?.includes(',')
+      ? { in: entryTypeParam.split(',').map((t) => t.trim()) }
+      : entryTypeParam
     const startDate  = searchParams.get('startDate')  || undefined
     const endDate    = searchParams.get('endDate')    || undefined
     const limit      = parseInt(searchParams.get('limit')  || '100')
@@ -120,7 +126,7 @@ export async function GET(request: NextRequest) {
     const businessIds = [...map.keys()]
     const businesses = await prisma.businesses.findMany({
       where: { id: { in: businessIds } },
-      select: { id: true, name: true, type: true },
+      select: { id: true, name: true, type: true, displayColor: true },
     })
     const bizMap = new Map(businesses.map((b) => [b.id, b]))
 
@@ -181,7 +187,7 @@ export async function GET(request: NextRequest) {
       prisma.cashBucketEntry.findMany({
         where: entryWhere,
         include: {
-          business: { select: { id: true, name: true, type: true } },
+          business: { select: { id: true, name: true, type: true, displayColor: true } },
           creator: { select: { id: true, name: true } },
           editor: { select: { id: true, name: true } },
           deleter: { select: { id: true, name: true } },
@@ -311,7 +317,7 @@ export async function POST(request: NextRequest) {
         createdBy: user.id,
       },
       include: {
-        business: { select: { id: true, name: true, type: true } },
+        business: { select: { id: true, name: true, type: true, displayColor: true } },
         creator: { select: { id: true, name: true } },
       },
     })

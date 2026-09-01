@@ -41,6 +41,16 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     if (payload.hasOwnProperty('description')) updateData.description = description
     if (payload.hasOwnProperty('isActive')) updateData.isActive = !!payload.isActive
     if (payload.hasOwnProperty('wifiIntegrationEnabled')) updateData.wifiIntegrationEnabled = !!payload.wifiIntegrationEnabled
+    // MBM-287: consistent business colour identification across the
+    // dashboard, Cash Bucket, and reports. Nullable — clearing it back to
+    // null reverts to the deterministic hash-of-id fallback palette.
+    if (payload.hasOwnProperty('displayColor')) {
+      const color = payload.displayColor || null // '' from a cleared colour picker means "no override", same as null
+      if (color !== null && !/^#[0-9A-Fa-f]{6}$/.test(color)) {
+        return NextResponse.json({ error: 'displayColor must be a hex colour like #2563eb, or null' }, { status: 400 })
+      }
+      updateData.displayColor = color
+    }
 
     // Business contact information
     if (payload.hasOwnProperty('address')) {
