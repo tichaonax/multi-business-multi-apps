@@ -73,6 +73,13 @@ const REPORT_CARDS = [
     description: 'Charts and trends for individuals, contractors, and suppliers — group totals, top payees, monthly spend, and category breakdown.',
     color: 'orange',
   },
+  {
+    href: '/expense-accounts/reports/receipts',
+    emoji: '🧾',
+    title: 'Receipts Report',
+    description: 'Combo Pay & advance receipts by supplier, person, and expense type — reconciliation status, outstanding balances, spend-by-type breakdown.',
+    color: 'green',
+  },
 ]
 
 const COLOR_MAP: Record<string, string> = {

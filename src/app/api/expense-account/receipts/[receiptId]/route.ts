@@ -3,9 +3,10 @@ import { prisma } from '@/lib/prisma'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 import { isAccountCashier } from '@/lib/expense-account/receipt-review-access'
+import { checkReceiptLimit } from '@/lib/expense-account/receipt-limit'
 import { createAuditLog } from '@/lib/audit'
 
-const EDITABLE_FIELDS = ['receiptDate', 'amount', 'description', 'receiptNumber', 'imageId', 'notes'] as const
+const EDITABLE_FIELDS = ['receiptDate', 'amount', 'description', 'receiptNumber', 'imageId', 'notes', 'categoryId', 'subcategoryId', 'comboItemId'] as const
 const PAYEE_FIELDS = ['payeeType', 'payeeName', 'payeePersonId', 'payeeBusinessId', 'payeeSupplierId'] as const
 
 /**
@@ -88,6 +89,37 @@ export async function PUT(
       return NextResponse.json({ error: 'No editable fields provided' }, { status: 400 })
     }
 
+    // MBM-286: re-check the over-limit rule whenever the amount changes —
+    // recomputed excluding this receipt's own current amount, so editing it
+    // doesn't double-count against itself.
+    let overrideApplied = false
+    let limitCheckForAudit: Awaited<ReturnType<typeof checkReceiptLimit>> | null = null
+    if ('amount' in data) {
+      const limitCheck = await checkReceiptLimit({
+        expensePaymentId: receipt.expensePaymentId,
+        amount: Number(data.amount),
+        excludeReceiptId: receiptId,
+      })
+      if (limitCheck.hasLimit && !limitCheck.ok) {
+        const canOverride = isAdmin || isCashier
+        if (!body.overrideReason || !canOverride) {
+          return NextResponse.json({
+            error: 'over-limit',
+            message: `This receipt exceeds the remaining balance by $${limitCheck.excessAmount.toFixed(2)}.`,
+            expectedAmount: limitCheck.expectedAmount,
+            currentTotal: limitCheck.currentTotal,
+            remaining: limitCheck.remaining,
+            excessAmount: limitCheck.excessAmount,
+          }, { status: 400 })
+        }
+        overrideApplied = true
+        limitCheckForAudit = limitCheck
+        data.overLimitReason = body.overrideReason
+        data.overrideBy = user.id
+        data.overrideAt = new Date()
+      }
+    }
+
     const updated = await prisma.$transaction(async (tx) => {
       const r = Object.keys(data).length > 0
         ? await tx.expensePaymentReceipts.update({ where: { id: receiptId }, data })
@@ -120,6 +152,22 @@ export async function PUT(
         entityId: receiptId,
         oldValues,
         newValues: data,
+        metadata: { paymentId: receipt.expensePaymentId },
+      }).catch(err => console.error('[receipts PUT] audit log error (non-blocking):', err))
+    }
+
+    if (overrideApplied && limitCheckForAudit) {
+      await createAuditLog({
+        userId: user.id,
+        action: 'RECEIPT_OVER_LIMIT_OVERRIDE',
+        entityType: 'ExpensePaymentReceipt',
+        entityId: receiptId,
+        newValues: {
+          amount: Number(data.amount),
+          expectedAmount: limitCheckForAudit.expectedAmount,
+          excessAmount: limitCheckForAudit.excessAmount,
+          reason: body.overrideReason,
+        },
         metadata: { paymentId: receipt.expensePaymentId },
       }).catch(err => console.error('[receipts PUT] audit log error (non-blocking):', err))
     }

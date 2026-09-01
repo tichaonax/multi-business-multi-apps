@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 import { isAccountCashier } from '@/lib/expense-account/receipt-review-access'
+import { checkReceiptLimit } from '@/lib/expense-account/receipt-limit'
+import { reconciliationStatus } from '@/lib/expense-account/receipt-reconciliation-status'
+import { createAuditLog } from '@/lib/audit'
 
 function resolvePayeeName(receipt: {
   payeeType?: string | null
@@ -99,6 +102,11 @@ export async function GET(
             payeePersonId: true,
             payeeBusinessId: true,
             payeeSupplierId: true,
+            categoryId: true,
+            subcategoryId: true,
+            comboItemId: true,
+            overLimitReason: true,
+            overrideAt: true,
             notes: true,
             createdBy: true,
             createdAt: true,
@@ -106,6 +114,8 @@ export async function GET(
             payeeBusiness: { select: { name: true } },
             payeeSupplier: { select: { name: true } },
             creator: { select: { name: true } },
+            category: { select: { id: true, name: true, emoji: true } },
+            subcategory: { select: { id: true, name: true, emoji: true } },
           },
           orderBy: { receiptDate: 'desc' },
         },
@@ -138,6 +148,13 @@ export async function GET(
       payeeBusinessId: r.payeeBusinessId,
       payeeSupplierId: r.payeeSupplierId,
       payeeName: resolvePayeeName(r),
+      categoryId: r.categoryId,
+      categoryName: r.category ? `${r.category.emoji} ${r.category.name}` : null,
+      subcategoryId: r.subcategoryId,
+      subcategoryName: r.subcategory?.name ?? null,
+      comboItemId: r.comboItemId,
+      isOverLimitOverride: !!r.overrideAt,
+      overLimitReason: r.overLimitReason,
       notes: r.notes,
       createdBy: r.createdBy,
       createdByName: r.creator.name,
@@ -161,6 +178,11 @@ export async function GET(
           expectedAmount: Number(payment.receipt_review.expectedAmount),
           receiptTotal,
           remaining: Number(payment.receipt_review.expectedAmount) - receiptTotal,
+          reconciliationStatus: reconciliationStatus({
+            expectedAmount: Number(payment.receipt_review.expectedAmount),
+            receiptTotal,
+            reviewStatus: payment.receipt_review.status,
+          }),
           submittedAt: payment.receipt_review.submittedAt,
           submittedByName: payment.receipt_review.submitter?.name ?? null,
           reviewedAt: payment.receipt_review.reviewedAt,
@@ -201,7 +223,7 @@ export async function POST(
 
     const payment = await prisma.expenseAccountPayments.findUnique({
       where: { id: paymentId },
-      select: { id: true },
+      select: { id: true, expenseAccountId: true },
     })
     if (!payment) return NextResponse.json({ error: 'Payment not found' }, { status: 404 })
 
@@ -217,12 +239,38 @@ export async function POST(
       payeePersonId,
       payeeBusinessId,
       payeeSupplierId,
+      categoryId,
+      subcategoryId,
+      comboItemId,
       notes,
       updatePaymentPayee,
+      overrideReason,
     } = body
 
     if (!receiptDate || amount === undefined || amount === null) {
       return NextResponse.json({ error: 'receiptDate and amount are required' }, { status: 400 })
+    }
+
+    // MBM-286: real-time over-limit enforcement — reject by default; a
+    // cashier/admin may override with a reason, audit-logged. Payments with
+    // no expected-amount cap (no ExpensePaymentReceiptReviews row) skip this
+    // entirely — see checkReceiptLimit.
+    const limitCheck = await checkReceiptLimit({ expensePaymentId: paymentId, amount: Number(amount) })
+    let overrideApplied = false
+    if (limitCheck.hasLimit && !limitCheck.ok) {
+      const isAdmin = user.role === 'admin'
+      const canOverride = isAdmin || await isAccountCashier(user.id, isAdmin, payment.expenseAccountId)
+      if (!overrideReason || !canOverride) {
+        return NextResponse.json({
+          error: 'over-limit',
+          message: `This receipt exceeds the remaining balance by $${limitCheck.excessAmount.toFixed(2)}.`,
+          expectedAmount: limitCheck.expectedAmount,
+          currentTotal: limitCheck.currentTotal,
+          remaining: limitCheck.remaining,
+          excessAmount: limitCheck.excessAmount,
+        }, { status: 400 })
+      }
+      overrideApplied = true
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -239,8 +287,12 @@ export async function POST(
           payeePersonId: payeePersonId ?? null,
           payeeBusinessId: payeeBusinessId ?? null,
           payeeSupplierId: payeeSupplierId ?? null,
+          categoryId: categoryId ?? null,
+          subcategoryId: subcategoryId ?? null,
+          comboItemId: comboItemId ?? null,
           notes: notes ?? null,
           createdBy: user.id,
+          ...(overrideApplied ? { overLimitReason: overrideReason, overrideBy: user.id, overrideAt: new Date() } : {}),
         },
       })
 
@@ -282,6 +334,22 @@ export async function POST(
 
       return { receipt: created, updatedPayment }
     })
+
+    if (overrideApplied) {
+      await createAuditLog({
+        userId: user.id,
+        action: 'RECEIPT_OVER_LIMIT_OVERRIDE',
+        entityType: 'ExpensePaymentReceipt',
+        entityId: result.receipt.id,
+        newValues: {
+          amount: Number(amount),
+          expectedAmount: limitCheck.expectedAmount,
+          excessAmount: limitCheck.excessAmount,
+          reason: overrideReason,
+        },
+        metadata: { paymentId },
+      }).catch(err => console.error('[receipts POST] audit log error (non-blocking):', err))
+    }
 
     return NextResponse.json({
       success: true,

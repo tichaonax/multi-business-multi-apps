@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { CreateIndividualPayeeModal } from './create-individual-payee-modal'
 import { CreateContractorPayeeModal } from './create-contractor-payee-modal'
+import { CategoryPicker, type CategoryRef } from './category-picker'
 
 interface PayeeRef {
   type: string
@@ -30,6 +31,22 @@ interface EditReceiptData {
   payeePersonId: string | null
   payeeBusinessId: string | null
   payeeSupplierId: string | null
+  categoryId?: string | null
+  categoryName?: string | null
+  subcategoryId?: string | null
+  subcategoryName?: string | null
+}
+
+// Balance summary the parent (ViewReceiptsModal) already loads via
+// GET .../receipts — passed down rather than re-fetched here, so this modal
+// always reflects the same numbers the list behind it shows.
+interface ReceiptReviewSummary {
+  status: string
+  expectedAmount: number
+  receiptTotal: number
+  remaining: number
+  reconciliationStatus?: string
+  canReview: boolean
 }
 
 interface AddReceiptModalProps {
@@ -40,6 +57,7 @@ interface AddReceiptModalProps {
   // When provided, the modal edits this receipt (PUT) instead of creating a
   // new one (POST) — same payee picker (search/create/one-time) either way.
   editReceipt?: EditReceiptData | null
+  review?: ReceiptReviewSummary | null
 }
 
 function payeeRefFromReceipt(r: EditReceiptData): PayeeRef | null {
@@ -81,7 +99,7 @@ function saveLastPayee(p: PayeeRef) {
   } catch {}
 }
 
-export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, editReceipt }: AddReceiptModalProps) {
+export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, editReceipt, review }: AddReceiptModalProps) {
   const today = new Date().toISOString().slice(0, 10)
   const isEditing = !!editReceipt
   const initialPayee = editReceipt ? payeeRefFromReceipt(editReceipt) : (paymentPayee ?? null)
@@ -119,6 +137,26 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
   const [imageId, setImageId] = useState<string | null>(editReceipt?.imageId ?? null)
   const [uploadingImage, setUploadingImage] = useState(false)
   const [imageError, setImageError] = useState<string | null>(null)
+
+  const [category, setCategory] = useState<CategoryRef | null>(
+    editReceipt?.categoryId
+      ? { categoryId: editReceipt.categoryId, categoryName: editReceipt.categoryName ?? '', subcategoryId: editReceipt.subcategoryId ?? null, subcategoryName: editReceipt.subcategoryName ?? null }
+      : null
+  )
+
+  // MBM-286: live "requested / receipted so far / remaining" — sourced from
+  // the review data the parent already loaded, updated instantly as the
+  // amount field changes so the operator sees the effect before saving.
+  // Excludes this receipt's own current amount when editing, so the preview
+  // doesn't double-count against itself.
+  const parsedAmount = parseFloat(amount) || 0
+  const excludingOwnAmount = isEditing ? parsedAmount - (editReceipt?.amount ?? 0) : parsedAmount
+  const projectedTotal = review ? review.receiptTotal + excludingOwnAmount : 0
+  const projectedRemaining = review ? review.expectedAmount - projectedTotal : 0
+  const isOverLimitPreview = !!review && projectedRemaining < -0.004
+
+  const [overLimitError, setOverLimitError] = useState<{ message: string; excessAmount: number } | null>(null)
+  const [overrideReason, setOverrideReason] = useState('')
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -218,8 +256,14 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    submitReceipt()
+  }
+
+  // Factored out of the form's onSubmit so the "Save Anyway (Exception)"
+  // button (not itself a form submit) can trigger the same save logic.
+  async function submitReceipt() {
     if (!amount || isNaN(parseFloat(amount))) { setError('Amount is required'); return }
     if (payeeMismatch && updatePaymentPayee === null) {
       setError('Please confirm whether to update the payment payee')
@@ -235,7 +279,10 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
         notes: notes || undefined,
         receiptNumber: receiptNumber || undefined,
         imageId: imageId || undefined,
+        categoryId: category?.categoryId || undefined,
+        subcategoryId: category?.subcategoryId || undefined,
         updatePaymentPayee: payeeMismatch ? updatePaymentPayee : false,
+        overrideReason: overrideReason.trim() || undefined,
       }
       if (selectedPayee) Object.assign(body, payeeTypeToApiFields(selectedPayee))
       else if (isEditing) Object.assign(body, { payeeType: null })
@@ -261,7 +308,14 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
         onSuccess({ updatedPayment });
       } else {
         const data = await res.json()
-        setError(data.error || 'Failed to save receipt')
+        // MBM-286: a rejected over-limit save gets its own inline flow (an
+        // authorized reviewer can supply a reason and retry) instead of the
+        // generic error banner, since there's a specific next action here.
+        if (data.error === 'over-limit') {
+          setOverLimitError({ message: data.message, excessAmount: data.excessAmount })
+        } else {
+          setError(data.error || 'Failed to save receipt')
+        }
       }
     } catch {
       setError('An unexpected error occurred')
@@ -284,6 +338,75 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
               {error && (
                 <div className="p-3 bg-red-50 border border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300 rounded text-sm">
                   {error}
+                </div>
+              )}
+
+              {/* MBM-286: live requested / receipted / remaining balance —
+                  updates as the Amount field changes, before saving. */}
+              {review && (
+                <div className={`p-3 rounded-lg text-sm space-y-1 border ${
+                  isOverLimitPreview
+                    ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'
+                    : 'bg-gray-50 border-gray-200 dark:bg-gray-700/40 dark:border-gray-700'
+                }`}>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 dark:text-gray-400">💰 Requested</span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">${review.expectedAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 dark:text-gray-400">🧾 Receipted so far</span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">${review.receiptTotal.toFixed(2)}</span>
+                  </div>
+                  {parsedAmount > 0 ? (
+                    <div className="flex justify-between font-medium pt-1 border-t border-gray-200 dark:border-gray-600">
+                      <span className={isOverLimitPreview ? 'text-red-700 dark:text-red-300' : 'text-gray-700 dark:text-gray-200'}>
+                        {isOverLimitPreview ? '⚠️ After this receipt' : '✅ After this receipt'}
+                      </span>
+                      <span className={isOverLimitPreview ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-400'}>
+                        {isOverLimitPreview
+                          ? `over by $${Math.abs(projectedRemaining).toFixed(2)}`
+                          : `$${projectedRemaining.toFixed(2)} remaining`}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between pt-1 border-t border-gray-200 dark:border-gray-600">
+                      <span className="text-gray-500 dark:text-gray-400">Remaining</span>
+                      <span className={review.remaining < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'}>
+                        ${review.remaining.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Over-limit rejection — a cashier/admin may override with a
+                  reason and retry (MBM-286); everyone else just sees why it
+                  wasn't saved. */}
+              {overLimitError && (
+                <div className="p-3 bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-700 rounded text-sm space-y-2">
+                  <p className="text-amber-800 dark:text-amber-300 font-medium">⚠️ {overLimitError.message}</p>
+                  {review?.canReview ? (
+                    <>
+                      <label className="block text-xs font-medium text-amber-800 dark:text-amber-300">Reason for exception</label>
+                      <input
+                        type="text"
+                        value={overrideReason}
+                        onChange={e => setOverrideReason(e.target.value)}
+                        placeholder="Why does this receipt need to exceed the requested amount?"
+                        className="input w-full px-3 py-1.5 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => submitReceipt()}
+                        disabled={!overrideReason.trim() || submitting}
+                        className="text-xs px-3 py-1.5 rounded font-medium border bg-amber-600 text-white border-amber-600 disabled:opacity-50"
+                      >
+                        {submitting ? 'Saving…' : 'Save Anyway (Exception)'}
+                      </button>
+                    </>
+                  ) : (
+                    <p className="text-xs text-amber-700 dark:text-amber-400">Ask an account cashier to approve this as an exception.</p>
+                  )}
                 </div>
               )}
 
@@ -487,13 +610,19 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
                     step="0.01"
                     min="0"
                     value={amount}
-                    onChange={e => setAmount(e.target.value)}
+                    onChange={e => { setAmount(e.target.value); setOverLimitError(null); setOverrideReason('') }}
                     className="input w-full px-3 py-2"
                     placeholder="0.00"
                     required
                     disabled={submitting}
                   />
                 </div>
+              </div>
+
+              {/* Expense type — searchable, reusable, create-new-inline (MBM-286) */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Expense Type</label>
+                <CategoryPicker value={category} onChange={setCategory} disabled={submitting} />
               </div>
 
               {/* Receipt number */}

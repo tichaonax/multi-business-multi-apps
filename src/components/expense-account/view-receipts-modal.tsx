@@ -23,6 +23,13 @@ interface Receipt {
   payeePersonId: string | null
   payeeBusinessId: string | null
   payeeSupplierId: string | null
+  categoryId: string | null
+  categoryName: string | null
+  subcategoryId: string | null
+  subcategoryName: string | null
+  comboItemId: string | null
+  isOverLimitOverride: boolean
+  overLimitReason: string | null
   notes: string | null
   createdBy: string
   createdByName: string
@@ -34,6 +41,7 @@ interface ReceiptReview {
   expectedAmount: number
   receiptTotal: number
   remaining: number
+  reconciliationStatus?: string // ⬜/🟡/🔵/🟢/🔴 label, e.g. "🟢 Fully Receipted" (MBM-286)
   submittedAt: string | null
   submittedByName: string | null
   reviewedAt: string | null
@@ -215,11 +223,14 @@ export function ViewReceiptsModal({
 
             {review && (
               <div className="mt-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/40 text-xs space-y-1">
+                {review.reconciliationStatus && (
+                  <div className="font-semibold text-gray-800 dark:text-gray-100">{review.reconciliationStatus}</div>
+                )}
                 <div className="flex justify-between font-medium">
                   <span className="text-gray-700 dark:text-gray-200">
                     {review.status === 'APPROVED' ? '✅ Approved' : review.status === 'SUBMITTED' ? '🟠 Awaiting cashier review' : '⚪ Not yet submitted'}
                   </span>
-                  <span className={review.remaining > 0.01 ? 'text-amber-600 dark:text-amber-400' : review.remaining < -0.01 ? 'text-blue-600 dark:text-blue-400' : 'text-green-600 dark:text-green-400'}>
+                  <span className={review.remaining > 0.01 ? 'text-amber-600 dark:text-amber-400' : review.remaining < -0.01 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}>
                     Remaining: {fmt(review.remaining)}
                   </span>
                 </div>
@@ -261,6 +272,16 @@ export function ViewReceiptsModal({
                               <span className="text-xs text-gray-400">·</span>
                               <span className="text-xs text-teal-600 dark:text-teal-400">{r.payeeName}</span>
                             </>
+                          )}
+                          {r.categoryName && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                              {r.categoryName}{r.subcategoryName ? ` · ${r.subcategoryName}` : ''}
+                            </span>
+                          )}
+                          {r.isOverLimitOverride && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300" title={r.overLimitReason ?? undefined}>
+                              🔴 Exception
+                            </span>
                           )}
                         </div>
                         {r.description && (
@@ -353,6 +374,7 @@ export function ViewReceiptsModal({
         <AddReceiptModal
           paymentId={paymentId}
           paymentPayee={currentPayee}
+          review={review}
           onClose={() => setShowAddModal(false)}
           onSuccess={() => {
             setShowAddModal(false)
@@ -364,6 +386,7 @@ export function ViewReceiptsModal({
 
       {editingReceipt && (
         <AddReceiptModal
+          review={review}
           paymentId={paymentId}
           paymentPayee={currentPayee}
           editReceipt={editingReceipt}

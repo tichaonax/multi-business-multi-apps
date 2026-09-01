@@ -1502,6 +1502,7 @@ model ExpenseCategories {
   supplier_payment_items   SupplierPaymentRequestItems[] @relation("SupplierPaymentItemCategory")
   petty_cash_transactions  PettyCashTransaction[]        @relation("PettyCashTransactionCategory")
   combo_payment_items      ComboPaymentRequestItems[]    @relation("ComboItemCategory")
+  expense_payment_receipts ExpensePaymentReceipts[]      @relation("ReceiptCategory")
 
   @@unique([domainId, name])
   @@index([updatedAt(sort: Desc)], map: "idx_expense_categories_updated_at")
@@ -1525,6 +1526,7 @@ model ExpenseSubcategories {
   supplier_payment_items    SupplierPaymentRequestItems[] @relation("SupplierPaymentItemSubcategory")
   expense_sub_subcategories ExpenseSubSubcategories[]
   combo_payment_items       ComboPaymentRequestItems[]    @relation("ComboItemSubcategory")
+  expense_payment_receipts  ExpensePaymentReceipts[]      @relation("ReceiptSubcategory")
 
   @@unique([categoryId, name])
   @@map("expense_subcategories")
@@ -1795,16 +1797,42 @@ model ExpensePaymentReceipts {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @default(now()) @updatedAt @map("updated_at")
 
-  expensePayment ExpenseAccountPayments @relation(fields: [expensePaymentId], references: [id], onDelete: Cascade)
-  payeePerson    Persons?               @relation("ReceiptPayeePerson", fields: [payeePersonId], references: [id])
-  payeeBusiness  Businesses?            @relation("ReceiptPayeeBusiness", fields: [payeeBusinessId], references: [id])
-  payeeSupplier  BusinessSuppliers?     @relation("ReceiptPayeeSupplier", fields: [payeeSupplierId], references: [id])
-  creator        Users                  @relation("ReceiptCreator", fields: [createdBy], references: [id])
-  image          Images?                @relation("ReceiptImage", fields: [imageId], references: [id])
+  // MBM-286: expense/payment type — same reusable taxonomy already used by
+  // ComboPaymentRequestItems, PersonalExpenses, etc., just never wired to
+  // the actual per-receipt capture screen until now.
+  categoryId    String? @map("category_id")
+  subcategoryId String? @map("subcategory_id")
+  // MBM-286: optional link to which planned combo-pay line item this
+  // receipt settles — informational only (for reporting "was every planned
+  // item eventually receipted"), never a per-item amount cap. A receipt
+  // covering several planned items, or several receipts settling one
+  // planned item from different suppliers, are both fully supported by
+  // leaving this null or picking whichever item makes sense.
+  comboItemId   String? @map("combo_item_id")
+  // MBM-286: only ever set together, only by a cashier/admin, only when a
+  // receipt that would push the payment's total over its expected amount
+  // is deliberately saved anyway (see the over-limit check in the receipts
+  // API) — see AuditAction.RECEIPT_OVER_LIMIT_OVERRIDE for the audit trail.
+  overLimitReason String?   @map("over_limit_reason")
+  overrideBy      String?   @map("override_by")
+  overrideAt      DateTime? @map("override_at")
+
+  expensePayment ExpenseAccountPayments     @relation(fields: [expensePaymentId], references: [id], onDelete: Cascade)
+  payeePerson    Persons?                   @relation("ReceiptPayeePerson", fields: [payeePersonId], references: [id])
+  payeeBusiness  Businesses?                @relation("ReceiptPayeeBusiness", fields: [payeeBusinessId], references: [id])
+  payeeSupplier  BusinessSuppliers?         @relation("ReceiptPayeeSupplier", fields: [payeeSupplierId], references: [id])
+  creator        Users                      @relation("ReceiptCreator", fields: [createdBy], references: [id])
+  image          Images?                    @relation("ReceiptImage", fields: [imageId], references: [id])
+  category       ExpenseCategories?         @relation("ReceiptCategory", fields: [categoryId], references: [id])
+  subcategory    ExpenseSubcategories?      @relation("ReceiptSubcategory", fields: [subcategoryId], references: [id])
+  comboItem      ComboPaymentRequestItems?  @relation("ReceiptComboItem", fields: [comboItemId], references: [id], onDelete: SetNull)
+  overrideByUser Users?                     @relation("ReceiptOverrideBy", fields: [overrideBy], references: [id])
 
   @@index([expensePaymentId], map: "idx_expense_payment_receipts_payment_id")
   @@index([payeePersonId], map: "idx_expense_payment_receipts_person_id")
   @@index([payeeBusinessId], map: "idx_expense_payment_receipts_business_id")
+  @@index([categoryId], map: "idx_expense_payment_receipts_category_id")
+  @@index([comboItemId], map: "idx_expense_payment_receipts_combo_item_id")
   @@map("expense_payment_receipts")
 }
 
@@ -3627,6 +3655,7 @@ model Users {
   expense_account_payments_as_payee                               ExpenseAccountPayments[]          @relation("ExpensePaymentPayeeUser")
   expense_account_payments_submitted                              ExpenseAccountPayments[]          @relation("ExpensePaymentSubmitter")
   expense_payment_receipts_created                                ExpensePaymentReceipts[]          @relation("ReceiptCreator")
+  expense_payment_receipts_overridden                             ExpensePaymentReceipts[]          @relation("ReceiptOverrideBy")
   expense_payment_receipt_reviews_submitted                       ExpensePaymentReceiptReviews[]    @relation("ReceiptReviewSubmitter")
   expense_payment_receipt_reviews_reviewed                        ExpensePaymentReceiptReviews[]    @relation("ReceiptReviewReviewer")
   expense_accounts_created                                        ExpenseAccounts[]                 @relation("ExpenseAccountCreator")
@@ -7698,6 +7727,7 @@ model ComboPaymentRequestItems {
   payeeEmployee Employees?                   @relation("ComboItemPayeeEmployee", fields: [payeeEmployeeId], references: [id])
   payeeBusiness Businesses?                  @relation("ComboItemPayeeBusiness", fields: [payeeBusinessId], references: [id])
   payeeSupplier BusinessSuppliers?           @relation("ComboItemPayeeSupplier", fields: [payeeSupplierId], references: [id])
+  receipts      ExpensePaymentReceipts[]     @relation("ReceiptComboItem")
 
   @@index([requestId])
   @@index([sectionId])

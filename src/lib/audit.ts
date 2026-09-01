@@ -33,7 +33,8 @@ export type AuditAction =
   | 'CASH_BOX_BALANCE_ADJUSTED'
   | 'RECEIPT_SUBMITTED'
   | 'RECEIPT_APPROVED'
-  | 'RECEIPT_AMENDED';
+  | 'RECEIPT_AMENDED'
+  | 'RECEIPT_OVER_LIMIT_OVERRIDE';
 
 export type AuditEntityType =
   | 'User'
