@@ -194,7 +194,7 @@ export async function processRentTransfer(
 ): Promise<RentTransferResult> {
   const config = await prisma.businessRentConfig.findUnique({
     where: { businessId },
-    include: { expenseAccount: { select: { id: true, balance: true } } },
+    include: { expenseAccount: { select: { id: true, balance: true, accountName: true } } },
   })
   if (!config) throw new Error('NO_RENT_CONFIG')
   if (!config.isActive) throw new Error('RENT_ACCOUNT_INACTIVE')
@@ -279,7 +279,12 @@ export async function processRentTransfer(
         amount: transferAmount,
         referenceType: 'EOD_RENT_TRANSFER',
         referenceId: deposit.id,
-        notes: `EOD rent transfer — ${eodDate}`,
+        // MBM-287 §2.1 follow-up: this used to embed the date, which made
+        // calculate-set-aside-breakdown.ts's group-by-notes treat every
+        // day's rent transfer as its own distinct "purpose" — matching
+        // processAutoDeposits' plain-accountName notes below so all rent
+        // transfers group into one purpose row regardless of date.
+        notes: config.expenseAccount.accountName,
         entryDate: dayStart,
         createdBy: userId,
       },

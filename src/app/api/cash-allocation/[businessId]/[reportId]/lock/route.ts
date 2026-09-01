@@ -277,7 +277,10 @@ export async function POST(request: NextRequest, { params }: Params) {
               amount: Number(item.reportedAmount),
               referenceType: 'ALLOCATION',
               referenceId: reportId,
-              notes: `${item.accountName} (legacy backfill)`,
+              // MBM-287 §2.1 follow-up: no "(legacy backfill)" suffix — this
+              // must group with the same account's normal entries in the
+              // Set Aside by Purpose table, not fragment into its own row.
+              notes: item.accountName,
               entryDate: now,
               createdBy: user.id,
             },
