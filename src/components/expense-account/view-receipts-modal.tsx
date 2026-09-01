@@ -58,6 +58,13 @@ interface ViewReceiptsModalProps {
   paymentPayee?: PayeeRef | null
   onClose: () => void
   onReceiptsChanged: () => void
+  // MBM-286: opened from a specific planned combo-pay line item (see
+  // combo-request-detail.tsx's per-item "Add Receipt" action) — skips the
+  // list view and opens straight into Add Receipt, pre-filled with that
+  // item's own payee (independently changeable, same as any other receipt)
+  // and tagged with comboItemId so it's traceable back to the plan.
+  presetComboItemId?: string
+  presetPayee?: PayeeRef | null
 }
 
 export function ViewReceiptsModal({
@@ -67,6 +74,8 @@ export function ViewReceiptsModal({
   paymentPayee,
   onClose,
   onReceiptsChanged,
+  presetComboItemId,
+  presetPayee,
 }: ViewReceiptsModalProps) {
   const { data: session } = useSession()
   const currentUserId = (session?.user as any)?.id as string | undefined
@@ -77,7 +86,7 @@ export function ViewReceiptsModal({
   const [review, setReview] = useState<ReceiptReview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [showAddModal, setShowAddModal] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(!!presetComboItemId)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [submittingReview, setSubmittingReview] = useState(false)
   const [approving, setApproving] = useState(false)
@@ -373,9 +382,10 @@ export function ViewReceiptsModal({
       {showAddModal && (
         <AddReceiptModal
           paymentId={paymentId}
-          paymentPayee={currentPayee}
+          paymentPayee={presetComboItemId ? (presetPayee ?? currentPayee) : currentPayee}
+          comboItemId={presetComboItemId}
           review={review}
-          onClose={() => setShowAddModal(false)}
+          onClose={() => (presetComboItemId ? onClose() : setShowAddModal(false))}
           onSuccess={() => {
             setShowAddModal(false)
             loadReceipts()

@@ -8,6 +8,24 @@ import { useConfirm } from '@/components/ui/confirm-modal'
 import { ComboRequestApproveModal } from './combo-request-approve-modal'
 import { ComboMarkPaidModal } from './combo-request-mark-paid-modal'
 import { ComboVoucherModal } from './combo-voucher-modal'
+import { ViewReceiptsModal } from './view-receipts-modal'
+
+interface PayeeRef { type: string; id: string; name: string }
+
+// MBM-286: resolves the planned payee a combo item was drafted with, into
+// the same PayeeRef shape the receipt-entry payee picker uses — pre-fills
+// AddReceiptModal's picker with it, but (like every other receipt) it stays
+// independently changeable, never silently forced. Only PERSON/BUSINESS/
+// SUPPLIER are representable here — ExpensePaymentReceipts has no
+// employee/user payee columns (a receipt's payee is who you actually paid
+// at the till, not an internal employee/user), so an item planned against
+// one of those opens the picker with no preset instead of a broken guess.
+function payeeRefFromItem(item: ComboItem): PayeeRef | null {
+  if (item.payeeType === 'PERSON' && item.payeePerson) return { type: 'PERSON', id: item.payeePerson.id, name: item.payeePerson.fullName }
+  if (item.payeeType === 'BUSINESS' && item.payeeBusiness) return { type: 'BUSINESS', id: item.payeeBusiness.id, name: item.payeeBusiness.name }
+  if (item.payeeType === 'SUPPLIER' && item.payeeSupplier) return { type: 'SUPPLIER', id: item.payeeSupplier.id, name: item.payeeSupplier.name }
+  return null
+}
 
 interface ComboItem {
   id: string
@@ -23,6 +41,16 @@ interface ComboItem {
   notes: string | null
   sortOrder: number
   payeeType: string | null
+  payeePersonId?: string | null
+  payeeUserId?: string | null
+  payeeEmployeeId?: string | null
+  payeeBusinessId?: string | null
+  payeeSupplierId?: string | null
+  payeePerson?: { id: string; fullName: string } | null
+  payeeUser?: { id: string; name: string } | null
+  payeeEmployee?: { id: string; fullName: string } | null
+  payeeBusiness?: { id: string; name: string } | null
+  payeeSupplier?: { id: string; name: string } | null
 }
 
 interface ComboSection {
@@ -123,6 +151,8 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
   const [availableBalance, setAvailableBalance] = useState(0)
   const [showApproveModal, setShowApproveModal] = useState(false)
   const [markPaidItem, setMarkPaidItem] = useState<ComboItem | null>(null)
+  const [receiptItem, setReceiptItem] = useState<ComboItem | null>(null) // MBM-286: item-level "Add Receipt"
+  const [showReceipts, setShowReceipts] = useState(false) // MBM-286: request-level "Manage Receipts"
   const [showVoucherModal, setShowVoucherModal] = useState(false)
   const [accountInfo, setAccountInfo] = useState<{ accountName: string; accountNumber: string } | null>(null)
   const [showSubmitPanel, setShowSubmitPanel] = useState(false)
@@ -569,6 +599,17 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
               Print Voucher
             </button>
           )}
+          {/* MBM-286: full receipt list, balance/status, submit-to-cashier,
+              approve — everything ViewReceiptsModal already does, for the
+              whole request rather than one item. */}
+          {request.linkedPaymentId && (
+            <button
+              onClick={() => setShowReceipts(true)}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-teal-700 dark:text-teal-400 border border-teal-300 dark:border-teal-700 rounded-lg hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors"
+            >
+              🧾 Manage Receipts
+            </button>
+          )}
         </div>
 
         {/* Inline return panel */}
@@ -787,15 +828,29 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
                       )}
                     </div>
 
-                    {/* Mark paid action */}
-                    {canMarkThisItem && (
-                      <button
-                        onClick={() => setMarkPaidItem(item)}
-                        className="shrink-0 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 border border-blue-200 dark:border-blue-700 hover:border-blue-400 dark:hover:border-blue-500 px-2 py-1 rounded transition-colors"
-                      >
-                        Mark Paid
-                      </button>
-                    )}
+                    {/* Actions — Mark Paid (funded flag) and Add Receipt (actual
+                        supplier + amount capture, MBM-286) are independent:
+                        an item can get several receipts over time, from
+                        different suppliers than it was originally planned
+                        for, whether or not it's been flagged Mark Paid. */}
+                    <div className="shrink-0 flex flex-col items-end gap-1">
+                      {canMarkThisItem && (
+                        <button
+                          onClick={() => setMarkPaidItem(item)}
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 border border-blue-200 dark:border-blue-700 hover:border-blue-400 dark:hover:border-blue-500 px-2 py-1 rounded transition-colors"
+                        >
+                          Mark Paid
+                        </button>
+                      )}
+                      {canMarkPaid && !isNotFunded && request.linkedPaymentId && (
+                        <button
+                          onClick={() => setReceiptItem(item)}
+                          className="text-xs text-teal-600 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300 border border-teal-200 dark:border-teal-700 hover:border-teal-400 dark:hover:border-teal-500 px-2 py-1 rounded transition-colors"
+                        >
+                          🧾 Add Receipt
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )
               })}
@@ -865,6 +920,33 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
           request={request}
           accountName={accountInfo?.accountName ?? ''}
           accountNumber={accountInfo?.accountNumber ?? ''}
+        />
+      )}
+
+      {/* MBM-286: item-level "Add Receipt" — opens straight into the add
+          form, tagged to this planned item, pre-filled with (but not locked
+          to) its planned payee. */}
+      {receiptItem && request.linkedPaymentId && (
+        <ViewReceiptsModal
+          paymentId={request.linkedPaymentId}
+          paymentAmount={Number(request.approvedAmount ?? request.requestedAmount)}
+          paymentDescription={request.title}
+          presetComboItemId={receiptItem.id}
+          presetPayee={payeeRefFromItem(receiptItem)}
+          onClose={() => setReceiptItem(null)}
+          onReceiptsChanged={loadRequest}
+        />
+      )}
+
+      {/* MBM-286: request-level receipts — full list, balance/status,
+          submit-to-cashier, approve. */}
+      {showReceipts && request.linkedPaymentId && (
+        <ViewReceiptsModal
+          paymentId={request.linkedPaymentId}
+          paymentAmount={Number(request.approvedAmount ?? request.requestedAmount)}
+          paymentDescription={request.title}
+          onClose={() => setShowReceipts(false)}
+          onReceiptsChanged={loadRequest}
         />
       )}
     </div>

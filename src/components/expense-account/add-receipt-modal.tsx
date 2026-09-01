@@ -58,6 +58,10 @@ interface AddReceiptModalProps {
   // new one (POST) — same payee picker (search/create/one-time) either way.
   editReceipt?: EditReceiptData | null
   review?: ReceiptReviewSummary | null
+  // MBM-286: tags the created receipt to a specific planned combo-pay line
+  // item (informational only, never a per-item amount cap — see
+  // combo-request-detail.tsx's "Add Receipt" action on each item).
+  comboItemId?: string
 }
 
 function payeeRefFromReceipt(r: EditReceiptData): PayeeRef | null {
@@ -99,7 +103,7 @@ function saveLastPayee(p: PayeeRef) {
   } catch {}
 }
 
-export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, editReceipt, review }: AddReceiptModalProps) {
+export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, editReceipt, review, comboItemId }: AddReceiptModalProps) {
   const today = new Date().toISOString().slice(0, 10)
   const isEditing = !!editReceipt
   const initialPayee = editReceipt ? payeeRefFromReceipt(editReceipt) : (paymentPayee ?? null)
@@ -283,6 +287,7 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
         subcategoryId: category?.subcategoryId || undefined,
         updatePaymentPayee: payeeMismatch ? updatePaymentPayee : false,
         overrideReason: overrideReason.trim() || undefined,
+        ...(isEditing ? {} : { comboItemId: comboItemId || undefined }),
       }
       if (selectedPayee) Object.assign(body, payeeTypeToApiFields(selectedPayee))
       else if (isEditing) Object.assign(body, { payeeType: null })

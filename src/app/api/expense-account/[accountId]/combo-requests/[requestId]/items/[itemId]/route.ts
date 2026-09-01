@@ -75,6 +75,10 @@ export async function PATCH(
           // MBM-271: start receipt accountability tracking — the amount the
           // requester now needs to account for is the request's approvedAmount
           // (plan Decision #2), not the raw payment amount.
+          // MBM-286: this row is now normally already created at approval
+          // time (see approve/route.ts) — this upsert is a defensive
+          // fallback for any request approved before that change shipped,
+          // where `update: {}` is a deliberate no-op if it already exists.
           const expectedAmount = comboRequest.approvedAmount ?? comboRequest.requestedAmount
           await tx.expensePaymentReceiptReviews.upsert({
             where: { expensePaymentId: comboRequest.linkedPaymentId },

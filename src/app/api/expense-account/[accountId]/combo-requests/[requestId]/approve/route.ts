@@ -96,6 +96,18 @@ export async function POST(
         },
       })
 
+      // MBM-286: start receipt accountability tracking the moment funds are
+      // approved (the account balance is already deducted at this point —
+      // see updateExpenseAccountBalanceTx below), not only once every last
+      // planned item has been individually marked paid. Lets receipts be
+      // added and reconciled against the approved amount from here on,
+      // instead of the funds sitting untracked until full item-by-item
+      // settlement. The items/[itemId] route still upserts this same row
+      // as a defensive fallback for any request approved before this change.
+      await tx.expensePaymentReceiptReviews.create({
+        data: { expensePaymentId: linkedPayment.id, expectedAmount: approvedAmountNum },
+      })
+
       // Mark not-funded items with approvedAmount = 0
       if (notFundedItemIds.size > 0) {
         await tx.comboPaymentRequestItems.updateMany({
