@@ -30,26 +30,44 @@ export interface CashPositionData {
 const fmt = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 
+/** MBM-287: trend vs. the calendar-aligned prior period — direction only, no
+ *  per-metric good/bad judgement (a rise in Expenses isn't "bad" on this
+ *  card, just different from last period). */
+function Trend({ current, previous }: { current: number; previous: number }) {
+  const delta = current - previous
+  if (Math.abs(delta) < 0.005 && Math.abs(previous) < 0.005) return null
+  const arrow = delta > 0.005 ? '▲' : delta < -0.005 ? '▼' : '—'
+  return (
+    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
+      {arrow} {fmt(Math.abs(delta))} vs last period
+    </p>
+  )
+}
+
 export function CashPositionCards({
   cashPosition,
   period,
   title = 'Cash Position',
   onCardClick,
+  comparison,
 }: {
   cashPosition: CashPositionData
   period?: { start: string; end: string } | null
   title?: string
   /** MBM-287 §4: optional drill-down — omit a key to leave that card inert. */
   onCardClick?: Partial<Record<'cashIn' | 'setAside' | 'expenses' | 'availableBalance' | 'closingBalance', () => void>>
+  /** MBM-287 §3/Decision #3: same shape, computed for the calendar-aligned prior period. */
+  comparison?: CashPositionData | null
 }) {
   const c = cashPosition.combined
+  const p = comparison?.combined
   const cards = [
-    { label: 'Opening Balance', value: c.openingBalance, color: 'text-gray-700 dark:text-gray-300', onClick: undefined },
-    { label: 'Cash In', value: c.cashIn, color: 'text-green-600 dark:text-green-400', onClick: onCardClick?.cashIn },
-    { label: 'Set Aside', value: c.setAside, color: 'text-amber-600 dark:text-amber-400', onClick: onCardClick?.setAside },
-    { label: 'Expenses', value: c.expenses, color: 'text-red-600 dark:text-red-400', onClick: onCardClick?.expenses },
-    { label: 'Available Cash', value: c.availableBalance, color: 'text-emerald-700 dark:text-emerald-300 font-bold', onClick: onCardClick?.availableBalance },
-    { label: 'Closing Balance', value: c.closingBalance, color: 'text-gray-900 dark:text-gray-100 font-bold', onClick: onCardClick?.closingBalance },
+    { label: 'Opening Balance', value: c.openingBalance, prev: p?.openingBalance, color: 'text-gray-700 dark:text-gray-300', onClick: undefined },
+    { label: 'Cash In', value: c.cashIn, prev: p?.cashIn, color: 'text-green-600 dark:text-green-400', onClick: onCardClick?.cashIn },
+    { label: 'Set Aside', value: c.setAside, prev: p?.setAside, color: 'text-amber-600 dark:text-amber-400', onClick: onCardClick?.setAside },
+    { label: 'Expenses', value: c.expenses, prev: p?.expenses, color: 'text-red-600 dark:text-red-400', onClick: onCardClick?.expenses },
+    { label: 'Available Cash', value: c.availableBalance, prev: p?.availableBalance, color: 'text-emerald-700 dark:text-emerald-300 font-bold', onClick: onCardClick?.availableBalance },
+    { label: 'Closing Balance', value: c.closingBalance, prev: p?.closingBalance, color: 'text-gray-900 dark:text-gray-100 font-bold', onClick: onCardClick?.closingBalance },
   ]
 
   return (
@@ -74,6 +92,7 @@ export function CashPositionCards({
           >
             <p className="text-xs text-gray-500 dark:text-gray-400">{card.label}</p>
             <p className={`text-lg mt-0.5 ${card.color}`}>{fmt(card.value)}</p>
+            {card.prev !== undefined && <Trend current={card.value} previous={card.prev} />}
           </div>
         ))}
       </div>

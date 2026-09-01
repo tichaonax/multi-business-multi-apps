@@ -9,7 +9,9 @@ import { SearchableSelect } from '@/components/ui/searchable-select'
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getLocalDateString } from '@/lib/utils'
 import { CashPositionCards, type CashPositionData } from '@/components/cash-position/cash-position-cards'
+import { CashPositionWaterfallModal } from '@/components/cash-position/cash-position-waterfall-modal'
 import { getBusinessColor } from '@/lib/cash-position/business-color'
+import { getComparisonPeriod, type DateMode } from '@/lib/cash-position/comparison-period'
 
 interface Business { id: string; name: string; type: string; displayColor?: string | null }
 
@@ -51,6 +53,30 @@ const ENTRY_TYPE_LABEL: Record<string, string> = {
   CASH_ALLOCATION:  '📋 Cash Allocation',
 }
 
+// MBM-287 §3/Decision #3: figure out whether the currently-selected range
+// is a calendar-aligned day/week/month so the comparison can use the real
+// prior calendar period instead of an arbitrary equal-length shift — the
+// date-range picker itself has no concept of "calendar month", only rolling
+// presets and an explicit month/year picker, so this is inferred from the
+// resulting dates.
+function toDateOnly(d: Date): Date {
+  const r = new Date(d)
+  r.setHours(0, 0, 0, 0)
+  return r
+}
+
+function detectDateMode(start: Date, end: Date): DateMode {
+  const s = toDateOnly(start)
+  const e = toDateOnly(end)
+  const oneDayMs = 24 * 60 * 60 * 1000
+  const spanDays = Math.round((e.getTime() - s.getTime()) / oneDayMs) + 1
+  if (spanDays === 1) return 'day'
+  if (spanDays === 7 && s.getDay() === 1) return 'week' // Monday-start
+  const lastDayOfMonth = new Date(s.getFullYear(), s.getMonth() + 1, 0)
+  if (s.getDate() === 1 && e.getTime() === lastDayOfMonth.getTime()) return 'month'
+  return 'custom'
+}
+
 // MBM-287
 interface SetAsideRow {
   purpose: string
@@ -79,6 +105,13 @@ export default function CashBucketReportPage() {
   const [cashPosition, setCashPosition] = useState<CashPositionData | null>(null)
   const [cashPositionPeriod, setCashPositionPeriod] = useState<{ start: string; end: string } | null>(null)
   const [setAsideBreakdown, setSetAsideBreakdown] = useState<SetAsideRow[]>([])
+  // MBM-287 §3: calendar-aligned prior-period comparison — fetched
+  // separately from `load()` since it doesn't depend on the ledger filters
+  // (direction/type/offset), only on business + date range.
+  const [comparisonCashPosition, setComparisonCashPosition] = useState<CashPositionData | null>(null)
+  // MBM-287 §4: the Closing Balance / Available Cash "why is this the
+  // number" drill-down — purely derived from data already fetched above.
+  const [waterfallMode, setWaterfallMode] = useState<'closing' | 'available' | null>(null)
 
   // Filters
   const [bizFilter, setBizFilter] = useState('')
@@ -108,6 +141,39 @@ export default function CashBucketReportPage() {
     setTimeout(() => ledgerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   }
   const scrollToSetAside = () => setAsideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+
+  // MBM-287 §6: Excel export — same filters as the on-screen report, minus
+  // pagination. Fetched as a blob rather than a plain navigation so the
+  // session cookie goes along and the page doesn't navigate away.
+  const [exporting, setExporting] = useState(false)
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const p = new URLSearchParams()
+      if (bizFilter)  p.set('businessId', bizFilter)
+      if (dirFilter)  p.set('direction', dirFilter)
+      if (typeFilter) p.set('entryType', typeFilter)
+      if (allTime) {
+        p.set('allTime', 'true')
+      } else {
+        p.set('startDate', getLocalDateString(dateRange.start))
+        p.set('endDate', getLocalDateString(dateRange.end))
+      }
+      const res = await fetch(`/api/cash-bucket/report/export?${p.toString()}`, { credentials: 'include' })
+      if (!res.ok) return
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = `cash-position-report-${getLocalDateString(new Date())}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(blobUrl)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const buildUrl = useCallback(() => {
     const p = new URLSearchParams()
@@ -153,6 +219,30 @@ export default function CashBucketReportPage() {
     if (status === 'unauthenticated') { router.push('/auth/signin'); return }
     if (status === 'authenticated') { load(); loadBusinesses() }
   }, [status, load, loadBusinesses, router])
+
+  // MBM-287 §3: calendar-aligned comparison period — intentionally not part
+  // of `load()`/`buildUrl()` since it only depends on business + date range,
+  // not the ledger's own direction/type/pagination filters.
+  useEffect(() => {
+    if (status !== 'authenticated' || allTime) { setComparisonCashPosition(null); return }
+    const mode = detectDateMode(dateRange.start, dateRange.end)
+    const periodStart = toDateOnly(dateRange.start)
+    const periodEndExclusive = (() => { const d = toDateOnly(dateRange.end); d.setDate(d.getDate() + 1); return d })()
+    const cmp = getComparisonPeriod(mode, { start: periodStart, end: periodEndExclusive })
+    const cmpEndInclusive = new Date(cmp.end); cmpEndInclusive.setDate(cmpEndInclusive.getDate() - 1)
+
+    const p = new URLSearchParams()
+    if (bizFilter) p.set('businessId', bizFilter)
+    p.set('startDate', getLocalDateString(cmp.start))
+    p.set('endDate', getLocalDateString(cmpEndInclusive))
+
+    let cancelled = false
+    fetch(`/api/cash-bucket?${p.toString()}`, { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => { if (!cancelled) setComparisonCashPosition(json?.data?.cashPosition ?? null) })
+      .catch(() => { if (!cancelled) setComparisonCashPosition(null) })
+    return () => { cancelled = true }
+  }, [status, allTime, dateRange, bizFilter])
 
   // MBM-287: these used to be this report's own copy of the date-filter bug
   // — computed from balances[].inflow/outflow, which never respected
@@ -233,13 +323,30 @@ export default function CashBucketReportPage() {
               cashPosition={cashPosition}
               period={cashPositionPeriod}
               title="Cash Position"
+              comparison={comparisonCashPosition}
               onCardClick={{
                 cashIn: () => filterLedgerTo('INFLOW', ['EOD_RECEIPT', 'DIRECT_DEPOSIT', 'PETTY_CASH_RETURN', 'ECOCASH_CONVERSION']),
                 setAside: scrollToSetAside,
                 expenses: () => filterLedgerTo('OUTFLOW', ['PAYMENT_APPROVAL', 'PETTY_CASH']),
+                availableBalance: () => setWaterfallMode('available'),
+                closingBalance: () => setWaterfallMode('closing'),
               }}
             />
           )
+        )}
+
+        {waterfallMode && cashPosition && (
+          <CashPositionWaterfallModal
+            mode={waterfallMode}
+            cashPosition={cashPosition}
+            setAsideBreakdown={setAsideBreakdown}
+            onClose={() => setWaterfallMode(null)}
+            onDrill={{
+              cashIn: () => { setWaterfallMode(null); filterLedgerTo('INFLOW', ['EOD_RECEIPT', 'DIRECT_DEPOSIT', 'PETTY_CASH_RETURN', 'ECOCASH_CONVERSION']) },
+              setAside: () => { setWaterfallMode(null); scrollToSetAside() },
+              expenses: () => { setWaterfallMode(null); filterLedgerTo('OUTFLOW', ['PAYMENT_APPROVAL', 'PETTY_CASH']) },
+            }}
+          />
         )}
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -385,6 +492,10 @@ export default function CashBucketReportPage() {
                 <option value="CASH_ALLOCATION">Cash Allocation</option>
               </select>
             </div>
+            <button onClick={handleExport} disabled={exporting}
+              className="py-1.5 px-3 border border-border text-sm rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50">
+              {exporting ? '…' : '📊 Export'}
+            </button>
             <button onClick={() => window.print()}
               className="py-1.5 px-3 border border-border text-sm rounded hover:bg-gray-100 dark:hover:bg-gray-700">
               🖨
