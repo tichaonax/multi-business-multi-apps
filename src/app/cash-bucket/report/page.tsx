@@ -8,6 +8,7 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getLocalDateString } from '@/lib/utils'
+import { CashPositionCards, type CashPositionData } from '@/components/cash-position/cash-position-cards'
 
 interface Business { id: string; name: string; type: string }
 
@@ -49,6 +50,16 @@ const ENTRY_TYPE_LABEL: Record<string, string> = {
   CASH_ALLOCATION:  '📋 Cash Allocation',
 }
 
+// MBM-287
+interface SetAsideRow {
+  purpose: string
+  entryType: 'PAYROLL_FUNDING' | 'CASH_ALLOCATION'
+  thisPeriod: number
+  lifetimeContributed: number
+  lifetimeDisbursed: number
+  stillAvailable: number
+}
+
 export default function CashBucketReportPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -59,6 +70,14 @@ export default function CashBucketReportPage() {
   const [entries, setEntries] = useState<BucketEntry[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  // MBM-287: the real, period-scoped figures — supersede totalInflow/
+  // totalOutflow below for anything but "all time" (see the allTime
+  // branch in the summary cards — opening/closing balance is undefined
+  // for an unbounded range, so that one case still falls back to the old
+  // lifetime totalBalance card instead).
+  const [cashPosition, setCashPosition] = useState<CashPositionData | null>(null)
+  const [cashPositionPeriod, setCashPositionPeriod] = useState<{ start: string; end: string } | null>(null)
+  const [setAsideBreakdown, setSetAsideBreakdown] = useState<SetAsideRow[]>([])
 
   // Filters
   const [bizFilter, setBizFilter] = useState('')
@@ -97,6 +116,9 @@ export default function CashBucketReportPage() {
       if (!res.ok) return
       const json = await res.json()
       setTotalBalance(json.data.totalBalance)
+      setCashPosition(json.data.cashPosition ?? null)
+      setCashPositionPeriod(json.data.cashPositionPeriod ?? null)
+      setSetAsideBreakdown(json.data.setAsideBreakdown ?? [])
       setBalances(json.data.balances)
       setEntries(json.data.entries)
       setTotal(json.data.pagination.total)
@@ -118,6 +140,12 @@ export default function CashBucketReportPage() {
     if (status === 'authenticated') { load(); loadBusinesses() }
   }, [status, load, loadBusinesses, router])
 
+  // MBM-287: these used to be this report's own copy of the date-filter bug
+  // — computed from balances[].inflow/outflow, which never respected
+  // startDate/endDate at all (always a lifetime total, same root cause as
+  // the Cash Bucket page's identical bug). Kept only as the allTime-mode
+  // fallback now (see the summary cards below) — cashPosition.combined is
+  // the real, period-scoped source everywhere else.
   const totalInflow  = balances.filter(b => !bizFilter || b.businessId === bizFilter).reduce((s, b) => s + b.inflow, 0)
   const totalOutflow = balances.filter(b => !bizFilter || b.businessId === bizFilter).reduce((s, b) => s + b.outflow, 0)
 
@@ -167,20 +195,29 @@ export default function CashBucketReportPage() {
           </p>
         </div>
 
-        {/* Summary cards */}
+        {/* MBM-287: real, period-scoped Cash Position — "all time" has no
+            defined opening balance, so that one mode keeps the old lifetime
+            totalBalance/totalInflow/totalOutflow cards instead. */}
+        {allTime ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div className="rounded-lg border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3">
+              <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">Total Cash in Bucket (All Time)</p>
+              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300 mt-0.5">{fmt(totalBalance)}</p>
+            </div>
+            <div className="rounded-lg border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 px-4 py-3">
+              <p className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">Total Inflows</p>
+              <p className="text-2xl font-bold text-blue-700 dark:text-blue-300 mt-0.5">{fmt(totalInflow)}</p>
+            </div>
+            <div className="rounded-lg border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-4 py-3">
+              <p className="text-xs font-medium text-red-600 dark:text-red-400 uppercase tracking-wide">Total Outflows</p>
+              <p className="text-2xl font-bold text-red-700 dark:text-red-300 mt-0.5">{fmt(totalOutflow)}</p>
+            </div>
+          </div>
+        ) : (
+          cashPosition && <CashPositionCards cashPosition={cashPosition} period={cashPositionPeriod} title="Cash Position" />
+        )}
+
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="rounded-lg border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3">
-            <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">Total Cash in Bucket</p>
-            <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300 mt-0.5">{fmt(totalBalance)}</p>
-          </div>
-          <div className="rounded-lg border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 px-4 py-3">
-            <p className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">Total Inflows</p>
-            <p className="text-2xl font-bold text-blue-700 dark:text-blue-300 mt-0.5">{fmt(totalInflow)}</p>
-          </div>
-          <div className="rounded-lg border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-4 py-3">
-            <p className="text-xs font-medium text-red-600 dark:text-red-400 uppercase tracking-wide">Total Outflows</p>
-            <p className="text-2xl font-bold text-red-700 dark:text-red-300 mt-0.5">{fmt(totalOutflow)}</p>
-          </div>
           <div className="rounded-lg border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-3">
             <p className="text-xs font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wide">Edits</p>
             <p className="text-2xl font-bold text-amber-700 dark:text-amber-300 mt-0.5">{editedEntries.length}</p>
@@ -190,6 +227,39 @@ export default function CashBucketReportPage() {
             <p className="text-2xl font-bold text-rose-700 dark:text-rose-300 mt-0.5">{deletedEntries.length}</p>
           </div>
         </div>
+
+        {/* MBM-287: Set Aside by purpose — This Period / Lifetime Contributed
+            / Lifetime Disbursed / Still Available, same figures the Cash
+            Bucket page's "Earmarked" drill-down shows. */}
+        {setAsideBreakdown.length > 0 && (
+          <div className="print:break-inside-avoid">
+            <h2 className="text-sm font-semibold text-primary mb-2">Set Aside by Purpose</h2>
+            <div className="rounded-lg border border-border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-700/50 text-xs text-secondary uppercase">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Purpose</th>
+                    <th className="px-3 py-2 text-right">This Period</th>
+                    <th className="px-3 py-2 text-right">Lifetime Contributed</th>
+                    <th className="px-3 py-2 text-right">Lifetime Disbursed</th>
+                    <th className="px-3 py-2 text-right">Still Available</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {setAsideBreakdown.map(row => (
+                    <tr key={`${row.entryType}-${row.purpose}`} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                      <td className="px-3 py-2 font-medium text-primary">{row.purpose}</td>
+                      <td className="px-3 py-2 text-right text-secondary">{fmt(row.thisPeriod)}</td>
+                      <td className="px-3 py-2 text-right text-secondary">{fmt(row.lifetimeContributed)}</td>
+                      <td className="px-3 py-2 text-right text-secondary">{fmt(row.lifetimeDisbursed)}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-amber-600 dark:text-amber-400">{fmt(row.stillAvailable)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Audit activity breakdown (only shown when there are edits/deletions) */}
         {auditUsers.length > 0 && (

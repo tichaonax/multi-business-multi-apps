@@ -222,12 +222,21 @@ export async function GET(request: NextRequest) {
       periodStart,
       periodEnd,
     })
+    // Same period, same shared function the per-business "Earmarked" lines
+    // above already use — exposed at the top level too so report/summary
+    // screens can show the full per-purpose table without a second call.
+    const setAsideBreakdown = await calculateSetAsideBreakdown({
+      businessIds: businessId ? [businessId] : undefined,
+      periodStart,
+      periodEnd,
+    })
 
     return NextResponse.json({
       success: true,
       data: {
         cashPosition,
         cashPositionPeriod: { start: periodStart.toISOString(), end: periodEnd.toISOString() },
+        setAsideBreakdown,
         totalBalance,
         totalAllocated,
         totalPhysicalCash,
