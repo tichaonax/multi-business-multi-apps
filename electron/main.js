@@ -184,14 +184,24 @@ async function openServer(serverEntry) {
   // state on display-topology changes), snap straight back — the window
   // must never be seen in a restored/resized state. Also covers the
   // minimize → click-the-taskbar-icon path, which fires 'restore' rather
-  // than 'unmaximize'. Deferred via setImmediate: calling .maximize()
-  // synchronously inside these handlers races Windows' own un-minimize/
-  // restore-down animation, which is still in flight when the event fires —
-  // the call can silently no-op if it lands before that animation settles.
+  // than 'unmaximize'.
+  //
+  // setBounds first, then maximize(): a bare .maximize() call here proved
+  // unreliable after a minimize/restore cycle — it seems to race Windows'
+  // own un-minimize animation and silently no-op if it lands before that
+  // settles, even deferred with setImmediate. setBounds is a deterministic,
+  // synchronous pixel-level operation with nothing to race, so it always
+  // lands; maximize() on top of that is just to re-set the OS "IsZoomed"
+  // flag the auto-hide taskbar behavior (above) depends on — a short delay
+  // gives Windows' restore animation room to finish first so that call
+  // itself has a real maximized-from state to work from.
   const forceMaximize = () => {
-    setImmediate(() => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    const bounds = screen.getPrimaryDisplay().bounds
+    mainWindow.setBounds(bounds)
+    setTimeout(() => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.maximize()
-    })
+    }, 100)
   }
   mainWindow.on('unmaximize', forceMaximize)
   mainWindow.on('restore', forceMaximize)

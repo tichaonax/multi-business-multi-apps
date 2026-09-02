@@ -433,7 +433,12 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   return (
     <>
     <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8">
+      {/* Full width, not max-w-7xl mx-auto — that centered the header's
+          content and left ~300px of dead space on each side on any screen
+          wider than 1280px (the app runs maximized by default now), which
+          is exactly the room the breadcrumb/business-switcher cluster
+          needed and didn't have, causing the Home link to get clipped. */}
+      <div className="px-3 sm:px-4 lg:px-6 xl:px-8">
         <div className="flex justify-between items-center h-14 sm:h-16">
           {/* Left side - Logo and Navigation */}
           <div className="flex items-center space-x-2 sm:space-x-8 min-w-0 shrink">
