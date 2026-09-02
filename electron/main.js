@@ -184,9 +184,14 @@ async function openServer(serverEntry) {
   // state on display-topology changes), snap straight back — the window
   // must never be seen in a restored/resized state. Also covers the
   // minimize → click-the-taskbar-icon path, which fires 'restore' rather
-  // than 'unmaximize'.
+  // than 'unmaximize'. Deferred via setImmediate: calling .maximize()
+  // synchronously inside these handlers races Windows' own un-minimize/
+  // restore-down animation, which is still in flight when the event fires —
+  // the call can silently no-op if it lands before that animation settles.
   const forceMaximize = () => {
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.maximize()
+    setImmediate(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.maximize()
+    })
   }
   mainWindow.on('unmaximize', forceMaximize)
   mainWindow.on('restore', forceMaximize)
