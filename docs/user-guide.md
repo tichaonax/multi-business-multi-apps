@@ -238,7 +238,7 @@ Each card shows:
 | **Sales** | Total revenue from all completed and pending orders |
 | **💵 / 📱 split** | Cash vs EcoCash breakdown of sales (shown only when EcoCash sales exist) |
 | **🪣 Cash Box (Free)** | Physical cash and EcoCash currently held in the till and not earmarked for anything |
-| **🔒 Earmarked** | Cash still in the till but already reserved for an allocation or payroll funding (rolling 7-day window). Only shown when greater than zero — see [Cash Box, Earmarked, and Expense Account on the Dashboard](#cash-box-earmarked-and-expense-account-on-the-dashboard). |
+| **🔒 Earmarked** | Cash still in the till but already reserved for an allocation or payroll funding — unbounded, not limited to a recent-days window. Only shown when greater than zero — see [Cash Box, Earmarked, and Expense Account on the Dashboard](#cash-box-earmarked-and-expense-account-on-the-dashboard). |
 | **🏦 Expense Account** | The business's own expense account balance. Only shown when greater than zero. |
 | **📦 Inventory** | Total value of stock on hand — calculated as quantity × cost price (or selling price if no cost price is set). Only shown when inventory value is greater than zero. |
 | **🏠 Rent** | How much of this month's rent target has been contributed, with a progress bar |
@@ -269,15 +269,21 @@ Each card shows:
 
 > **Example:** "Yesterday: ▼11% 74 items ▼17% $87" means yesterday had 74 items sold (11% fewer than the day before) and $87 in sales (17% less than the day before).
 
+#### Cash Position — Today
+
+If you have access to the Cash Bucket, the dashboard also shows a **Cash Position** card row for today (Opening Balance, Cash In, Set Aside, Expenses, Available Balance, Closing Balance). This is the exact same calculation shown on the Cash Bucket page and the Cash Position Report — see **Understanding Your Cash Position** in section 3 for what each figure means.
+
 ### Switching Between Businesses
 
 If your account covers more than one business:
 1. Click the business name in the top-left corner.
 2. A dropdown will show all your businesses.
 3. Click the one you want to work in.
-4. The screen will reload showing that business's data.
+4. The screen will reload, taking you to that business's **Default Landing Page** — usually its Home page, but an admin can set it to something else (e.g. POS System) per business under **Edit Business Settings → Branding** (see section 49).
 
 > **Note:** "All" in the business switcher means the umbrella view — it shows combined data for all businesses together.
+
+> **Tip:** If a business name is too long to fit in the switcher, hover over it to see the full name and business type in a tooltip.
 
 ### Your Notifications
 
@@ -575,8 +581,8 @@ This works in both the **Restaurant POS** and **Grocery POS**. Admins and manage
 ### Customer Display Screen
 
 If your till has a second screen facing the customer, it shows:
-- Items currently in the cart.
-- The running total.
+- Items currently in the cart, at their exact priced amounts — these never change.
+- The running total. Once a cash payment is started and rounding is confirmed (see **Cash Rounding**, section 49), this figure updates to the **rounded** total the customer actually pays and the change is calculated against — only the total is ever rounded, individual line items are not.
 - Promotions and advertisements when the till is idle.
 - The **salesperson's name and photo** — if a salesperson has been selected using the Salesperson Selector at the top of the POS, the display shows that person's name, not the logged-in user's name. This lets you correctly identify which staff member is serving the customer even if multiple people share the same login session.
 
@@ -584,6 +590,8 @@ If your till has a second screen facing the customer, it shows:
 
 **How the second screen actually opens depends on how you're running the POS:**
 - **Desktop app (Electron) with a second monitor connected** — opens automatically, full screen, the moment the app starts. Nothing to click.
+
+> **Note on the desktop app window itself:** the main app window always runs maximized and cannot be resized or minimized — this is intentional on a till, so the app can't accidentally get hidden behind other windows or shrunk to an unusable size. The **✕ close** button still works normally; if you need to fully exit the app, close it and relaunch when needed.
 - **Desktop, plain browser** — never opens on its own. Click the **🖥️ Display** button at the top of the POS to open it (a one-time browser permission prompt appears the first time). Use this to test the customer display on a regular browser without installing the desktop app.
 - **Phone or tablet** — the **🖥️ Display** button doesn't appear at all. A mobile device has only one screen, so there's nothing for a second display to open on.
 
@@ -602,8 +610,31 @@ The **Cash Bucket** is the system's record of physical cash at each business loc
 #### Viewing Cash Box Status
 
 Go to **Cash Bucket** in the menu. You will see:
-- The current cash balance for each business location.
+- A **Cash Position** summary (see below) for today, plus the per-business breakdown.
+- The current cash balance for each business location, with a small colour dot next to each business name so you can tell them apart at a glance when several are shown together (see **Display Colour**, section 49).
 - Recent transactions (INFLOW = cash in, OUTFLOW = cash out).
+
+#### Understanding Your Cash Position
+
+The **Cash Position** card row appears on the Dashboard, the Cash Bucket page, and the Cash Position Report — it always shows the same six figures, calculated the same way, for whatever business and date range you're looking at:
+
+| Figure | What it means |
+|--------|---------------|
+| **Opening Balance** | The cash on hand at the very start of the selected period. |
+| **Cash In** | Cash that came in during the period — EOD sales receipts, direct deposits, petty cash returned, and EcoCash-to-cash conversions. |
+| **Set Aside** | Cash moved out of "free" cash during the period for a specific purpose (rent, payroll funding, or another earmarked allocation) — it's still in the cash box, just reserved. |
+| **Expenses** | Cash that actually left the business during the period — approved payments and petty cash issued out. |
+| **Available Balance** | Closing Balance minus everything still currently earmarked (see **Set Aside by Purpose** below) — the cash you can actually spend right now. |
+| **Closing Balance** | The cash on hand at the end of the period: Opening + Cash In − Set Aside − Expenses (± any manual adjustments). |
+
+> If you ever see a small note like "Includes $X in manual adjustments this period," it means an admin made a manual correction to the cash box during that period — the Closing Balance always reconciles exactly even when that happens.
+
+**Set Aside by Purpose.** Rather than one lump "earmarked" number, the Cash Bucket page and Cash Position Report break Set Aside down by what it's actually for — Rent, Payroll, or another named allocation — showing four columns: **This Period**, **Lifetime Contributed**, **Lifetime Disbursed**, and **Still Available**. This gives you both the immediate picture (what happened this period) and the running picture (how much of that purpose's funding is still sitting unspent) in one table.
+
+**Drilling in.** On the Cash Position Report, clicking most of the cards takes you further:
+- **Cash In** or **Expenses** — jumps to the ledger below, filtered to just the transactions that make up that figure.
+- **Set Aside** — jumps to the Set Aside by Purpose table.
+- **Available Balance** or **Closing Balance** — opens a small breakdown showing exactly how the system got to that number, step by step (Opening → Cash In → Set Aside → Expenses → Closing, or Closing → each earmarked purpose → Available). Each step in that breakdown is itself clickable and takes you to the matching transactions.
 
 #### Cash Comes In Automatically
 
@@ -1709,6 +1740,13 @@ The Daily Detail report includes:
 
 > **Tip:** The Daily Detail expenses only include payments in **PAID** status, matching exactly what is counted in the Sales Analytics chart. If an expense shows as Pending Approval or Queued it will not appear here until it is marked as paid.
 
+#### Cash Reports
+
+| Report | What it shows |
+|--------|---------------|
+| **Cash Position Report** | Opening/Cash In/Set Aside/Expenses/Available/Closing for any date range and business, with drill-downs, period-over-period comparison arrows, and Excel export. See **Cash Position Report** in section 3. |
+| **Cash Rounding** | Every rounding event (direction, original amount, rounded amount, cashier) for audit and EOD reconciliation. |
+
 #### Payroll Reports
 
 | Report | What it shows |
@@ -2793,12 +2831,12 @@ The same correction tool exists for two more balances, so every number in the bo
 
 ### Drilling Into an Earmarked Amount (Cash Box)
 
-On the **Cash Box** page's Per-Business Breakdown, each business's "💵 Physical cash to count" splits into "✅ Free / available" and "🔒 Earmarked (last 7 days)" — and every individual line under Earmarked (e.g. "Loan: Tichaona Hwandaza", "General Expenses", a rent account) is clickable.
+On the **Cash Box** page's Per-Business Breakdown, each business's "💵 Physical cash to count" splits into "✅ Free / available" and "🔒 Earmarked" — and every individual line under Earmarked (e.g. "Loan: Tichaona Hwandaza", "General Expenses", a rent account) is clickable.
 
-Earmarked entries are shown on a **rolling 7-day window**, not "since the start of this month" — a line drops off the list 7 days after it was recorded, so the list doesn't keep growing as the month goes on. This same window is used everywhere earmarked totals are shown (the Cash Box page and the Dashboard, below).
+> **Earmarked is unbounded** — it is not limited to a rolling window of recent days. It shows everything currently set aside and not yet disbursed, for as long as it stays undisbursed, so the figure is always accurate no matter how long ago the money was earmarked. The same unbounded calculation is used everywhere earmarked/Set Aside totals appear — the Cash Box page, the Dashboard, the Cash Position card row, and the Cash Position Report's Set Aside by Purpose table.
 
 Click a line to open a breakdown showing:
-- Every individual entry in that window that adds up to that line's total — its date, amount, and who recorded it.
+- **Lifetime Contributed**, **Lifetime Disbursed**, and **Still Available** for that purpose — the same three figures shown in the Cash Position Report's Set Aside by Purpose table (see section 3), since both are backed by the same calculation.
 - The **real expense account** it belongs to, by name and account number (🏦) — including shared accounts used by more than one business (like "General Expenses" or a shared loan account), which don't otherwise show which real account they map to.
 
 This is read-only — it's for tracing where an earmarked figure actually comes from, not for editing it. To correct the underlying cash balance, use the ✏️ pencil described above instead.
@@ -2810,7 +2848,7 @@ The **Dashboard**'s business-type cards (and the summary "All" card) show three 
 | Label | Meaning |
 |---|---|
 | **🪣 Cash Box (Free)** | Cash and EcoCash currently on hand and *not* reserved for anything — this is the same figure previously labeled just "Cash Box"; the "(Free)" suffix was added so it's not confused with the earmarked total next to it. |
-| **🔒 Earmarked** | Cash still physically in the box but already reserved for an allocation or payroll funding, over the same rolling 7-day window used on the Cash Box page. Only shown when non-zero. |
+| **🔒 Earmarked** | Cash still physically in the box but already reserved for an allocation or payroll funding — unbounded, not limited to a recent-days window (see above). Only shown when non-zero. |
 | **🏦 Expense Account** | The balance of the business's own GENERAL expense account. Only shown when non-zero. |
 
 > Note: unlike the Cash Box page's "💵 Physical cash to count" (which is Free + Earmarked combined), the Dashboard's "🪣 Cash Box (Free)" figure does **not** include Earmarked — that's why Earmarked is broken out as its own line here instead of being folded in.
@@ -3141,6 +3179,20 @@ Each line item in the report represents one money movement from the EOD:
 #### Grouped Cash Allocation (Catch-Up EOD)
 
 When the Grouped EOD Catch-Up closes multiple missed days, a single combined Cash Allocation Report is created covering all selected dates. The workflow is the same — one report, one set of line items for all dates combined — making it easier to handle the physical cash for catch-up closes without generating many separate reports.
+
+### Cash Position Report
+
+**Where:** **Cash Bucket → Report** (or **Reports → Cash Position**).
+
+This report shows the same Cash Position figures described above (see **Understanding Your Cash Position**), but for any date range and business you choose, with a full transaction ledger and export.
+
+**Choosing a range.** Use the date filter at the top — presets (Today, Yesterday, Last 7/30/90 Days, etc.), a specific month/year, a custom range, or **All Time**. In All Time mode, Opening Balance has no meaning (there's no "before" to measure from), so the report falls back to three simple lifetime totals — Total Cash in Bucket, Total Inflows, Total Outflows — instead of the six-card breakdown.
+
+**Comparison arrows.** For any real date range (not All Time), each figure shows a small ▲/▼ arrow underneath with how much it changed versus the equivalent prior period — yesterday vs. the day before, this week vs. last week, this month vs. last calendar month. For an arbitrary custom range, it compares against the same-length period immediately before it. The arrow just shows direction and amount — it doesn't judge whether a change is "good" or "bad" (a higher Expenses figure isn't flagged as bad, for instance).
+
+**Drilling in.** Same as on the Cash Bucket page — click Cash In, Expenses, or Set Aside to jump to the filtered ledger or the Set Aside by Purpose table; click Available Balance or Closing Balance to see the step-by-step calculation.
+
+**Exporting.** Click **📊 Export** to download an Excel file with three sheets — Cash Position summary, Set Aside by Purpose, and the full Ledger (including deleted entries, marked in a Deleted column) — using whatever filters are currently applied on screen. Click the **🖨** printer icon to print the report as shown.
 
 ---
 
@@ -6423,12 +6475,23 @@ Sometimes a payment is recorded with a placeholder name (the person who collecte
 |---|---|---|
 | Receipt Date | Yes | The date printed on the physical receipt — may differ from the payment date |
 | Amount | Yes | The amount on the receipt — may differ from the payment amount |
+| Expense Type | No | Search and select a category/sub-category for this specific receipt (e.g. "Groceries → Fresh Produce") — independent of any category set on the payment itself, so a single combo-pay disbursement can have receipts spanning several expense types. Type to search existing categories; this is the same searchable picker used elsewhere in the system. |
 | Receipt Number | No | The number printed on the receipt or invoice, if there is one |
 | Description | No | Brief note of what was purchased (e.g. "Cleaning supplies — March") |
 | Attachment | No | Upload a photo or scan of the physical receipt |
 | Internal Notes | No | Any internal memo that does not need to appear on reports |
 
 3. Click **Save Receipt**.
+
+**For payments that require receipt accountability** (combo pay disbursements and advance payments — see the colour-coded badge above), the form also shows a live running balance as you type the Amount:
+
+| Row | Meaning |
+|---|---|
+| 💰 Requested | The approved/expected amount for this payment |
+| 🧾 Receipted so far | Total of all receipts already saved against it |
+| ✅ / ⚠️ After this receipt | What the remaining balance (or overage) will be if you save this receipt at the amount currently typed |
+
+If the amount you enter would push the total **over** the requested amount, the panel turns red and, on save, an amber **"Reason for exception"** box appears instead of saving immediately — a cashier or admin can type a reason and click **Save Anyway (Exception)** to record it as a deliberate over-limit exception; anyone without that permission just sees a message asking them to have a cashier approve it.
 
 #### Viewing and Managing Existing Receipts
 
@@ -9855,6 +9918,8 @@ The item is marked as **Paid** and the total paid amount updates. Once all funde
 
 > **Not Funded items** (approved for $0) cannot be marked as paid.
 
+**🧾 Add Receipt (per item)** — once the request has been approved and paid out, a separate **🧾 Add Receipt** button also appears next to each funded item, independent of Mark Paid. This opens the full receipt form (payee/supplier, expense type, amount, etc. — see [Attaching Receipts to Expense Payments](#attaching-receipts-to-expense-payments) in Section 17) pre-tagged to that specific item, rather than the whole disbursement. Use this when different items in the same combo request end up bought from different suppliers — each item can collect its own receipts, from its own supplier, whether or not it's been flagged Mark Paid, and an item isn't limited to a single receipt if you spent across more than one purchase.
+
 ---
 
 ### Accounting for the Funds — Adding Receipts
@@ -10607,7 +10672,7 @@ The Edit Business modal is arranged in two columns to make all settings accessib
 | Basic Information | Business Name, Business Type (read-only when editing), Description |
 | Contact & Location | Business Address, Business Phone |
 | Rent Account | Manage or create the rent expense account for this business |
-| Branding | Business Slogan, Show on Customer Display toggle, Default Landing Page |
+| Branding | Business Slogan, Show on Customer Display toggle, Default Landing Page, Display Colour |
 | Receipt & Tax | Return Policy Message (printed on receipts), Enable Tax Calculation, Tax Included in Price, Tax Rate (%), Tax Label |
 
 ### Right Column
@@ -10621,6 +10686,7 @@ The Edit Business modal is arranged in two columns to make all settings accessib
 - **Business Slogan** — up to 200 characters. Displayed on receipts and, if toggled on, on the customer-facing display screen.
 - **Show on customer display** — tick to show the slogan on the second screen (customer display). Untick to hide it.
 - **Default Landing Page** — the page users land on after selecting this business. Options vary by business type (e.g. POS System, Dashboard, Inventory).
+- **Display Colour** — a colour picker used to visually tell businesses apart wherever multiple businesses are shown side by side (the Cash Bucket page, Cash Position Report, and the businesses list). Leave it unset and the business is automatically given a stable colour based on its ID — every business gets a colour with no setup required, but you can override it here for a colour that better matches the business's branding. Click **Reset to automatic** to clear a manual choice.
 
 ### Receipt & Tax
 
