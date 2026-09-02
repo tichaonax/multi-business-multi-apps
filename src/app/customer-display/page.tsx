@@ -397,9 +397,13 @@ function CustomerDisplayContent() {
         break
 
       case 'PAYMENT_STARTED':
-        // Payment started - clear any pending reward messages and show payment in progress
+        // Payment started - clear any pending reward messages and show payment in progress.
+        // message.payload.total is already the cash-rounded figure when rounding applied
+        // (the sender resolves that before calling sendToDisplay) — reflect it in the
+        // displayed Total line too, not just the change/shortfall math below. Line items
+        // and subtotal are deliberately left untouched; only the total is ever rounded.
         console.log('[CustomerDisplay] Payment started')
-        setCart(prev => ({ ...prev, rewardAvailableMessage: undefined }))
+        setCart(prev => ({ ...prev, total: message.payload.total, rewardAvailableMessage: undefined }))
         setCustomerRewardMessage(null)
         setPaymentState({
           inProgress: true,
@@ -412,7 +416,10 @@ function CustomerDisplayContent() {
         break
 
       case 'PAYMENT_AMOUNT':
-        // Amount tendered updated - calculate change or shortfall
+        // Amount tendered updated - calculate change or shortfall. Same
+        // rounded-total handling as PAYMENT_STARTED above — keep the
+        // displayed Total in sync with whatever figure change is actually
+        // computed against, without touching line items/subtotal.
         const tendered = message.payload.amountTendered || 0
         const total = message.payload.total
         const change = tendered - total
@@ -421,6 +428,7 @@ function CustomerDisplayContent() {
           total,
           change
         })
+        setCart(prev => ({ ...prev, total }))
         setPaymentState({
           inProgress: true,
           amountTendered: tendered,
