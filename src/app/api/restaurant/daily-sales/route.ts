@@ -6,42 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
-
-/**
- * Get the UTC offset in ms for an IANA timezone at a given moment.
- * Works correctly with DST transitions.
- */
-function getTimezoneOffsetMs(timezone: string, date: Date = new Date()): number {
-  const utcStr = date.toLocaleString('en-US', { timeZone: 'UTC' })
-  const tzStr = date.toLocaleString('en-US', { timeZone: timezone })
-  return new Date(tzStr).getTime() - new Date(utcStr).getTime()
-}
-
-/**
- * Get today's midnight-to-midnight boundary in a given IANA timezone,
- * returned as UTC Date objects for use in DB queries.
- */
-function getTodayInTimezone(timezone: string): { start: Date; end: Date; dateStr: string } {
-  const now = new Date()
-
-  // Get today's date in the target timezone (YYYY-MM-DD)
-  const dateStr = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(now)
-
-  const [year, month, day] = dateStr.split('-').map(Number)
-
-  // Midnight UTC for that date, then shift by the timezone offset
-  const midnightUTC = Date.UTC(year, month - 1, day, 0, 0, 0)
-  const offsetMs = getTimezoneOffsetMs(timezone, new Date(midnightUTC))
-  const start = new Date(midnightUTC - offsetMs)
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000)
-
-  return { start, end, dateStr }
-}
+import { getTimezoneOffsetMs, getTodayInTimezone } from '@/lib/timezone-utils'
 
 const ORDER_INCLUDE = {
   business_order_items: {

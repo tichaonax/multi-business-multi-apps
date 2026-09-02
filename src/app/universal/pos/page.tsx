@@ -9,6 +9,7 @@ import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { SalespersonSelector, type SelectedSalesperson } from '@/components/pos/salesperson-selector'
+import { TargetProgressWidget } from '@/components/business-targets/target-progress-widget'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
@@ -773,6 +774,14 @@ export default function UniversalPOS() {
               currentUserName={session.user.name || 'Staff'}
               onSalespersonChange={(sp) => setSelectedSalesperson(sp)}
             />
+          </div>
+        )}
+
+        {/* MBM-288: today's sales target progress — renders nothing unless
+            target tracking is enabled for this business. */}
+        {currentBusinessId && (
+          <div className="mb-3">
+            <TargetProgressWidget businessId={currentBusinessId} />
           </div>
         )}
 

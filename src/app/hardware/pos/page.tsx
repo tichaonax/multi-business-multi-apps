@@ -23,6 +23,7 @@ import { SyncMode } from '@/lib/customer-display/sync-manager'
 import { isMobileDevice } from '@/lib/workstation-agents/local-agent-sync'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { SalespersonSelector, type SelectedSalesperson } from '@/components/pos/salesperson-selector'
+import { TargetProgressWidget } from '@/components/business-targets/target-progress-widget'
 
 export default function HardwarePOSPage() {
   const [showProductGrid, setShowProductGrid] = useState(true)
@@ -360,6 +361,14 @@ export default function HardwarePOSPage() {
                     sendToDisplay('SET_GREETING', { employeeName: sp.name, employeePhotoUrl: sp.photoUrl ?? undefined })
                   }}
                 />
+              </div>
+            )}
+
+            {/* MBM-288: today's sales target progress — renders nothing
+                unless target tracking is enabled for this business. */}
+            {currentBusinessId && (
+              <div className="mb-2">
+                <TargetProgressWidget businessId={currentBusinessId} />
               </div>
             )}
 

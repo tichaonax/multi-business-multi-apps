@@ -617,6 +617,11 @@ model Businesses {
   eod_payment_batches                                                      EODPaymentBatch[]                 @relation("BusinessEODPaymentBatches")
   cash_bucket_entries                                                      CashBucketEntry[]                 @relation("BusinessCashBucket")
   per_diem_entries                                                         PerDiemEntries[]                  @relation("PerDiemBusiness")
+  target_config                                                            BusinessTargetConfig?             @relation("BusinessTargetConfig")
+  target_commitments                                                       BusinessTargetCommitment[]        @relation("BusinessTargetCommitments")
+  target_override_history                                                  BusinessTargetOverrideHistory[]   @relation("BusinessTargetOverrideHistory")
+  target_day_adjustments                                                   BusinessTargetDayAdjustment[]     @relation("BusinessTargetDayAdjustments")
+  trading_schedule                                                         BusinessTradingSchedule?          @relation("BusinessTradingSchedule")
   employee_absences                                                        EmployeeAbsences[]
   chickenBatches                                                           ChickenBatch[]
   label_print_history                                                      ClothingLabelPrintHistory[]       @relation("LabelPrintHistoryBusiness")
@@ -3738,6 +3743,13 @@ model Users {
   supplier_ratings                                                SupplierRatings[]
   rent_configs_created                                            BusinessRentConfig[]              @relation("RentConfigCreator")
   auto_deposit_configs_created                                    ExpenseAccountAutoDeposit[]       @relation("AutoDepositCreator")
+  target_configs_created                                          BusinessTargetConfig[]            @relation("BusinessTargetConfigCreator")
+  target_configs_updated                                          BusinessTargetConfig[]            @relation("BusinessTargetConfigUpdater")
+  target_commitments_created                                      BusinessTargetCommitment[]        @relation("BusinessTargetCommitmentCreator")
+  target_commitments_updated                                      BusinessTargetCommitment[]        @relation("BusinessTargetCommitmentUpdater")
+  target_override_history_changed                                 BusinessTargetOverrideHistory[]   @relation("BusinessTargetOverrideHistoryChanger")
+  target_day_adjustments_created                                  BusinessTargetDayAdjustment[]     @relation("BusinessTargetDayAdjustmentCreator")
+  trading_schedules_updated                                       BusinessTradingSchedule[]         @relation("BusinessTradingScheduleUpdater")
   expense_accounts_cap_set                                        ExpenseAccounts[]                 @relation("ExpenseAccountCapSetter")
   expense_accounts_frozen                                         ExpenseAccounts[]                 @relation("ExpenseAccountFreezer")
   cash_allocation_reports_created                                 CashAllocationReport[]            @relation("CashAllocationReportCreator")
@@ -6143,6 +6155,140 @@ model ExpenseAccountAutoDeposit {
   @@index([businessId])
   @@index([expenseAccountId])
   @@map("expense_account_auto_deposits")
+}
+
+// MBM-288: Business Target & Cash-Flow Planning. See
+// ai-contexts/project-plans/review/projectplan-MBM-288-business-target-cash-flow-planning-2026-09-02.md
+// for the full design — formulas, permission model, rollout phases.
+
+model BusinessTargetConfig {
+  id                           String    @id @default(uuid())
+  businessId                   String    @unique
+  isEnabled                    Boolean   @default(false)
+  bufferType                   String    @default("PERCENT") // "PERCENT" | "FIXED"
+  bufferValue                  Decimal   @default(10) @db.Decimal(6, 2) // 10 = 10%, or a flat $ amount when bufferType = FIXED
+  // Cached results of the last calculation — refreshed by the nightly job
+  // and the on-demand recalculate endpoint, never computed inline on every
+  // POS page load.
+  minimumRequiredMonthlyTarget Decimal?  @db.Decimal(12, 2)
+  recommendedMonthlyTarget     Decimal?  @db.Decimal(12, 2)
+  // The figure actually driving the POS display — only ever changed by an
+  // explicit user action (accepting the recommendation or overriding it),
+  // never silently overwritten by the nightly recalculation.
+  approvedMonthlyTarget        Decimal?  @db.Decimal(12, 2)
+  lastCalculatedAt             DateTime?
+  // Manual overrides for the 3 minimum-target lines that are normally
+  // computed live (rent, payroll, recurring commitments) — e.g. payroll
+  // fluctuates and the live EmployeeContracts figure may lag a known raise.
+  // Each is optional; when set it must be >= the live-computed value for
+  // that line (enforced at the API), so an override can only raise the
+  // minimum target, never understate it. Null = use the live-computed value.
+  rentMonthlyOverride                  Decimal? @db.Decimal(12, 2)
+  payrollMonthlyOverride               Decimal? @db.Decimal(12, 2)
+  recurringCommitmentsMonthlyOverride  Decimal? @db.Decimal(12, 2)
+  createdBy                    String
+  updatedBy                    String?
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @default(now()) @updatedAt
+
+  business Businesses @relation("BusinessTargetConfig", fields: [businessId], references: [id], onDelete: Cascade)
+  creator  Users      @relation("BusinessTargetConfigCreator", fields: [createdBy], references: [id])
+  updater  Users?     @relation("BusinessTargetConfigUpdater", fields: [updatedBy], references: [id])
+
+  @@index([businessId])
+  @@map("business_target_configs")
+}
+
+// Manual-only commitments — rent, payroll, and recurring auto-deposits are
+// computed live from their real sources (BusinessRentConfig, EmployeeContracts,
+// ExpenseAccountAutoDeposit) every time, never stored here, so they can't
+// drift stale. This table exists only for loan repayments (no schema source
+// exists — see plan §1.4) and any other ad-hoc approved obligation.
+model BusinessTargetCommitment {
+  id            String   @id @default(uuid())
+  businessId    String
+  category      String // "LOAN_REPAYMENT" | "OTHER"
+  label         String
+  monthlyAmount Decimal  @db.Decimal(12, 2)
+  notes         String?
+  isActive      Boolean  @default(true)
+  createdBy     String
+  updatedBy     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  business Businesses @relation("BusinessTargetCommitments", fields: [businessId], references: [id], onDelete: Cascade)
+  creator  Users      @relation("BusinessTargetCommitmentCreator", fields: [createdBy], references: [id])
+  updater  Users?     @relation("BusinessTargetCommitmentUpdater", fields: [updatedBy], references: [id])
+
+  @@index([businessId, isActive])
+  @@map("business_target_commitments")
+}
+
+// The audit trail for target overrides, buffer/commitment changes, and
+// recalculations — in addition to (not instead of) the generic AuditLogs
+// entries for the same events, matching this app's existing convention.
+model BusinessTargetOverrideHistory {
+  id                String   @id @default(uuid())
+  businessId        String
+  changeType        String // "ENABLE" | "DISABLE" | "TARGET_OVERRIDE" | "BUFFER_CHANGE" | "COMMITMENT_CHANGE" | "RECALCULATION"
+  previousValue     Decimal? @db.Decimal(12, 2)
+  newValue          Decimal? @db.Decimal(12, 2)
+  reason            String? // required by the API when changeType = TARGET_OVERRIDE and newValue exceeded the recommendation at the time
+  breakdownSnapshot Json? // full commitment breakdown at the moment of change — the live-sourced pieces (rent/payroll/auto-deposits) drift over time, so a snapshot preserves what was true when this decision was made
+  changedBy         String
+  changedAt         DateTime @default(now())
+
+  business Businesses @relation("BusinessTargetOverrideHistory", fields: [businessId], references: [id], onDelete: Cascade)
+  changer  Users      @relation("BusinessTargetOverrideHistoryChanger", fields: [changedBy], references: [id])
+
+  @@index([businessId, changedAt])
+  @@map("business_target_override_history")
+}
+
+// Manual per-day overrides — closed days, promotions, shortages. Covers
+// "closed days, holidays, special events" without a full holiday-calendar
+// subsystem (plan §7, decision 2: accepted as proposed).
+model BusinessTargetDayAdjustment {
+  id                   String   @id @default(uuid())
+  businessId           String
+  date                 DateTime @db.Date
+  adjustmentType       String // "CLOSED" | "BOOST" | "REDUCTION" | "CUSTOM"
+  adjustedTargetAmount Decimal? @db.Decimal(12, 2) // null for CLOSED (implies 0)
+  reason               String?
+  createdBy            String
+  createdAt            DateTime @default(now())
+
+  business Businesses @relation("BusinessTargetDayAdjustments", fields: [businessId], references: [id], onDelete: Cascade)
+  creator  Users      @relation("BusinessTargetDayAdjustmentCreator", fields: [createdBy], references: [id])
+
+  @@unique([businessId, date])
+  @@index([businessId, date])
+  @@map("business_target_day_adjustments")
+}
+
+// Which weekdays a business trades — day-level only, no clock times (plan
+// §7, decision 1: accepted as proposed). Absence of a row for a business
+// means every day counts as a trading day, matching current system-wide
+// behavior where nothing assumes a business is ever closed.
+model BusinessTradingSchedule {
+  id              String   @id @default(uuid())
+  businessId      String   @unique
+  tradesMonday    Boolean  @default(true)
+  tradesTuesday   Boolean  @default(true)
+  tradesWednesday Boolean  @default(true)
+  tradesThursday  Boolean  @default(true)
+  tradesFriday    Boolean  @default(true)
+  tradesSaturday  Boolean  @default(true)
+  tradesSunday    Boolean  @default(false)
+  updatedBy       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  business Businesses @relation("BusinessTradingSchedule", fields: [businessId], references: [id], onDelete: Cascade)
+  updater  Users      @relation("BusinessTradingScheduleUpdater", fields: [updatedBy], references: [id])
+
+  @@map("business_trading_schedules")
 }
 
 model CashAllocationReport {

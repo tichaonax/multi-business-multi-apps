@@ -25,6 +25,7 @@ import { generatePlainTextReceipt } from '@/lib/printing/plain-text-receipt'
 import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
 import { CustomerLookup } from '@/components/pos/customer-lookup'
 import { SalespersonSelector, type SelectedSalesperson } from '@/components/pos/salesperson-selector'
+import { TargetProgressWidget } from '@/components/business-targets/target-progress-widget'
 import { useCustomerRewards } from '@/app/universal/pos/hooks/useCustomerRewards'
 import type { CustomerReward } from '@/app/universal/pos/hooks/useCustomerRewards'
 import { AddCustomerModal } from '@/components/customers/add-customer-modal'
@@ -3997,6 +3998,14 @@ function GroceryPOSContent() {
                     sendToDisplay('SET_GREETING', { employeeName: sp.name, employeePhotoUrl: sp.photoUrl ?? undefined })
                   }}
                 />
+              </div>
+            )}
+
+            {/* MBM-288: today's sales target progress — renders nothing
+                unless target tracking is enabled for this business. */}
+            {currentBusinessId && (
+              <div className="mt-3">
+                <TargetProgressWidget businessId={currentBusinessId} />
               </div>
             )}
 

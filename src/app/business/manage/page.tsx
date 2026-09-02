@@ -249,46 +249,50 @@ function BusinessManagePageContent() {
           </div>
         }
       >
-          {/* Admin Quick Links */}
-          {isSystemAdmin && (
-            <div className="card p-4 mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-300">System Administrator</h3>
-                  <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
-                    {inactiveBusinessCount > 0
-                      ? `Access administrative functions (${inactiveBusinessCount} inactive business${inactiveBusinessCount !== 1 ? 'es' : ''})`
-                      : 'Access administrative functions (no inactive businesses)'}
-                  </p>
+          {/* Admin Quick Links + WiFi Integration — side by side on wide
+              screens rather than two stacked full-width cards. This page
+              always renders in the same, always-maximized Electron window
+              width now (no more relying on a smaller window to make sparse
+              content feel proportionate), so density here matters more than
+              it used to. */}
+          {(isSystemAdmin || ((currentBusiness?.businessType === 'restaurant' || currentBusiness?.businessType === 'grocery') && currentBusiness?.isActive)) && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {isSystemAdmin && (
+                <div className="card p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                  <div className="flex flex-col gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-300">System Administrator</h3>
+                      <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+                        {inactiveBusinessCount > 0
+                          ? `Access administrative functions (${inactiveBusinessCount} inactive business${inactiveBusinessCount !== 1 ? 'es' : ''})`
+                          : 'Access administrative functions (no inactive businesses)'}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        href="/admin/businesses"
+                        className="px-3 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                      >
+                        🏢 All Businesses
+                      </Link>
+                      <button
+                        onClick={() => router.push('/business/inactive')}
+                        disabled={inactiveBusinessCount === 0}
+                        className={`px-3 py-2 text-sm rounded-lg transition-colors ${
+                          inactiveBusinessCount === 0
+                            ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed'
+                            : 'bg-blue-600 hover:bg-blue-700 text-white'
+                        }`}
+                      >
+                        🗃️ Inactive Businesses
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Link
-                    href="/admin/businesses"
-                    className="px-3 py-2 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
-                  >
-                    🏢 All Businesses
-                  </Link>
-                  <button
-                    onClick={() => router.push('/business/inactive')}
-                    disabled={inactiveBusinessCount === 0}
-                    className={`px-3 py-2 text-sm rounded-lg transition-colors ${
-                      inactiveBusinessCount === 0
-                        ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-500 cursor-not-allowed'
-                        : 'bg-blue-600 hover:bg-blue-700 text-white'
-                    }`}
-                  >
-                    🗃️ Inactive Businesses
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+              )}
 
-          {/* WiFi Integration */}
-          {(currentBusiness?.businessType === 'restaurant' || currentBusiness?.businessType === 'grocery') && currentBusiness?.isActive && (
-            <div className="card p-4 mb-6 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800">
-              <div className="flex items-start justify-between">
-                <div>
+              {(currentBusiness?.businessType === 'restaurant' || currentBusiness?.businessType === 'grocery') && currentBusiness?.isActive && (
+                <div className="card p-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800">
                   <h3 className="text-sm font-semibold text-indigo-900 dark:text-indigo-300 mb-1">
                     📶 WiFi Integration
                   </h3>
@@ -311,7 +315,7 @@ function BusinessManagePageContent() {
                     </button>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -347,29 +351,31 @@ function BusinessManagePageContent() {
           )}
 
           {/* Business Info */}
-          <div className="card p-6">
-            <h2 className="text-xl font-semibold mb-4 text-primary">Business Information</h2>
-            <div className="flex justify-between items-start">
+          <div className="card p-4">
+            <h2 className="text-base font-semibold mb-2 text-primary">Business Information</h2>
+            <div className="flex justify-between items-center">
               <div className="w-full">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Business Name</label>
-                    <p className="mt-1 text-lg text-gray-900 dark:text-white">{currentBusiness?.businessName}</p>
-                    {currentBusiness?.businessName.includes('[Demo]') && (
-                      <span className="inline-flex items-center mt-1 px-2 py-1 text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 rounded-full">
-                        Demo Business
-                      </span>
-                    )}
+                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400">Business Name</label>
+                    <p className="text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                      {currentBusiness?.businessName}
+                      {currentBusiness?.businessName.includes('[Demo]') && (
+                        <span className="inline-flex items-center px-2 py-0.5 text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 rounded-full">
+                          Demo Business
+                        </span>
+                      )}
+                    </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Your Role</label>
-                    <p className="mt-1 text-lg capitalize text-gray-900 dark:text-white">
+                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400">Your Role</label>
+                    <p className="text-sm capitalize text-gray-900 dark:text-white">
                       {currentBusiness?.role?.replace('-', ' ')}
                     </p>
                   </div>
                 </div>
               </div>
-              <div className="ml-4 flex flex-col gap-2">
+              <div className="ml-4 flex flex-row gap-2 shrink-0">
                 {/* Show reactivation button if business is inactive and user is admin */}
                 {isSystemAdmin && !currentBusiness?.isActive && (
                   <button

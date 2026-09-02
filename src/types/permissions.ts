@@ -245,6 +245,8 @@ export interface CoreBusinessPermissions {
   canManageBusinessLoans: boolean;     // Create, lock, and approve withdrawals for business loan repayment accounts (MBM-137)
   canRunCashAllocationReport: boolean;    // Run and lock the daily cash allocation report (EOD creator)
   canApproveCashAllocationReport: boolean; // Receive bell notification and reconcile/approve the cash allocation report (cashier/manager)
+  canManageBusinessTargets: boolean;    // MBM-288: enable/disable target tracking, edit obligations/buffer/schedule, override targets, view full breakdown + assumptions + override history
+  canViewBusinessTargetProgress: boolean; // MBM-288: see the POS target-progress widget and the operational (non-financial-breakdown) portion of the expanded view
   canCreateExpenseSubcategories: boolean;  // Create expense sub-categories and sub-subcategories
   canTransferBetweenAccounts: boolean;     // Initiate manual fund transfers between expense accounts (MBM-174)
 
@@ -1690,6 +1692,8 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canManageBusinessLoans: true,        // ✅ Owner/Admin manages business loan accounts
   canRunCashAllocationReport: true,    // ✅ Owner can run cash allocation report
   canApproveCashAllocationReport: false, // ❌ Owner creates EOD — doesn't need to reconcile it
+  canManageBusinessTargets: true,      // ✅ Owner configures and overrides business targets (MBM-288)
+  canViewBusinessTargetProgress: true, // ✅ Owner sees POS target progress
   canCreateExpenseSubcategories: true,   // ✅ Owners can create expense sub-categories
   canTransferBetweenAccounts: false,     // ❌ Requires explicit grant — not automatic for owners
 
@@ -1875,6 +1879,8 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canManageBusinessLoans: false,    // ❌ Admin only
   canRunCashAllocationReport: true,     // ✅ Manager can run cash allocation report
   canApproveCashAllocationReport: false, // ❌ Requires explicit cash_allocation.approve system permission — not granted by role
+  canManageBusinessTargets: false,      // ❌ Not by default — grantable individually per the spec's "explicit permission" (MBM-288)
+  canViewBusinessTargetProgress: true,  // ✅ Manager sees POS target progress
   canCreateExpenseSubcategories: true,   // ✅ Managers can create expense sub-categories
   canTransferBetweenAccounts: false,     // ❌ Requires explicit grant — not automatic for managers
 
@@ -2060,6 +2066,8 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canManageBusinessLoans: false,
   canRunCashAllocationReport: false,
   canApproveCashAllocationReport: false,
+  canManageBusinessTargets: false,
+  canViewBusinessTargetProgress: true,   // ✅ Employees see POS target progress (MBM-288)
   canCreateExpenseSubcategories: false,
   canTransferBetweenAccounts: false,     // ❌ Employees cannot transfer
 
@@ -2243,6 +2251,8 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canManageBusinessLoans: false,
   canRunCashAllocationReport: false,
   canApproveCashAllocationReport: false,
+  canManageBusinessTargets: false,
+  canViewBusinessTargetProgress: true,   // ✅ Read-only can still see target progress — it's operational info, not a write action (MBM-288)
   canCreateExpenseSubcategories: false,
   canTransferBetweenAccounts: false,     // ❌ Read-only cannot transfer
 
@@ -2429,6 +2439,8 @@ export const BUSINESS_DELIVERY_DRIVER_PERMISSIONS: CoreBusinessPermissions = {
   canManageBusinessLoans: false,
   canRunCashAllocationReport: false,
   canApproveCashAllocationReport: false,
+  canManageBusinessTargets: false,
+  canViewBusinessTargetProgress: false,  // ❌ Delivery driver doesn't work a till (MBM-288)
   canCreateExpenseSubcategories: false,
   canTransferBetweenAccounts: false,
 
@@ -2617,6 +2629,8 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canManageBusinessLoans: false,
   canRunCashAllocationReport: false,
   canApproveCashAllocationReport: false,
+  canManageBusinessTargets: false,
+  canViewBusinessTargetProgress: true,   // ✅ Associates see POS target progress (MBM-288)
   canCreateExpenseSubcategories: false,
   canTransferBetweenAccounts: false,     // ❌ Associates cannot transfer
 
@@ -2803,6 +2817,8 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canManageBusinessLoans: false,
   canRunCashAllocationReport: false,
   canApproveCashAllocationReport: false,
+  canManageBusinessTargets: false,
+  canViewBusinessTargetProgress: true,   // ✅ Salesperson sees POS target progress (MBM-288)
   canCreateExpenseSubcategories: false,
   canTransferBetweenAccounts: false,     // ❌ Salesperson cannot transfer
 
@@ -2986,6 +3002,8 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canManageBusinessLoans: true,        // ✅ Super-admin manages business loan accounts
   canRunCashAllocationReport: true,    // ✅ Super-admin can run cash allocation report
   canApproveCashAllocationReport: true, // ✅ Super-admin can also reconcile
+  canManageBusinessTargets: true,      // ✅ Super-admin manages business targets (MBM-288)
+  canViewBusinessTargetProgress: true, // ✅ Super-admin sees POS target progress
   canCreateExpenseSubcategories: true,  // ✅ Super-admin can create expense sub-categories
   canTransferBetweenAccounts: true,     // ✅ Super-admin can transfer between accounts
 

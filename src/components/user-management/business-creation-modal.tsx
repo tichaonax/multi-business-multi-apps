@@ -6,6 +6,7 @@ import { getDefaultPageOptions } from '@/lib/business-default-pages'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { RentAccountSetupModal } from '@/components/rent-account/rent-account-setup-modal'
 import { RentAccountManageModal } from '@/components/rent-account/rent-account-manage-modal'
+import { SalesTargetManageModal } from '@/components/business-targets/sales-target-manage-modal'
 
 interface BusinessCreationModalProps {
   onClose: () => void
@@ -110,6 +111,9 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
   const [hasRentAccount, setHasRentAccount] = useState(false)
   const [showRentSetupModal, setShowRentSetupModal] = useState(false)
   const [showRentManageModal, setShowRentManageModal] = useState(false)
+  const [targetTrackingEnabled, setTargetTrackingEnabled] = useState(false)
+  const [showSalesTargetModal, setShowSalesTargetModal] = useState(false)
+  const [canManageTargets, setCanManageTargets] = useState(false)
 
   // When editing an existing business, fetch missing ecocash fields directly from business-config.
   // The parent (manage page) may have a stale compiled version that omits ecocashMinimumFee.
@@ -146,6 +150,22 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
         .then(r => r.ok ? r.json() : { hasRentAccount: false })
         .then(data => setHasRentAccount(!!data.hasRentAccount))
         .catch(() => setHasRentAccount(false))
+    }
+  }, [method, id])
+
+  // MBM-288: whether sales target tracking is already enabled — drives
+  // which button (Enable vs Manage) is shown, mirroring the Rent Account
+  // status check above. A 403 here (no canManageBusinessTargets) just means
+  // the section stays hidden — the endpoint is the real security boundary.
+  useEffect(() => {
+    if (method === 'PUT' && id) {
+      fetch(`/api/business-targets/${id}`, { credentials: 'include' })
+        .then(r => {
+          setCanManageTargets(r.ok)
+          return r.ok ? r.json() : { data: { isEnabled: false } }
+        })
+        .then(json => setTargetTrackingEnabled(!!json?.data?.isEnabled))
+        .catch(() => { setCanManageTargets(false); setTargetTrackingEnabled(false) })
     }
   }, [method, id])
 
@@ -316,6 +336,36 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
                       >
                         <span>+ Create Rent Account</span>
                         <span className="ml-auto text-xs text-gray-400">Not set up</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* MBM-288: Sales Target — Edit mode only, mirrors the Rent
+                    Account pattern above (enable → manage details in a
+                    dedicated modal). Hidden entirely on a 403 rather than
+                    shown disabled — canManageTargets tracks whether the
+                    status check itself succeeded. */}
+                {method === 'PUT' && id && canManageTargets && (
+                  <div className="pt-4 border-t border-gray-200 dark:border-neutral-700">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-neutral-100 mb-3">🎯 Sales Target</h3>
+                    {targetTrackingEnabled ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowSalesTargetModal(true)}
+                        className="w-full px-4 py-2.5 text-sm font-medium text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-700 rounded-md hover:bg-teal-100 dark:hover:bg-teal-900/30 text-left flex items-center gap-2"
+                      >
+                        <span>⚙️ Manage Sales Targets</span>
+                        <span className="ml-auto text-xs text-teal-500">Active ✓</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowSalesTargetModal(true)}
+                        className="w-full px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-neutral-700 border border-dashed border-gray-300 dark:border-neutral-600 rounded-md hover:bg-gray-100 dark:hover:bg-neutral-600 text-left flex items-center gap-2"
+                      >
+                        <span>+ Enable Sales Target Tracking</span>
+                        <span className="ml-auto text-xs text-gray-400">Not enabled</span>
                       </button>
                     )}
                   </div>
@@ -796,6 +846,14 @@ export function BusinessCreationModal({ onClose, onSuccess, onError, initial, me
         businessName={formData.name}
         onSuccess={() => setShowRentManageModal(false)}
         onClose={() => setShowRentManageModal(false)}
+      />
+    )}
+    {method === 'PUT' && id && showSalesTargetModal && (
+      <SalesTargetManageModal
+        businessId={id}
+        businessName={formData.name}
+        onSuccess={() => setTargetTrackingEnabled(true)}
+        onClose={() => setShowSalesTargetModal(false)}
       />
     )}
   </>

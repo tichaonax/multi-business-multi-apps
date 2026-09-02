@@ -15,6 +15,7 @@ import { initSocketServer } from './src/lib/customer-display/socket-server'
 import { r710AgentHub } from './src/lib/r710/agent-hub'
 import { workstationAgentHub } from './src/lib/workstation-agents/agent-hub'
 import { startAutoGenerateScheduler } from './src/lib/r710/auto-generate-scheduler'
+import { startBusinessTargetRecalculationScheduler } from './src/lib/business-targets/recalculate-all-targets-scheduler'
 
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = '0.0.0.0'
@@ -80,6 +81,9 @@ app.prepare().then(() => {
   // Keeps every business's WiFi token pool topped up automatically —
   // previously existed as dead code with no scheduler ever calling it.
   startAutoGenerateScheduler()
+
+  // MBM-288: nightly recalculation of business targets.
+  startBusinessTargetRecalculationScheduler()
 
   // Start listening
   httpServer.listen(port, () => {

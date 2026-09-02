@@ -4,6 +4,7 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import { ProtectedRoute } from '@/components/auth/protected-route'
+import type { BusinessSalesComparison } from '@/lib/sales-performance/calculate-sales-period-comparison'
 import { useSession } from 'next-auth/react'
 import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -80,9 +81,12 @@ function DashboardContent() {
   const [activityScopeLabel, setActivityScopeLabel] = useState<string>('Last 7 days')
   const [activityExpanded, setActivityExpanded] = useState<boolean>(false)
 
-  // Activity filter states
-  const [todayStats, setTodayStats] = useState<Record<string, any>>({})
-  const [yesterdayStats, setYesterdayStats] = useState<Record<string, any>>({})
+  // Activity filter states — today/yesterday/day-before comparison per
+  // business, computed server-side (see src/lib/sales-performance) in one
+  // call instead of 3 raw fetches per business. Typed straight off the
+  // shared service rather than a hand-copied shape, so this can't silently
+  // drift out of sync with it again.
+  const [salesComparisons, setSalesComparisons] = useState<Record<string, BusinessSalesComparison>>({})
   const [loadingTodayStats, setLoadingTodayStats] = useState(false)
 
   const [activityFilterScope, setActivityFilterScope] = useState<string>('my') // 'my', 'all', 'user', 'business'
@@ -443,7 +447,9 @@ function DashboardContent() {
     setSelectedUser(null)
   }
 
-  // Fetch today's + yesterday's stats for each active POS-type business
+  // Fetch today/yesterday/day-before sales comparison for each active
+  // POS-type business — one server-side call (src/lib/sales-performance)
+  // instead of 3 raw per-business fetches with client-side date math.
   useEffect(() => {
     if (!activeBusinesses.length || businessesLoading) return
     const posBizTypes = ['restaurant', 'grocery', 'clothing', 'hardware']
@@ -455,41 +461,18 @@ function DashboardContent() {
     if (!eligible.length) return
     setLoadingTodayStats(true)
 
-    // Build date strings for today, yesterday, day-before-yesterday
-    const pad = (n: number) => String(n).padStart(2, '0')
-    const dateStr = (offsetDays: number) => {
-      const d = new Date()
-      d.setDate(d.getDate() - offsetDays)
-      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-    }
-    const todayDate = dateStr(0)
-    const yesterdayDate = dateStr(1)
-    const dayBeforeDate = dateStr(2)
+    const businessIds = eligible.map(b => b.businessId).join(',')
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
 
-    const fetchSummary = (businessId: string, start: string) =>
-      fetch(`/api/universal/orders?businessId=${businessId}&startDate=${start}T00:00:00&endDate=${start}T23:59:59&page=1&limit=1`)
-        .then(r => r.ok ? r.json() : null)
-        .then(data => data?.meta?.summary || null)
-        .catch(() => null)
-
-    Promise.all(
-      eligible.flatMap(b => [
-        fetchSummary(b.businessId, todayDate).then(s => ({ businessId: b.businessId, day: 'today', summary: s })),
-        fetchSummary(b.businessId, yesterdayDate).then(s => ({ businessId: b.businessId, day: 'yesterday', summary: s })),
-        fetchSummary(b.businessId, dayBeforeDate).then(s => ({ businessId: b.businessId, day: 'dayBefore', summary: s })),
-      ])
-    ).then(results => {
-      const todayMap: Record<string, any> = {}
-      const yesterdayMap: Record<string, any> = {}
-      results.forEach(r => {
-        if (r.day === 'today') todayMap[r.businessId] = r.summary
-        else if (r.day === 'yesterday') yesterdayMap[r.businessId] = r.summary
-        else if (r.day === 'dayBefore') yesterdayMap[r.businessId + '__dayBefore'] = r.summary
+    fetch(`/api/dashboard/sales-period-comparison?businessIds=${encodeURIComponent(businessIds)}&timezone=${encodeURIComponent(timezone)}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(json => {
+        const map: Record<string, any> = {}
+        for (const row of json?.data || []) map[row.businessId] = row
+        setSalesComparisons(map)
       })
-      setTodayStats(todayMap)
-      setYesterdayStats(yesterdayMap)
-      setLoadingTodayStats(false)
-    })
+      .catch(() => {})
+      .finally(() => setLoadingTodayStats(false))
   }, [activeBusinesses, businessesLoading, isSysAdmin])
 
   // Auto-refresh stats every 60 seconds
@@ -1035,27 +1018,22 @@ function DashboardContent() {
                 .map(b => {
                   const icon = b.businessType === 'restaurant' ? '🍽️' : b.businessType === 'grocery' ? '🛒' : b.businessType === 'clothing' ? '👕' : '🔧'
                   const href = `/${b.businessType}`
-                  const summary = todayStats[b.businessId]
-                  const ystSummary = yesterdayStats[b.businessId]
-                  const dayBeforeSummary = yesterdayStats[b.businessId + '__dayBefore']
+                  const comparison = salesComparisons[b.businessId]
                   const canFinancial = isSysAdmin || hasPermissionInBusiness('canAccessFinancialData', b.businessId)
                   const isActive = currentBusiness?.businessId === b.businessId
                   const fmt = (n: number) => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-                  const pctChange = (curr: number, prev: number) => {
-                    if (!prev) return null
-                    const pct = ((curr - prev) / prev) * 100
-                    return pct
-                  }
-                  const todaySales = Number(summary?.totalAmount || 0)
-                  const ystSales = Number(ystSummary?.totalAmount || 0)
-                  const dayBeforeSales = Number(dayBeforeSummary?.totalAmount || 0)
-                  const todayItems = Number(summary?.totalItemsSold || 0)
-                  const ystItems = Number(ystSummary?.totalItemsSold || 0)
-                  const dayBeforeItems = Number(dayBeforeSummary?.totalItemsSold || 0)
-                  const todayVsYst = pctChange(todaySales, ystSales)
-                  const ystVsDayBefore = pctChange(ystSales, dayBeforeSales)
-                  const todayItemsVsYst = pctChange(todayItems, ystItems)
-                  const ystItemsVsDayBefore = pctChange(ystItems, dayBeforeItems)
+                  // All figures and % deltas below are computed server-side
+                  // (src/lib/sales-performance/calculate-sales-period-comparison.ts)
+                  const todaySales = comparison?.today.totalAmount ?? 0
+                  const ystSales = comparison?.yesterday.totalAmount ?? 0
+                  const dayBeforeSales = comparison?.dayBeforeYesterday.totalAmount ?? 0
+                  const todayItems = comparison?.today.totalItemsSold ?? 0
+                  const ystItems = comparison?.yesterday.totalItemsSold ?? 0
+                  const dayBeforeItems = comparison?.dayBeforeYesterday.totalItemsSold ?? 0
+                  const todayVsYst = comparison?.todaySalesDeltaPct ?? null
+                  const ystVsDayBefore = comparison?.yesterdaySalesDeltaPct ?? null
+                  const todayItemsVsYst = comparison?.todayItemsDeltaPct ?? null
+                  const ystItemsVsDayBefore = comparison?.yesterdayItemsDeltaPct ?? null
                   const DeltaBadge = ({ pct }: { pct: number | null }) => {
                     if (pct === null) return null
                     const up = pct >= 0
@@ -1110,7 +1088,7 @@ function DashboardContent() {
                                     <span className="text-xs text-gray-500 dark:text-gray-400">{todayItems} items</span>
                                   </div>
                                 )}
-                                <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{summary?.totalOrders ?? 0}</span>
+                                <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{comparison?.today.totalOrders ?? 0}</span>
                               </div>
                             </div>
                             {canFinancial && (
@@ -1146,11 +1124,11 @@ function DashboardContent() {
                                     </div>
                                   </div>
                                 )}
-                                {summary?.pendingOrders > 0 && (
+                                {(comparison?.todayPendingOrders ?? 0) > 0 && (
                                   <div className="flex items-center justify-between border-t border-gray-100 dark:border-gray-700/50 pt-1">
                                     <span className="text-xs text-secondary">Pending</span>
                                     <span className="text-xs text-orange-600 dark:text-orange-400">
-                                      {summary.pendingOrders} · {fmt(summary.pendingRevenue)}
+                                      {comparison!.todayPendingOrders} · {fmt(comparison!.todayPendingRevenue)}
                                     </span>
                                   </div>
                                 )}

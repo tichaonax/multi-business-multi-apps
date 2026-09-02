@@ -20,6 +20,7 @@ import { SyncMode } from '@/lib/customer-display/sync-manager'
 import { CustomerLookup } from '@/components/pos/customer-lookup'
 import { AddCustomerModal } from '@/components/customers/add-customer-modal'
 import { SalespersonSelector, type SelectedSalesperson } from '@/components/pos/salesperson-selector'
+import { TargetProgressWidget } from '@/components/business-targets/target-progress-widget'
 import type { ReceiptData } from '@/types/printing'
 import { QuickStockFromScanModal } from '@/components/inventory/quick-stock-from-scan-modal'
 import { calcEcocashFeeFromBusiness, getEcocashSummary } from '@/lib/ecocash-utils'
@@ -2502,6 +2503,12 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
               sendToDisplay('SET_GREETING', { employeeName: sp.name, employeePhotoUrl: sp.photoUrl ?? undefined })
             }}
           />
+        </div>
+
+        {/* MBM-288: today's sales target progress — renders nothing unless
+            target tracking is enabled for this business. */}
+        <div className="mb-4">
+          <TargetProgressWidget businessId={businessId} />
         </div>
 
         {/* Cart header */}
