@@ -163,11 +163,18 @@ async function openServer(serverEntry) {
     // never actually enters the true "maximized" (IsZoomed) OS state —
     // breaking both taskbar auto-hide (below) and, worse, restoring small
     // and un-maximizable after a minimize/restore cycle, since Windows had
-    // no real "maximized" placement to restore back to. Minimize and close
-    // still work regardless of either flag; the maximize/restore-down title
-    // bar button stays enabled, but the 'maximize'/'unmaximize' listeners
-    // below immediately force it back, so it's a no-op in practice.
+    // no real "maximized" placement to restore back to. The maximize/
+    // restore-down title bar button stays enabled, but the 'unmaximize'
+    // listener below immediately forces it back, so it's a no-op in practice.
     resizable: false,
+    // No minimize either — minimizing then restoring proved unreliable even
+    // after several attempts to force it back to maximized (setImmediate,
+    // then setBounds+delayed maximize), so minimize is removed at the
+    // source instead of chasing another restore-path edge case. The
+    // trade-off (closing this window is now the only way to reach another
+    // app on top of it) was an explicit call, not an oversight — the
+    // operator can always relaunch. Close still works normally.
+    minimizable: false,
   })
 
   // Windows only auto-hides the taskbar for a window it considers truly
@@ -182,19 +189,18 @@ async function openServer(serverEntry) {
   // Safety net: if anything ever un-maximizes the window (the title bar's
   // own restore-down button, a stray OS shortcut, Windows restoring window
   // state on display-topology changes), snap straight back — the window
-  // must never be seen in a restored/resized state. Also covers the
-  // minimize → click-the-taskbar-icon path, which fires 'restore' rather
-  // than 'unmaximize'.
+  // must never be seen in a restored/resized state. The 'restore' listener
+  // is now mostly a leftover from before minimize was disabled above (a
+  // minimize → taskbar-click restore used to land here too, unreliably) —
+  // kept as harmless defense-in-depth in case some other path still fires it.
   //
-  // setBounds first, then maximize(): a bare .maximize() call here proved
-  // unreliable after a minimize/restore cycle — it seems to race Windows'
-  // own un-minimize animation and silently no-op if it lands before that
-  // settles, even deferred with setImmediate. setBounds is a deterministic,
-  // synchronous pixel-level operation with nothing to race, so it always
-  // lands; maximize() on top of that is just to re-set the OS "IsZoomed"
-  // flag the auto-hide taskbar behavior (above) depends on — a short delay
-  // gives Windows' restore animation room to finish first so that call
-  // itself has a real maximized-from state to work from.
+  // setBounds first, then maximize(): a bare .maximize() call proved
+  // unreliable coming out of a minimize/restore cycle — it seemed to race
+  // Windows' own restore animation and silently no-op if it landed before
+  // that settled, even deferred with setImmediate. setBounds is a
+  // deterministic, synchronous pixel-level operation with nothing to race,
+  // so it always lands; maximize() on top of that is just to re-set the OS
+  // "IsZoomed" flag the auto-hide taskbar behavior (above) depends on.
   const forceMaximize = () => {
     if (!mainWindow || mainWindow.isDestroyed()) return
     const bounds = screen.getPrimaryDisplay().bounds
