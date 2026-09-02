@@ -36,6 +36,17 @@ interface Breakdown {
 
 type OverridableLine = 'RENT' | 'PAYROLL' | 'RECURRING_COMMITMENTS'
 
+interface LineContribution {
+  contributedMonthToDate: number
+  status?: 'behind' | 'current'
+}
+
+interface Contributions {
+  rent: LineContribution
+  payroll: LineContribution
+  recurringCommitments: LineContribution
+}
+
 interface ConfigData {
   isEnabled: boolean
   approvedMonthlyTarget: number | null
@@ -45,6 +56,7 @@ interface ConfigData {
   bufferValue?: number
   commitments?: Commitment[]
   breakdown?: Breakdown
+  contributions?: Contributions
 }
 
 const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(n)
@@ -56,7 +68,7 @@ const smallInputCls = 'w-28 px-2 py-1 border border-gray-300 dark:border-gray-60
 // on file). Never lets it go below the live-computed value; the API
 // enforces the same floor, this is just the matching UI.
 function OverridableBreakdownLine({
-  icon, label, line, value, liveValue, isOverridden,
+  icon, label, line, value, liveValue, isOverridden, contribution,
   editingLine, setEditingLine, lineValue, setLineValue, lineError, setLineError, saving, onSave,
 }: {
   icon: string
@@ -65,6 +77,7 @@ function OverridableBreakdownLine({
   value: number
   liveValue: number
   isOverridden: boolean
+  contribution?: LineContribution
   editingLine: OverridableLine | null
   setEditingLine: (l: OverridableLine | null) => void
   lineValue: string
@@ -80,11 +93,14 @@ function OverridableBreakdownLine({
       <div className="flex justify-between items-center">
         <span className="text-secondary">
           {icon} {label}
-          {isOverridden && <span className="ml-1 text-amber-600 dark:text-amber-400" title={`System-computed: ${fmt(liveValue)}`}>✏️</span>}
         </span>
         {!isEditing && (
           <span className="flex items-center gap-1.5">
-            <span className="text-primary">{fmt(value)}</span>
+            {isOverridden && (
+              <span className="text-[10px] text-gray-500 dark:text-gray-500 line-through" title="System-computed (current)">{fmt(liveValue)}</span>
+            )}
+            <span className={isOverridden ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-primary'}>{fmt(value)}</span>
+            {isOverridden && <span aria-hidden title="Manually overridden">✏️</span>}
             <button
               type="button"
               onClick={() => { setEditingLine(line); setLineValue(String(value)); setLineError(null) }}
@@ -95,6 +111,15 @@ function OverridableBreakdownLine({
           </span>
         )}
       </div>
+      {!isEditing && contribution && (
+        <p
+          className={`text-[10px] text-right ${
+            contribution.status === 'behind' ? 'text-red-500 dark:text-red-400' : contribution.status === 'current' ? 'text-green-600 dark:text-green-400' : 'text-gray-500'
+          }`}
+        >
+          {fmt(contribution.contributedMonthToDate)} contributed this month
+        </p>
+      )}
       {isEditing && (
         <div className="mt-1 pb-1">
           <div className="flex items-center gap-1.5">
@@ -389,23 +414,32 @@ export function SalesTargetManageModal({
                     <OverridableBreakdownLine
                       icon="🏠" label="Rent" line="RENT"
                       value={config.breakdown.rentMonthly} liveValue={config.breakdown.rentMonthlyLive} isOverridden={config.breakdown.rentMonthlyIsOverridden}
+                      contribution={config.contributions?.rent}
                       editingLine={editingLine} setEditingLine={setEditingLine} lineValue={lineValue} setLineValue={setLineValue}
                       lineError={lineError} setLineError={setLineError} saving={saving} onSave={handleSaveLineOverride}
                     />
                     <OverridableBreakdownLine
                       icon="👥" label="Payroll" line="PAYROLL"
                       value={config.breakdown.payrollMonthly} liveValue={config.breakdown.payrollMonthlyLive} isOverridden={config.breakdown.payrollMonthlyIsOverridden}
+                      contribution={config.contributions?.payroll}
                       editingLine={editingLine} setEditingLine={setEditingLine} lineValue={lineValue} setLineValue={setLineValue}
                       lineError={lineError} setLineError={setLineError} saving={saving} onSave={handleSaveLineOverride}
                     />
                     <OverridableBreakdownLine
                       icon="🔁" label="Recurring commitments" line="RECURRING_COMMITMENTS"
                       value={config.breakdown.recurringCommitmentsMonthly} liveValue={config.breakdown.recurringCommitmentsMonthlyLive} isOverridden={config.breakdown.recurringCommitmentsMonthlyIsOverridden}
+                      contribution={config.contributions?.recurringCommitments}
                       editingLine={editingLine} setEditingLine={setEditingLine} lineValue={lineValue} setLineValue={setLineValue}
                       lineError={lineError} setLineError={setLineError} saving={saving} onSave={handleSaveLineOverride}
                     />
-                    <div className="flex justify-between"><span className="text-secondary">🏦 Loan repayments</span><span className="text-primary">{fmt(config.breakdown.loanRepaymentMonthly)}</span></div>
-                    <div className="flex justify-between"><span className="text-secondary">➕ Other commitments</span><span className="text-primary">{fmt(config.breakdown.otherCommitmentsMonthly)}</span></div>
+                    <div>
+                      <div className="flex justify-between"><span className="text-secondary">🏦 Loan repayments</span><span className="text-primary">{fmt(config.breakdown.loanRepaymentMonthly)}</span></div>
+                      <p className="text-[10px] text-right text-gray-500">{fmt(0)} contributed this month</p>
+                    </div>
+                    <div>
+                      <div className="flex justify-between"><span className="text-secondary">➕ Other commitments</span><span className="text-primary">{fmt(config.breakdown.otherCommitmentsMonthly)}</span></div>
+                      <p className="text-[10px] text-right text-gray-500">{fmt(0)} contributed this month</p>
+                    </div>
                     <div className="flex justify-between border-t border-gray-200 dark:border-gray-700 pt-1"><span className="text-secondary">🛡️ Buffer</span><span className="text-primary">{fmt(config.breakdown.buffer)}</span></div>
                   </div>
                 )}

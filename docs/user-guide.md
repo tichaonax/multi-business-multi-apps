@@ -185,6 +185,17 @@
       - [Free WiFi with Every Special](#free-wifi-with-every-special)
       - [Daily Special Permissions](#daily-special-permissions)
     - [Backup — New Tables](#backup--new-tables-1)
+58. [Sales Targets — Setup & POS Progress Tracking](#58-sales-targets--setup--pos-progress-tracking)
+    - [How It Works](#how-it-works-4)
+    - [Setting Up Sales Targets](#setting-up-sales-targets)
+    - [Overriding Individual Breakdown Lines](#overriding-individual-breakdown-lines)
+    - [Current Cumulative Contribution](#current-cumulative-contribution)
+    - [Loan Repayments & Other Commitments](#loan-repayments--other-commitments)
+    - [Setting the Approved Monthly Target](#setting-the-approved-monthly-target)
+    - [The POS Progress Widget](#the-pos-progress-widget)
+    - [Viewing Full Details](#viewing-full-details)
+    - [Permissions](#permissions-13)
+    - [New Businesses — Estimated Targets](#new-businesses--estimated-targets)
 
 ---
 
@@ -10672,6 +10683,7 @@ The Edit Business modal is arranged in two columns to make all settings accessib
 | Basic Information | Business Name, Business Type (read-only when editing), Description |
 | Contact & Location | Business Address, Business Phone |
 | Rent Account | Manage or create the rent expense account for this business |
+| Sales Target | Enable or manage sales target tracking — see [Chapter 58](#58-sales-targets--setup--pos-progress-tracking) |
 | Branding | Business Slogan, Show on Customer Display toggle, Default Landing Page, Display Colour |
 | Receipt & Tax | Return Policy Message (printed on receipts), Enable Tax Calculation, Tax Included in Price, Tax Rate (%), Tax Label |
 
@@ -13058,3 +13070,115 @@ Hover over the badge (or tap it on a touchscreen) to open a popup showing the fu
 If a sale has been reassigned multiple times, every reassignment is listed in the popup, not just the most recent one — so you can trace the sale's full attribution history from its original salesperson to today.
 
 All tables and their referenced images are backed up automatically with every full backup.
+
+---
+
+## 58. Sales Targets — Setup & POS Progress Tracking
+
+**Who can access setup and full details:** System admins, business owners, and anyone individually granted the permission — see [Permissions](#permissions-13) below.
+
+**Who sees the POS progress bar:** Everyone with POS access to the business (cashiers, salespeople, managers) — the compact bar is motivational and doesn't reveal any cost information.
+
+**Where:** Edit Business → **🎯 Sales Target** section (setup); the progress widget appears automatically on the POS screen once enabled.
+
+Sales Targets gives each business a monthly sales goal that's automatically calculated from what the business actually needs to cover — rent, payroll, loan repayments, and other recurring commitments — plus a safety buffer. Cashiers see a simple, encouraging progress bar at the till; managers and admins can drill into the full breakdown, compare periods, and adjust things as circumstances change.
+
+### How It Works
+
+Three figures drive the feature:
+
+| Figure | Meaning |
+|--------|---------|
+| **Minimum** | The lowest monthly sales figure that covers the business's real obligations (rent + payroll + recurring commitments + loan repayments + other commitments + buffer). This is a hard floor — the approved target can never be set below it. |
+| **Recommended** | The system's suggested target — the minimum, or a higher figure based on the business's recent sales history, whichever is greater. For a new business with little sales history yet, this is simply the minimum plus 15%, clearly labeled as an estimate. |
+| **Approved** | The figure actually driving the POS progress bar. It starts out equal to the Recommended figure and keeps following it automatically as the business's numbers change — until an admin manually sets a different approved amount, at which point it becomes a deliberate, fixed decision that recalculations no longer touch. |
+
+Every night, the system recalculates the minimum and recommended figures for every business with tracking enabled, so they stay current with rent changes, staffing changes, and recent sales trends without anyone having to remember to update them.
+
+### Setting Up Sales Targets
+
+1. Open **Edit Business** for the business (Admin → Businesses → Edit, or Business Settings).
+2. Find the **🎯 Sales Target** section and click **+ Enable Sales Target Tracking**.
+3. In the modal, switch on **Enable Sales Target Tracking**. The system immediately calculates the Minimum, Recommended, and Approved figures for you.
+4. Review the **Minimum target breakdown** — Rent, Payroll, Recurring commitments, Loan repayments, Other commitments, and Buffer, each shown as a line item.
+5. Adjust the **Buffer** if needed — either a percentage of the other obligations (default 10%) or a fixed dollar amount. Click **Save Buffer**.
+6. Click **🔄 Recalculate now** any time you want the figures refreshed immediately rather than waiting for the nightly update.
+
+### Overriding Individual Breakdown Lines
+
+Rent, Payroll, and Recurring commitments are normally calculated live from the business's actual configuration (rent account, active employee contracts, recurring auto-deposits) — so they're always accurate day to day. But sometimes you know a figure is about to change before the system does — for example, a salary increase that hasn't been entered as a new contract yet.
+
+To manually raise one of these three lines:
+
+1. Next to the line (e.g. **👥 Payroll**), click **Override**.
+2. Enter the new monthly figure and click **Save**.
+3. The line is now marked with a small ✏️, shown in a different colour (amber) from the other lines, with the original system-computed figure displayed alongside it in grey with a strikethrough — so both numbers stay visible at a glance, not just while you're actively editing.
+
+> **The override can only raise a line, never lower it below what the system currently computes.** If you try to save a value below the live-computed amount, it's rejected with an explanation — this guarantees the minimum target can never quietly understate what the business really needs to cover.
+
+To remove an override and go back to the live-computed figure, click **Edit** on the line, then **Reset to system value**.
+
+### Current Cumulative Contribution
+
+Under each of Rent, Payroll, and Recurring commitments, a small second line shows how much has actually been contributed toward that obligation **so far this month** — reusing the same real deposits already tracked elsewhere (the Rent Account's running balance, the Payroll Account's EOD contributions, and each recurring auto-deposit) rather than a separate figure to maintain:
+
+- **Green** — on pace for the point we're at in the month.
+- **Red** — behind pace for the point we're at in the month.
+- **$0** is shown plainly (no colour) when nothing has been contributed yet, or for **Loan repayments** and **Other commitments** — those two are manually-entered figures with no day-to-day accrual to track, so they always read "$0 contributed this month" rather than showing a misleading "behind" warning.
+
+This is a pace indicator, not a warning that something is wrong — a business that funds its rent account in a lump sum a week before it's due will show red for most of the month and then catch up, which is normal.
+
+### Loan Repayments & Other Commitments
+
+Unlike Rent/Payroll/Recurring, loan repayments and other commitments have no other record in the system, so they're entered directly:
+
+1. Under **Loan repayments & other commitments**, choose a category (**Loan repayment** or **Other**).
+2. Enter a label (e.g. "Equipment loan", "Security contract") and a monthly $ amount.
+3. Click **+ Add**.
+4. To remove one, click the **✕** next to it.
+
+### Setting the Approved Monthly Target
+
+Under **Set approved monthly target**, enter the figure you want driving the POS progress bar and click **Save**.
+
+- **Below the Minimum:** rejected outright, with an explanation of why (it wouldn't cover the business's real obligations).
+- **Between the Minimum and the Recommended:** accepted immediately, no explanation needed.
+- **Above the Recommended:** accepted, but you must give a reason (e.g. "Planned marketing push this month") — this is recorded in the change history along with your name and the date.
+
+Once you set an approved target that differs from the Recommended figure, it becomes a deliberate decision — future recalculations (nightly or on-demand) won't silently change it. If you later want it to go back to following the Recommended figure automatically, set it equal to the current Recommended amount.
+
+### The POS Progress Widget
+
+Once tracking is enabled, a compact progress bar appears on the POS screen (below the salesperson selector) for every business type. It shows:
+
+- **Status** — 🚀 Ahead, ✅ On Track, ⚠️ Watch, or 🔻 Behind (icon, label, and colour together, never colour alone)
+- **Today's sales so far vs. today's target**, as a dollar figure and percentage
+- **How much is left to reach today's target**
+
+The widget updates automatically about once a minute and shows nothing at all if tracking isn't enabled for the business, or if it fails to load — it never gets in the way of ringing up a sale.
+
+Today's target isn't simply the monthly target divided evenly by the days in the month — it's weighted by the business's actual historical sales pattern (e.g. a typically busy Saturday gets a higher daily target than a quiet Tuesday), so it stays realistic and motivating rather than arbitrary.
+
+### Viewing Full Details
+
+For managers, business owners, and admins, the progress widget is clickable and opens a detailed view:
+
+- **Today / This Week / This Month** progress side by side, each with actual vs. target and how much remains
+- **Comparisons** — today vs. yesterday, this week vs. last week, this month vs. last month
+- **Last 14 days** — a simple bar chart of daily achievement
+- **Minimum target breakdown** — the same Rent/Payroll/Recurring/Loan/Other/Buffer lines from setup, each showing its current cumulative contribution this month (see [Current Cumulative Contribution](#current-cumulative-contribution))
+- **Recommendation assumptions** — the factors behind the Recommended figure (or a note that it's an early estimate for a new business)
+- **Change history** — every enable/disable, override, and recalculation, with who made the change and when
+
+Regular salespeople and cashiers see the compact bar only — the widget isn't clickable for them, so this detailed breakdown (which includes cost information like rent and payroll) stays manager-and-up only.
+
+### Permissions
+
+| Permission | What it grants | Default |
+|------------|-----------------|---------|
+| **Manage Sales Targets** | Enable/disable tracking, edit the buffer/commitments/overrides, set the approved target, view the full breakdown and change history, click through to the detailed view | Business owners and system admins by default; can be granted individually to a specific manager |
+| **View Sales Target Progress** | See the compact POS progress bar | Everyone with POS access to the business |
+
+### New Businesses — Estimated Targets
+
+A business needs at least 90 days of completed sales history before the system has enough data to calculate a realistic Recommended target from historical trends. Until then, the Recommended figure is simply the Minimum plus 15%, and the detailed view clearly labels it as **"Estimated — not enough sales history yet for a data-driven recommendation."** Once 90 days of history accumulate, the business automatically switches over to the full calculation on the next nightly update — no action needed.

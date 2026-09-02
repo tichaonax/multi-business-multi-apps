@@ -4,6 +4,7 @@ import { getServerUser } from '@/lib/get-server-user'
 import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { calculateDailyTargetsForMonth } from '@/lib/business-targets/calculate-daily-target'
 import { calculateMinimumTarget } from '@/lib/business-targets/calculate-minimum-target'
+import { calculateLineContributions } from '@/lib/business-targets/calculate-line-contributions'
 import { calculateSalesPeriodComparison } from '@/lib/sales-performance/calculate-sales-period-comparison'
 import { statusForRatio } from '@/lib/business-targets/target-status'
 import { getDayBoundaryInTimezone, getServerDefaultTimezone } from '@/lib/timezone-utils'
@@ -175,6 +176,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       calculateMinimumTarget({ businessId }),
       prisma.businessTargetOverrideHistory.findFirst({ where: { businessId, changeType: 'RECALCULATION' }, orderBy: { changedAt: 'desc' } }),
     ])
+    const contributions = await calculateLineContributions(businessId, breakdown)
 
     return NextResponse.json({
       success: true,
@@ -184,6 +186,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         bufferValue: Number(config.bufferValue),
         commitments: commitments.map((c) => ({ ...c, monthlyAmount: Number(c.monthlyAmount) })),
         breakdown,
+        contributions,
         assumptions: lastRecalculation?.breakdownSnapshot ?? null,
       },
     })

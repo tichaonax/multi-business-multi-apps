@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { calculateMinimumTarget } from '@/lib/business-targets/calculate-minimum-target'
+import { calculateLineContributions } from '@/lib/business-targets/calculate-line-contributions'
 
 /**
  * GET /api/business-targets/[businessId]
@@ -47,6 +48,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       prisma.businessTargetCommitment.findMany({ where: { businessId, isActive: true }, orderBy: { createdAt: 'asc' } }),
       calculateMinimumTarget({ businessId }),
     ])
+    const contributions = await calculateLineContributions(businessId, breakdown)
 
     return NextResponse.json({
       success: true,
@@ -56,6 +58,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         bufferValue: Number(config.bufferValue),
         commitments: commitments.map((c) => ({ ...c, monthlyAmount: Number(c.monthlyAmount) })),
         breakdown,
+        contributions,
       },
     })
   } catch (error) {

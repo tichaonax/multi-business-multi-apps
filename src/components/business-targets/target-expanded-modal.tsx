@@ -42,6 +42,12 @@ interface Breakdown {
   buffer: number
   minimumRequiredMonthlyTarget: number
   tradingDaysInMonth: number
+  rentMonthlyLive: number
+  payrollMonthlyLive: number
+  recurringCommitmentsMonthlyLive: number
+  rentMonthlyIsOverridden: boolean
+  payrollMonthlyIsOverridden: boolean
+  recurringCommitmentsMonthlyIsOverridden: boolean
 }
 
 interface Commitment {
@@ -49,6 +55,17 @@ interface Commitment {
   category: 'LOAN_REPAYMENT' | 'OTHER'
   label: string
   monthlyAmount: number
+}
+
+interface LineContribution {
+  contributedMonthToDate: number
+  status: 'behind' | 'current'
+}
+
+interface Contributions {
+  rent: LineContribution
+  payroll: LineContribution
+  recurringCommitments: LineContribution
 }
 
 interface Assumptions {
@@ -71,6 +88,7 @@ interface ExpandedData {
   }
   chart?: ChartDay[]
   breakdown?: Breakdown
+  contributions?: Contributions
   commitments?: Commitment[]
   assumptions?: Assumptions | null
 }
@@ -128,6 +146,54 @@ function ComparisonRow({ label, comparison }: { label: string; comparison?: Comp
         <span className="text-primary">{fmt(comparison.actual)}</span>
         <DeltaBadge deltaPct={comparison.deltaPct} />
       </div>
+    </div>
+  )
+}
+
+// Rent/Payroll/Recurring commitments show the live, currently-computed
+// monthly total; when it's been manually overridden (sales-target-manage-
+// modal.tsx), that system-computed figure is also shown (struck through,
+// muted) alongside the overridden value it's been replaced by, in a
+// distinct colour — so a viewer sees both numbers, not just whichever one
+// happens to currently be in effect. When `contribution` is supplied, a
+// second line shows how much has actually been deposited toward that
+// obligation so far this month — green when on pace for the point we're at
+// in the month, red when behind (a simple linear day-of-month expectation,
+// computed server-side in calculate-line-contributions.ts). Loan
+// repayments/Other commitments have no accrual mechanism at all (plan
+// §1.4), so they're passed a bare number with no status — always shows
+// "$0 contributed" in neutral grey rather than a misleading permanent "behind".
+function BreakdownRow({
+  icon, label, value, liveValue, isOverridden, contribution,
+}: {
+  icon: string
+  label: string
+  value: number
+  liveValue?: number
+  isOverridden?: boolean
+  contribution?: { contributedMonthToDate: number; status?: 'behind' | 'current' }
+}) {
+  return (
+    <div>
+      <div className="flex justify-between items-baseline">
+        <span className="text-secondary">{icon} {label}</span>
+        <span className="flex items-center gap-1.5">
+          {isOverridden && liveValue !== undefined && (
+            <span className="text-[10px] text-gray-500 dark:text-gray-500 line-through" title="System-computed (current)">{fmt(liveValue)}</span>
+          )}
+          <span className={isOverridden ? 'text-amber-600 dark:text-amber-400 font-semibold' : 'text-primary'}>{fmt(value)}</span>
+          {isOverridden && <span aria-hidden title="Manually overridden">✏️</span>}
+        </span>
+      </div>
+      {contribution && (
+        <p
+          className={`text-[10px] text-right ${
+            contribution.status === 'behind' ? 'text-red-500 dark:text-red-400' : contribution.status === 'current' ? 'text-green-600 dark:text-green-400' : 'text-gray-500'
+          }`}
+        >
+          {fmt(contribution.contributedMonthToDate)} contributed this month
+        </p>
+      )}
     </div>
   )
 }
@@ -237,11 +303,11 @@ export function TargetExpandedModal({ businessId, onClose }: { businessId: strin
             {isAdmin && data.breakdown && (
               <div className="p-3 border border-gray-200 dark:border-gray-700 rounded-md text-xs space-y-1">
                 <p className="font-medium text-secondary mb-1">Minimum target breakdown</p>
-                <div className="flex justify-between"><span className="text-secondary">🏠 Rent</span><span className="text-primary">{fmt(data.breakdown.rentMonthly)}</span></div>
-                <div className="flex justify-between"><span className="text-secondary">👥 Payroll</span><span className="text-primary">{fmt(data.breakdown.payrollMonthly)}</span></div>
-                <div className="flex justify-between"><span className="text-secondary">🔁 Recurring commitments</span><span className="text-primary">{fmt(data.breakdown.recurringCommitmentsMonthly)}</span></div>
-                <div className="flex justify-between"><span className="text-secondary">🏦 Loan repayments</span><span className="text-primary">{fmt(data.breakdown.loanRepaymentMonthly)}</span></div>
-                <div className="flex justify-between"><span className="text-secondary">➕ Other commitments</span><span className="text-primary">{fmt(data.breakdown.otherCommitmentsMonthly)}</span></div>
+                <BreakdownRow icon="🏠" label="Rent" value={data.breakdown.rentMonthly} liveValue={data.breakdown.rentMonthlyLive} isOverridden={data.breakdown.rentMonthlyIsOverridden} contribution={data.contributions?.rent} />
+                <BreakdownRow icon="👥" label="Payroll" value={data.breakdown.payrollMonthly} liveValue={data.breakdown.payrollMonthlyLive} isOverridden={data.breakdown.payrollMonthlyIsOverridden} contribution={data.contributions?.payroll} />
+                <BreakdownRow icon="🔁" label="Recurring commitments" value={data.breakdown.recurringCommitmentsMonthly} liveValue={data.breakdown.recurringCommitmentsMonthlyLive} isOverridden={data.breakdown.recurringCommitmentsMonthlyIsOverridden} contribution={data.contributions?.recurringCommitments} />
+                <BreakdownRow icon="🏦" label="Loan repayments" value={data.breakdown.loanRepaymentMonthly} contribution={{ contributedMonthToDate: 0 }} />
+                <BreakdownRow icon="➕" label="Other commitments" value={data.breakdown.otherCommitmentsMonthly} contribution={{ contributedMonthToDate: 0 }} />
                 <div className="flex justify-between border-t border-gray-200 dark:border-gray-700 pt-1"><span className="text-secondary">🛡️ Buffer</span><span className="text-primary">{fmt(data.breakdown.buffer)}</span></div>
               </div>
             )}
