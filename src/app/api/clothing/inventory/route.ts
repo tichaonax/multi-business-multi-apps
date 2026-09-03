@@ -11,8 +11,20 @@ export async function GET(request: NextRequest) {
     const businessId = searchParams.get('businessId')
     if (!businessId) return NextResponse.json({ error: 'businessId required' }, { status: 400 })
 
+    // Hide [test]-named inventory items unless the business has explicitly
+    // enabled test data visibility (admin > Edit Business > Show Test Data toggle)
+    const business = await prisma.businesses.findUnique({
+      where: { id: businessId },
+      select: { showTestData: true }
+    })
+
     const items = await prisma.barcodeInventoryItems.findMany({
-      where: { businessId, isActive: true, stockQuantity: { gt: 0 } },
+      where: {
+        businessId,
+        isActive: true,
+        stockQuantity: { gt: 0 },
+        ...(business?.showTestData ? {} : { NOT: { name: { contains: '[test]', mode: 'insensitive' } } })
+      },
       select: { id: true, name: true, sku: true, sellingPrice: true, stockQuantity: true, barcodeData: true, customLabel: true },
       orderBy: { name: 'asc' },
     })

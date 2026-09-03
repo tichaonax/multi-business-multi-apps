@@ -10691,7 +10691,7 @@ The Edit Business modal is arranged in two columns to make all settings accessib
 
 | Section | Fields |
 |---------|--------|
-| Features | Accepts Eco-Cash (+ fee config), Include Transport Cost in Pricing (+ distance/rate config), Require Salesperson EOD Report (+ deadline time), Enable Coupons, Enable Customer Promos |
+| Features | Accepts Eco-Cash (+ fee config), Include Transport Cost in Pricing (+ distance/rate config), Require Salesperson EOD Report (+ deadline time), Enable Coupons, Enable Customer Promos, Show Test Data |
 
 ### Branding
 
@@ -10759,6 +10759,12 @@ The estimated round-trip cost is shown automatically as a guide.
 ### EOD Submission Deadline
 
 Shown when **Require Salesperson EOD Report** is enabled. Set the time by which salespersons must submit their end-of-day cash and EcoCash totals. After this time, overdue warnings appear at the POS.
+
+### Show Test Data
+
+Any product or menu item with **`[test]`** anywhere in its name (case-insensitive — e.g. `[test] Beef Stir-Fry`, `[TEST] Auto-Generated Bale`) is hidden from the POS, product lists, and search for every business by default, so testing/demo data never clutters what cashiers see.
+
+Tick **Show Test Data** to temporarily reveal those items at the POS for this business — useful when you need to test a workflow with disposable products. Untick it afterward to hide them again. This does not delete or deactivate the items — it only controls whether they appear in POS product listings.
 
 ---
 
