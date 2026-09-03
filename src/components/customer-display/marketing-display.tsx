@@ -218,25 +218,29 @@ function DefaultWelcomeScreen() {
     day: 'numeric'
   })
 
+  // Sized to comfortably fit inside the marketing panel's remaining height
+  // below the business info banner on small customer-display screens —
+  // the previous much larger sizing overflowed that space, clipping the
+  // date line at the bottom (and the wave emoji off the top).
   return (
-    <div className="h-full w-full flex flex-col items-center justify-center bg-gradient-to-br from-blue-600 via-blue-700 to-purple-800 text-white">
+    <div className="h-full w-full flex flex-col items-center justify-center bg-gradient-to-br from-blue-600 via-blue-700 to-purple-800 text-white overflow-hidden px-4">
       {/* Welcome message */}
-      <div className="text-center mb-16">
-        <div className="text-9xl mb-8">👋</div>
-        <h1 className="text-8xl font-bold mb-6 tracking-tight">
+      <div className="text-center mb-6">
+        <div className="text-6xl mb-3">👋</div>
+        <h1 className="text-5xl font-bold mb-3 tracking-tight">
           Welcome!
         </h1>
-        <p className="text-5xl text-blue-100 font-light">
+        <p className="text-2xl text-blue-100 font-light">
           Thank you for shopping with us
         </p>
       </div>
 
       {/* Clock */}
-      <div className="text-center border-t-2 border-white/20 pt-12">
-        <div className="text-7xl font-bold mb-4 font-mono tracking-wider">
+      <div className="text-center border-t-2 border-white/20 pt-4">
+        <div className="text-4xl font-bold mb-2 font-mono tracking-wider">
           {timeString}
         </div>
-        <div className="text-3xl text-blue-100">
+        <div className="text-lg text-blue-100">
           {dateString}
         </div>
       </div>

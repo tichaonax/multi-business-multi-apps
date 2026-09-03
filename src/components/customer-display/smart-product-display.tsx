@@ -290,8 +290,11 @@ function RotatingCard({ item }: { item: DisplayItem }) {
           <div className={`flex-shrink-0 px-4 pb-4 ${!hasImage && item.menuNumber ? 'pt-20' : 'pt-4'}`}>
             {!hasImage && <div className="text-5xl mb-2">{item.emoji ?? '🍽️'}</div>}
             {/* Single line, never wraps — a wrapped second line both eats into
-                the image area above and can run under the menu-number badge. */}
-            <div className={`text-white font-bold text-2xl leading-snug truncate mb-1 ${item.menuNumber ? 'pr-16' : ''}`}>{stripEmoji(item.name)}</div>
+                the image area above and can run under the menu-number badge.
+                The badge clearance is only needed when there's no image pushing
+                this text down below it — a card with an image already has the
+                name clear of the badge, so it can use the full card width. */}
+            <div className={`text-white font-bold text-xl leading-snug truncate mb-1 ${!hasImage && item.menuNumber ? 'pr-16' : ''}`}>{stripEmoji(item.name)}</div>
             {(item.spiceLevel ?? 0) > 0 && (
               <div className="text-sm mb-1">{'🌶️'.repeat(Math.min(item.spiceLevel!, 3))}</div>
             )}
