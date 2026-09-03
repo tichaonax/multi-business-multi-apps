@@ -10,6 +10,7 @@ import { hasPermission } from '@/lib/permission-utils'
 import { useToastContext } from '@/components/ui/toast'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { useConfirm } from '@/components/ui/confirm-modal'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface Loan {
   id: string
@@ -366,13 +367,15 @@ export default function AdminLoansPage() {
 
       {/* New Loan Modal */}
       {showNewModal && (
+        <ModalPortal>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between shrink-0">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">New Business Loan</h2>
               <button onClick={() => setShowNewModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl">×</button>
             </div>
-            <form onSubmit={handleCreateLoan} className="px-6 py-5 space-y-4">
+            <form onSubmit={handleCreateLoan} className="flex flex-col flex-1 min-h-0">
+              <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1 min-h-0">
 
               {/* Description — full width */}
               <div>
@@ -594,7 +597,8 @@ export default function AdminLoansPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
+              </div>
+              <div className="flex justify-end gap-3 px-6 py-4 shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowNewModal(false)}
@@ -613,6 +617,7 @@ export default function AdminLoansPage() {
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
     </ContentLayout>
   )

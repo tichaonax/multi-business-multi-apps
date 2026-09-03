@@ -14,6 +14,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { RentAccountSetupForm, defaultRentAccountFormData, validateRentAccountFormData, type RentAccountFormData } from '@/components/rent-account/rent-account-setup-form'
 import { RentAccountSetupModal } from '@/components/rent-account/rent-account-setup-modal'
 import { RentAccountManageModal } from '@/components/rent-account/rent-account-manage-modal'
+import { ModalPortal } from '@/components/ui/modal-portal'
 import { getBusinessColor } from '@/lib/cash-position/business-color'
 
 interface Business {
@@ -440,9 +441,10 @@ export default function AdminBusinessesPage() {
 
       {/* Create Business Modal */}
       {showCreateModal && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="card max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="card max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 shrink-0">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-primary">Create New Business</h2>
                 <button
@@ -454,8 +456,8 @@ export default function AdminBusinessesPage() {
               </div>
             </div>
 
-            <div className="p-6">
-              <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+              <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
                     Business Name *
@@ -685,34 +687,36 @@ export default function AdminBusinessesPage() {
                   )}
                 </div>
 
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="submit"
-                    disabled={creating}
-                    className="btn-primary disabled:opacity-50"
-                  >
-                    {creating ? 'Creating...' : 'Create Business'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={closeModals}
-                    disabled={creating}
-                    className="btn-secondary"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
+              </div>
+              <div className="flex gap-3 p-6 pt-4 shrink-0">
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="btn-primary disabled:opacity-50"
+                >
+                  {creating ? 'Creating...' : 'Create Business'}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeModals}
+                  disabled={creating}
+                  className="btn-secondary"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Edit Business Modal */}
       {showEditModal && selectedBusiness && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="card max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="card max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 shrink-0">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-primary">Edit Business</h2>
                 <button
@@ -724,8 +728,8 @@ export default function AdminBusinessesPage() {
               </div>
             </div>
 
-            <div className="p-6">
-              <form onSubmit={handleUpdateSubmit} className="space-y-6">
+            <form onSubmit={handleUpdateSubmit} className="flex flex-col flex-1 min-h-0">
+              <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
                 {/* Two-column layout on desktop */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
@@ -977,34 +981,36 @@ export default function AdminBusinessesPage() {
                   )}
                 </div>
 
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="submit"
-                    disabled={updating}
-                    className="btn-primary disabled:opacity-50"
-                  >
-                    {updating ? 'Updating...' : 'Update Business'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={closeModals}
-                    disabled={updating}
-                    className="btn-secondary"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
+              </div>
+              <div className="flex gap-3 p-6 pt-2 shrink-0">
+                <button
+                  type="submit"
+                  disabled={updating}
+                  className="btn-primary disabled:opacity-50"
+                >
+                  {updating ? 'Updating...' : 'Update Business'}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeModals}
+                  disabled={updating}
+                  className="btn-secondary"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* View/Edit Details Modal */}
       {showDetailsModal && selectedBusiness && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="card max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="card max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700 shrink-0">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-primary">
                   {detailsModalMode === 'view' ? 'Business Details' : 'Edit Business Details'}
@@ -1018,6 +1024,7 @@ export default function AdminBusinessesPage() {
               </div>
             </div>
 
+            <div className="overflow-y-auto flex-1 min-h-0">
             {detailsModalMode === 'view' ? (
               <div className="p-6 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1296,8 +1303,10 @@ export default function AdminBusinessesPage() {
                 </form>
               </div>
             )}
+            </div>
           </div>
         </div>
+        </ModalPortal>
       )}
       {/* Rent Account Setup Modal (for existing business) */}
       {showRentSetupModal && rentModalBusiness && (

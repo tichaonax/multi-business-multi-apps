@@ -10,6 +10,7 @@ import { useAlert } from '@/components/ui/confirm-modal'
 import Link from 'next/link'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { NationalIdInput } from '@/components/ui/national-id-input'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface Lender {
   id: string
@@ -449,10 +450,12 @@ export default function LendersManagementPage() {
 
         {/* Create Lender Modal */}
         {showCreateModal && (
+          <ModalPortal>
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <h2 className="text-xl font-semibold text-primary mb-4">Add New Lender</h2>
-              <form onSubmit={handleCreateLender} className="space-y-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+              <h2 className="text-xl font-semibold text-primary p-6 pb-0 shrink-0">Add New Lender</h2>
+              <form onSubmit={handleCreateLender} className="flex flex-col flex-1 min-h-0">
+              <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
                     Lender Type *
@@ -630,7 +633,8 @@ export default function LendersManagementPage() {
                   />
                 </div>
 
-                <div className="flex justify-end space-x-3">
+              </div>
+                <div className="flex justify-end space-x-3 p-6 pt-0 shrink-0">
                   <button
                     type="button"
                     onClick={() => setShowCreateModal(false)}
@@ -648,14 +652,17 @@ export default function LendersManagementPage() {
               </form>
             </div>
           </div>
+          </ModalPortal>
         )}
 
         {/* Edit Lender Modal */}
         {showEditModal && selectedLender && (
+          <ModalPortal>
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <h2 className="text-xl font-semibold text-primary mb-4">Edit Lender</h2>
-              <form onSubmit={handleEditLender} className="space-y-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+              <h2 className="text-xl font-semibold text-primary p-6 pb-0 shrink-0">Edit Lender</h2>
+              <form onSubmit={handleEditLender} className="flex flex-col flex-1 min-h-0">
+              <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
                     Lender Type *
@@ -831,7 +838,8 @@ export default function LendersManagementPage() {
                   </div>
                 )}
 
-                <div className="flex justify-end space-x-3">
+              </div>
+                <div className="flex justify-end space-x-3 p-6 pt-0 shrink-0">
                   <button
                     type="button"
                     onClick={() => {
@@ -852,6 +860,7 @@ export default function LendersManagementPage() {
               </form>
             </div>
           </div>
+          </ModalPortal>
         )}
       </ContentLayout>
     </BusinessProtectedRoute>

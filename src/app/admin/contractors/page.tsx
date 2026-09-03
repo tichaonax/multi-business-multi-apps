@@ -8,6 +8,7 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect } from 'react'
 import { formatDateByFormat, formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface ContractorAnalytics {
   id: string
@@ -427,9 +428,10 @@ export default function AdminContractorsPage() {
 
         {/* Contractor Detail Modal */}
         {selectedContractor && (
+          <ModalPortal>
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="card p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-6">
+            <div className="card w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between p-6 pb-0 shrink-0">
                 <h2 className="text-xl font-semibold text-primary">
                   Contractor Details: {selectedContractor.fullName}
                 </h2>
@@ -441,6 +443,7 @@ export default function AdminContractorsPage() {
                 </button>
               </div>
 
+              <div className="p-6 overflow-y-auto flex-1 min-h-0">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Personal Information */}
                 <div>
@@ -522,8 +525,10 @@ export default function AdminContractorsPage() {
                   </div>
                 </div>
               )}
+              </div>
             </div>
           </div>
+          </ModalPortal>
         )}
       </ContentLayout>
     </SystemAdminRoute>

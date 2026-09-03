@@ -1,17 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile, mkdir, unlink } from 'fs/promises'
-import { join } from 'path'
-import { existsSync } from 'fs'
 import { prisma } from '@/lib/prisma'
-import { randomBytes, randomUUID } from 'crypto'
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> })
- {
-
-    const { id } = await params
+/**
+ * Menu/product image upload — stores the binary in the `images` table
+ * (same pattern as `POST /api/universal/images`), not the local filesystem.
+ *
+ * This route used to write files to `public/uploads/images/` on disk. That
+ * works fine in a plain `next dev` server but silently fails to persist (or
+ * to actually get served afterward) once the app is packaged for Electron —
+ * a packaged build's bundled `public/` directory isn't reliably writable or
+ * even the same folder the running app reads from, so uploaded images would
+ * "succeed" with a 200 response but never actually show up. Every other
+ * image-upload path in this app already stores bytes in Postgres and serves
+ * them via `GET /api/images/[id]`, which has no such dependency on the
+ * host filesystem — this route now does the same, using the `imageId`
+ * relation `ProductImages` already had for exactly this purpose.
+ */
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: productId } = await params
-    // verify product exists
     const product = await prisma.businessProducts.findUnique({ where: { id: productId } })
     if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
 
@@ -22,15 +29,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'No files uploaded' }, { status: 400 })
     }
 
-    const uploadDir = join(process.cwd(), 'public/uploads/images')
-    if (!existsSync(uploadDir)) {
-      await mkdir(uploadDir, { recursive: true })
-    }
-
-    const createdImages = []
-
-    // determine current count for sortOrder baseline
     const existingCount = await prisma.productImages.count({ where: { productId } }).catch(() => 0)
+    const createdImages = []
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
@@ -41,30 +41,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         return NextResponse.json({ error: `File ${file.name} is too large (max 10MB)` }, { status: 400 })
       }
 
-      const timestamp = Date.now()
-      const randomString = Math.random().toString(36).substring(2)
-      const extension = (file.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '')
-      const filename = `${timestamp}_${randomString}.${extension}`
-
       const bytes = await file.arrayBuffer()
       const buffer = Buffer.from(bytes)
-      const filepath = join(uploadDir, filename)
-      await writeFile(filepath, buffer)
 
-      const url = `/uploads/images/${filename}`
+      const image = await prisma.images.create({
+        data: { data: buffer, mimeType: file.type, size: file.size },
+      })
 
       const img = await prisma.productImages.create({
         data: {
-          id: randomUUID(),
           productId,
-          imageUrl: url,
+          imageId: image.id,
+          imageUrl: `/api/images/${image.id}`,
           altText: file.name,
           isPrimary: false,
           sortOrder: existingCount + i,
           imageSize: 'MEDIUM',
           businessType: product.businessType || 'restaurant',
-          updatedAt: new Date()
-        }
+          updatedAt: new Date(),
+        },
       })
 
       createdImages.push(img)
@@ -103,43 +98,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> })
- {
-
-    const { id } = await params
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id: productId } = await params
+    await params
     const body = await request.json().catch(() => ({}))
     const imageId = body.imageId || body.id
-    const filename = body.filename
 
-    if (!imageId && !filename) {
-      return NextResponse.json({ error: 'imageId or filename required' }, { status: 400 })
+    if (!imageId) {
+      return NextResponse.json({ error: 'imageId required' }, { status: 400 })
     }
 
-    let imgRecord = null
-    if (imageId) {
-      imgRecord = await prisma.productImages.findUnique({ where: { id: imageId } })
-    } else if (filename) {
-      // try to find by imageUrl containing filename
-      imgRecord = await prisma.productImages.findFirst({ where: { imageUrl: { contains: filename } } })
-    }
-
+    const imgRecord = await prisma.productImages.findUnique({ where: { id: imageId } })
     if (!imgRecord) return NextResponse.json({ error: 'Image not found' }, { status: 404 })
 
-    // delete file from disk if present
-    try {
-      const parts = imgRecord.imageUrl.split('/')
-      const fname = parts[parts.length - 1]
-      const filepath = join(process.cwd(), 'public/uploads/images', fname)
-      if (existsSync(filepath)) {
-        await unlink(filepath)
-      }
-    } catch (err) {
-      console.warn('Failed to delete image file:', err)
-    }
-
     await prisma.productImages.delete({ where: { id: imgRecord.id } })
+    if (imgRecord.imageId) {
+      await prisma.images.delete({ where: { id: imgRecord.imageId } }).catch(() => {})
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

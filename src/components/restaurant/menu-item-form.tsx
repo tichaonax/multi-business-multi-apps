@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import Image from 'next/image'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface MenuItem {
   id: string
@@ -447,22 +448,34 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
   }
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="card max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-primary">
+      <div className="card max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header — also carries a copy of the Save button so it's always in reach without scrolling to the bottom of a long form */}
+        <div className="flex items-center justify-between p-6 border-b border-primary shrink-0">
           <h2 className="text-2xl font-bold text-primary">
             {item?.id ? 'Edit Menu Item' : item ? 'Clone Menu Item' : 'Add New Menu Item'}
           </h2>
-          <button
-            onClick={onCancel}
-            className="text-secondary hover:text-primary text-2xl"
-          >
-            ×
-          </button>
+          <div className="flex items-center gap-3">
+            <Button
+              type="submit"
+              form="menu-item-form"
+              disabled={isSubmitting}
+              className="bg-primary hover:bg-primary/90"
+            >
+              {isSubmitting ? 'Saving...' : item?.id ? 'Update Item' : 'Create Item'}
+            </Button>
+            <button
+              onClick={onCancel}
+              className="text-secondary hover:text-primary text-2xl"
+            >
+              ×
+            </button>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form id="menu-item-form" onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+        <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
           {/* Error Display */}
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
@@ -474,7 +487,7 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
           )}
 
           {/* Basic Information */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-primary mb-1">
                 Item Name *
@@ -585,24 +598,22 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
             </div>
           </div>
 
-          {/* Barcode */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-primary mb-1">
-                Barcode
-              </label>
-              <Input
-                type="text"
-                value={formData.barcode}
-                onChange={(e) => handleInputChange('barcode', e.target.value)}
-                placeholder="e.g., 04963406"
-              />
-              {!item?.id && item && (
-                <p className="text-amber-600 dark:text-amber-400 text-xs mt-1">
-                  Cloned item — enter a unique barcode or leave blank to assign later.
-                </p>
-              )}
-            </div>
+          {/* Barcode — half-width on desktop instead of a full 2-col grid row with an empty second column */}
+          <div className="md:w-1/2 md:pr-3">
+            <label className="block text-sm font-medium text-primary mb-1">
+              Barcode
+            </label>
+            <Input
+              type="text"
+              value={formData.barcode}
+              onChange={(e) => handleInputChange('barcode', e.target.value)}
+              placeholder="e.g., 04963406"
+            />
+            {!item?.id && item && (
+              <p className="text-amber-600 dark:text-amber-400 text-xs mt-1">
+                Cloned item — enter a unique barcode or leave blank to assign later.
+              </p>
+            )}
           </div>
 
           {/* Description */}
@@ -620,7 +631,7 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
           </div>
 
           {/* Pricing */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-primary mb-1">
                 Current Price * ($)
@@ -675,7 +686,7 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
           </div>
 
           {/* Additional Details */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-primary mb-1">
                 Preparation Time (minutes)
@@ -720,7 +731,7 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
           </div>
 
           {/* Status Toggles */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="flex items-center">
               <input
                 type="checkbox"
@@ -810,6 +821,7 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
                           src={img.preview || img.url!}
                           alt={img.altText}
                           fill
+                          unoptimized={!!img.preview}
                           className="object-cover"
                         />
 
@@ -947,22 +959,24 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
               </div>
             ))}
           </div>
+        </div>
 
-          {/* Form Actions */}
-          <div className="flex items-center justify-end gap-3 pt-6 border-t border-primary">
-            <Button type="button" variant="outline" onClick={onCancel}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="bg-primary hover:bg-primary/90"
-            >
-              {isSubmitting ? 'Saving...' : item?.id ? 'Update Item' : 'Create Item'}
-            </Button>
-          </div>
+        {/* Form Actions */}
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-primary shrink-0">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            className="bg-primary hover:bg-primary/90"
+          >
+            {isSubmitting ? 'Saving...' : item?.id ? 'Update Item' : 'Create Item'}
+          </Button>
+        </div>
         </form>
       </div>
     </div>
+    </ModalPortal>
   )
 }

@@ -18,6 +18,7 @@ import { useBusinessBalance } from '@/hooks/useBusinessBalance'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { NationalIdInput } from '@/components/ui/national-id-input'
 import Link from 'next/link'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface Business {
   id: string
@@ -1354,9 +1355,10 @@ function BusinessLoansPageContent() {
 
         {/* Quick Lender Creation Modal */}
         {showQuickLenderModal && (
+          <ModalPortal>
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <div className="flex justify-between items-start mb-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="flex justify-between items-start p-6 pb-0 shrink-0">
                 <h2 className="text-xl font-semibold text-primary">Quick Add Lender</h2>
                 <button
                   onClick={() => setShowQuickLenderModal(false)}
@@ -1366,7 +1368,8 @@ function BusinessLoansPageContent() {
                 </button>
               </div>
 
-              <form onSubmit={handleQuickLenderCreate} className="space-y-4">
+              <form onSubmit={handleQuickLenderCreate} className="flex flex-col flex-1 min-h-0">
+              <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">Lender Type *</label>
                   <div className="flex gap-4">
@@ -1478,7 +1481,8 @@ function BusinessLoansPageContent() {
                   />
                 </div>
 
-                <div className="flex justify-end space-x-3 pt-2">
+              </div>
+                <div className="flex justify-end space-x-3 p-6 pt-2 shrink-0">
                   <button
                     type="button"
                     onClick={() => setShowQuickLenderModal(false)}
@@ -1496,6 +1500,7 @@ function BusinessLoansPageContent() {
               </form>
             </div>
           </div>
+          </ModalPortal>
         )}
       </ContentLayout>
     </BusinessProtectedRoute>
