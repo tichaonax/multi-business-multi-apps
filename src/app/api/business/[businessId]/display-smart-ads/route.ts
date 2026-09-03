@@ -235,13 +235,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
     for (const p of products) {
       if (isHidden('menu_item', p.id)) continue
       if (filterByNumber && !p.menuNumber) continue
+      const price = Number(p.basePrice ?? 0)
+      // Never show an unpriced item ($0.00) on the actual customer display — only
+      // skip it there; management screens (allItems=true) still list it so admins
+      // can find and fix it.
+      if (!allItems && price <= 0) continue
       const ss = salesScore(productSales.get(p.id))
       const productImages = ((p as any).product_images ?? []).map((img: any) => img.imageUrl).filter(Boolean)
       candidates.push({
         id: p.id,
         itemType: 'menu_item',
         name: p.name,
-        price: Number(p.basePrice ?? 0),
+        price,
         menuNumber: p.menuNumber ?? null,
         spiceLevel: p.spiceLevel ?? 0,
         preparationTime: p.preparationTime ?? 0,
@@ -277,6 +282,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         pricePerKgMedium: Number(ci.pricePerKgMedium),
         pricePerKgLarge: Number(ci.pricePerKgLarge),
       }))
+      // Never show a combo with unpriced sizes or pool items ($0.00/kg) on the
+      // actual customer display — only skip it there; management screens
+      // (allItems=true) still list it so admins can find and fix the pricing.
+      const hasValidPricing =
+        sizes.length > 0 && sizes.every((s: any) => s.basePrice > 0) &&
+        poolItems.every((pi: any) => pi.pricePerKgSmall > 0 && pi.pricePerKgMedium > 0 && pi.pricePerKgLarge > 0)
+      if (!allItems && !hasValidPricing) continue
       candidates.push({
         id: c.id,
         itemType: 'ayli_combo',

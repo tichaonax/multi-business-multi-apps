@@ -281,8 +281,12 @@ function RotatingCard({ item }: { item: DisplayItem }) {
             </div>
           )}
 
-          {/* Text content — always flex-shrink-0 at the bottom */}
-          <div className="flex-shrink-0 p-4">
+          {/* Text content — always flex-shrink-0 at the bottom.
+              When there's no image, nothing pushes this block down, so without
+              a menu number it sits flush at the top; with one, it needs enough
+              top clearance to clear the absolutely-positioned circle badge
+              (64px + 8px offset) or the name/price can render underneath it. */}
+          <div className={`flex-shrink-0 px-4 pb-4 ${!hasImage && item.menuNumber ? 'pt-20' : 'pt-4'}`}>
             {!hasImage && <div className="text-5xl mb-2">{item.emoji ?? '🍽️'}</div>}
             <div className="text-white font-bold text-2xl leading-snug line-clamp-2 mb-1">{item.name}</div>
             {(item.spiceLevel ?? 0) > 0 && (

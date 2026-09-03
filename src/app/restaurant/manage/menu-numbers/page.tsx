@@ -16,6 +16,9 @@ interface MenuItem {
   category: string
   menuNumber: string | null
   type: 'menu_item' | 'ayli_combo'
+  imageUrl: string | null
+  hasValidPricing: boolean
+  pricingIssue: string | null
 }
 
 function NumberCircle({ num, size = 'md' }: { num: string; size?: 'sm' | 'md' | 'lg' }) {
@@ -49,29 +52,47 @@ export default function MenuNumbersPage() {
     setLoading(true)
     try {
       const [productsRes, combosRes] = await Promise.all([
-        fetch(`/api/universal/products?businessId=${currentBusinessId}&businessType=restaurant&isActive=true&limit=500`),
+        fetch(`/api/universal/products?businessId=${currentBusinessId}&businessType=restaurant&isActive=true&limit=500&includeImages=true`),
         fetch(`/api/restaurant/ayc-combos?businessId=${currentBusinessId}`)
       ])
       const productsData = await productsRes.json()
       const combosData = await combosRes.json()
 
       const productItems: MenuItem[] = (productsData.products ?? productsData.data ?? productsData ?? [])
-        .map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          category: p.category?.name ?? 'Uncategorized',
-          menuNumber: p.menuNumber ?? null,
-          type: 'menu_item' as const,
-        }))
+        .map((p: any) => {
+          const hasValidPricing = Number(p.basePrice ?? 0) > 0
+          return {
+            id: p.id,
+            name: p.name,
+            category: p.category?.name ?? 'Uncategorized',
+            menuNumber: p.menuNumber ?? null,
+            type: 'menu_item' as const,
+            imageUrl: p.images?.[0]?.imageUrl ?? null,
+            hasValidPricing,
+            pricingIssue: hasValidPricing ? null : 'This item has no price set (or $0.00) — set a price in Menu Management before assigning a number.',
+          }
+        })
 
       const comboItems: MenuItem[] = (Array.isArray(combosData) ? combosData : [])
-        .map((c: any) => ({
-          id: c.id,
-          name: c.name,
-          category: 'AYLI Combo',
-          menuNumber: c.menuNumber ?? null,
-          type: 'ayli_combo' as const,
-        }))
+        .map((c: any) => {
+          const sizes = c.sizes ?? []
+          const poolItems = c.items ?? []
+          const hasValidSizePricing = sizes.length > 0 && sizes.every((s: any) => Number(s.basePrice) > 0)
+          const hasValidPoolPricing = poolItems.length > 0 && poolItems.every((it: any) =>
+            Number(it.pricePerKgSmall) > 0 && Number(it.pricePerKgMedium) > 0 && Number(it.pricePerKgLarge) > 0
+          )
+          const hasValidPricing = hasValidSizePricing && hasValidPoolPricing
+          return {
+            id: c.id,
+            name: c.name,
+            category: 'AYLI Combo',
+            menuNumber: c.menuNumber ?? null,
+            type: 'ayli_combo' as const,
+            imageUrl: c.adImageId ? `/api/images/${c.adImageId}` : null,
+            hasValidPricing,
+            pricingIssue: hasValidPricing ? null : 'This combo has unpriced sizes or pool items (showing $0.00/kg) — set up pricing in AYLI Pricing before assigning a number.',
+          }
+        })
 
       const all = [...productItems, ...comboItems]
       all.sort((a, b) => {
@@ -99,9 +120,9 @@ export default function MenuNumbersPage() {
     setError('')
   }
 
-  const assign = async () => {
+  const assign = async (valueOverride?: string) => {
     if (!selected || !currentBusinessId) return
-    const trimmed = input.trim().toLowerCase()
+    const trimmed = (valueOverride ?? input).trim().toLowerCase()
     if (trimmed && !/^[1-9][0-9]*[a-z]?$/.test(trimmed)) {
       setError('Invalid format — use a positive number with an optional letter suffix, e.g. 4 or 4a')
       return
@@ -138,7 +159,58 @@ export default function MenuNumbersPage() {
 
   const remove = async () => {
     setInput('')
-    await assign()
+    await assign('')
+  }
+
+  // "Assign" with a blank input suggests the next available number instead of
+  // requiring the user to type it — assign() itself still treats blank as "remove".
+  const handleAssignClick = () => {
+    if (!selected) return
+    const value = input.trim() || nextAvailable
+    // Removing a number is always allowed; only block assigning one to an
+    // item whose pricing isn't set up, since that item would then show
+    // $0.00 on the customer-facing rotating display.
+    if (value && !selected.hasValidPricing) {
+      setError(selected.pricingIssue ?? 'This item is missing pricing — set that up first before assigning a number.')
+      return
+    }
+    // Instant client-side duplicate check — the server enforces this too
+    // (source of truth), but catching it here avoids a round trip.
+    if (value) {
+      const conflict = items.find(i => i.menuNumber === value && !(i.id === selected.id && i.type === selected.type))
+      if (conflict) {
+        setError(`Menu number ${value} is already assigned to "${conflict.name}". Free it first, or choose a different number.`)
+        return
+      }
+    }
+    setInput(value)
+    assign(value)
+  }
+
+  // Quick-release for a number stuck on an item whose pricing isn't set up —
+  // works directly from the list, without needing to open the edit panel.
+  const freeNumber = async (item: MenuItem) => {
+    if (!item.menuNumber) return
+    const num = item.menuNumber
+    try {
+      const endpoint = item.type === 'ayli_combo'
+        ? `/api/restaurant/ayc-combos/${item.id}`
+        : `/api/universal/products/${item.id}`
+      const res = await fetch(endpoint, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ menuNumber: null })
+      })
+      if (!res.ok) {
+        toast.error('Failed to free number')
+        return
+      }
+      toast.push(`Number ${num} freed from "${item.name}"`)
+      await load()
+      setSelected(prev => (prev && prev.id === item.id && prev.type === item.type) ? { ...prev, menuNumber: null } : prev)
+    } catch {
+      toast.error('Failed to free number')
+    }
   }
 
   const numbered = items.filter(i => i.menuNumber)
@@ -210,10 +282,13 @@ export default function MenuNumbersPage() {
               ) : filtered.length === 0 ? (
                 <div className="py-8 text-center text-sm text-secondary">No items found</div>
               ) : filtered.map(item => (
-                <button
+                <div
                   key={`${item.type}-${item.id}`}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => selectItem(item)}
-                  className={`w-full text-left flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
+                  onKeyDown={e => { if (e.key === 'Enter') selectItem(item) }}
+                  className={`w-full text-left flex items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer ${
                     selected?.id === item.id && selected?.type === item.type ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                   }`}
                 >
@@ -223,11 +298,32 @@ export default function MenuNumbersPage() {
                       : <span className="text-xs text-gray-400">–</span>
                     }
                   </div>
+                  {item.imageUrl && (
+                    <img
+                      src={item.imageUrl}
+                      alt=""
+                      className="w-9 h-9 rounded-lg object-cover flex-shrink-0 border border-gray-200 dark:border-gray-700"
+                      onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                    />
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-primary truncate">{item.name}</div>
                     <div className="text-xs text-secondary">{item.category}</div>
                   </div>
-                  <div className="flex-shrink-0">
+                  <div className="flex-shrink-0 flex items-center gap-1.5">
+                    {!item.hasValidPricing && (
+                      <span title={item.pricingIssue ?? 'Pricing not set up'} className="text-amber-500 text-xs">⚠️</span>
+                    )}
+                    {!item.hasValidPricing && item.menuNumber && canManage && (
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); freeNumber(item) }}
+                        title={`Free number ${item.menuNumber} for reuse`}
+                        className="text-[10px] font-semibold px-1.5 py-0.5 rounded border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      >
+                        Free
+                      </button>
+                    )}
                     <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
                       item.type === 'ayli_combo'
                         ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400'
@@ -236,7 +332,7 @@ export default function MenuNumbersPage() {
                       {item.type === 'ayli_combo' ? 'AYLI' : 'Item'}
                     </span>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           </div>
@@ -246,7 +342,15 @@ export default function MenuNumbersPage() {
             {/* Edit panel */}
             {selected ? (
               <div className="card p-6 space-y-5">
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-4">
+                  {selected.imageUrl && (
+                    <img
+                      src={selected.imageUrl}
+                      alt=""
+                      className="w-28 h-28 rounded-xl object-cover flex-shrink-0 border border-gray-200 dark:border-gray-700"
+                      onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                    />
+                  )}
                   {selected.menuNumber && <NumberCircle num={selected.menuNumber} size="lg" />}
                   <div>
                     <h2 className="text-lg font-semibold text-primary">{selected.name}</h2>
@@ -261,6 +365,12 @@ export default function MenuNumbersPage() {
                   </div>
                 </div>
 
+                {!selected.hasValidPricing && (
+                  <div className="px-4 py-3 rounded-lg text-sm bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300">
+                    ⚠️ {selected.pricingIssue}
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                     Menu Number
@@ -272,7 +382,7 @@ export default function MenuNumbersPage() {
                     onChange={e => { setInput(e.target.value); setError('') }}
                     disabled={!canManage || saving}
                     className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                    onKeyDown={e => { if (e.key === 'Enter') assign() }}
+                    onKeyDown={e => { if (e.key === 'Enter') handleAssignClick() }}
                   />
                   {error && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{error}</p>}
                   <div className="mt-1.5 flex items-center gap-2">
@@ -292,7 +402,7 @@ export default function MenuNumbersPage() {
                 {canManage && (
                   <div className="flex gap-3 flex-wrap">
                     <button
-                      onClick={assign}
+                      onClick={handleAssignClick}
                       disabled={saving}
                       className="btn-primary text-sm disabled:opacity-50"
                     >
@@ -336,10 +446,13 @@ export default function MenuNumbersPage() {
               ) : (
                 <div className="divide-y divide-gray-100 dark:divide-gray-700 max-h-64 overflow-y-auto">
                   {numbered.map(item => (
-                    <button
+                    <div
                       key={`ref-${item.type}-${item.id}`}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => selectItem(item)}
-                      className={`w-full text-left flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
+                      onKeyDown={e => { if (e.key === 'Enter') selectItem(item) }}
+                      className={`w-full text-left flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer ${
                         selected?.id === item.id && selected?.type === item.type ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                       }`}
                     >
@@ -348,6 +461,19 @@ export default function MenuNumbersPage() {
                         <div className="text-sm font-medium text-primary truncate">{item.name}</div>
                         <div className="text-xs text-secondary">{item.category}</div>
                       </div>
+                      {!item.hasValidPricing && (
+                        <span title={item.pricingIssue ?? 'Pricing not set up'} className="text-amber-500 text-xs flex-shrink-0">⚠️</span>
+                      )}
+                      {!item.hasValidPricing && canManage && (
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); freeNumber(item) }}
+                          title={`Free number ${item.menuNumber} for reuse`}
+                          className="text-[10px] font-semibold px-1.5 py-0.5 rounded border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex-shrink-0"
+                        >
+                          Free
+                        </button>
+                      )}
                       <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0 ${
                         item.type === 'ayli_combo'
                           ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400'
@@ -355,7 +481,7 @@ export default function MenuNumbersPage() {
                       }`}>
                         {item.type === 'ayli_combo' ? 'AYLI' : 'Item'}
                       </span>
-                    </button>
+                    </div>
                   ))}
                 </div>
               )}
