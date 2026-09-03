@@ -801,14 +801,24 @@ export function MenuItemForm({ item, categories, onSubmit, onCancel, onDone }: M
                 id="image-upload"
               />
 
-              <label
-                htmlFor="image-upload"
-                className="cursor-pointer flex flex-col items-center justify-center py-4"
-              >
-                <span className="text-4xl mb-2">📸</span>
-                <span className="text-primary">Click to upload images</span>
-                <span className="text-secondary text-sm">PNG, JPG up to 10MB each</span>
-              </label>
+              {images.filter(img => !img.toDelete).length > 0 ? (
+                <label
+                  htmlFor="image-upload"
+                  className="cursor-pointer flex items-center justify-center gap-2 py-1 text-sm text-secondary hover:text-primary"
+                >
+                  <span className="text-lg">📸</span>
+                  <span>+ Add more images</span>
+                </label>
+              ) : (
+                <label
+                  htmlFor="image-upload"
+                  className="cursor-pointer flex flex-col items-center justify-center py-4"
+                >
+                  <span className="text-4xl mb-2">📸</span>
+                  <span className="text-primary">Click to upload images</span>
+                  <span className="text-secondary text-sm">PNG, JPG up to 10MB each</span>
+                </label>
+              )}
 
               {images.length > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
