@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { stripEmoji } from '@/lib/strip-emoji'
 
 interface MenuItem {
   id: string
@@ -227,7 +228,7 @@ function Card({ item, isSpecial, isAyliView }: { item: MenuItem; isSpecial: bool
       {/* ── AYLI combo body — pool items + image shown simultaneously ── */}
       {isAyli ? (
         <div className="flex flex-col p-3 flex-1 min-h-0 gap-1">
-          <div className="text-white font-bold text-2xl leading-snug line-clamp-1">{item.name}</div>
+          <div className="text-white font-bold text-2xl leading-snug line-clamp-1">{stripEmoji(item.name)}</div>
           <div className="text-emerald-300/70 text-[10px] font-semibold uppercase tracking-wide">
             ⚖️ Choose your own portions &amp; size
           </div>
@@ -289,7 +290,7 @@ function Card({ item, isSpecial, isAyliView }: { item: MenuItem; isSpecial: bool
               {/* Single line, never wraps — a wrapped second line can run
                   under the menu-number badge (top-right, absolutely positioned). */}
               <span className={`block text-white font-bold text-2xl leading-snug truncate ${item.menuNumber ? 'pr-16' : ''}`}>
-                {item.name}
+                {stripEmoji(item.name)}
                 {isSpecial && <span className="ml-1 text-amber-400 text-sm">⭐</span>}
               </span>
               {(item.spiceLevel ?? 0) > 0 && (

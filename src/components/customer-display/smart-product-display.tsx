@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { stripEmoji } from '@/lib/strip-emoji'
 
 interface DisplaySettings {
   rotationIntervalSecs: number
@@ -95,7 +96,7 @@ function DailySpecialCard({ special }: { special: TodaysSpecialData }) {
             </div>
           )}
           <div className="text-white font-bold text-xl leading-tight line-clamp-1">
-            {special.productName}
+            {stripEmoji(special.productName)}
           </div>
         </div>
 
@@ -212,7 +213,7 @@ function RotatingCard({ item }: { item: DisplayItem }) {
         <div className="flex flex-col p-4 flex-1 min-h-0">
           {/* Header — always visible */}
           <div className="flex-shrink-0">
-            <div className="text-white font-bold text-2xl leading-snug line-clamp-1 mb-1">{item.name}</div>
+            <div className="text-white font-bold text-2xl leading-snug line-clamp-1 mb-1">{stripEmoji(item.name)}</div>
             <div className="text-emerald-300/80 text-xs font-semibold mb-2 uppercase tracking-wide">
               ⚖️ Build your own — choose portions &amp; size
             </div>
@@ -290,7 +291,7 @@ function RotatingCard({ item }: { item: DisplayItem }) {
             {!hasImage && <div className="text-5xl mb-2">{item.emoji ?? '🍽️'}</div>}
             {/* Single line, never wraps — a wrapped second line both eats into
                 the image area above and can run under the menu-number badge. */}
-            <div className={`text-white font-bold text-2xl leading-snug truncate mb-1 ${item.menuNumber ? 'pr-16' : ''}`}>{item.name}</div>
+            <div className={`text-white font-bold text-2xl leading-snug truncate mb-1 ${item.menuNumber ? 'pr-16' : ''}`}>{stripEmoji(item.name)}</div>
             {(item.spiceLevel ?? 0) > 0 && (
               <div className="text-sm mb-1">{'🌶️'.repeat(Math.min(item.spiceLevel!, 3))}</div>
             )}
