@@ -285,8 +285,10 @@ function Card({ item, isSpecial, isAyliView }: { item: MenuItem; isSpecial: bool
             ) : (
               <span className="text-3xl flex-shrink-0 leading-none">{item.emoji ?? '🍽️'}</span>
             )}
-            <div className="min-w-0">
-              <span className="text-white font-bold text-2xl leading-snug line-clamp-2">
+            <div className="flex-1 min-w-0">
+              {/* Single line, never wraps — a wrapped second line can run
+                  under the menu-number badge (top-right, absolutely positioned). */}
+              <span className={`block text-white font-bold text-2xl leading-snug truncate ${item.menuNumber ? 'pr-16' : ''}`}>
                 {item.name}
                 {isSpecial && <span className="ml-1 text-amber-400 text-sm">⭐</span>}
               </span>

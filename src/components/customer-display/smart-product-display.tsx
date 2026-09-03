@@ -288,7 +288,9 @@ function RotatingCard({ item }: { item: DisplayItem }) {
               (64px + 8px offset) or the name/price can render underneath it. */}
           <div className={`flex-shrink-0 px-4 pb-4 ${!hasImage && item.menuNumber ? 'pt-20' : 'pt-4'}`}>
             {!hasImage && <div className="text-5xl mb-2">{item.emoji ?? '🍽️'}</div>}
-            <div className="text-white font-bold text-2xl leading-snug line-clamp-2 mb-1">{item.name}</div>
+            {/* Single line, never wraps — a wrapped second line both eats into
+                the image area above and can run under the menu-number badge. */}
+            <div className={`text-white font-bold text-2xl leading-snug truncate mb-1 ${item.menuNumber ? 'pr-16' : ''}`}>{item.name}</div>
             {(item.spiceLevel ?? 0) > 0 && (
               <div className="text-sm mb-1">{'🌶️'.repeat(Math.min(item.spiceLevel!, 3))}</div>
             )}

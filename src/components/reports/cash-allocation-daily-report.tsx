@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import { generateCashAllocationPDF } from '@/lib/pdf-utils'
+import { AllocationBacklogPanel } from './allocation-backlog-panel'
 
 interface LineItem {
   id: string
@@ -87,15 +88,20 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
     expectedCash: number | null
   } | null>(null)
 
-  // Cash bucket summary (split by channel)
+  // Cash bucket summary (split by channel) — the running balance carried
+  // over from previous days, BEFORE today's own counted cash is posted
+  // (that posting only happens when today's report is locked). Deductions
+  // can legitimately draw on this carried-over float, not just today's own
+  // count, which is why a lean day can still fully fund rent/loan/payroll.
   const [bucketSummary, setBucketSummary] = useState<{ cashBalance: number; ecocashBalance: number; balance: number } | null>(null)
-  useEffect(() => {
+  const refreshBucketSummary = useCallback(() => {
     if (!businessId) return
     fetch(`/api/cash-allocation/${businessId}/summary`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(d => d ? setBucketSummary({ cashBalance: d.cashBalance ?? d.balance, ecocashBalance: d.ecocashBalance ?? 0, balance: d.balance }) : null)
       .catch(() => {})
   }, [businessId])
+  useEffect(() => { refreshBucketSummary() }, [refreshBucketSummary])
 
   // 7-day overview state
   const [weekSummary, setWeekSummary] = useState<DaySummary[]>([])
@@ -313,6 +319,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
       setLineItems(data.lineItems)
       setCashWarning(data.cashDiscrepancyWarning ?? null)
       refreshWeekRow(date, data.lineItems, data.report?.status ?? 'LOCKED')
+      refreshBucketSummary() // locking posts today's INFLOW/OUTFLOW — balance just changed
       window.dispatchEvent(new CustomEvent('pending-actions:refresh'))
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Unknown error')
@@ -337,6 +344,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
       setLineItems(data.lineItems)
       setCashWarning(data.cashDiscrepancyWarning ?? null)
       refreshWeekRow(date, data.lineItems, data.report?.status ?? 'LOCKED')
+      refreshBucketSummary()
       window.dispatchEvent(new CustomEvent('pending-actions:refresh'))
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Unknown error')
@@ -375,7 +383,15 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
     t === 'EOD_RENT_TRANSFER' ? 'Rent Transfer' :
     t === 'EOD_AUTO_DEPOSIT' ? 'Auto Deposit' : t
 
-  const rentAmount = rentConfig ? Number(rentConfig.dailyTransferAmount) : 0
+  // Rent must be counted from the ACTUAL EOD_RENT_TRANSFER line item for this date, not
+  // blindly from the rent config — the config says rent is set up at all, not that today's
+  // transfer actually happened. processRentTransfer (eod-utils.ts) skips the transfer
+  // entirely on a day with insufficient cash, so on that day there is no line item and no
+  // real deduction — showing the configured amount anyway would tell the cashier to move
+  // money the system never actually set aside.
+  const actualRentItem = lineItems.find(li => li.sourceType === 'EOD_RENT_TRANSFER') ?? null
+  const rentAmount = actualRentItem ? toNum(actualRentItem.reportedAmount) : 0
+  const rentSkipped = !!rentConfig && !actualRentItem && !!report
   const payrollAmount = payrollContrib?.amount ?? 0
   const nonRentItems = lineItems.filter(li => li.sourceType !== 'EOD_RENT_TRANSFER')
   const totalReported = rentAmount + payrollAmount + nonRentItems.reduce((s, li) => s + toNum(li.reportedAmount), 0)
@@ -383,9 +399,17 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
     li.isChecked ? s + toNum(localAmounts[li.id] !== '' ? parseFloat(localAmounts[li.id]) : li.actualAmount) : s, 0)
   const totalActual = rentAmount + payrollAmount + checkedDepositTotal
 
-  // Cash distribution: cashTendered − rent − payroll − checked deposits = business keeps
+  // Cash distribution: cashTendered − rent − payroll − checked deposits = business keeps.
+  // Deductions aren't capped to just today's own cash — they can draw on the running
+  // cash-bucket balance carried over from previous days (see getAvailableCashForAllocation
+  // in eod-utils.ts, the actual gate used when these deposits were created). carryOverBalance
+  // is that balance BEFORE today's count is posted (posting happens at lock time), so
+  // including it here is what makes a lean day's full deductions reconcile instead of
+  // showing a false "shortfall".
   const cashTendered = eodReport?.cashCounted ?? null
-  const businessKeeps = cashTendered !== null ? cashTendered - rentAmount - payrollAmount - checkedDepositTotal : null
+  const carryOverBalance = bucketSummary?.balance ?? 0
+  const totalAvailableToday = (cashTendered ?? 0) + carryOverBalance
+  const businessKeeps = cashTendered !== null ? totalAvailableToday - rentAmount - payrollAmount - checkedDepositTotal : null
 
   const statusBadge = (s: DaySummary['status']) => {
     const map = {
@@ -400,6 +424,9 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
 
   return (
     <div className="space-y-6">
+
+      {/* Backlog of previously-skipped rent/loan/payroll allocations, with manual catch-up */}
+      <AllocationBacklogPanel businessId={businessId} canManage={canEdit} onCaughtUp={refreshBucketSummary} />
 
       {/* Prominent business identity banner — critical when cashier handles multiple businesses */}
       {resolvedBusinessName && (
@@ -603,6 +630,28 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
                 {cashTendered !== null ? `$${cashTendered.toFixed(2)}` : <span className="text-gray-400 italic">No EOD report locked for {date}</span>}
               </span>
             </div>
+            {/* Carried-over cash bucket balance — deductions can draw on this, not just
+                today's own cash, which is why full deductions can still go through on a
+                lean day without it being a shortfall. */}
+            {carryOverBalance > 0.009 && (
+              <div className="flex items-center justify-between px-4 py-3 bg-cyan-50 dark:bg-cyan-900/10">
+                <span className="text-sm text-cyan-700 dark:text-cyan-300">
+                  🪣 + Cash Bucket Carried Over
+                  <span className="ml-1 text-xs text-cyan-600/70 dark:text-cyan-400/70">(from previous days, current balance)</span>
+                </span>
+                <span className="text-sm font-mono font-semibold text-cyan-700 dark:text-cyan-300">
+                  +${carryOverBalance.toFixed(2)}
+                </span>
+              </div>
+            )}
+            {cashTendered !== null && carryOverBalance > 0.009 && (
+              <div className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800/60">
+                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">= Total Available to Allocate Today</span>
+                <span className="text-sm font-mono font-semibold text-gray-800 dark:text-gray-200">
+                  ${totalAvailableToday.toFixed(2)}
+                </span>
+              </div>
+            )}
             {/* EcoCash confirmed — read-only, confirmed by manager at EOD */}
             {dayBucket !== null && dayBucket.ecocashInflow > 0 && (
               <div className="flex items-center justify-between px-4 py-3 bg-teal-50 dark:bg-teal-900/10">
@@ -612,12 +661,23 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
                 </span>
               </div>
             )}
-            {/* Rent deduction */}
-            {rentConfig && (
+            {/* Rent deduction — only shown as a real deduction when a transfer actually
+                happened; a configured-but-skipped day gets a distinct warning instead. */}
+            {actualRentItem && rentConfig && (
               <div className="flex items-center justify-between px-4 py-3 bg-orange-50 dark:bg-orange-900/10">
                 <span className="text-sm text-orange-700 dark:text-orange-300">🏠 Less: Rent Transfer ({rentConfig.accountName})</span>
                 <span className="text-sm font-mono font-semibold text-orange-700 dark:text-orange-300">
                   −${rentAmount.toFixed(2)}
+                </span>
+              </div>
+            )}
+            {rentSkipped && (
+              <div className="flex items-center justify-between px-4 py-3 bg-red-50 dark:bg-red-900/20">
+                <span className="text-sm text-red-700 dark:text-red-300">
+                  🏠 ⚠ Rent Transfer SKIPPED — insufficient cash available
+                </span>
+                <span className="text-sm font-mono font-semibold text-red-700 dark:text-red-300">
+                  $0.00
                 </span>
               </div>
             )}
@@ -642,7 +702,8 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
                 </div>
               )
             })}
-            {/* Divider + Business Keeps */}
+            {/* Divider + remaining balance — includes carried-over float, so this can be
+                positive even on a day whose own cash alone wouldn't have covered deductions. */}
             <div className={`flex items-center justify-between px-4 py-3 ${
               businessKeeps === null ? 'bg-gray-50 dark:bg-gray-800' :
               businessKeeps >= 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'
@@ -651,7 +712,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
                 businessKeeps === null ? 'text-gray-500 dark:text-gray-400' :
                 businessKeeps >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400'
               }`}>
-                {businessKeeps === null ? '= Business Keeps' : businessKeeps >= 0 ? '✅ Business Keeps' : '⚠ Business Keeps'}
+                {businessKeeps === null ? '= Remaining Cash Bucket Balance' : businessKeeps >= 0 ? '✅ Remaining Cash Bucket Balance' : '⚠ Cash Bucket Shortfall'}
               </span>
               <span className={`text-base font-mono font-bold ${
                 businessKeeps === null ? 'text-gray-400' :
@@ -705,8 +766,11 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-              {/* Rent row — always first, always read-only, tells cashier how much to move to rent cash box */}
-              {rentConfig && (
+              {/* Rent row — read-only. Only shown as a real deduction when a transfer
+                  actually exists for this date; a configured-but-skipped day (insufficient
+                  cash) gets a distinct warning row instead of an instruction to move money
+                  that was never actually set aside. */}
+              {actualRentItem && rentConfig && (
                 <tr className="bg-orange-50 dark:bg-orange-900/10">
                   <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
                     {rentConfig.accountName}
@@ -716,18 +780,39 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
                     Rent Transfer
                   </td>
                   <td className="px-4 py-3 text-sm text-right font-mono font-semibold text-orange-700 dark:text-orange-300">
-                    ${Number(rentConfig.dailyTransferAmount).toFixed(2)}
+                    ${rentAmount.toFixed(2)}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span title="Rent is a fixed physical cash move" className="text-orange-500 text-sm">🏠</span>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <span className="text-sm font-mono font-semibold text-orange-700 dark:text-orange-300">
-                      ${Number(rentConfig.dailyTransferAmount).toFixed(2)}
+                      ${rentAmount.toFixed(2)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-xs text-orange-600 dark:text-orange-400">
                     Fixed — put in rent cash box
+                  </td>
+                </tr>
+              )}
+              {rentSkipped && (
+                <tr className="bg-red-50 dark:bg-red-900/20">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {rentConfig!.accountName}
+                    <span className="ml-2 text-xs text-red-600 dark:text-red-400 font-normal">⚠ not transferred</span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-red-600 dark:text-red-400">Rent Transfer</td>
+                  <td className="px-4 py-3 text-sm text-right font-mono text-gray-400 line-through">
+                    ${Number(rentConfig!.dailyTransferAmount).toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span title="Skipped — insufficient cash available that day" className="text-red-500 text-sm">⚠</span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <span className="text-sm font-mono font-semibold text-red-700 dark:text-red-300">$0.00</span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-red-600 dark:text-red-400">
+                    Skipped — insufficient cash available that day
                   </td>
                 </tr>
               )}
@@ -838,7 +923,12 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
               {businessKeeps !== null && (
                 <tr className="bg-blue-50 dark:bg-blue-900/20 border-t-2 border-blue-300 dark:border-blue-700">
                   <td colSpan={2} className="px-4 py-3 text-sm font-bold text-blue-800 dark:text-blue-200">
-                    🏦 Remains in Business Cash Drawer
+                    🏦 Remaining Cash Bucket Balance
+                    {carryOverBalance > 0.009 && (
+                      <span className="block font-normal text-xs text-blue-600 dark:text-blue-300">
+                        Includes ${carryOverBalance.toFixed(2)} carried over from previous days
+                      </span>
+                    )}
                   </td>
                   <td />
                   <td />

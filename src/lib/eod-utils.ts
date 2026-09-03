@@ -57,6 +57,60 @@ export interface RentTransferResult {
   amount: number
 }
 
+// Payroll's target account is global (businessId: null on PayrollAccounts), not
+// per-business, so it has no expenseAccountId to key off — use a fixed sentinel instead.
+export const PAYROLL_ALLOCATION_CONFIG_KEY = 'PAYROLL_GLOBAL'
+
+// ─── recordAllocationSkip ────────────────────────────────────────────────────
+
+/**
+ * Records that an EOD auto-allocation (rent transfer, expense/loan auto-deposit, payroll
+ * contribution) was skipped for lack of real available cash. Without this, a skipped day's
+ * obligation just silently disappears — this gives it visibility and something to catch up
+ * against later once cash is available (see /api/business/[businessId]/allocation-backlog).
+ *
+ * Idempotent per (businessId, allocationType, configKey, eodDate) — safe to call repeatedly
+ * for the same day (e.g. EOD reprocessed, or the lock route re-attempting the rent transfer)
+ * without overwriting any catch-up progress already recorded against that day.
+ */
+export async function recordAllocationSkip(params: {
+  businessId: string
+  allocationType: 'RENT' | 'AUTO_DEPOSIT' | 'PAYROLL'
+  configKey: string
+  accountName: string
+  eodDate: string // YYYY-MM-DD
+  amountSkipped: number
+  reason: string
+  userId: string
+}): Promise<void> {
+  try {
+    const eodDateObj = new Date(params.eodDate + 'T00:00:00Z')
+    await prisma.eodAllocationSkips.upsert({
+      where: {
+        businessId_allocationType_configKey_eodDate: {
+          businessId: params.businessId,
+          allocationType: params.allocationType,
+          configKey: params.configKey,
+          eodDate: eodDateObj,
+        },
+      },
+      update: {}, // already recorded for this day — leave any catch-up progress untouched
+      create: {
+        businessId: params.businessId,
+        allocationType: params.allocationType,
+        configKey: params.configKey,
+        accountName: params.accountName,
+        eodDate: eodDateObj,
+        amountSkipped: params.amountSkipped,
+        reason: params.reason,
+        createdBy: params.userId,
+      },
+    })
+  } catch (err) {
+    console.error('[recordAllocationSkip] failed (non-fatal):', err)
+  }
+}
+
 // ─── getAvailableCashForAllocation ───────────────────────────────────────────
 
 /**
@@ -220,7 +274,8 @@ export async function processRentTransfer(
 
   let depositId = ''
 
-  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  try {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const availableCash = await getAvailableCashForAllocation(businessId, eodDate, cashForDateOverride, tx)
     if (availableCash < transferAmount) throw new Error('INSUFFICIENT_FUNDS:' + availableCash.toFixed(2))
 
@@ -289,7 +344,22 @@ export async function processRentTransfer(
         createdBy: userId,
       },
     })
-  })
+    })
+  } catch (err: any) {
+    if (err?.message?.startsWith('INSUFFICIENT_FUNDS:')) {
+      await recordAllocationSkip({
+        businessId,
+        allocationType: 'RENT',
+        configKey: config.expenseAccountId,
+        accountName: config.expenseAccount.accountName,
+        eodDate,
+        amountSkipped: transferAmount,
+        reason: `Insufficient cash available (target $${transferAmount.toFixed(2)}, available $${err.message.split(':')[1]})`,
+        userId,
+      })
+    }
+    throw err
+  }
 
   return { alreadyTransferred: false, depositId, amount: transferAmount }
 }
@@ -411,6 +481,16 @@ export async function processAutoDeposits(
     // 6. Cascade: prior config exhausted funds
     if (insufficientFundsReached) {
       results.push({ ...base, status: 'skipped_insufficient_funds', errorMessage: 'Business account balance exhausted by prior config' })
+      await recordAllocationSkip({
+        businessId,
+        allocationType: 'AUTO_DEPOSIT',
+        configKey: config.expenseAccountId,
+        accountName: config.expenseAccount.accountName,
+        eodDate,
+        amountSkipped: dailyAmount,
+        reason: 'Business account balance exhausted by a higher-priority config earlier in the same EOD run',
+        userId,
+      })
       continue
     }
 
@@ -553,6 +633,16 @@ export async function processAutoDeposits(
           ...base,
           status: 'skipped_insufficient_funds',
           errorMessage: 'Available: $' + err.message.split(':')[1] + ', Required: $' + effectiveAmount.toFixed(2),
+        })
+        await recordAllocationSkip({
+          businessId,
+          allocationType: 'AUTO_DEPOSIT',
+          configKey: config.expenseAccountId,
+          accountName: config.expenseAccount.accountName,
+          eodDate,
+          amountSkipped: effectiveAmount,
+          reason: `Insufficient cash available (target $${effectiveAmount.toFixed(2)}, available $${err.message.split(':')[1]})`,
+          userId,
         })
       } else {
         results.push({ ...base, status: 'failed', errorMessage: err?.message || 'Unknown error' })

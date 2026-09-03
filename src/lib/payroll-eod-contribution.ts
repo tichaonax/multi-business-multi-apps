@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { getAvailableCashForAllocation } from '@/lib/eod-utils'
+import { getAvailableCashForAllocation, recordAllocationSkip, PAYROLL_ALLOCATION_CONFIG_KEY } from '@/lib/eod-utils'
 
 export interface PayrollEodContributionResult {
   amount: number
@@ -119,6 +119,16 @@ export async function computeAndExecutePayrollContribution(
   // EOD close, since those write their OUTFLOW earmark atomically with their deposit.
   const availableCash = await getAvailableCashForAllocation(businessId, eodDate)
   if (availableCash < contribution) {
+    await recordAllocationSkip({
+      businessId,
+      allocationType: 'PAYROLL',
+      configKey: PAYROLL_ALLOCATION_CONFIG_KEY,
+      accountName: 'Payroll Account',
+      eodDate,
+      amountSkipped: contribution,
+      reason: `Insufficient cash available (target $${contribution}, available $${availableCash.toFixed(2)})`,
+      userId,
+    })
     return NA(
       `Insufficient cash available (target $${contribution}, available $${availableCash.toFixed(2)})`,
       contribution,

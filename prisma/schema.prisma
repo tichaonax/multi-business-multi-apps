@@ -617,6 +617,7 @@ model Businesses {
   payment_batch_submissions                                                PaymentBatchSubmissions[]         @relation("BusinessPaymentBatches")
   eod_payment_batches                                                      EODPaymentBatch[]                 @relation("BusinessEODPaymentBatches")
   cash_bucket_entries                                                      CashBucketEntry[]                 @relation("BusinessCashBucket")
+  eod_allocation_skips                                                     EodAllocationSkips[]               @relation("BusinessEodAllocationSkips")
   per_diem_entries                                                         PerDiemEntries[]                  @relation("PerDiemBusiness")
   target_config                                                            BusinessTargetConfig?             @relation("BusinessTargetConfig")
   target_commitments                                                       BusinessTargetCommitment[]        @relation("BusinessTargetCommitments")
@@ -3761,6 +3762,7 @@ model Users {
   cash_bucket_entries_created                                     CashBucketEntry[]                 @relation("CashBucketEntryCreator")
   cash_bucket_entries_edited                                      CashBucketEntry[]                 @relation("CashBucketEntryEditor")
   cash_bucket_entries_deleted                                     CashBucketEntry[]                 @relation("CashBucketEntryDeleter")
+  eod_allocation_skips_created                                     EodAllocationSkips[]              @relation("EodAllocationSkipCreator")
   cash_allocation_items_checked                                   CashAllocationLineItem[]          @relation("CashAllocationItemChecker")
   petty_cash_requests_submitted                                   PettyCashRequests[]               @relation("PettyCashRequester")
   petty_cash_requests_approved                                    PettyCashRequests[]               @relation("PettyCashApprover")
@@ -6559,6 +6561,35 @@ model CashBucketEntry {
   @@index([entryDate])
   @@index([direction])
   @@map("cash_bucket_entries")
+}
+
+// Records each time an EOD auto-allocation (rent transfer, expense/loan auto-deposit,
+// payroll contribution) was skipped for lack of real available cash — see
+// getAvailableCashForAllocation in eod-utils.ts. Without this, a skipped day's obligation
+// just silently disappears with no visibility and no way to catch it up later once cash
+// becomes available again.
+model EodAllocationSkips {
+  id             String    @id @default(uuid())
+  businessId     String
+  allocationType String    // 'RENT' | 'AUTO_DEPOSIT' | 'PAYROLL'
+  // Join key back to the specific config: rent/auto-deposit use expenseAccountId;
+  // payroll (a global, not per-business, account) uses the fixed sentinel below.
+  configKey      String
+  accountName    String    // denormalized label for display without re-joining every render
+  eodDate        DateTime  @db.Date
+  amountSkipped  Decimal   @db.Decimal(12, 2)
+  amountCaughtUp Decimal   @default(0) @db.Decimal(12, 2)
+  reason         String?
+  caughtUpAt     DateTime? // set once amountCaughtUp reaches amountSkipped
+  createdAt      DateTime  @default(now())
+  createdBy      String
+
+  business Businesses @relation("BusinessEodAllocationSkips", fields: [businessId], references: [id], onDelete: Cascade)
+  creator  Users      @relation("EodAllocationSkipCreator", fields: [createdBy], references: [id])
+
+  @@unique([businessId, allocationType, configKey, eodDate])
+  @@index([businessId, allocationType, configKey])
+  @@map("eod_allocation_skips")
 }
 
 model EcocashConversion {
