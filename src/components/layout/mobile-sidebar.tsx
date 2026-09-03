@@ -157,6 +157,7 @@ export function MobileSidebar() {
             {(isAdmin || hasBusinessPermission('canManageInventory')) && navLink('/restaurant/inventory/initialize', '🍳', 'Prep Initialization')}
             {(isAdmin || hasBusinessPermission('canManageInventory')) && navLink('/restaurant/inventory/config', '⚙️', 'Prep Track Config')}
             {canManageMenuPerm && navLink('/restaurant/menu', '📋', 'Menu Management')}
+            {canManageMenuPerm && navLink('/restaurant/manage/menu-numbers', '🔢', 'Menu Numbers')}
             {(isAdmin || hasBusinessPermission('canManageEmployees') || hasBusinessPermission('canManageMenu') || hasBusinessPermission('canManageInventory')) && (
               <>
                 {navLink('/restaurant/meal-program/participants', '🍱', 'Meal Participants')}
@@ -173,6 +174,8 @@ export function MobileSidebar() {
               </Link>
             )}
             {(isAdmin || hasBusinessPermission('canViewBusiness')) && navLink('/restaurant/settings/pos', '⚙️', 'POS Settings')}
+            {(isAdmin || hasBusinessPermission('canViewCustomerDisplay') || hasBusinessPermission('canManageCustomerDisplay')) && navLink('/restaurant/manage/customer-display', '📺', 'Customer Display Ads')}
+            {(isAdmin || hasBusinessPermission('canViewCustomerDisplay') || hasBusinessPermission('canManageCustomerDisplay')) && navLink('/restaurant/settings/display', '⚙️', 'Display Settings')}
             {canViewOrders && navLink('/restaurant/orders', '📦', 'Orders')}
             {navLink('/services/list', '🔧', 'Services')}
             {wifiLinks()}

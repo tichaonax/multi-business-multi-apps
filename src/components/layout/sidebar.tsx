@@ -880,9 +880,15 @@ export function Sidebar() {
                   </Link>
                 )}
                 {(isSystemAdmin(currentUser) || hasPermission('canViewCustomerDisplay') || hasPermission('canManageCustomerDisplay')) && (
-                  <Link href="/restaurant/settings/display" className={getLinkClasses('/restaurant/settings/display')}>
+                  <Link href="/restaurant/manage/customer-display" className={getLinkClasses('/restaurant/manage/customer-display')}>
                     <span className="text-lg">📺</span>
-                    <span>Customer Display</span>
+                    <span>Customer Display Ads</span>
+                  </Link>
+                )}
+                {(isSystemAdmin(currentUser) || hasPermission('canViewCustomerDisplay') || hasPermission('canManageCustomerDisplay')) && (
+                  <Link href="/restaurant/settings/display" className={getLinkClasses('/restaurant/settings/display')}>
+                    <span className="text-lg">⚙️</span>
+                    <span>Display Settings</span>
                   </Link>
                 )}
               </>

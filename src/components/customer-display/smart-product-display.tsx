@@ -377,12 +377,15 @@ export function SmartProductDisplay({ businessId, businessType }: SmartProductDi
     )
   }
 
-  // With special pinned, show 2 rotating cards; without, show 3
+  // With special pinned, show 2 rotating cards; without, show 3.
+  // Never show more slots than there are unique items — filling every slot by
+  // wrapping the modulo would repeat the same card (e.g. n=1 showing 3x).
   const slotCount = (dailySpecial && settings.specialShowPercentage > 0) ? 2 : 3
   const n = items.length
-  const visible = n === 0 ? [] : Array.from({ length: slotCount }, (_, i) =>
+  const visibleCount = Math.min(slotCount, n)
+  const visible = n === 0 ? [] : Array.from({ length: visibleCount }, (_, i) =>
     items[(currentIdx + i) % n]
-  ).filter(Boolean)
+  )
 
   const showSpecial = !!(dailySpecial && settings.specialShowPercentage > 0)
 
