@@ -274,17 +274,17 @@ function Card({ item, isSpecial, isAyliView }: { item: MenuItem; isSpecial: bool
       ) : (
         /* ── Regular item body ── */
         <div className="flex flex-col p-4 gap-2 flex-1 min-h-0">
-          {/* Top: emoji/thumbnail + name */}
+          {/* Top: thumbnail (only when there's a real product photo) + name.
+              No fallback category-emoji here on purpose — it was eating into
+              the name's already-tight width for no real benefit. */}
           <div className="flex items-start gap-2 flex-shrink-0">
-            {(item.imageUrl || item.imageId) ? (
+            {(item.imageUrl || item.imageId) && (
               <img
                 src={item.imageUrl || `/api/images/${item.imageId}`}
                 alt={item.name}
                 className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
                 onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
               />
-            ) : (
-              <span className="text-3xl flex-shrink-0 leading-none">{item.emoji ?? '🍽️'}</span>
             )}
             <div className="flex-1 min-w-0">
               {/* Single line, never wraps — a wrapped second line can run

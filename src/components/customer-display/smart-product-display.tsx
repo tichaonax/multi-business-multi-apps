@@ -288,7 +288,9 @@ function RotatingCard({ item }: { item: DisplayItem }) {
               top clearance to clear the absolutely-positioned circle badge
               (64px + 8px offset) or the name/price can render underneath it. */}
           <div className={`flex-shrink-0 px-4 pb-4 ${!hasImage && item.menuNumber ? 'pt-20' : 'pt-4'}`}>
-            {!hasImage && <div className="text-5xl mb-2">{item.emoji ?? '🍽️'}</div>}
+            {/* No fallback category-emoji block here on purpose — it was pushing
+                the price below the card's visible bounds on a no-image item. The
+                name/price just fill the space directly instead. */}
             {/* Single line, never wraps — a wrapped second line both eats into
                 the image area above and can run under the menu-number badge.
                 The badge clearance is only needed when there's no image pushing
