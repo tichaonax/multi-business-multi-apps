@@ -81,6 +81,7 @@ export async function GET() {
     const dbUser = await prisma.users.findUnique({
       where: { id: user.id },
       select: {
+        defaultBusinessId: true,
         lastAccessedBusinessId: true,
         lastAccessedBusinessType: true,
         lastAccessedAt: true,
@@ -89,10 +90,12 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
+      // Admin-set default (if any) — takes priority over last accessed on login.
+      defaultBusinessId: dbUser?.defaultBusinessId || null,
       lastAccessed: {
-        businessId: user?.lastAccessedBusinessId || null,
-        businessType: user?.lastAccessedBusinessType || null,
-        lastAccessedAt: user?.lastAccessedAt || null,
+        businessId: dbUser?.lastAccessedBusinessId || null,
+        businessType: dbUser?.lastAccessedBusinessType || null,
+        lastAccessedAt: dbUser?.lastAccessedAt || null,
       },
     });
   } catch (error) {

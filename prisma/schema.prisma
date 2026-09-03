@@ -3640,6 +3640,7 @@ model Users {
   lastAccessedAt                                                  DateTime?
   lastAccessedBusinessId                                          String?
   lastAccessedBusinessType                                        String?
+  defaultBusinessId                                               String?
   username                                                        String?                           @unique
   accounts                                                        Accounts[]
   audit_logs                                                      AuditLogs[]

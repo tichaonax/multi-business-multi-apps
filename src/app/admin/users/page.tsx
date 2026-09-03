@@ -24,6 +24,7 @@ interface User {
   role: string
   isActive: boolean
   passwordResetRequired: boolean
+  defaultBusinessId?: string | null
   employee?: {
     id: string
     fullName: string

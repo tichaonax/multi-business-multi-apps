@@ -12,6 +12,7 @@ interface UserUpdateRequest {
     email: string
     systemRole: string
     isActive: boolean
+    defaultBusinessId?: string | null
   }
   userLevelPermissions: Partial<UserLevelPermissions>
   businessMemberships: {
@@ -92,6 +93,7 @@ export async function GET(
       role: targetUser.role,
       isActive: targetUser.isActive,
       passwordResetRequired: targetUser.passwordResetRequired || false,
+      defaultBusinessId: targetUser.defaultBusinessId || null,
       permissions: targetUser.permissions,
       createdAt: targetUser.createdAt,
       updatedAt: targetUser.updatedAt,
@@ -231,6 +233,14 @@ export async function PATCH(
         role: basicInfo.systemRole,
         isActive: basicInfo.isActive,
         permissions: userLevelPermissions || {},
+      }
+
+      // Default business is a cross-business, account-level setting —
+      // only a system admin may set it (business managers are scoped to
+      // their own business and shouldn't be able to redirect a user
+      // system-wide on login).
+      if (user.role === 'admin' && basicInfo.defaultBusinessId !== undefined) {
+        updateData.defaultBusinessId = basicInfo.defaultBusinessId || null
       }
 
       // Handle password update if provided

@@ -82,60 +82,64 @@ export function BusinessPermissionsProvider({ children }: BusinessPermissionsPro
         const memberships: BusinessMembership[] = await res.json();
         setBusinesses(memberships);
 
-        // Electron kiosk device default — always wins on a fresh session load
-        // (overriding whatever localStorage last had), matching how a kiosk
-        // permanently stationed at one business should behave. Falls through
-        // to the normal logic below if unset, or if this user doesn't
-        // actually have access to that business.
-        let deviceDefaultApplied = false;
-        if (typeof window !== 'undefined' && window.electron?.isElectron) {
-          try {
-            const deviceDefault = await window.electron.getDefaultBusiness();
-            if (deviceDefault?.id && memberships.some(m => m.businessId === deviceDefault.id && m.isActive)) {
-              setCurrentBusinessId(deviceDefault.id);
-              localStorage.setItem('currentBusinessId', deviceDefault.id);
-              deviceDefaultApplied = true;
-            }
-          } catch {
-            /* ignore — fall through to normal default-selection logic */
-          }
-        }
-
-        // If we don't have a current business set, select a sensible default
-        if (deviceDefaultApplied) {
-          // handled above
-        } else if (!currentBusinessId) {
+        // Resolve which business to land on for a fresh session load (no
+        // currentBusinessId cached yet — e.g. first visit, or an Electron
+        // login, which deliberately wipes localStorage on every login so a
+        // shared workstation doesn't leak the previous user's business).
+        //
+        // Priority, per the product requirement:
+        //   1. Admin-assigned user-level default business — set per-account in
+        //      User Management. Overrides everything, including the
+        //      workstation default, so a user can sit at any workstation and
+        //      still land on their own assigned business.
+        //   2. The workstation's admin-configured default business (Electron
+        //      kiosk pin) — applies to every user on that workstation who has
+        //      no user-level default of their own.
+        //   3. The user's last accessed business.
+        //   4. The first active membership, as a last resort.
+        if (!currentBusinessId) {
           const activeMemberships = getActiveBusinesses(memberships);
           if (activeMemberships.length > 0) {
-            // Default to first active business
-            const defaultBusiness = activeMemberships[0].businessId;
-            setCurrentBusinessId(defaultBusiness);
-            
-            // Persist to localStorage
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('currentBusinessId', defaultBusiness);
+            let chosenBusiness = activeMemberships[0].businessId; // (4) last resort
+
+            let userDefaultId: string | null = null;
+            let userLastAccessedId: string | null = null;
+            try {
+              const prefRes = await fetch("/api/user/last-accessed-business", { signal });
+              if (prefRes.ok) {
+                const prefData = await prefRes.json();
+                userDefaultId = prefData?.defaultBusinessId || null;
+                userLastAccessedId = prefData?.lastAccessed?.businessId || null;
+              }
+            } catch {
+              /* ignore — fall through the remaining priority levels */
             }
 
-            // Try to load the user's last accessed business in the background
-            fetch("/api/user/last-accessed-business")
-              .then((r) => (r.ok ? r.json() : null))
-              .then((data) => {
-                const lastAccessedId = data?.lastAccessed?.businessId;
-                if (
-                  lastAccessedId &&
-                  lastAccessedId !== defaultBusiness &&
-                  activeMemberships.some((m) => m.businessId === lastAccessedId)
-                ) {
-                  setCurrentBusinessId(lastAccessedId);
-                  // Persist to localStorage
-                  if (typeof window !== 'undefined') {
-                    localStorage.setItem('currentBusinessId', lastAccessedId);
-                  }
+            if (userDefaultId && activeMemberships.some((m) => m.businessId === userDefaultId)) {
+              // (1) user-level default — highest priority
+              chosenBusiness = userDefaultId;
+            } else if (typeof window !== 'undefined' && window.electron?.isElectron) {
+              // (2) workstation device default
+              try {
+                const deviceDefault = await window.electron.getDefaultBusiness();
+                if (deviceDefault?.id && activeMemberships.some((m) => m.businessId === deviceDefault.id)) {
+                  chosenBusiness = deviceDefault.id;
+                } else if (userLastAccessedId && activeMemberships.some((m) => m.businessId === userLastAccessedId)) {
+                  chosenBusiness = userLastAccessedId; // (3)
                 }
-              })
-              .catch(() => {
-                /* ignore */
-              });
+              } catch {
+                if (userLastAccessedId && activeMemberships.some((m) => m.businessId === userLastAccessedId)) {
+                  chosenBusiness = userLastAccessedId; // (3)
+                }
+              }
+            } else if (userLastAccessedId && activeMemberships.some((m) => m.businessId === userLastAccessedId)) {
+              chosenBusiness = userLastAccessedId; // (3) — no Electron device default available
+            }
+
+            setCurrentBusinessId(chosenBusiness);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('currentBusinessId', chosenBusiness);
+            }
           }
         } else {
           // Validate that the currentBusinessId from localStorage is still valid

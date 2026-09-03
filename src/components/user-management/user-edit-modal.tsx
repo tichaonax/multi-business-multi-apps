@@ -22,6 +22,7 @@ interface User {
   role: string
   isActive: boolean
   passwordResetRequired: boolean
+  defaultBusinessId?: string | null
   permissions?: Partial<UserLevelPermissions>
   employee?: {
     id: string
@@ -82,7 +83,8 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
     name: user.name,
     email: user.email,
     systemRole: user.role,
-    isActive: user.isActive
+    isActive: user.isActive,
+    defaultBusinessId: user.defaultBusinessId ?? ''
   })
 
   // Password management
@@ -471,6 +473,27 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
                   <span className="text-sm text-gray-700 dark:text-gray-300">User is active</span>
                 </label>
               </div>
+
+              {isSystemAdmin(currentUser) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Default Business
+                  </label>
+                  <select
+                    className="input-field"
+                    value={basicInfo.defaultBusinessId}
+                    onChange={(e) => setBasicInfo({ ...basicInfo, defaultBusinessId: e.target.value })}
+                  >
+                    <option value="">— No default (use last accessed) —</option>
+                    {businessMemberships.filter(m => m.isActive).map(m => (
+                      <option key={m.businessId} value={m.businessId}>{m.businessName}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    This business opens automatically when the user logs in. Leave unset to fall back to whichever business they last accessed.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 

@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       // For admin, just verify the business exists and is active
       const business = await prisma.businesses.findUnique({
         where: { id: businessId },
-        select: { id: true, name: true, isActive: true }
+        select: { id: true, name: true, isActive: true, type: true }
       });
 
       if (!business || !business.isActive) {
@@ -67,7 +67,20 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ 
+    // Record this as the user's last accessed business (used to restore it on
+    // next login when no admin-set default business exists). Done for every
+    // user, admins included — the branch above only touches the per-business
+    // membership row, which admins may not have one of.
+    await prisma.users.update({
+      where: { id: user.id },
+      data: {
+        lastAccessedBusinessId: businessId,
+        lastAccessedBusinessType: membership.businesses.type,
+        lastAccessedAt: new Date(),
+      },
+    }).catch(() => { /* non-critical — don't fail the switch over this */ });
+
+    return NextResponse.json({
       success: true, 
       businessId,
       businessName: membership.businesses.name,
