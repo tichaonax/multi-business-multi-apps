@@ -52,7 +52,7 @@ export function AddMaintenanceServiceButton({
       </Button>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
             <Wrench className="h-5 w-5" />
@@ -60,7 +60,7 @@ export function AddMaintenanceServiceButton({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 overflow-y-auto flex-1 min-h-0">
           {MAINTENANCE_SERVICE_CATEGORIES.map((category) => (
             <Card
               key={category.type + category.label}

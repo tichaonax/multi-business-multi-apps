@@ -16,6 +16,7 @@ import type { BusinessMembership } from '@/types/permissions'
 import { LineItemsInput, type LineItem } from './line-items-input'
 import { PaymentDetailModal } from './payment-detail-modal'
 import { EmojiPickerEnhanced } from '@/components/business/emoji-picker-enhanced'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 // Searchable select dropdown (same pattern as payment-form)
 function SearchableSelect({
@@ -1735,10 +1736,11 @@ export function QuickPaymentModal({
 
   return (
     <>
+    <ModalPortal>
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-2xl sm:max-w-4xl shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto overflow-x-hidden">
+      <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-2xl sm:max-w-4xl shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-hidden overflow-x-hidden flex flex-col">
         {/* Header */}
-        <div className="mb-4">
+        <div className="mb-4 shrink-0">
           <h2 className="text-xl font-bold text-primary">Quick Payment</h2>
           <p className="text-sm text-secondary">
             from {activeAccountName} (Balance:{' '}
@@ -1752,6 +1754,7 @@ export function QuickPaymentModal({
           </p>
         </div>
 
+        <div className="overflow-y-auto flex-1 min-h-0">
         {/* Repeat pre-fill banner */}
         {repeatSource && !repeatBannerDismissed && (
           <div className="mb-4 flex items-start gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg text-xs text-blue-700 dark:text-blue-300">
@@ -2532,6 +2535,7 @@ export function QuickPaymentModal({
             </button>
           </div>
         </form>
+        </div>
       </div>
 
       {/* Create Individual Payee Modal */}
@@ -2672,6 +2676,7 @@ export function QuickPaymentModal({
         </div>
       )}
     </div>
+    </ModalPortal>
 
     {viewPaymentId && (
       <PaymentDetailModal

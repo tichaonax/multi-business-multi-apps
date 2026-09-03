@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { EmojiPickerEnhanced } from './emoji-picker-enhanced';
 import { ExpenseCategory, ExpenseDomain } from '@/types/expense-category';
+import { ModalPortal } from '@/components/ui/modal-portal';
 
 interface CategoryEditorProps {
   category?: ExpenseCategory | null; // null/undefined = create mode, otherwise edit mode
@@ -142,10 +143,11 @@ export function CategoryEditor({
   if (!isOpen) return null;
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
             {isEditMode ? 'Edit Category' : 'Create New Category'}
           </h2>
@@ -155,7 +157,7 @@ export function CategoryEditor({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="px-6 py-4 space-y-6">
+        <form onSubmit={handleSubmit} className="px-6 py-4 space-y-6 overflow-y-auto flex-1 min-h-0">
           {/* Error Message */}
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded">
@@ -255,7 +257,7 @@ export function CategoryEditor({
         </form>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3 shrink-0">
           <button
             type="button"
             onClick={handleCancel}
@@ -278,5 +280,6 @@ export function CategoryEditor({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

@@ -5,6 +5,7 @@ import { generatePaymentVoucherPdf, VoucherData } from './payment-voucher-pdf'
 import { amountToWords } from '@/lib/amount-to-words'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { NationalIdInput } from '@/components/ui/national-id-input'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 export interface PaymentSummary {
   id: string
@@ -365,10 +366,11 @@ export function ExpensePaymentVoucherModal({
   }
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div>
             <h2 className="text-base font-semibold text-gray-900 dark:text-white">
               📄 Payment Voucher
@@ -381,7 +383,7 @@ export function ExpensePaymentVoucherModal({
         </div>
 
         {/* Payment summary (read-only) */}
-        <div className="mx-4 mt-4 p-3 rounded-lg bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800">
+        <div className="mx-4 mt-4 p-3 rounded-lg bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 shrink-0">
           <div className="flex justify-between items-start">
             <div>
               <p className="text-xs text-teal-600 dark:text-teal-400 font-medium uppercase tracking-wide">Paid to</p>
@@ -395,7 +397,8 @@ export function ExpensePaymentVoucherModal({
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="p-4 space-y-4 overflow-y-auto flex-1 min-h-0">
           {/* Collector details */}
           <div>
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Collector Details</h3>
@@ -505,7 +508,9 @@ export function ExpensePaymentVoucherModal({
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
           )}
 
-          <div className="flex gap-3 pt-1">
+          </div>
+
+          <div className="flex gap-3 p-4 pt-1 shrink-0">
             <button
               type="button"
               onClick={onClose}
@@ -524,5 +529,6 @@ export function ExpensePaymentVoucherModal({
         </form>
       </div>
     </div>
+    </ModalPortal>
   )
 }

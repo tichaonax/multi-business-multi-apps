@@ -28,6 +28,7 @@ import { ZeroOutInventoryModal } from '@/components/inventory/zero-out-inventory
 import { ItemInsightsPanel } from '@/components/inventory/item-insights-panel'
 import { InventoryActivityReportModal } from '@/components/inventory/inventory-activity-report-modal'
 import { MergeInventoryModal } from '@/components/inventory/merge-inventory-modal'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 // ── Transfer History Panel ──────────────────────────────────────────────────
 
@@ -2041,6 +2042,7 @@ function ClothingInventoryContent() {
 
           {/* View Item Details Modal */}
           {showViewModal && selectedItem && (
+            <ModalPortal>
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
               <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
                 <div className="p-6 pb-0 shrink-0">
@@ -2221,6 +2223,7 @@ function ClothingInventoryContent() {
                 </div>
               </div>
             </div>
+            </ModalPortal>
           )}
 
           {/* Item Insights Panel */}

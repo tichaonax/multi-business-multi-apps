@@ -12,6 +12,7 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { AccountBalanceCard } from '@/components/payroll/account-balance-card'
 import { EmployeeLoanPanel } from '@/components/payroll/employee-loan-panel'
 import { useAlert } from '@/components/ui/confirm-modal'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 export default function PayrollAccountPage() {
   return (
@@ -317,16 +318,17 @@ function PayrollAccountContent() {
 
         {/* Transaction Detail Modal */}
         {selectedTransaction && (
+          <ModalPortal>
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
             onClick={closeModal}
           >
             <div
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modal Header */}
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-gray-700 shrink-0">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                     {selectedTransaction.paymentType === 'SALARY' && 'Payslip Breakdown'}
@@ -347,7 +349,7 @@ function PayrollAccountContent() {
               </div>
 
               {/* Modal Body */}
-              <div className="p-5">
+              <div className="p-5 overflow-y-auto flex-1 min-h-0">
                 {breakdownLoading && (
                   <div className="flex items-center justify-center py-12">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -488,6 +490,7 @@ function PayrollAccountContent() {
               </div>
             </div>
           </div>
+          </ModalPortal>
         )}
     </ProtectedRoute>
   )

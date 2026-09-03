@@ -200,7 +200,7 @@ export function DriverPromotionModal({
 
   const modalContent = (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh]">
         <DialogHeader className="space-y-3">
           <DialogTitle className="flex items-center space-x-2">
             <User className="h-5 w-5" />
@@ -211,6 +211,7 @@ export function DriverPromotionModal({
           </DialogDescription>
         </DialogHeader>
 
+        <div className="overflow-y-auto flex-1 min-h-0">
         {promotionResult ? (
           // Success state - show credentials
           <div className="space-y-4">
@@ -447,6 +448,7 @@ export function DriverPromotionModal({
             </DialogFooter>
           </form>
         )}
+        </div>
       </DialogContent>
     </Dialog>
   )

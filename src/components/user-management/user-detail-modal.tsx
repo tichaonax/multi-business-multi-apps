@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface UserDetailModalProps {
   isOpen: boolean
@@ -69,9 +70,10 @@ export function UserDetailModal({ isOpen, onClose, userId }: UserDetailModalProp
   if (!isOpen) return null
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-6">
+      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="flex justify-between items-center p-6 pb-0 mb-6 shrink-0">
           <h2 className="text-2xl font-bold text-gray-900">User Details</h2>
           <button
             onClick={onClose}
@@ -81,6 +83,7 @@ export function UserDetailModal({ isOpen, onClose, userId }: UserDetailModalProp
           </button>
         </div>
 
+        <div className="px-6 pb-6 overflow-y-auto flex-1 min-h-0">
         {loading && (
           <div className="flex justify-center items-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -201,7 +204,9 @@ export function UserDetailModal({ isOpen, onClose, userId }: UserDetailModalProp
             Close
           </button>
         </div>
+        </div>
       </div>
     </div>
+    </ModalPortal>
   )
 }

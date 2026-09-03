@@ -46,6 +46,7 @@ import { SalespersonEodModal } from '@/components/eod/salesperson-eod-modal'
 import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
 import { useScale } from '@/contexts/ScaleContext'
 import { WeighItemModal } from '@/components/pos/WeighItemModal'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface POSItem {
   id: string
@@ -2363,9 +2364,10 @@ function GroceryPOSContent() {
 
       {/* Completed Order Receipt Modal */}
       {showReceiptModal && completedOrder && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 pb-0 shrink-0">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-2xl font-bold text-green-600 dark:text-green-400">✅ Order Complete!</h2>
                 <button
@@ -2378,7 +2380,9 @@ function GroceryPOSContent() {
                   ✕
                 </button>
               </div>
+            </div>
 
+            <div className="p-6 pt-0 overflow-y-auto flex-1 min-h-0">
               <div className="space-y-4">
                 {/* Order Number */}
                 <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
@@ -2621,6 +2625,7 @@ function GroceryPOSContent() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Manager Override Modal — order cancellation */}

@@ -18,6 +18,7 @@ import { PersonRegistrationForm } from '@/components/construction/person-registr
 import { CategorySelector } from '@/components/personal/category-selector'
 import { SubcategoryCreator } from '@/components/personal/subcategory-creator'
 import { useAlert } from '@/components/ui/confirm-modal'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface Category {
   id: string
@@ -1360,10 +1361,12 @@ export default function NewExpensePage() {
 
         {/* New Contractor Modal */}
         {showNewContractorForm && (
+          <ModalPortal>
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="card p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-              <h2 className="text-lg sm:text-xl font-semibold text-primary mb-4">Create New Contractor</h2>
-              <form onSubmit={handleCreateContractor} className="space-y-4">
+            <div className="card w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
+              <h2 className="text-lg sm:text-xl font-semibold text-primary p-4 sm:p-6 pb-0 shrink-0">Create New Contractor</h2>
+              <form onSubmit={handleCreateContractor} className="flex flex-col flex-1 min-h-0">
+              <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
                     Contractor Name *
@@ -1434,7 +1437,8 @@ export default function NewExpensePage() {
                     rows={2}
                   />
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3">
+              </div>
+                <div className="flex flex-col sm:flex-row gap-3 p-4 sm:p-6 pt-0 shrink-0">
                   <button
                     type="submit"
                     className="btn-primary"
@@ -1456,13 +1460,16 @@ export default function NewExpensePage() {
               </form>
             </div>
           </div>
+          </ModalPortal>
         )}
 
         {/* New Person Modal */}
         {showNewPersonForm && (
+          <ModalPortal>
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-            <div className="card p-4 sm:p-6 w-full max-w-xs sm:max-w-md md:max-w-2xl lg:max-w-4xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto overflow-x-visible">
-              <h2 className="text-xl font-semibold text-primary mb-4">Create New Person</h2>
+            <div className="card w-full max-w-xs sm:max-w-md md:max-w-2xl lg:max-w-4xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col">
+              <h2 className="text-xl font-semibold text-primary p-4 sm:p-6 pb-0 shrink-0">Create New Person</h2>
+              <div className="p-4 sm:p-6 pt-0 overflow-y-auto flex-1 min-h-0">
               <PersonRegistrationForm
                 onSuccess={(createdPerson) => {
                   // Reload recipients to include the new person
@@ -1479,16 +1486,20 @@ export default function NewExpensePage() {
                 }}
                 onCancel={() => setShowNewPersonForm(false)}
               />
+              </div>
             </div>
           </div>
+          </ModalPortal>
         )}
 
         {/* Create Category Modal */}
         {showNewCategoryForm && (
+          <ModalPortal>
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="card p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-              <h2 className="text-lg sm:text-xl font-semibold text-primary mb-4">Create New Category</h2>
-              <form onSubmit={handleCreateCategory} className="space-y-4">
+            <div className="card w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col">
+              <h2 className="text-lg sm:text-xl font-semibold text-primary p-4 sm:p-6 pb-0 shrink-0">Create New Category</h2>
+              <form onSubmit={handleCreateCategory} className="flex flex-col flex-1 min-h-0">
+              <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
                 <div>
                   <label className="block text-sm font-medium text-secondary mb-2">
                     Category Name *
@@ -1540,7 +1551,8 @@ export default function NewExpensePage() {
                   />
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3">
+              </div>
+                <div className="flex flex-col sm:flex-row gap-3 p-4 sm:p-6 pt-0 shrink-0">
                   <button
                     type="submit"
                     className="btn-primary"
@@ -1562,6 +1574,7 @@ export default function NewExpensePage() {
               </form>
             </div>
           </div>
+          </ModalPortal>
         )}
 
         {/* Subcategory Creator Modal */}

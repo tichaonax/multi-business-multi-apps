@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { EmojiPickerEnhanced } from './emoji-picker-enhanced';
 import { ExpenseSubcategory } from '@/types/expense-category';
+import { ModalPortal } from '@/components/ui/modal-portal';
 
 interface SubcategoryEditorProps {
   subcategory?: ExpenseSubcategory | null; // null/undefined = create mode, otherwise edit mode
@@ -113,9 +114,9 @@ export function SubcategoryEditor({
 
   const modal = (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
             {isEditMode ? 'Edit Subcategory' : 'Create New Subcategory'}
           </h2>
@@ -139,7 +140,7 @@ export function SubcategoryEditor({
               }
             }
           }}
-          className="px-6 py-4 space-y-6"
+          className="px-6 py-4 space-y-6 overflow-y-auto flex-1 min-h-0"
         >
           {/* Error Message */}
           {error && (
@@ -164,11 +165,6 @@ export function SubcategoryEditor({
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
             />
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-  return (
-    <ModalPortal>
-      {modal}
-    </ModalPortal>
-  );
               This subcategory will be visible to all users
             </p>
           </div>
@@ -220,7 +216,7 @@ export function SubcategoryEditor({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3 shrink-0">
           <button
             type="button"
             onClick={handleCancel}

@@ -4,6 +4,7 @@ import { VehicleLicense } from '@/types/vehicle'
 import { X, Calendar, AlertCircle, CheckCircle, Edit, Trash2 } from 'lucide-react'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface LicenseDetailModalProps {
   license: VehicleLicense | null
@@ -73,10 +74,11 @@ export function LicenseDetailModal({ license, onClose, onEdit, onDelete, canEdit
   }
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div className="flex items-center space-x-3">
             <div className={`p-2 rounded-full ${getStatusColor()}`}>
               {getStatusIcon()}
@@ -97,7 +99,7 @@ export function LicenseDetailModal({ license, onClose, onEdit, onDelete, canEdit
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
           {/* Status Badge */}
           <div className="flex items-center justify-center">
             <span className={`px-4 py-2 rounded-full text-sm font-medium ${getStatusColor()}`}>
@@ -202,7 +204,7 @@ export function LicenseDetailModal({ license, onClose, onEdit, onDelete, canEdit
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700 shrink-0">
           {canEdit && onEdit && (
             <button
               onClick={() => {
@@ -238,5 +240,6 @@ export function LicenseDetailModal({ license, onClose, onEdit, onDelete, canEdit
         </div>
       </div>
     </div>
+    </ModalPortal>
   )
 }

@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation'
 import { ClockInModal } from '@/components/clock-in/clock-in-modal'
 import { AddStockPanel } from '@/components/clothing/add-stock-panel'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface BusinessInventory {
   businessId: string
@@ -1092,9 +1093,10 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
   if (cardScanHandled) return null
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="p-6 pb-0 shrink-0">
           <div className="mb-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -1128,7 +1130,9 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
               </div>
             )}
           </div>
+        </div>
 
+        <div className="px-6 overflow-y-auto flex-1 min-h-0">
           {/* Barcode info + custom SKU — hidden during initial card-check phase */}
           {!isIdentifying && <div className="mb-4">
             <div className="flex items-center gap-2 mb-2">
@@ -1563,16 +1567,16 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
               ))}
             </div>
           )}
+        </div>
 
-          <div className="flex justify-end gap-3 mt-6">
-            <button
-              onClick={onClose}
-              disabled={isSwitching}
-              className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Cancel
-            </button>
-          </div>
+        <div className="flex justify-end gap-3 p-6 pt-4 shrink-0">
+          <button
+            onClick={onClose}
+            disabled={isSwitching}
+            className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancel
+          </button>
         </div>
       </div>
 
@@ -1684,5 +1688,6 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
       )}
 
     </div>
+    </ModalPortal>
   )
 }

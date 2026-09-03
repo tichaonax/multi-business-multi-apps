@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { DateInput } from '@/components/ui/date-input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
+import { ModalPortal } from '@/components/ui/modal-portal'
 import {
   getCustomPermissionValue,
   isSystemAdmin,
@@ -248,11 +249,13 @@ export function ProjectCreationModal({ isOpen, onClose, onSuccess, defaultBusine
   if (!isOpen) return null
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="card p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-semibold text-primary mb-4">Create New Project</h2>
+      <div className="card w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <h2 className="text-xl font-semibold text-primary p-6 pb-0 shrink-0">Create New Project</h2>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
           {error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
@@ -414,7 +417,9 @@ export function ProjectCreationModal({ isOpen, onClose, onSuccess, defaultBusine
             </div>
           </div>
 
-          <div className="flex justify-end gap-4 pt-6">
+          </div>
+
+          <div className="flex justify-end gap-4 p-6 pt-6 shrink-0">
             <button
               type="button"
               onClick={handleClose}
@@ -441,5 +446,6 @@ export function ProjectCreationModal({ isOpen, onClose, onSuccess, defaultBusine
         </form>
       </div>
     </div>
+    </ModalPortal>
   )
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { BarcodeScanner } from '../barcode-scanner'
 import { UniversalProduct, ProductBarcode } from '../product-card'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface StockMovement {
   id: string
@@ -605,9 +606,10 @@ export function UniversalStockMovements({
 
       {/* Create Movement Modal */}
       {showCreateModal && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 pb-0 shrink-0">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Create Stock Movement</h2>
                 <button
@@ -617,6 +619,9 @@ export function UniversalStockMovements({
                   ✕
                 </button>
               </div>
+            </div>
+
+            <div className="p-6 pt-0 overflow-y-auto flex-1 min-h-0">
 
               {/* Barcode Scanner */}
               <div className="mb-6">
@@ -810,6 +815,7 @@ export function UniversalStockMovements({
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   )

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { SessionUser } from '@/lib/permission-utils'
 import { BusinessPermissions, BusinessType, CORE_PERMISSIONS, BUSINESS_TYPE_MODULES, BUSINESS_PERMISSION_PRESETS } from '@/types/permissions'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface BusinessMembership {
   businessId: string
@@ -126,9 +127,10 @@ export function BusinessPermissionModal({
   }
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
@@ -144,7 +146,7 @@ export function BusinessPermissionModal({
           </div>
         </div>
 
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto flex-1 min-h-0">
           {/* Current Role/Template Info */}
           <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
             <h3 className="font-medium text-gray-900 dark:text-white mb-2">Current Assignment</h3>
@@ -243,7 +245,7 @@ export function BusinessPermissionModal({
           </div>
         </div>
 
-        <div className="p-6 border-t border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-t border-gray-200 dark:border-gray-700 shrink-0">
           <div className="flex justify-end space-x-3">
             <button onClick={onClose} className="btn-secondary">
               Cancel
@@ -259,5 +261,6 @@ export function BusinessPermissionModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   )
 }

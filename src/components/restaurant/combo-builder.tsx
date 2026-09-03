@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import Image from 'next/image'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface MenuItem {
   id: string
@@ -543,9 +544,10 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
 
       {/* Combo Form Modal */}
       {showForm && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="card max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-primary">
+          <div className="card max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-primary shrink-0">
               <h2 className="text-xl font-bold text-primary">
                 {editingCombo ? 'Edit Combo' : 'Create New Combo'}
               </h2>
@@ -557,7 +559,8 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
               </button>
             </div>
 
-            <form onSubmit={handleSubmitCombo} className="p-6">
+            <form onSubmit={handleSubmitCombo} className="flex flex-col flex-1 min-h-0">
+              <div className="p-6 overflow-y-auto flex-1 min-h-0">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Left Column - Combo Details */}
                 <div className="space-y-4">
@@ -925,8 +928,10 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
                 </div>
               </div>
 
+              </div>
+
               {/* Form Actions */}
-              <div className="flex items-center justify-end gap-3 pt-6 border-t border-primary mt-6">
+              <div className="flex items-center justify-end gap-3 p-6 pt-6 border-t border-primary shrink-0">
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
                   Cancel
                 </Button>
@@ -941,6 +946,7 @@ export function ComboBuilder({ businessId, menuItems, onComboChange }: ComboBuil
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   )

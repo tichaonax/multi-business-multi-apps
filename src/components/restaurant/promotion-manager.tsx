@@ -5,6 +5,7 @@ import { useConfirm } from '@/components/ui/confirm-modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface Promotion {
   id: string
@@ -418,9 +419,10 @@ export function PromotionManager({ businessId, categories, menuItems, onPromotio
 
       {/* Promotion Form Modal */}
       {showForm && (
+        <ModalPortal>
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="card max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-primary">
+          <div className="card max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-primary shrink-0">
               <h2 className="text-xl font-bold text-primary">
                 {editingPromotion ? 'Edit Promotion' : 'Create New Promotion'}
               </h2>
@@ -432,7 +434,8 @@ export function PromotionManager({ businessId, categories, menuItems, onPromotio
               </button>
             </div>
 
-            <form onSubmit={handleSubmitPromotion} className="p-6 space-y-4">
+            <form onSubmit={handleSubmitPromotion} className="flex flex-col flex-1 min-h-0">
+              <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
               {/* Basic Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -651,8 +654,10 @@ export function PromotionManager({ businessId, categories, menuItems, onPromotio
                 </div>
               )}
 
+              </div>
+
               {/* Form Actions */}
-              <div className="flex items-center justify-end gap-3 pt-6 border-t">
+              <div className="flex items-center justify-end gap-3 p-6 pt-6 border-t shrink-0">
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
                   Cancel
                 </Button>
@@ -663,6 +668,7 @@ export function PromotionManager({ businessId, categories, menuItems, onPromotio
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   )

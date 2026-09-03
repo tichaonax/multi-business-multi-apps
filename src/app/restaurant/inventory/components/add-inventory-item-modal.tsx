@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface AddInventoryItemModalProps {
   isOpen: boolean
@@ -124,9 +125,10 @@ export function AddInventoryItemModal({ isOpen, onClose, businessId, onItemAdded
   }
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-  <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+  <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col border border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-semibold text-primary">Add New Inventory Item</h3>
             <button
@@ -138,7 +140,8 @@ export function AddInventoryItemModal({ isOpen, onClose, businessId, onItemAdded
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
               {error}
@@ -367,7 +370,8 @@ export function AddInventoryItemModal({ isOpen, onClose, businessId, onItemAdded
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+          </div>
+          <div className="flex justify-end gap-3 p-6 pt-4 border-t border-gray-200 dark:border-gray-700 shrink-0">
             <button
               type="button"
               onClick={onClose}
@@ -386,5 +390,6 @@ export function AddInventoryItemModal({ isOpen, onClose, businessId, onItemAdded
         </form>
       </div>
     </div>
+    </ModalPortal>
   )
 }

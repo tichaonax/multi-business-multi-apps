@@ -20,6 +20,7 @@ import { LicenseDetailModal } from './license-detail-modal'
 import { RenewalReceiptForm } from './renewal-receipt-form'
 import { ExemptionForm } from './exemption-form'
 import { DocumentUpload } from '@/components/ui/document-upload'
+import { ModalPortal } from '@/components/ui/modal-portal'
 import {
   X,
   Car,
@@ -418,11 +419,11 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
   }
 
   return (
-  <>
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto overflow-x-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div className="flex items-center space-x-3">
             <Car className="h-6 w-6 text-blue-600" />
             <div>
@@ -455,6 +456,8 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
           </div>
         </div>
 
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1 min-h-0">
         {/* Content */}
         <div className="p-6 space-y-6">
           {/* Messages */}
@@ -1147,10 +1150,11 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
             </div>
           )}
         </div>
+        </div>
 
         {/* Footer */}
         {isEditing && (
-          <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700 shrink-0">
             <Button
               variant="outline"
               onClick={handleCancel}
@@ -1229,6 +1233,6 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
       onClose={() => setShowExemptionForm(false)}
       onSave={() => { fetchExemptions() }}
     />
-  </>
+    </ModalPortal>
   )
 }

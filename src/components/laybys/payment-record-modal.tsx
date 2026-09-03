@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { X, DollarSign, CreditCard, Smartphone, Building2, Loader2 } from 'lucide-react'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface PaymentRecordModalProps {
   laybyId: string
@@ -101,10 +102,11 @@ export function PaymentRecordModal({
   ]
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Record Payment</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Layby {laybyNumber}</p>
@@ -117,7 +119,8 @@ export function PaymentRecordModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
           {/* Customer Info */}
           <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
             <p className="text-sm text-gray-600 dark:text-gray-400">Customer</p>
@@ -234,8 +237,10 @@ export function PaymentRecordModal({
             </div>
           )}
 
+          </div>
+
           {/* Action Buttons */}
-          <div className="flex gap-3 justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex gap-3 justify-end p-6 pt-4 border-t border-gray-200 dark:border-gray-700 shrink-0">
             <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
@@ -253,5 +258,6 @@ export function PaymentRecordModal({
         </form>
       </div>
     </div>
+    </ModalPortal>
   )
 }

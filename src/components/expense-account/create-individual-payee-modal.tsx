@@ -6,6 +6,7 @@ import fetchWithValidation from '@/lib/fetchWithValidation'
 import { useToastContext } from '@/components/ui/toast'
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 import { NationalIdInput } from '@/components/ui/national-id-input'
+import { ModalPortal } from '@/components/ui/modal-portal'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { ServiceCategoryPicker } from '@/components/common/service-category-picker'
 
@@ -178,11 +179,13 @@ export function CreateIndividualPayeeModal({
   if (!isOpen) return null
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: 10000 }}>
-      <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-2xl shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold text-primary mb-4">Create Individual Payee</h2>
+      <div className="bg-white dark:bg-gray-900 rounded-lg w-full max-w-2xl shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-hidden flex flex-col">
+        <h2 className="text-xl font-bold text-primary p-6 pb-4 shrink-0">Create Individual Payee</h2>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="px-6 space-y-4 overflow-y-auto flex-1 min-h-0">
           {/* Row 1: Full Name (full width) */}
           <div>
             <label className="block text-sm font-medium text-secondary mb-1">
@@ -268,7 +271,9 @@ export function CreateIndividualPayeeModal({
             {errors.notes && <p className="mt-1 text-sm text-red-500">{errors.notes}</p>}
           </div>
 
-          <div className="flex items-center justify-between gap-4 pt-2">
+          </div>
+
+          <div className="flex items-center justify-between gap-4 p-6 pt-2 shrink-0">
             <p className="text-xs text-blue-700 dark:text-blue-400 flex-1">
               A unique ID will be generated automatically.
             </p>
@@ -293,5 +298,6 @@ export function CreateIndividualPayeeModal({
         </form>
       </div>
     </div>
+    </ModalPortal>
   )
 }

@@ -9,6 +9,7 @@ import { CreateIndividualPayeeModal } from './create-individual-payee-modal'
 import { SupplierEditor } from '@/components/suppliers/supplier-editor'
 import { LineItemsInput, type LineItem } from './line-items-input'
 import { PaymentDetailModal } from './payment-detail-modal'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 // ── Quick create modal (name + emoji) ─────────────────────────────────────────
 function QuickCreateModal({
@@ -821,9 +822,10 @@ export function EditPaymentModal({
 
   return (
     <>
+      <ModalPortal>
       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-hidden">
-        <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-4xl min-w-0 shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-y-auto overflow-x-hidden">
-          <div className="flex items-center justify-between mb-4">
+        <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-4xl min-w-0 shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-hidden overflow-x-hidden flex flex-col">
+          <div className="flex items-center justify-between mb-4 shrink-0">
             <h2 className="text-xl font-bold text-primary">Edit Payment</h2>
             <button
               onClick={onClose}
@@ -835,6 +837,7 @@ export function EditPaymentModal({
             </button>
           </div>
 
+          <div className="overflow-y-auto flex-1 min-h-0">
           {loading ? (
             <div className="space-y-3">
               {[1, 2, 3, 4, 5].map(i => (
@@ -1241,8 +1244,10 @@ export function EditPaymentModal({
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
+      </ModalPortal>
 
       {/* ── Create category modal (top level) ─────────────────────────────────── */}
       <CreateCategoryModal

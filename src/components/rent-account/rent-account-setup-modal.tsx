@@ -7,6 +7,7 @@ import {
   validateRentAccountFormData,
   type RentAccountFormData,
 } from './rent-account-setup-form'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface RentAccountSetupModalProps {
   businessId: string
@@ -91,9 +92,10 @@ export function RentAccountSetupModal({
       : (isCreate ? 'Create Rent Account' : 'Update Rent Account')
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="card max-w-lg w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+      <div className="card max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="p-5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between shrink-0">
           <div>
             <h2 className="text-lg font-semibold text-primary">
               🏠 {isCreate ? 'Create Rent Account' : 'Update Rent Account'}
@@ -109,7 +111,7 @@ export function RentAccountSetupModal({
           </button>
         </div>
 
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
           {error && (
             <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-md text-sm text-red-700 dark:text-red-300">
               {error}
@@ -125,7 +127,7 @@ export function RentAccountSetupModal({
           />
         </div>
 
-        <div className="p-5 border-t border-gray-200 dark:border-gray-700 flex gap-3">
+        <div className="p-5 border-t border-gray-200 dark:border-gray-700 flex gap-3 shrink-0">
           <button
             onClick={handleSave}
             disabled={saving || done}
@@ -143,5 +145,6 @@ export function RentAccountSetupModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   )
 }

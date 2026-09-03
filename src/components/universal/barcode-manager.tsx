@@ -348,8 +348,8 @@ export function BarcodeManager({
       {showAddForm && (
         <ModalPortal>
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="p-6 pb-0 shrink-0">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                   {editingBarcode ? 'Edit Barcode' : 'Add New Barcode'}
@@ -365,7 +365,9 @@ export function BarcodeManager({
                   ✕
                 </button>
               </div>
+              </div>
 
+              <div className="px-6 overflow-y-auto flex-1 min-h-0">
               {showScanner && (
                 <div data-scanner-section className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-800 mb-4">
                   <div className="space-y-3">
@@ -586,28 +588,29 @@ export function BarcodeManager({
                   </p>
                 </div>
 
-                <div className="flex justify-end gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowAddForm(false)
-                      setEditingBarcode(null)
-                      resetForm()
-                    }}
-                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleSubmit()}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                  >
-                    {editingBarcode ? 'Update' : 'Add'} Barcode
-                  </button>
-                </div>
               </div>
-            </div>
+              </div>
+
+              <div className="flex justify-end gap-3 p-6 pt-4 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddForm(false)
+                    setEditingBarcode(null)
+                    resetForm()
+                  }}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSubmit()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  {editingBarcode ? 'Update' : 'Add'} Barcode
+                </button>
+              </div>
             </div>
           </div>
         </ModalPortal>

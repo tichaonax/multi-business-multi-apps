@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { hasPermission, SessionUser } from '@/lib/permission-utils'
 import { DateInput } from '@/components/ui/date-input'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface SalaryIncreaseModalProps {
   employee: {
@@ -153,9 +154,10 @@ export function SalaryIncreaseModal({
   const salaryAmounts = getSalaryAmounts()
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col mx-4">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
@@ -195,7 +197,7 @@ export function SalaryIncreaseModal({
         </div>
 
         {/* Current Salary Information Section */}
-        <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
+        <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
             Current Salary Information
           </h3>
@@ -256,7 +258,8 @@ export function SalaryIncreaseModal({
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -383,18 +386,19 @@ export function SalaryIncreaseModal({
               </div>
             </div>
           )}
+          </div>
 
-          <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">
-            <button 
-              type="button" 
-              onClick={onClose} 
+          <div className="flex justify-end space-x-3 p-6 pt-4 border-t border-gray-200 dark:border-gray-700 shrink-0">
+            <button
+              type="button"
+              onClick={onClose}
               className="btn-secondary"
               disabled={loading}
             >
               Cancel
             </button>
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="btn-primary"
               disabled={loading}
             >
@@ -404,5 +408,6 @@ export function SalaryIncreaseModal({
         </form>
       </div>
     </div>
+    </ModalPortal>
   )
 }

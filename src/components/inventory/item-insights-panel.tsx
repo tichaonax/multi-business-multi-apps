@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface InsightsData {
   type: 'bale' | 'inventory'
@@ -87,10 +88,11 @@ export function ItemInsightsPanel({ type, itemId, businessId, onClose, productId
     : 1
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-start justify-between p-5 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-start justify-between p-5 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xl">📈</span>
@@ -115,7 +117,7 @@ export function ItemInsightsPanel({ type, itemId, businessId, onClose, productId
           </button>
         </div>
 
-        <div className="p-5 space-y-6">
+        <div className="p-5 space-y-6 overflow-y-auto flex-1 min-h-0">
           {loading && (
             <div className="flex items-center justify-center py-16">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600" />
@@ -457,5 +459,6 @@ export function ItemInsightsPanel({ type, itemId, businessId, onClose, productId
         </div>
       </div>
     </div>
+    </ModalPortal>
   )
 }

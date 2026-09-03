@@ -134,8 +134,8 @@ export function MaintenanceDetailModal({ maintenance, onClose, onStatusChanged, 
 
   const content = (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999] p-4 overflow-auto">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl mx-auto max-h-[90vh] overflow-y-auto p-6">
-        <div className="flex justify-between items-start mb-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl mx-auto max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="flex justify-between items-start p-6 pb-4 shrink-0">
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-semibold text-primary">Maintenance Details</h3>
@@ -154,6 +154,7 @@ export function MaintenanceDetailModal({ maintenance, onClose, onStatusChanged, 
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
         </div>
 
+        <div className="px-6 pb-6 overflow-y-auto flex-1 min-h-0">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-secondary">
           <div>
             <div className="font-medium">Vehicle</div>
@@ -194,8 +195,9 @@ export function MaintenanceDetailModal({ maintenance, onClose, onStatusChanged, 
             </div>
           )}
         </div>
+        </div>
 
-        <div className="mt-6 flex justify-end gap-2">
+        <div className="mt-6 flex justify-end gap-2 p-6 pt-0 shrink-0">
           {maintenance.receiptUrl ? (
             <button
               onClick={async () => {

@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { formatDateByFormat, formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface Transaction {
   id: string
@@ -197,9 +198,10 @@ export function TransactionDetailModal({ transactionId, isOpen, onClose, onUpdat
   const isIncome = transaction?.transactionType === 'payment_received'
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="card max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+      <div className="card max-w-3xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-primary">
               {isEditing ? 'Edit Transaction' : 'Transaction Details'}
@@ -223,7 +225,7 @@ export function TransactionDetailModal({ transactionId, isOpen, onClose, onUpdat
           </div>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
           {loading ? (
             <div className="flex items-center justify-center py-8">
               <div className="text-secondary">Loading transaction details...</div>
@@ -436,5 +438,6 @@ export function TransactionDetailModal({ transactionId, isOpen, onClose, onUpdat
         </div>
       </div>
     </div>
+    </ModalPortal>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface AddJobTitleModalProps {
   isOpen: boolean
@@ -91,9 +92,10 @@ export function AddJobTitleModal({ isOpen, onClose, onSuccess, onError }: AddJob
   if (!isOpen) return null
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
-      <div className="card max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+      <div className="card max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-primary">Create New Job Title</h2>
             <button
@@ -105,8 +107,8 @@ export function AddJobTitleModal({ isOpen, onClose, onSuccess, onError }: AddJob
           </div>
         </div>
 
-        <div className="p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
             {/* Basic Information */}
             <div>
               <h3 className="text-lg font-medium text-primary mb-4">Basic Information</h3>
@@ -227,8 +229,10 @@ export function AddJobTitleModal({ isOpen, onClose, onSuccess, onError }: AddJob
               )}
             </div>
 
+          </div>
+
             {/* Submit buttons */}
-            <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex gap-3 p-6 pt-4 border-t border-gray-200 dark:border-gray-700 shrink-0">
               <button
                 type="submit"
                 disabled={loading || !formData.title.trim()}
@@ -246,8 +250,8 @@ export function AddJobTitleModal({ isOpen, onClose, onSuccess, onError }: AddJob
               </button>
             </div>
           </form>
-        </div>
       </div>
     </div>
+    </ModalPortal>
   )
 }

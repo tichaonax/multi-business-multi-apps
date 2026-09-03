@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface ContractApprovalModalProps {
   contract: {
@@ -114,10 +115,11 @@ export function ContractApprovalModal({
   }
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div className="flex justify-between items-start">
             <div>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -142,7 +144,7 @@ export function ContractApprovalModal({
         </div>
 
         {/* Contract Details */}
-        <div className="px-6 py-4 space-y-6">
+        <div className="px-6 py-4 space-y-6 overflow-y-auto flex-1 min-h-0">
           {/* Error Message */}
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
@@ -302,7 +304,7 @@ export function ContractApprovalModal({
         </div>
 
         {/* Footer Actions */}
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3 shrink-0">
           <button
             onClick={onClose}
             disabled={isApproving}
@@ -331,5 +333,6 @@ export function ContractApprovalModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   )
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { LandlordSelect } from './landlord-select'
 import { RentMonthlySummary } from './rent-monthly-summary'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface RentConfig {
   id: string
@@ -152,9 +153,10 @@ export function RentAccountManageModal({
     'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm disabled:opacity-60'
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="card max-w-lg md:max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+      <div className="card max-w-lg md:max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="p-5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between shrink-0">
           <div>
             <h2 className="text-lg font-semibold text-primary">⚙️ Manage Rent Account</h2>
             <p className="text-xs text-secondary mt-0.5">{businessName}</p>
@@ -163,7 +165,7 @@ export function RentAccountManageModal({
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-200 dark:border-gray-700">
+        <div className="flex border-b border-gray-200 dark:border-gray-700 shrink-0">
           <button
             onClick={() => setActiveTab('settings')}
             className={`px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === 'settings' ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
@@ -178,6 +180,7 @@ export function RentAccountManageModal({
           </button>
         </div>
 
+        <div className="overflow-y-auto flex-1 min-h-0">
         {loading ? (
           <div className="p-8 text-center text-secondary">Loading...</div>
         ) : activeTab === 'transactions' ? (
@@ -348,7 +351,9 @@ export function RentAccountManageModal({
             <button onClick={onClose} className="btn-secondary">Close</button>
           </div>
         )}
+        </div>
       </div>
     </div>
+    </ModalPortal>
   )
 }

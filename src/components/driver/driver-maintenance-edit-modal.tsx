@@ -352,7 +352,7 @@ export function DriverMaintenanceEditModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
             <Wrench className="h-5 w-5" />
@@ -360,7 +360,8 @@ export function DriverMaintenanceEditModal({
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="space-y-6 overflow-y-auto flex-1 min-h-0">
           {/* Vehicle Selection */}
           <div className="space-y-2">
             <Label htmlFor="vehicle" className="text-sm font-medium flex items-center space-x-1">
@@ -540,8 +541,10 @@ export function DriverMaintenanceEditModal({
             </Alert>
           )}
 
+          </div>
+
           {/* Form Actions */}
-          <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t">
+          <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t shrink-0">
             <Button
               type="submit"
               disabled={loading || services.length === 0}

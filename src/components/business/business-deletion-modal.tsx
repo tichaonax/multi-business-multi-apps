@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { SessionUser } from '@/lib/permission-utils'
 import { EmployeeTransferModal } from './employee-transfer-modal'
 import { UserEditModal } from '@/components/user-management/user-edit-modal'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface EmployeeDetail {
   id: string
@@ -266,7 +267,8 @@ export function BusinessDeletionModal({
       )}
 
       {/* Deletion Modal */}
-      <div 
+      <ModalPortal>
+      <div
         className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
         onClick={(e) => {
           // Only close if clicking the backdrop, not the modal content
@@ -275,12 +277,12 @@ export function BusinessDeletionModal({
           }
         }}
       >
-        <div 
-          className="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        <div
+          className="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
         {/* Header */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
               {deletionType === 'hard' ? '⚠️ Delete Business' : '⚠️ Deactivate Business'}
@@ -296,7 +298,7 @@ export function BusinessDeletionModal({
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto flex-1 min-h-0">
           {step === 'loading' && (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -610,7 +612,7 @@ export function BusinessDeletionModal({
 
         {/* Footer */}
         {step !== 'loading' && step !== 'deleting' && impact && (
-          <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-between">
+          <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-between shrink-0">
             <button
               onClick={onClose}
               className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-700"
@@ -659,6 +661,7 @@ export function BusinessDeletionModal({
         )}
         </div>
       </div>
+      </ModalPortal>
     </>
   )
 }

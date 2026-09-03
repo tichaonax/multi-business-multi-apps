@@ -27,6 +27,7 @@ import { ItemInsightsPanel } from '@/components/inventory/item-insights-panel'
 import { InventoryActivityReportModal } from '@/components/inventory/inventory-activity-report-modal'
 import { MergeInventoryModal } from '@/components/inventory/merge-inventory-modal'
 import { WeightSellingBar } from '@/components/inventory/weight-selling-bar'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 function GroceryTransferHistoryPanel({ businessId }: { businessId: string }) {
   const [transfers, setTransfers] = useState<any[]>([])
@@ -930,9 +931,10 @@ function GroceryInventoryContent() {
 
           {/* Add/Edit Item Form Modal */}
           {showAddForm && (
+            <ModalPortal>
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-              <div className="card rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-                <div className="p-4 sm:p-6">
+              <div className="card rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+                <div className="p-4 sm:p-6 pb-0 shrink-0">
                   <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
                     <h3 className="text-lg font-semibold text-primary break-words">
                       {selectedItem ? 'Edit' : 'Add'} Grocery Item
@@ -961,7 +963,9 @@ function GroceryInventoryContent() {
                       </div>
                     </div>
                   </div>
+                </div>
 
+                <div className="p-4 sm:p-6 pt-0 overflow-y-auto flex-1 min-h-0">
                   {/* Weight selling bar */}
                   <WeightSellingBar
                     businessId={businessId}
@@ -1069,14 +1073,16 @@ function GroceryInventoryContent() {
                 </div>
               </div>
             </div>
+            </ModalPortal>
           )}
 
           {/* View Item Modal */}
           {showViewModal && selectedItem && (
+            <ModalPortal>
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
               <div className="absolute inset-0 bg-black/50" onClick={() => setShowViewModal(false)} />
-              <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                <div className="p-6">
+              <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+                <div className="p-6 pb-0 shrink-0">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xl font-semibold text-primary">Product Details</h3>
                     <button
@@ -1086,7 +1092,9 @@ function GroceryInventoryContent() {
                       ✕
                     </button>
                   </div>
+                </div>
 
+                <div className="p-6 overflow-y-auto flex-1 min-h-0">
                   <div className="space-y-6">
                     {/* Basic Info */}
                     <div>
@@ -1184,52 +1192,53 @@ function GroceryInventoryContent() {
                         <div className="text-gray-900 dark:text-gray-100">{selectedItem.description}</div>
                       </div>
                     )}
-
-                    {/* Actions */}
-                    <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                      <button
-                        onClick={() => {
-                          setShowViewModal(false)
-                          handleItemEdit(selectedItem)
-                        }}
-                        className="flex-1 btn-primary"
-                      >
-                        ✏️ Edit Item
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowViewModal(false)
-                          setInsightsTarget({ type: 'inventory', id: selectedItem.id })
-                        }}
-                        className="flex-1 btn-secondary"
-                      >
-                        📈 Insights
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowViewModal(false)
-                          setReportItemId(selectedItem.id.startsWith('inv_') ? selectedItem.id.replace(/^inv_/, '') : selectedItem.id)
-                          setReportItemName(selectedItem.name)
-                          setShowActivityReport(true)
-                        }}
-                        className="flex-1 btn-secondary"
-                      >
-                        📊 Activity
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowViewModal(false)
-                          setSelectedItem(null)
-                        }}
-                        className="flex-1 btn-secondary"
-                      >
-                        Close
-                      </button>
-                    </div>
                   </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 p-6 pt-4 border-t border-gray-200 dark:border-gray-700 shrink-0">
+                  <button
+                    onClick={() => {
+                      setShowViewModal(false)
+                      handleItemEdit(selectedItem)
+                    }}
+                    className="flex-1 btn-primary"
+                  >
+                    ✏️ Edit Item
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowViewModal(false)
+                      setInsightsTarget({ type: 'inventory', id: selectedItem.id })
+                    }}
+                    className="flex-1 btn-secondary"
+                  >
+                    📈 Insights
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowViewModal(false)
+                      setReportItemId(selectedItem.id.startsWith('inv_') ? selectedItem.id.replace(/^inv_/, '') : selectedItem.id)
+                      setReportItemName(selectedItem.name)
+                      setShowActivityReport(true)
+                    }}
+                    className="flex-1 btn-secondary"
+                  >
+                    📊 Activity
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowViewModal(false)
+                      setSelectedItem(null)
+                    }}
+                    className="flex-1 btn-secondary"
+                  >
+                    Close
+                  </button>
                 </div>
               </div>
             </div>
+            </ModalPortal>
           )}
 
           {/* Item Insights Panel */}

@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { SessionUser, getActiveBusinessMemberships, isSystemAdmin } from '@/lib/permission-utils'
 import { BUSINESS_PERMISSION_PRESETS, BusinessPermissions, BusinessType, CORE_PERMISSIONS, BUSINESS_TYPE_MODULES, USER_LEVEL_PERMISSIONS } from '@/types/permissions'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface UserCreationWizardProps {
   currentUser: SessionUser
@@ -306,9 +307,10 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
   }
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">Create New User</h2>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-400">✕</button>
@@ -325,7 +327,7 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
           </div>
         </div>
 
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto flex-1 min-h-0">
           {step === 1 && (
             <form onSubmit={handleStep1Submit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -626,6 +628,7 @@ export function UserCreationWizard({ currentUser, onClose, onSuccess, onError }:
         </div>
       </div>
     </div>
+    </ModalPortal>
   )
 }
 
