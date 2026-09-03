@@ -291,12 +291,13 @@ function RotatingCard({ item }: { item: DisplayItem }) {
             {/* No fallback category-emoji block here on purpose — it was pushing
                 the price below the card's visible bounds on a no-image item. The
                 name/price just fill the space directly instead. */}
-            {/* Single line, never wraps — a wrapped second line both eats into
-                the image area above and can run under the menu-number badge.
-                The badge clearance is only needed when there's no image pushing
-                this text down below it — a card with an image already has the
-                name clear of the badge, so it can use the full card width. */}
-            <div className={`text-white font-bold text-xl leading-snug truncate mb-1 ${!hasImage && item.menuNumber ? 'pr-16' : ''}`}>{stripEmoji(item.name)}</div>
+            {/* Up to 2 lines — a single line was cutting names off far too early on
+                this narrow panel. Safe to wrap here (unlike before): when there's no
+                image, pt-20 above already pushes this whole block below the badge's
+                bottom edge (72px) regardless of how many lines the name takes; when
+                there IS an image, the name sits below it, already clear of the badge
+                for the same reason. So a wrapped second line never runs under it. */}
+            <div className="text-white font-bold text-xl leading-snug line-clamp-2 mb-1">{stripEmoji(item.name)}</div>
             {(item.spiceLevel ?? 0) > 0 && (
               <div className="text-sm mb-1">{'🌶️'.repeat(Math.min(item.spiceLevel!, 3))}</div>
             )}

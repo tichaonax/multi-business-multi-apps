@@ -273,12 +273,18 @@ function Card({ item, isSpecial, isAyliView }: { item: MenuItem; isSpecial: bool
         </div>
       ) : (
         /* ── Regular item body ── */
+        (() => {
+          // Only a real small thumbnail (product's own image/imageId) shares the top
+          // row with the name — the large ad/product image below is separate. When
+          // there's no small thumbnail, push the row below the badge (top-2 + 64px =
+          // 72px; +16px buffer matches the outer p-4) so the name can use the full
+          // card width instead of reserving horizontal space for a badge it no
+          // longer shares a row with.
+          const hasSmallThumb = !!(item.imageUrl || item.imageId)
+          return (
         <div className="flex flex-col p-4 gap-2 flex-1 min-h-0">
-          {/* Top: thumbnail (only when there's a real product photo) + name.
-              No fallback category-emoji here on purpose — it was eating into
-              the name's already-tight width for no real benefit. */}
-          <div className="flex items-start gap-2 flex-shrink-0">
-            {(item.imageUrl || item.imageId) && (
+          <div className={`flex items-start gap-2 flex-shrink-0 ${!hasSmallThumb && item.menuNumber ? 'pt-16' : ''}`}>
+            {hasSmallThumb && (
               <img
                 src={item.imageUrl || `/api/images/${item.imageId}`}
                 alt={item.name}
@@ -287,9 +293,11 @@ function Card({ item, isSpecial, isAyliView }: { item: MenuItem; isSpecial: bool
               />
             )}
             <div className="flex-1 min-w-0">
-              {/* Single line, never wraps — a wrapped second line can run
-                  under the menu-number badge (top-right, absolutely positioned). */}
-              <span className={`block text-white font-bold text-xl leading-snug truncate ${item.menuNumber ? 'pr-16' : ''}`}>
+              {/* Up to 2 lines — a single line was cutting names off too early.
+                  Badge clearance is only reserved when a small thumbnail keeps this
+                  row at the very top, sharing the badge's row — otherwise pt-16
+                  above already clears it, vertically, for both wrapped lines. */}
+              <span className={`block text-white font-bold text-xl leading-snug line-clamp-2 ${hasSmallThumb && item.menuNumber ? 'pr-16' : ''}`}>
                 {stripEmoji(item.name)}
                 {isSpecial && <span className="ml-1 text-amber-400 text-sm">⭐</span>}
               </span>
@@ -324,6 +332,8 @@ function Card({ item, isSpecial, isAyliView }: { item: MenuItem; isSpecial: bool
             </div>
           </div>
         </div>
+          )
+        })()
       )}
     </div>
   )
