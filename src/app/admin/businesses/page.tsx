@@ -26,6 +26,7 @@ interface Business {
   displayColor: string | null
   wifiIntegrationEnabled: boolean
   couponsEnabled: boolean
+  showTestData: boolean
   receiptReturnPolicy: string | null
   taxIncludedInPrice: boolean
   taxRate: number | null
@@ -53,6 +54,7 @@ export default function AdminBusinessesPage() {
     displayColor: '',
     wifiIntegrationEnabled: false,
     couponsEnabled: false,
+    showTestData: false,
     receiptReturnPolicy: 'All sales are final, returns not accepted',
     taxIncludedInPrice: true,
     taxRate: '',
@@ -194,6 +196,7 @@ export default function AdminBusinessesPage() {
       displayColor: business.displayColor || '',
       wifiIntegrationEnabled: business.wifiIntegrationEnabled || false,
       couponsEnabled: business.couponsEnabled || false,
+      showTestData: business.showTestData || false,
       receiptReturnPolicy: business.receiptReturnPolicy || 'All sales are final, returns not accepted',
       taxIncludedInPrice: business.taxIncludedInPrice ?? true,
       taxRate: business.taxRate?.toString() || '',
@@ -281,6 +284,7 @@ export default function AdminBusinessesPage() {
         displayColor: selectedBusiness.displayColor || '',
         wifiIntegrationEnabled: selectedBusiness.wifiIntegrationEnabled || false,
         couponsEnabled: selectedBusiness.couponsEnabled || false,
+        showTestData: selectedBusiness.showTestData || false,
         receiptReturnPolicy: selectedBusiness.receiptReturnPolicy || 'All sales are final, returns not accepted',
         taxIncludedInPrice: selectedBusiness.taxIncludedInPrice ?? true,
         taxRate: selectedBusiness.taxRate?.toString() || '',
@@ -580,6 +584,25 @@ export default function AdminBusinessesPage() {
                   />
                 </div>
 
+                {/* Show Test Data Toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label htmlFor="showTestData" className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                      Show Test Data
+                    </label>
+                    <span className="block text-xs text-gray-600 dark:text-gray-400 mt-1">
+                      Show products/menu items with "[test]" in the name at POS (for testing only)
+                    </span>
+                  </div>
+                  <input
+                    id="showTestData"
+                    type="checkbox"
+                    checked={formData.showTestData}
+                    onChange={(e) => setFormData({...formData, showTestData: e.target.checked})}
+                    className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                </div>
+
                 {/* Receipt Configuration Section */}
                 <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Receipt Configuration</h3>
@@ -868,6 +891,25 @@ export default function AdminBusinessesPage() {
                         type="checkbox"
                         checked={formData.couponsEnabled}
                         onChange={(e) => setFormData({...formData, couponsEnabled: e.target.checked})}
+                        className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                      />
+                    </div>
+
+                    {/* Show Test Data Toggle */}
+                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
+                      <div>
+                        <label htmlFor="showTestDataDetails" className="block text-sm font-medium text-gray-900 dark:text-gray-100">
+                          Show Test Data
+                        </label>
+                        <span className="block text-xs text-gray-600 dark:text-gray-400 mt-1">
+                          Show products/menu items with "[test]" in the name at POS (for testing only)
+                        </span>
+                      </div>
+                      <input
+                        id="showTestDataDetails"
+                        type="checkbox"
+                        checked={formData.showTestData}
+                        onChange={(e) => setFormData({...formData, showTestData: e.target.checked})}
                         className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                       />
                     </div>

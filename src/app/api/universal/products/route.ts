@@ -133,6 +133,20 @@ export async function GET(request: NextRequest) {
       where.isActive = true
     }
 
+    // Hide [test]-named products/menu items unless the business has explicitly
+    // enabled test data visibility (admin > Businesses > Show Test Data toggle)
+    let showTestData = false
+    if (businessId) {
+      const business = await prisma.businesses.findUnique({
+        where: { id: businessId },
+        select: { showTestData: true }
+      })
+      showTestData = !!business?.showTestData
+    }
+    if (!showTestData) {
+      where.name = { not: { contains: '[test]', mode: 'insensitive' } }
+    }
+
     // Filter by availability if specified
     if (isAvailable !== null) {
       where.isAvailable = isAvailable === 'true'

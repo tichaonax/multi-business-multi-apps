@@ -502,6 +502,7 @@ model Businesses {
   eodDeadlineTime                                                          String?                           @default("20:00") @db.VarChar(5)
   couponsEnabled                                                           Boolean                           @default(false)
   promosEnabled                                                            Boolean                           @default(false)
+  showTestData                                                             Boolean                           @default(false)
   receiptReturnPolicy                                                      String?
   taxEnabled                                                               Boolean                           @default(false)
   taxIncludedInPrice                                                       Boolean                           @default(true)
