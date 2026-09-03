@@ -54,6 +54,7 @@ function BusinessManagePageContent() {
     eodDeadlineTime?: string
     couponsEnabled?: boolean
     promosEnabled?: boolean
+    showTestData?: boolean
     receiptReturnPolicy?: string
     taxEnabled?: boolean
     taxIncludedInPrice?: boolean
@@ -419,6 +420,7 @@ function BusinessManagePageContent() {
                               eodDeadlineTime: biz?.eodDeadlineTime ?? '20:00',
                               couponsEnabled: biz?.couponsEnabled !== undefined ? biz.couponsEnabled : false,
                               promosEnabled: biz?.promosEnabled !== undefined ? biz.promosEnabled : false,
+                              showTestData: biz?.showTestData !== undefined ? biz.showTestData : false,
                               receiptReturnPolicy: biz?.receiptReturnPolicy || 'All sales are final, returns not accepted',
                               taxEnabled: biz?.taxEnabled !== undefined ? biz.taxEnabled : false,
                               taxIncludedInPrice: biz?.taxIncludedInPrice !== undefined ? biz.taxIncludedInPrice : true,

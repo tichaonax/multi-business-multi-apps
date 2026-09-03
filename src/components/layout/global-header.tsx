@@ -636,6 +636,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                                   ecocashFeeValue: biz?.ecocashFeeValue != null ? String(biz.ecocashFeeValue) : '',
                                                   couponsEnabled: biz?.couponsEnabled ?? false,
                                                   promosEnabled: biz?.promosEnabled ?? false,
+                                                  showTestData: biz?.showTestData ?? false,
                                                   receiptReturnPolicy: biz?.receiptReturnPolicy || 'All sales are final, returns not accepted',
                                                   taxEnabled: biz?.taxEnabled ?? false,
                                                   taxIncludedInPrice: biz?.taxIncludedInPrice ?? true,

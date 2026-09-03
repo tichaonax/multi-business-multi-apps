@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
       showTestData = !!business?.showTestData
     }
     if (!showTestData) {
-      where.name = { not: { contains: '[test]', mode: 'insensitive' } }
+      where.NOT = { name: { contains: '[test]', mode: 'insensitive' } }
     }
 
     // Filter by availability if specified
