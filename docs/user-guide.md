@@ -196,6 +196,10 @@
     - [Viewing Full Details](#viewing-full-details)
     - [Permissions](#permissions-13)
     - [New Businesses — Estimated Targets](#new-businesses--estimated-targets)
+59. [Default Business & Workstation Login Behavior](#59-default-business--workstation-login-behavior)
+    - [Priority Order](#priority-order)
+    - [Setting a User's Default Business (Admin)](#setting-a-users-default-business-admin)
+    - [Workstation Default (Electron Kiosk Devices)](#workstation-default-electron-kiosk-devices)
 
 ---
 
@@ -705,7 +709,9 @@ If your business has a **Rent Account** configured with "Auto-transfer on EOD" t
 **Important — where the money physically lives:**
 The daily rent amount is tracked as part of the cash bucket (all physical cash is kept in the cash bucket). The rent account is a **bookkeeping record** that shows how much of the cash bucket is earmarked for rent. When rent is eventually paid out, the full rent amount is drawn from the cash bucket.
 
-> If rent transfer fails (e.g. insufficient business account balance), the EOD does not stop — a warning is shown and you can proceed.
+**What the transfer is checked against:** real available cash — the cash bucket's running balance plus whatever cash you count in at Step 4 — not the business's sales-revenue balance. A day with heavy card/EcoCash sales and little actual cash on hand will correctly skip the transfer rather than moving money that isn't physically there.
+
+> **If rent transfer is skipped (not enough real cash on hand):** the EOD does not stop — it's silently skipped for that day, no money moves, and the Cash Allocation report (Step 6) shows a red **"🏠 ⚠ Rent Transfer SKIPPED — insufficient cash available"** row instead of the usual rent deduction. The missed day is tracked automatically and can be manually caught up later once cash is available — see [Allocation Backlog & Manual Catch-Up](#allocation-backlog--manual-catch-up).
 
 ---
 
@@ -721,13 +727,15 @@ If auto-deposit rules are set up (e.g. "move $10/day into the Staff Welfare acco
 **What each status means:**
 - **Will process** — the deposit will run and money moves from the business account to that expense account.
 - **Cap reached** — the account has already accumulated its configured maximum; no deposit today.
-- **Insufficient funds** — the business account does not have enough for this deposit.
+- **Insufficient funds** — there isn't enough **real available cash** (cash bucket balance + today's counted cash) to cover this deposit — checked in priority order (`displayOrder`), so once one config runs out of cash, every lower-priority config after it is skipped too for that day.
 - **Frozen / Inactive** — the expense account is not accepting deposits right now.
 - **Before start / After end date** — the auto-deposit schedule is outside its active window.
 
 Click **Process Auto-Deposits** to execute. The system processes each eligible deposit and shows a results summary.
 
 > Auto-deposits are idempotent — running EOD twice for the same date will not deposit twice.
+
+> **Every "Insufficient funds" skip is tracked automatically** — nothing just silently vanishes. Once real cash becomes available (today's sales, or a quieter config further down the priority list freeing up room), you can manually catch up on any missed day for that account — see [Allocation Backlog & Manual Catch-Up](#allocation-backlog--manual-catch-up).
 
 ---
 
@@ -754,7 +762,7 @@ Below the expense account auto-deposit rows, the EOD preview table shows a **Pay
 | Payroll fully funded | ⚠ Skipped — `Payroll account already fully funded` |
 | No contracts for business | ⚠ Skipped — `No contracts for this business` |
 | Contribution rounds to $0 | ⚠ Skipped — `Contribution rounds to $0 (target $3, net sales $2.40)` |
-| Insufficient business funds | ⚠ Skipped — `Insufficient business account funds (target $42)` |
+| Insufficient cash available | ⚠ Skipped — `Insufficient cash available (target $42, available $18.50)` |
 | No global payroll account | ⚠ Skipped — `No global payroll account` |
 
 **The row is informational only** — you cannot override or skip it. It either runs automatically when EOD is processed or is silently skipped.
@@ -767,7 +775,7 @@ Below the expense account auto-deposit rows, the EOD preview table shows a **Pay
 | `No global payroll account` | A one-time admin task. Ask your administrator to create the global payroll account under **Payroll → Payroll Account**. |
 | `Payroll account already fully funded` | Good — the target is already met for the month. No action needed. |
 | `Contribution rounds to $0` | Today's net sales were too low relative to the contribution target. Will retry tomorrow. No action needed. |
-| `Insufficient business account funds` | The business account balance is $0 or below the contribution amount. Deposit funds into the business account first. |
+| `Insufficient cash available` | There isn't enough **real cash** (cash bucket balance + today's counted cash) to cover the contribution — this checks physical cash on hand, not the business's sales-revenue balance. The skipped day is tracked automatically and can be caught up manually once cash is available — see [Allocation Backlog & Manual Catch-Up](#allocation-backlog--manual-catch-up). |
 
 > **No toggle or setting is needed to enable this.** As long as the business has active contracts and a sufficient business account balance, the payroll contribution will happen automatically on every EOD.
 
@@ -829,9 +837,18 @@ After the EOD is saved, a **Cash Allocation Report** is created automatically. T
 
 Go to **[Business] → Reports → Cash Allocation** to open it.
 
-The report lists every money movement from the EOD:
-- Rent transfer (with amount)
-- Each auto-deposit (with account name and amount)
+**Cash Distribution summary** at the top shows, in order:
+- **💵 Cash Received** — what the manager counted at EOD.
+- **🪣 + Cash Bucket Carried Over** — the running cash-bucket balance left over from previous days (only shown when there is one). Deductions aren't limited to just today's own count — they can legitimately draw on this carried-over float, which is why a lean day can still fully cover rent/loan/payroll without it being a shortfall.
+- **= Total Available to Allocate Today** — the two added together.
+- **🏠 Less: Rent Transfer**, **💼 Less: Payroll Contribution**, **🏦 Less: [account]** — one row per deduction that actually happened.
+- **✅ Remaining Cash Bucket Balance** — what's left after all of the above, shown in red as **⚠ Cash Bucket Shortfall** only if it's genuinely negative.
+
+The itemized table below lists every money movement from the EOD:
+- Rent transfer (with amount) — or, on a day it was skipped for lack of cash, a red **"⚠ Rent Transfer SKIPPED — insufficient cash available"** row with the configured amount struck through and $0.00 actually deducted.
+- Each auto-deposit (with account name and amount).
+
+Only deposits that **actually happened** appear here — a config that was skipped for insufficient cash simply has no row (see [Allocation Backlog & Manual Catch-Up](#allocation-backlog--manual-catch-up) to see and recover any skipped amounts).
 
 For each line item the cashier must:
 1. Count the physical cash matching that line item.
@@ -839,10 +856,10 @@ For each line item the cashier must:
 
 Once all items are checked and amounts match:
 - Click **Lock Allocation**.
-- The system records a **Cash Bucket OUTFLOW** for each line item (cash leaving the till).
+- The system records a **Cash Bucket OUTFLOW** for each line item (cash leaving the till), plus one **Cash Bucket INFLOW** for the day's counted cash.
 - The report status changes to **LOCKED** — the day's cash reconciliation is complete.
 
-> **If you do not have enough cash in the till** to cover all allocation items, the system will flag it but will not block you. It records the outflows it can and marks skipped items — the manager resolves the shortfall separately.
+> **Nothing here can allocate more than real cash actually covers.** Every rent transfer, auto-deposit, and payroll contribution is checked against real available cash (cash bucket balance + today's count) *before* it's ever created — not after. If cash genuinely isn't there, the item is skipped rather than force-created, and the skip is tracked so it can be caught up later — see the next section.
 
 ---
 
@@ -3185,11 +3202,42 @@ Each line item in the report represents one money movement from the EOD:
 - For each line item, a **Cash Bucket OUTFLOW** entry is recorded (the cash physically leaving the till).
 - A single **Cash Bucket INFLOW** entry is recorded for the total cash counted in for the day.
 
-> **If the cash box does not have enough to cover all allocations:** The system will flag the shortfall but will not block you from locking. It will process what it can and mark the rest as skipped. The manager resolves the shortfall separately (e.g., by noting it in the variance).
+> **Allocations can't exceed real cash.** Rent, auto-deposits, and payroll contributions are all checked against real available cash *before* they're created (see [Step 2](#step-2--rent-transfer-if-configured) and [Step 3](#step-3--auto-deposits-if-configured) of the EOD walkthrough) — so by the time you reach this report, every line item on it is already backed by real cash. A day that couldn't cover everything simply has fewer line items (or, for rent, a "SKIPPED" row) rather than an outflow with nothing behind it. See below for how to recover a skipped day once cash is available.
 
 #### Grouped Cash Allocation (Catch-Up EOD)
 
 When the Grouped EOD Catch-Up closes multiple missed days, a single combined Cash Allocation Report is created covering all selected dates. The workflow is the same — one report, one set of line items for all dates combined — making it easier to handle the physical cash for catch-up closes without generating many separate reports.
+
+### Allocation Backlog & Manual Catch-Up
+
+**Who sees this:** Anyone who can run the Cash Allocation Report (`canRunCashAllocationReport`, or an admin) — the panel appears automatically at the top of **[Business] → Reports → Cash Allocation** whenever there's an outstanding backlog for that business, and stays hidden otherwise.
+
+When rent, a loan/expense auto-deposit, or the payroll contribution is skipped because real cash isn't available that day (see Steps 2/3/3b above), the missed amount doesn't just disappear — it's recorded as **backlog** against that specific account, and can be manually caught up later once cash comes in.
+
+#### The Backlog Panel
+
+At the top of the Cash Allocation Report, a red **"⚠ Allocation Backlog"** panel lists every account with an outstanding amount:
+
+| Column | Meaning |
+|--------|---------|
+| Account | Which rent account, loan/expense account, or "Payroll Account" is owed money |
+| Days missed | How many separate days contributed to this backlog, and the date range |
+| Amount owed | Total still outstanding for that account (across all missed days) |
+| 🪣 Available now | Real cash currently available to catch up with, shown at the top of the panel |
+
+#### Catching Up
+
+Click **Catch Up Now** next to an account to transfer as much of its backlog as real cash currently allows:
+
+- If there's enough cash to cover the **entire** backlog, it's fully paid off in one click and the row disappears.
+- If there's only enough for **part** of it, the amount actually transferred is applied to the **oldest missed day(s) first**, and the row updates to show what's still owed — you can click **Catch Up Now** again later as more cash becomes available.
+- If there's currently no cash to spare, the button is disabled.
+
+A loan account's catch-up is automatically capped at whatever is still actually owed on the loan — if the loan balance has changed since the missed day (e.g. partly repaid through other means), you can never accidentally overpay it.
+
+Every catch-up transfer is a real, dated transaction — it updates the target account's balance, the business account, and the cash bucket exactly like a normal EOD deposit, and shows up in that account's transaction history as a manual catch-up.
+
+> **Nothing here can ever transfer more than real cash actually covers** — the same real-cash check used everywhere else in Cash Allocation applies to catch-up transfers too.
 
 ### Cash Position Report
 
@@ -12458,7 +12506,7 @@ Customer Display access uses two separate permissions:
 | `canViewCustomerDisplay` | View the Customer Display page (read-only — no editing) | Owner, Manager, Employee, Restaurant-associate, Grocery-associate, Salesperson |
 | `canManageCustomerDisplay` | Upload/delete ads, edit product display settings, change global settings | Owner, Manager |
 
-**Sidebar link** — the **📺 Customer Display** link is visible to anyone who has `canViewCustomerDisplay` or `canManageCustomerDisplay`.
+**Sidebar link** — the **📺 Customer Display** link (or, for restaurant, both **📺 Customer Display Ads** and **⚙️ Display Settings**) is visible to anyone who has `canViewCustomerDisplay` or `canManageCustomerDisplay`.
 
 **View-only mode** — users with only `canViewCustomerDisplay` see the page but the **Upload New Ad** button is hidden and ad edit/delete actions are unavailable. They can still open a **Preview Display** window to see what's currently showing.
 
@@ -12468,13 +12516,18 @@ Customer Display access uses two separate permissions:
 
 ### Management — Where to Find It
 
-| Business | Navigation |
-|----------|-----------|
-| Restaurant | **Restaurant → Settings → Customer Display** |
-| Grocery | Sidebar → **📺 Customer Display** |
-| Clothing | Sidebar → **📺 Customer Display** |
+Restaurant is the only business type with **two separate** Customer Display destinations in the sidebar — don't confuse them:
 
-The restaurant Customer Display settings page has two sections:
+| Business | Navigation | What it's for |
+|----------|-----------|----------------|
+| Restaurant | Sidebar → **📺 Customer Display Ads** | Upload/manage the image slideshow ads (only shown when Smart Display is turned **off** — see below) |
+| Restaurant | Sidebar → **⚙️ Display Settings** | Smart Display toggle, rotation speed, max items, and the Item Priority list |
+| Grocery | Sidebar → **📺 Customer Display** | Both ads and smart-display settings live on one combined page |
+| Clothing | Sidebar → **📺 Customer Display** | Both ads and smart-display settings live on one combined page |
+
+> **If your uploaded ads never seem to show on the customer screen:** check **Display Settings** — when "Smart display enabled" is turned on, the screen shows the rotating product/menu panels instead of your uploaded ad slideshow. Turn it off if you want the classic ad slideshow to play.
+
+The restaurant **Display Settings** page has two sections:
 1. **Global Settings** — rotation speed, max items, enable/disable the smart display
 2. **Item Priority** — configure every numbered item's priority, advertising image, and promo note
 
@@ -12487,9 +12540,15 @@ Items appear on the customer display automatically **when they have a menu numbe
 **To add a new item to the display:**
 
 1. Go to **Restaurant → Manage → Menu Numbers**
-2. Find the item (menu item or AYLI combo)
-3. Assign a menu number (e.g. `8`, `9`, `10a`)
-4. The item now appears in **Settings → Customer Display → Item Priority**
+2. Find the item (menu item or AYLI combo) — a thumbnail of the item's own photo (or the combo's advertising image) shows next to it if one is set
+3. Assign a menu number (e.g. `8`, `9`, `10a`) — click the **Assign** button with the number field left blank to auto-fill the next available number instead of typing one yourself
+4. The item now appears in **Display Settings → Item Priority**
+
+**If pricing isn't set up yet:** the system won't let you assign a number to an item with no price (or $0.00) — for a menu item that means an unset base price; for an AYLI combo it means any size or pool item still showing $0.00/kg. You'll see a ⚠ next to the item and a banner explaining what to fix (in Menu Management for items, AYLI Pricing for combos) before you can proceed. This stops an unpriced item from ever showing $0.00 on the customer-facing screen.
+
+**Freeing a number:** if a numbered item's pricing later becomes invalid (e.g. a calibration reset), a red **Free** button appears next to it in both the item list and the Assigned Numbers panel — click it to release the number for reuse without needing to fix the pricing first.
+
+> **No two items can share a number.** The server rejects a duplicate on save, and the Menu Numbers page also checks instantly against the list already on screen before it even asks the server — so you'll see the conflict immediately rather than after a save attempt.
 
 ---
 
@@ -12497,7 +12556,7 @@ Items appear on the customer display automatically **when they have a menu numbe
 
 Each item in the Item Priority list has an inline image upload:
 
-1. Go to **Restaurant → Settings → Customer Display**
+1. Go to **Restaurant → Display Settings**
 2. Find the item in the **Item Priority** list
 3. Click **📷 Add ad image** under that item
 4. Pick an image file from your device — it uploads and saves immediately
@@ -12528,7 +12587,7 @@ All changes are saved immediately (no Save button needed per item). The customer
 
 ### Global Display Settings
 
-**Where:** Restaurant sidebar → **Settings → Customer Display** — left panel (restaurant only for now)
+**Where:** Restaurant sidebar → **⚙️ Display Settings** (restaurant only for now)
 
 Permission required: `canManageCustomerDisplay`. Users with only `canViewCustomerDisplay` see this page in read-only mode — toggles and sliders are disabled and the **Save Settings** button is hidden.
 
@@ -13188,3 +13247,36 @@ Regular salespeople and cashiers see the compact bar only — the widget isn't c
 ### New Businesses — Estimated Targets
 
 A business needs at least 90 days of completed sales history before the system has enough data to calculate a realistic Recommended target from historical trends. Until then, the Recommended figure is simply the Minimum plus 15%, and the detailed view clearly labels it as **"Estimated — not enough sales history yet for a data-driven recommendation."** Once 90 days of history accumulate, the business automatically switches over to the full calculation on the next nightly update — no action needed.
+
+---
+
+## 59. Default Business & Workstation Login Behavior
+
+> **Who reads this:** System admins setting up user accounts or shared workstations, and anyone who works across more than one business and wants to land on the right one automatically after logging in.
+
+When you log in, the system has to decide which business to show you first. Four things can determine that, checked in order:
+
+### Priority Order
+
+1. **Your account's default business** (if an admin has set one for you) — always wins, on any workstation.
+2. **The workstation's own default business** (if one is pinned to this specific device) — applies to everyone who logs in on that workstation and has no personal default of their own.
+3. **Your last accessed business** — whichever business you were last working in.
+4. **The first business you have access to** — a last-resort fallback if none of the above apply.
+
+This means an admin-assigned default follows *you* to any workstation, while a workstation default applies to whoever sits down at *that machine* — a shared till can stay pinned to one business regardless of who's logged in, unless that person has their own default set.
+
+### Setting a User's Default Business (Admin)
+
+1. Go to **Admin → Users** (User Management).
+2. Click **Edit** on the user.
+3. Under **Basic Information**, find the **Default Business** dropdown — it lists every business the user is currently assigned to.
+4. Choose a business, or select **"— No default (use last accessed) —"** to clear it and fall back to whatever they last worked in.
+5. Click **Save Changes**.
+
+Only system admins can see or change this field — it's a cross-business, account-level setting, not something a business manager can set for their own staff.
+
+### Workstation Default (Electron Kiosk Devices)
+
+On the Electron desktop app, a **"Switch Business"** link on the app's home page lets an admin pin a specific business as this workstation's permanent default, protected by the app's admin PIN. This is meant for a device that's physically dedicated to one business (e.g. a till that should always open on the restaurant POS no matter who logs in) — it's a per-device setting, separate from any user's own default business.
+
+If a workstation's behavior seems stuck on the wrong business regardless of which account logs in, check whether this device-level pin has been set, since it takes priority over "last accessed business" for anyone without a personal default.
