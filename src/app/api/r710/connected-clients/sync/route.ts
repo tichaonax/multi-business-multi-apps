@@ -47,14 +47,7 @@ export async function GET(request: NextRequest) {
             id: true,
             wlanId: true,
             ssid: true,
-            businessId: true,
-            business: {
-              select: {
-                id: true,
-                name: true,
-                type: true
-              }
-            }
+            businessId: true
           }
         }
       }
