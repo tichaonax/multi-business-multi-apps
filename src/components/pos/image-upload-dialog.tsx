@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useToastContext } from '@/components/ui/toast'
+import { useClipboardImagePaste } from '@/hooks/use-clipboard-image-paste'
 
 export type QuickEditSourceTable = 'BUSINESS_PRODUCT' | 'BARCODE_ITEM'
 
@@ -25,6 +26,8 @@ interface Props {
 export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, currentImageUrl, onClose, onSaved }: Props) {
   const toast = useToastContext()
   const [uploading, setUploading] = useState(false)
+
+  useClipboardImagePaste(handleFile, !uploading)
 
   async function handleFile(file: File) {
     setUploading(true)
@@ -99,6 +102,7 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
             onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }}
           />
         </label>
+        <p className="text-xs text-center text-secondary">or paste an image from your clipboard (Ctrl+V)</p>
 
         <button onClick={onClose} className="w-full text-center py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">
           Cancel

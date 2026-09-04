@@ -24,6 +24,11 @@ import { isMobileDevice } from '@/lib/workstation-agents/local-agent-sync'
 import { useAlert } from '@/components/ui/confirm-modal'
 import { SalespersonSelector, type SelectedSalesperson } from '@/components/pos/salesperson-selector'
 import { TargetProgressWidget } from '@/components/business-targets/target-progress-widget'
+import { usePosQuickEditMode } from '@/hooks/use-pos-quick-edit-mode'
+import { QuickEditModeButtons } from '@/components/pos/quick-edit-mode-buttons'
+import { ImageUploadDialog } from '@/components/pos/image-upload-dialog'
+import { PriceEditDialog } from '@/components/pos/price-edit-dialog'
+import type { UniversalProduct } from '@/components/universal'
 
 export default function HardwarePOSPage() {
   const [showProductGrid, setShowProductGrid] = useState(true)
@@ -38,14 +43,22 @@ export default function HardwarePOSPage() {
     currentBusinessId,
     isAuthenticated,
     loading: businessLoading,
-    businesses
+    businesses,
+    hasPermission
   } = useBusinessPermissionsContext()
 
   // Get user info
   const sessionUser = session?.user as SessionUser
   const employeeId = sessionUser?.id
+  const isAdmin = sessionUser?.role === 'admin'
   // Check if current business is a hardware business
   const isHardwareBusiness = currentBusiness?.businessType === 'hardware'
+
+  // POS Quick-Edit Mode (MBM-292 Phase 2)
+  const canQuickEditPOS = isAdmin || hasPermission('canQuickEditPOSItems')
+  const { activeMode: quickEditMode, toggleImageMode, togglePriceMode } = usePosQuickEditMode()
+  const [quickEditProduct, setQuickEditProduct] = useState<UniversalProduct | null>(null)
+  const [productGridRefreshKey, setProductGridRefreshKey] = useState(0)
 
   const [selectedSalesperson, setSelectedSalesperson] = useState<SelectedSalesperson | null>(null)
   const selectedSalespersonRef = useRef<SelectedSalesperson | null>(null)
@@ -345,6 +358,14 @@ export default function HardwarePOSPage() {
                 >
                   {showProductGrid ? 'Hide Products' : 'Show Products'}
                 </button>
+                {/* POS Quick-Edit Mode (MBM-292 Phase 2) - Only for users with canQuickEditPOSItems */}
+                {canQuickEditPOS && (
+                  <QuickEditModeButtons
+                    activeMode={quickEditMode}
+                    onToggleImage={toggleImageMode}
+                    onTogglePrice={togglePriceMode}
+                  />
+                )}
               </div>
             </div>
 
@@ -399,6 +420,9 @@ export default function HardwarePOSPage() {
                       itemsPerPage={8}
                       showCategories={true}
                       showSearch={true}
+                      refreshKey={productGridRefreshKey}
+                      quickEditMode={quickEditMode}
+                      onQuickEdit={setQuickEditProduct}
                       showFilters={true}
                     />
                   </div>
@@ -476,6 +500,40 @@ export default function HardwarePOSPage() {
           </div>
         </ContentLayout>
       </BusinessTypeRoute>
+
+      {/* POS Quick-Edit Mode (MBM-292 Phase 2) dialogs */}
+      {quickEditProduct && quickEditMode === 'image' && (
+        <ImageUploadDialog
+          businessId={businessId}
+          itemId={quickEditProduct.id}
+          itemName={quickEditProduct.name}
+          sourceTable="BUSINESS_PRODUCT"
+          currentImageUrl={quickEditProduct.images?.find(img => img.isPrimary)?.imageUrl ?? quickEditProduct.images?.[0]?.imageUrl ?? null}
+          onClose={() => setQuickEditProduct(null)}
+          onSaved={() => {
+            setQuickEditProduct(null)
+            setProductGridRefreshKey(k => k + 1)
+          }}
+        />
+      )}
+      {quickEditProduct && quickEditMode === 'price' && (() => {
+        const variant = quickEditProduct.variants?.[0]
+        return (
+          <PriceEditDialog
+            businessId={businessId}
+            itemId={quickEditProduct.id}
+            variantId={variant?.id}
+            itemName={quickEditProduct.name}
+            sourceTable="BUSINESS_PRODUCT"
+            currentPrice={(variant?.price && variant.price > 0) ? variant.price : quickEditProduct.basePrice}
+            onClose={() => setQuickEditProduct(null)}
+            onSaved={() => {
+              setQuickEditProduct(null)
+              setProductGridRefreshKey(k => k + 1)
+            }}
+          />
+        )
+      })()}
     </BusinessProvider>
   )
 }

@@ -12969,7 +12969,9 @@ A dedicated **Parts Inventory** page (sidebar link, next to Jobs and Customers) 
 
 **Duplicate check**: before creating a part, the system looks for close matches (same category plus a similar name, brand, or vehicle) and shows them instead of creating a new item blind — pick **👁️ View existing** to check it, or a manager/admin can click **🆕 Create new anyway** to proceed regardless.
 
-**Searching and filtering** covers name, SKU, barcode, vehicle make/model/year, domain, category, condition, OEM/Aftermarket, and stock status (In Stock / Low Stock / Out of Stock).
+**Searching and filtering** covers name, SKU, barcode, vehicle make/model/year, domain, category, condition, OEM/Aftermarket, and stock status (In Stock / Low Stock / Out of Stock). Each row shows a small photo thumbnail when the part has one (a wrench icon otherwise).
+
+**Part photos**: from a part's detail page, click **Upload Image** (or **Replace Image**) next to its photo — pick a file, or copy an image (e.g. from a supplier's website) and paste it (Ctrl+V) straight into the dialog. Requires the same stock-management permission as adjusting stock.
 
 **Stock actions**, from a part's detail page (financial-tier permissions apply — see below):
 - **➕ Receive Stock** — record new stock coming in, with cost and a reference (PO number, invoice, etc.)
@@ -13436,7 +13438,7 @@ Authorized users can update a menu item's photo or price directly from the POS s
 - Tap **Update Images** to enter Image Upload Mode, or **Adjust Prices** to enter Price Adjustment Mode. The button you tapped turns solid and shows an "● Active" label so it's obvious which mode is on.
 - The two modes are mutually exclusive — turning one on automatically turns the other off.
 - Tap the active button again to return to Normal mode.
-- While a mode is active, every product card gains a small round button in its bottom-right corner: 📷 in Image mode, 💲 in Price mode. Everything else about the POS keeps working normally — tapping the rest of a card still adds it to the cart as usual; only the corner button opens the edit dialog.
+- While a mode is active, every product card gains a small round button in its bottom-left corner (bottom-right is already used for the cart-quantity badge on several POS cards): 📷 in Image mode, 💲 in Price mode. Everything else about the POS keeps working normally — tapping the rest of a card still adds it to the cart as usual; only the corner button opens the edit dialog.
 
 ---
 
@@ -13444,7 +13446,7 @@ Authorized users can update a menu item's photo or price directly from the POS s
 
 1. Turn on **Update Images**.
 2. Tap the 📷 button on the item's card.
-3. The dialog shows the current image (or "No image"). Tap **Upload Image** (or **Replace Image**) and pick a file.
+3. The dialog shows the current image (or "No image"). Tap **Upload Image** (or **Replace Image**) and pick a file — or copy an image (e.g. from a product page on the web) and paste it (Ctrl+V) straight into the dialog, no need to save it to disk first.
 4. The new photo appears on the card immediately — no page reload.
 
 ---
@@ -13460,9 +13462,9 @@ Authorized users can update a menu item's photo or price directly from the POS s
 
 ### Where This Works Today
 
-This first pass covers **Restaurant POS** and **Universal POS** (used by retail, services, consulting, and similar business types). Grocery, Clothing, and Hardware are planned for a follow-up.
+Available on every POS: **Restaurant**, **Grocery**, **Clothing**, **Hardware**, and **Universal POS** (retail, services, consulting, construction, vehicles, and other similar business types).
 
-For Clothing specifically: individual products work the same way once wired up, but **bale cards don't get either button** — bales have no image of their own, and their pricing goes through the existing bale workflow, not this feature.
+For Clothing specifically: it's on the **Quick Add Products** tab only — **Bale Items don't get either button**, since bales have no image of their own and their pricing goes through the existing bale workflow, not this feature. Clothing products are sold by variant (size/color), each with its own price, so **Adjust Prices** shows a small 💲 button on each variant's row rather than one price for the whole card — click the variant you want to change.
 
 Every price change made this way — or through any other price-editing screen — is recorded (who, when, old value, new value) and reviewable on the [Price Change Report](#63-price-change-report).
 

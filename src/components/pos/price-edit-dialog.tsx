@@ -10,6 +10,12 @@ interface Props {
   itemId: string
   itemName: string
   sourceTable: QuickEditSourceTable
+  /** BUSINESS_PRODUCT only — when the card's displayed price actually comes from
+   * a ProductVariant (every grocery/clothing product has at least a "Default"
+   * variant, and its price wins over basePrice wherever it's resolved), pass
+   * that variant's id so the save targets it directly instead of the parent's
+   * basePrice, which a variant with its own stored price would otherwise shadow. */
+  variantId?: string
   currentPrice: number
   onClose: () => void
   onSaved: (newPrice: number) => void
@@ -17,11 +23,11 @@ interface Props {
 
 /**
  * Shared Price Adjustment Mode dialog (MBM-290). Resolves which endpoint to call
- * from `sourceTable`. Only validation today is "greater than zero" — there's no
- * existing min/max or approval-workflow engine for product base prices to hook
- * into (deliberately kept simple per the plan's decisions).
+ * from `sourceTable` (and `variantId`, when given). Only validation today is
+ * "greater than zero" — there's no existing min/max or approval-workflow engine
+ * for product prices to hook into (deliberately kept simple per the plan's decisions).
  */
-export function PriceEditDialog({ businessId, itemId, itemName, sourceTable, currentPrice, onClose, onSaved }: Props) {
+export function PriceEditDialog({ businessId, itemId, itemName, sourceTable, variantId, currentPrice, onClose, onSaved }: Props) {
   const toast = useToastContext()
   const [value, setValue] = useState(String(currentPrice.toFixed(2)))
   const [saving, setSaving] = useState(false)
@@ -35,11 +41,17 @@ export function PriceEditDialog({ businessId, itemId, itemName, sourceTable, cur
     setSaving(true)
     try {
       const res = sourceTable === 'BUSINESS_PRODUCT'
-        ? await fetch(`/api/universal/products/${itemId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ basePrice: newPrice }),
-          })
+        ? variantId
+          ? await fetch(`/api/universal/products/${itemId}/variants/${variantId}/price`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ price: newPrice }),
+            })
+          : await fetch(`/api/universal/products/${itemId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ basePrice: newPrice }),
+            })
         : await fetch(`/api/inventory/${businessId}/items/inv_${itemId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },

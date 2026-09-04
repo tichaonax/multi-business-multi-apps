@@ -103,6 +103,11 @@ export async function GET(request: NextRequest) {
           business_locations: { select: { id: true, name: true, locationCode: true } },
           product_variants: { select: { id: true, sku: true, barcode: true, price: true, stockQuantity: true, reorderLevel: true } },
           vehicle_part_compatibility: true,
+          product_images: {
+            where: { isPrimary: true },
+            select: { id: true, imageUrl: true },
+            take: 1,
+          },
         },
         orderBy: { name: 'asc' },
         skip: (page - 1) * limit,

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useToastContext } from '@/components/ui/toast'
+import { useClipboardImagePaste } from '@/hooks/use-clipboard-image-paste'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -186,6 +187,25 @@ export default function DailySpecialPage() {
   const [formCustomImageId, setFormCustomImageId] = useState<string | null>(null) // null = use product image
   const [formImageUploading, setFormImageUploading] = useState(false)
   const [formSaving, setFormSaving] = useState(false)
+
+  const uploadCustomImage = async (file: File) => {
+    if (!currentBusinessId) return
+    setFormImageUploading(true)
+    const fd = new FormData()
+    fd.append('files', file)
+    fd.append('businessId', currentBusinessId)
+    const res = await fetch('/api/universal/images', { method: 'POST', body: fd })
+    if (res.ok) {
+      const data = await res.json()
+      const id = data.data?.[0]?.filename
+      if (id) setFormCustomImageId(id)
+    } else {
+      toast.push('Image upload failed', { type: 'error' })
+    }
+    setFormImageUploading(false)
+  }
+
+  useClipboardImagePaste(uploadCustomImage, tab === 'library' && canManage && !!formProductId && !!formSpecialPrice && !formImageUploading)
 
   const fetchAll = useCallback(async () => {
     if (!currentBusinessId) return
@@ -612,26 +632,14 @@ export default function DailySpecialPage() {
                                 {formImageUploading ? 'Uploading…' : formCustomImageId ? '🔄 Replace custom image' : '📷 Upload custom image (optional)'}
                                 <input
                                   type="file" accept="image/*" className="hidden"
-                                  onChange={async e => {
+                                  onChange={e => {
                                     const file = e.target.files?.[0]
-                                    if (!file || !currentBusinessId) return
-                                    setFormImageUploading(true)
-                                    const fd = new FormData()
-                                    fd.append('files', file)
-                                    fd.append('businessId', currentBusinessId)
-                                    const res = await fetch('/api/universal/images', { method: 'POST', body: fd })
-                                    if (res.ok) {
-                                      const data = await res.json()
-                                      const id = data.data?.[0]?.filename
-                                      if (id) setFormCustomImageId(id)
-                                    } else {
-                                      toast.push('Image upload failed', { type: 'error' })
-                                    }
-                                    setFormImageUploading(false)
+                                    if (file) uploadCustomImage(file)
                                     e.target.value = ''
                                   }}
                                 />
                               </label>
+                              <p className="text-[10px] text-secondary">or paste an image (Ctrl+V)</p>
                             </div>
                           </div>
                         </div>

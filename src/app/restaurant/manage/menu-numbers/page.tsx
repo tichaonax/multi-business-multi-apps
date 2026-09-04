@@ -9,6 +9,7 @@ import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { SessionUser } from '@/lib/permission-utils'
 import { useToastContext } from '@/components/ui/toast'
+import { useClipboardImagePaste } from '@/hooks/use-clipboard-image-paste'
 
 interface MenuItem {
   id: string
@@ -185,6 +186,8 @@ export default function MenuNumbersPage() {
       setUploadingImage(false)
     }
   }
+
+  useClipboardImagePaste(uploadPrimaryImage, canManage && !!selected && !uploadingImage)
 
   const assign = async (valueOverride?: string) => {
     if (!selected || !currentBusinessId) return
@@ -443,6 +446,7 @@ export default function MenuNumbersPage() {
                         >
                           {uploadingImage ? 'Uploading…' : selected.imageUrl ? 'Replace Image' : 'Upload Image'}
                         </button>
+                        <p className="w-28 text-[10px] text-center text-secondary">or paste (Ctrl+V)</p>
                       </>
                     )}
                   </div>

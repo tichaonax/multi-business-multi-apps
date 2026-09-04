@@ -47,9 +47,19 @@ import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@
 import { useScale } from '@/contexts/ScaleContext'
 import { WeighItemModal } from '@/components/pos/WeighItemModal'
 import { ModalPortal } from '@/components/ui/modal-portal'
+import { usePosQuickEditMode } from '@/hooks/use-pos-quick-edit-mode'
+import { QuickEditModeButtons } from '@/components/pos/quick-edit-mode-buttons'
+import { QuickEditCardButton } from '@/components/pos/quick-edit-card-button'
+import { ImageUploadDialog } from '@/components/pos/image-upload-dialog'
+import { PriceEditDialog } from '@/components/pos/price-edit-dialog'
 
 interface POSItem {
   id: string
+  /** Parent BusinessProducts.id — every grocery product always has exactly one
+   * ("Default") variant, so `id` above is always a variant id (needed for cart/
+   * order-item creation), never the product id `PUT /api/universal/products/[id]`
+   * expects. Quick-Edit Mode (MBM-292) must target this field, not `id`. */
+  productId?: string
   name: string
   barcode?: string
   pluCode?: string
@@ -677,6 +687,12 @@ function GroceryPOSContent() {
   const sessionUser = session?.user as SessionUser
   const employeeId = sessionUser?.id
   const isAdmin = sessionUser?.role === 'admin'
+  // POS Quick-Edit Mode (MBM-292 Phase 2) — the browsable grid is BusinessProducts
+  // only (barcode-scanned BarcodeInventoryItems are added straight to cart on scan,
+  // they never render as a grid card here), so sourceTable is always BUSINESS_PRODUCT.
+  const canQuickEditPOS = isAdmin || hasPermission('canQuickEditPOSItems')
+  const { activeMode: quickEditMode, toggleImageMode, togglePriceMode } = usePosQuickEditMode()
+  const [quickEditItem, setQuickEditItem] = useState<POSItem | null>(null)
   const [selectedSalesperson, setSelectedSalesperson] = useState<SelectedSalesperson | null>(null)
   const selectedSalespersonRef = useRef<SelectedSalesperson | null>(null)
   // Check if current business is a grocery business
@@ -827,6 +843,7 @@ function GroceryPOSContent() {
                 product.variants.forEach((variant: any) => {
                   posItems.push({
                     id: variant.id,
+                    productId: product.id,
                     name: variant.name || product.name,
                     barcode: variant.barcode || product.barcode || product.sku,
                     pluCode: variant.sku || product.sku,
@@ -849,6 +866,7 @@ function GroceryPOSContent() {
                 // Product without variants
                 posItems.push({
                   id: product.id,
+                  productId: product.id,
                   name: product.name,
                   barcode: product.barcode || product.sku,
                   pluCode: product.sku,
@@ -2752,6 +2770,37 @@ function GroceryPOSContent() {
         />
       )}
 
+      {/* POS Quick-Edit Mode (MBM-292 Phase 2) dialogs */}
+      {quickEditItem && quickEditMode === 'image' && (
+        <ImageUploadDialog
+          businessId={currentBusinessId || ''}
+          itemId={quickEditItem.productId || quickEditItem.id}
+          itemName={quickEditItem.name}
+          sourceTable="BUSINESS_PRODUCT"
+          currentImageUrl={quickEditItem.imageUrl ?? null}
+          onClose={() => setQuickEditItem(null)}
+          onSaved={newImageUrl => {
+            setProducts(prev => prev.map(p => p.id === quickEditItem.id ? { ...p, imageUrl: newImageUrl } : p))
+            setQuickEditItem(null)
+          }}
+        />
+      )}
+      {quickEditItem && quickEditMode === 'price' && (
+        <PriceEditDialog
+          businessId={currentBusinessId || ''}
+          itemId={quickEditItem.productId || quickEditItem.id}
+          variantId={quickEditItem.productId && quickEditItem.productId !== quickEditItem.id ? quickEditItem.id : undefined}
+          itemName={quickEditItem.name}
+          sourceTable="BUSINESS_PRODUCT"
+          currentPrice={quickEditItem.price}
+          onClose={() => setQuickEditItem(null)}
+          onSaved={newPrice => {
+            setProducts(prev => prev.map(p => p.id === quickEditItem.id ? { ...p, price: newPrice } : p))
+            setQuickEditItem(null)
+          }}
+        />
+      )}
+
       {/* EOD blocking overlay — salesperson must submit prior-day report before selling */}
       {eodGate?.hasPending && currentBusinessId && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-4">
@@ -3052,6 +3101,15 @@ function GroceryPOSContent() {
         >
           🖥️ {deskMode ? 'Desk Mode ON' : 'Desk Mode'}
         </button>
+
+        {/* POS Quick-Edit Mode (MBM-292 Phase 2) - Only for users with canQuickEditPOSItems */}
+        {canQuickEditPOS && (
+          <QuickEditModeButtons
+            activeMode={quickEditMode}
+            onToggleImage={toggleImageMode}
+            onTogglePrice={togglePriceMode}
+          />
+        )}
       </div>
     </ContentLayout>
 
@@ -3676,6 +3734,22 @@ function GroceryPOSContent() {
                     {/* Scale badge — weight-priced items */}
                     {product.isSoldByWeight && !isOutOfStock && !(deskMode && cartQty > 0) && (
                       <span className="absolute top-1.5 right-1.5 text-xs" title="Sold by weight — scale opens at POS">⚖️</span>
+                    )}
+                    {/* POS Quick-Edit Mode corner button — excludes WiFi/R710 token pseudo-products,
+                        whose price/image are governed by their token config, not a plain edit */}
+                    {quickEditMode !== 'none' && !(product as any).wifiToken && !(product as any).r710Token && (
+                      <QuickEditCardButton mode={quickEditMode} onClick={() => setQuickEditItem(product)} />
+                    )}
+                    {/* Product image — same convention as restaurant/clothing cards */}
+                    {product.imageUrl && (
+                      <div className={`w-full ${deskMode ? 'h-14 sm:h-16 mb-1.5' : 'h-10 mb-1'} rounded overflow-hidden bg-gray-200 dark:bg-gray-700/40 flex-shrink-0`}>
+                        <img
+                          src={product.imageUrl}
+                          alt={product.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                        />
+                      </div>
                     )}
                     <div className={`font-medium ${deskMode ? 'text-base leading-snug mb-1' : ''}`}>
                       {deskMode && <span className="mr-1 text-lg" title={product.category}>{resolveProductEmoji(product)}</span>}

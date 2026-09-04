@@ -27,6 +27,7 @@ interface PartListItem {
   business_locations: { id: string; name: string; locationCode: string } | null
   product_variants: Array<{ id: string; stockQuantity: number; reorderLevel: number; sku: string }>
   vehicle_part_compatibility: Array<{ vehicleMake: string; vehicleModel: string | null }>
+  product_images: Array<{ id: string; imageUrl: string }>
 }
 
 const STOCK_PILLS = [
@@ -199,7 +200,7 @@ function VehiclePartsPageContent() {
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
-                  {['Part', 'Category', 'Vehicle Compatibility', 'Condition', 'Stock', 'Price', 'Location'].map(h => (
+                  {['', 'Part', 'Category', 'Vehicle Compatibility', 'Condition', 'Stock', 'Price', 'Location'].map(h => (
                     <th key={h} className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -213,6 +214,13 @@ function VehiclePartsPageContent() {
                       onClick={() => router.push(`/vehicle-service/parts/${p.id}`)}
                       className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
                     >
+                      <td className="px-3 py-4">
+                        {p.product_images?.[0] ? (
+                          <img src={p.product_images[0].imageUrl} alt="" className="w-10 h-10 object-cover rounded border border-gray-200 dark:border-gray-700" />
+                        ) : (
+                          <div className="w-10 h-10 rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-lg">🔧</div>
+                        )}
+                      </td>
                       <td className="px-3 py-4 text-sm font-medium text-gray-900 dark:text-white">
                         {p.name}
                         {p.sku && <div className="text-xs text-gray-400 font-mono">{p.sku}</div>}

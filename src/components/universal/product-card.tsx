@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useBusinessContext, useBusinessFeatures } from './business-context'
+import { QuickEditCardButton } from '@/components/pos/quick-edit-card-button'
+import type { QuickEditMode } from '@/hooks/use-pos-quick-edit-mode'
 
 export type BarcodeType =
   | 'UPC_A' | 'UPC_E' | 'EAN_13' | 'EAN_8'
@@ -68,6 +70,13 @@ interface ProductCardProps {
   onView?: (productId: string) => void
   showActions?: boolean
   compact?: boolean
+  /** POS Quick-Edit Mode (MBM-292 Phase 2) — when a mode is active, the card
+   * grows the same corner button every other POS card grid uses; `onQuickEdit`
+   * receives the whole product so the caller can open the shared upload/price
+   * dialogs with it. Independent of `onEdit`/`showActions` (a plain, always-on
+   * "Edit" link) — this is the toggle-mode pattern used everywhere else. */
+  quickEditMode?: QuickEditMode
+  onQuickEdit?: (product: UniversalProduct) => void
 }
 
 export function UniversalProductCard({
@@ -76,7 +85,9 @@ export function UniversalProductCard({
   onEdit,
   onView,
   showActions = true,
-  compact = false
+  compact = false,
+  quickEditMode = 'none',
+  onQuickEdit
 }: ProductCardProps) {
   const { formatCurrency, isBusinessType } = useBusinessContext()
   const businessFeatures = useBusinessFeatures()
@@ -211,7 +222,11 @@ export function UniversalProductCard({
   const badges = getBusinessSpecificBadges()
 
   return (
-    <div className={`card rounded-lg shadow-md border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow ${compact ? 'p-3' : 'p-4'}`}>
+    <div className={`relative card rounded-lg shadow-md border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow ${compact ? 'p-3' : 'p-4'}`}>
+      {/* POS Quick-Edit Mode corner button */}
+      {quickEditMode !== 'none' && onQuickEdit && (
+        <QuickEditCardButton mode={quickEditMode} onClick={() => onQuickEdit(product)} />
+      )}
       {/* Product Image */}
       {!compact && (
         <div className="aspect-square mb-3 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">

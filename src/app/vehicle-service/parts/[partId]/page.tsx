@@ -8,6 +8,7 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { ImageUploadDialog } from '@/components/pos/image-upload-dialog'
 
 const MOVEMENT_LABELS: Record<string, string> = {
   PURCHASE_RECEIVED: '➕ Received',
@@ -34,6 +35,7 @@ export default function PartDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [actionModal, setActionModal] = useState<null | 'receive' | 'adjust' | 'write-off' | 'return' | 'internal-use'>(null)
+  const [showImageDialog, setShowImageDialog] = useState(false)
 
   const fetchPart = useCallback(async () => {
     setLoading(true)
@@ -76,13 +78,33 @@ export default function PartDetailPage() {
           <>
             <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
               <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{part.name}</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{part.sku}{part.barcode ? ` · ${part.barcode}` : ''}</p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                    {part.business_categories?.domain?.emoji} {part.business_categories?.domain?.name} → {part.business_categories?.emoji} {part.business_categories?.name}
-                    {part.inventory_subcategory && ` → ${part.inventory_subcategory.emoji || ''} ${part.inventory_subcategory.name}`}
-                  </p>
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 flex flex-col items-center gap-1.5">
+                    <div className="w-20 h-20 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                      {part.product_images?.[0] ? (
+                        <img src={part.product_images[0].imageUrl} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-3xl">🔧</span>
+                      )}
+                    </div>
+                    {canManage && (
+                      <button
+                        type="button"
+                        onClick={() => setShowImageDialog(true)}
+                        className="text-[11px] px-2 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                      >
+                        {part.product_images?.[0] ? 'Replace' : 'Upload'} Image
+                      </button>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{part.name}</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{part.sku}{part.barcode ? ` · ${part.barcode}` : ''}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                      {part.business_categories?.domain?.emoji} {part.business_categories?.domain?.name} → {part.business_categories?.emoji} {part.business_categories?.name}
+                      {part.inventory_subcategory && ` → ${part.inventory_subcategory.emoji || ''} ${part.inventory_subcategory.name}`}
+                    </p>
+                  </div>
                 </div>
                 <a
                   href="/universal/barcode-management/print-jobs/new"
@@ -202,6 +224,18 @@ export default function PartDetailPage() {
           currentStock={variant.stockQuantity}
           onClose={() => setActionModal(null)}
           onDone={() => { setActionModal(null); fetchPart() }}
+        />
+      )}
+
+      {showImageDialog && part && (
+        <ImageUploadDialog
+          businessId={part.businessId}
+          itemId={part.id}
+          itemName={part.name}
+          sourceTable="BUSINESS_PRODUCT"
+          currentImageUrl={part.product_images?.[0]?.imageUrl ?? null}
+          onClose={() => setShowImageDialog(false)}
+          onSaved={() => { setShowImageDialog(false); fetchPart() }}
         />
       )}
     </ContentLayout>

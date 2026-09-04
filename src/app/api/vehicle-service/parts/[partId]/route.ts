@@ -25,6 +25,7 @@ export async function GET(
         product_variants: true,
         vehicle_part_compatibility: { orderBy: { createdAt: 'asc' } },
         business_stock_movements: { orderBy: { createdAt: 'desc' }, take: 50, include: { employees: { select: { fullName: true } } } },
+        product_images: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }] },
       },
     })
     if (!part) return NextResponse.json({ error: 'Part not found' }, { status: 404 })

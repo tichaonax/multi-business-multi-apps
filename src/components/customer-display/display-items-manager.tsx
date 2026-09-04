@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useClipboardImagePaste } from '@/hooks/use-clipboard-image-paste'
 
 interface DisplayItem {
   id: string
@@ -190,6 +191,14 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
     }
   }
 
+  useClipboardImagePaste(
+    file => {
+      const expandedItem = items.find(i => i.id === expandedId)
+      if (expandedItem) uploadAdImage(expandedItem, file)
+    },
+    !!expandedId && uploadingFor === null
+  )
+
   async function removeAdImage(item: DisplayItem) {
     await fetch(`/api/business/${businessId}/display-smart-ads/config`, {
       method: 'PUT',
@@ -372,6 +381,7 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
                           >
                             {uploadingFor === item.id ? 'Uploading…' : editState.adImageId ? 'Replace' : 'Upload'}
                           </button>
+                          <p className="text-[10px] text-gray-400">or paste (Ctrl+V)</p>
                           {editState.adImageId && (
                             <button
                               onClick={() => removeAdImage(item)}

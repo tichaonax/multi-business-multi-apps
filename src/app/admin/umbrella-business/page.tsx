@@ -10,6 +10,7 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { useToastContext } from '@/components/ui/toast'
+import { useClipboardImagePaste } from '@/hooks/use-clipboard-image-paste'
 
 interface UmbrellaBusinessData {
   id: string
@@ -151,9 +152,7 @@ export default function UmbrellaBusinessManagement() {
     }))
   }
 
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const uploadLogoFile = async (file: File) => {
     if (file.size > 2 * 1024 * 1024) {
       toast.error('Logo must be under 2 MB')
       return
@@ -181,9 +180,16 @@ export default function UmbrellaBusinessManagement() {
       toast.error('Upload error')
     } finally {
       setLogoUploading(false)
-      e.target.value = ''
     }
   }
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) await uploadLogoFile(file)
+    e.target.value = ''
+  }
+
+  useClipboardImagePaste(uploadLogoFile, !logoUploading)
 
   const handleRemoveLogo = async () => {
     setLogoUploading(true)
@@ -412,6 +418,7 @@ export default function UmbrellaBusinessManagement() {
                     {logoUploading ? 'Uploading…' : '📤 Upload Logo'}
                     <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleLogoUpload} disabled={logoUploading} />
                   </label>
+                  <p className="text-xs text-gray-400">or paste an image from your clipboard (Ctrl+V)</p>
                   {umbrellaData?.logoImageId && (
                     <button
                       onClick={handleRemoveLogo}

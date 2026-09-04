@@ -3,6 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState, useCallback } from 'react'
+import { getImageFileFromClipboardEvent } from '@/hooks/use-clipboard-image-paste'
 import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { SessionUser } from '@/lib/permission-utils'
@@ -151,6 +152,22 @@ export default function RestaurantDisplaySettingsPage() {
       body: JSON.stringify({ itemType, itemId, ...patch }),
     })
     load()
+  }
+
+  // Shared by both the file-picker input and the per-row paste handler below —
+  // a page-wide clipboard-paste listener can't tell which item's row the user
+  // meant (this is a list of many independent upload targets, not one active
+  // item), so each row's own onPaste calls this directly instead.
+  async function uploadAdImage(itemType: string, itemId: string, file: File) {
+    const fd = new FormData()
+    fd.append('files', file)
+    fd.append('businessId', currentBusinessId ?? '')
+    const res = await fetch('/api/universal/images', { method: 'POST', body: fd })
+    if (res.ok) {
+      const data = await res.json()
+      const imageId = data.data?.[0]?.filename
+      if (imageId) await updateItemConfig(itemType, itemId, { advertisingImageId: imageId })
+    }
   }
 
   // Today's Special is a real, separate system (DailySpecial + day override) — not a
@@ -468,50 +485,52 @@ export default function RestaurantDisplaySettingsPage() {
                             <div className="flex flex-col items-start gap-1">
                               <span className="text-[10px] text-gray-400 dark:text-gray-500">Using catalog photo</span>
                               {canManage && (
-                                <label className="cursor-pointer text-xs text-blue-600 dark:text-blue-400 hover:underline">
-                                  📷 Use a different ad photo
-                                  <input
-                                    type="file" accept="image/*" className="hidden"
-                                    onChange={async e => {
-                                      const file = e.target.files?.[0]
-                                      if (!file) return
-                                      const fd = new FormData()
-                                      fd.append('files', file)
-                                      fd.append('businessId', currentBusinessId ?? '')
-                                      const res = await fetch('/api/universal/images', { method: 'POST', body: fd })
-                                      if (res.ok) {
-                                        const data = await res.json()
-                                        const imageId = data.data?.[0]?.filename
-                                        if (imageId) await updateItemConfig(item.itemType, item.id, { advertisingImageId: imageId })
-                                      }
-                                      e.target.value = ''
-                                    }}
-                                  />
-                                </label>
+                                <div
+                                  tabIndex={0}
+                                  onPaste={e => {
+                                    const file = getImageFileFromClipboardEvent(e)
+                                    if (file) { e.preventDefault(); uploadAdImage(item.itemType, item.id, file) }
+                                  }}
+                                  className="flex flex-col items-start gap-0.5 outline-none focus:ring-2 focus:ring-blue-400 rounded"
+                                >
+                                  <label className="cursor-pointer text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                                    📷 Use a different ad photo
+                                    <input
+                                      type="file" accept="image/*" className="hidden"
+                                      onChange={e => {
+                                        const file = e.target.files?.[0]
+                                        if (file) uploadAdImage(item.itemType, item.id, file)
+                                        e.target.value = ''
+                                      }}
+                                    />
+                                  </label>
+                                  <span className="text-[10px] text-gray-400 dark:text-gray-500">click here, then paste (Ctrl+V)</span>
+                                </div>
                               )}
                             </div>
                           </>
                         ) : canManage ? (
-                          <label className="cursor-pointer text-xs text-blue-600 dark:text-blue-400 hover:underline">
-                            📷 Add ad image
-                            <input
-                              type="file" accept="image/*" className="hidden"
-                              onChange={async e => {
-                                const file = e.target.files?.[0]
-                                if (!file) return
-                                const fd = new FormData()
-                                fd.append('files', file)
-                                fd.append('businessId', currentBusinessId ?? '')
-                                const res = await fetch('/api/universal/images', { method: 'POST', body: fd })
-                                if (res.ok) {
-                                  const data = await res.json()
-                                  const imageId = data.data?.[0]?.filename
-                                  if (imageId) await updateItemConfig(item.itemType, item.id, { advertisingImageId: imageId })
-                                }
-                                e.target.value = ''
-                              }}
-                            />
-                          </label>
+                          <div
+                            tabIndex={0}
+                            onPaste={e => {
+                              const file = getImageFileFromClipboardEvent(e)
+                              if (file) { e.preventDefault(); uploadAdImage(item.itemType, item.id, file) }
+                            }}
+                            className="flex flex-col items-start gap-0.5 outline-none focus:ring-2 focus:ring-blue-400 rounded"
+                          >
+                            <label className="cursor-pointer text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                              📷 Add ad image
+                              <input
+                                type="file" accept="image/*" className="hidden"
+                                onChange={e => {
+                                  const file = e.target.files?.[0]
+                                  if (file) uploadAdImage(item.itemType, item.id, file)
+                                  e.target.value = ''
+                                }}
+                              />
+                            </label>
+                            <span className="text-[10px] text-gray-400 dark:text-gray-500">click here, then paste (Ctrl+V)</span>
+                          </div>
                         ) : (
                           <span className="text-xs text-gray-400 dark:text-gray-500">No ad image</span>
                         )}

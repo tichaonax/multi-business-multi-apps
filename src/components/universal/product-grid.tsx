@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { UniversalProductCard, UniversalProduct } from './product-card'
 import { UniversalCategoryNavigation } from './category-navigation'
 import { useBusinessContext, useBusinessFeatures } from './business-context'
+import type { QuickEditMode } from '@/hooks/use-pos-quick-edit-mode'
 
 interface ProductGridProps {
   businessId: string
@@ -18,6 +19,9 @@ interface ProductGridProps {
   stickyFilters?: boolean
   categoryId?: string | null
   refreshKey?: number
+  /** POS Quick-Edit Mode (MBM-292 Phase 2) — passed straight through to each card. */
+  quickEditMode?: QuickEditMode
+  onQuickEdit?: (product: UniversalProduct) => void
 }
 
 interface ProductFilters {
@@ -45,6 +49,8 @@ export function UniversalProductGrid({
   stickyFilters = false,
   categoryId: externalCategoryId,
   refreshKey,
+  quickEditMode = 'none',
+  onQuickEdit,
 }: ProductGridProps) {
   const { formatCurrency } = useBusinessContext()
   const businessFeatures = useBusinessFeatures()
@@ -458,6 +464,8 @@ export function UniversalProductGrid({
                     onAddToCart={onAddToCart}
                     onEdit={onProductEdit}
                     onView={onProductView}
+                    quickEditMode={quickEditMode}
+                    onQuickEdit={onQuickEdit}
                     showActions={true}
                     compact={layout === 'list'}
                   />

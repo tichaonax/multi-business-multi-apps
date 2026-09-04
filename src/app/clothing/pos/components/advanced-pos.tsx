@@ -25,6 +25,11 @@ import type { ReceiptData } from '@/types/printing'
 import { QuickStockFromScanModal } from '@/components/inventory/quick-stock-from-scan-modal'
 import { calcEcocashFeeFromBusiness, getEcocashSummary } from '@/lib/ecocash-utils'
 import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
+import { usePosQuickEditMode } from '@/hooks/use-pos-quick-edit-mode'
+import { QuickEditModeButtons } from '@/components/pos/quick-edit-mode-buttons'
+import { QuickEditCardButton } from '@/components/pos/quick-edit-card-button'
+import { ImageUploadDialog } from '@/components/pos/image-upload-dialog'
+import { PriceEditDialog } from '@/components/pos/price-edit-dialog'
 
 interface CartItem {
   id: string
@@ -82,6 +87,15 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   const { currentBusiness, hasPermission } = useBusinessPermissionsContext()
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'admin'
+  // POS Quick-Edit Mode (MBM-292 Phase 2) — Quick Add tab only, see decision #2/#3
+  // in the plan: bales are out of scope, and price mode edits one variant's row
+  // at a time (clothing products show per-variant prices, not one card price).
+  const canQuickEditPOS = isAdmin || hasPermission('canQuickEditPOSItems')
+  const { activeMode: quickEditMode, toggleImageMode, togglePriceMode } = usePosQuickEditMode()
+  const [quickEditProduct, setQuickEditProduct] = useState<any | null>(null)
+  const [quickEditVariant, setQuickEditVariant] = useState<{
+    productId: string; productName: string; variantId: string; variantName: string; price: number
+  } | null>(null)
   const { cart: globalCart, clearCart: clearGlobalCart, addToCart: addToGlobalCart, replaceCart: replaceGlobalCart } = useGlobalCart()
   const customAlert = useAlert()
   const toast = useToastContext()
@@ -1984,6 +1998,15 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 </button>
               )}
             </div>
+            {/* POS Quick-Edit Mode (MBM-292 Phase 2) — Quick Add tab only; bales
+                are out of scope (no image field, no editable price on that endpoint) */}
+            {browseTab === 'quickadd' && canQuickEditPOS && (
+              <QuickEditModeButtons
+                activeMode={quickEditMode}
+                onToggleImage={toggleImageMode}
+                onTogglePrice={togglePriceMode}
+              />
+            )}
             {browseTab === 'bales' && (
               <button
                 type="button"
@@ -2051,7 +2074,13 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 })
                 const displayProducts = [...pinned, ...sortedUnpinned].slice(0, Math.max(20, pinned.length))
                 return displayProducts.map((product) => (
-                <div key={product.id} className={`border rounded-lg p-3 hover:shadow-md transition-shadow ${pinnedProductIds.has(product.id) ? 'border-yellow-400 dark:border-yellow-500' : ''}`}>
+                <div key={product.id} className={`relative border rounded-lg p-3 hover:shadow-md transition-shadow ${pinnedProductIds.has(product.id) ? 'border-yellow-400 dark:border-yellow-500' : ''}`}>
+                  {/* POS Quick-Edit Mode image corner button (MBM-292 Phase 2) —
+                      excludes R710 WiFi token pseudo-products, which have no
+                      image of their own and are priced via their token config */}
+                  {quickEditMode === 'image' && !product.id.startsWith('r710_') && (
+                    <QuickEditCardButton mode="image" onClick={() => setQuickEditProduct(product)} />
+                  )}
                   <div className="flex gap-3 mb-3">
                     {/* Product Image */}
                     <div className="flex-shrink-0">
@@ -2142,7 +2171,24 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                                 )}
                               </div>
                               <div className="flex items-center gap-2 flex-shrink-0">
-                                <span className="text-sm font-medium">{formatCurrency(variant.price)}</span>
+                                {quickEditMode === 'price' && !product.id.startsWith('r710_') ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setQuickEditVariant({
+                                      productId: product.id,
+                                      productName: product.name,
+                                      variantId: variant.id,
+                                      variantName: variantName,
+                                      price: variant.price,
+                                    })}
+                                    className="text-sm font-medium px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-800"
+                                    title="Adjust this variant's price"
+                                  >
+                                    💲 {formatCurrency(variant.price)}
+                                  </button>
+                                ) : (
+                                  <span className="text-sm font-medium">{formatCurrency(variant.price)}</span>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() => addToCart(product.id, variant.id)}
@@ -3089,6 +3135,40 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       lockTemplate={!!bulkPrintModal?.templateId}
       compact={!!bulkPrintModal?.baleId && !!bulkPrintModal?.templateId}
     />
+
+    {/* POS Quick-Edit Mode (MBM-292 Phase 2) dialogs */}
+    {quickEditProduct && quickEditMode === 'image' && (
+      <ImageUploadDialog
+        businessId={businessId}
+        itemId={quickEditProduct.id}
+        itemName={quickEditProduct.name}
+        sourceTable="BUSINESS_PRODUCT"
+        currentImageUrl={quickEditProduct.imageUrl ?? null}
+        onClose={() => setQuickEditProduct(null)}
+        onSaved={newImageUrl => {
+          setQuickAddProducts(prev => prev.map(p => p.id === quickEditProduct.id ? { ...p, imageUrl: newImageUrl } : p))
+          setQuickEditProduct(null)
+        }}
+      />
+    )}
+    {quickEditVariant && (
+      <PriceEditDialog
+        businessId={businessId}
+        itemId={quickEditVariant.productId}
+        variantId={quickEditVariant.variantId}
+        itemName={`${quickEditVariant.productName} — ${quickEditVariant.variantName}`}
+        sourceTable="BUSINESS_PRODUCT"
+        currentPrice={quickEditVariant.price}
+        onClose={() => setQuickEditVariant(null)}
+        onSaved={newPrice => {
+          setQuickAddProducts(prev => prev.map(p => p.id === quickEditVariant.productId
+            ? { ...p, variants: p.variants.map((v: any) => v.id === quickEditVariant.variantId ? { ...v, price: newPrice } : v) }
+            : p
+          ))
+          setQuickEditVariant(null)
+        }}
+      />
+    )}
     </>
   )
 }
