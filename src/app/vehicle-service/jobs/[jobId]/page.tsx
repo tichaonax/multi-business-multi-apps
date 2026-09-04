@@ -12,6 +12,7 @@ import { NationalIdInput } from '@/components/ui/national-id-input'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { JobCardPrintModal } from '@/components/vehicle-service/job-card-print-modal'
+import { PartsPickerGrid } from '@/components/vehicle-service/parts-picker-grid'
 import { InvoicePrintModal } from '@/components/vehicle-service/invoice-print-modal'
 import { UnifiedReceiptPreviewModal } from '@/components/receipts/unified-receipt-preview-modal'
 import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
@@ -60,9 +61,8 @@ export default function VehicleServiceJobDetailPage() {
   const [newTask, setNewTask] = useState({ categoryId: '', subcategoryId: '', contractorId: '', customerPriceOverride: '', workDescription: '' })
   const [taskError, setTaskError] = useState<string | null>(null)
   const [addingTask, setAddingTask] = useState(false)
-  const [taskPartsQuery, setTaskPartsQuery] = useState('')
-  const [taskPartsResults, setTaskPartsResults] = useState<any[]>([])
   const [taskParts, setTaskParts] = useState<Array<{ productVariantId: string; name: string; quantity: number; stockQuantity: number }>>([])
+  const [showTaskPartsPicker, setShowTaskPartsPicker] = useState(false)
   const [showBillModal, setShowBillModal] = useState(false)
   const [showJobCardModal, setShowJobCardModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
@@ -163,24 +163,7 @@ export default function VehicleServiceJobDetailPage() {
       .catch(() => setAllContractors([]))
   }, [job?.businessId])
 
-  // Known-parts search for Add Task (e.g. an oil filter for an oil change) —
-  // same product search + immediate-stock-decrement model as Bill Job's own
-  // "Add More Parts", just usable earlier, at task-creation time.
-  useEffect(() => {
-    if (!taskPartsQuery.trim() || !job?.businessId) { setTaskPartsResults([]); return }
-    const t = setTimeout(async () => {
-      const res = await fetch(`/api/universal/products?businessId=${job.businessId}&productType=PHYSICAL&search=${encodeURIComponent(taskPartsQuery)}&includeVariants=true&limit=10`)
-      if (res.ok) {
-        const data = await res.json()
-        setTaskPartsResults(data.products || data.data || [])
-      }
-    }, 300)
-    return () => clearTimeout(t)
-  }, [taskPartsQuery, job?.businessId])
-
-  const addTaskPart = (product: any) => {
-    const variant = (product.product_variants || product.variants || [])[0]
-    if (!variant) return
+  const addTaskPart = (product: any, variant: any) => {
     if (taskParts.some(p => p.productVariantId === variant.id)) return
     setTaskParts([...taskParts, {
       productVariantId: variant.id,
@@ -188,8 +171,7 @@ export default function VehicleServiceJobDetailPage() {
       quantity: 1,
       stockQuantity: Number(variant.stockQuantity ?? 0),
     }])
-    setTaskPartsQuery('')
-    setTaskPartsResults([])
+    setShowTaskPartsPicker(false)
   }
 
   // Global person search (Persons has no businessId — search everywhere) so an
@@ -931,24 +913,13 @@ export default function VehicleServiceJobDetailPage() {
                         ))}
                       </div>
                     )}
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={taskPartsQuery}
-                        onChange={e => setTaskPartsQuery(e.target.value)}
-                        placeholder="Search parts inventory to attach..."
-                        className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      />
-                      {taskPartsResults.length > 0 && (
-                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-40 overflow-y-auto">
-                          {taskPartsResults.map((p: any) => (
-                            <button key={p.id} type="button" onClick={() => addTaskPart(p)} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">
-                              {p.name}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowTaskPartsPicker(true)}
+                      className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 text-left"
+                    >
+                      📦 Browse Parts to Attach...
+                    </button>
                   </div>
 
                   {taskError && <p className="text-xs text-red-600 dark:text-red-400">{taskError}</p>}
@@ -1014,6 +985,27 @@ export default function VehicleServiceJobDetailPage() {
           onPaid={() => { setShowPaymentModal(false); fetchJob() }}
         />
       )}
+
+      {showTaskPartsPicker && job && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75" onClick={() => setShowTaskPartsPicker(false)} />
+            <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+              <div className="bg-gray-50 dark:bg-gray-900 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white">Browse Parts</h3>
+                <button onClick={() => setShowTaskPartsPicker(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">✕</button>
+              </div>
+              <div className="px-6 py-4 max-h-[70vh] overflow-y-auto text-left">
+                <PartsPickerGrid
+                  businessId={job.businessId}
+                  excludeVariantIds={taskParts.map(p => p.productVariantId)}
+                  onAdd={addTaskPart}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </ContentLayout>
   )
 }
@@ -1021,8 +1013,6 @@ export default function VehicleServiceJobDetailPage() {
 interface BillPart { productVariantId: string; name: string; quantity: number; unitPrice: number; stockQuantity: number }
 
 function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => void; onBilled: () => void }) {
-  const [partsQuery, setPartsQuery] = useState('')
-  const [partsResults, setPartsResults] = useState<any[]>([])
   const [billParts, setBillParts] = useState<BillPart[]>([])
   const [otherCharges, setOtherCharges] = useState<Array<{ description: string; amount: string }>>([])
   const [discountInput, setDiscountInput] = useState('')
@@ -1037,18 +1027,6 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
   const [result, setResult] = useState<{ id: string; orderNumber: string; subtotal: number; taxAmount: number; discountAmount: number; totalAmount: number } | null>(null)
 
   const formatCurrency = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
-
-  useEffect(() => {
-    if (!partsQuery.trim()) { setPartsResults([]); return }
-    const t = setTimeout(async () => {
-      const res = await fetch(`/api/universal/products?businessId=${job.businessId}&productType=PHYSICAL&search=${encodeURIComponent(partsQuery)}&includeVariants=true&limit=10`)
-      if (res.ok) {
-        const data = await res.json()
-        setPartsResults(data.products || data.data || [])
-      }
-    }, 300)
-    return () => clearTimeout(t)
-  }, [partsQuery, job.businessId])
 
   // Fetch the business's own tax settings (same source POS checkout uses) to
   // pre-fill a default — still a plain editable $ amount here, since labour
@@ -1065,9 +1043,7 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
       .catch(() => {})
   }, [job.businessId])
 
-  const addPart = (product: any) => {
-    const variant = (product.product_variants || product.variants || [])[0]
-    if (!variant) return
+  const addPart = (product: any, variant: any) => {
     if (billParts.some(p => p.productVariantId === variant.id)) return
     setBillParts([...billParts, {
       productVariantId: variant.id,
@@ -1076,8 +1052,6 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
       unitPrice: Number(variant.price ?? product.basePrice ?? 0),
       stockQuantity: Number(variant.stockQuantity ?? 0),
     }])
-    setPartsQuery('')
-    setPartsResults([])
   }
 
   const labourTotal = job.tasks.reduce((s: number, t: any) => s + Number(t.customerPriceOverride ?? t.customerLabourRate ?? t.agreedFeeAmount), 0)
@@ -1129,7 +1103,7 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75" onClick={submitting ? undefined : onClose} />
-        <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+        <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
           <div className="bg-gray-50 dark:bg-gray-900 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <h3 className="text-lg font-medium text-gray-900 dark:text-white">Bill This Job</h3>
           </div>
@@ -1170,23 +1144,12 @@ function BillJobModal({ job, onClose, onBilled }: { job: any; onClose: () => voi
                   <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
                     Add More Parts{job.waiveParts && <span className="text-amber-600 dark:text-amber-400"> (customer billed $0 — rework job)</span>}
                   </h5>
-                  <div className="relative mb-2">
-                    <input
-                      type="text"
-                      value={partsQuery}
-                      onChange={e => setPartsQuery(e.target.value)}
-                      placeholder="Search parts to add..."
-                      className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  <div className="mb-2">
+                    <PartsPickerGrid
+                      businessId={job.businessId}
+                      excludeVariantIds={billParts.map(p => p.productVariantId)}
+                      onAdd={addPart}
                     />
-                    {partsResults.length > 0 && (
-                      <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-40 overflow-y-auto">
-                        {partsResults.map((p: any) => (
-                          <button key={p.id} type="button" onClick={() => addPart(p)} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700">
-                            {p.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                   {billParts.map(p => (
                     <div key={p.productVariantId} className="flex items-center justify-between text-sm gap-2 mb-1">
