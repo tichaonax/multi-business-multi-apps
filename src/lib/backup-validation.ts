@@ -194,6 +194,11 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   'orderCancellations': 'orderCancellation',
   // Smart Customer Display configs (MBM-232) — model name is singular (DisplayProductConfig)
   'displayProductConfigs': 'displayProductConfig',
+  // Business Target & Cash-Flow Planning (MBM-288) — model names are singular
+  'businessTargetConfigs': 'businessTargetConfig',
+  'businessTargetCommitments': 'businessTargetCommitment',
+  'businessTargetDayAdjustments': 'businessTargetDayAdjustment',
+  'businessTradingSchedules': 'businessTradingSchedule',
 }
 
 /**

@@ -345,6 +345,19 @@ const RESTORE_ORDER = [
   'dailySpecialDayOverride', // Depends on businesses + dailySpecial (optional FK)
   'cashRoundingLogs',        // Depends on businesses only (orderId is optional, no FK enforced)
 
+  // Business Target & Cash-Flow Planning (MBM-288)
+  'businessTargetConfigs',         // Depends on businesses + users (createdBy/updatedBy)
+  'businessTargetCommitments',     // Depends on businesses + users
+  'businessTargetOverrideHistory', // Depends on businesses + users
+  'businessTargetDayAdjustments',  // Depends on businesses + users (@@unique businessId+date)
+  'businessTradingSchedules',      // Depends on businesses + users (@unique businessId)
+
+  // EOD Allocation Skips
+  'eodAllocationSkips',      // Depends on businesses + users (@@unique businessId+allocationType+configKey+eodDate)
+
+  // Product Promotions (MBM-289)
+  'productPromotions',       // Depends on businesses only (itemId is a polymorphic reference, no FK)
+
   'orders',
   'orderItems',
 
@@ -608,6 +621,14 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
 
   // Workstation agents (MBM-275/283)
   'workstationAgentRequestLog': 'jobId',
+
+  // Business Target & Cash-Flow Planning (MBM-288): unique constraints
+  'businessTargetConfigs': 'businessId',
+  'businessTargetDayAdjustments': { fields: ['businessId', 'date'] },
+  'businessTradingSchedules': 'businessId',
+
+  // EOD Allocation Skips: unique on (businessId, allocationType, configKey, eodDate)
+  'eodAllocationSkips': { fields: ['businessId', 'allocationType', 'configKey', 'eodDate'] },
 }
 
 // (Composite unique and child dependency configs removed — replaced by ID remapping approach)
@@ -679,6 +700,11 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
   'chickenLaborLogs': 'chickenLaborLog',
   // Smart Customer Display configs (MBM-232) — model name is singular (DisplayProductConfig)
   'displayProductConfigs': 'displayProductConfig',
+  // Business Target & Cash-Flow Planning (MBM-288) — model names are singular
+  'businessTargetConfigs': 'businessTargetConfig',
+  'businessTargetCommitments': 'businessTargetCommitment',
+  'businessTargetDayAdjustments': 'businessTargetDayAdjustment',
+  'businessTradingSchedules': 'businessTradingSchedule',
 }
 
 /**

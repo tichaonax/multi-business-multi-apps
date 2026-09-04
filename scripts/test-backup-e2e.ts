@@ -102,6 +102,13 @@ const NEW_TABLE_KEYS = [
   // Workstation Agents & Remote Printing (MBM-275/283)
   'workstationAgents', 'scaleDeviceConfigs', 'workstationAgentRequestLog',
   'qzPrinterConfigs', 'printTerminals', 'defaultReceiptPrinterConfigs',
+  // Business Target & Cash-Flow Planning (MBM-288)
+  'businessTargetConfigs', 'businessTargetCommitments', 'businessTargetOverrideHistory',
+  'businessTargetDayAdjustments', 'businessTradingSchedules',
+  // EOD Allocation Skips
+  'eodAllocationSkips',
+  // Product Promotions (MBM-289)
+  'productPromotions',
 ]
 
 async function main() {

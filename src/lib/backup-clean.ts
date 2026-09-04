@@ -1597,6 +1597,33 @@ export async function createCleanBackup(
     where: { businessId: { in: businessIds } }
   })
 
+  // 62. Business Target & Cash-Flow Planning (MBM-288) - NEW
+  businessData.businessTargetConfigs = await prisma.businessTargetConfig.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.businessTargetCommitments = await prisma.businessTargetCommitment.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.businessTargetOverrideHistory = await prisma.businessTargetOverrideHistory.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.businessTargetDayAdjustments = await prisma.businessTargetDayAdjustment.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.businessTradingSchedules = await prisma.businessTradingSchedule.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  // 63. EOD Allocation Skips - NEW
+  businessData.eodAllocationSkips = await prisma.eodAllocationSkips.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
+  // 64. Product Promotions (MBM-289) - NEW
+  businessData.productPromotions = await prisma.productPromotions.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
   // Extend image backup: warehouse images + product_images + inventory display images + ad images
   const warehouseImageIds = businessData.warehouseItems
     .map((i: any) => i.imageId)
@@ -1689,7 +1716,7 @@ export async function createCleanBackup(
       deviceRecords,
       uncompressedSize
     },
-    schemaVersion: '6.38.0',
+    schemaVersion: '6.39.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum
