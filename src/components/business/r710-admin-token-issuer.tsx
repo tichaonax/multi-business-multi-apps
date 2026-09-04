@@ -110,13 +110,6 @@ export function AdminTokenIssuer({ businessId, configs, canEditConfig }: AdminTo
       <div className="flex flex-col gap-2 mb-2">
         {configs.map(config => (
           <div key={config.id} className="flex items-center gap-2">
-            <button
-              onClick={() => handleIssue(config)}
-              disabled={issuing !== null}
-              className="px-3 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {issuing === config.id ? 'Issuing…' : `Issue "${config.name}" (${formatDuration(config.durationValue, config.durationUnit)})`}
-            </button>
             {canEditConfig && (
               <Link
                 href={`/r710-portal/token-configs/${config.id}`}
@@ -125,6 +118,13 @@ export function AdminTokenIssuer({ businessId, configs, canEditConfig }: AdminTo
                 ✏️ Edit Package
               </Link>
             )}
+            <button
+              onClick={() => handleIssue(config)}
+              disabled={issuing !== null}
+              className="px-3 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {issuing === config.id ? 'Issuing…' : `Issue "${config.name}" (${formatDuration(config.durationValue, config.durationUnit)})`}
+            </button>
           </div>
         ))}
       </div>
