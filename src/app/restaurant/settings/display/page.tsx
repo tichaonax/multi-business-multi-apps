@@ -15,6 +15,7 @@ interface GlobalSettings {
   maxItemsInRotation: number
   leftPanelCardCount: number
   rightPanelColumns: number
+  rightPanelRows: number
 }
 
 interface DisplayItem {
@@ -23,6 +24,7 @@ interface DisplayItem {
   name: string
   price: number
   emoji: string | null
+  imageUrl: string | null
   sizes?: Array<{ sizeName: string; basePrice: number }>
   salesScore: number
   displayScore: number
@@ -67,6 +69,7 @@ export default function RestaurantDisplaySettingsPage() {
     maxItemsInRotation: 12,
     leftPanelCardCount: 2,
     rightPanelColumns: 2,
+    rightPanelRows: 4,
   })
   const [items, setItems] = useState<DisplayItem[]>([])
   const [dailySpecial, setDailySpecial] = useState<DisplayItem | null>(null)
@@ -290,6 +293,24 @@ export default function RestaurantDisplaySettingsPage() {
                   </span>
                 </div>
               </div>
+
+              <div>
+                <label className="text-sm text-gray-700 dark:text-gray-300 block mb-1">
+                  Menu grid rows (right panel)
+                </label>
+                <div className="text-xs text-gray-400 dark:text-gray-500 mb-1">Fewer rows means each item card is taller</div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range" min={1} max={5} step={1}
+                    value={settings.rightPanelRows}
+                    onChange={e => setSettings(s => ({ ...s, rightPanelRows: Number(e.target.value) }))}
+                    className="flex-1"
+                  />
+                  <span className="text-sm font-mono w-8 text-right text-gray-900 dark:text-gray-100">
+                    {settings.rightPanelRows}
+                  </span>
+                </div>
+              </div>
             </div>
 
             {canManage && (
@@ -337,8 +358,12 @@ export default function RestaurantDisplaySettingsPage() {
               {allDisplayItems.map(item => (
                 <div key={`${item.itemType}:${item.id}`} className="px-5 py-4">
                   <div className="flex items-start gap-4">
-                    {/* Emoji + name */}
-                    <div className="text-2xl flex-shrink-0">{item.emoji ?? '🍽️'}</div>
+                    {/* Primary image (falls back to emoji when the item has no photo) + name */}
+                    {item.imageUrl ? (
+                      <img src={item.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 bg-gray-100 dark:bg-gray-700" />
+                    ) : (
+                      <div className="text-2xl flex-shrink-0">{item.emoji ?? '🍽️'}</div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">{item.name}</span>
@@ -375,28 +400,66 @@ export default function RestaurantDisplaySettingsPage() {
                         <input
                           type="number" min={0} max={100} step={5}
                           defaultValue={item.priorityBoost ?? 0}
+                          disabled={!canManage}
                           onBlur={e => {
                             const val = Math.max(0, Math.min(100, Number(e.target.value)))
                             updateItemConfig(item.itemType, item.id, { priorityBoost: val })
                           }}
-                          className="w-16 text-xs border border-gray-200 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                          className="w-16 text-xs border border-gray-200 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                         />
                       </div>
 
-                      {/* Ad image */}
-                      <div className="mt-2 flex items-center gap-2 flex-wrap">
+                      {/* Display image — defaults to the item's own primary/catalog photo when one
+                          exists; "Add ad image" / "Use a different photo" overrides it with a
+                          dedicated promo image. The override is what advertisingImageId stores —
+                          removing it just falls back to the catalog photo, it doesn't blank the ad. */}
+                      <div className="mt-2 flex items-center gap-3 flex-wrap">
                         {item.adImageId ? (
                           <>
-                            <img src={`/api/images/${item.adImageId}`} alt="ad" className="w-16 h-10 object-cover rounded border border-gray-200 dark:border-gray-600" />
-                            <button
-                              type="button"
-                              onClick={() => updateItemConfig(item.itemType, item.id, { advertisingImageId: null })}
-                              className="text-xs text-red-500 hover:underline"
-                            >
-                              Remove image
-                            </button>
+                            <img src={`/api/images/${item.adImageId}`} alt="ad" className="w-24 h-16 object-cover rounded border border-gray-200 dark:border-gray-600" />
+                            <div className="flex flex-col items-start gap-1">
+                              <span className="text-[10px] text-gray-400 dark:text-gray-500">Dedicated ad photo</span>
+                              {canManage && (
+                                <button
+                                  type="button"
+                                  onClick={() => updateItemConfig(item.itemType, item.id, { advertisingImageId: null })}
+                                  className="text-xs text-red-500 hover:underline"
+                                >
+                                  {item.imageUrl ? 'Remove (use catalog photo instead)' : 'Remove image'}
+                                </button>
+                              )}
+                            </div>
                           </>
-                        ) : (
+                        ) : item.imageUrl ? (
+                          <>
+                            <img src={item.imageUrl} alt="" className="w-24 h-16 object-cover rounded border border-gray-200 dark:border-gray-600" />
+                            <div className="flex flex-col items-start gap-1">
+                              <span className="text-[10px] text-gray-400 dark:text-gray-500">Using catalog photo</span>
+                              {canManage && (
+                                <label className="cursor-pointer text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                                  📷 Use a different ad photo
+                                  <input
+                                    type="file" accept="image/*" className="hidden"
+                                    onChange={async e => {
+                                      const file = e.target.files?.[0]
+                                      if (!file) return
+                                      const fd = new FormData()
+                                      fd.append('files', file)
+                                      fd.append('businessId', currentBusinessId ?? '')
+                                      const res = await fetch('/api/universal/images', { method: 'POST', body: fd })
+                                      if (res.ok) {
+                                        const data = await res.json()
+                                        const imageId = data.data?.[0]?.filename
+                                        if (imageId) await updateItemConfig(item.itemType, item.id, { advertisingImageId: imageId })
+                                      }
+                                      e.target.value = ''
+                                    }}
+                                  />
+                                </label>
+                              )}
+                            </div>
+                          </>
+                        ) : canManage ? (
                           <label className="cursor-pointer text-xs text-blue-600 dark:text-blue-400 hover:underline">
                             📷 Add ad image
                             <input
@@ -417,6 +480,8 @@ export default function RestaurantDisplaySettingsPage() {
                               }}
                             />
                           </label>
+                        ) : (
+                          <span className="text-xs text-gray-400 dark:text-gray-500">No ad image</span>
                         )}
                       </div>
 
@@ -426,8 +491,9 @@ export default function RestaurantDisplaySettingsPage() {
                           type="text"
                           placeholder="Ad note (e.g. BOGO, 20% off…)"
                           defaultValue={item.advertisingNote ?? ''}
+                          disabled={!canManage}
                           onBlur={e => updateItemConfig(item.itemType, item.id, { advertisingNote: e.target.value.trim() || null })}
-                          className="w-full text-xs border border-gray-200 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400"
+                          className="w-full text-xs border border-gray-200 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
                         />
                       </div>
                     </div>
@@ -448,9 +514,10 @@ export default function RestaurantDisplaySettingsPage() {
                       </button>
                       <button
                         type="button"
+                        disabled={!canManage}
                         title={item.isFeatured ? 'Remove from featured' : 'Feature this item (shown first in rotation)'}
-                        onClick={() => updateItemConfig(item.itemType, item.id, { isFeatured: !item.isFeatured })}
-                        className={`text-xs px-2 py-1 rounded font-medium transition-colors ${
+                        onClick={() => canManage && updateItemConfig(item.itemType, item.id, { isFeatured: !item.isFeatured })}
+                        className={`text-xs px-2 py-1 rounded font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                           item.isFeatured
                             ? 'bg-blue-500 text-white hover:bg-blue-600'
                             : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-900/30'
@@ -460,9 +527,10 @@ export default function RestaurantDisplaySettingsPage() {
                       </button>
                       <button
                         type="button"
+                        disabled={!canManage}
                         title={item.isHidden ? 'Show on display' : 'Hide from display'}
-                        onClick={() => updateItemConfig(item.itemType, item.id, { isHidden: !item.isHidden })}
-                        className={`text-xs px-2 py-1 rounded font-medium transition-colors ${
+                        onClick={() => canManage && updateItemConfig(item.itemType, item.id, { isHidden: !item.isHidden })}
+                        className={`text-xs px-2 py-1 rounded font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                           item.isHidden
                             ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200'
                             : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/30'

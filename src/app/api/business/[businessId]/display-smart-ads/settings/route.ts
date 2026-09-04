@@ -15,6 +15,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ bus
     specialShowPercentage: settings?.specialShowPercentage ?? 25,
     leftPanelCardCount: settings?.leftPanelCardCount ?? 2,
     rightPanelColumns: settings?.rightPanelColumns ?? 2,
+    rightPanelRows: settings?.rightPanelRows ?? 4,
   })
 }
 
@@ -22,7 +23,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ bus
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ businessId: string }> }) {
   const { businessId } = await params
   const body = await req.json()
-  const { rotationIntervalSecs, enableSmartDisplay, enableSplitLayout, maxItemsInRotation, specialShowPercentage, leftPanelCardCount, rightPanelColumns } = body
+  const { rotationIntervalSecs, enableSmartDisplay, enableSplitLayout, maxItemsInRotation, specialShowPercentage, leftPanelCardCount, rightPanelColumns, rightPanelRows } = body
 
   const settings = await (prisma as any).displayGlobalSettings.upsert({
     where: { businessId },
@@ -35,6 +36,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ busi
       specialShowPercentage: specialShowPercentage ?? 25,
       leftPanelCardCount: leftPanelCardCount ?? 2,
       rightPanelColumns: rightPanelColumns ?? 2,
+      rightPanelRows: rightPanelRows ?? 4,
     },
     update: {
       ...(rotationIntervalSecs !== undefined && { rotationIntervalSecs }),
@@ -44,6 +46,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ busi
       ...(specialShowPercentage !== undefined && { specialShowPercentage }),
       ...(leftPanelCardCount !== undefined && { leftPanelCardCount }),
       ...(rightPanelColumns !== undefined && { rightPanelColumns }),
+      ...(rightPanelRows !== undefined && { rightPanelRows }),
     },
   })
 

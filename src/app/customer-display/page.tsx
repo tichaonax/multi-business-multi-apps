@@ -168,8 +168,9 @@ function CustomerDisplayContent() {
 
   // Whether the smart display is enabled — null = still loading (show classic screen)
   const [smartDisplayEnabled, setSmartDisplayEnabled] = useState<boolean | null>(null)
-  // Admin-configurable column count for the right live menu grid (Display Settings)
+  // Admin-configurable column/row count for the right live menu grid (Display Settings)
   const [rightPanelColumns, setRightPanelColumns] = useState(2)
+  const [rightPanelRows, setRightPanelRows] = useState(4)
 
   // Search term broadcast from POS — filters the MenuPanel
   const [menuSearchTerm, setMenuSearchTerm] = useState('')
@@ -383,11 +384,16 @@ function CustomerDisplayContent() {
         break
 
       case 'DISPLAY_REFRESH':
-        // Re-fetch display settings (enabled state may have changed) and tell sub-components to refresh
+        // Re-fetch display settings (enabled state, panel layout, etc. may have changed)
+        // and tell sub-components to refresh their own data too.
         if (displayBusinessId) {
           fetch(`/api/business/${displayBusinessId}/display-smart-ads/settings`)
             .then(r => r.json())
-            .then(data => setSmartDisplayEnabled(data.enableSmartDisplay === true))
+            .then(data => {
+              setSmartDisplayEnabled(data.enableSmartDisplay === true)
+              setRightPanelColumns(Number(data.rightPanelColumns) || 2)
+              setRightPanelRows(Number(data.rightPanelRows) || 4)
+            })
             .catch(() => {})
         }
         window.postMessage({ type: 'DISPLAY_REFRESH' }, '*')
@@ -650,6 +656,7 @@ function CustomerDisplayContent() {
         const data = await res.json()
         setSmartDisplayEnabled(data.enableSmartDisplay === true)
         setRightPanelColumns(Number(data.rightPanelColumns) || 2)
+        setRightPanelRows(Number(data.rightPanelRows) || 4)
       } catch { setSmartDisplayEnabled(false) }
     }
     fetchSettings()
@@ -905,6 +912,7 @@ function CustomerDisplayContent() {
                   businessType={businessType}
                   searchTerm={menuSearchTerm}
                   columns={rightPanelColumns}
+                  rows={rightPanelRows}
                 />
               </div>
             </div>

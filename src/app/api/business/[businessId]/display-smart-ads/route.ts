@@ -22,6 +22,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
     specialShowPercentage: settings?.specialShowPercentage ?? 25,
     leftPanelCardCount: settings?.leftPanelCardCount ?? 2,
     rightPanelColumns: settings?.rightPanelColumns ?? 2,
+    rightPanelRows: settings?.rightPanelRows ?? 4,
   }
 
   // Block item loading only for the customer-facing display (all=false).
@@ -292,6 +293,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         sizes.length > 0 && sizes.every((s: any) => s.basePrice > 0) &&
         poolItems.every((pi: any) => pi.pricePerKgSmall > 0 && pi.pricePerKgMedium > 0 && pi.pricePerKgLarge > 0)
       if (!allItems && !hasValidPricing) continue
+      const comboAdImageId = getAdImage('ayli_combo', c.id)
       candidates.push({
         id: c.id,
         itemType: 'ayli_combo',
@@ -302,8 +304,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         menuNumber: c.menuNumber ?? null,
         emoji: '🥗',
         category: 'ayli-combos',
+        imageUrl: comboAdImageId ? `/api/images/${comboAdImageId}` : null,
         advertisingNote: getNote('ayli_combo', c.id),
-        adImageId: getAdImage('ayli_combo', c.id),
+        adImageId: comboAdImageId,
         salesScore: ss,
         displayScore: buildDisplayScore('ayli_combo', c.id, ss),
         isFeatured: isFeatured('ayli_combo', c.id),
@@ -348,13 +351,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
       if (price <= 0) continue
       const invKey = `inv_${p.id}`
       const ss = salesScore(productSales.get(invKey))
+      const invImageId = (p as any).imageId ?? null
+      const invAdImageId = getAdImage('product', p.id)
       candidates.push({
         id: p.id, itemType: 'product', name: p.name, price,
         emoji: (p as any).business_category?.emoji ?? null,
         category: (p as any).business_category?.name ?? null,
-        imageId: (p as any).imageId ?? null,
+        imageId: invImageId,
+        imageUrl: invImageId ? `/api/images/${invImageId}` : (invAdImageId ? `/api/images/${invAdImageId}` : null),
         advertisingNote: getNote('product', p.id),
-        adImageId: getAdImage('product', p.id),
+        adImageId: invAdImageId,
         salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss),
         isFeatured: isFeatured('product', p.id),
         isHidden: isHidden('product', p.id),
@@ -368,12 +374,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
       if (!allItems && isHidden('product', svc.id)) continue
       const variantId = svc.product_variants[0]?.id ?? svc.id
       const ss = salesScore(productSales.get(variantId))
+      const svcAdImageId = getAdImage('product', svc.id)
       candidates.push({
         id: svc.id, itemType: 'product', name: svc.name, price: Number(svc.basePrice),
         emoji: (svc as any).business_categories?.emoji ?? null,
         category: (svc as any).business_categories?.name ?? null,
+        imageUrl: svcAdImageId ? `/api/images/${svcAdImageId}` : null,
         advertisingNote: getNote('product', svc.id),
-        adImageId: getAdImage('product', svc.id),
+        adImageId: svcAdImageId,
         salesScore: ss, displayScore: buildDisplayScore('product', svc.id, ss),
         isFeatured: isFeatured('product', svc.id),
         isHidden: isHidden('product', svc.id),
@@ -448,12 +456,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
       if (!allItems && isHidden('category', cat.id)) continue
       const newCount = newArrivalsByCategory.get(cat.id) ?? 0
       const ds = buildDisplayScore('category', cat.id, newCount)
+      const catAdImageId = getAdImage('category', cat.id)
       candidates.push({
         id: cat.id, itemType: 'category', name: cat.name, emoji: '👕',
         price: 0,
         activeBales: baleCountByCategory.get(cat.id) ?? 0,
+        imageUrl: catAdImageId ? `/api/images/${catAdImageId}` : null,
         advertisingNote: getNote('category', cat.id),
-        adImageId: getAdImage('category', cat.id),
+        adImageId: catAdImageId,
         salesScore: newCount, displayScore: ds, isFeatured: isFeatured('category', cat.id),
         isHidden: isHidden('category', cat.id),
         priorityBoost: configMap.get(`category:${cat.id}`)?.priorityBoost ?? 0,
@@ -469,13 +479,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
       const isNew = new Date(p.createdAt) >= newArrivalCutoff
       const invKey = `inv_${p.id}`
       const ss = salesScore(productSales.get(invKey)) + (isNew ? 10 : 0)
+      const clothingInvImageId = (p as any).imageId ?? null
+      const clothingInvAdImageId = getAdImage('product', p.id)
       candidates.push({
         id: p.id, itemType: 'product', name: p.name, price,
         emoji: (p as any).business_category?.emoji ?? '👕',
         category: (p as any).business_category?.name ?? null,
-        imageId: (p as any).imageId ?? null,
+        imageId: clothingInvImageId,
+        imageUrl: clothingInvImageId ? `/api/images/${clothingInvImageId}` : (clothingInvAdImageId ? `/api/images/${clothingInvAdImageId}` : null),
         advertisingNote: getNote('product', p.id),
-        adImageId: getAdImage('product', p.id),
+        adImageId: clothingInvAdImageId,
         salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss),
         isFeatured: isFeatured('product', p.id),
         isHidden: isHidden('product', p.id),
@@ -500,13 +513,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         { today: 0, yesterday: 0, dayBefore: 0 }
       )
       const ss = salesScore(variantSales) + (isNew ? 10 : 0)
+      const bizImageId = (p as any).product_images?.[0]?.imageId ?? null
+      const bizAdImageId = getAdImage('product', p.id)
       candidates.push({
         id: p.id, itemType: 'product', name: p.name, price,
         emoji: (p as any).business_categories?.emoji ?? '👕',
         category: (p as any).business_categories?.name ?? null,
-        imageId: (p as any).product_images?.[0]?.imageId ?? null,
+        imageId: bizImageId,
+        imageUrl: bizImageId ? `/api/images/${bizImageId}` : (bizAdImageId ? `/api/images/${bizAdImageId}` : null),
         advertisingNote: getNote('product', p.id),
-        adImageId: getAdImage('product', p.id),
+        adImageId: bizAdImageId,
         salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss),
         isFeatured: isFeatured('product', p.id),
         isHidden: isHidden('product', p.id),

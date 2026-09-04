@@ -16,18 +16,21 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ busi
     return NextResponse.json({ error: 'itemType and itemId are required' }, { status: 400 })
   }
 
-  // Full editing (pricing-adjacent fields, images, notes, daily special, priority)
-  // requires canManageCustomerDisplay. A request touching ONLY isHidden is the
-  // narrow "quickly 86 an item / bring it back" toggle — allowed for anyone who
-  // can at least view the customer display (salespeople included by default),
-  // since it can't change anything else about how the item is configured.
+  // Full editing (pricing-adjacent fields, images, notes, priority boost, hidden
+  // status) requires canManageCustomerDisplay. A request touching ONLY isHidden,
+  // or ONLY isDailySpecial, is a narrow single-purpose toggle — allowed for
+  // anyone who can at least view the customer display (salespeople included by
+  // default), since it can't change anything else about how the item is
+  // configured: "86 an item" or "flip today's special" are quick shift-to-shift
+  // actions, not configuration changes.
   const permissions = getEffectivePermissions(user, businessId)
-  const isHiddenOnlyToggle =
-    isHidden !== undefined &&
-    priorityBoost === undefined && isDailySpecial === undefined && isFeatured === undefined &&
+  const otherFieldsUntouched =
+    priorityBoost === undefined && isFeatured === undefined &&
     displayDurationSecs === undefined && advertisingNote === undefined && advertisingImageId === undefined
+  const isHiddenOnlyToggle = isHidden !== undefined && isDailySpecial === undefined && otherFieldsUntouched
+  const isDailySpecialOnlyToggle = isDailySpecial !== undefined && isHidden === undefined && otherFieldsUntouched
   const canToggleHidden = user.role === 'admin' || permissions.canManageCustomerDisplay ||
-    (isHiddenOnlyToggle && permissions.canViewCustomerDisplay)
+    ((isHiddenOnlyToggle || isDailySpecialOnlyToggle) && permissions.canViewCustomerDisplay)
   if (!canToggleHidden) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }

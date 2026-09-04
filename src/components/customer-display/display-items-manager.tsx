@@ -9,6 +9,7 @@ interface DisplayItem {
   price: number
   emoji: string | null
   imageId: string | null       // product's own image (read-only here)
+  imageUrl: string | null      // resolved primary/catalog photo (falls back to adImageId server-side) — prefer this over imageId
   adImageId: string | null     // advertising-only image stored in DisplayProductConfig
   advertisingNote: string | null
   isFeatured: boolean
@@ -238,7 +239,9 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
                 <div className="flex gap-1 flex-shrink-0">
                   {/* Product image / emoji */}
                   <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
-                    {item.imageId ? (
+                    {item.imageUrl ? (
+                      <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                    ) : item.imageId ? (
                       <img src={`/api/images/${item.imageId}`} alt={item.name} className="w-full h-full object-cover" />
                     ) : (
                       <span className="text-2xl">{item.emoji ?? '📦'}</span>
@@ -295,11 +298,13 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
                       <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
                         Product Image
                       </label>
-                      <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden border border-gray-200 dark:border-gray-600">
-                        {item.imageId ? (
+                      <div className="w-24 h-24 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden border border-gray-200 dark:border-gray-600">
+                        {item.imageUrl ? (
+                          <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                        ) : item.imageId ? (
                           <img src={`/api/images/${item.imageId}`} alt={item.name} className="w-full h-full object-cover" />
                         ) : (
-                          <span className="text-2xl">{item.emoji ?? '📦'}</span>
+                          <span className="text-3xl">{item.emoji ?? '📦'}</span>
                         )}
                       </div>
                       <p className="text-xs text-gray-400 mt-1">Managed via inventory</p>
@@ -311,7 +316,7 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
                         Advertising Image
                       </label>
                       <div className="flex items-start gap-2">
-                        <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden border border-gray-200 dark:border-gray-600 flex-shrink-0">
+                        <div className="w-24 h-24 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden border border-gray-200 dark:border-gray-600 flex-shrink-0">
                           {editState.adImageId ? (
                             <img src={`/api/images/${editState.adImageId}`} alt="Ad" className="w-full h-full object-cover" />
                           ) : (

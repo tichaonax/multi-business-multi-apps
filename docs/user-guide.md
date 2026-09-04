@@ -12455,7 +12455,7 @@ Display score = (today's units × 3) + (yesterday × 2) + (day before × 1) + (p
 
 The right panel shows a live grid of items, paginated:
 
-- **Column count is configurable** (default 2 — see [Global Display Settings](#global-display-settings)); fewer columns means each item card is wider. Row count is always whatever the page's item count naturally works out to at that column count.
+- **Column and row count are both configurable** (default 2 columns × 4 rows — see [Global Display Settings](#global-display-settings)); together they set exactly how many items show per page. Fewer columns means each card is wider; fewer rows means each card is taller — either way the item's image gets more room.
 - Pages cycle automatically every 8 seconds
 - **Restaurant:** only items with sales history are shown
 - **Grocery / Clothing:** all in-stock items shown, sorted by sales score
@@ -12494,6 +12494,8 @@ Each item on the display can show two separate images:
 The **advertising image takes priority** on the customer display. If no advertising image is set, the product's own image is used. If neither is set, the category emoji is shown.
 
 The advertising image is completely separate — uploading or removing it does not affect the product record.
+
+This same priority order (advertising image → product image → category emoji) is what the thumbnails show on the management screens too — Item Priority, Product Display Settings, Menu Availability, and Product Availability all show whichever image is actually going to appear on the customer display, not just a generic placeholder.
 
 ---
 
@@ -12598,17 +12600,19 @@ Items appear on the customer display automatically **when they have a menu numbe
 
 ### Adding an Advertising Image (per item)
 
-Each item in the Item Priority list has an inline image upload:
+Each item in the Item Priority list shows a display image that **defaults to the item's own catalog/primary photo** (the same one set from Menu Numbers or Menu Management) whenever one exists — you don't need to upload anything separately just to get a photo showing. Uploading here only matters when you want a **different, dedicated promotional photo** instead of the catalog one:
 
 1. Go to **Restaurant → Display Settings**
 2. Find the item in the **Item Priority** list
-3. Click **📷 Add ad image** under that item
-4. Pick an image file from your device — it uploads and saves immediately
+3. If it's currently showing the catalog photo, click **📷 Use a different ad photo** (or **📷 Add ad image** if it has no photo at all) under that item
+4. Pick an image file from your device — it uploads and saves immediately as a dedicated ad photo, replacing the catalog photo on the display
 5. A thumbnail appears confirming the image is set
 
-To replace the image click **📷 Add ad image** again (the new upload overwrites the old). To remove it click **Remove image**.
+Click **Remove (use catalog photo instead)** to drop the dedicated ad photo and fall back to the catalog photo again (or **Remove image** if there's no catalog photo to fall back to).
 
-The advertising image shows as a large photo on both the left rotating panel and the right menu grid. It takes priority over the product's own image.
+Whichever image is showing (catalog or dedicated ad photo) appears as a large photo on both the left rotating panel and the right menu grid.
+
+Requires `canManageCustomerDisplay` — like the rest of the Item Priority panel except **⭐ Special** (see below), this is read-only for users with only `canViewCustomerDisplay`.
 
 ---
 
@@ -12619,13 +12623,14 @@ The **Item Priority** panel lists every numbered item the display can show. Each
 | Control | Description |
 |---------|-------------|
 | **Score bar** | Visual display score (T = today, Y = yesterday, D = day before) |
-| **Boost** | Number field (0–100); each point adds 10 to the display score. Tab away to save. |
-| **📷 Add ad image** | Click to pick an image file — uploads and saves immediately. Thumbnail appears once set. Click **Remove image** to clear. |
-| **Ad note field** | Type a short promo text (up to 80 chars). Tab away or click elsewhere to save. Determines the badge colour automatically (see Advertising Notes section). |
-| **★ Feature** | Toggle featured — sorts item to the front of the rotation. |
-| **🚫 Hide** | Toggle hidden — removes item from the display entirely. |
+| **Boost** | Number field (0–100); each point adds 10 to the display score. Tab away to save. Requires `canManageCustomerDisplay`. |
+| **Display image** | Defaults to the item's own catalog photo when one exists; **📷 Use a different ad photo** / **📷 Add ad image** overrides it with a dedicated promo photo. Requires `canManageCustomerDisplay`. |
+| **Ad note field** | Type a short promo text (up to 80 chars). Tab away or click elsewhere to save. Determines the badge colour automatically (see Advertising Notes section). Requires `canManageCustomerDisplay`. |
+| **⭐ Special** | Toggle today's daily special (clears any previous special). **Available to anyone with `canViewCustomerDisplay`** — salespeople included — unlike every other control on this list, since flipping the special is a quick shift-to-shift action, not a configuration change. |
+| **★ Feature** | Toggle featured — sorts item to the front of the rotation. Requires `canManageCustomerDisplay`. |
+| **🚫 Hide** | Toggle hidden — removes item from the display entirely. Requires `canManageCustomerDisplay` here (salespeople should use the dedicated [Menu Availability](#menu-availability--quickly-hideshow-an-item) screen instead, which is scoped to just this one toggle). |
 
-All changes are saved immediately (no Save button needed per item). The customer display refreshes within 5 minutes or on next page load.
+Users with only `canViewCustomerDisplay` see every row but can only use **⭐ Special** — every other control is disabled. All changes save immediately (no Save button needed per item), and the customer display now picks them up right away rather than waiting for its periodic refresh.
 
 ---
 
@@ -12644,8 +12649,11 @@ Permission required: `canManageCustomerDisplay`. Users with only `canViewCustome
 | Today's Special show frequency | 0% = never show the special card; 100% = always show it. Default 25% means the special card replaces the normal rotation roughly once every four ticks. The special is always pinned at the top of the left panel regardless of this setting when it is > 0. |
 | Rotating cards (left panel) | How many cards show at once on the left panel (1–3, default 2). Fewer cards means each one — and its image — is bigger. |
 | Menu grid columns (right panel) | How many columns the right live menu grid uses (1–3, default 2). Fewer columns means each item card is wider. |
+| Menu grid rows (right panel) | How many rows the right live menu grid shows per page (1–5, default 4) — combined with columns this sets exactly how many items appear per page (rows × columns). Fewer rows means each item card is taller, so its image is bigger too. |
 
-Grocery and clothing have the same two settings on their combined **Customer Display** page (see [Management — Where to Find It](#management--where-to-find-it)).
+All of these settings apply to the live customer display immediately on **Save Settings** — no manual refresh needed on the display screen.
+
+Grocery and clothing have the same settings on their combined **Customer Display** page (see [Management — Where to Find It](#management--where-to-find-it)).
 
 ---
 

@@ -17,6 +17,7 @@ interface AvailabilityItem {
   category: string | null
   menuNumber: string
   isHidden: boolean
+  imageUrl: string | null
 }
 
 /**
@@ -144,6 +145,11 @@ export default function MenuAvailabilityPage() {
                       <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-black text-xs leading-none flex-shrink-0">
                         {item.menuNumber.toUpperCase()}
                       </span>
+                      {item.imageUrl ? (
+                        <img src={item.imageUrl} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0 bg-gray-100 dark:bg-gray-800" />
+                      ) : (
+                        <span className="w-10 h-10 rounded flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-[9px] text-secondary flex-shrink-0">No image</span>
+                      )}
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-primary truncate">{item.name}</div>
                         <div className="text-xs text-secondary flex items-center gap-2">

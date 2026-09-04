@@ -12,6 +12,7 @@ interface AvailabilityItem {
   name: string
   category: string | null
   isHidden: boolean
+  imageUrl: string | null
 }
 
 interface Props {
@@ -134,6 +135,11 @@ export function ItemAvailabilityPanel({ businessType }: Props) {
                     key={`${item.itemType}-${item.id}`}
                     className={`flex items-center gap-3 px-4 py-3 ${item.isHidden ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}
                   >
+                    {item.imageUrl ? (
+                      <img src={item.imageUrl} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0 bg-gray-100 dark:bg-gray-800" />
+                    ) : (
+                      <span className="w-10 h-10 rounded flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-[9px] text-secondary flex-shrink-0">No image</span>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-primary truncate">{item.name}</div>
                       <div className="text-xs text-secondary">{item.category ?? 'Uncategorized'}</div>

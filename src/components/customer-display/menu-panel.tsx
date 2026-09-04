@@ -12,6 +12,7 @@ interface MenuItem {
   imageId?: string | null
   imageUrl?: string | null
   adImageId?: string | null
+  isHidden?: boolean
   advertisingNote?: string | null
   category: string | null
   sizes?: Array<{ sizeName: string; basePrice: number }>
@@ -27,11 +28,9 @@ interface MenuPanelProps {
   businessType: 'restaurant' | 'grocery' | 'clothing'
   searchTerm: string
   columns?: number // admin-configurable (Display Settings → "Menu grid columns"); defaults to 2
+  rows?: number // admin-configurable (Display Settings → "Menu grid rows"); defaults to 4
 }
 
-// Items per page stays fixed regardless of column count — only the column count
-// (and so how many rows that makes) is admin-configurable.
-const PAGE_SIZE = 9
 // Max total items tracked (~5 pages of 6)
 const MAX_ITEMS = 30
 const VIEW_INTERVAL_MS = 8000
@@ -40,8 +39,11 @@ function fmt(p: number) {
   return `$${p.toFixed(2)}`
 }
 
-export function MenuPanel({ businessId, businessType, searchTerm, columns = 2 }: MenuPanelProps) {
+export function MenuPanel({ businessId, businessType, searchTerm, columns = 2, rows = 4 }: MenuPanelProps) {
   const gridColsClass = columns === 1 ? 'grid-cols-1' : columns === 3 ? 'grid-cols-3' : 'grid-cols-2'
+  // Items per page = columns × rows, so fewer rows means fewer items per page and each
+  // card (and its image) stretches taller to fill the same panel height.
+  const PAGE_SIZE = Math.max(1, columns) * Math.max(1, rows)
   const [regularItems, setRegularItems] = useState<MenuItem[]>([])
   const [aylicItems, setAylicItems] = useState<MenuItem[]>([])
   const [dailySpecialId, setDailySpecialId] = useState<string | null>(null)
@@ -59,7 +61,10 @@ export function MenuPanel({ businessId, businessType, searchTerm, columns = 2 }:
       // The product is already in data.items; just record its productId for the highlight badge.
       setDailySpecialId(data.dailySpecial?.productId ?? null)
 
-      const all: MenuItem[] = [...(data.items ?? [])]
+      // all=true bypasses the server's own isHidden filter (management screens need to see
+      // hidden items to un-hide them) — this panel is customer-facing, so it must filter
+      // them back out itself, or a temporarily-disabled item shows as a blank numbered slot.
+      const all: MenuItem[] = (data.items ?? []).filter((i: MenuItem) => !i.isHidden)
       // Restaurant: only items with real sales history (salesScore > 0)
       // Grocery/clothing: show all items sorted by score — they may not have 3-day sales but are still relevant
       const nonAyli = all.filter(i => i.itemType !== 'ayli_combo')
