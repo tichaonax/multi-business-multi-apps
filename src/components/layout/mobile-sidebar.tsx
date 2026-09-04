@@ -186,6 +186,7 @@ export function MobileSidebar() {
         return (
           <>
             {navLink('/grocery/pos', '🛒', 'POS System')}
+            {(isAdmin || hasBusinessPermission('canViewCustomerDisplay') || hasBusinessPermission('canManageCustomerDisplay')) && navLink('/grocery/product-availability', '🚫', 'Product Availability')}
             {canReport && navLink('/grocery/reports', '📊', 'Sales Reports')}
             {canCashAlloc && navLink('/grocery/reports/cash-allocation', '💰', 'Cash Allocation')}
             {navLink('/grocery/inventory', '📦', 'Inventory')}
@@ -210,6 +211,7 @@ export function MobileSidebar() {
         return (
           <>
             {navLink('/clothing/pos', '👕', 'POS System')}
+            {(isAdmin || hasBusinessPermission('canViewCustomerDisplay') || hasBusinessPermission('canManageCustomerDisplay')) && navLink('/clothing/product-availability', '🚫', 'Product Availability')}
             {canReport && navLink('/clothing/reports', '📊', 'Sales Reports')}
             {canCashAlloc && navLink('/clothing/reports/cash-allocation', '💰', 'Cash Allocation')}
             {navLink('/clothing/inventory', '📦', 'Inventory')}

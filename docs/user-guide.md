@@ -173,6 +173,7 @@
     - [Search Sync](#search-sync)
     - [Permissions](#permissions-2)
     - [Menu Availability — Quickly Hide/Show an Item](#menu-availability--quickly-hideshow-an-item)
+    - [Product Availability — Grocery & Clothing](#product-availability--grocery--clothing)
     - [Management — Where to Find It](#management--where-to-find-it)
     - [Global Display Settings](#global-display-settings)
     - [Daily Special (Restaurant)](#daily-special-restaurant)
@@ -12536,6 +12537,21 @@ This is intentionally a **minimal, single-purpose screen** — it has no pricing
 
 ---
 
+### Product Availability — Grocery & Clothing
+
+**Who this is for:** Same idea as Menu Availability above, for grocery and clothing — anyone with `canViewCustomerDisplay`, salespeople included.
+
+**Where:** Grocery sidebar → **🚫 Product Availability**, or Clothing sidebar → **🚫 Product Availability**.
+
+Grocery and clothing have no menu-number concept, so there's no "configured subset" to gate the list by — every in-stock, priced product (or, for clothing, bale category) is already eligible for the display. This screen shows the top ~40 items by current display relevance plus any already-hidden items so they're never lost from view, and a search box to jump straight to anything else by name or category:
+
+- **Hide Now** — the item disappears from the customer display immediately. Nothing else about it changes.
+- **Show Again** — brings it right back.
+
+Same as Menu Availability, this is a quick single-purpose toggle only — it doesn't touch pricing, images, or how an item scores for display priority. Hidden items still show (marked accordingly) in the combined Customer Display management page, so a manager can always review what's been hidden.
+
+---
+
 ### Management — Where to Find It
 
 Restaurant is the only business type with **two separate** Customer Display destinations in the sidebar — don't confuse them:
@@ -12546,6 +12562,8 @@ Restaurant is the only business type with **two separate** Customer Display dest
 | Restaurant | Sidebar → **⚙️ Display Settings** | Smart Display toggle, rotation speed, max items, and the Item Priority list |
 | Grocery | Sidebar → **📺 Customer Display** | Both ads and smart-display settings live on one combined page |
 | Clothing | Sidebar → **📺 Customer Display** | Both ads and smart-display settings live on one combined page |
+| Grocery | Sidebar → **🚫 Product Availability** | Quick hide/show toggle for salespeople — see above |
+| Clothing | Sidebar → **🚫 Product Availability** | Quick hide/show toggle for salespeople — see above |
 
 > **If your uploaded ads never seem to show on the customer screen:** check **Display Settings** — when "Smart display enabled" is turned on, the screen shows the rotating product/menu panels instead of your uploaded ad slideshow. Turn it off if you want the classic ad slideshow to play.
 

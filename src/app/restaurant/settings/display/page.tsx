@@ -81,7 +81,10 @@ export default function RestaurantDisplaySettingsPage() {
     setDataLoading(true)
     try {
       const [adsRes, settingsRes] = await Promise.all([
-        fetch(`/api/business/${currentBusinessId}/display-smart-ads?businessType=restaurant`),
+        // all=true: this is a management screen (Item Priority), not the customer-facing
+        // feed — it must see every item, hidden ones included, so a hidden item can
+        // actually be found again and un-hidden. Also bypasses the maxItemsInRotation cap.
+        fetch(`/api/business/${currentBusinessId}/display-smart-ads?businessType=restaurant&all=true`),
         fetch(`/api/business/${currentBusinessId}/display-smart-ads/settings`),
       ])
       const adsData = await adsRes.json()
@@ -92,13 +95,14 @@ export default function RestaurantDisplaySettingsPage() {
       // Merge config state from adsData onto each item
       const allItems: DisplayItem[] = []
       if (adsData.dailySpecial) {
+        // The dailySpecial payload is built separately server-side and doesn't carry a
+        // real isHidden value — defaulting to false here is a rare-case simplification
+        // (a hidden daily special isn't a scenario the UI otherwise models).
         allItems.push({ ...adsData.dailySpecial, isDailySpecial: true, isHidden: false, priorityBoost: adsData.dailySpecial.priorityBoost ?? 0, adImageId: adsData.dailySpecial.adImageId ?? null, advertisingNote: adsData.dailySpecial.advertisingNote ?? null })
       }
       for (const item of (adsData.items ?? [])) {
-        allItems.push({ ...item, isDailySpecial: false, isHidden: false, priorityBoost: item.priorityBoost ?? 0, adImageId: item.adImageId ?? null, advertisingNote: item.advertisingNote ?? null })
+        allItems.push({ ...item, isDailySpecial: false, priorityBoost: item.priorityBoost ?? 0, adImageId: item.adImageId ?? null, advertisingNote: item.advertisingNote ?? null })
       }
-      // Also need hidden items — re-fetch with all items via a second request
-      // For now, show all returned items (hidden items excluded by API; management screen shows them separately via configs)
       setDailySpecial(adsData.dailySpecial ?? null)
       setItems(adsData.items ?? [])
     } catch {

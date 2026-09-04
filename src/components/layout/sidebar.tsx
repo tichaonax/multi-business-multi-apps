@@ -907,6 +907,12 @@ export function Sidebar() {
                   <span className="text-lg">🛒</span>
                   <span>POS System</span>
                 </Link>
+                {(isSystemAdmin(currentUser) || hasPermission('canViewCustomerDisplay') || hasPermission('canManageCustomerDisplay')) && (
+                  <Link href="/grocery/product-availability" className={getLinkClasses('/grocery/product-availability')}>
+                    <span className="text-lg">🚫</span>
+                    <span>Product Availability</span>
+                  </Link>
+                )}
                 {/* Sales Reports - Only for managers/admins */}
                 {(isSystemAdmin(currentUser) || hasPermission('canViewWifiReports') || hasPermission('canAccessFinancialData')) && (
                   <Link href="/grocery/reports" className={getLinkClasses('/grocery/reports')}>
@@ -994,6 +1000,12 @@ export function Sidebar() {
                   <span className="text-lg">👕</span>
                   <span>POS System</span>
                 </Link>
+                {(isSystemAdmin(currentUser) || hasPermission('canViewCustomerDisplay') || hasPermission('canManageCustomerDisplay')) && (
+                  <Link href="/clothing/product-availability" className={getLinkClasses('/clothing/product-availability')}>
+                    <span className="text-lg">🚫</span>
+                    <span>Product Availability</span>
+                  </Link>
+                )}
                 {/* Sales Reports - Only for managers/admins */}
                 {(isSystemAdmin(currentUser) || hasPermission('canViewWifiReports') || hasPermission('canAccessFinancialData')) && (
                   <Link href="/clothing/reports" className={getLinkClasses('/clothing/reports')}>

@@ -263,6 +263,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         displayScore: buildDisplayScore('menu_item', p.id, ss),
         isFeatured: isFeatured('menu_item', p.id),
         isDailySpecial: isDailySpecial('menu_item', p.id),
+        isHidden: isHidden('menu_item', p.id),
         priorityBoost: configMap.get(`menu_item:${p.id}`)?.priorityBoost ?? 0,
         salesBreakdown: productSales.get(p.id) ?? { today: 0, yesterday: 0, dayBefore: 0 },
       })
@@ -307,6 +308,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         displayScore: buildDisplayScore('ayli_combo', c.id, ss),
         isFeatured: isFeatured('ayli_combo', c.id),
         isDailySpecial: isDailySpecial('ayli_combo', c.id),
+        isHidden: isHidden('ayli_combo', c.id),
         priorityBoost: configMap.get(`ayli_combo:${c.id}`)?.priorityBoost ?? 0,
         salesBreakdown: ayliSales.get(c.id) ?? { today: 0, yesterday: 0, dayBefore: 0 },
       })
@@ -355,6 +357,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         adImageId: getAdImage('product', p.id),
         salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss),
         isFeatured: isFeatured('product', p.id),
+        isHidden: isHidden('product', p.id),
         priorityBoost: configMap.get(`product:${p.id}`)?.priorityBoost ?? 0,
         salesBreakdown: productSales.get(invKey) ?? { today: 0, yesterday: 0, dayBefore: 0 },
       })
@@ -373,6 +376,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         adImageId: getAdImage('product', svc.id),
         salesScore: ss, displayScore: buildDisplayScore('product', svc.id, ss),
         isFeatured: isFeatured('product', svc.id),
+        isHidden: isHidden('product', svc.id),
         priorityBoost: configMap.get(`product:${svc.id}`)?.priorityBoost ?? 0,
         salesBreakdown: productSales.get(variantId) ?? { today: 0, yesterday: 0, dayBefore: 0 },
       })
@@ -451,6 +455,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         advertisingNote: getNote('category', cat.id),
         adImageId: getAdImage('category', cat.id),
         salesScore: newCount, displayScore: ds, isFeatured: isFeatured('category', cat.id),
+        isHidden: isHidden('category', cat.id),
         priorityBoost: configMap.get(`category:${cat.id}`)?.priorityBoost ?? 0,
         salesBreakdown: { today: 0, yesterday: 0, dayBefore: 0 },
       })
@@ -473,6 +478,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         adImageId: getAdImage('product', p.id),
         salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss),
         isFeatured: isFeatured('product', p.id),
+        isHidden: isHidden('product', p.id),
         priorityBoost: configMap.get(`product:${p.id}`)?.priorityBoost ?? 0,
         salesBreakdown: productSales.get(invKey) ?? { today: 0, yesterday: 0, dayBefore: 0 },
       })
@@ -503,6 +509,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         adImageId: getAdImage('product', p.id),
         salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss),
         isFeatured: isFeatured('product', p.id),
+        isHidden: isHidden('product', p.id),
         priorityBoost: configMap.get(`product:${p.id}`)?.priorityBoost ?? 0,
         salesBreakdown: variantSales,
       })
