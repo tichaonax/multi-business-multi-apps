@@ -207,6 +207,12 @@
     - [Pause, Resume, End](#pause-resume-end)
     - [Customer Display](#customer-display-3)
     - [Permissions](#permissions-14)
+61. [POS Quick-Edit Mode — Update Images & Adjust Prices](#61-pos-quick-edit-mode--update-images--adjust-prices)
+    - [Turning a Mode On](#turning-a-mode-on)
+    - [Updating an Item's Image](#updating-an-items-image)
+    - [Adjusting an Item's Price](#adjusting-an-items-price)
+    - [Where This Works Today](#where-this-works-today)
+    - [Permissions](#permissions-15)
 
 ---
 
@@ -13404,3 +13410,56 @@ None of this needs the admin screen to be open or anyone to be watching — it's
 | Permission | What it allows | Default |
 |------------|----------------|---------|
 | `canManagePromotions` | Create, pause, resume, cancel, and view promotional sales | Owner, Manager, Admin — **not** salesperson (pricing changes are more sensitive than the display-only toggles elsewhere in this guide) |
+
+---
+
+## 61. POS Quick-Edit Mode — Update Images & Adjust Prices
+
+Authorized users can update a menu item's photo or price directly from the POS screen — no need to leave the register and go to a separate admin page.
+
+**Where:** Two small buttons in the POS header — **📷 Update Images** and **💲 Adjust Prices** — visible only to users with `canQuickEditPOSItems`.
+
+---
+
+### Turning a Mode On
+
+- Tap **Update Images** to enter Image Upload Mode, or **Adjust Prices** to enter Price Adjustment Mode. The button you tapped turns solid and shows an "● Active" label so it's obvious which mode is on.
+- The two modes are mutually exclusive — turning one on automatically turns the other off.
+- Tap the active button again to return to Normal mode.
+- While a mode is active, every product card gains a small round button in its bottom-right corner: 📷 in Image mode, 💲 in Price mode. Everything else about the POS keeps working normally — tapping the rest of a card still adds it to the cart as usual; only the corner button opens the edit dialog.
+
+---
+
+### Updating an Item's Image
+
+1. Turn on **Update Images**.
+2. Tap the 📷 button on the item's card.
+3. The dialog shows the current image (or "No image"). Tap **Upload Image** (or **Replace Image**) and pick a file.
+4. The new photo appears on the card immediately — no page reload.
+
+---
+
+### Adjusting an Item's Price
+
+1. Turn on **Adjust Prices**.
+2. Tap the 💲 button on the item's card.
+3. The dialog shows the current price. Enter the new price and tap **Save Price** (must be greater than $0).
+4. The new price takes effect immediately — the next sale of that item charges the new price.
+
+---
+
+### Where This Works Today
+
+This first pass covers **Restaurant POS** and **Universal POS** (used by retail, services, consulting, and similar business types). Grocery, Clothing, and Hardware are planned for a follow-up.
+
+For Clothing specifically: individual products work the same way once wired up, but **bale cards don't get either button** — bales have no image of their own, and their pricing goes through the existing bale workflow, not this feature.
+
+Every change made this way is recorded (who, when, old value, new value) the same way every other audited action in this app is — nothing about using the quick-edit path skips that.
+
+---
+
+### Permissions
+
+| Permission | What it allows | Default |
+|------------|----------------|---------|
+| `canQuickEditPOSItems` | See and use the Update Images / Adjust Prices buttons on the POS | Owner, Manager, Admin — not salesperson |

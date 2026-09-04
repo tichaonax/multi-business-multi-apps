@@ -59,6 +59,8 @@ export default function UniversalPOS() {
   const canSeeFinancials = hasPermission('canAccessFinancialData')
   const canSeeSoldCount = canSeeFinancials || hasPermission('canViewPOSSoldCount')
   const canSeeStockCount = canSeeFinancials || hasPermission('canViewPOSStockCount')
+  // POS Quick-Edit Mode (MBM-290) — Update Images / Adjust Prices directly from the POS
+  const canQuickEditPOSItems = hasPermission('canQuickEditPOSItems')
 
   // Receipt preview modal state (modal handles its own printer selection)
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
@@ -831,6 +833,7 @@ export default function UniversalPOS() {
           onRemoveReward={handleRemoveReward}
           canViewPOSSoldCount={canSeeSoldCount}
           canViewPOSStockCount={canSeeStockCount}
+          canQuickEditPOSItems={canQuickEditPOSItems}
         />
 
         {/* Receipt Preview Modal - same pattern as restaurant POS */}

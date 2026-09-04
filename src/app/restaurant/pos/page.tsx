@@ -28,6 +28,11 @@ import { generatePlainTextReceipt } from '@/lib/printing/plain-text-receipt'
 import type { ReceiptData } from '@/types/printing'
 import { formatDuration, formatDataAmount } from '@/lib/printing/format-utils'
 import { useCustomerDisplaySync, useOpenCustomerDisplay } from '@/hooks/useCustomerDisplaySync'
+import { usePosQuickEditMode } from '@/hooks/use-pos-quick-edit-mode'
+import { QuickEditModeButtons } from '@/components/pos/quick-edit-mode-buttons'
+import { QuickEditCardButton } from '@/components/pos/quick-edit-card-button'
+import { ImageUploadDialog } from '@/components/pos/image-upload-dialog'
+import { PriceEditDialog } from '@/components/pos/price-edit-dialog'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
 import { isMobileDevice } from '@/lib/workstation-agents/local-agent-sync'
 import { useGlobalCart } from '@/contexts/global-cart-context'
@@ -273,6 +278,12 @@ export default function RestaurantPOS() {
   const sessionUser = session?.user as SessionUser
   const employeeId = sessionUser?.id
   const isAdmin = sessionUser?.role === 'admin'
+
+  // POS Quick-Edit Mode (MBM-290) — Update Images / Adjust Prices directly from the POS
+  const canQuickEditPOS = isAdmin || hasPermission('canQuickEditPOSItems')
+  const { activeMode: quickEditMode, toggleImageMode, togglePriceMode } = usePosQuickEditMode()
+  const [quickEditItem, setQuickEditItem] = useState<MenuItem | null>(null)
+
   // Customer rewards hook — must be after currentBusinessId is available
   const { rewards: customerRewards, usedRewards: customerUsedRewards } = useCustomerRewards(
     selectedCustomer?.id ?? null,
@@ -3231,6 +3242,14 @@ export default function RestaurantPOS() {
                 >
                   ⚙️ <span className="hidden sm:inline">Settings</span>
                 </Link>
+                {/* POS Quick-Edit Mode (MBM-290) - Only for users with canQuickEditPOSItems */}
+                {canQuickEditPOS && (
+                  <QuickEditModeButtons
+                    activeMode={quickEditMode}
+                    onToggleImage={toggleImageMode}
+                    onTogglePrice={togglePriceMode}
+                  />
+                )}
                 {/* Menu Management - Only for users with canManageMenu permission */}
                 {(isAdmin || hasPermission('canManageMenu')) && (
                   <Link
@@ -4408,6 +4427,11 @@ export default function RestaurantPOS() {
                       <div className="absolute top-1 right-1">
                         <span className="text-xs" title="Sold by weight — scale will open at POS">⚖️</span>
                       </div>
+                    )}
+
+                    {/* POS Quick-Edit Mode (MBM-290) corner button */}
+                    {quickEditMode !== 'none' && (
+                      <QuickEditCardButton mode={quickEditMode} onClick={() => setQuickEditItem(item)} />
                     )}
 
                     {/* Menu number circle badge — top-right when corner is free */}
@@ -6093,6 +6117,36 @@ export default function RestaurantPOS() {
             }
           }}
           onAborted={() => setShowCancelModal(false)}
+        />
+      )}
+
+      {/* POS Quick-Edit Mode (MBM-290) dialogs */}
+      {quickEditItem && quickEditMode === 'image' && (
+        <ImageUploadDialog
+          businessId={currentBusinessId || ''}
+          itemId={quickEditItem.id}
+          itemName={quickEditItem.name}
+          sourceTable="BUSINESS_PRODUCT"
+          currentImageUrl={quickEditItem.imageUrl ?? null}
+          onClose={() => setQuickEditItem(null)}
+          onSaved={newImageUrl => {
+            setMenuItems(prev => prev.map(m => m.id === quickEditItem.id ? { ...m, imageUrl: newImageUrl } : m))
+            setQuickEditItem(null)
+          }}
+        />
+      )}
+      {quickEditItem && quickEditMode === 'price' && (
+        <PriceEditDialog
+          businessId={currentBusinessId || ''}
+          itemId={quickEditItem.id}
+          itemName={quickEditItem.name}
+          sourceTable="BUSINESS_PRODUCT"
+          currentPrice={quickEditItem.price}
+          onClose={() => setQuickEditItem(null)}
+          onSaved={newPrice => {
+            setMenuItems(prev => prev.map(m => m.id === quickEditItem.id ? { ...m, price: newPrice } : m))
+            setQuickEditItem(null)
+          }}
         />
       )}
 

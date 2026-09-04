@@ -1,5 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
+import { hasPermission } from '@/lib/permission-utils'
+
+async function canEditProductImages(businessId: string): Promise<boolean> {
+  const user = await getServerUser()
+  if (!user) return false
+  return user.role === 'admin' ||
+    hasPermission(user, 'canManageMenu', businessId) ||
+    hasPermission(user, 'canManageInventory', businessId) ||
+    hasPermission(user, 'canQuickEditPOSItems', businessId)
+}
 
 /**
  * Menu/product image upload — stores the binary in the `images` table
@@ -21,6 +32,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { id: productId } = await params
     const product = await prisma.businessProducts.findUnique({ where: { id: productId } })
     if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
+    if (!(await canEditProductImages(product.businessId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const data = await request.formData()
     const files = data.getAll('files') as File[]
@@ -108,8 +122,14 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: 'imageId required' }, { status: 400 })
     }
 
-    const imgRecord = await prisma.productImages.findUnique({ where: { id: imageId } })
+    const imgRecord = await prisma.productImages.findUnique({
+      where: { id: imageId },
+      include: { business_products: { select: { businessId: true } } },
+    })
     if (!imgRecord) return NextResponse.json({ error: 'Image not found' }, { status: 404 })
+    if (!(await canEditProductImages(imgRecord.business_products.businessId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     await prisma.productImages.delete({ where: { id: imgRecord.id } })
     if (imgRecord.imageId) {

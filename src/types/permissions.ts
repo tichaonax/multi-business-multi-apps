@@ -345,6 +345,9 @@ export interface CoreBusinessPermissions {
   // Promotional Sales (Grocery & Clothing) — MBM-289
   canManagePromotions: boolean;      // Create/pause/resume/end scheduled promotional pricing
 
+  // POS Quick-Edit Mode — MBM-290
+  canQuickEditPOSItems: boolean;     // See/use the Update Images & Adjust Prices quick-edit buttons on the POS
+
   // POS Settings (Scale & Weighing, Vendor Pricing)
   canAccessScaleSettings: boolean;
   canAccessVendorPricing: boolean;
@@ -1577,6 +1580,7 @@ export const CORE_PERMISSIONS = {
     { key: 'canManageDailySpecial', label: 'Manage Daily Special (Library & Weekly Schedule)' },
     { key: 'canOverrideDailySpecial', label: 'Override Today\'s Special (Disable / Swap / Re-enable)' },
     { key: 'canManagePromotions', label: 'Manage Promotional Sales (Grocery & Clothing)' },
+    { key: 'canQuickEditPOSItems', label: 'POS Quick-Edit Mode (Update Images & Adjust Prices from the POS)' },
   ],
   posSettings: [
     { key: 'canAccessScaleSettings', label: 'Access Scale & Weighing Settings' },
@@ -1767,6 +1771,7 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canManageDailySpecial: true,
   canOverrideDailySpecial: true,
   canManagePromotions: true,
+  canQuickEditPOSItems: true,
   canAccessScaleSettings: true,
   canAccessVendorPricing: true,
 };
@@ -1955,6 +1960,7 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canManageDailySpecial: true,
   canOverrideDailySpecial: true,
   canManagePromotions: true,
+  canQuickEditPOSItems: true,
   canAccessScaleSettings: true,
   canAccessVendorPricing: true,
 };
@@ -2143,6 +2149,7 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canManageDailySpecial: false,
   canOverrideDailySpecial: false,
   canManagePromotions: false,
+  canQuickEditPOSItems: false,
   canAccessScaleSettings: false,
   canAccessVendorPricing: false,
 };
@@ -2329,6 +2336,7 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canManageDailySpecial: false,
   canOverrideDailySpecial: false,
   canManagePromotions: false,
+  canQuickEditPOSItems: false,
   canAccessScaleSettings: false,
   canAccessVendorPricing: false,
 };
@@ -2520,6 +2528,7 @@ export const BUSINESS_DELIVERY_DRIVER_PERMISSIONS: CoreBusinessPermissions = {
   canManageDailySpecial: false,
   canOverrideDailySpecial: false,
   canManagePromotions: false,
+  canQuickEditPOSItems: false,
   canAccessScaleSettings: false,
   canAccessVendorPricing: false,
 };
@@ -2709,6 +2718,7 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canManageDailySpecial: false,
   canOverrideDailySpecial: true,
   canManagePromotions: false,
+  canQuickEditPOSItems: false,
   canAccessScaleSettings: false,
   canAccessVendorPricing: false,
 };
@@ -2898,6 +2908,7 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canManageDailySpecial: false,
   canOverrideDailySpecial: true,
   canManagePromotions: false,
+  canQuickEditPOSItems: false,
   canAccessScaleSettings: false,
   canAccessVendorPricing: false,
 };
@@ -3084,6 +3095,7 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canManageDailySpecial: true,
   canOverrideDailySpecial: true,
   canManagePromotions: true,
+  canQuickEditPOSItems: true,
   canAccessScaleSettings: true,
   canAccessVendorPricing: true,
 };

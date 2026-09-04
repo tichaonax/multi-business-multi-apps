@@ -34,7 +34,9 @@ export type AuditAction =
   | 'RECEIPT_SUBMITTED'
   | 'RECEIPT_APPROVED'
   | 'RECEIPT_AMENDED'
-  | 'RECEIPT_OVER_LIMIT_OVERRIDE';
+  | 'RECEIPT_OVER_LIMIT_OVERRIDE'
+  | 'PRODUCT_PRICE_UPDATED'
+  | 'PRODUCT_IMAGE_UPDATED';
 
 export type AuditEntityType =
   | 'User'
@@ -55,7 +57,8 @@ export type AuditEntityType =
   | 'PayrollAccount'
   | 'BusinessAccount'
   | 'CashBox'
-  | 'ExpensePaymentReceipt';
+  | 'ExpensePaymentReceipt'
+  | 'Product';
 
 export interface AuditLogEntry {
   userId: string;

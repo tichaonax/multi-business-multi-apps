@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { getServerUser } from '@/lib/get-server-user'
+import { hasPermission } from '@/lib/permission-utils'
 
 // Validation schema for updates
 const UpdateProductSchema = z.object({
@@ -115,11 +117,11 @@ export async function GET(
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-)
- {
-
-    const { id } = await params
+) {
   try {
+    const user = await getServerUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const { id } = await params
     const body = await request.json()
 
@@ -141,6 +143,18 @@ export async function PUT(
         { error: 'Product not found' },
         { status: 404 }
       )
+    }
+
+    // This endpoint is shared by full product-management forms (Menu Management,
+    // grocery/hardware Products pages) and the newer POS Quick-Edit feature — accept
+    // whichever capability the caller actually has rather than requiring one specific
+    // permission, since it was previously reachable by any logged-in user at all.
+    const canEdit = user.role === 'admin' ||
+      hasPermission(user, 'canManageMenu', existingProduct.businessId) ||
+      hasPermission(user, 'canManageInventory', existingProduct.businessId) ||
+      hasPermission(user, 'canQuickEditPOSItems', existingProduct.businessId)
+    if (!canEdit) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     // Prepare attributes for restaurant items

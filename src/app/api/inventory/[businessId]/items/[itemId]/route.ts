@@ -171,6 +171,14 @@ export async function PUT(
     }
 
     const { businessId, itemId } = await params
+
+    const canEdit = isSystemAdmin(user) ||
+      hasPermission(user, 'canManageInventory', businessId) ||
+      hasPermission(user, 'canQuickEditPOSItems', businessId)
+    if (!canEdit) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     const body = await request.json()
 
     // Handle barcodeInventoryItems (inv_ prefix)

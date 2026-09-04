@@ -6,6 +6,11 @@ import { toast } from 'sonner'
 import type { Product } from '../hooks/useProductLoader'
 import type { UniversalCartItem } from '../hooks/useUniversalCart'
 import type { BusinessTypeConfig } from '../config/business-type-config'
+import { usePosQuickEditMode } from '@/hooks/use-pos-quick-edit-mode'
+import { QuickEditModeButtons } from '@/components/pos/quick-edit-mode-buttons'
+import { QuickEditCardButton } from '@/components/pos/quick-edit-card-button'
+import { ImageUploadDialog } from '@/components/pos/image-upload-dialog'
+import { PriceEditDialog } from '@/components/pos/price-edit-dialog'
 
 interface ProductPanelProps {
   products: Product[]
@@ -19,6 +24,7 @@ interface ProductPanelProps {
   prepRefreshKey?: number
   canViewPOSSoldCount?: boolean
   canViewPOSStockCount?: boolean
+  canQuickEditPOSItems?: boolean
 }
 
 /**
@@ -36,13 +42,19 @@ export function ProductPanel({
   onProductsReload,
   prepRefreshKey = 0,
   canViewPOSSoldCount = true,
-  canViewPOSStockCount = true
+  canViewPOSStockCount = true,
+  canQuickEditPOSItems = false
 }: ProductPanelProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [barcodeInput, setBarcodeInput] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [requestingMore, setRequestingMore] = useState<Set<string>>(new Set())
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
+
+  // POS Quick-Edit Mode (MBM-290) — every product here is a BusinessProducts row
+  // (Universal POS only ever fetches from /api/universal/products)
+  const { activeMode: quickEditMode, toggleImageMode, togglePriceMode } = usePosQuickEditMode()
+  const [quickEditProduct, setQuickEditProduct] = useState<Product | null>(null)
   const [prepRemaining, setPrepRemaining] = useState<Map<string, number>>(new Map())
 
   // Load favorites from localStorage on mount
@@ -234,9 +246,21 @@ export function ProductPanel({
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
       {/* Header — sticky so search/categories stay visible while scrolling products */}
       <div className="sticky top-20 z-10 rounded-t-lg bg-white dark:bg-gray-800 p-4 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-          Products
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Products
+          </h2>
+          {canQuickEditPOSItems && (
+            <div className="flex gap-1.5">
+              <QuickEditModeButtons
+                activeMode={quickEditMode}
+                onToggleImage={toggleImageMode}
+                onTogglePrice={togglePriceMode}
+                compact
+              />
+            </div>
+          )}
+        </div>
 
         {/* Search Bar */}
         <div className="relative mb-3">
@@ -317,10 +341,13 @@ export function ProductPanel({
                   return (
                     <div
                       key={product.id}
-                      className={`p-3 border rounded-lg hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all text-left bg-white dark:bg-gray-700 ${
+                      className={`relative p-3 border rounded-lg hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all text-left bg-white dark:bg-gray-700 ${
                         favorites.has(product.id) ? 'border-yellow-400 dark:border-yellow-500' : 'border-gray-200 dark:border-gray-700'
                       }`}
                     >
+                      {quickEditMode !== 'none' && (
+                        <QuickEditCardButton mode={quickEditMode} onClick={() => setQuickEditProduct(product)} />
+                      )}
                       <div className="flex justify-end -mb-2">
                         <button
                           type="button"
@@ -561,6 +588,37 @@ export function ProductPanel({
           </>
         )}
       </div>
+
+      {/* POS Quick-Edit Mode (MBM-290) dialogs — every product here is a
+          BusinessProducts row (Universal POS only fetches /api/universal/products) */}
+      {quickEditProduct && quickEditMode === 'image' && businessId && (
+        <ImageUploadDialog
+          businessId={businessId}
+          itemId={quickEditProduct.id}
+          itemName={quickEditProduct.name}
+          sourceTable="BUSINESS_PRODUCT"
+          currentImageUrl={quickEditProduct.imageUrl ?? null}
+          onClose={() => setQuickEditProduct(null)}
+          onSaved={() => {
+            setQuickEditProduct(null)
+            onProductsReload?.()
+          }}
+        />
+      )}
+      {quickEditProduct && quickEditMode === 'price' && businessId && (
+        <PriceEditDialog
+          businessId={businessId}
+          itemId={quickEditProduct.id}
+          itemName={quickEditProduct.name}
+          sourceTable="BUSINESS_PRODUCT"
+          currentPrice={quickEditProduct.basePrice}
+          onClose={() => setQuickEditProduct(null)}
+          onSaved={() => {
+            setQuickEditProduct(null)
+            onProductsReload?.()
+          }}
+        />
+      )}
     </div>
   )
 }

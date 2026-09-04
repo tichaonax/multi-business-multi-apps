@@ -69,6 +69,7 @@ interface UniversalPOSLayoutProps {
   onRemoveReward?: () => void
   canViewPOSSoldCount?: boolean
   canViewPOSStockCount?: boolean
+  canQuickEditPOSItems?: boolean
 }
 
 /**
@@ -110,7 +111,8 @@ export function UniversalPOSLayout({
   onApplyReward,
   onRemoveReward,
   canViewPOSSoldCount = true,
-  canViewPOSStockCount = true
+  canViewPOSStockCount = true,
+  canQuickEditPOSItems = false
 }: UniversalPOSLayoutProps) {
   const [showQuickRegister, setShowQuickRegister] = useState(false)
   const [showRewardHistory, setShowRewardHistory] = useState(false)
@@ -133,6 +135,7 @@ export function UniversalPOSLayout({
           prepRefreshKey={prepRefreshKey}
           canViewPOSSoldCount={canViewPOSSoldCount}
           canViewPOSStockCount={canViewPOSStockCount}
+          canQuickEditPOSItems={canQuickEditPOSItems}
         />
       </div>
 
