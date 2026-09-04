@@ -14,6 +14,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useAlert } from '@/components/ui/confirm-modal'
+import { useToastContext } from '@/components/ui/toast'
 
 interface AdminIssuableConfig {
   id: string
@@ -42,6 +43,7 @@ interface AdminTokenIssuerProps {
 
 export function AdminTokenIssuer({ businessId, configs, canEditConfig }: AdminTokenIssuerProps) {
   const alert = useAlert()
+  const toast = useToastContext()
   const [issuing, setIssuing] = useState<string | null>(null)
   const [issued, setIssued] = useState<IssuedCredential | null>(null)
 
@@ -94,8 +96,10 @@ export function AdminTokenIssuer({ businessId, configs, canEditConfig }: AdminTo
     const text = `SSID: ${issued.wlanSsid || ''}\nUsername: ${issued.username}\nPassword: ${issued.password}${issued.expiresAt ? `\nExpires: ${new Date(issued.expiresAt).toLocaleDateString()}` : ''}`
     try {
       await navigator.clipboard.writeText(text)
+      toast.push('Credentials copied to clipboard')
     } catch {
       // Clipboard API unavailable — credentials are still visible on screen for manual copy
+      toast.error('Could not copy to clipboard')
     }
   }
 

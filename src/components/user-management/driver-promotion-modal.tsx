@@ -16,6 +16,7 @@ import {
   DialogFooter
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
+import { useToastContext } from '@/components/ui/toast'
 import {
   AlertCircle,
   User,
@@ -66,6 +67,7 @@ export function DriverPromotionModal({
   onSuccess,
   onError
 }: DriverPromotionModalProps) {
+  const toast = useToastContext()
   const [loading, setLoading] = useState(false)
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [loadingBusinesses, setLoadingBusinesses] = useState(false)
@@ -176,11 +178,16 @@ export function DriverPromotionModal({
     }
   }
 
-  const copyCredentials = () => {
+  const copyCredentials = async () => {
     if (!promotionResult) return
 
     const credentials = `Username: ${promotionResult.credentials.username}\nPassword: ${promotionResult.credentials.password}\nLogin URL: ${window.location.origin}/auth/signin`
-    navigator.clipboard.writeText(credentials)
+    try {
+      await navigator.clipboard.writeText(credentials)
+      toast.push('Credentials copied to clipboard')
+    } catch {
+      toast.error('Could not copy to clipboard')
+    }
   }
 
   const handleClose = () => {
