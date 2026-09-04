@@ -172,6 +172,7 @@
     - [Live Menu Panel](#live-menu-panel)
     - [Search Sync](#search-sync)
     - [Permissions](#permissions-2)
+    - [Menu Availability — Quickly Hide/Show an Item](#menu-availability--quickly-hideshow-an-item)
     - [Management — Where to Find It](#management--where-to-find-it)
     - [Global Display Settings](#global-display-settings)
     - [Daily Special (Restaurant)](#daily-special-restaurant)
@@ -12438,10 +12439,12 @@ Display score = (today's units × 3) + (yesterday × 2) + (day before × 1) + (p
 
 - **Daily Special** (restaurant) — always pinned at the top of the left panel (not part of the rotation). Shows the product image, menu number, bullet list of what's included, add-on items with their images, special price with strikethrough original price, and savings amount. See [Daily Special (Restaurant)](#daily-special-restaurant) for full details.
 - **Featured** items sort to the top of the rotation
-- **Hidden** items never appear
+- **Hidden** items never appear (see [Menu Availability](#menu-availability--quickly-hideshow-an-item) to hide/show an item yourself)
 - **Clothing** — categories with new bales added in the last 14 days score higher; items added in the last 14 days get +10 bonus
-- Cards rotate every 6 seconds (configurable in global settings)
-- All cards on the left panel are **equal height** — layout is a CSS grid so no card can grow taller than its neighbours regardless of image size
+- Cards rotate every 6 seconds by default (configurable — see [Global Display Settings](#global-display-settings))
+- **How many cards show at once is configurable** (default 2) — fewer cards means each one, and its image, is bigger. Set via the "Rotating cards (left panel)" slider.
+- All visible cards are **equal height** — layout is a CSS grid so no card can grow taller than its neighbours regardless of image size
+- The item name shows on up to 2 lines before truncating, and any emoji prefix in the product's name (e.g. staff typing "🍚🐓 Rice & Chicken") is stripped for this display only — the underlying product name is unchanged everywhere else
 - AYLI Combos appear alongside menu items listing their pool items (ingredients) and per-kg price; size base prices are shown at the bottom of the card
 - **AYLI combos with no pool items configured are automatically hidden** from the customer display
 
@@ -12449,14 +12452,16 @@ Display score = (today's units × 3) + (yesterday × 2) + (day before × 1) + (p
 
 ### Live Menu Panel (Right Side)
 
-The right panel shows a **3 × 3 grid** (9 items per page):
+The right panel shows a live grid of items, paginated:
 
+- **Column count is configurable** (default 2 — see [Global Display Settings](#global-display-settings)); fewer columns means each item card is wider. Row count is always whatever the page's item count naturally works out to at that column count.
 - Pages cycle automatically every 8 seconds
 - **Restaurant:** only items with sales history are shown
 - **Grocery / Clothing:** all in-stock items shown, sorted by sales score
 - Alternates between regular items and AYLI Combos (restaurant) or stays on items (grocery/clothing)
 - Advertising note badges appear on cards when set (see below)
 - Product images shown when available — advertising image takes priority over the product's own image
+- Item names show on up to 2 lines and have any emoji prefix stripped, same as the left panel
 - Dot indicators in the header show current page / total pages
 
 ---
@@ -12514,6 +12519,23 @@ Customer Display access uses two separate permissions:
 
 ---
 
+### Menu Availability — Quickly Hide/Show an Item
+
+**Who this is for:** Anyone with `canViewCustomerDisplay` — this deliberately includes **salespeople**, not just managers/admins, since it's the kind of thing a cashier needs to do mid-shift without waiting for a manager.
+
+**Where:** Restaurant sidebar → **🚫 Menu Availability**.
+
+Run out of something? This screen lists every menu item and AYLI combo that currently has a menu number assigned (i.e. is configured to appear on the customer display), with a one-click toggle:
+
+- **Hide Now** — the item disappears from the customer display immediately. Its menu number, pricing, and images are all left exactly as they are.
+- **Show Again** — brings it right back once it's available again.
+
+This is intentionally a **minimal, single-purpose screen** — it has no pricing checks, no image upload, and no menu-number editing. For anything beyond hiding/showing an already-configured item, use **Menu Numbers** (assigning numbers, pricing, images) — that page requires `canManageMenu` and isn't meant for quick shift-to-shift use.
+
+> Hidden items are excluded only from the actual customer-facing display — they still show up (marked accordingly) in Menu Numbers and Display Settings' Item Priority list, so a manager can always find and review anything a salesperson has hidden.
+
+---
+
 ### Management — Where to Find It
 
 Restaurant is the only business type with **two separate** Customer Display destinations in the sidebar — don't confuse them:
@@ -12549,6 +12571,10 @@ Items appear on the customer display automatically **when they have a menu numbe
 **Freeing a number:** if a numbered item's pricing later becomes invalid (e.g. a calibration reset), a red **Free** button appears next to it in both the item list and the Assigned Numbers panel — click it to release the number for reuse without needing to fix the pricing first.
 
 > **No two items can share a number.** The server rejects a duplicate on save, and the Menu Numbers page also checks instantly against the list already on screen before it even asks the server — so you'll see the conflict immediately rather than after a save attempt.
+
+**Setting the primary image from this screen:** select an item, then click **Upload Image** (or **Replace Image** if one is already set) under its photo in the edit panel and pick a file. For a menu item this sets the product's actual primary photo — the same one Menu Management shows. An AYLI combo has no photo field of its own, so this sets its advertising image instead (the same one Display Settings' Item Priority list can also set). Either way, the new photo shows immediately, on this screen and on the customer display.
+
+**Scrolling and reassigning:** the list keeps your scroll position and never reorders itself after you assign, remove, or free a number — only the row you touched updates in place, so you can work down a long list without losing your spot.
 
 ---
 
@@ -12598,6 +12624,10 @@ Permission required: `canManageCustomerDisplay`. Users with only `canViewCustome
 | Rotation speed | How long each card shows (3–30 seconds) |
 | Max items in rotation | How many items appear in the ads rotation |
 | Today's Special show frequency | 0% = never show the special card; 100% = always show it. Default 25% means the special card replaces the normal rotation roughly once every four ticks. The special is always pinned at the top of the left panel regardless of this setting when it is > 0. |
+| Rotating cards (left panel) | How many cards show at once on the left panel (1–3, default 2). Fewer cards means each one — and its image — is bigger. |
+| Menu grid columns (right panel) | How many columns the right live menu grid uses (1–3, default 2). Fewer columns means each item card is wider. |
+
+Grocery and clothing have the same two settings on their combined **Customer Display** page (see [Management — Where to Find It](#management--where-to-find-it)).
 
 ---
 
