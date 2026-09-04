@@ -324,6 +324,36 @@ export default function DailySpecialPage() {
     else toast.push('Failed to remove', { type: 'error' })
   }
 
+  // Updates the underlying menu item's own primary photo (not the special's
+  // custom override image, which the Edit form already handles separately) —
+  // a quick way to set/replace it right from the Library list.
+  const [uploadingImageFor, setUploadingImageFor] = useState<string | null>(null)
+  async function uploadProductPrimaryImage(item: DailySpecialItem, file: File) {
+    setUploadingImageFor(item.id)
+    try {
+      const form = new FormData()
+      form.append('files', file)
+      const uploadRes = await fetch(`/api/universal/products/${item.productId}/images`, { method: 'POST', body: form })
+      if (!uploadRes.ok) throw new Error('Upload failed')
+      const { data } = await uploadRes.json()
+      const candidates = (data?.images ?? []).filter((im: any) => im.altText === file.name)
+      const newImg = candidates.sort((a: any, b: any) => b.sortOrder - a.sortOrder)[0]
+      if (!newImg) throw new Error('Upload succeeded but the new image could not be found')
+      const primaryRes = await fetch(`/api/universal/products/${item.productId}/images/${newImg.id}/primary`, { method: 'POST' })
+      if (!primaryRes.ok) throw new Error('Failed to set as primary image')
+
+      setLibrary(prev => prev.map(l => l.id === item.id
+        ? { ...l, product: { ...l.product, product_images: [{ imageUrl: newImg.imageUrl }] } }
+        : l
+      ))
+      toast.push('Primary image updated', { type: 'success' })
+    } catch (e: any) {
+      toast.push(e.message ?? 'Failed to update image', { type: 'error' })
+    } finally {
+      setUploadingImageFor(null)
+    }
+  }
+
   function addBullet() { setFormBullets(prev => [...prev, '']) }
   function removeBullet(i: number) { setFormBullets(prev => prev.filter((_, idx) => idx !== i)) }
   function updateBullet(i: number, val: string) { setFormBullets(prev => prev.map((b, idx) => idx === i ? val : b)) }
@@ -451,9 +481,21 @@ export default function DailySpecialPage() {
               <div className="space-y-2">
                 {DAY_NAMES.map((day, dow) => {
                   const slot = schedule.find(s => s.dayOfWeek === dow)
+                  const libEntry = slot ? library.find(l => l.id === slot.specialId) : undefined
+                  const thumbUrl = libEntry
+                    ? (libEntry.imageId ? `/api/images/${libEntry.imageId}` : libEntry.product.product_images?.[0]?.imageUrl ?? null)
+                    : null
                   return (
                     <div key={dow} className="card flex items-center gap-4 p-3 rounded-lg">
                       <div className="w-24 font-medium text-sm flex-shrink-0">{day}</div>
+                      {/* Primary image preview — native <select> options can't show images, so this sits beside it */}
+                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0 flex items-center justify-center">
+                        {thumbUrl ? (
+                          <img src={thumbUrl} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                        ) : (
+                          <span className="text-secondary text-xs">—</span>
+                        )}
+                      </div>
                       <select
                         value={slot?.specialId ?? ''}
                         onChange={e => assignDay(dow, e.target.value || null)}
@@ -674,8 +716,19 @@ export default function DailySpecialPage() {
                     {library.length === 0 && (
                       <div className="text-center text-secondary py-8">No specials in library. Create one to get started.</div>
                     )}
-                    {library.map(item => (
+                    {library.map(item => {
+                      const thumbUrl = item.imageId
+                        ? `/api/images/${item.imageId}`
+                        : item.product.product_images?.[0]?.imageUrl ?? null
+                      return (
                       <div key={item.id} className="card p-4 rounded-xl flex items-start gap-4">
+                        <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0 flex items-center justify-center">
+                          {thumbUrl ? (
+                            <img src={thumbUrl} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                          ) : (
+                            <span className="text-2xl">🍽️</span>
+                          )}
+                        </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-0.5">
                             {item.product.menuNumber && (
@@ -700,12 +753,23 @@ export default function DailySpecialPage() {
                             </div>
                           )}
                         </div>
-                        <div className="flex gap-2 flex-shrink-0">
-                          <button onClick={() => startEdit(item)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Edit</button>
-                          <button onClick={() => deleteSpecial(item.id)} className="text-xs text-red-500 hover:underline">Remove</button>
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          <div className="flex gap-2">
+                            <button onClick={() => startEdit(item)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Edit</button>
+                            <button onClick={() => deleteSpecial(item.id)} className="text-xs text-red-500 hover:underline">Remove</button>
+                          </div>
+                          <label className="text-xs text-secondary hover:underline cursor-pointer">
+                            {uploadingImageFor === item.id ? 'Uploading…' : thumbUrl ? '📷 Replace Image' : '📷 Add Image'}
+                            <input
+                              type="file" accept="image/*" className="hidden"
+                              disabled={uploadingImageFor === item.id}
+                              onChange={e => { const f = e.target.files?.[0]; if (f) uploadProductPrimaryImage(item, f); e.target.value = '' }}
+                            />
+                          </label>
                         </div>
                       </div>
-                    ))}
+                      )
+                    })}
                   </>
                 )}
               </div>
