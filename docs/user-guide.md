@@ -13494,6 +13494,8 @@ Typing a menu number into the POS search box behaves differently from typing a n
 
 **Auto-reset:** adding an item via the number-search result clears the search box automatically, ready for the next number. Adding an item any other way (clicking a card in the regular grid) leaves the search box exactly as it was — this reset is specific to the number-search flow.
 
+**Type anywhere:** you don't need to scroll up and click the search box first — just start typing a menu number (or a name) while nothing else is focused, and after a brief pause it jumps into the search box on its own, cursor at the end, ready to keep typing. This is deliberately tuned to never interfere with actual barcode scanning: a real scan is a long, fast burst of characters, while this only ever kicks in for short input — anything long enough to plausibly be a barcode is left entirely alone for the scanner to handle.
+
 ---
 
 ### Cart and Receipt

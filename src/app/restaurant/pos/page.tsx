@@ -28,6 +28,7 @@ import { generatePlainTextReceipt } from '@/lib/printing/plain-text-receipt'
 import type { ReceiptData } from '@/types/printing'
 import { formatDuration, formatDataAmount } from '@/lib/printing/format-utils'
 import { useCustomerDisplaySync, useOpenCustomerDisplay } from '@/hooks/useCustomerDisplaySync'
+import { globalBarcodeService } from '@/lib/services/global-barcode-service'
 import { usePosQuickEditMode } from '@/hooks/use-pos-quick-edit-mode'
 import { QuickEditModeButtons } from '@/components/pos/quick-edit-mode-buttons'
 import { QuickEditCardButton } from '@/components/pos/quick-edit-card-button'
@@ -199,6 +200,7 @@ export default function RestaurantPOS() {
   const [wifiFlierTagline, setWifiFlierTagline] = useState('')
   const [wifiFlierPrinting, setWifiFlierPrinting] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const [posMode, setPosMode] = useState<'live' | 'manual' | 'meal_program'>('live')
   const [scaleVisible, setScaleVisible] = useState(false)
   const [scaleEnabled, setScaleEnabled] = useState(true)
@@ -380,6 +382,79 @@ export default function RestaurantPOS() {
     sendToDisplayRef.current?.('MENU_SEARCH', { searchTerm })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm])
+
+  // "Type anywhere" search shortcut — lets the cashier start typing a menu
+  // number or a name without first scrolling up to click the search box.
+  // Deliberately narrow so it never competes with a real barcode scan:
+  // GlobalBarcodeService (active app-wide) already discards anything shorter
+  // than its own minBarcodeLength (default 5) as "not a scan" after its own
+  // ~150ms pause, so this only ever redirects buffers shorter than that
+  // threshold, and waits a bit longer than GlobalBarcodeService's own delay
+  // so a genuine scan always gets first claim on the keystrokes.
+  useEffect(() => {
+    if (posMode !== 'live') return
+
+    const TYPE_TO_SEARCH_GAP_MS = 80
+    const TYPE_TO_SEARCH_DELAY_MS = 220 // longer than GlobalBarcodeService's 150ms
+    let buffer = ''
+    let lastKeyTime = 0
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+    const redirectToSearch = (text: string) => {
+      setSearchTerm(text)
+      const input = searchInputRef.current
+      if (input) {
+        input.focus()
+        requestAnimationFrame(() => {
+          const len = input.value.length
+          input.setSelectionRange(len, len)
+        })
+      }
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Never intercept while a real input/textarea/select/contenteditable
+      // (including the search box itself, or the barcode scanner panel's own
+      // input when it's open) already has focus — let it behave normally.
+      const target = e.target as HTMLElement | null
+      if (target) {
+        const tag = target.tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (target as any).isContentEditable) return
+      }
+      if (showBarcodeScanner) return
+
+      const isChar = e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey
+      if (!isChar) {
+        if (e.key === 'Enter' && buffer.length > 0) {
+          if (timeoutId) clearTimeout(timeoutId)
+          const minLen = globalBarcodeService.getMinBarcodeLength()
+          if (buffer.length < minLen) redirectToSearch(buffer)
+          buffer = ''
+        }
+        return
+      }
+
+      const now = Date.now()
+      buffer = (now - lastKeyTime < TYPE_TO_SEARCH_GAP_MS) ? buffer + e.key : e.key
+      lastKeyTime = now
+
+      if (timeoutId) clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        const minLen = globalBarcodeService.getMinBarcodeLength()
+        // Long enough to plausibly be a real barcode — GlobalBarcodeService's
+        // own (shorter) timer already claimed it; stay out of the way.
+        if (buffer.length >= minLen) { buffer = ''; return }
+        redirectToSearch(buffer)
+        buffer = ''
+      }, TYPE_TO_SEARCH_DELAY_MS)
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      if (timeoutId) clearTimeout(timeoutId)
+    }
+  }, [posMode, showBarcodeScanner])
 
   // Open Customer Display utility
   const { openDisplay } = useOpenCustomerDisplay(currentBusinessId || '', terminalId)
@@ -4176,6 +4251,7 @@ export default function RestaurantPOS() {
             <div className="flex items-center gap-2 mb-2">
               <div className="relative flex-1">
                 <input
+                  ref={searchInputRef}
                   type="text"
                   placeholder="Search products..."
                   value={searchTerm}
