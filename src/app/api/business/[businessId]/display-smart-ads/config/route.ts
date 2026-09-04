@@ -1,14 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getServerUser } from '@/lib/get-server-user'
+import { getEffectivePermissions } from '@/lib/permission-utils'
 
 // PUT /api/business/[businessId]/display-smart-ads/config
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ businessId: string }> }) {
+  const user = await getServerUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { businessId } = await params
   const body = await req.json()
   const { itemType, itemId, priorityBoost, isDailySpecial, isFeatured, isHidden, displayDurationSecs, advertisingNote, advertisingImageId } = body
 
   if (!itemType || !itemId) {
     return NextResponse.json({ error: 'itemType and itemId are required' }, { status: 400 })
+  }
+
+  // Full editing (pricing-adjacent fields, images, notes, daily special, priority)
+  // requires canManageCustomerDisplay. A request touching ONLY isHidden is the
+  // narrow "quickly 86 an item / bring it back" toggle — allowed for anyone who
+  // can at least view the customer display (salespeople included by default),
+  // since it can't change anything else about how the item is configured.
+  const permissions = getEffectivePermissions(user, businessId)
+  const isHiddenOnlyToggle =
+    isHidden !== undefined &&
+    priorityBoost === undefined && isDailySpecial === undefined && isFeatured === undefined &&
+    displayDurationSecs === undefined && advertisingNote === undefined && advertisingImageId === undefined
+  const canToggleHidden = user.role === 'admin' || permissions.canManageCustomerDisplay ||
+    (isHiddenOnlyToggle && permissions.canViewCustomerDisplay)
+  if (!canToggleHidden) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   // If marking as daily special, clear the existing one first

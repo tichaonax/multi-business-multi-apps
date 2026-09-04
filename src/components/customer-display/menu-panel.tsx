@@ -26,9 +26,11 @@ interface MenuPanelProps {
   businessId: string
   businessType: 'restaurant' | 'grocery' | 'clothing'
   searchTerm: string
+  columns?: number // admin-configurable (Display Settings → "Menu grid columns"); defaults to 2
 }
 
-// 3 columns × 3 rows = 9 items per page
+// Items per page stays fixed regardless of column count — only the column count
+// (and so how many rows that makes) is admin-configurable.
 const PAGE_SIZE = 9
 // Max total items tracked (~5 pages of 6)
 const MAX_ITEMS = 30
@@ -38,7 +40,8 @@ function fmt(p: number) {
   return `$${p.toFixed(2)}`
 }
 
-export function MenuPanel({ businessId, businessType, searchTerm }: MenuPanelProps) {
+export function MenuPanel({ businessId, businessType, searchTerm, columns = 2 }: MenuPanelProps) {
+  const gridColsClass = columns === 1 ? 'grid-cols-1' : columns === 3 ? 'grid-cols-3' : 'grid-cols-2'
   const [regularItems, setRegularItems] = useState<MenuItem[]>([])
   const [aylicItems, setAylicItems] = useState<MenuItem[]>([])
   const [dailySpecialId, setDailySpecialId] = useState<string | null>(null)
@@ -161,7 +164,7 @@ export function MenuPanel({ businessId, businessType, searchTerm }: MenuPanelPro
           </div>
         ) : (
           <div
-            className="grid grid-cols-3 gap-2 h-full"
+            className={`grid ${gridColsClass} gap-2 h-full`}
             style={{ gridAutoRows: '1fr' }}
           >
             {items.map(item => (

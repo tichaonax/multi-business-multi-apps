@@ -11,6 +11,8 @@ interface Settings {
   enableSplitLayout: boolean
   maxItemsInRotation: number
   specialShowPercentage: number
+  leftPanelCardCount: number
+  rightPanelColumns: number
 }
 
 interface Props {
@@ -32,6 +34,8 @@ export function DisplayGlobalSettings({ businessId }: Props) {
     enableSplitLayout: true,
     maxItemsInRotation: 12,
     specialShowPercentage: 25,
+    leftPanelCardCount: 2,
+    rightPanelColumns: 2,
   })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -141,6 +145,36 @@ export function DisplayGlobalSettings({ businessId }: Props) {
           disabled={!canManage}
           value={settings.specialShowPercentage}
           onChange={e => setSettings(s => ({ ...s, specialShowPercentage: Number(e.target.value) }))}
+          className="w-full disabled:opacity-50"
+        />
+      </div>
+
+      {/* Left panel rotating card count */}
+      <div>
+        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">
+          Rotating cards (left panel) — <span className="font-mono">{settings.leftPanelCardCount}</span>
+        </label>
+        <div className="text-xs text-gray-400 mb-1">Fewer cards shown at once means each one — and its image — is bigger</div>
+        <input
+          type="range" min={1} max={3} step={1}
+          disabled={!canManage}
+          value={settings.leftPanelCardCount}
+          onChange={e => setSettings(s => ({ ...s, leftPanelCardCount: Number(e.target.value) }))}
+          className="w-full disabled:opacity-50"
+        />
+      </div>
+
+      {/* Right panel menu grid columns */}
+      <div>
+        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">
+          Menu grid columns (right panel) — <span className="font-mono">{settings.rightPanelColumns}</span>
+        </label>
+        <div className="text-xs text-gray-400 mb-1">Fewer columns means each item card is wider</div>
+        <input
+          type="range" min={1} max={3} step={1}
+          disabled={!canManage}
+          value={settings.rightPanelColumns}
+          onChange={e => setSettings(s => ({ ...s, rightPanelColumns: Number(e.target.value) }))}
           className="w-full disabled:opacity-50"
         />
       </div>

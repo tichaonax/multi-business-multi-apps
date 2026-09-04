@@ -13,6 +13,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ bus
     enableSplitLayout: settings?.enableSplitLayout ?? true,
     maxItemsInRotation: settings?.maxItemsInRotation ?? 12,
     specialShowPercentage: settings?.specialShowPercentage ?? 25,
+    leftPanelCardCount: settings?.leftPanelCardCount ?? 2,
+    rightPanelColumns: settings?.rightPanelColumns ?? 2,
   })
 }
 
@@ -20,7 +22,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ bus
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ businessId: string }> }) {
   const { businessId } = await params
   const body = await req.json()
-  const { rotationIntervalSecs, enableSmartDisplay, enableSplitLayout, maxItemsInRotation, specialShowPercentage } = body
+  const { rotationIntervalSecs, enableSmartDisplay, enableSplitLayout, maxItemsInRotation, specialShowPercentage, leftPanelCardCount, rightPanelColumns } = body
 
   const settings = await (prisma as any).displayGlobalSettings.upsert({
     where: { businessId },
@@ -31,6 +33,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ busi
       enableSplitLayout: enableSplitLayout ?? true,
       maxItemsInRotation: maxItemsInRotation ?? 12,
       specialShowPercentage: specialShowPercentage ?? 25,
+      leftPanelCardCount: leftPanelCardCount ?? 2,
+      rightPanelColumns: rightPanelColumns ?? 2,
     },
     update: {
       ...(rotationIntervalSecs !== undefined && { rotationIntervalSecs }),
@@ -38,6 +42,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ busi
       ...(enableSplitLayout !== undefined && { enableSplitLayout }),
       ...(maxItemsInRotation !== undefined && { maxItemsInRotation }),
       ...(specialShowPercentage !== undefined && { specialShowPercentage }),
+      ...(leftPanelCardCount !== undefined && { leftPanelCardCount }),
+      ...(rightPanelColumns !== undefined && { rightPanelColumns }),
     },
   })
 

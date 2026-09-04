@@ -151,6 +151,7 @@ export function MobileSidebar() {
         return (
           <>
             {navLink('/restaurant/pos', '🍽️', 'POS System')}
+            {(isAdmin || hasBusinessPermission('canViewCustomerDisplay') || hasBusinessPermission('canManageCustomerDisplay')) && navLink('/restaurant/menu-availability', '🚫', 'Menu Availability')}
             {canReport && navLink('/restaurant/reports', '📊', 'Sales Reports')}
             {canCashAlloc && navLink('/restaurant/reports/cash-allocation', '💰', 'Cash Allocation')}
             {navLink('/restaurant/inventory', '📦', 'Inventory')}

@@ -5329,6 +5329,10 @@ model DisplayGlobalSettings {
   enableSplitLayout     Boolean    @default(true)
   maxItemsInRotation    Int        @default(12)
   specialShowPercentage Int        @default(25)
+  // How many rotating cards show at once on the left ads panel (1-3).
+  leftPanelCardCount    Int        @default(2)
+  // How many columns the right live menu grid uses (1-3).
+  rightPanelColumns     Int        @default(2)
   createdAt             DateTime   @default(now())
   updatedAt             DateTime   @updatedAt
   businesses            Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)

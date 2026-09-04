@@ -168,6 +168,8 @@ function CustomerDisplayContent() {
 
   // Whether the smart display is enabled — null = still loading (show classic screen)
   const [smartDisplayEnabled, setSmartDisplayEnabled] = useState<boolean | null>(null)
+  // Admin-configurable column count for the right live menu grid (Display Settings)
+  const [rightPanelColumns, setRightPanelColumns] = useState(2)
 
   // Search term broadcast from POS — filters the MenuPanel
   const [menuSearchTerm, setMenuSearchTerm] = useState('')
@@ -647,6 +649,7 @@ function CustomerDisplayContent() {
         if (!res.ok || cancelled) return
         const data = await res.json()
         setSmartDisplayEnabled(data.enableSmartDisplay === true)
+        setRightPanelColumns(Number(data.rightPanelColumns) || 2)
       } catch { setSmartDisplayEnabled(false) }
     }
     fetchSettings()
@@ -901,6 +904,7 @@ function CustomerDisplayContent() {
                   businessId={displayBusinessId}
                   businessType={businessType}
                   searchTerm={menuSearchTerm}
+                  columns={rightPanelColumns}
                 />
               </div>
             </div>

@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
@@ -46,10 +46,19 @@ export default function MenuNumbersPage() {
   const [input, setInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const imageFileRef = useRef<HTMLInputElement>(null)
+
+  // Only the very first load shows the "Loading items…" placeholder. Assign/Remove/
+  // Free patch the affected item in place (see patchItem below) instead of calling
+  // load() again — but guard this anyway in case something else ever triggers a
+  // refetch, since toggling `loading` mid-session would swap the whole scrollable
+  // list out for the placeholder and back, remounting it and resetting scroll.
+  const hasLoadedOnce = useRef(false)
 
   const load = useCallback(async () => {
     if (!currentBusinessId) return
-    setLoading(true)
+    if (!hasLoadedOnce.current) setLoading(true)
     try {
       const [productsRes, combosRes] = await Promise.all([
         fetch(`/api/universal/products?businessId=${currentBusinessId}&businessType=restaurant&isActive=true&limit=500&includeImages=true`),
@@ -109,6 +118,7 @@ export default function MenuNumbersPage() {
       toast.error('Failed to load menu items')
     } finally {
       setLoading(false)
+      hasLoadedOnce.current = true
     }
   }, [currentBusinessId])
 
@@ -118,6 +128,62 @@ export default function MenuNumbersPage() {
     setSelected(item)
     setInput(item.menuNumber ?? '')
     setError('')
+  }
+
+  // Updates one item's fields in the already-loaded list without refetching or
+  // re-sorting — the list is sorted by menuNumber, so re-sorting after every
+  // assign would jump the item to a completely different spot in the list and
+  // disorient the user right after they scrolled to find it. A plain in-place
+  // patch keeps every other row exactly where it was.
+  const patchItem = (itemType: MenuItem['type'], id: string, patch: Partial<MenuItem>) => {
+    setItems(prev => prev.map(i => (i.id === id && i.type === itemType) ? { ...i, ...patch } : i))
+  }
+
+  // Assigns/replaces the item's primary image directly from this screen. Menu
+  // items use the product's own primary-image slot (same one Menu Management
+  // edits); AYLI combos have no such field on the combo record itself, so this
+  // uses the advertising-image slot instead (DisplayProductConfig) — the same
+  // mechanism the Display Settings page already uses for combo photos.
+  const uploadPrimaryImage = async (file: File) => {
+    if (!selected || !currentBusinessId) return
+    setUploadingImage(true)
+    try {
+      let newImageUrl: string
+      if (selected.type === 'menu_item') {
+        const form = new FormData()
+        form.append('files', file)
+        const uploadRes = await fetch(`/api/universal/products/${selected.id}/images`, { method: 'POST', body: form })
+        if (!uploadRes.ok) throw new Error('Upload failed')
+        const { data } = await uploadRes.json()
+        const candidates = (data?.images ?? []).filter((im: any) => im.altText === file.name)
+        const newImg = candidates.sort((a: any, b: any) => b.sortOrder - a.sortOrder)[0]
+        if (!newImg) throw new Error('Upload succeeded but the new image could not be found')
+        const primaryRes = await fetch(`/api/universal/products/${selected.id}/images/${newImg.id}/primary`, { method: 'POST' })
+        if (!primaryRes.ok) throw new Error('Failed to set as primary image')
+        newImageUrl = newImg.imageUrl
+      } else {
+        const form = new FormData()
+        form.append('files', file)
+        const uploadRes = await fetch('/api/universal/images', { method: 'POST', body: form })
+        if (!uploadRes.ok) throw new Error('Upload failed')
+        const { data } = await uploadRes.json()
+        const newImageId: string = data[0].filename
+        const configRes = await fetch(`/api/business/${currentBusinessId}/display-smart-ads/config`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemType: 'ayli_combo', itemId: selected.id, advertisingImageId: newImageId }),
+        })
+        if (!configRes.ok) throw new Error('Failed to save')
+        newImageUrl = `/api/images/${newImageId}`
+      }
+      patchItem(selected.type, selected.id, { imageUrl: newImageUrl })
+      setSelected(prev => prev ? { ...prev, imageUrl: newImageUrl } : prev)
+      toast.push('Primary image updated')
+    } catch (e: any) {
+      toast.error(e.message ?? 'Failed to update image')
+    } finally {
+      setUploadingImage(false)
+    }
   }
 
   const assign = async (valueOverride?: string) => {
@@ -147,7 +213,7 @@ export default function MenuNumbersPage() {
         return
       }
       toast.push(trimmed ? `Number ${trimmed} assigned to "${selected.name}"` : `Number removed from "${selected.name}"`)
-      await load()
+      patchItem(selected.type, selected.id, { menuNumber: trimmed || null })
       // Update selected state with new number
       setSelected(prev => prev ? { ...prev, menuNumber: trimmed || null } : null)
     } catch {
@@ -206,7 +272,7 @@ export default function MenuNumbersPage() {
         return
       }
       toast.push(`Number ${num} freed from "${item.name}"`)
-      await load()
+      patchItem(item.type, item.id, { menuNumber: null })
       setSelected(prev => (prev && prev.id === item.id && prev.type === item.type) ? { ...prev, menuNumber: null } : prev)
     } catch {
       toast.error('Failed to free number')
@@ -343,14 +409,43 @@ export default function MenuNumbersPage() {
             {selected ? (
               <div className="card p-6 space-y-5">
                 <div className="flex items-start gap-4">
-                  {selected.imageUrl && (
-                    <img
-                      src={selected.imageUrl}
-                      alt=""
-                      className="w-28 h-28 rounded-xl object-cover flex-shrink-0 border border-gray-200 dark:border-gray-700"
-                      onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-                    />
-                  )}
+                  <div className="flex-shrink-0 flex flex-col items-center gap-1.5">
+                    <div className="w-28 h-28 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                      {selected.imageUrl ? (
+                        <img
+                          src={selected.imageUrl}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                        />
+                      ) : (
+                        <span className="text-gray-400 text-[11px] text-center px-2">No image</span>
+                      )}
+                    </div>
+                    {canManage && (
+                      <>
+                        <input
+                          ref={imageFileRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={e => {
+                            const file = e.target.files?.[0]
+                            if (file) uploadPrimaryImage(file)
+                            e.target.value = ''
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => imageFileRef.current?.click()}
+                          disabled={uploadingImage}
+                          className="w-28 text-[11px] px-2 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                        >
+                          {uploadingImage ? 'Uploading…' : selected.imageUrl ? 'Replace Image' : 'Upload Image'}
+                        </button>
+                      </>
+                    )}
+                  </div>
                   {selected.menuNumber && <NumberCircle num={selected.menuNumber} size="lg" />}
                   <div>
                     <h2 className="text-lg font-semibold text-primary">{selected.name}</h2>

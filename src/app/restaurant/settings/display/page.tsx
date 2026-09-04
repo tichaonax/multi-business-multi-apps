@@ -13,6 +13,8 @@ interface GlobalSettings {
   enableSmartDisplay: boolean
   enableSplitLayout: boolean
   maxItemsInRotation: number
+  leftPanelCardCount: number
+  rightPanelColumns: number
 }
 
 interface DisplayItem {
@@ -63,6 +65,8 @@ export default function RestaurantDisplaySettingsPage() {
     enableSmartDisplay: false,
     enableSplitLayout: true,
     maxItemsInRotation: 12,
+    leftPanelCardCount: 2,
+    rightPanelColumns: 2,
   })
   const [items, setItems] = useState<DisplayItem[]>([])
   const [dailySpecial, setDailySpecial] = useState<DisplayItem | null>(null)
@@ -243,6 +247,42 @@ export default function RestaurantDisplaySettingsPage() {
                   />
                   <span className="text-sm font-mono w-8 text-right text-gray-900 dark:text-gray-100">
                     {settings.maxItemsInRotation}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm text-gray-700 dark:text-gray-300 block mb-1">
+                  Rotating cards (left panel)
+                </label>
+                <div className="text-xs text-gray-400 dark:text-gray-500 mb-1">Fewer cards means each one — and its image — is bigger</div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range" min={1} max={3} step={1}
+                    value={settings.leftPanelCardCount}
+                    onChange={e => setSettings(s => ({ ...s, leftPanelCardCount: Number(e.target.value) }))}
+                    className="flex-1"
+                  />
+                  <span className="text-sm font-mono w-8 text-right text-gray-900 dark:text-gray-100">
+                    {settings.leftPanelCardCount}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm text-gray-700 dark:text-gray-300 block mb-1">
+                  Menu grid columns (right panel)
+                </label>
+                <div className="text-xs text-gray-400 dark:text-gray-500 mb-1">Fewer columns means each item card is wider</div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range" min={1} max={3} step={1}
+                    value={settings.rightPanelColumns}
+                    onChange={e => setSettings(s => ({ ...s, rightPanelColumns: Number(e.target.value) }))}
+                    className="flex-1"
+                  />
+                  <span className="text-sm font-mono w-8 text-right text-gray-900 dark:text-gray-100">
+                    {settings.rightPanelColumns}
                   </span>
                 </div>
               </div>

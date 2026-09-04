@@ -738,6 +738,12 @@ export function Sidebar() {
                   <span className="text-lg">🍽️</span>
                   <span>POS System</span>
                 </Link>
+                {(isSystemAdmin(currentUser) || hasPermission('canViewCustomerDisplay') || hasPermission('canManageCustomerDisplay')) && (
+                  <Link href="/restaurant/menu-availability" className={getLinkClasses('/restaurant/menu-availability')}>
+                    <span className="text-lg">🚫</span>
+                    <span>Menu Availability</span>
+                  </Link>
+                )}
                 {(isSystemAdmin(currentUser) || hasPermission('canViewDeliveryQueue')) && (
                   <Link href="/restaurant/delivery" className={pathname === '/restaurant/delivery' ? 'sidebar-link flex items-center space-x-3 bg-blue-600 text-white border-l-4 border-blue-400' : 'sidebar-link flex items-center space-x-3 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800'}>
                     <span className="text-lg">🛵</span>

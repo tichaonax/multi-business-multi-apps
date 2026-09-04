@@ -20,6 +20,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
     enableSplitLayout: settings?.enableSplitLayout ?? true,
     maxItemsInRotation: settings?.maxItemsInRotation ?? 12,
     specialShowPercentage: settings?.specialShowPercentage ?? 25,
+    leftPanelCardCount: settings?.leftPanelCardCount ?? 2,
+    rightPanelColumns: settings?.rightPanelColumns ?? 2,
   }
 
   // Block item loading only for the customer-facing display (all=false).
@@ -233,7 +235,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
 
     const candidates: any[] = []
     for (const p of products) {
-      if (isHidden('menu_item', p.id)) continue
+      if (!allItems && isHidden('menu_item', p.id)) continue
       if (filterByNumber && !p.menuNumber) continue
       const price = Number(p.basePrice ?? 0)
       // Never show an unpriced item ($0.00) on the actual customer display — only
@@ -267,7 +269,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
     }
 
     for (const c of combos) {
-      if (isHidden('ayli_combo', c.id)) continue
+      if (!allItems && isHidden('ayli_combo', c.id)) continue
       if (filterByNumber && !c.menuNumber) continue
       if ((c.items ?? []).length === 0) continue  // skip combos with no pool items configured
       const ss = salesScore(ayliSales.get(c.id))
@@ -339,7 +341,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
 
     // Inventory items — sales key is inv_${id} (matches the SQL COALESCE above)
     for (const p of invItems) {
-      if (isHidden('product', p.id)) continue
+      if (!allItems && isHidden('product', p.id)) continue
       const price = Number(p.sellingPrice ?? 0)
       if (price <= 0) continue
       const invKey = `inv_${p.id}`
@@ -360,7 +362,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
 
     // Service products — sold via productVariantId, sales key is the variant ID
     for (const svc of serviceProducts) {
-      if (isHidden('product', svc.id)) continue
+      if (!allItems && isHidden('product', svc.id)) continue
       const variantId = svc.product_variants[0]?.id ?? svc.id
       const ss = salesScore(productSales.get(variantId))
       candidates.push({
@@ -439,7 +441,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
 
     // Bale categories — keyed by categoryId
     for (const cat of baleCategories) {
-      if (isHidden('category', cat.id)) continue
+      if (!allItems && isHidden('category', cat.id)) continue
       const newCount = newArrivalsByCategory.get(cat.id) ?? 0
       const ds = buildDisplayScore('category', cat.id, newCount)
       candidates.push({
@@ -456,7 +458,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
 
     // Regular inventory items — new arrivals (last 14 days) score higher
     for (const p of invItems) {
-      if (isHidden('product', p.id)) continue
+      if (!allItems && isHidden('product', p.id)) continue
       const price = Number(p.sellingPrice ?? 0)
       if (price <= 0) continue
       const isNew = new Date(p.createdAt) >= newArrivalCutoff
@@ -478,7 +480,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
 
     // BusinessProducts (quick-add items) — sales tracked per variant, aggregate across all variants
     for (const p of bizProducts) {
-      if (isHidden('product', p.id)) continue
+      if (!allItems && isHidden('product', p.id)) continue
       const price = Number(p.basePrice ?? p.product_variants[0]?.price ?? 0)
       if (price <= 0) continue
       const isNew = new Date(p.createdAt) >= newArrivalCutoff

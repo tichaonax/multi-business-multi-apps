@@ -8,6 +8,7 @@ interface DisplaySettings {
   enableSplitLayout: boolean
   maxItemsInRotation: number
   specialShowPercentage: number
+  leftPanelCardCount: number
 }
 
 interface TodaysSpecialData {
@@ -321,6 +322,7 @@ export function SmartProductDisplay({ businessId, businessType }: SmartProductDi
     enableSplitLayout: true,
     maxItemsInRotation: 12,
     specialShowPercentage: 25,
+    leftPanelCardCount: 2,
   })
   const [dailySpecial, setDailySpecial] = useState<TodaysSpecialData | null>(null)
   const [items, setItems] = useState<DisplayItem[]>([])
@@ -390,10 +392,10 @@ export function SmartProductDisplay({ businessId, businessType }: SmartProductDi
     )
   }
 
-  // With special pinned, show 2 rotating cards; without, show 3.
-  // Never show more slots than there are unique items — filling every slot by
-  // wrapping the modulo would repeat the same card (e.g. n=1 showing 3x).
-  const slotCount = (dailySpecial && settings.specialShowPercentage > 0) ? 2 : 3
+  // Admin-configurable (Display Settings → "Rotating cards" slider), clamped to
+  // a sane 1-3 range. Never show more slots than there are unique items — filling
+  // every slot by wrapping the modulo would repeat the same card.
+  const slotCount = Math.min(3, Math.max(1, settings.leftPanelCardCount || 2))
   const n = items.length
   const visibleCount = Math.min(slotCount, n)
   const visible = n === 0 ? [] : Array.from({ length: visibleCount }, (_, i) =>
