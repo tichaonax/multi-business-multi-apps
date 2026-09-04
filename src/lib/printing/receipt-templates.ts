@@ -257,8 +257,10 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
     const weightKg = weightMatch ? parseFloat(weightMatch[1]) : null
     const displayName = weightKg ? item.name.replace(/\s*\([0-9.]+ kg\)/, '') : item.name
     const pricePerKg = weightKg && weightKg > 0 ? item.totalPrice / weightKg : null
+    // MBM-291 — printed-menu number, restaurant only (undefined for every other business type)
+    const numberedName = item.menuNumber ? `#${item.menuNumber.toUpperCase()} ${displayName}` : displayName
 
-    receipt += formatLineItem(displayName, item.quantity, item.unitPrice, item.totalPrice);
+    receipt += formatLineItem(numberedName, item.quantity, item.unitPrice, item.totalPrice);
 
     // Weight sub-line: "  0.367 kg @ $13.00/kg"
     if (weightKg && pricePerKg) {
@@ -352,6 +354,12 @@ function generateStandardReceipt(data: ReceiptData, sections: ReceiptSections = 
       receipt += 'Paid in full by credit' + LF
       receipt += ALIGN_LEFT
     }
+  } else if (data.creditPayment && data.creditPayment.closingBalance > 0) {
+    // MBM-291: customer has a credit balance but didn't touch it this
+    // transaction (paid another way) — still show where their balance stands.
+    receipt += line('-') + LF
+    receipt += formatTotal('Credit balance', data.creditPayment.closingBalance)
+    receipt += line('-') + LF
   }
 
   // ============================================================================

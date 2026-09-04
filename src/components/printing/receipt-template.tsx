@@ -116,6 +116,11 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
                   ? <span className="text-[8px] font-black border border-current px-0.5 leading-tight">[AYLI]</span>
                   : (item as any).isCombo && <span className="text-[8px] font-black border border-current px-0.5 leading-tight">[COMBO]</span>
                 }
+                {(item as any).menuNumber && (
+                  <span className="text-[8px] font-black bg-gray-900 text-white rounded-full px-1.5 leading-tight">
+                    #{(item as any).menuNumber.toUpperCase()}
+                  </span>
+                )}
                 {item.name}
               </div>
               <div className="flex justify-between text-[11px]">
@@ -177,6 +182,36 @@ export function ReceiptTemplate({ data, showHeader = true, showFooter = true }: 
           <span>${(Number(data.total) + (data.paymentMethod.toUpperCase() === 'ECOCASH' ? (Number(data.ecocashFeeAmount) || 0) : 0)).toFixed(2)}</span>
         </div>
       </div>
+
+      {/* Credit payment — MBM-291: mirrors the printed receipt's credit section,
+          which previously wasn't shown in this on-screen preview at all */}
+      {(() => {
+        const cp = data.creditPayment
+        if (!cp) return null
+        const wasApplied = cp.creditUsed > 0 || (cp.changeToCredit ?? 0) > 0
+        return (
+          <div className="text-[11px] border-t border-dashed border-gray-400 pt-1 mt-1 mb-1">
+            {wasApplied ? (
+              <>
+                <div className="text-center font-bold uppercase tracking-wide mb-0.5">Credit Payment</div>
+                <div className="flex justify-between"><span>Opening balance:</span><span>${Number(cp.openingBalance).toFixed(2)}</span></div>
+                {cp.creditUsed > 0 && (
+                  <div className="flex justify-between"><span>Credit applied:</span><span>-${Number(cp.creditUsed).toFixed(2)}</span></div>
+                )}
+                {cp.changeToCredit != null && cp.changeToCredit > 0 && (
+                  <div className="flex justify-between"><span>Change to credit:</span><span>+${Number(cp.changeToCredit).toFixed(2)}</span></div>
+                )}
+                <div className="flex justify-between font-bold"><span>Remaining balance:</span><span>${Number(cp.closingBalance).toFixed(2)}</span></div>
+                {cp.creditUsed >= Number(data.total) && (
+                  <div className="text-center font-bold mt-0.5">** PAID IN FULL BY CREDIT **</div>
+                )}
+              </>
+            ) : cp.closingBalance > 0 ? (
+              <div className="flex justify-between"><span>Credit balance:</span><span>${Number(cp.closingBalance).toFixed(2)}</span></div>
+            ) : null}
+          </div>
+        )
+      })()}
 
       <div className="text-[11px]">
         <div className="flex justify-between">

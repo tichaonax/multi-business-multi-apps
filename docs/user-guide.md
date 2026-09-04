@@ -213,6 +213,11 @@
     - [Adjusting an Item's Price](#adjusting-an-items-price)
     - [Where This Works Today](#where-this-works-today)
     - [Permissions](#permissions-15)
+62. [POS Menu-Number Search & Receipt Credit Balance — Restaurant](#62-pos-menu-number-search--receipt-credit-balance--restaurant)
+    - [Menu Number Badges](#menu-number-badges)
+    - [Searching by Menu Number](#searching-by-menu-number)
+    - [Cart and Receipt](#cart-and-receipt)
+    - [Customer Credit Balance on Receipt](#customer-credit-balance-on-receipt)
 
 ---
 
@@ -13463,3 +13468,47 @@ Every change made this way is recorded (who, when, old value, new value) the sam
 | Permission | What it allows | Default |
 |------------|----------------|---------|
 | `canQuickEditPOSItems` | See and use the Update Images / Adjust Prices buttons on the POS | Owner, Manager, Admin — not salesperson |
+
+---
+
+## 62. POS Menu-Number Search & Receipt Credit Balance — Restaurant
+
+Aligns the restaurant POS with the printed menu's numbering, and makes sure a customer's credit balance always shows up on the receipt when they have one.
+
+---
+
+### Menu Number Badges
+
+Every menu item and AYLI combo with a menu number assigned (via Menu Numbers) shows that number as a badge, top-right on its POS card — the same corner it's always shown in, now guaranteed to appear whenever a number is assigned, even on a card that's also discounted, out of stock, or sold by weight (those indicators moved to top-left so they no longer compete). Items without a number show no badge at all.
+
+---
+
+### Searching by Menu Number
+
+Typing a menu number into the POS search box behaves differently from typing a name:
+
+- If what you've typed so far **looks like a menu number** (starts with a digit, made up only of digits with at most one trailing letter — e.g. "7", "12", "4a") the search switches to **number mode**: it looks for an exact match on that number only, never a partial or fuzzy match on the name.
+  - Exactly one item has that number → it's shown by itself, large, with a single **+ Add to Cart** button.
+  - No item has that number → **"No menu item found for №…"**, and the search box stays active so you can correct it.
+- The moment what you've typed stops looking like a menu number (a space, a second letter, etc.), it falls back to the normal name search, unchanged.
+
+**Auto-reset:** adding an item via the number-search result clears the search box automatically, ready for the next number. Adding an item any other way (clicking a card in the regular grid) leaves the search box exactly as it was — this reset is specific to the number-search flow.
+
+---
+
+### Cart and Receipt
+
+- A numbered item's cart line shows a small number badge next to its name.
+- The printed receipt shows the same number next to the item name (e.g. `#7 Rice & Beef Stew`) — items with no number print exactly as before.
+- The on-screen receipt preview matches what actually prints.
+
+---
+
+### Customer Credit Balance on Receipt
+
+If a customer is attached to the order and has a positive credit balance:
+
+- **Credit was applied or change was saved to credit this transaction** — the receipt shows the full breakdown: opening balance, credit applied, change saved to credit, and remaining balance (unchanged from before).
+- **Credit was untouched this transaction** (paid cash, card, EcoCash, etc., without applying credit) — the receipt now still prints a **"Credit balance: $X.XX"** line so the customer and business always see where their balance stands, not only on transactions where it was spent.
+
+No credit line prints at all when no customer is attached to the order, or their balance is $0.00.

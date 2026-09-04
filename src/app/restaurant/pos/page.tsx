@@ -1860,6 +1860,7 @@ export default function RestaurantPOS() {
         unitPrice: item.price,
         totalPrice: item.price * item.quantity,
         isCombo: !!item.isCombo || !!item.isAYLICombo,
+        menuNumber: item.menuNumber ?? null,
         // AYLI combo breakdown — maps cart aylicData to the structured receipt format
         ayliBreakdown: item.isAYLICombo && item.aylicData ? {
           size: item.aylicData.size,
@@ -2508,15 +2509,27 @@ export default function RestaurantPOS() {
     ? menuItems.filter(item => item.isCombo === true)
     : menuItems.filter(item => item.category === getCategoryFilter(selectedCategory))
 
-  const filteredItems = (searchTerm.trim()
+  // MBM-291: menu-number search — digit-first input shaped like a real menu
+  // number (1+ digits, optional single trailing letter — same shape Menu
+  // Numbers enforces) is treated as an exact-match number lookup across ALL
+  // items regardless of category tab, not a fuzzy name search. Falls back to
+  // normal text search the moment the input deviates from that shape (a
+  // space, a second letter, etc.) — no fixed length cutoff.
+  const trimmedSearch = searchTerm.trim()
+  const isNumberSearch = /^[1-9][0-9]*[a-z]?$/i.test(trimmedSearch)
+  const numberSearchMatch = isNumberSearch
+    ? menuItems.find(item => {
+        const num = (item as any).menuNumber as string | null | undefined
+        return !!num && num.toLowerCase() === trimmedSearch.toLowerCase()
+      }) ?? null
+    : null
+
+  const filteredItems = (searchTerm.trim() && !isNumberSearch
     ? categoryFiltered.filter(item => {
         const term = searchTerm.toLowerCase().trim()
         // "ayli" returns all AYLI combos regardless of name match
         if (term === 'ayli') return !!(item as any).isAYLICombo
-        return (
-          item.name.toLowerCase().includes(term) ||
-          ((item as any).menuNumber && (item as any).menuNumber.toLowerCase() === term)
-        )
+        return item.name.toLowerCase().includes(term)
       })
     : categoryFiltered
   ).sort((a, b) => {
@@ -2820,8 +2833,13 @@ export default function RestaurantPOS() {
             const cashReceived = parseFloat(amountReceived || '0')
             const cashChange = Math.max(0, cashReceived - total)
             const changeSave = (saveChangeToCredit && cashChange > 0) ? cashChange : 0
-            if (creditToApply <= 0 && changeSave <= 0) return undefined
             const openingBal = deliveryAccount?.balance ?? 0
+            // MBM-291: the receipt must always show a customer's credit balance
+            // when they have one — not only when this transaction touched it.
+            if (creditToApply <= 0 && changeSave <= 0) {
+              if (!selectedCustomer || openingBal <= 0) return undefined
+              return { openingBalance: openingBal, creditUsed: 0, changeToCredit: undefined, closingBalance: openingBal }
+            }
             const closingBal = Math.max(0, openingBal - creditToApply + changeSave)
             return { openingBalance: openingBal, creditUsed: creditToApply, changeToCredit: changeSave > 0 ? changeSave : undefined, closingBalance: closingBal }
           })(),
@@ -4313,6 +4331,16 @@ export default function RestaurantPOS() {
                   </span>
                 )}
 
+                {/* Photo — shown when the special has one */}
+                {todaysSpecial.imageUrl && (
+                  <img
+                    src={todaysSpecial.imageUrl}
+                    alt=""
+                    className="w-9 h-9 rounded-lg object-cover flex-shrink-0"
+                    onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                  />
+                )}
+
                 {/* Star + label */}
                 <span className="text-amber-400 text-lg flex-shrink-0">⭐</span>
                 <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest flex-shrink-0 hidden sm:block">
@@ -4337,6 +4365,34 @@ export default function RestaurantPOS() {
               </div>
             )}
 
+            {isNumberSearch ? (
+              numberSearchMatch ? (
+                <div className="card p-5 rounded-xl border-2 border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20 flex items-center gap-4">
+                  <span className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-black text-xl leading-none shadow-md flex-shrink-0">
+                    {(numberSearchMatch as any).menuNumber.toUpperCase()}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-lg text-primary truncate">{numberSearchMatch.name}</div>
+                    <div className="font-black text-blue-600 dark:text-blue-400 text-xl">${Number(numberSearchMatch.price).toFixed(2)}</div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      addToCart(numberSearchMatch)
+                      setSearchTerm('')
+                    }}
+                    className="flex-shrink-0 bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-3 rounded-lg text-sm"
+                  >
+                    + Add to Cart
+                  </button>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-secondary">
+                  <div className="text-3xl mb-2">🔍</div>
+                  <div className="font-medium">No menu item found for №{trimmedSearch.toUpperCase()}</div>
+                  <div className="text-xs mt-1">Check the number and try again</div>
+                </div>
+              )
+            ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-2 sm:gap-4">
               {filteredItems.map(item => {
                 const hasDiscount = !!(item.originalPrice) && Number(item.originalPrice) > 0 && Number(item.originalPrice) > Number(item.price)
@@ -4406,25 +4462,26 @@ export default function RestaurantPOS() {
                       </div>
                     )}
 
-                    {/* Unavailable indicator */}
+                    {/* Unavailable indicator — moved to top-left (MBM-291): the menu
+                        number badge now unconditionally owns top-right */}
                     {isUnavailable && (
-                      <div className="absolute top-1 right-1">
+                      <div className="absolute top-1 left-1">
                         <span className="text-red-500 text-xs">❌</span>
                       </div>
                     )}
 
-                    {/* Discount indicator */}
+                    {/* Discount indicator — top-left */}
                     {hasDiscount && !isUnavailable && !isTodaysSpecialCard && (
-                      <div className="absolute top-1 right-1">
+                      <div className="absolute top-1 left-1">
                         <span className="bg-red-500 text-white text-xs px-1 rounded">
                           {item.discountPercent ? `-${item.discountPercent}%` : 'SALE'}
                         </span>
                       </div>
                     )}
 
-                    {/* Scale indicator — weight-priced items */}
+                    {/* Scale indicator — weight-priced items — top-left */}
                     {(item as any).isSoldByWeight && !isUnavailable && !hasDiscount && (
-                      <div className="absolute top-1 right-1">
+                      <div className="absolute top-1 left-1">
                         <span className="text-xs" title="Sold by weight — scale will open at POS">⚖️</span>
                       </div>
                     )}
@@ -4434,8 +4491,9 @@ export default function RestaurantPOS() {
                       <QuickEditCardButton mode={quickEditMode} onClick={() => setQuickEditItem(item)} />
                     )}
 
-                    {/* Menu number circle badge — top-right when corner is free */}
-                    {(item as any).menuNumber && !isUnavailable && !hasDiscount && !(item as any).isSoldByWeight && (
+                    {/* Menu number circle badge — top-right, unconditional whenever assigned
+                        (MBM-291 — must always be visible regardless of any other indicator) */}
+                    {(item as any).menuNumber && (
                       <div className="absolute top-1 right-1 z-20">
                         <span className="inline-flex items-center justify-center w-11 h-11 rounded-full bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm font-black leading-none shadow-md border border-gray-200 dark:border-gray-600">
                           {(item as any).menuNumber.toUpperCase()}
@@ -4768,6 +4826,7 @@ export default function RestaurantPOS() {
                 )
               })}
             </div>
+            )}
             </>)}
           </div>
 
@@ -5062,6 +5121,11 @@ export default function RestaurantPOS() {
                         {(item as any).isTodaysSpecialAddOn && <span className="text-[9px] text-amber-600 dark:text-amber-400 flex-shrink-0">+</span>}
                         {(item as any).isTodaysSpecialCredit && <span className="text-[9px] flex-shrink-0">↳</span>}
                         {(item as any).isRoundingDiscount && <span className="text-[9px] font-bold bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 px-1 py-0.5 rounded leading-none flex-shrink-0">↓</span>}
+                        {(item as any).menuNumber && (
+                          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-black text-[9px] leading-none flex-shrink-0">
+                            {(item as any).menuNumber.toUpperCase()}
+                          </span>
+                        )}
                         {item.name}
                       </div>
                       <div className={`${(item as any).isTodaysSpecialCredit || (item as any).isRoundingDiscount ? 'text-blue-600 dark:text-blue-400' : 'text-green-600'}`}>
