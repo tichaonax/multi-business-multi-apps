@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 import { checkAndNotifyLowStockForBarcodeItem, checkAndNotifyLowStockForVariant } from '@/lib/inventory/low-stock-notifier'
+import { createAuditLog } from '@/lib/audit'
 
 export async function GET(
   request: NextRequest,
@@ -242,6 +243,19 @@ export async function PUT(
 
       // Fire low-stock notification (non-blocking)
       checkAndNotifyLowStockForBarcodeItem(prisma, rawId, businessId)
+
+      if (updateData.sellingPrice !== undefined && Number(updateData.sellingPrice) !== Number(existing.sellingPrice)) {
+        await createAuditLog({
+          userId: user.id,
+          action: 'PRODUCT_PRICE_UPDATED',
+          entityType: 'Product',
+          entityId: rawId,
+          oldValues: { price: Number(existing.sellingPrice) },
+          newValues: { price: Number(updateData.sellingPrice) },
+          metadata: { sourceTable: 'BARCODE_ITEM', businessId, productName: existing.name },
+          businessId,
+        })
+      }
 
       return NextResponse.json({
         message: 'Product updated successfully',
@@ -544,6 +558,19 @@ export async function PUT(
       where: { id: itemId },
       include: { product_barcodes: true }
     })
+
+    if (updateData.basePrice !== undefined && Number(updateData.basePrice) !== Number(existingProduct.basePrice)) {
+      await createAuditLog({
+        userId: user.id,
+        action: 'PRODUCT_PRICE_UPDATED',
+        entityType: 'Product',
+        entityId: itemId,
+        oldValues: { price: Number(existingProduct.basePrice) },
+        newValues: { price: Number(updateData.basePrice) },
+        metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId, productName: existingProduct.name },
+        businessId,
+      })
+    }
 
     // Return response in same format as GET endpoint
     return NextResponse.json({

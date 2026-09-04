@@ -96,6 +96,13 @@ export default function RestaurantReportsPage() {
       href: `/${businessType}/reports/cash-rounding`,
       icon: '🪙',
       color: 'bg-yellow-600 hover:bg-yellow-700'
+    },
+    {
+      title: '💲 Price Change Report',
+      description: 'Audit trail of every product price change — date, original and new price, and who made the change',
+      href: `/${businessType}/reports/price-changes`,
+      icon: '💲',
+      color: 'bg-lime-600 hover:bg-lime-700'
     }
   ]
 

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { getServerUser } from '@/lib/get-server-user'
 import { hasPermission } from '@/lib/permission-utils'
+import { createAuditLog } from '@/lib/audit'
 
 // Validation schema for updates
 const UpdateProductSchema = z.object({
@@ -324,6 +325,22 @@ export async function PUT(
 
       return finalProduct || updatedProduct
     })
+
+    // Audit price changes made through this endpoint (Menu Management, Products
+    // pages, and POS Quick-Edit all route through here) so every price change is
+    // captured server-side, not just the ones a client happens to also log.
+    if (updateData.basePrice !== undefined && Number(updateData.basePrice) !== Number(existingProduct.basePrice)) {
+      await createAuditLog({
+        userId: user.id,
+        action: 'PRODUCT_PRICE_UPDATED',
+        entityType: 'Product',
+        entityId: id,
+        oldValues: { price: Number(existingProduct.basePrice) },
+        newValues: { price: Number(updateData.basePrice) },
+        metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId: existingProduct.businessId, productName: existingProduct.name },
+        businessId: existingProduct.businessId,
+      })
+    }
 
     return NextResponse.json({
       success: true,

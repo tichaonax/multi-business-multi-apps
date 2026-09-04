@@ -75,6 +75,13 @@ export default function RestaurantReportsPage() {
       href: `/${businessType}/reports/stock-additions`,
       icon: '🗃️',
       color: 'bg-teal-600 hover:bg-teal-700'
+    },
+    {
+      title: '💲 Price Change Report',
+      description: 'Audit trail of every product price change — date, original and new price, and who made the change',
+      href: `/${businessType}/reports/price-changes`,
+      icon: '💲',
+      color: 'bg-lime-600 hover:bg-lime-700'
     }
   ]
 

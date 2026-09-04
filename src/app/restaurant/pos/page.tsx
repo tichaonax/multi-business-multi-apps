@@ -4459,21 +4459,35 @@ export default function RestaurantPOS() {
                     <div className="font-bold text-lg text-primary truncate">{numberSearchMatch.name}</div>
                     <div className="font-black text-blue-600 dark:text-blue-400 text-xl">${Number(numberSearchMatch.price).toFixed(2)}</div>
                   </div>
-                  <button
-                    onClick={() => {
-                      addToCart(numberSearchMatch)
-                      setSearchTerm('')
-                    }}
-                    className="flex-shrink-0 bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-3 rounded-lg text-sm"
-                  >
-                    + Add to Cart
-                  </button>
+                  <div className="flex-shrink-0 flex items-center gap-2">
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      className="bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold px-4 py-3 rounded-lg text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        addToCart(numberSearchMatch)
+                        setSearchTerm('')
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-3 rounded-lg text-sm"
+                    >
+                      + Add to Cart
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="text-center py-12 text-secondary">
                   <div className="text-3xl mb-2">🔍</div>
                   <div className="font-medium">No menu item found for №{trimmedSearch.toUpperCase()}</div>
                   <div className="text-xs mt-1">Check the number and try again</div>
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="mt-4 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold px-4 py-2 rounded-lg text-sm"
+                  >
+                    Cancel
+                  </button>
                 </div>
               )
             ) : (

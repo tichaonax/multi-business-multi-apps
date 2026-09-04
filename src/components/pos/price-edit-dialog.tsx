@@ -50,15 +50,6 @@ export function PriceEditDialog({ businessId, itemId, itemName, sourceTable, cur
         throw new Error(data.error ?? 'Failed to save price')
       }
 
-      fetch('/api/pos/quick-edit/log', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          businessId, itemId, sourceTable, field: 'price',
-          oldValue: currentPrice, newValue: newPrice,
-        }),
-      }).catch(() => {})
-
       toast.push('Price updated')
       onSaved(newPrice)
     } catch (e: any) {
