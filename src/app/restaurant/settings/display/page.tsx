@@ -160,7 +160,14 @@ export default function RestaurantDisplaySettingsPage() {
   async function toggleDailySpecial(productId: string, isCurrentlySpecial: boolean) {
     if (!currentBusinessId) return
     if (isCurrentlySpecial) {
-      await fetch(`/api/restaurant/daily-special/override?businessId=${currentBusinessId}`, { method: 'DELETE' })
+      // Must explicitly disable (not just delete the override) — if today's special is
+      // coming from the weekly schedule rather than an override, deleting a (possibly
+      // nonexistent) override row does nothing and the scheduled special stays active.
+      await fetch('/api/restaurant/daily-special/override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId: currentBusinessId, isDisabled: true }),
+      })
     } else {
       await fetch('/api/restaurant/daily-special/quick-set', {
         method: 'POST',

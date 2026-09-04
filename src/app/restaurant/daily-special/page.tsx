@@ -389,7 +389,6 @@ export default function DailySpecialPage() {
                         </div>
                         <div className="flex items-center gap-3 text-sm mb-2">
                           <span className="text-amber-600 dark:text-amber-400 font-bold text-xl">${Number(todaysSpecial.specialPrice).toFixed(2)}</span>
-                          <span className="text-secondary line-through">${Number(todaysSpecial.basePrice).toFixed(2)}</span>
                           <span className="text-green-600 dark:text-green-400 text-xs">save ${(Number(todaysSpecial.basePrice) - Number(todaysSpecial.specialPrice)).toFixed(2)}</span>
                         </div>
                         {todaysSpecial.addOns.length > 0 && (
