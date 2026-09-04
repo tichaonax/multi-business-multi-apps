@@ -75,6 +75,8 @@ interface POSItem {
   domainEmoji?: string
   isExpiryDiscount?: boolean
   isSoldByWeight?: boolean
+  originalPrice?: number   // MBM-289 — set when a promotional sale is active
+  isPromoActive?: boolean
   pricePerKg?: number
 }
 
@@ -3733,11 +3735,15 @@ function GroceryPOSContent() {
                         <div className="mt-1 space-y-1">
                           {/* Price + sold badge + revenue */}
                           <div className="flex items-center justify-between gap-1 flex-wrap">
-                            <span className="font-semibold text-green-700 dark:text-green-300 text-sm bg-green-100 dark:bg-green-950/60 px-1.5 py-0.5 rounded-md">
+                            <span className={`font-semibold text-sm px-1.5 py-0.5 rounded-md ${product.isPromoActive ? 'text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-950/60' : 'text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-950/60'}`}>
+                              {product.isPromoActive && <span className="mr-1">🏷️</span>}
                               {product.isSoldByWeight && product.pricePerKg
                                 ? <>{formatCurrency(product.pricePerKg)}<span className="text-xs font-normal opacity-70">/kg</span></>
                                 : <>{formatCurrency(product.price)}/{product.unit}</>
                               }
+                              {product.isPromoActive && product.originalPrice != null && (
+                                <span className="ml-1 line-through opacity-60 font-normal">{formatCurrency(product.originalPrice)}</span>
+                              )}
                             </span>
                             {showBar && canSeeSoldCount && (
                               <div className="flex items-center gap-1">
@@ -3788,11 +3794,15 @@ function GroceryPOSContent() {
 
                     {/* Compact mode price — also shown for WiFi tokens in desk mode (they skip the stats block) */}
                     {(!deskMode || (product as any).wifiToken || (product as any).r710Token) && (
-                      <div className="font-semibold text-green-600">
+                      <div className={`font-semibold ${product.isPromoActive ? 'text-red-600' : 'text-green-600'}`}>
+                        {product.isPromoActive && <span className="mr-1">🏷️</span>}
                         {product.isSoldByWeight && product.pricePerKg
                           ? <>{formatCurrency(product.pricePerKg)}<span className="text-xs font-normal opacity-70">/kg</span></>
                           : <>{formatCurrency(product.price)}/{product.unit}</>
                         }
+                        {product.isPromoActive && product.originalPrice != null && (
+                          <span className="ml-1 text-xs line-through opacity-60 font-normal">{formatCurrency(product.originalPrice)}</span>
+                        )}
                       </div>
                     )}
                     {/* WiFi token details - Duration and Bandwidth (ESP32 only) */}

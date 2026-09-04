@@ -539,6 +539,7 @@ model Businesses {
   customer_display_ads                                                     CustomerDisplayAd[]
   display_product_configs                                                  DisplayProductConfig[]
   display_global_settings                                                  DisplayGlobalSettings?
+  product_promotions                                                       ProductPromotions[]
   customer_display_sessions                                                CustomerDisplaySession[]
   customer_laybys                                                          CustomerLayby[]
   customer_rewards                                                         CustomerRewards[]
@@ -5340,6 +5341,33 @@ model DisplayGlobalSettings {
   businesses            Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@map("display_global_settings")
+}
+
+// Grocery/clothing scheduled promotional pricing (MBM-289). Deliberately no unique
+// constraint on (businessId, itemType, itemId) — rows accumulate as history; "the
+// current promo" is always resolved live from startAt/endAt/isPaused, never trusted
+// from a stored status, so a missed cron or stale cache can never keep charging a
+// discounted price past its scheduled end.
+model ProductPromotions {
+  id            String     @id @default(uuid())
+  businessId    String
+  itemType      String // 'product' | 'category' (category = clothing bale categories only)
+  itemId        String
+  sourceTable   String // 'BARCODE_ITEM' | 'BUSINESS_PRODUCT' | 'BALE_CATEGORY'
+  discountType  String // 'FIXED_PRICE' | 'PERCENT_OFF'
+  discountValue Decimal    @db.Decimal(10, 2)
+  startAt       DateTime
+  endAt         DateTime
+  isPaused      Boolean    @default(false)
+  createdById   String
+  createdByName String
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  businesses    Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, itemType, itemId])
+  @@index([businessId, startAt, endAt])
+  @@map("product_promotions")
 }
 
 model PosTerminalConfig {

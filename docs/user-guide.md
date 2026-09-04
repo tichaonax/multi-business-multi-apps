@@ -202,6 +202,11 @@
     - [Priority Order](#priority-order)
     - [Setting a User's Default Business (Admin)](#setting-a-users-default-business-admin)
     - [Workstation Default (Electron Kiosk Devices)](#workstation-default-electron-kiosk-devices)
+60. [Promotional Sales — Grocery & Clothing](#60-promotional-sales--grocery--clothing)
+    - [Creating a Promotion](#creating-a-promotion)
+    - [Pause, Resume, End](#pause-resume-end)
+    - [Customer Display](#customer-display-3)
+    - [Permissions](#permissions-14)
 
 ---
 
@@ -13336,3 +13341,66 @@ Only system admins can see or change this field — it's a cross-business, accou
 On the Electron desktop app, a **"Switch Business"** link on the app's home page lets an admin pin a specific business as this workstation's permanent default, protected by the app's admin PIN. This is meant for a device that's physically dedicated to one business (e.g. a till that should always open on the restaurant POS no matter who logs in) — it's a per-device setting, separate from any user's own default business.
 
 If a workstation's behavior seems stuck on the wrong business regardless of which account logs in, check whether this device-level pin has been set, since it takes priority over "last accessed business" for anyone without a personal default.
+
+---
+
+## 60. Promotional Sales — Grocery & Clothing
+
+Grocery and clothing don't use Today's Special like restaurant does — instead, any number of products can independently go on sale for a scheduled window, at the same time.
+
+**Where:** Grocery sidebar → **🏷️ Promotional Sales**, or Clothing sidebar → **🏷️ Promotional Sales**.
+
+A promotion is either:
+- **A new fixed price** — "$3.50 instead of $5.00" — for an individual product (a scanned inventory item or a quick-add product).
+- **A percent off** — "20% off" — for an individual product, or for a whole **clothing bale category** (e.g. "20% off all Men's Jackets"). Category-level is percent-only, since a category holds many bales at different prices — there's no single "new price" that would make sense across all of them.
+
+The discount applies automatically for the window you set (start date/time → end date/time), and reverts to the normal price on its own the moment the window ends — nothing to remember to undo. This is computed fresh every time a price is looked up (checkout, customer display), not a flag some background job has to remember to flip, so it can never keep discounting past its scheduled end even if something else on the server hiccups.
+
+Only one promotion can be open on a given product at a time — if you try to schedule a new one while another is still active or upcoming on that item, it's rejected; pause or end the existing one first.
+
+---
+
+### Creating a Promotion
+
+1. Go to **Promotional Sales** and click **+ New Promotion**.
+2. Search for the product (or, for clothing, a bale category) and select it.
+3. Choose **Percent off** or **New fixed price** (fixed price isn't offered for a bale category).
+4. Enter the discount value, and the start/end date and time.
+5. Click **Create Promotion**.
+
+The discount takes effect the moment the start time arrives — no further action needed. It shows up on both the POS (product card) and the customer display immediately once active.
+
+---
+
+### Pause, Resume, End
+
+Each promotion in the list shows its live status — **Scheduled**, **Active**, **Paused**, or **Ended** — computed from right now, not stored.
+
+| Action | What it does |
+|--------|---------------|
+| **Pause / End** (shown while Active) | Immediately stops the discount — the original price applies to all sales from that moment on. The promotion isn't deleted; it can be resumed later. |
+| **Resume** (shown while Paused, and its window hasn't passed yet) | Turns the discount back on, picking up wherever its original schedule left off. |
+| **Cancel** (shown only while Scheduled — hasn't started yet) | Removes it entirely. Once a promotion has started, it can no longer be deleted outright — pause or end it instead, so there's a record of what ran. |
+
+A paused or ended promotion can always be found again in the list (nothing is hidden), so it's easy to check what was run and when.
+
+---
+
+### Customer Display
+
+A product currently on promotion is highlighted everywhere it appears:
+
+- **Badge** — the product's card shows both the original price (struck through) and the new discounted price, in red, on both the rotating left panel and the live right-hand grid. A bale-category promotion (percent-only) shows a **"X% OFF"** badge instead, since there's no single before/after price to show for a whole category.
+- **More often** — a promoted item appears in the left panel's rotation twice as often as a normal item.
+- **Longer on screen** — while a promoted item is showing, it stays up 1.5× as long before the rotation advances to the next card.
+- **POS card** — the product's tile on the grocery/clothing POS also shows the discounted price with the original struck through, so the cashier can see at a glance that an item is on sale.
+
+None of this needs the admin screen to be open or anyone to be watching — it's driven by the same schedule the pricing itself uses.
+
+---
+
+### Permissions
+
+| Permission | What it allows | Default |
+|------------|----------------|---------|
+| `canManagePromotions` | Create, pause, resume, cancel, and view promotional sales | Owner, Manager, Admin — **not** salesperson (pricing changes are more sensitive than the display-only toggles elsewhere in this guide) |

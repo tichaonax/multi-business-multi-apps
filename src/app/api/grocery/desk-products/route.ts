@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { getActivePromotions, applyPromotion } from '@/lib/promotions/resolve-active-promotions'
 
 /**
  * GET /api/grocery/desk-products?businessId=
@@ -99,34 +100,49 @@ export async function GET(request: NextRequest) {
     const categories = Array.from(mergedByName.values())
       .sort((a, b) => a.label.localeCompare(b.label))
 
+    // MBM-289: promotional sales — resolved once, applied below so cart math, order
+    // creation, and the receipt (which all just use whatever price this endpoint
+    // returns) automatically charge the discounted price with no further changes.
+    const activePromotions = await getActivePromotions(businessId)
+
     // Return ALL inventory items with a price (no category filter)
     const items = rawItems
-      .map(item => ({
-        id: `inv_${item.id}`,
-        name: item.name,
-        sku: item.sku ?? undefined,
-        barcode: item.barcodeData ?? undefined,
-        category: item.business_category?.name ?? 'Other',
-        categoryId: item.categoryId ?? '__uncategorized__',
-        categoryEmoji: item.business_category?.emoji ?? undefined,
-        categoryColor: item.business_category?.color ?? '#3B82F6',
-        subcategoryEmoji: item.inventory_subcategory?.emoji ?? undefined,
-        domainEmoji: item.business_category?.domain?.emoji ?? undefined,
-        price: item.sellingPrice ? parseFloat(item.sellingPrice.toString()) : 0,
-        stockQuantity: item.stockQuantity,
-        unitType: 'each' as const,
-        unit: 'each',
-        taxable: false,
-        weightRequired: false,
-        pluCode: item.sku ?? undefined,
-        isExpiryDiscount: item.isExpiryDiscount,
-      }))
+      .map(item => {
+        const priced = applyPromotion(
+          item.sellingPrice ? parseFloat(item.sellingPrice.toString()) : 0,
+          activePromotions.get(`product:${item.id}`)
+        )
+        return {
+          id: `inv_${item.id}`,
+          name: item.name,
+          sku: item.sku ?? undefined,
+          barcode: item.barcodeData ?? undefined,
+          category: item.business_category?.name ?? 'Other',
+          categoryId: item.categoryId ?? '__uncategorized__',
+          categoryEmoji: item.business_category?.emoji ?? undefined,
+          categoryColor: item.business_category?.color ?? '#3B82F6',
+          subcategoryEmoji: item.inventory_subcategory?.emoji ?? undefined,
+          domainEmoji: item.business_category?.domain?.emoji ?? undefined,
+          price: priced.price,
+          originalPrice: priced.originalPrice,
+          isPromoActive: priced.isPromoActive,
+          promoEndsAt: priced.promoEndsAt,
+          stockQuantity: item.stockQuantity,
+          unitType: 'each' as const,
+          unit: 'each',
+          taxable: false,
+          weightRequired: false,
+          pluCode: item.sku ?? undefined,
+          isExpiryDiscount: item.isExpiryDiscount,
+        }
+      })
       .filter(item => item.price > 0)
 
     // Append service products — use variant ID so the orders API routes them as BusinessProducts
     // (no inv_ prefix = no stock decrement, no stock check)
     const serviceItems = serviceProducts.map(svc => {
       const variant = svc.product_variants[0]
+      const priced = applyPromotion(parseFloat(svc.basePrice.toString()), activePromotions.get(`product:${svc.id}`))
       return {
         id: variant?.id ?? svc.id,
         name: svc.name,
@@ -138,7 +154,10 @@ export async function GET(request: NextRequest) {
         categoryColor: svc.business_categories?.color ?? '#8B5CF6',
         subcategoryEmoji: undefined,
         domainEmoji: undefined,
-        price: parseFloat(svc.basePrice.toString()),
+        price: priced.price,
+        originalPrice: priced.originalPrice,
+        isPromoActive: priced.isPromoActive,
+        promoEndsAt: priced.promoEndsAt,
         stockQuantity: undefined, // services have no stock concept — always visible
         unitType: 'each' as const,
         unit: 'each',

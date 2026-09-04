@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
+import { getActivePromotions, applyPromotion } from '@/lib/promotions/resolve-active-promotions'
 
 // GET /api/clothing/bales?businessId=xxx
 export async function GET(request: NextRequest) {
@@ -38,9 +39,26 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    // MBM-289: promotional sales — category-level (percent-off only), since bales
+    // within a category have different prices. Applied to each bale's own unitPrice
+    // relative to that bale's price, not a shared fixed price across the category.
+    // The POS reads bale.unitPrice directly for cart math, so it must be overwritten
+    // here (not just exposed alongside) for the discount to actually charge correctly.
+    const activePromotions = await getActivePromotions(businessId)
+    const pricedBales = bales.map(bale => {
+      const priced = applyPromotion(Number(bale.unitPrice), activePromotions.get(`category:${bale.categoryId}`))
+      return {
+        ...bale,
+        unitPrice: priced.price,
+        originalPrice: priced.originalPrice,
+        isPromoActive: priced.isPromoActive,
+        promoEndsAt: priced.promoEndsAt,
+      }
+    })
+
     return NextResponse.json({
       success: true,
-      data: bales
+      data: pricedBales
     })
   } catch (error) {
     console.error('Bales fetch error:', error)

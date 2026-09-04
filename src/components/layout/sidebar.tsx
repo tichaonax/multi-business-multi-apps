@@ -913,6 +913,12 @@ export function Sidebar() {
                     <span>Product Availability</span>
                   </Link>
                 )}
+                {(isSystemAdmin(currentUser) || hasPermission('canManagePromotions')) && (
+                  <Link href="/grocery/promotions" className={getLinkClasses('/grocery/promotions')}>
+                    <span className="text-lg">🏷️</span>
+                    <span>Promotional Sales</span>
+                  </Link>
+                )}
                 {/* Sales Reports - Only for managers/admins */}
                 {(isSystemAdmin(currentUser) || hasPermission('canViewWifiReports') || hasPermission('canAccessFinancialData')) && (
                   <Link href="/grocery/reports" className={getLinkClasses('/grocery/reports')}>
@@ -1004,6 +1010,12 @@ export function Sidebar() {
                   <Link href="/clothing/product-availability" className={getLinkClasses('/clothing/product-availability')}>
                     <span className="text-lg">🚫</span>
                     <span>Product Availability</span>
+                  </Link>
+                )}
+                {(isSystemAdmin(currentUser) || hasPermission('canManagePromotions')) && (
+                  <Link href="/clothing/promotions" className={getLinkClasses('/clothing/promotions')}>
+                    <span className="text-lg">🏷️</span>
+                    <span>Promotional Sales</span>
                   </Link>
                 )}
                 {/* Sales Reports - Only for managers/admins */}

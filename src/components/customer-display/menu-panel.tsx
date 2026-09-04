@@ -14,6 +14,10 @@ interface MenuItem {
   adImageId?: string | null
   isHidden?: boolean
   advertisingNote?: string | null
+  originalPrice?: number
+  isPromoActive?: boolean
+  promoEndsAt?: string | null
+  promoDiscountPercent?: number | null
   category: string | null
   sizes?: Array<{ sizeName: string; basePrice: number }>
   salesScore: number
@@ -330,14 +334,32 @@ function Card({ item, isSpecial, isAyliView }: { item: MenuItem; isSpecial: bool
           {/* Advertising note badge */}
           {item.advertisingNote && <NoteBadge note={item.advertisingNote} />}
 
-          {/* Price */}
+          {/* Price — promo gets a visually distinct strikethrough/badge treatment */}
           <div className="flex-shrink-0">
-            <div
-              className={`font-black text-3xl leading-none animate-pulse ${priceColour}`}
-              style={{ textShadow: priceShadow }}
-            >
-              {fmt(item.price)}
-            </div>
+            {item.isPromoActive ? (
+              item.originalPrice != null ? (
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <span className="font-black text-3xl leading-none text-red-400 animate-pulse" style={{ textShadow: '0 0 20px rgba(248,113,113,0.5)' }}>
+                    {fmt(item.price)}
+                  </span>
+                  <span className="text-white/50 text-lg line-through">{fmt(item.originalPrice)}</span>
+                  <span className="bg-red-500 text-white text-[10px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded">Sale</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="bg-red-500 text-white text-xl font-black uppercase tracking-wide px-2 py-1 rounded">
+                    {item.promoDiscountPercent}% OFF
+                  </span>
+                </div>
+              )
+            ) : (
+              <div
+                className={`font-black text-3xl leading-none animate-pulse ${priceColour}`}
+                style={{ textShadow: priceShadow }}
+              >
+                {fmt(item.price)}
+              </div>
+            )}
           </div>
         </div>
           )

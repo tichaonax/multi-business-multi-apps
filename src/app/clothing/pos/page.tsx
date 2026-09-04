@@ -110,8 +110,11 @@ function BaleItemsBrowser({
                   {bale.batchNumber}
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-emerald-600 dark:text-emerald-400 font-bold text-sm">
-                    ${price.toFixed(2)}
+                  <span className={`font-bold text-sm ${bale.isPromoActive ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                    {bale.isPromoActive && '🏷️ '}${price.toFixed(2)}
+                    {bale.isPromoActive && bale.originalPrice != null && (
+                      <span className="ml-1 text-xs line-through opacity-60 font-normal">${Number(bale.originalPrice).toFixed(2)}</span>
+                    )}
                   </span>
                   <span
                     className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${

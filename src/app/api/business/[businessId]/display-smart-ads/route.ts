@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { startOfDay, subDays } from 'date-fns'
+import { getActivePromotions, applyPromotion } from '@/lib/promotions/resolve-active-promotions'
 
 export const dynamic = 'force-dynamic'
+
+// MBM-289: fixed score bump for an item currently on promotion — pushes it toward
+// the front of the rotation/grid on top of its normal sales-based score, without
+// admin-facing tuning (see plan's Decisions — kept as a constant, not a setting).
+const PROMO_DISPLAY_BOOST = 50
 
 // GET /api/business/[businessId]/display-smart-ads?businessType=restaurant|grocery|clothing
 export async function GET(req: NextRequest, { params }: { params: Promise<{ businessId: string }> }) {
@@ -326,6 +332,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
     items = allItems ? candidates : candidates.slice(0, globalSettings.maxItemsInRotation)
 
   } else if (businessType === 'grocery') {
+    // MBM-289: promotional sales — active promos boost display priority so promoted
+    // items appear more often / more prominently, on top of whatever the badge shows.
+    const activePromotions = await getActivePromotions(businessId)
+    const promoBoost = (key: string) => activePromotions.has(key) ? PROMO_DISPLAY_BOOST : 0
+
     // Mirror the POS desk-products list: BarcodeInventoryItems (main stock) + SERVICE BusinessProducts
     const [invItems, serviceProducts] = await Promise.all([
       prisma.barcodeInventoryItems.findMany({
@@ -355,15 +366,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
       const ss = salesScore(productSales.get(invKey))
       const invImageId = (p as any).imageId ?? null
       const invAdImageId = getAdImage('product', p.id)
+      const invPromo = applyPromotion(price, activePromotions.get(`product:${p.id}`))
       candidates.push({
-        id: p.id, itemType: 'product', name: p.name, price,
+        id: p.id, itemType: 'product', name: p.name, price: invPromo.price,
+        originalPrice: invPromo.originalPrice, isPromoActive: invPromo.isPromoActive, promoEndsAt: invPromo.promoEndsAt,
         emoji: (p as any).business_category?.emoji ?? null,
         category: (p as any).business_category?.name ?? null,
         imageId: invImageId,
         imageUrl: invImageId ? `/api/images/${invImageId}` : (invAdImageId ? `/api/images/${invAdImageId}` : null),
         advertisingNote: getNote('product', p.id),
         adImageId: invAdImageId,
-        salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss),
+        salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss) + promoBoost(`product:${p.id}`),
         isFeatured: isFeatured('product', p.id),
         isHidden: isHidden('product', p.id),
         priorityBoost: configMap.get(`product:${p.id}`)?.priorityBoost ?? 0,
@@ -377,14 +390,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
       const variantId = svc.product_variants[0]?.id ?? svc.id
       const ss = salesScore(productSales.get(variantId))
       const svcAdImageId = getAdImage('product', svc.id)
+      const svcPromo = applyPromotion(Number(svc.basePrice), activePromotions.get(`product:${svc.id}`))
       candidates.push({
-        id: svc.id, itemType: 'product', name: svc.name, price: Number(svc.basePrice),
+        id: svc.id, itemType: 'product', name: svc.name, price: svcPromo.price,
+        originalPrice: svcPromo.originalPrice, isPromoActive: svcPromo.isPromoActive, promoEndsAt: svcPromo.promoEndsAt,
         emoji: (svc as any).business_categories?.emoji ?? null,
         category: (svc as any).business_categories?.name ?? null,
         imageUrl: svcAdImageId ? `/api/images/${svcAdImageId}` : null,
         advertisingNote: getNote('product', svc.id),
         adImageId: svcAdImageId,
-        salesScore: ss, displayScore: buildDisplayScore('product', svc.id, ss),
+        salesScore: ss, displayScore: buildDisplayScore('product', svc.id, ss) + promoBoost(`product:${svc.id}`),
         isFeatured: isFeatured('product', svc.id),
         isHidden: isHidden('product', svc.id),
         priorityBoost: configMap.get(`product:${svc.id}`)?.priorityBoost ?? 0,
@@ -396,6 +411,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
     items = allItems ? candidates : candidates.slice(0, globalSettings.maxItemsInRotation)
 
   } else if (businessType === 'clothing') {
+    // MBM-289: promotional sales — active promos boost display priority (product-level
+    // for individual items, category-level for bale categories).
+    const activePromotions = await getActivePromotions(businessId)
+    const promoBoost = (key: string) => activePromotions.has(key) ? PROMO_DISPLAY_BOOST : 0
+
     const newArrivalCutoff = subDays(todayStart, 14)
 
     const [baleCategories, baleRows, newArrivalRows, invItems, bizProducts]: [any[], any[], any[], any[], any[]] = await Promise.all([
@@ -457,11 +477,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
     for (const cat of baleCategories) {
       if (!allItems && isHidden('category', cat.id)) continue
       const newCount = newArrivalsByCategory.get(cat.id) ?? 0
-      const ds = buildDisplayScore('category', cat.id, newCount)
+      const ds = buildDisplayScore('category', cat.id, newCount) + promoBoost(`category:${cat.id}`)
       const catAdImageId = getAdImage('category', cat.id)
+      const catPromo = activePromotions.get(`category:${cat.id}`)
       candidates.push({
         id: cat.id, itemType: 'category', name: cat.name, emoji: '👕',
         price: 0,
+        isPromoActive: !!catPromo,
+        promoDiscountPercent: catPromo?.discountType === 'PERCENT_OFF' ? catPromo.discountValue : null,
+        promoEndsAt: catPromo?.endAt?.toISOString() ?? null,
         activeBales: baleCountByCategory.get(cat.id) ?? 0,
         imageUrl: catAdImageId ? `/api/images/${catAdImageId}` : null,
         advertisingNote: getNote('category', cat.id),
@@ -483,15 +507,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
       const ss = salesScore(productSales.get(invKey)) + (isNew ? 10 : 0)
       const clothingInvImageId = (p as any).imageId ?? null
       const clothingInvAdImageId = getAdImage('product', p.id)
+      const clothingInvPromo = applyPromotion(price, activePromotions.get(`product:${p.id}`))
       candidates.push({
-        id: p.id, itemType: 'product', name: p.name, price,
+        id: p.id, itemType: 'product', name: p.name, price: clothingInvPromo.price,
+        originalPrice: clothingInvPromo.originalPrice, isPromoActive: clothingInvPromo.isPromoActive, promoEndsAt: clothingInvPromo.promoEndsAt,
         emoji: (p as any).business_category?.emoji ?? '👕',
         category: (p as any).business_category?.name ?? null,
         imageId: clothingInvImageId,
         imageUrl: clothingInvImageId ? `/api/images/${clothingInvImageId}` : (clothingInvAdImageId ? `/api/images/${clothingInvAdImageId}` : null),
         advertisingNote: getNote('product', p.id),
         adImageId: clothingInvAdImageId,
-        salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss),
+        salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss) + promoBoost(`product:${p.id}`),
         isFeatured: isFeatured('product', p.id),
         isHidden: isHidden('product', p.id),
         priorityBoost: configMap.get(`product:${p.id}`)?.priorityBoost ?? 0,
@@ -517,15 +543,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
       const ss = salesScore(variantSales) + (isNew ? 10 : 0)
       const bizImageId = (p as any).product_images?.[0]?.imageId ?? null
       const bizAdImageId = getAdImage('product', p.id)
+      const bizPromo = applyPromotion(price, activePromotions.get(`product:${p.id}`))
       candidates.push({
-        id: p.id, itemType: 'product', name: p.name, price,
+        id: p.id, itemType: 'product', name: p.name, price: bizPromo.price,
+        originalPrice: bizPromo.originalPrice, isPromoActive: bizPromo.isPromoActive, promoEndsAt: bizPromo.promoEndsAt,
         emoji: (p as any).business_categories?.emoji ?? '👕',
         category: (p as any).business_categories?.name ?? null,
         imageId: bizImageId,
         imageUrl: bizImageId ? `/api/images/${bizImageId}` : (bizAdImageId ? `/api/images/${bizAdImageId}` : null),
         advertisingNote: getNote('product', p.id),
         adImageId: bizAdImageId,
-        salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss),
+        salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss) + promoBoost(`product:${p.id}`),
         isFeatured: isFeatured('product', p.id),
         isHidden: isHidden('product', p.id),
         priorityBoost: configMap.get(`product:${p.id}`)?.priorityBoost ?? 0,

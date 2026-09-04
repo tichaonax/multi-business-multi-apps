@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { getActivePromotions, applyPromotion } from '@/lib/promotions/resolve-active-promotions'
 
 import { randomBytes } from 'crypto';
 // Validation schemas
@@ -136,12 +137,14 @@ export async function GET(request: NextRequest) {
     // Hide [test]-named products/menu items unless the business has explicitly
     // enabled test data visibility (admin > Businesses > Show Test Data toggle)
     let showTestData = false
+    let resolvedBusinessType: string | null = null
     if (businessId) {
       const business = await prisma.businesses.findUnique({
         where: { id: businessId },
-        select: { showTestData: true }
+        select: { showTestData: true, type: true }
       })
       showTestData = !!business?.showTestData
+      resolvedBusinessType = business?.type ?? null
     }
     if (!showTestData) {
       where.NOT = { name: { contains: '[test]', mode: 'insensitive' } }
@@ -254,6 +257,21 @@ export async function GET(request: NextRequest) {
 
     // normalize products to legacy API shape
     const normalizedProducts = sortedProducts.map(normalizeProduct)
+
+    // MBM-289: promotional sales — grocery/clothing only. This endpoint is shared
+    // across every business type, so this must never run for restaurant/other types
+    // reading the same route. Only applies when a specific businessId narrowed the
+    // query (never for a bare businessType filter spanning many businesses).
+    if (businessId && (resolvedBusinessType === 'grocery' || resolvedBusinessType === 'clothing')) {
+      const activePromotions = await getActivePromotions(businessId)
+      for (const product of normalizedProducts) {
+        const priced = applyPromotion(product.basePrice ?? 0, activePromotions.get(`product:${product.id}`))
+        product.basePrice = priced.price
+        product.originalPrice = priced.originalPrice
+        product.isPromoActive = priced.isPromoActive
+        product.promoEndsAt = priced.promoEndsAt
+      }
+    }
 
     return NextResponse.json({
       success: true,

@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { stripEmoji } from '@/lib/strip-emoji'
 
+// MBM-289: a promoted item's dwell time is multiplied by this before advancing —
+// fixed constant, not admin-configurable (see plan's Decisions).
+const PROMO_DWELL_MULTIPLIER = 1.5
+
 interface DisplaySettings {
   rotationIntervalSecs: number
   enableSplitLayout: boolean
@@ -43,6 +47,9 @@ interface DisplayItem {
   spiceLevel?: number | null
   preparationTime?: number | null
   poolItems?: Array<{ name: string; emoji: string; pricePerKgSmall: number; pricePerKgMedium: number; pricePerKgLarge: number }>
+  originalPrice?: number
+  isPromoActive?: boolean
+  promoDiscountPercent?: number | null
 }
 
 interface SmartProductDisplayProps {
@@ -302,10 +309,26 @@ function RotatingCard({ item }: { item: DisplayItem }) {
             {(item.spiceLevel ?? 0) > 0 && (
               <div className="text-sm mb-1">{'🌶️'.repeat(Math.min(item.spiceLevel!, 3))}</div>
             )}
-            <div className="font-black text-emerald-400 text-4xl leading-none"
-              style={{ textShadow: '0 0 20px rgba(52,211,153,0.4)' }}>
-              {fmt(item.price)}
-            </div>
+            {item.isPromoActive ? (
+              item.originalPrice != null ? (
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <span className="font-black text-red-400 text-4xl leading-none" style={{ textShadow: '0 0 20px rgba(248,113,113,0.5)' }}>
+                    {fmt(item.price)}
+                  </span>
+                  <span className="text-white/50 text-xl line-through">{fmt(item.originalPrice)}</span>
+                  <span className="bg-red-500 text-white text-xs font-black uppercase tracking-wide px-1.5 py-0.5 rounded">Sale</span>
+                </div>
+              ) : (
+                <span className="bg-red-500 text-white text-2xl font-black uppercase tracking-wide px-2 py-1 rounded">
+                  {item.promoDiscountPercent}% OFF
+                </span>
+              )
+            ) : (
+              <div className="font-black text-emerald-400 text-4xl leading-none"
+                style={{ textShadow: '0 0 20px rgba(52,211,153,0.4)' }}>
+                {fmt(item.price)}
+              </div>
+            )}
             {(item.preparationTime ?? 0) > 0 && (
               <div className="text-[10px] text-white/40 mt-1">⏱ {item.preparationTime} min</div>
             )}
@@ -329,7 +352,6 @@ export function SmartProductDisplay({ businessId, businessType }: SmartProductDi
   const [currentIdx, setCurrentIdx] = useState(0)
   const [fade, setFade] = useState(true)
   const [isLoading, setIsLoading] = useState(true)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchData = useCallback(async () => {
     try {
@@ -358,19 +380,36 @@ export function SmartProductDisplay({ businessId, businessType }: SmartProductDi
     return () => window.removeEventListener('message', handler)
   }, [fetchData])
 
-  // Rotation tick — only advances the rotating cards, special is always pinned
+  // MBM-289: promoted items appear more often — one full lap through every item in
+  // score order, then promoted items get a second lap appended, so they show twice
+  // per full cycle instead of once. Appending (not duplicating in place) keeps a
+  // promoted item's two occurrences far apart in the sequence, so they're never both
+  // in the visible window at once (which an adjacent duplicate could cause).
+  const rotationSequence = [...items, ...items.filter(item => item.isPromoActive)]
+
+  const slotCount = Math.min(3, Math.max(1, settings.leftPanelCardCount || 2))
+
+  // Rotation tick — only advances the rotating cards, special is always pinned.
+  // Variable dwell time (not a fixed setInterval): a promoted item gets more display
+  // time, not just more frequent appearances — this effect re-schedules a single
+  // setTimeout each time currentIdx changes, using a longer delay whenever the
+  // currently-visible slot(s) include an active promotion.
   useEffect(() => {
-    if (items.length <= 2) return
-    const ms = (settings.rotationIntervalSecs || 6) * 1000
-    intervalRef.current = setInterval(() => {
+    const n = rotationSequence.length
+    if (n <= 2) return
+    const visibleNow = Array.from({ length: Math.min(slotCount, n) }, (_, i) => rotationSequence[(currentIdx + i) % n])
+    const hasPromo = visibleNow.some(it => it?.isPromoActive)
+    const baseMs = (settings.rotationIntervalSecs || 6) * 1000
+    const dwellMs = hasPromo ? baseMs * PROMO_DWELL_MULTIPLIER : baseMs
+    const timeoutId = setTimeout(() => {
       setFade(false)
       setTimeout(() => {
-        setCurrentIdx(prev => (prev + 1) % items.length)
+        setCurrentIdx(prev => (prev + 1) % n)
         setFade(true)
       }, 350)
-    }, ms)
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
-  }, [items.length, settings.rotationIntervalSecs])
+    }, dwellMs)
+    return () => clearTimeout(timeoutId)
+  }, [rotationSequence.length, currentIdx, slotCount, settings.rotationIntervalSecs])
 
   if (isLoading) {
     return (
@@ -392,14 +431,14 @@ export function SmartProductDisplay({ businessId, businessType }: SmartProductDi
     )
   }
 
-  // Admin-configurable (Display Settings → "Rotating cards" slider), clamped to
-  // a sane 1-3 range. Never show more slots than there are unique items — filling
-  // every slot by wrapping the modulo would repeat the same card.
-  const slotCount = Math.min(3, Math.max(1, settings.leftPanelCardCount || 2))
-  const n = items.length
-  const visibleCount = Math.min(slotCount, n)
+  // Never show more slots than there are UNIQUE items (not rotationSequence's
+  // expanded length) — filling every slot by wrapping the modulo would repeat the
+  // same card simultaneously, which duplicating a promoted item for frequency must
+  // not do.
+  const n = rotationSequence.length
+  const visibleCount = Math.min(slotCount, items.length)
   const visible = n === 0 ? [] : Array.from({ length: visibleCount }, (_, i) =>
-    items[(currentIdx + i) % n]
+    rotationSequence[(currentIdx + i) % n]
   )
 
   const showSpecial = !!(dailySpecial && settings.specialShowPercentage > 0)
