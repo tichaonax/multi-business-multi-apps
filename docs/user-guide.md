@@ -218,6 +218,11 @@
     - [Searching by Menu Number](#searching-by-menu-number)
     - [Cart and Receipt](#cart-and-receipt)
     - [Customer Credit Balance on Receipt](#customer-credit-balance-on-receipt)
+63. [Price Change Report](#63-price-change-report)
+    - [Where to Find It](#where-to-find-it)
+    - [What's Recorded](#whats-recorded)
+    - [Using the Report](#using-the-report)
+    - [Permissions](#permissions-16)
 
 ---
 
@@ -13459,7 +13464,7 @@ This first pass covers **Restaurant POS** and **Universal POS** (used by retail,
 
 For Clothing specifically: individual products work the same way once wired up, but **bale cards don't get either button** — bales have no image of their own, and their pricing goes through the existing bale workflow, not this feature.
 
-Every change made this way is recorded (who, when, old value, new value) the same way every other audited action in this app is — nothing about using the quick-edit path skips that.
+Every price change made this way — or through any other price-editing screen — is recorded (who, when, old value, new value) and reviewable on the [Price Change Report](#63-price-change-report).
 
 ---
 
@@ -13488,8 +13493,9 @@ Every menu item and AYLI combo with a menu number assigned (via Menu Numbers) sh
 Typing a menu number into the POS search box behaves differently from typing a name:
 
 - If what you've typed so far **looks like a menu number** (starts with a digit, made up only of digits with at most one trailing letter — e.g. "7", "12", "4a") the search switches to **number mode**: it looks for an exact match on that number only, never a partial or fuzzy match on the name.
-  - Exactly one item has that number → it's shown by itself, large, with a single **+ Add to Cart** button.
-  - No item has that number → **"No menu item found for №…"**, and the search box stays active so you can correct it.
+  - Exactly one item has that number → it's shown by itself, large, with **+ Add to Cart** and **Cancel** buttons side by side.
+  - No item has that number → **"No menu item found for №…"**, with a **Cancel** button below it, and the search box stays active so you can correct it.
+  - **Cancel** clears the search box in either case — use it if the customer changes their mind before you tap Add to Cart.
 - The moment what you've typed stops looking like a menu number (a space, a second letter, etc.), it falls back to the normal name search, unchanged.
 
 **Auto-reset:** adding an item via the number-search result clears the search box automatically, ready for the next number. Adding an item any other way (clicking a card in the regular grid) leaves the search box exactly as it was — this reset is specific to the number-search flow.
@@ -13514,3 +13520,47 @@ If a customer is attached to the order and has a positive credit balance:
 - **Credit was untouched this transaction** (paid cash, card, EcoCash, etc., without applying credit) — the receipt now still prints a **"Credit balance: $X.XX"** line so the customer and business always see where their balance stands, not only on transactions where it was spent.
 
 No credit line prints at all when no customer is attached to the order, or their balance is $0.00.
+
+---
+
+## 63. Price Change Report
+
+Every time a product's price changes — from the POS Quick-Edit **Adjust Prices** dialog, Menu Management, or a Products/Inventory edit form — it's recorded to an audit trail, and can be reviewed on a dedicated report.
+
+---
+
+### Where to Find It
+
+**Restaurant, Grocery, Clothing, and Hardware** → sidebar → **Reports** → **💲 Price Change Report** tile.
+
+---
+
+### What's Recorded
+
+For every price change:
+
+| Column | Shows |
+|--------|-------|
+| Date | When the change was made |
+| Product | The item's name (and "via POS Quick-Edit" if that's how it was changed) |
+| Original Price | The price before the change (struck through) |
+| New Price | The price after the change — red if it went up, green if it went down |
+| Changed By | The name and email of the user who made the change |
+
+The change is captured by the server the moment the price update is saved — it isn't dependent on which screen made the edit, so nothing slips through unrecorded.
+
+---
+
+### Using the Report
+
+- **Search** by product name or by the name/email of whoever made the change.
+- **Date range** — same date-range picker used throughout Reports, including an "All Time" option.
+- Results are paginated, newest first.
+
+---
+
+### Permissions
+
+| Permission | What it allows | Default |
+|------------|----------------|---------|
+| `canManageMenu`, `canManageInventory`, or `canAccessFinancialData` (any one) | View the Price Change Report for that business | Owner, Manager, Admin |
