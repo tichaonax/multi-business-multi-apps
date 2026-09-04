@@ -10,37 +10,28 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ busi
 
   const { businessId } = await params
   const body = await req.json()
-  const { itemType, itemId, priorityBoost, isDailySpecial, isFeatured, isHidden, displayDurationSecs, advertisingNote, advertisingImageId } = body
+  const { itemType, itemId, priorityBoost, isFeatured, isHidden, displayDurationSecs, advertisingNote, advertisingImageId } = body
 
   if (!itemType || !itemId) {
     return NextResponse.json({ error: 'itemType and itemId are required' }, { status: 400 })
   }
 
   // Full editing (pricing-adjacent fields, images, notes, priority boost, hidden
-  // status) requires canManageCustomerDisplay. A request touching ONLY isHidden,
-  // or ONLY isDailySpecial, is a narrow single-purpose toggle — allowed for
-  // anyone who can at least view the customer display (salespeople included by
-  // default), since it can't change anything else about how the item is
-  // configured: "86 an item" or "flip today's special" are quick shift-to-shift
-  // actions, not configuration changes.
+  // status) requires canManageCustomerDisplay. A request touching ONLY isHidden is
+  // the narrow "quickly 86 an item / bring it back" toggle — allowed for anyone who
+  // can at least view the customer display (salespeople included by default), since
+  // it can't change anything else about how the item is configured.
+  // (Today's Special is a separate, real system — see /api/restaurant/daily-special/
+  // quick-set and /override — not a field on this config at all.)
   const permissions = getEffectivePermissions(user, businessId)
-  const otherFieldsUntouched =
+  const isHiddenOnlyToggle =
+    isHidden !== undefined &&
     priorityBoost === undefined && isFeatured === undefined &&
     displayDurationSecs === undefined && advertisingNote === undefined && advertisingImageId === undefined
-  const isHiddenOnlyToggle = isHidden !== undefined && isDailySpecial === undefined && otherFieldsUntouched
-  const isDailySpecialOnlyToggle = isDailySpecial !== undefined && isHidden === undefined && otherFieldsUntouched
   const canToggleHidden = user.role === 'admin' || permissions.canManageCustomerDisplay ||
-    ((isHiddenOnlyToggle || isDailySpecialOnlyToggle) && permissions.canViewCustomerDisplay)
+    (isHiddenOnlyToggle && permissions.canViewCustomerDisplay)
   if (!canToggleHidden) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
-
-  // If marking as daily special, clear the existing one first
-  if (isDailySpecial) {
-    await (prisma as any).displayProductConfig.updateMany({
-      where: { businessId, isDailySpecial: true },
-      data: { isDailySpecial: false }
-    })
   }
 
   const record = await (prisma as any).displayProductConfig.upsert({
@@ -48,7 +39,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ busi
     create: {
       businessId, itemType, itemId,
       priorityBoost: priorityBoost ?? 0,
-      isDailySpecial: isDailySpecial ?? false,
       isFeatured: isFeatured ?? false,
       isHidden: isHidden ?? false,
       displayDurationSecs: displayDurationSecs ?? null,
@@ -57,7 +47,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ busi
     },
     update: {
       ...(priorityBoost !== undefined && { priorityBoost }),
-      ...(isDailySpecial !== undefined && { isDailySpecial }),
       ...(isFeatured !== undefined && { isFeatured }),
       ...(isHidden !== undefined && { isHidden }),
       ...(displayDurationSecs !== undefined && { displayDurationSecs }),

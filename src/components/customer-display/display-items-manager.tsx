@@ -10,6 +10,7 @@ interface DisplayItem {
   emoji: string | null
   imageId: string | null       // product's own image (read-only here)
   imageUrl: string | null      // resolved primary/catalog photo (falls back to adImageId server-side) — prefer this over imageId
+  menuNumber?: string | null   // restaurant only — grocery/clothing items never have one
   adImageId: string | null     // advertising-only image stored in DisplayProductConfig
   advertisingNote: string | null
   isFeatured: boolean
@@ -25,7 +26,6 @@ interface EditState {
   adImageId: string | null
   isFeatured: boolean
   isHidden: boolean
-  isDailySpecial: boolean
   priorityBoost: number
 }
 
@@ -56,11 +56,11 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
       )
       if (!res.ok) return
       const data = await res.json()
-      const all: DisplayItem[] = [
-        ...(data.dailySpecial ? [data.dailySpecial] : []),
-        ...(data.items ?? []),
-      ]
-      setItems(all)
+      // Today's Special is deliberately not added separately here — its product is
+      // already in data.items with the real isDailySpecial flag; the dailySpecial
+      // payload has a different shape (productName/specialPrice, no id/itemType) and
+      // would render as a broken duplicate row rather than a real item.
+      setItems(data.items ?? [])
     } finally {
       setLoading(false)
     }
@@ -80,9 +80,28 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
       adImageId: item.adImageId,
       isFeatured: item.isFeatured,
       isHidden: item.isHidden,
-      isDailySpecial: item.isDailySpecial ?? false,
       priorityBoost: item.priorityBoost,
     })
+  }
+
+  // Today's Special is a real, separate system (DailySpecial + day override) — not a
+  // per-item flag — so it's set/cleared immediately via the daily-special endpoints
+  // rather than bundled into the batched Save Changes flow below. Only ever one special
+  // active per day; setting a new one replaces whatever was there, and it reverts to "no
+  // special" the next day unless set again.
+  async function toggleDailySpecial(item: DisplayItem) {
+    const isCurrentlySpecial = item.isDailySpecial ?? false
+    if (isCurrentlySpecial) {
+      await fetch(`/api/restaurant/daily-special/override?businessId=${businessId}`, { method: 'DELETE' })
+    } else {
+      await fetch('/api/restaurant/daily-special/quick-set', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId, productId: item.id }),
+      })
+    }
+    await fetchItems()
+    showToast(isCurrentlySpecial ? "Removed today's special" : "Set as today's special")
   }
 
   function closeEdit() {
@@ -106,7 +125,6 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
             advertisingImageId: editState.adImageId,
             isFeatured: editState.isFeatured,
             isHidden: editState.isHidden,
-            isDailySpecial: editState.isDailySpecial,
             priorityBoost: editState.priorityBoost,
           }),
         }
@@ -119,7 +137,6 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
         adImageId: editState.adImageId,
         isFeatured: editState.isFeatured,
         isHidden: editState.isHidden,
-        isDailySpecial: editState.isDailySpecial,
         priorityBoost: editState.priorityBoost,
       } : i))
       closeEdit()
@@ -235,6 +252,12 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
             <div key={item.id} className="bg-white dark:bg-gray-800 overflow-hidden">
               {/* Row */}
               <div className="flex items-center gap-3 p-3">
+                {/* Menu number badge — same circular style as Menu Numbers / Menu Availability */}
+                {item.menuNumber && (
+                  <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-black text-xs leading-none flex-shrink-0">
+                    {item.menuNumber.toUpperCase()}
+                  </span>
+                )}
                 {/* Thumbnails — product image + advertising image side by side */}
                 <div className="flex gap-1 flex-shrink-0">
                   {/* Product image / emoji */}
@@ -393,15 +416,23 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
                       value={editState.isHidden}
                       onChange={v => setEditState(s => s ? { ...s, isHidden: v } : s)}
                     />
-                    {businessType === 'restaurant' && (
-                      <Toggle
-                        label="Daily Special"
-                        hint="Shown as today's special (only one allowed)"
-                        value={editState.isDailySpecial}
-                        onChange={v => setEditState(s => s ? { ...s, isDailySpecial: v } : s)}
-                      />
-                    )}
                   </div>
+
+                  {/* Today's Special — a real separate system, so this takes effect immediately
+                      rather than waiting for Save Changes below (see toggleDailySpecial). */}
+                  {businessType === 'restaurant' && item.itemType === 'menu_item' && (
+                    <button
+                      type="button"
+                      onClick={() => toggleDailySpecial(item)}
+                      className={`w-full text-left px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                        item.isDailySpecial
+                          ? 'bg-amber-500 border-amber-500 text-white hover:bg-amber-600'
+                          : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-amber-50 dark:hover:bg-amber-900/20'
+                      }`}
+                    >
+                      ⭐ {item.isDailySpecial ? "Today's Special — click to remove" : "Set as today's special (replaces current one, applies immediately)"}
+                    </button>
+                  )}
 
                   {/* Priority boost */}
                   <div>

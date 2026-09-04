@@ -25,6 +25,7 @@ interface DisplayItem {
   price: number
   emoji: string | null
   imageUrl: string | null
+  menuNumber: string | null
   sizes?: Array<{ sizeName: string; basePrice: number }>
   salesScore: number
   displayScore: number
@@ -140,7 +141,7 @@ export default function RestaurantDisplaySettingsPage() {
   }
 
   async function updateItemConfig(itemType: string, itemId: string, patch: Partial<{
-    priorityBoost: number; isDailySpecial: boolean; isFeatured: boolean; isHidden: boolean
+    priorityBoost: number; isFeatured: boolean; isHidden: boolean
     advertisingImageId: string | null; advertisingNote: string | null
   }>) {
     if (!currentBusinessId) return
@@ -149,6 +150,24 @@ export default function RestaurantDisplaySettingsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ itemType, itemId, ...patch }),
     })
+    load()
+  }
+
+  // Today's Special is a real, separate system (DailySpecial + day override) — not a
+  // per-item flag — so it's set/cleared via the daily-special endpoints, not the generic
+  // display config PUT. Only ever one special active per day; setting a new one replaces
+  // whatever was there, and it reverts to "no special" the next day unless set again.
+  async function toggleDailySpecial(productId: string, isCurrentlySpecial: boolean) {
+    if (!currentBusinessId) return
+    if (isCurrentlySpecial) {
+      await fetch(`/api/restaurant/daily-special/override?businessId=${currentBusinessId}`, { method: 'DELETE' })
+    } else {
+      await fetch('/api/restaurant/daily-special/quick-set', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId: currentBusinessId, productId }),
+      })
+    }
     load()
   }
 
@@ -358,6 +377,12 @@ export default function RestaurantDisplaySettingsPage() {
               {allDisplayItems.map(item => (
                 <div key={`${item.itemType}:${item.id}`} className="px-5 py-4">
                   <div className="flex items-start gap-4">
+                    {/* Menu number badge — same circular style as Menu Numbers / Menu Availability */}
+                    {item.menuNumber && (
+                      <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-black text-xs leading-none flex-shrink-0">
+                        {item.menuNumber.toUpperCase()}
+                      </span>
+                    )}
                     {/* Primary image (falls back to emoji when the item has no photo) + name */}
                     {item.imageUrl ? (
                       <img src={item.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 bg-gray-100 dark:bg-gray-700" />
@@ -500,18 +525,20 @@ export default function RestaurantDisplaySettingsPage() {
 
                     {/* Action buttons */}
                     <div className="flex flex-col gap-1.5 flex-shrink-0">
-                      <button
-                        type="button"
-                        title={item.isDailySpecial ? 'Remove daily special' : 'Set as daily special (clears previous)'}
-                        onClick={() => updateItemConfig(item.itemType, item.id, { isDailySpecial: !item.isDailySpecial })}
-                        className={`text-xs px-2 py-1 rounded font-medium transition-colors ${
-                          item.isDailySpecial
-                            ? 'bg-amber-500 text-white hover:bg-amber-600'
-                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-amber-100 dark:hover:bg-amber-900/30'
-                        }`}
-                      >
-                        ⭐ Special
-                      </button>
+                      {item.itemType === 'menu_item' && (
+                        <button
+                          type="button"
+                          title={item.isDailySpecial ? "Remove today's special" : "Set as today's special (replaces whatever is currently set)"}
+                          onClick={() => toggleDailySpecial(item.id, item.isDailySpecial)}
+                          className={`text-xs px-2 py-1 rounded font-medium transition-colors ${
+                            item.isDailySpecial
+                              ? 'bg-amber-500 text-white hover:bg-amber-600'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-amber-100 dark:hover:bg-amber-900/30'
+                          }`}
+                        >
+                          ⭐ Special
+                        </button>
+                      )}
                       <button
                         type="button"
                         disabled={!canManage}

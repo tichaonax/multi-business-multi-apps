@@ -125,9 +125,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
     return configMap.get(`${itemType}:${itemId}`)?.advertisingImageId ?? null
   }
 
-  function isDailySpecial(itemType: string, itemId: string): boolean {
-    return configMap.get(`${itemType}:${itemId}`)?.isDailySpecial === true
-  }
+  // NOTE: isDailySpecial is resolved from the real Today's Special system (dailySpecial,
+  // computed below for restaurant) — NOT from DisplayProductConfig.isDailySpecial. That
+  // per-item flag is a cosmetic leftover that was never actually wired into what shows as
+  // today's special on the customer display; keep it out of this computation so the badge
+  // shown in management screens always matches what customers actually see.
 
   let dailySpecial: any = null
   let items: any[] = []
@@ -263,7 +265,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         salesScore: ss,
         displayScore: buildDisplayScore('menu_item', p.id, ss),
         isFeatured: isFeatured('menu_item', p.id),
-        isDailySpecial: isDailySpecial('menu_item', p.id),
+        isDailySpecial: dailySpecial?.productId === p.id,
         isHidden: isHidden('menu_item', p.id),
         priorityBoost: configMap.get(`menu_item:${p.id}`)?.priorityBoost ?? 0,
         salesBreakdown: productSales.get(p.id) ?? { today: 0, yesterday: 0, dayBefore: 0 },
@@ -310,7 +312,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         salesScore: ss,
         displayScore: buildDisplayScore('ayli_combo', c.id, ss),
         isFeatured: isFeatured('ayli_combo', c.id),
-        isDailySpecial: isDailySpecial('ayli_combo', c.id),
+        isDailySpecial: false, // AYLI combos aren't supported by the Today's Special system (it's keyed to a BusinessProducts id)
         isHidden: isHidden('ayli_combo', c.id),
         priorityBoost: configMap.get(`ayli_combo:${c.id}`)?.priorityBoost ?? 0,
         salesBreakdown: ayliSales.get(c.id) ?? { today: 0, yesterday: 0, dayBefore: 0 },
