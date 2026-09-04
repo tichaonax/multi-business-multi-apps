@@ -4371,6 +4371,14 @@ export default function RestaurantPOS() {
                   <span className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-black text-xl leading-none shadow-md flex-shrink-0">
                     {(numberSearchMatch as any).menuNumber.toUpperCase()}
                   </span>
+                  {(numberSearchMatch as any).imageUrl && (
+                    <img
+                      src={(numberSearchMatch as any).imageUrl}
+                      alt=""
+                      className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
+                      onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                    />
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="font-bold text-lg text-primary truncate">{numberSearchMatch.name}</div>
                     <div className="font-black text-blue-600 dark:text-blue-400 text-xl">${Number(numberSearchMatch.price).toFixed(2)}</div>
