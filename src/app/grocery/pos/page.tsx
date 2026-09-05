@@ -3059,10 +3059,17 @@ function GroceryPOSContent() {
         )}
       </div>
 
+    </ContentLayout>
+
+    {/* Grids rendered outside ContentLayout so sticky right panel works (matches restaurant/clothing POS pattern) —
+        the Toolbar moved here too (MBM-292 follow-up): position:sticky silently never engaged while it lived
+        inside ContentLayout, same reason the grids themselves live out here. */}
+    <div className="px-2 sm:px-0 pb-6">
+
       {/* Toolbar — mode toggle | view toggles. Sticky so Update Images/Adjust
           Prices stay reachable while scrolling the product grid, matching the
           Restaurant POS pattern, regardless of Desk Mode/Scan Mode. */}
-      <div className="sticky top-20 z-20 bg-white dark:bg-gray-900 flex flex-wrap items-center gap-2 py-2 mb-2">
+      <div className="sticky top-20 z-20 bg-white dark:bg-gray-900 flex flex-wrap items-center gap-2 py-2 mb-2 px-2 sm:px-0">
         {/* POS mode toggle (Live / Manual) */}
         {(isAdmin || hasPermission('canEnterManualOrders')) && (
           <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">
@@ -3131,10 +3138,6 @@ function GroceryPOSContent() {
           />
         )}
       </div>
-    </ContentLayout>
-
-    {/* Grids rendered outside ContentLayout so sticky right panel works (matches restaurant/clothing POS pattern) */}
-    <div className="px-2 sm:px-0 pb-6">
 
       {/* Manual Entry Mode */}
       {posMode === 'manual' && currentBusinessId && (
@@ -3534,7 +3537,7 @@ function GroceryPOSContent() {
               const activeTab = selectedCategory ?? '__all__'
 
               return (
-                <div className="sticky top-20 z-20 bg-white dark:bg-gray-800 pt-3 pb-3 border-b border-gray-200 dark:border-gray-700 mb-3">
+                <div className="sticky top-40 z-20 bg-white dark:bg-gray-800 pt-3 pb-3 border-b border-gray-200 dark:border-gray-700 mb-3">
                   {/* Category tabs + More button */}
                   <div className="flex flex-wrap gap-2 mb-2">
                     {visibleTabs.map(tab => (
@@ -4107,7 +4110,7 @@ function GroceryPOSContent() {
             content could grow taller than the screen, pushing the "Process Payment"
             button below the fold with no reliable way to scroll to it on short
             viewports (reported on 1280x768 displays). */}
-        <div className="space-y-4 mt-4 lg:mt-0 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-1">
+        <div className="space-y-4 mt-4 lg:mt-0 lg:sticky lg:top-40 lg:self-start lg:max-h-[calc(100vh-11rem)] lg:overflow-y-auto lg:pr-1">
           {/* Customer Info */}
           <div className="card p-4 sm:p-6">
             <CustomerLookup

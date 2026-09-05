@@ -750,6 +750,15 @@ export default function UniversalPOS() {
         title={`${config.displayName} POS`}
         description={`Point of Sale system for ${config.displayName.toLowerCase()}`}
       >
+        {null}
+      </ContentLayout>
+
+      {/* Rest of the page rendered outside ContentLayout — position:sticky
+          silently never engages for elements nested inside it (ProductPanel's
+          own sticky header included; same reason Restaurant/Grocery/Clothing
+          POS render their grids outside it too). These wrapper classes match
+          ContentLayout's own so spacing/width stay identical. */}
+      <div className="max-w-full mx-auto px-2 sm:px-0 py-1 min-w-0 w-full">
         {/* EOD deadline warning banner */}
         {!eodGate?.hasPending && eodGate?.deadlinePassed && eodGate?.todayStatus === 'PENDING' && currentBusinessId && (
           <div className="mb-3 px-4 py-2.5 bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-lg flex items-center justify-between gap-3">
@@ -1112,7 +1121,7 @@ export default function UniversalPOS() {
             }
           }}
         />
-      </ContentLayout>
+      </div>
     </BusinessTypeRoute>
   )
 }

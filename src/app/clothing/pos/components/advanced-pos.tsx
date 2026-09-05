@@ -1845,8 +1845,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 p-2 lg:p-4">
       {/* Main POS Interface */}
       <div className="lg:col-span-2 space-y-6">
-        {/* Compact mode bar + search — single row */}
-        <div className={`p-2 rounded-lg border ${getModeColor()}`}>
+        {/* Compact mode bar + search — single row. Sticky so search stays
+            reachable while scrolling the product list, matching Restaurant POS. */}
+        <div className={`sticky top-20 z-20 p-2 rounded-lg border ${getModeColor()}`}>
           <div className="flex items-center gap-2">
             {/* Sale / Return / Exchange */}
             <div className="flex gap-1 flex-shrink-0">
@@ -1961,7 +1962,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         <div className="card p-4">
           {/* Tab selector — sticky so Update Images/Adjust Prices stay reachable
               while scrolling the product list, matching the Restaurant POS pattern. */}
-          <div className="sticky top-20 z-20 bg-white dark:bg-gray-800 flex items-center gap-3 mb-4 py-2 -mt-4 px-4 -mx-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="sticky top-40 z-20 bg-white dark:bg-gray-800 flex items-center gap-3 mb-4 py-2 -mt-4 px-4 -mx-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
               <button
                 type="button"

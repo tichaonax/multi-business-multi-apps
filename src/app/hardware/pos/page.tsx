@@ -323,6 +323,15 @@ export default function HardwarePOSPage() {
             { label: 'Point of Sale', isActive: true }
           ]}
         >
+          {null}
+        </ContentLayout>
+
+        {/* Rest of the page rendered outside ContentLayout — position:sticky
+            silently never engages for elements nested inside it (same reason
+            Restaurant/Grocery/Clothing POS render their grids outside it too).
+            These wrapper classes match ContentLayout's own so spacing/width
+            stay identical. */}
+        <div className="max-w-full mx-auto px-2 sm:px-0 py-1 min-w-0 w-full">
           <div className="space-y-6">
             {/* Header */}
             <div className="flex justify-between items-center">
@@ -500,7 +509,7 @@ export default function HardwarePOSPage() {
               </div>
             </div>
           </div>
-        </ContentLayout>
+        </div>
       </BusinessTypeRoute>
 
       {/* POS Quick-Edit Mode (MBM-292 Phase 2) dialogs */}
