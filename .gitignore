@@ -166,3 +166,7 @@ scripts/validate-all-relations.ts
 scripts/validate-prisma-usage.ts
 test-backup-*.json
 electron/node_modules/
+
+# MBM-294: extracted source-catalog category images (copy to server manually
+# via the installer, never commit — see project-plan §3.6)
+scripts/mbm294-extracted/
