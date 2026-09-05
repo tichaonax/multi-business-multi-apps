@@ -154,10 +154,16 @@ export default function MenuNumbersPage() {
         const form = new FormData()
         form.append('files', file)
         const uploadRes = await fetch(`/api/universal/products/${selected.id}/images`, { method: 'POST', body: form })
-        if (!uploadRes.ok) throw new Error('Upload failed')
+        if (!uploadRes.ok) {
+          const errBody = await uploadRes.json().catch(() => ({}))
+          throw new Error(errBody.error ?? `Upload failed (${uploadRes.status})`)
+        }
         const { data } = await uploadRes.json()
-        const candidates = (data?.images ?? []).filter((im: any) => im.altText === file.name)
-        const newImg = candidates.sort((a: any, b: any) => b.sortOrder - a.sortOrder)[0]
+        // Highest sortOrder is always the image this request just created — matching
+        // by altText/file name is unreliable for pasted images (browsers usually
+        // name them identically, e.g. "image.png").
+        const images = data?.images ?? []
+        const newImg = images.length > 0 ? images.reduce((a: any, b: any) => (b.sortOrder > a.sortOrder ? b : a)) : null
         if (!newImg) throw new Error('Upload succeeded but the new image could not be found')
         const primaryRes = await fetch(`/api/universal/products/${selected.id}/images/${newImg.id}/primary`, { method: 'POST' })
         if (!primaryRes.ok) throw new Error('Failed to set as primary image')

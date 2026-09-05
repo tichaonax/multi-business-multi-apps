@@ -367,7 +367,7 @@ export function ProductPanel({
                           <img
                             src={product.imageUrl}
                             alt={product.name}
-                            className="w-full h-24 object-cover rounded-md mb-2"
+                            className="w-full h-32 object-cover rounded-md mb-2"
                           />
                         )}
                         <h3 className="font-medium text-sm text-gray-900 dark:text-white line-clamp-2">
@@ -459,10 +459,13 @@ export function ProductPanel({
                 {filteredProducts.map((product) => (
                   <div
                     key={product.id}
-                    className={`flex items-center justify-between p-3 border rounded-lg hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-sm transition-all bg-white dark:bg-gray-700 ${
+                    className={`relative flex items-center justify-between p-3 border rounded-lg hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-sm transition-all bg-white dark:bg-gray-700 ${
                       favorites.has(product.id) ? 'border-yellow-400 dark:border-yellow-500' : 'border-gray-200 dark:border-gray-700'
                     }`}
                   >
+                    {quickEditMode !== 'none' && (
+                      <QuickEditCardButton mode={quickEditMode} onClick={() => setQuickEditProduct(product)} />
+                    )}
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); toggleFavorite(product.id) }}
@@ -471,6 +474,13 @@ export function ProductPanel({
                     >
                       {favorites.has(product.id) ? <span className="text-yellow-400">★</span> : <span className="text-gray-300 dark:text-gray-500">☆</span>}
                     </button>
+                    {product.imageUrl && (
+                      <img
+                        src={product.imageUrl}
+                        alt={product.name}
+                        className="w-16 h-16 object-cover rounded-md flex-shrink-0 mr-3"
+                      />
+                    )}
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-gray-900 dark:text-white truncate">
                         {product.categoryEmoji && <span className="mr-1">{product.categoryEmoji}</span>}
@@ -514,10 +524,13 @@ export function ProductPanel({
                   return (
                     <div
                       key={product.id}
-                      className={`p-4 border rounded-lg hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-sm transition-all bg-white dark:bg-gray-700 ${
+                      className={`relative p-4 border rounded-lg hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-sm transition-all bg-white dark:bg-gray-700 ${
                         favorites.has(product.id) ? 'border-yellow-400 dark:border-yellow-500' : 'border-gray-200 dark:border-gray-700'
                       }`}
                     >
+                      {quickEditMode !== 'none' && (
+                        <QuickEditCardButton mode={quickEditMode} onClick={() => setQuickEditProduct(product)} />
+                      )}
                       <div className="flex items-start justify-between">
                         <div className="flex items-start gap-2 flex-1">
                           <button
@@ -528,6 +541,13 @@ export function ProductPanel({
                           >
                             {favorites.has(product.id) ? <span className="text-yellow-400">★</span> : <span className="text-gray-300 dark:text-gray-500">☆</span>}
                           </button>
+                          {product.imageUrl && (
+                            <img
+                              src={product.imageUrl}
+                              alt={product.name}
+                              className="w-32 h-32 object-cover rounded-md flex-shrink-0"
+                            />
+                          )}
                           <div className="flex-1">
                           <h3 className="font-medium text-gray-900 dark:text-white">
                             {product.categoryEmoji && <span className="mr-1">{product.categoryEmoji}</span>}

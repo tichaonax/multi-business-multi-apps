@@ -88,7 +88,7 @@ export function useProductLoader(
     try {
       // Load regular products
       const productsResponse = await fetch(
-        `/api/universal/products?businessId=${businessId}&businessType=${businessType}&includeVariants=true&limit=5000`
+        `/api/universal/products?businessId=${businessId}&businessType=${businessType}&includeVariants=true&includeImages=true&limit=5000`
       )
 
       if (!productsResponse.ok) {
@@ -107,7 +107,7 @@ export function useProductLoader(
         category: product.category?.name,
         categoryId: product.categoryId,
         categoryEmoji: product.categoryEmoji ?? product.category?.emoji ?? null,
-        imageUrl: product.imageUrl || product.images?.[0]?.url,
+        imageUrl: (product.images?.find((img: any) => img.isPrimary) || product.images?.[0])?.imageUrl,
         stockQuantity: product.stockQuantity,
         barcode: product.barcode,
         productType: product.productType,

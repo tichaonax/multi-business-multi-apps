@@ -37,10 +37,17 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
         const form = new FormData()
         form.append('files', file)
         const uploadRes = await fetch(`/api/universal/products/${itemId}/images`, { method: 'POST', body: form })
-        if (!uploadRes.ok) throw new Error('Upload failed')
+        if (!uploadRes.ok) {
+          const errBody = await uploadRes.json().catch(() => ({}))
+          throw new Error(errBody.error ?? `Upload failed (${uploadRes.status})`)
+        }
         const { data } = await uploadRes.json()
-        const candidates = (data?.images ?? []).filter((im: any) => im.altText === file.name)
-        const newImg = candidates.sort((a: any, b: any) => b.sortOrder - a.sortOrder)[0]
+        // Highest sortOrder is always the image this request just created (sortOrder
+        // is a strictly increasing per-product sequence) — matching by altText/file
+        // name is unreliable for pasted images, which browsers usually name
+        // identically (e.g. "image.png"), so a same-named earlier upload could shadow it.
+        const images = data?.images ?? []
+        const newImg = images.length > 0 ? images.reduce((a: any, b: any) => (b.sortOrder > a.sortOrder ? b : a)) : null
         if (!newImg) throw new Error('Upload succeeded but the new image could not be found')
         const primaryRes = await fetch(`/api/universal/products/${itemId}/images/${newImg.id}/primary`, { method: 'POST' })
         if (!primaryRes.ok) throw new Error('Failed to set as primary image')
@@ -49,7 +56,10 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
         const form = new FormData()
         form.append('files', file)
         const uploadRes = await fetch('/api/universal/images', { method: 'POST', body: form })
-        if (!uploadRes.ok) throw new Error('Upload failed')
+        if (!uploadRes.ok) {
+          const errBody = await uploadRes.json().catch(() => ({}))
+          throw new Error(errBody.error ?? `Upload failed (${uploadRes.status})`)
+        }
         const { data } = await uploadRes.json()
         const newImageId: string = data[0].filename
         const patchRes = await fetch(`/api/grocery/inventory/${itemId}/display-image`, {
@@ -57,7 +67,10 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ imageId: newImageId }),
         })
-        if (!patchRes.ok) throw new Error('Failed to save image')
+        if (!patchRes.ok) {
+          const errBody = await patchRes.json().catch(() => ({}))
+          throw new Error(errBody.error ?? `Failed to save image (${patchRes.status})`)
+        }
         newImageUrl = `/api/images/${newImageId}`
       }
 
