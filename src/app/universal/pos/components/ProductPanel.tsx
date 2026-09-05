@@ -531,74 +531,72 @@ export function ProductPanel({
                       {quickEditMode !== 'none' && (
                         <QuickEditCardButton mode={quickEditMode} onClick={() => setQuickEditProduct(product)} />
                       )}
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-start gap-2 flex-1 min-w-0">
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); toggleFavorite(product.id) }}
-                            className="mt-0.5 text-lg leading-none hover:scale-110 transition-transform flex-shrink-0"
-                            title={favorites.has(product.id) ? 'Remove from favorites' : 'Add to favorites'}
-                          >
-                            {favorites.has(product.id) ? <span className="text-yellow-400">★</span> : <span className="text-gray-300 dark:text-gray-500">☆</span>}
-                          </button>
-                          {product.imageUrl && (
-                            <img
-                              src={product.imageUrl}
-                              alt={product.name}
-                              className="w-24 h-24 object-cover rounded-md flex-shrink-0"
-                            />
-                          )}
-                          <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-gray-900 dark:text-white truncate">
-                            {product.categoryEmoji && <span className="mr-1">{product.categoryEmoji}</span>}
-                            {product.name}
-                          </h3>
-                          {product.description && (
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
-                              {product.description}
-                            </p>
-                          )}
-                          <p className="text-lg font-bold text-blue-600 dark:text-blue-400 mt-2">
-                            ${product.basePrice.toFixed(2)}
+                      <div className="flex items-start gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); toggleFavorite(product.id) }}
+                          className="mt-0.5 text-lg leading-none hover:scale-110 transition-transform flex-shrink-0"
+                          title={favorites.has(product.id) ? 'Remove from favorites' : 'Add to favorites'}
+                        >
+                          {favorites.has(product.id) ? <span className="text-yellow-400">★</span> : <span className="text-gray-300 dark:text-gray-500">☆</span>}
+                        </button>
+                        {product.imageUrl && (
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className="w-20 h-20 object-cover rounded-md flex-shrink-0"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {!product.imageUrl && product.categoryEmoji && <span className="mr-1">{product.categoryEmoji}</span>}
+                          {product.name}
+                        </h3>
+                        {product.description && (
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+                            {product.description}
                           </p>
-                          {/* WiFi token availability indicator */}
-                          {product.isWiFiToken && remaining !== undefined && (
-                            <span className={`text-xs font-medium block mt-1 ${
-                              remaining <= 0 ? 'text-red-500' : remaining < 5 ? 'text-orange-500' : 'text-green-600'
-                            }`}>
-                              {remaining} available
-                            </span>
-                          )}
-                          {canViewPOSSoldCount && (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block ${
-                              (product.soldToday || 0) > 0
-                                ? 'text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50'
-                                : 'text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800'
-                            }`}>
-                              <span className={(product.soldToday || 0) > 0 ? 'text-yellow-300 font-bold' : ''}>{product.soldToday || 0}</span> sold today
-                            </span>
-                          )}
-                          </div>
+                        )}
+                        <p className="text-base font-bold text-blue-600 dark:text-blue-400 mt-1">
+                          ${product.basePrice.toFixed(2)}
+                        </p>
+                        {/* WiFi token availability indicator */}
+                        {product.isWiFiToken && remaining !== undefined && (
+                          <span className={`text-xs font-medium block mt-1 ${
+                            remaining <= 0 ? 'text-red-500' : remaining < 5 ? 'text-orange-500' : 'text-green-600'
+                          }`}>
+                            {remaining} available
+                          </span>
+                        )}
+                        {canViewPOSSoldCount && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium mt-1 inline-block ${
+                            (product.soldToday || 0) > 0
+                              ? 'text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/50'
+                              : 'text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800'
+                          }`}>
+                            <span className={(product.soldToday || 0) > 0 ? 'text-yellow-300 font-bold' : ''}>{product.soldToday || 0}</span> sold today
+                          </span>
+                        )}
                         </div>
-                        <div className="flex-shrink-0 flex flex-col items-end gap-2">
+                      </div>
+                      <div className="mt-2 flex items-center justify-end gap-2">
+                        {/* Request more tokens button */}
+                        {product.isWiFiToken && (product.availableQuantity || 0) < 5 && businessId && (
                           <button
-                            onClick={() => handleAddToCart(product)}
-                            disabled={remaining !== undefined && remaining <= 0}
-                            className="px-3 py-1.5 text-sm whitespace-nowrap bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-md font-medium"
+                            onClick={() => handleRequestMore(product)}
+                            disabled={requestingMore.has(product.tokenConfigId || '')}
+                            className="text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-2 py-1 rounded transition-colors"
                           >
-                            {remaining !== undefined && remaining <= 0 ? 'Sold Out' : 'Add to Cart'}
+                            {requestingMore.has(product.tokenConfigId || '') ? 'Requesting...' : '+ Request 5 More'}
                           </button>
-                          {/* Request more tokens button */}
-                          {product.isWiFiToken && (product.availableQuantity || 0) < 5 && businessId && (
-                            <button
-                              onClick={() => handleRequestMore(product)}
-                              disabled={requestingMore.has(product.tokenConfigId || '')}
-                              className="text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-2 py-1 rounded transition-colors"
-                            >
-                              {requestingMore.has(product.tokenConfigId || '') ? 'Requesting...' : '+ Request 5 More'}
-                            </button>
-                          )}
-                        </div>
+                        )}
+                        <button
+                          onClick={() => handleAddToCart(product)}
+                          disabled={remaining !== undefined && remaining <= 0}
+                          className="px-3 py-1.5 text-sm whitespace-nowrap bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-md font-medium"
+                        >
+                          {remaining !== undefined && remaining <= 0 ? 'Sold Out' : 'Add to Cart'}
+                        </button>
                       </div>
                     </div>
                   )
