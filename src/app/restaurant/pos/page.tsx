@@ -4584,8 +4584,14 @@ export default function RestaurantPOS() {
                       </div>
                     )}
 
-                    {/* POS Quick-Edit Mode (MBM-290) corner button */}
-                    {quickEditMode !== 'none' && (
+                    {/* POS Quick-Edit Mode (MBM-290) corner button — excludes menu
+                        combos, AYLI combos, and WiFi/R710 token pseudo-items, none
+                        of which are plain BusinessProducts rows the generic
+                        products endpoint can edit. Barcode-scanned inventory items
+                        (id starts with "inv_") ARE real, editable items — just via
+                        a different table, handled in the dialogs below. */}
+                    {quickEditMode !== 'none' && !(item as any).isCombo && !(item as any).isAYLICombo &&
+                      !(item as any).wifiToken && !(item as any).r710Token && (
                       <QuickEditCardButton mode={quickEditMode} onClick={() => setQuickEditItem(item)} />
                     )}
 
@@ -6282,35 +6288,47 @@ export default function RestaurantPOS() {
         />
       )}
 
-      {/* POS Quick-Edit Mode (MBM-290) dialogs */}
-      {quickEditItem && quickEditMode === 'image' && (
-        <ImageUploadDialog
-          businessId={currentBusinessId || ''}
-          itemId={quickEditItem.id}
-          itemName={quickEditItem.name}
-          sourceTable="BUSINESS_PRODUCT"
-          currentImageUrl={quickEditItem.imageUrl ?? null}
-          onClose={() => setQuickEditItem(null)}
-          onSaved={newImageUrl => {
-            setMenuItems(prev => prev.map(m => m.id === quickEditItem.id ? { ...m, imageUrl: newImageUrl } : m))
-            setQuickEditItem(null)
-          }}
-        />
-      )}
-      {quickEditItem && quickEditMode === 'price' && (
-        <PriceEditDialog
-          businessId={currentBusinessId || ''}
-          itemId={quickEditItem.id}
-          itemName={quickEditItem.name}
-          sourceTable="BUSINESS_PRODUCT"
-          currentPrice={quickEditItem.price}
-          onClose={() => setQuickEditItem(null)}
-          onSaved={newPrice => {
-            setMenuItems(prev => prev.map(m => m.id === quickEditItem.id ? { ...m, price: newPrice } : m))
-            setQuickEditItem(null)
-          }}
-        />
-      )}
+      {/* POS Quick-Edit Mode (MBM-290) dialogs — menuItems mixes real BusinessProducts
+          (id === product id) with barcode-scanned inventory items merged in from Add
+          Stock (id === `inv_${rawId}`, see the inventoryItems map above) — the same
+          `inv_` prefix convention used everywhere else in this app is the only
+          reliable signal for which endpoint a given item's id actually belongs to. */}
+      {quickEditItem && quickEditMode === 'image' && (() => {
+        const isBarcodeItem = quickEditItem.id.startsWith('inv_')
+        const rawId = isBarcodeItem ? quickEditItem.id.slice(4) : quickEditItem.id
+        return (
+          <ImageUploadDialog
+            businessId={currentBusinessId || ''}
+            itemId={rawId}
+            itemName={quickEditItem.name}
+            sourceTable={isBarcodeItem ? 'BARCODE_ITEM' : 'BUSINESS_PRODUCT'}
+            currentImageUrl={quickEditItem.imageUrl ?? null}
+            onClose={() => setQuickEditItem(null)}
+            onSaved={newImageUrl => {
+              setMenuItems(prev => prev.map(m => m.id === quickEditItem.id ? { ...m, imageUrl: newImageUrl } : m))
+              setQuickEditItem(null)
+            }}
+          />
+        )
+      })()}
+      {quickEditItem && quickEditMode === 'price' && (() => {
+        const isBarcodeItem = quickEditItem.id.startsWith('inv_')
+        const rawId = isBarcodeItem ? quickEditItem.id.slice(4) : quickEditItem.id
+        return (
+          <PriceEditDialog
+            businessId={currentBusinessId || ''}
+            itemId={rawId}
+            itemName={quickEditItem.name}
+            sourceTable={isBarcodeItem ? 'BARCODE_ITEM' : 'BUSINESS_PRODUCT'}
+            currentPrice={quickEditItem.price}
+            onClose={() => setQuickEditItem(null)}
+            onSaved={newPrice => {
+              setMenuItems(prev => prev.map(m => m.id === quickEditItem.id ? { ...m, price: newPrice } : m))
+              setQuickEditItem(null)
+            }}
+          />
+        )
+      })()}
 
       {/* Unified Receipt Preview Modal */}
       <UnifiedReceiptPreviewModal

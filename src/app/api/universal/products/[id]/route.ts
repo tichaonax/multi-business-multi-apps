@@ -301,6 +301,20 @@ export async function PUT(
         }
 
         console.log(`[Variants Update] Successfully processed ${variants.length} variants`)
+      } else if (updateData.basePrice !== undefined) {
+        // No explicit variants array in this request (that's the Menu Management
+        // form's job, handled above) — but every card/cart/checkout price display
+        // resolves as `variant.price || product.basePrice` wherever a variant
+        // exists, so a basePrice-only update (Quick-Edit, Products page) would
+        // otherwise leave a single "Default" variant's own stored price stale and
+        // silently shadowing the new basePrice. Mirrors the same sync already done
+        // in the BarcodeInventoryItems PUT endpoint. Deliberately scoped to the
+        // "Default" variant only — a product with real named variants (clothing
+        // sizes etc.) must not have all of them overwritten to one price.
+        await tx.productVariants.updateMany({
+          where: { productId: id, name: 'Default', isActive: true },
+          data: { price: updateData.basePrice, updatedAt: new Date() }
+        })
       }
 
       // Fetch updated product with variants

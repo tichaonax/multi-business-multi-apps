@@ -531,8 +531,8 @@ export function ProductPanel({
                       {quickEditMode !== 'none' && (
                         <QuickEditCardButton mode={quickEditMode} onClick={() => setQuickEditProduct(product)} />
                       )}
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-2 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2 flex-1 min-w-0">
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); toggleFavorite(product.id) }}
@@ -545,16 +545,16 @@ export function ProductPanel({
                             <img
                               src={product.imageUrl}
                               alt={product.name}
-                              className="w-32 h-32 object-cover rounded-md flex-shrink-0"
+                              className="w-24 h-24 object-cover rounded-md flex-shrink-0"
                             />
                           )}
-                          <div className="flex-1">
-                          <h3 className="font-medium text-gray-900 dark:text-white">
+                          <div className="flex-1 min-w-0">
+                          <h3 className="font-medium text-gray-900 dark:text-white truncate">
                             {product.categoryEmoji && <span className="mr-1">{product.categoryEmoji}</span>}
                             {product.name}
                           </h3>
                           {product.description && (
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
                               {product.description}
                             </p>
                           )}
@@ -580,11 +580,11 @@ export function ProductPanel({
                           )}
                           </div>
                         </div>
-                        <div className="ml-3 flex flex-col items-end gap-2">
+                        <div className="flex-shrink-0 flex flex-col items-end gap-2">
                           <button
                             onClick={() => handleAddToCart(product)}
                             disabled={remaining !== undefined && remaining <= 0}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-md font-medium"
+                            className="px-3 py-1.5 text-sm whitespace-nowrap bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-md font-medium"
                           >
                             {remaining !== undefined && remaining <= 0 ? 'Sold Out' : 'Add to Cart'}
                           </button>
