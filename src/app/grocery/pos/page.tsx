@@ -166,6 +166,17 @@ function GroceryPOSContent() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [productStatsMap, setProductStatsMap] = useState<Map<string, { soldToday: number; revenueToday: number; soldYesterday: number; soldDayBefore: number; firstSoldTodayAt: string | null }>>(new Map())
   const [deskSearchTerm, setDeskSearchTerm] = useState('')
+  // Anchors the sticky category/search bar (see deskStickyBarRef usage below) —
+  // typing a search term or switching category can shrink the result grid a
+  // lot while the page is scrolled down, and since the bar's own containing
+  // section shrinks with it, the still-stuck bar can end up overlapping the
+  // (now much shorter) first row of results instead of sitting above it.
+  // Scrolling back to the bar's own position whenever the filter changes
+  // keeps it aligned with the top of the grid instead of floating over it.
+  const deskStickyBarRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    deskStickyBarRef.current?.scrollIntoView({ block: 'start', behavior: 'auto' })
+  }, [deskSearchTerm, selectedCategory])
   const [deskProducts, setDeskProducts] = useState<POSItem[]>([])
   const [deskCategories, setDeskCategories] = useState<{ key: string; label: string; emoji: string; stockTotal: number }[]>([])
   const [deskProductsLoading, setDeskProductsLoading] = useState(true)
@@ -2877,6 +2888,7 @@ function GroceryPOSContent() {
         { label: 'Grocery', href: '/grocery' },
         { label: 'Point of Sale', isActive: true }
       ]}
+      showBackButton={false}
     >
       {/* Financial Summary moved into the grid left column — removed from here to prevent blank space above sidebar */}
       {false && (
@@ -3032,7 +3044,7 @@ function GroceryPOSContent() {
       )}
 
       {/* Quick Actions */}
-      <div className="mb-4 flex gap-3">
+      <div className="mb-2 flex gap-3">
         {!isMobile && (
           <button
             onClick={async () => {
@@ -3042,7 +3054,7 @@ function GroceryPOSContent() {
                 toast.error('Failed to open customer display. Please allow popups for this site.')
               }
             }}
-            className="inline-block px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg font-medium"
+            className="inline-block px-6 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg font-medium"
           >
             🖥️ Open Customer Display
           </button>
@@ -3051,7 +3063,7 @@ function GroceryPOSContent() {
         {(isAdmin || hasPermission('canViewWifiReports') || hasPermission('canAccessFinancialData')) && (
           <a
             href="/grocery/reports"
-            className="inline-block px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-md hover:shadow-lg font-medium"
+            className="inline-block px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-md hover:shadow-lg font-medium"
           >
             📊 View Sales Reports & Analytics
           </a>
@@ -3059,7 +3071,7 @@ function GroceryPOSContent() {
       </div>
 
       {/* Toolbar — mode toggle | view toggles */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
+      <div className="flex flex-wrap items-center gap-2 mb-2">
         {/* POS mode toggle (Live / Manual) */}
         {(isAdmin || hasPermission('canEnterManualOrders')) && (
           <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">
@@ -3531,7 +3543,7 @@ function GroceryPOSContent() {
               const activeTab = selectedCategory ?? '__all__'
 
               return (
-                <div className="sticky top-20 z-20 bg-white dark:bg-gray-800 pt-3 pb-3 border-b border-gray-200 dark:border-gray-700 mb-3">
+                <div ref={deskStickyBarRef} className="sticky top-20 z-20 bg-white dark:bg-gray-800 pt-3 pb-3 border-b border-gray-200 dark:border-gray-700 mb-3">
                   {/* Category tabs + More button */}
                   <div className="flex flex-wrap gap-2 mb-2">
                     {visibleTabs.map(tab => (
@@ -4075,7 +4087,12 @@ function GroceryPOSContent() {
         </div>
 
         {/* Sidebar - Customer & Payment */}
-        <div className="space-y-4 mt-4 lg:mt-0 sticky top-20 self-start">
+        {/* Bounded to the viewport with its own scroll (lg:max-h + overflow-y-auto) —
+            without this, a long cart (many items) plus Customer Info/Payment Method
+            content could grow taller than the screen, pushing the "Process Payment"
+            button below the fold with no reliable way to scroll to it on short
+            viewports (reported on 1280x768 displays). */}
+        <div className="space-y-4 mt-4 lg:mt-0 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-1">
           {/* Customer Info */}
           <div className="card p-4 sm:p-6">
             <CustomerLookup
