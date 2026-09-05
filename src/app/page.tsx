@@ -10,11 +10,12 @@ import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { CardScanOverlay } from '@/components/clock-in/card-scan-overlay'
 import { SwitchBusinessModal } from '@/components/electron/switch-business-modal'
+import { getDefaultPagePath } from '@/lib/business-default-pages'
 
 export default function HomePage() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const { currentBusinessId } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness, loading: businessLoading } = useBusinessPermissionsContext()
   const [isElectron, setIsElectron] = useState(false)
   const [showSwitchBusiness, setShowSwitchBusiness] = useState(false)
 
@@ -84,12 +85,18 @@ export default function HomePage() {
   }, [session, status, currentBusinessId, terminalId])
 
   useEffect(() => {
-    if (status === 'loading') return
+    if (status === 'loading' || !session) return
+    // Wait for the business memberships fetch so currentBusiness (and its
+    // defaultPage) is resolved before deciding where to land — otherwise
+    // this always fires first and sends every login to /dashboard,
+    // ignoring the business's configured default landing page entirely.
+    if (businessLoading) return
 
-    if (session) {
-      router.push('/dashboard')
-    }
-  }, [session, status, router])
+    const path = currentBusiness?.defaultPage
+      ? getDefaultPagePath(currentBusiness.businessType, currentBusiness.defaultPage)
+      : '/dashboard'
+    router.push(path)
+  }, [session, status, businessLoading, currentBusiness, router])
 
   if (status === 'loading') {
     return (
