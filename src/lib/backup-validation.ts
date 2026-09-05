@@ -256,8 +256,17 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'seedDataTemplates',
   'paymentNotes',
   'businessMemberships',
-  // Images — no businessId, keyed by id only
+  // Images — has a businessId column since MBM-294, but backup still collects
+  // by explicit reference (product/warehouse/category/receipt image ids), not
+  // by scanning businessId, so a strict per-business count would false-fail.
   'images',
+  // MBM-294: category reference image gallery — scoped by businessType via
+  // an unconditional findMany() (shared reference data, no businessId column,
+  // same pattern as inventoryDomains above).
+  'categoryReferenceImages',
+  // MBM-294: image<->tag join — no direct businessId column (scoped via its
+  // tag's businessId instead).
+  'imageTags',
   // Persons — global table
   'persons',
   // Expense account tables — backed up with findMany() (no business filter)

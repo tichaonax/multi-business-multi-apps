@@ -95,7 +95,6 @@ const RESTORE_ORDER = [
   'payrollTaxConstants',    // NSSA + AIDS Levy rates by year
 
   // Inventory and expense reference data
-  'inventoryDomains',
   'expenseDomains',
   'expenseCategories',
   'expenseSubcategories',
@@ -125,17 +124,29 @@ const RESTORE_ORDER = [
   'businessLocations',
   'businessBrands',
 
+  // Images (binary photos) — moved ahead of inventoryDomains/businessCategories/
+  // employees: MBM-294 added an optional inventoryDomains.iconImageId -> images
+  // FK, so images must exist before domains/categories do, in addition to the
+  // pre-existing "must come before employees which reference them" requirement.
+  'images',
+
+  // Inventory domains (top-level taxonomy tier) — depends on images (iconImageId, MBM-294)
+  'inventoryDomains',
+
   // Business categories and suppliers (shared data)
   'businessCategories',
   'businessSuppliers',
   'supplierRatings',          // Depends on businesses, businessSuppliers, users
   'inventorySubcategories',
 
+  // MBM-294: category reference image gallery + per-business tags — depend
+  // on businesses/images/businessCategories/inventorySubcategories above.
+  'categoryReferenceImages',
+  'tags',
+  'imageTags',
+
   // Persons (for various associations)
   'persons',
-
-  // Images (binary photos — must come before employees which reference them)
-  'images',
 
   // Employees and HR (two-pass: first without supervisorId, then update)
   'employees',
@@ -629,6 +640,10 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
 
   // EOD Allocation Skips: unique on (businessId, allocationType, configKey, eodDate)
   'eodAllocationSkips': { fields: ['businessId', 'allocationType', 'configKey', 'eodDate'] },
+
+  // MBM-294: Tags (unique per business+name), ImageTags (unique per image+tag)
+  'tags': { fields: ['businessId', 'name'] },
+  'imageTags': { fields: ['imageId', 'tagId'] },
 }
 
 // (Composite unique and child dependency configs removed — replaced by ID remapping approach)

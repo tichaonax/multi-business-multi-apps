@@ -109,6 +109,8 @@ const NEW_TABLE_KEYS = [
   'eodAllocationSkips',
   // Product Promotions (MBM-289)
   'productPromotions',
+  // Category Reference Images, Tags & Image Tags (MBM-294)
+  'categoryReferenceImages', 'tags', 'imageTags',
 ]
 
 async function main() {

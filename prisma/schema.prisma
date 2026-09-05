@@ -99,31 +99,32 @@ model BusinessBrands {
 }
 
 model BusinessCategories {
-  id                        String                   @id @default(uuid())
+  id                        String                    @id @default(uuid())
   businessId                String?
   name                      String
   description               String?
   parentId                  String?
-  displayOrder              Int                      @default(0)
-  isActive                  Boolean                  @default(true)
+  displayOrder              Int                       @default(0)
+  isActive                  Boolean                   @default(true)
   businessType              String
   attributes                Json?
-  createdAt                 DateTime                 @default(now())
+  createdAt                 DateTime                  @default(now())
   updatedAt                 DateTime
-  color                     String                   @default("#3B82F6")
+  color                     String                    @default("#3B82F6")
   createdBy                 String?
   domainId                  String?
-  emoji                     String                   @default("📦")
-  isUserCreated             Boolean                  @default(false)
-  businesses                Businesses?              @relation(fields: [businessId], references: [id])
-  users                     Users?                   @relation("CategoryCreatedBy", fields: [createdBy], references: [id])
-  domain                    InventoryDomains?        @relation(fields: [domainId], references: [id])
-  business_categories       BusinessCategories?      @relation("business_categoriesTobusiness_categories", fields: [parentId], references: [id])
-  other_business_categories BusinessCategories[]     @relation("business_categoriesTobusiness_categories")
+  emoji                     String                    @default("📦")
+  isUserCreated             Boolean                   @default(false)
+  businesses                Businesses?               @relation(fields: [businessId], references: [id])
+  users                     Users?                    @relation("CategoryCreatedBy", fields: [createdBy], references: [id])
+  domain                    InventoryDomains?         @relation(fields: [domainId], references: [id])
+  business_categories       BusinessCategories?       @relation("business_categoriesTobusiness_categories", fields: [parentId], references: [id])
+  other_business_categories BusinessCategories[]      @relation("business_categoriesTobusiness_categories")
   business_products         BusinessProducts[]
   barcode_inventory_items   BarcodeInventoryItems[]
   inventory_subcategories   InventorySubcategories[]
-  customBulkProducts        CustomBulkProducts[]     @relation("CustomBulkCategory")
+  customBulkProducts        CustomBulkProducts[]      @relation("CustomBulkCategory")
+  category_reference_images CategoryReferenceImages[]
 
   @@unique([businessType, domainId, name])
   @@index([businessType])
@@ -585,7 +586,7 @@ model Businesses {
   reprint_logs                                                             ReprintLog[]
   saved_reports                                                            SavedReports[]
   scale_device_configs                                                     ScaleDeviceConfigs[]              @relation("ScaleDeviceConfigToBusiness")
-  qz_printer_configs                                                        QzPrinterConfigs[]
+  qz_printer_configs                                                       QzPrinterConfigs[]
   default_receipt_printer_configs                                          DefaultReceiptPrinterConfigs[]
   print_terminals                                                          PrintTerminals[]                  @relation("PrintTerminalToBusiness")
   workstation_agents                                                       WorkstationAgents[]               @relation("WorkstationAgentToBusiness")
@@ -618,7 +619,7 @@ model Businesses {
   payment_batch_submissions                                                PaymentBatchSubmissions[]         @relation("BusinessPaymentBatches")
   eod_payment_batches                                                      EODPaymentBatch[]                 @relation("BusinessEODPaymentBatches")
   cash_bucket_entries                                                      CashBucketEntry[]                 @relation("BusinessCashBucket")
-  eod_allocation_skips                                                     EodAllocationSkips[]               @relation("BusinessEodAllocationSkips")
+  eod_allocation_skips                                                     EodAllocationSkips[]              @relation("BusinessEodAllocationSkips")
   per_diem_entries                                                         PerDiemEntries[]                  @relation("PerDiemBusiness")
   target_config                                                            BusinessTargetConfig?             @relation("BusinessTargetConfig")
   target_commitments                                                       BusinessTargetCommitment[]        @relation("BusinessTargetCommitments")
@@ -663,6 +664,8 @@ model Businesses {
   vehicle_service_jobs                                                     VehicleServiceJobs[]
   vehicle_service_contractor_payouts                                       VehicleServiceContractorPayouts[]
   vehicle_service_labour_rates                                             VehicleServiceLabourRates[]
+  images                                                                   Images[]
+  tags                                                                     Tags[]
 
   @@map("businesses")
 }
@@ -1813,15 +1816,15 @@ model ExpensePaymentReceipts {
   // MBM-286: expense/payment type — same reusable taxonomy already used by
   // ComboPaymentRequestItems, PersonalExpenses, etc., just never wired to
   // the actual per-receipt capture screen until now.
-  categoryId    String? @map("category_id")
-  subcategoryId String? @map("subcategory_id")
+  categoryId      String?   @map("category_id")
+  subcategoryId   String?   @map("subcategory_id")
   // MBM-286: optional link to which planned combo-pay line item this
   // receipt settles — informational only (for reporting "was every planned
   // item eventually receipted"), never a per-item amount cap. A receipt
   // covering several planned items, or several receipts settling one
   // planned item from different suppliers, are both fully supported by
   // leaving this null or picking whichever item makes sense.
-  comboItemId   String? @map("combo_item_id")
+  comboItemId     String?   @map("combo_item_id")
   // MBM-286: only ever set together, only by a cashier/admin, only when a
   // receipt that would push the payment's total over its expected amount
   // is deliberately saved anyway (see the over-limit check in the receipts
@@ -1830,16 +1833,16 @@ model ExpensePaymentReceipts {
   overrideBy      String?   @map("override_by")
   overrideAt      DateTime? @map("override_at")
 
-  expensePayment ExpenseAccountPayments     @relation(fields: [expensePaymentId], references: [id], onDelete: Cascade)
-  payeePerson    Persons?                   @relation("ReceiptPayeePerson", fields: [payeePersonId], references: [id])
-  payeeBusiness  Businesses?                @relation("ReceiptPayeeBusiness", fields: [payeeBusinessId], references: [id])
-  payeeSupplier  BusinessSuppliers?         @relation("ReceiptPayeeSupplier", fields: [payeeSupplierId], references: [id])
-  creator        Users                      @relation("ReceiptCreator", fields: [createdBy], references: [id])
-  image          Images?                    @relation("ReceiptImage", fields: [imageId], references: [id])
-  category       ExpenseCategories?         @relation("ReceiptCategory", fields: [categoryId], references: [id])
-  subcategory    ExpenseSubcategories?      @relation("ReceiptSubcategory", fields: [subcategoryId], references: [id])
-  comboItem      ComboPaymentRequestItems?  @relation("ReceiptComboItem", fields: [comboItemId], references: [id], onDelete: SetNull)
-  overrideByUser Users?                     @relation("ReceiptOverrideBy", fields: [overrideBy], references: [id])
+  expensePayment ExpenseAccountPayments    @relation(fields: [expensePaymentId], references: [id], onDelete: Cascade)
+  payeePerson    Persons?                  @relation("ReceiptPayeePerson", fields: [payeePersonId], references: [id])
+  payeeBusiness  Businesses?               @relation("ReceiptPayeeBusiness", fields: [payeeBusinessId], references: [id])
+  payeeSupplier  BusinessSuppliers?        @relation("ReceiptPayeeSupplier", fields: [payeeSupplierId], references: [id])
+  creator        Users                     @relation("ReceiptCreator", fields: [createdBy], references: [id])
+  image          Images?                   @relation("ReceiptImage", fields: [imageId], references: [id])
+  category       ExpenseCategories?        @relation("ReceiptCategory", fields: [categoryId], references: [id])
+  subcategory    ExpenseSubcategories?     @relation("ReceiptSubcategory", fields: [subcategoryId], references: [id])
+  comboItem      ComboPaymentRequestItems? @relation("ReceiptComboItem", fields: [comboItemId], references: [id], onDelete: SetNull)
+  overrideByUser Users?                    @relation("ReceiptOverrideBy", fields: [overrideBy], references: [id])
 
   @@index([expensePaymentId], map: "idx_expense_payment_receipts_payment_id")
   @@index([payeePersonId], map: "idx_expense_payment_receipts_person_id")
@@ -2245,31 +2248,94 @@ model EmojiLookup {
 }
 
 model Images {
-  id                       String                   @id @default(uuid())
-  data                     Bytes
-  mimeType                 String                   @default("image/jpeg")
-  size                     Int
-  expiresAt                DateTime?
-  createdAt                DateTime                 @default(now())
-  product_images           ProductImages[]
-  warehouse_items          WarehouseItems[]
-  barcode_inventory_items  BarcodeInventoryItems[]
-  display_product_configs  DisplayProductConfig[]   @relation("DisplayAdImage")
-  expense_payment_receipts ExpensePaymentReceipts[] @relation("ReceiptImage")
+  id                        String                    @id @default(uuid())
+  data                      Bytes
+  mimeType                  String                    @default("image/jpeg")
+  size                      Int
+  expiresAt                 DateTime?
+  createdAt                 DateTime                  @default(now())
+  businessId                String?
+  uploadedBy                String?
+  product_images            ProductImages[]
+  warehouse_items           WarehouseItems[]
+  barcode_inventory_items   BarcodeInventoryItems[]
+  display_product_configs   DisplayProductConfig[]    @relation("DisplayAdImage")
+  expense_payment_receipts  ExpensePaymentReceipts[]  @relation("ReceiptImage")
+  inventory_domains         InventoryDomains[]        @relation("DomainIconImage")
+  category_reference_images CategoryReferenceImages[]
+  image_tags                ImageTags[]
+  businesses                Businesses?               @relation(fields: [businessId], references: [id])
+  uploader                  Users?                    @relation("ImageUploadedBy", fields: [uploadedBy], references: [id])
 
+  @@index([businessId])
   @@map("images")
 }
 
+model CategoryReferenceImages {
+  id             String                  @id @default(uuid())
+  imageId        String
+  domainId       String?
+  categoryId     String?
+  subcategoryId  String?
+  businessType   String
+  sourceUrl      String?
+  isUserUploaded Boolean                 @default(false)
+  createdBy      String?
+  createdAt      DateTime                @default(now())
+  images         Images                  @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  domain         InventoryDomains?       @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  category       BusinessCategories?     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  subcategory    InventorySubcategories? @relation(fields: [subcategoryId], references: [id], onDelete: Cascade)
+  users          Users?                  @relation("CategoryReferenceImageCreatedBy", fields: [createdBy], references: [id])
+
+  @@index([businessType])
+  @@index([domainId])
+  @@index([categoryId])
+  @@index([subcategoryId])
+  @@index([imageId])
+  @@map("category_reference_images")
+}
+
+model Tags {
+  id         String      @id @default(uuid())
+  businessId String
+  name       String
+  createdBy  String?
+  createdAt  DateTime    @default(now())
+  businesses Businesses  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  users      Users?      @relation("TagCreatedBy", fields: [createdBy], references: [id])
+  image_tags ImageTags[]
+
+  @@unique([businessId, name])
+  @@map("tags")
+}
+
+model ImageTags {
+  id        String   @id @default(uuid())
+  imageId   String
+  tagId     String
+  createdAt DateTime @default(now())
+  images    Images   @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  tags      Tags     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([imageId, tagId])
+  @@index([tagId])
+  @@map("image_tags")
+}
+
 model InventoryDomains {
-  id                  String               @id @default(uuid())
-  name                String
-  emoji               String
-  description         String?
-  businessType        String
-  isActive            Boolean              @default(true)
-  isSystemTemplate    Boolean              @default(false)
-  createdAt           DateTime             @default(now())
-  business_categories BusinessCategories[]
+  id                        String                    @id @default(uuid())
+  name                      String
+  emoji                     String
+  description               String?
+  businessType              String
+  isActive                  Boolean                   @default(true)
+  isSystemTemplate          Boolean                   @default(false)
+  createdAt                 DateTime                  @default(now())
+  iconImageId               String?
+  icon_image                Images?                   @relation("DomainIconImage", fields: [iconImageId], references: [id])
+  business_categories       BusinessCategories[]
+  category_reference_images CategoryReferenceImages[]
 
   @@unique([name, businessType])
   @@map("inventory_domains")
@@ -2293,6 +2359,7 @@ model InventorySubcategories {
   vehicle_service_contractor_services VehicleServiceContractorServices[]
   vehicle_service_tasks               VehicleServiceTasks[]
   vehicle_service_labour_rates        VehicleServiceLabourRates[]
+  category_reference_images           CategoryReferenceImages[]
 
   @@unique([categoryId, name])
   @@map("inventory_subcategories")
@@ -3538,26 +3605,26 @@ model SyncSessions {
 }
 
 model NetworkPrinters {
-  id                 String             @id @default(uuid())
-  printerId          String             @unique
-  printerName        String
-  printerType        String
-  nodeId             String
-  ipAddress          String?
-  port               Int?
-  capabilities       Json?
-  isShareable        Boolean            @default(false)
-  isOnline           Boolean            @default(true)
-  lastSeen           DateTime           @default(now())
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @default(now()) @updatedAt
-  receiptWidth       Int?               @default(48)
+  id                              String                         @id @default(uuid())
+  printerId                       String                         @unique
+  printerName                     String
+  printerType                     String
+  nodeId                          String
+  ipAddress                       String?
+  port                            Int?
+  capabilities                    Json?
+  isShareable                     Boolean                        @default(false)
+  isOnline                        Boolean                        @default(true)
+  lastSeen                        DateTime                       @default(now())
+  createdAt                       DateTime                       @default(now())
+  updatedAt                       DateTime                       @default(now()) @updatedAt
+  receiptWidth                    Int?                           @default(48)
   // MBM-275: DIRECT (existing behavior — server calls printRawData() itself,
   // unchanged for every printer that exists today) vs AGENT (new — job is
   // relayed to the paired workstation agent, which prints locally). Every
   // pre-existing row defaults to DIRECT; AGENT is opt-in per printer.
-  connectionMode     String             @default("DIRECT")
-  workstationAgentId String?
+  connectionMode                  String                         @default("DIRECT")
+  workstationAgentId              String?
   // MBM-283 Phase 2: only meaningful for AGENT-mode printers — gates
   // whether this printer is offered/dispatchable for mobile/cross-
   // workstation printing, on top of the existing same-business check
@@ -3568,7 +3635,7 @@ model NetworkPrinters {
   // printing (which has always meant "any device in this business can use
   // it," see MBM-283's finding #6) keeps working unchanged. Only brand-new
   // AGENT configurations are opt-in going forward.
-  remoteEnabled      Boolean            @default(false)
+  remoteEnabled                   Boolean                        @default(false)
   // MBM-283 follow-up: independent from remoteEnabled/"share" above.
   // remotePrintingEnabled = does the centralized server relay jobs to this
   // printer through its workstation's agent AT ALL (the original MBM-275
@@ -3582,11 +3649,11 @@ model NetworkPrinters {
   // unreachable, name/share setting remembered) without ever changing
   // connectionMode. Defaults true so every pre-existing AGENT printer keeps
   // working unchanged.
-  remotePrintingEnabled Boolean          @default(true)
-  barcode_print_jobs BarcodePrintJobs[]
-  sync_nodes         SyncNodes          @relation(fields: [nodeId], references: [nodeId])
-  print_jobs         PrintJobs[]
-  workstation_agent  WorkstationAgents? @relation(fields: [workstationAgentId], references: [id])
+  remotePrintingEnabled           Boolean                        @default(true)
+  barcode_print_jobs              BarcodePrintJobs[]
+  sync_nodes                      SyncNodes                      @relation(fields: [nodeId], references: [nodeId])
+  print_jobs                      PrintJobs[]
+  workstation_agent               WorkstationAgents?             @relation(fields: [workstationAgentId], references: [id])
   default_receipt_printer_configs DefaultReceiptPrinterConfigs[]
 
   @@index([nodeId])
@@ -3711,9 +3778,9 @@ model Users {
   r710_remote_agents_paired                                       R710RemoteAgents[]                @relation("R710AgentPairedBy")
   r710_token_sales                                                R710TokenSales[]                  @relation("R710TokenSaleSeller")
   reprint_logs                                                    ReprintLog[]
-  qz_printer_configs_updated                                       QzPrinterConfigs[]               @relation("QzPrinterConfigUpdatedBy")
-  default_receipt_printer_configs_updated                          DefaultReceiptPrinterConfigs[]    @relation("DefaultReceiptPrinterConfigUpdatedBy")
-  print_terminals_registered                                       PrintTerminals[]                  @relation("PrintTerminalRegisteredBy")
+  qz_printer_configs_updated                                      QzPrinterConfigs[]                @relation("QzPrinterConfigUpdatedBy")
+  default_receipt_printer_configs_updated                         DefaultReceiptPrinterConfigs[]    @relation("DefaultReceiptPrinterConfigUpdatedBy")
+  print_terminals_registered                                      PrintTerminals[]                  @relation("PrintTerminalRegisteredBy")
   workstation_agents_paired                                       WorkstationAgents[]               @relation("WorkstationAgentPairedBy")
   saved_reports                                                   SavedReports[]
   cash_counted_amendments                                         SavedReports[]                    @relation("CashCountedAmendment")
@@ -3763,7 +3830,7 @@ model Users {
   cash_bucket_entries_created                                     CashBucketEntry[]                 @relation("CashBucketEntryCreator")
   cash_bucket_entries_edited                                      CashBucketEntry[]                 @relation("CashBucketEntryEditor")
   cash_bucket_entries_deleted                                     CashBucketEntry[]                 @relation("CashBucketEntryDeleter")
-  eod_allocation_skips_created                                     EodAllocationSkips[]              @relation("EodAllocationSkipCreator")
+  eod_allocation_skips_created                                    EodAllocationSkips[]              @relation("EodAllocationSkipCreator")
   cash_allocation_items_checked                                   CashAllocationLineItem[]          @relation("CashAllocationItemChecker")
   petty_cash_requests_submitted                                   PettyCashRequests[]               @relation("PettyCashRequester")
   petty_cash_requests_approved                                    PettyCashRequests[]               @relation("PettyCashApprover")
@@ -3831,6 +3898,9 @@ model Users {
   vehicle_service_contractor_payouts_created                      VehicleServiceContractorPayouts[]
   vehicle_service_jobs_released                                   VehicleServiceJobs[]              @relation("VehicleServiceJobReleasedBy")
   vehicle_service_parts_requests_reviewed                         VehicleServicePartsRequests[]     @relation("PartsRequestReviewer")
+  images_uploaded                                                 Images[]                          @relation("ImageUploadedBy")
+  category_reference_images_created                               CategoryReferenceImages[]         @relation("CategoryReferenceImageCreatedBy")
+  tags_created                                                    Tags[]                            @relation("TagCreatedBy")
 
   @@map("users")
 }
@@ -4623,9 +4693,9 @@ model R710SyncLogs {
 // R710 pairing is intentionally left on its own R710RemoteAgents row for
 // now, see MBM-275 plan Section 5a, to avoid touching stable R710 code).
 model WorkstationAgents {
-  id               String                           @id @default(uuid())
-  businessId       String
-  label            String
+  id                              String                           @id @default(uuid())
+  businessId                      String
+  label                           String
   // MBM-283 follow-up: the machine's actual OS hostname (os.hostname(),
   // sent as hostLabel in every connect handshake — see socket-client.ts /
   // workstation-socket-client.ts) — was already arriving on every connect
@@ -4633,24 +4703,24 @@ model WorkstationAgents {
   // typed at pairing time with no uniqueness enforced, so two workstations
   // can end up with the same label; hostname is what actually disambiguates
   // them in a picker that lists several workstations for one business.
-  hostname         String?
-  agentTokenHash   String
-  agentVersion     String?
-  autoStartEnabled Boolean?
-  connectionStatus WorkstationAgentConnectionStatus @default(OFFLINE)
-  lastConnectedAt  DateTime?
-  lastSeenAt       DateTime?
-  lastError        String?
-  pairedBy         String
-  createdAt        DateTime                         @default(now())
-  revokedAt        DateTime?
-  revokedBy        String?
-  businesses       Businesses                       @relation("WorkstationAgentToBusiness", fields: [businessId], references: [id], onDelete: Cascade)
-  pairer           Users                            @relation("WorkstationAgentPairedBy", fields: [pairedBy], references: [id])
-  scale_configs    ScaleDeviceConfigs[]
-  network_printers NetworkPrinters[]
-  request_logs     WorkstationAgentRequestLog[]
-  qz_printer_configs QzPrinterConfigs[]
+  hostname                        String?
+  agentTokenHash                  String
+  agentVersion                    String?
+  autoStartEnabled                Boolean?
+  connectionStatus                WorkstationAgentConnectionStatus @default(OFFLINE)
+  lastConnectedAt                 DateTime?
+  lastSeenAt                      DateTime?
+  lastError                       String?
+  pairedBy                        String
+  createdAt                       DateTime                         @default(now())
+  revokedAt                       DateTime?
+  revokedBy                       String?
+  businesses                      Businesses                       @relation("WorkstationAgentToBusiness", fields: [businessId], references: [id], onDelete: Cascade)
+  pairer                          Users                            @relation("WorkstationAgentPairedBy", fields: [pairedBy], references: [id])
+  scale_configs                   ScaleDeviceConfigs[]
+  network_printers                NetworkPrinters[]
+  request_logs                    WorkstationAgentRequestLog[]
+  qz_printer_configs              QzPrinterConfigs[]
   default_receipt_printer_configs DefaultReceiptPrinterConfigs[]
 
   @@index([businessId])
@@ -4695,16 +4765,16 @@ model WorkstationAgentRequestLog {
 // and the row acts as a business-wide default/fallback — matching a small,
 // single-terminal business that only ever has one printer.
 model QzPrinterConfigs {
-  id                 String              @id @default(uuid())
+  id                 String             @id @default(uuid())
   businessId         String
   workstationAgentId String?
   printerName        String
   updatedBy          String
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  businesses         Businesses          @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  workstation_agent  WorkstationAgents?  @relation(fields: [workstationAgentId], references: [id], onDelete: SetNull)
-  updater            Users               @relation("QzPrinterConfigUpdatedBy", fields: [updatedBy], references: [id])
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  businesses         Businesses         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  workstation_agent  WorkstationAgents? @relation(fields: [workstationAgentId], references: [id], onDelete: SetNull)
+  updater            Users              @relation("QzPrinterConfigUpdatedBy", fields: [updatedBy], references: [id])
 
   @@index([businessId])
   @@index([workstationAgentId])
@@ -4722,14 +4792,14 @@ model QzPrinterConfigs {
 // token, no pairing handshake, no port 47710 involved anywhere; the
 // browser that registers just stores the returned id in localStorage.
 model PrintTerminals {
-  id           String    @id @default(uuid())
-  businessId   String
-  label        String
-  registeredBy String
-  createdAt    DateTime  @default(now())
-  lastSeenAt   DateTime?
-  businesses   Businesses @relation("PrintTerminalToBusiness", fields: [businessId], references: [id], onDelete: Cascade)
-  registerer   Users      @relation("PrintTerminalRegisteredBy", fields: [registeredBy], references: [id])
+  id                              String                         @id @default(uuid())
+  businessId                      String
+  label                           String
+  registeredBy                    String
+  createdAt                       DateTime                       @default(now())
+  lastSeenAt                      DateTime?
+  businesses                      Businesses                     @relation("PrintTerminalToBusiness", fields: [businessId], references: [id], onDelete: Cascade)
+  registerer                      Users                          @relation("PrintTerminalRegisteredBy", fields: [registeredBy], references: [id])
   default_receipt_printer_configs DefaultReceiptPrinterConfigs[]
 
   @@index([businessId])
@@ -4751,19 +4821,19 @@ model PrintTerminals {
 // mirroring how QzPrinterConfigs already keeps this kind of thing simple).
 // Both null = the business-wide fallback, tried last.
 model DefaultReceiptPrinterConfigs {
-  id                 String              @id @default(uuid())
+  id                 String             @id @default(uuid())
   businessId         String
   workstationAgentId String?
   printTerminalId    String?
   printerId          String
   updatedBy          String
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  businesses         Businesses          @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  workstation_agent  WorkstationAgents?  @relation(fields: [workstationAgentId], references: [id], onDelete: Cascade)
-  print_terminal     PrintTerminals?     @relation(fields: [printTerminalId], references: [id], onDelete: Cascade)
-  printer            NetworkPrinters     @relation(fields: [printerId], references: [id], onDelete: Cascade)
-  updater            Users               @relation("DefaultReceiptPrinterConfigUpdatedBy", fields: [updatedBy], references: [id])
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  businesses         Businesses         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  workstation_agent  WorkstationAgents? @relation(fields: [workstationAgentId], references: [id], onDelete: Cascade)
+  print_terminal     PrintTerminals?    @relation(fields: [printTerminalId], references: [id], onDelete: Cascade)
+  printer            NetworkPrinters    @relation(fields: [printerId], references: [id], onDelete: Cascade)
+  updater            Users              @relation("DefaultReceiptPrinterConfigUpdatedBy", fields: [updatedBy], references: [id])
 
   @@index([businessId])
   @@index([workstationAgentId])
@@ -6200,34 +6270,34 @@ model ExpenseAccountAutoDeposit {
 // for the full design — formulas, permission model, rollout phases.
 
 model BusinessTargetConfig {
-  id                           String    @id @default(uuid())
-  businessId                   String    @unique
-  isEnabled                    Boolean   @default(false)
-  bufferType                   String    @default("PERCENT") // "PERCENT" | "FIXED"
-  bufferValue                  Decimal   @default(10) @db.Decimal(6, 2) // 10 = 10%, or a flat $ amount when bufferType = FIXED
+  id                                  String    @id @default(uuid())
+  businessId                          String    @unique
+  isEnabled                           Boolean   @default(false)
+  bufferType                          String    @default("PERCENT") // "PERCENT" | "FIXED"
+  bufferValue                         Decimal   @default(10) @db.Decimal(6, 2) // 10 = 10%, or a flat $ amount when bufferType = FIXED
   // Cached results of the last calculation — refreshed by the nightly job
   // and the on-demand recalculate endpoint, never computed inline on every
   // POS page load.
-  minimumRequiredMonthlyTarget Decimal?  @db.Decimal(12, 2)
-  recommendedMonthlyTarget     Decimal?  @db.Decimal(12, 2)
+  minimumRequiredMonthlyTarget        Decimal?  @db.Decimal(12, 2)
+  recommendedMonthlyTarget            Decimal?  @db.Decimal(12, 2)
   // The figure actually driving the POS display — only ever changed by an
   // explicit user action (accepting the recommendation or overriding it),
   // never silently overwritten by the nightly recalculation.
-  approvedMonthlyTarget        Decimal?  @db.Decimal(12, 2)
-  lastCalculatedAt             DateTime?
+  approvedMonthlyTarget               Decimal?  @db.Decimal(12, 2)
+  lastCalculatedAt                    DateTime?
   // Manual overrides for the 3 minimum-target lines that are normally
   // computed live (rent, payroll, recurring commitments) — e.g. payroll
   // fluctuates and the live EmployeeContracts figure may lag a known raise.
   // Each is optional; when set it must be >= the live-computed value for
   // that line (enforced at the API), so an override can only raise the
   // minimum target, never understate it. Null = use the live-computed value.
-  rentMonthlyOverride                  Decimal? @db.Decimal(12, 2)
-  payrollMonthlyOverride               Decimal? @db.Decimal(12, 2)
-  recurringCommitmentsMonthlyOverride  Decimal? @db.Decimal(12, 2)
-  createdBy                    String
-  updatedBy                    String?
-  createdAt                    DateTime  @default(now())
-  updatedAt                    DateTime  @default(now()) @updatedAt
+  rentMonthlyOverride                 Decimal?  @db.Decimal(12, 2)
+  payrollMonthlyOverride              Decimal?  @db.Decimal(12, 2)
+  recurringCommitmentsMonthlyOverride Decimal?  @db.Decimal(12, 2)
+  createdBy                           String
+  updatedBy                           String?
+  createdAt                           DateTime  @default(now())
+  updatedAt                           DateTime  @default(now()) @updatedAt
 
   business Businesses @relation("BusinessTargetConfig", fields: [businessId], references: [id], onDelete: Cascade)
   creator  Users      @relation("BusinessTargetConfigCreator", fields: [createdBy], references: [id])
@@ -6605,11 +6675,11 @@ model CashBucketEntry {
 model EodAllocationSkips {
   id             String    @id @default(uuid())
   businessId     String
-  allocationType String    // 'RENT' | 'AUTO_DEPOSIT' | 'PAYROLL'
+  allocationType String // 'RENT' | 'AUTO_DEPOSIT' | 'PAYROLL'
   // Join key back to the specific config: rent/auto-deposit use expenseAccountId;
   // payroll (a global, not per-business, account) uses the fixed sentinel below.
   configKey      String
-  accountName    String    // denormalized label for display without re-joining every render
+  accountName    String // denormalized label for display without re-joining every render
   eodDate        DateTime  @db.Date
   amountSkipped  Decimal   @db.Decimal(12, 2)
   amountCaughtUp Decimal   @default(0) @db.Decimal(12, 2)

@@ -1624,6 +1624,18 @@ export async function createCleanBackup(
     where: { businessId: { in: businessIds } }
   })
 
+  // 65. Category Reference Images, Tags & Image Tags (MBM-294) - NEW
+  // categoryReferenceImages is shared/global reference data (scoped by
+  // businessType, not businessId — mirrors inventoryDomains/inventorySubcategories
+  // above), so it's collected unconditionally like they are.
+  businessData.categoryReferenceImages = await prisma.categoryReferenceImages.findMany()
+  businessData.tags = await prisma.tags.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.imageTags = await prisma.imageTags.findMany({
+    where: { tags: { businessId: { in: businessIds } } }
+  })
+
   // Extend image backup: warehouse images + product_images + inventory display images + ad images
   const warehouseImageIds = businessData.warehouseItems
     .map((i: any) => i.imageId)
@@ -1641,12 +1653,26 @@ export async function createCleanBackup(
   const displayAdImageIds = (businessData.displayProductConfigs as any[] || [])
     .map((c: any) => c.advertisingImageId)
     .filter((id: any) => typeof id === 'string' && id.length > 0)
+  // Expense payment receipt attachments (imageId added in MBM-271) — the one
+  // relation on the Images model that wasn't already covered by this block
+  // (MBM-294 audit).
+  const receiptImageIds = (businessData.expensePaymentReceipts as any[] || [])
+    .map((r: any) => r.imageId)
+    .filter((id: any) => typeof id === 'string' && id.length > 0)
+  // Category reference gallery images (MBM-294) — these can exist before any
+  // product ever uses them, so they must be captured here too, not just via
+  // productImageRefs above.
+  const categoryReferenceImageIds = (businessData.categoryReferenceImages as any[] || [])
+    .map((c: any) => c.imageId)
+    .filter((id: any) => typeof id === 'string' && id.length > 0)
   const extendedImageIds = [...new Set([
     ...(businessData.images || []).map((i: any) => i.id),
     ...warehouseImageIds,
     ...productImageRefs,
     ...inventoryDisplayImageIds,
     ...displayAdImageIds,
+    ...receiptImageIds,
+    ...categoryReferenceImageIds,
   ])]
   if (extendedImageIds.length > (businessData.images || []).length) {
     const alreadyFetched = new Set((businessData.images || []).map((i: any) => i.id))
@@ -1716,7 +1742,7 @@ export async function createCleanBackup(
       deviceRecords,
       uncompressedSize
     },
-    schemaVersion: '6.39.0',
+    schemaVersion: '6.40.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum
