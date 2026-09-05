@@ -14,7 +14,16 @@ export async function PATCH(
 
   const { id } = await params
 
-  const existing = await prisma.barcodeInventoryItems.findUnique({ where: { id }, select: { businessId: true } })
+  const existing = await prisma.barcodeInventoryItems.findUnique({
+    where: { id },
+    select: {
+      businessId: true,
+      categoryId: true,
+      subcategoryId: true,
+      domainId: true,
+      business_category: { select: { businessType: true } },
+    },
+  })
   if (!existing) return NextResponse.json({ error: 'Item not found' }, { status: 404 })
 
   const canEdit = user.role === 'admin' ||
@@ -29,6 +38,31 @@ export async function PATCH(
     data: { imageId: imageId ?? null },
     select: { id: true, imageId: true },
   })
+
+  // A freshly uploaded (or freshly re-used) display image is also added to
+  // the category's reference-image pool (MBM-294 §3.3/§3.4), so it becomes
+  // (or stays) reusable via "Choose from Gallery" for other items in the
+  // same category. Skipped if a row already exists for this image+category
+  // pair — e.g. it was just picked FROM that same gallery.
+  if (imageId && existing.categoryId) {
+    const already = await prisma.categoryReferenceImages.findFirst({
+      where: { imageId, categoryId: existing.categoryId },
+      select: { id: true },
+    })
+    if (!already) {
+      await prisma.categoryReferenceImages.create({
+        data: {
+          imageId,
+          categoryId: existing.categoryId,
+          subcategoryId: existing.subcategoryId ?? null,
+          domainId: existing.domainId ?? null,
+          businessType: existing.business_category?.businessType || 'grocery',
+          isUserUploaded: true,
+          createdBy: user.id,
+        },
+      }).catch(() => {})
+    }
+  }
 
   return NextResponse.json({ success: true, item })
 }

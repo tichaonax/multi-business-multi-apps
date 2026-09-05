@@ -45,13 +45,24 @@ interface Props {
  * Numbers page already uses for BusinessProducts, and the generic image-upload +
  * display-image PATCH flow for BarcodeInventoryItems.
  */
+interface GalleryImage {
+  id: string
+  imageId: string
+  url: string
+}
+
 export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, currentImageUrl, onClose, onSaved }: Props) {
   const toast = useToastContext()
   const [uploading, setUploading] = useState(false)
   const [copying, setCopying] = useState(false)
   const [pasting, setPasting] = useState(false)
+  const [view, setView] = useState<'main' | 'gallery'>('main')
+  const [galleryLoading, setGalleryLoading] = useState(false)
+  const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([])
+  const [galleryTier, setGalleryTier] = useState<'subcategory' | 'category' | 'domain' | null>(null)
+  const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(new Set())
 
-  useClipboardImagePaste(handleFile, !uploading)
+  useClipboardImagePaste(handleFile, !uploading && view === 'main')
 
   async function handleCopyImage() {
     if (!currentImageUrl) return
@@ -222,6 +233,167 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
     }
   }
 
+  async function openGallery() {
+    setView('gallery')
+    setSelectedImageIds(new Set())
+    setGalleryLoading(true)
+    try {
+      const res = await fetch(`/api/pos/quick-edit/gallery-images?sourceTable=${sourceTable}&itemId=${itemId}`)
+      const data = await res.json().catch(() => ({}))
+      setGalleryImages(res.ok ? (data.images ?? []) : [])
+      setGalleryTier(data.tier ?? null)
+    } catch {
+      setGalleryImages([])
+      setGalleryTier(null)
+    } finally {
+      setGalleryLoading(false)
+    }
+  }
+
+  function toggleGallerySelection(imageId: string) {
+    setSelectedImageIds(prev => {
+      const next = new Set(prev)
+      if (next.has(imageId)) next.delete(imageId)
+      else next.add(imageId)
+      return next
+    })
+  }
+
+  // BARCODE_ITEM only has one display-image slot — clicking a thumbnail
+  // applies it immediately instead of requiring a separate "Add" step.
+  async function handleGalleryApplyBarcode(imageId: string, url: string) {
+    setUploading(true)
+    try {
+      const patchRes = await fetch(`/api/grocery/inventory/${itemId}/display-image`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageId }),
+      })
+      if (!patchRes.ok) {
+        const errBody = await patchRes.json().catch(() => ({}))
+        throw new Error(errBody.error ?? `Failed to save image (${patchRes.status})`)
+      }
+
+      fetch('/api/pos/quick-edit/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId, itemId, sourceTable, field: 'imageUrl',
+          oldValue: currentImageUrl, newValue: url,
+        }),
+      }).catch(() => {})
+
+      toast.push('Image updated')
+      onSaved(url)
+    } catch (e: any) {
+      toast.error(e.message ?? 'Failed to update image')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  // BUSINESS_PRODUCT supports multiple images per product — the first
+  // selection becomes the primary (shown on the POS card), the rest are
+  // attached as additional product images.
+  async function handleGalleryAttachProduct() {
+    if (selectedImageIds.size === 0) return
+    setUploading(true)
+    try {
+      const res = await fetch(`/api/universal/products/${itemId}/images/from-gallery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageIds: Array.from(selectedImageIds) }),
+      })
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}))
+        throw new Error(errBody.error ?? `Failed to add images (${res.status})`)
+      }
+      const { primaryImageUrl } = await res.json()
+
+      fetch('/api/pos/quick-edit/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId, itemId, sourceTable, field: 'imageUrl',
+          oldValue: currentImageUrl, newValue: primaryImageUrl,
+        }),
+      }).catch(() => {})
+
+      toast.push(selectedImageIds.size > 1 ? 'Images added' : 'Image added')
+      onSaved(primaryImageUrl)
+    } catch (e: any) {
+      toast.error(e.message ?? 'Failed to add images')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  if (view === 'gallery') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+        <div className="card w-full max-w-md p-5 space-y-4" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-primary truncate">🖼 Choose from Gallery</h3>
+            <button onClick={onClose} className="text-secondary hover:text-primary text-lg leading-none">✕</button>
+          </div>
+
+          {galleryLoading ? (
+            <p className="text-sm text-center text-secondary py-8">Loading…</p>
+          ) : galleryImages.length === 0 ? (
+            <p className="text-sm text-center text-secondary py-8">
+              No gallery images yet for this category — upload one and it'll appear here for reuse.
+            </p>
+          ) : (
+            <>
+              {galleryTier && galleryTier !== 'subcategory' && (
+                <p className="text-xs text-secondary text-center">
+                  Showing images from this item's {galleryTier === 'category' ? 'category' : 'general product area'}.
+                </p>
+              )}
+              <div className="grid grid-cols-4 gap-2 max-h-72 overflow-y-auto">
+                {galleryImages.map(img => {
+                  const selected = selectedImageIds.has(img.imageId)
+                  return (
+                    <button
+                      key={img.id}
+                      type="button"
+                      disabled={uploading}
+                      onClick={() => sourceTable === 'BUSINESS_PRODUCT'
+                        ? toggleGallerySelection(img.imageId)
+                        : handleGalleryApplyBarcode(img.imageId, img.url)}
+                      className={`relative aspect-square rounded-lg overflow-hidden border-2 disabled:opacity-50 ${
+                        selected ? 'border-blue-600' : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'
+                      }`}
+                    >
+                      <img src={img.url} alt="" className="w-full h-full object-cover" />
+                      {selected && (
+                        <span className="absolute top-1 right-1 w-5 h-5 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center">✓</span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          )}
+
+          {sourceTable === 'BUSINESS_PRODUCT' && galleryImages.length > 0 && (
+            <button
+              onClick={handleGalleryAttachProduct}
+              disabled={selectedImageIds.size === 0 || uploading}
+              className="block w-full text-center py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium disabled:opacity-50"
+            >
+              {uploading ? 'Adding…' : `Add Selected${selectedImageIds.size > 0 ? ` (${selectedImageIds.size})` : ''}`}
+            </button>
+          )}
+
+          <button onClick={() => setView('main')} className="w-full text-center py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">
+            Back
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div className="card w-full max-w-sm p-5 space-y-4" onClick={e => e.stopPropagation()}>
@@ -264,6 +436,14 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
           {pasting ? 'Pasting…' : '📋 Paste Image from Clipboard'}
         </button>
         <p className="text-xs text-center text-secondary">or just press Ctrl+V anywhere in this dialog</p>
+
+        <button
+          onClick={openGallery}
+          disabled={uploading}
+          className="block w-full text-center py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium disabled:opacity-50"
+        >
+          🖼 Choose from Gallery
+        </button>
 
         {currentImageUrl && (
           <button

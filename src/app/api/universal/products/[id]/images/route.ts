@@ -46,6 +46,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const existingCount = await prisma.productImages.count({ where: { productId } }).catch(() => 0)
     const createdImages = []
 
+    // A freshly uploaded product image is also added to the category's
+    // reference-image pool (MBM-294 §3.3), so it's immediately reusable via
+    // "Choose from Gallery" for other products in the same category —
+    // without any extra admin step.
+    const uploaderId = (await getServerUser())?.id ?? null
+    const category = product.categoryId
+      ? await prisma.businessCategories.findUnique({ where: { id: product.categoryId }, select: { domainId: true } })
+      : null
+
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       if (!file.type.startsWith('image/')) {
@@ -77,6 +86,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       })
 
       createdImages.push(img)
+
+      if (product.categoryId) {
+        await prisma.categoryReferenceImages.create({
+          data: {
+            imageId: image.id,
+            categoryId: product.categoryId,
+            subcategoryId: product.subcategoryId ?? null,
+            domainId: category?.domainId ?? null,
+            businessType: product.businessType || 'restaurant',
+            isUserUploaded: true,
+            createdBy: uploaderId,
+          },
+        }).catch(() => {})
+      }
     }
 
     // Return the updated product with images to simplify client updates
