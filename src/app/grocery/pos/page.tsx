@@ -166,17 +166,6 @@ function GroceryPOSContent() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [productStatsMap, setProductStatsMap] = useState<Map<string, { soldToday: number; revenueToday: number; soldYesterday: number; soldDayBefore: number; firstSoldTodayAt: string | null }>>(new Map())
   const [deskSearchTerm, setDeskSearchTerm] = useState('')
-  // Anchors the sticky category/search bar (see deskStickyBarRef usage below) —
-  // typing a search term or switching category can shrink the result grid a
-  // lot while the page is scrolled down, and since the bar's own containing
-  // section shrinks with it, the still-stuck bar can end up overlapping the
-  // (now much shorter) first row of results instead of sitting above it.
-  // Scrolling back to the bar's own position whenever the filter changes
-  // keeps it aligned with the top of the grid instead of floating over it.
-  const deskStickyBarRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    deskStickyBarRef.current?.scrollIntoView({ block: 'start', behavior: 'auto' })
-  }, [deskSearchTerm, selectedCategory])
   const [deskProducts, setDeskProducts] = useState<POSItem[]>([])
   const [deskCategories, setDeskCategories] = useState<{ key: string; label: string; emoji: string; stockTotal: number }[]>([])
   const [deskProductsLoading, setDeskProductsLoading] = useState(true)
@@ -3543,7 +3532,7 @@ function GroceryPOSContent() {
               const activeTab = selectedCategory ?? '__all__'
 
               return (
-                <div ref={deskStickyBarRef} className="sticky top-20 z-20 bg-white dark:bg-gray-800 pt-3 pb-3 border-b border-gray-200 dark:border-gray-700 mb-3">
+                <div className="sticky top-20 z-20 bg-white dark:bg-gray-800 pt-3 pb-3 border-b border-gray-200 dark:border-gray-700 mb-3">
                   {/* Category tabs + More button */}
                   <div className="flex flex-wrap gap-2 mb-2">
                     {visibleTabs.map(tab => (

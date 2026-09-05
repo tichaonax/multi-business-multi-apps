@@ -25,7 +25,13 @@ export function MainLayout({ children }: MainLayoutProps) {
   }
 
   return (
-    <div className="flex min-h-screen page-background pt-14 sm:pt-16">
+    // No top padding here — the global header (global-header.tsx) is
+    // `sticky top-0` with h-14/h-16, not `fixed`, so it already reserves its
+    // own height in normal document flow. pt-14/pt-16 here duplicated that
+    // same height as extra padding, doubling the dead space between the
+    // header and every page's content. The desktop sidebar below is
+    // unaffected either way since it's `fixed` with an explicit `top-16`.
+    <div className="flex min-h-screen page-background">
       {/* Desktop Sidebar */}
       <div className="hidden lg:block lg:fixed lg:inset-y-0 lg:top-16 lg:z-40 lg:w-64">
         <Sidebar />
