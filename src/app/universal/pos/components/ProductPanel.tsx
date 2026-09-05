@@ -517,7 +517,7 @@ export function ProductPanel({
 
             {/* List Mode (Construction, Vehicles, Consulting, Services) */}
             {config.productDisplayMode === 'list' && (
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                 {filteredProducts.map((product) => {
                   const cartQty = cart.find(c => c.id === product.id)?.quantity || 0
                   const remaining = product.isWiFiToken ? (product.availableQuantity || 0) - cartQty : undefined

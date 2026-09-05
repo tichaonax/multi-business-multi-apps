@@ -2770,36 +2770,53 @@ function GroceryPOSContent() {
         />
       )}
 
-      {/* POS Quick-Edit Mode (MBM-292 Phase 2) dialogs */}
-      {quickEditItem && quickEditMode === 'image' && (
-        <ImageUploadDialog
-          businessId={currentBusinessId || ''}
-          itemId={quickEditItem.productId || quickEditItem.id}
-          itemName={quickEditItem.name}
-          sourceTable="BUSINESS_PRODUCT"
-          currentImageUrl={quickEditItem.imageUrl ?? null}
-          onClose={() => setQuickEditItem(null)}
-          onSaved={newImageUrl => {
-            setProducts(prev => prev.map(p => p.id === quickEditItem.id ? { ...p, imageUrl: newImageUrl } : p))
-            setQuickEditItem(null)
-          }}
-        />
-      )}
-      {quickEditItem && quickEditMode === 'price' && (
-        <PriceEditDialog
-          businessId={currentBusinessId || ''}
-          itemId={quickEditItem.productId || quickEditItem.id}
-          variantId={quickEditItem.productId && quickEditItem.productId !== quickEditItem.id ? quickEditItem.id : undefined}
-          itemName={quickEditItem.name}
-          sourceTable="BUSINESS_PRODUCT"
-          currentPrice={quickEditItem.price}
-          onClose={() => setQuickEditItem(null)}
-          onSaved={newPrice => {
-            setProducts(prev => prev.map(p => p.id === quickEditItem.id ? { ...p, price: newPrice } : p))
-            setQuickEditItem(null)
-          }}
-        />
-      )}
+      {/* POS Quick-Edit Mode (MBM-292 Phase 2) dialogs — the grid can show either
+          BusinessProducts (products[], id === productId) or, in Desk Mode
+          (default on), BarcodeInventoryItems from deskProducts[], whose POSItem
+          id is always `inv_${rawId}` (see /api/grocery/desk-products) — that
+          prefix is the only reliable signal for which sourceTable to use. */}
+      {quickEditItem && quickEditMode === 'image' && (() => {
+        const isBarcodeItem = quickEditItem.id.startsWith('inv_')
+        const rawId = isBarcodeItem ? quickEditItem.id.slice(4) : (quickEditItem.productId || quickEditItem.id)
+        return (
+          <ImageUploadDialog
+            businessId={currentBusinessId || ''}
+            itemId={rawId}
+            itemName={quickEditItem.name}
+            sourceTable={isBarcodeItem ? 'BARCODE_ITEM' : 'BUSINESS_PRODUCT'}
+            currentImageUrl={quickEditItem.imageUrl ?? null}
+            onClose={() => setQuickEditItem(null)}
+            onSaved={newImageUrl => {
+              setProducts(prev => prev.map(p => p.id === quickEditItem.id ? { ...p, imageUrl: newImageUrl } : p))
+              setDeskProducts(prev => prev.map(p => p.id === quickEditItem.id ? { ...p, imageUrl: newImageUrl } : p))
+              setQuickEditItem(null)
+            }}
+          />
+        )
+      })()}
+      {quickEditItem && quickEditMode === 'price' && (() => {
+        const isBarcodeItem = quickEditItem.id.startsWith('inv_')
+        const rawId = isBarcodeItem ? quickEditItem.id.slice(4) : (quickEditItem.productId || quickEditItem.id)
+        const variantId = !isBarcodeItem && quickEditItem.productId && quickEditItem.productId !== quickEditItem.id
+          ? quickEditItem.id
+          : undefined
+        return (
+          <PriceEditDialog
+            businessId={currentBusinessId || ''}
+            itemId={rawId}
+            variantId={variantId}
+            itemName={quickEditItem.name}
+            sourceTable={isBarcodeItem ? 'BARCODE_ITEM' : 'BUSINESS_PRODUCT'}
+            currentPrice={quickEditItem.price}
+            onClose={() => setQuickEditItem(null)}
+            onSaved={newPrice => {
+              setProducts(prev => prev.map(p => p.id === quickEditItem.id ? { ...p, price: newPrice } : p))
+              setDeskProducts(prev => prev.map(p => p.id === quickEditItem.id ? { ...p, price: newPrice } : p))
+              setQuickEditItem(null)
+            }}
+          />
+        )
+      })()}
 
       {/* EOD blocking overlay — salesperson must submit prior-day report before selling */}
       {eodGate?.hasPending && currentBusinessId && (

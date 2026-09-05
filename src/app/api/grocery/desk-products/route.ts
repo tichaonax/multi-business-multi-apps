@@ -134,6 +134,7 @@ export async function GET(request: NextRequest) {
           weightRequired: false,
           pluCode: item.sku ?? undefined,
           isExpiryDiscount: item.isExpiryDiscount,
+          imageUrl: item.imageId ? `/api/images/${item.imageId}` : undefined,
         }
       })
       .filter(item => item.price > 0)
