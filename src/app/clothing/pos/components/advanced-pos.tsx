@@ -2156,6 +2156,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                           }
                         }
                         const outOfStock = variant.stock <= 0
+                        const cartItem = cart.find(item => item.productId === product.id && item.variantId === variant.id)
                         return (
                           <div key={variant.id} className={`rounded-lg px-2 py-1.5 ${outOfStock ? 'opacity-60' : soldToday > 0 ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
                             <div className="flex items-center justify-between">
@@ -2188,6 +2189,31 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                                   </button>
                                 ) : (
                                   <span className="text-sm font-medium">{formatCurrency(variant.price)}</span>
+                                )}
+                                {/* − decrements by one, ✕ clears this variant's line
+                                    entirely — both skip opening the cart panel. */}
+                                {cartItem && cartItem.quantity > 0 && (
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => updateQuantity(cartItem.id, cartItem.quantity - 1)}
+                                      title="Remove one"
+                                      className="inline-flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold rounded-full w-5 h-5 shadow"
+                                    >
+                                      −
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeFromCart(cartItem.id)}
+                                      title="Remove from cart"
+                                      className="inline-flex items-center justify-center bg-gray-700 hover:bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 shadow"
+                                    >
+                                      ✕
+                                    </button>
+                                    <span className="inline-flex items-center justify-center bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5">
+                                      {cartItem.quantity}
+                                    </span>
+                                  </div>
                                 )}
                                 <button
                                   type="button"
@@ -2439,6 +2465,33 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                           <span className="text-[9px] font-semibold text-gray-400 dark:text-gray-500">{soldYesterday}</span>
                         </div>
                       )}
+                      {(() => {
+                        const cartItem = cart.find(item => item.productId === product.id && item.variantId === variant.id)
+                        if (!cartItem || cartItem.quantity <= 0) return null
+                        return (
+                          <div className="flex items-center justify-end gap-1 mb-1.5">
+                            <button
+                              type="button"
+                              onClick={() => updateQuantity(cartItem.id, cartItem.quantity - 1)}
+                              title="Remove one"
+                              className="inline-flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold rounded-full w-5 h-5 shadow"
+                            >
+                              −
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeFromCart(cartItem.id)}
+                              title="Remove from cart"
+                              className="inline-flex items-center justify-center bg-gray-700 hover:bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 shadow"
+                            >
+                              ✕
+                            </button>
+                            <span className="inline-flex items-center justify-center bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5">
+                              {cartItem.quantity}
+                            </span>
+                          </div>
+                        )
+                      })()}
                       <button
                         type="button"
                         onClick={() => addToCart(product.id, variant.id)}

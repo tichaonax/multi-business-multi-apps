@@ -10,6 +10,8 @@ All detailed project plans live in `ai-contexts/project-plans/`.
 
 | ID | Title | File | Status |
 |----|-------|------|--------|
+| MBM-293 | Vehicle Service Parts Picker: Browsable Grid (Add Task + Bill Job) | [view](ai-contexts/project-plans/review/projectplan-MBM-293-vehicle-service-parts-picker-grid-2026-09-05.md) | 🟢 BUILT — typechecked clean, awaiting live verification (no vehicle-service business in DB to test against) |
+| MBM-292 | POS Quick-Edit Phase 2 (Grocery/Clothing/Hardware) + Clipboard-Paste Image Upload + Vehicle Service Parts Images | [view](ai-contexts/project-plans/review/projectplan-MBM-292-quickedit-rollout-clipboard-paste-2026-09-04.md) | 🟢 BUILT — typechecked clean, awaiting live browser verification; found a likely latent bug in restaurant's Phase 1 price mode (see Review) |
 | MBM-291 | POS Menu-Number Support: badges, number-search, cart/receipt display, always-shown customer credit balance | [view](ai-contexts/project-plans/review/projectplan-MBM-291-pos-menu-number-search-2026-09-04.md) | 🟢 BUILT — all 14 todos done, awaiting live browser verification |
 | MBM-290 | POS Quick-Edit Mode: image/price edit buttons directly on the POS screen | [view](ai-contexts/project-plans/review/projectplan-MBM-290-pos-quick-edit-mode-2026-09-04.md) | 🟢 Phase 1 BUILT (Restaurant + Universal POS) — Phase 2 (Grocery/Clothing/Hardware) not started |
 | MBM-289 | Promotional Sales (Grocery & Clothing): scheduled discount pricing, pause/resume/end, customer-display badge + rotation boost | [view](ai-contexts/project-plans/review/projectplan-MBM-289-promotional-sales-grocery-clothing-2026-09-04.md) | 🟢 APPROVED — implementing on `feature/specials` |

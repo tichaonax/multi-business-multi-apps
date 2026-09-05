@@ -131,6 +131,8 @@ export function UniversalPOSLayout({
           businessId={businessId}
           businessType={businessType}
           onAddToCart={onAddToCart}
+          onUpdateQuantity={onUpdateQuantity}
+          onRemoveItem={onRemoveItem}
           onProductsReload={onProductsReload}
           prepRefreshKey={prepRefreshKey}
           canViewPOSSoldCount={canViewPOSSoldCount}

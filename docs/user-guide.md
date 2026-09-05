@@ -222,6 +222,7 @@
     - [Where to Find It](#where-to-find-it)
     - [What's Recorded](#whats-recorded)
     - [Using the Report](#using-the-report)
+64. [POS Cart Badges — Decrement & Remove Without Opening the Cart](#64-pos-cart-badges--decrement--remove-without-opening-the-cart)
     - [Permissions](#permissions-16)
 
 ---
@@ -13429,7 +13430,7 @@ None of this needs the admin screen to be open or anyone to be watching — it's
 
 Authorized users can update a menu item's photo or price directly from the POS screen — no need to leave the register and go to a separate admin page.
 
-**Where:** Two small buttons in the POS header — **📷 Update Images** and **💲 Adjust Prices** — visible only to users with `canQuickEditPOSItems`.
+**Where:** Two small buttons — **📷 Update Images** and **💲 Adjust Prices** — visible only to users with `canQuickEditPOSItems`. On Restaurant they sit in the category-tab grid, right after the **📶 R710 WiFi** tab; on other POS screens they're in the header toolbar.
 
 ---
 
@@ -13578,3 +13579,25 @@ The change is captured by the server the moment the price update is saved — it
 | Permission | What it allows | Default |
 |------------|----------------|---------|
 | `canManageMenu`, `canManageInventory`, or `canAccessFinancialData` (any one) | View the Price Change Report for that business | Owner, Manager, Admin |
+
+---
+
+## 64. POS Cart Badges — Decrement & Remove Without Opening the Cart
+
+The small quantity badge that appears on a product card once it's in the cart carries two quick actions, so a mis-tap or a change of mind never requires scrolling down to the cart panel:
+
+- **−** removes one unit of that item.
+- **✕** clears that item from the cart completely, regardless of how many are in it.
+
+Both act immediately and never open the cart panel.
+
+**Where this works:**
+
+- **Restaurant** — bottom-right of the card, above the count.
+- **Grocery** (Desk Mode) — top-right of the card, next to the count. The **−** button doesn't appear on items sold by weight, since their "quantity" is a kg amount rather than a count that makes sense to reduce by one — use **✕** to remove those instead.
+- **Clothing** — Quick Add Products and WiFi Tokens tabs, next to each variant's own **Add** button (clothing sells by variant, so each size/color tracks its own quantity and its own − / ✕).
+- **Universal POS** (Vehicle Service, Construction, Vehicles, Consulting, Services, Retail, Other) — grid and list display modes, same corner placement as Restaurant/Grocery.
+
+Hardware POS's product browser doesn't have this yet — its cart lives in a separate panel from the browsing grid, so the same shortcut isn't available there today; the cart panel's own quantity controls still work as before.
+
+---

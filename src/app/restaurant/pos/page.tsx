@@ -3335,14 +3335,6 @@ export default function RestaurantPOS() {
                 >
                   ⚙️ <span className="hidden sm:inline">Settings</span>
                 </Link>
-                {/* POS Quick-Edit Mode (MBM-290) - Only for users with canQuickEditPOSItems */}
-                {canQuickEditPOS && (
-                  <QuickEditModeButtons
-                    activeMode={quickEditMode}
-                    onToggleImage={toggleImageMode}
-                    onTogglePrice={togglePriceMode}
-                  />
-                )}
                 {/* Menu Management - Only for users with canManageMenu permission */}
                 {(isAdmin || hasPermission('canManageMenu')) && (
                   <Link
@@ -4323,6 +4315,16 @@ export default function RestaurantPOS() {
                   {getCategoryLabel(category)}
                 </button>
               ))}
+              {/* POS Quick-Edit Mode (MBM-290) — moved here (MBM-291 follow-up) to
+                  fill the empty cells the category grid leaves after "R710 WiFi"
+                  on the last row, instead of crowding the header action bar. */}
+              {canQuickEditPOS && (
+                <QuickEditModeButtons
+                  activeMode={quickEditMode}
+                  onToggleImage={toggleImageMode}
+                  onTogglePrice={togglePriceMode}
+                />
+              )}
             </div>
             </div>{/* end sticky search+categories */}
 
@@ -4919,19 +4921,28 @@ export default function RestaurantPOS() {
                     )}
 
                     {/* Cart quantity badge - bottom right, only show when in cart.
-                        The ✕ above it undoes an accidental tap without opening the
-                        cart panel — clears this item's entire quantity, not just
-                        one unit, since a mis-tap is usually "I didn't mean to add
-                        this at all" rather than "one too many". */}
+                        − decrements by one (still lets a fast-tapping cashier back
+                        out a single extra tap); ✕ clears this item's entire
+                        quantity in one go, for "I didn't mean to add this at all".
+                        Both skip opening the cart panel. */}
                     {cartQuantity > 0 && (
-                      <div className="absolute bottom-1 right-1 flex flex-col items-center gap-0.5">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); removeFromCart(item.id) }}
-                          title="Remove from cart"
-                          className="inline-flex items-center justify-center bg-gray-700 hover:bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 shadow"
-                        >
-                          ✕
-                        </button>
+                      <div className="absolute bottom-1 right-1 flex flex-col items-end gap-0.5">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); updateQuantity(item.id, cartQuantity - 1) }}
+                            title="Remove one"
+                            className="inline-flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold rounded-full w-5 h-5 shadow"
+                          >
+                            −
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); removeFromCart(item.id) }}
+                            title="Remove from cart"
+                            className="inline-flex items-center justify-center bg-gray-700 hover:bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 shadow"
+                          >
+                            ✕
+                          </button>
+                        </div>
                         <span className="inline-flex items-center justify-center bg-blue-600 text-white text-sm font-bold rounded-full w-6 h-6">
                           {cartQuantity}
                         </span>

@@ -3743,11 +3743,35 @@ function GroceryPOSContent() {
                         : 'p-3 border-gray-200 dark:border-gray-600'
                     }`}
                   >
-                    {/* Cart quantity badge (desk mode only) */}
+                    {/* Cart quantity badge (desk mode only). − decrements by one;
+                        ✕ clears this item's entire quantity in one tap — both
+                        skip opening the cart panel. − is hidden for weigh-sold
+                        items since their "quantity" is a kg amount, not a count. */}
                     {deskMode && cartQty > 0 && (
-                      <span className="absolute top-1.5 right-1.5 min-w-[1.25rem] h-5 flex items-center justify-center bg-blue-600 text-white text-xs font-bold rounded-full px-1">
-                        {cartQty}
-                      </span>
+                      <div className="absolute top-1.5 right-1.5 flex items-center gap-1 z-10">
+                        {!product.isSoldByWeight && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              cartQty - 1 <= 0 ? removeFromCart(product.id) : updateQuantity(product.id, cartQty - 1)
+                            }}
+                            title="Remove one"
+                            className="inline-flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold rounded-full w-5 h-5 shadow"
+                          >
+                            −
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); removeFromCart(product.id) }}
+                          title="Remove from cart"
+                          className="inline-flex items-center justify-center bg-gray-700 hover:bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 shadow"
+                        >
+                          ✕
+                        </button>
+                        <span className="min-w-[1.25rem] h-5 flex items-center justify-center bg-blue-600 text-white text-xs font-bold rounded-full px-1">
+                          {cartQty}
+                        </span>
+                      </div>
                     )}
                     {/* Scale badge — weight-priced items */}
                     {product.isSoldByWeight && !isOutOfStock && !(deskMode && cartQty > 0) && (

@@ -20,6 +20,8 @@ interface ProductPanelProps {
   businessId?: string
   businessType?: string
   onAddToCart: (item: Omit<UniversalCartItem, 'totalPrice'>) => void
+  onUpdateQuantity?: (itemId: string, quantity: number) => void
+  onRemoveItem?: (itemId: string) => void
   onProductsReload?: () => void
   prepRefreshKey?: number
   canViewPOSSoldCount?: boolean
@@ -39,6 +41,8 @@ export function ProductPanel({
   businessId,
   businessType,
   onAddToCart,
+  onUpdateQuantity,
+  onRemoveItem,
   onProductsReload,
   prepRefreshKey = 0,
   canViewPOSSoldCount = true,
@@ -348,6 +352,35 @@ export function ProductPanel({
                       {quickEditMode !== 'none' && (
                         <QuickEditCardButton mode={quickEditMode} onClick={() => setQuickEditProduct(product)} />
                       )}
+                      {/* Cart quantity badge — − decrements by one, ✕ clears this
+                          item entirely, both without opening the cart panel. */}
+                      {cartQty > 0 && (onUpdateQuantity || onRemoveItem) && (
+                        <div className="absolute bottom-1 right-1 flex flex-col items-end gap-0.5 z-10">
+                          <div className="flex items-center gap-1">
+                            {onUpdateQuantity && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); onUpdateQuantity(product.id, cartQty - 1) }}
+                                title="Remove one"
+                                className="inline-flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold rounded-full w-5 h-5 shadow"
+                              >
+                                −
+                              </button>
+                            )}
+                            {onRemoveItem && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); onRemoveItem(product.id) }}
+                                title="Remove from cart"
+                                className="inline-flex items-center justify-center bg-gray-700 hover:bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 shadow"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                          <span className="inline-flex items-center justify-center bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5">
+                            {cartQty}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex justify-end -mb-2">
                         <button
                           type="button"
@@ -530,6 +563,33 @@ export function ProductPanel({
                     >
                       {quickEditMode !== 'none' && (
                         <QuickEditCardButton mode={quickEditMode} onClick={() => setQuickEditProduct(product)} />
+                      )}
+                      {/* Cart quantity badge — − decrements by one, ✕ clears this
+                          item entirely, both without opening the cart panel. */}
+                      {cartQty > 0 && (onUpdateQuantity || onRemoveItem) && (
+                        <div className="absolute top-1 right-1 flex items-center gap-1 z-10">
+                          {onUpdateQuantity && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onUpdateQuantity(product.id, cartQty - 1) }}
+                              title="Remove one"
+                              className="inline-flex items-center justify-center bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold rounded-full w-5 h-5 shadow"
+                            >
+                              −
+                            </button>
+                          )}
+                          {onRemoveItem && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onRemoveItem(product.id) }}
+                              title="Remove from cart"
+                              className="inline-flex items-center justify-center bg-gray-700 hover:bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 shadow"
+                            >
+                              ✕
+                            </button>
+                          )}
+                          <span className="inline-flex items-center justify-center bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5">
+                            {cartQty}
+                          </span>
+                        </div>
                       )}
                       <div className="flex items-start gap-2">
                         <button
