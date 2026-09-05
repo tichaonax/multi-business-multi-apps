@@ -366,6 +366,25 @@ const isInformational = access.canViewAcrossBusinesses && !hasAccess
       })
     }
 
+    // Hide [test]-named items unless that specific result's own business has
+    // test-data visibility enabled (admin > Edit Business > Show Test Data
+    // toggle) — this scan lookup spans many businesses per barcode, so each
+    // result is checked against its own business, not a single businessId
+    // the way the POS grid endpoints do it.
+    const distinctBusinessIds = [...new Set(businessInventory.map(b => b.businessId))]
+    const testDataFlags = distinctBusinessIds.length > 0
+      ? await prisma.businesses.findMany({
+          where: { id: { in: distinctBusinessIds } },
+          select: { id: true, showTestData: true }
+        })
+      : []
+    const showTestDataMap = new Map(testDataFlags.map(b => [b.id, b.showTestData]))
+    const visibleInventory = businessInventory.filter(b =>
+      showTestDataMap.get(b.businessId) || !b.productName?.toLowerCase().includes('[test]')
+    )
+    businessInventory.length = 0
+    businessInventory.push(...visibleInventory)
+
     // Sort by accessibility (accessible businesses first, then informational)
     businessInventory.sort((a, b) => {
       if (a.hasAccess && !b.hasAccess) return -1

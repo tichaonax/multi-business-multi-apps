@@ -92,6 +92,50 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
     }
   }
 
+  async function handleRemove() {
+    if (!currentImageUrl) return
+    setUploading(true)
+    try {
+      if (sourceTable === 'BUSINESS_PRODUCT') {
+        const res = await fetch(`/api/universal/products/${itemId}/images`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        })
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}))
+          throw new Error(errBody.error ?? `Failed to remove image (${res.status})`)
+        }
+      } else {
+        const res = await fetch(`/api/grocery/inventory/${itemId}/display-image`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageId: null }),
+        })
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}))
+          throw new Error(errBody.error ?? `Failed to remove image (${res.status})`)
+        }
+      }
+
+      fetch('/api/pos/quick-edit/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId, itemId, sourceTable, field: 'imageUrl',
+          oldValue: currentImageUrl, newValue: null,
+        }),
+      }).catch(() => {})
+
+      toast.push('Image removed')
+      onSaved('')
+    } catch (e: any) {
+      toast.error(e.message ?? 'Failed to remove image')
+    } finally {
+      setUploading(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div className="card w-full max-w-sm p-5 space-y-4" onClick={e => e.stopPropagation()}>
@@ -116,6 +160,16 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
           />
         </label>
         <p className="text-xs text-center text-secondary">or paste an image from your clipboard (Ctrl+V)</p>
+
+        {currentImageUrl && (
+          <button
+            onClick={handleRemove}
+            disabled={uploading}
+            className="block w-full text-center py-2 rounded-lg border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium disabled:opacity-50"
+          >
+            🗑 Remove Image
+          </button>
+        )}
 
         <button onClick={onClose} className="w-full text-center py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">
           Cancel

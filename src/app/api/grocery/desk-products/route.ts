@@ -25,9 +25,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, categories: [], items: [] })
     }
 
+    // Hide [test]-named items unless the business has explicitly enabled test
+    // data visibility (admin > Edit Business > Show Test Data toggle) — same
+    // rule already applied to clothing's inventory list.
+    const business = await prisma.businesses.findUnique({
+      where: { id: businessId },
+      select: { showTestData: true }
+    })
+    const hideTestItems = !business?.showTestData
+    const notTestNamed = hideTestItems ? { NOT: { name: { contains: '[test]', mode: 'insensitive' as const } } } : {}
+
     const [rawItems, serviceProducts, weightProducts] = await Promise.all([
       prisma.barcodeInventoryItems.findMany({
-        where: { businessId, isActive: true, stockQuantity: { gt: 0 } },
+        where: { businessId, isActive: true, stockQuantity: { gt: 0 }, ...notTestNamed },
         include: {
           business_category: {
             select: { id: true, name: true, emoji: true, color: true, domain: { select: { emoji: true } } }
@@ -38,7 +48,7 @@ export async function GET(request: NextRequest) {
       }),
       // SERVICE-type products have no stock concept — always include them
       prisma.businessProducts.findMany({
-        where: { businessId, isActive: true, isAvailable: true, productType: 'SERVICE', basePrice: { gt: 0 } },
+        where: { businessId, isActive: true, isAvailable: true, productType: 'SERVICE', basePrice: { gt: 0 }, ...notTestNamed },
         include: {
           business_categories: { select: { id: true, name: true, emoji: true, color: true } },
           product_variants: { where: { isActive: true }, take: 1 }
@@ -47,7 +57,7 @@ export async function GET(request: NextRequest) {
       }),
       // Sell-by-weight products — price comes from pricePerKg, not basePrice
       prisma.businessProducts.findMany({
-        where: { businessId, isActive: true, isAvailable: true, isSoldByWeight: true },
+        where: { businessId, isActive: true, isAvailable: true, isSoldByWeight: true, ...notTestNamed },
         include: {
           business_categories: { select: { id: true, name: true, emoji: true, color: true } },
           product_variants: { where: { isActive: true }, take: 1 },
