@@ -11,6 +11,7 @@ import { prisma } from '@/lib/prisma';
 import { decrypt } from '@/lib/encryption';
 import { getR710SessionManager } from '@/lib/r710-session-manager';
 import { isSystemAdmin, hasPermission } from '@/lib/permission-utils';
+import { resolveR710Duration } from '@/lib/r710/duration-unit-map';
 import { getServerUser } from '@/lib/get-server-user'
 
 /**
@@ -346,20 +347,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate tokens on R710 device
-    // Convert durationUnit from "hour_Hours" format to "hour" format
-    const durationUnitMap: { [key: string]: 'hour' | 'day' | 'week' } = {
-      'hour_Hours': 'hour',
-      'day_Days': 'day',
-      'week_Weeks': 'week'
-    };
-
-    const apiDurationUnit = durationUnitMap[config.durationUnit] || 'hour';
+    // Generate tokens on R710 device — weeks are converted to days before
+    // hitting the wire (see resolveR710Duration: week_Weeks is documented but
+    // unverified against a real device, and days are the one unit with a
+    // confirmed-correct captured response).
+    const { duration: apiDuration, durationUnit: apiDurationUnit } = resolveR710Duration(config.durationValue, config.durationUnit);
 
     const tokenParams = {
       wlanName: wlan.ssid,
       count: quantity,
-      duration: config.durationValue,
+      duration: apiDuration,
       durationUnit: apiDurationUnit,
       deviceLimit: config.deviceLimit || 2
     };
@@ -420,12 +417,14 @@ export async function POST(request: NextRequest) {
     const now = new Date();
 
     // Calculate duration in seconds (used for validTimeSeconds on the token record)
+    // — uses apiDuration/apiDurationUnit (already week-to-day converted above),
+    // not the config's raw stored value, so this stays in sync with what was
+    // actually sent to the device.
     const durationMultiplier: { [key: string]: number } = {
       'hour': 3600,
-      'day': 86400,
-      'week': 604800
+      'day': 86400
     };
-    const validTimeSeconds = config.durationValue * (durationMultiplier[apiDurationUnit] || 3600);
+    const validTimeSeconds = apiDuration * (durationMultiplier[apiDurationUnit] || 3600);
 
     // Use a 90-day redemption window for expiresAtR710.
     // The token stays AVAILABLE for purchase for 90 days regardless of session duration.

@@ -15,7 +15,7 @@ import { generateDirectSaleUsername } from '@/lib/r710/username-generator'
 import { getOrCreateR710ExpenseAccount } from '@/lib/r710-expense-account-utils'
 import { decrypt } from '@/lib/encryption'
 import { prisma } from '@/lib/prisma'
-import { durationUnitMap } from '@/lib/r710/duration-unit-map'
+import { resolveR710Duration } from '@/lib/r710/duration-unit-map'
 
 export interface GenerateAndSellTokenParams {
   businessId: string
@@ -99,7 +99,7 @@ export async function generateAndSellR710Token(
 
   // Phase 2: Generate token on device (external API call)
   const customUsername = generateDirectSaleUsername()
-  const apiDurationUnit = durationUnitMap[tokenConfig.durationUnit] || 'hour'
+  const { duration: apiDuration, durationUnit: apiDurationUnit } = resolveR710Duration(tokenConfig.durationValue, tokenConfig.durationUnit)
   const decryptedPassword = decrypt(deviceRegistry.encryptedAdminPassword)
 
   // MBM-272: DIRECT devices call the R710 from this process, same as always;
@@ -119,7 +119,7 @@ export async function generateAndSellR710Token(
       {
         wlanName: tokenConfig.r710_wlans?.ssid || '',
         username: customUsername,
-        duration: tokenConfig.durationValue,
+        duration: apiDuration,
         durationUnit: apiDurationUnit,
         deviceLimit: tokenConfig.deviceLimit || 2
       },

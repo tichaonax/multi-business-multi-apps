@@ -8,6 +8,7 @@ import { generateDirectSaleUsername } from '@/lib/r710/username-generator'
 import { getOrCreateR710ExpenseAccount } from '@/lib/r710-expense-account-utils'
 import { decrypt } from '@/lib/encryption'
 import { generateAndSellR710Token } from '@/lib/r710/generate-and-sell-token'
+import { resolveR710Duration } from '@/lib/r710/duration-unit-map'
 // B1 — Import centralised EcoCash helpers so the server uses the same logic as the client
 import { getEcocashConfig, calcEcocashFee } from '@/lib/ecocash-utils'
 
@@ -1025,13 +1026,6 @@ export async function POST(req: NextRequest) {
             // Decrypt device password for on-the-fly token generation
             const decryptedPassword = decrypt(r710IntegrationForCombo.device_registry.encryptedAdminPassword);
 
-            // Duration unit mapping for R710 API
-            const durationUnitMap: { [key: string]: 'hour' | 'day' | 'week' } = {
-              'hour_Hours': 'hour',
-              'day_Days': 'day',
-              'week_Weeks': 'week'
-            };
-
             // Process each WiFi token in the combo - generate on-the-fly
             for (const wifiItem of wifiTokenItems) {
               const tokenQuantity = (wifiItem.quantity || 1) * itemQuantity; // Multiply by combo quantity
@@ -1054,7 +1048,7 @@ export async function POST(req: NextRequest) {
                 throw new Error(`Token configuration not found: ${wifiItem.tokenConfigId}`);
               }
 
-              const apiDurationUnit = durationUnitMap[tokenConfig.durationUnit] || 'hour';
+              const { duration: apiDuration, durationUnit: apiDurationUnit } = resolveR710Duration(tokenConfig.durationValue, tokenConfig.durationUnit);
 
               // Generate tokens on-the-fly for the combo
               for (let i = 0; i < tokenQuantity; i++) {
@@ -1074,7 +1068,7 @@ export async function POST(req: NextRequest) {
                     return await r710Service.generateSingleGuestPass({
                       wlanName: tokenConfig.r710_wlans?.ssid || '',
                       username: customUsername,
-                      duration: tokenConfig.durationValue,
+                      duration: apiDuration,
                       durationUnit: apiDurationUnit,
                       deviceLimit: tokenConfig.deviceLimit || 2
                     });
