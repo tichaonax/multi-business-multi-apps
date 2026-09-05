@@ -12971,7 +12971,7 @@ A dedicated **Parts Inventory** page (sidebar link, next to Jobs and Customers) 
 
 **Searching and filtering** covers name, SKU, barcode, vehicle make/model/year, domain, category, condition, OEM/Aftermarket, and stock status (In Stock / Low Stock / Out of Stock). Each row shows a small photo thumbnail when the part has one (a wrench icon otherwise).
 
-**Part photos**: from a part's detail page, click **Upload Image** (or **Replace Image**) next to its photo — pick a file, or copy an image (e.g. from a supplier's website) and paste it (Ctrl+V) straight into the dialog. Requires the same stock-management permission as adjusting stock.
+**Part photos**: from a part's detail page, click **Upload Image** (or **Replace Image**) next to its photo — pick a file, or copy an image (e.g. from a supplier's website) and paste it (Ctrl+V) straight into the dialog. **🗑 Remove Image** clears it and falls back to the category icon. **📋 Copy Image to Clipboard** copies the current photo so you can paste it elsewhere (another app, an email, another part's dialog). Requires the same stock-management permission as adjusting stock.
 
 **Stock actions**, from a part's detail page (financial-tier permissions apply — see below):
 - **➕ Receive Stock** — record new stock coming in, with cost and a reference (PO number, invoice, etc.)
@@ -13449,6 +13449,12 @@ Authorized users can update a menu item's photo or price directly from the POS s
 3. The dialog shows the current image (or "No image"). Tap **Upload Image** (or **Replace Image**) and pick a file — or copy an image (e.g. from a product page on the web) and paste it (Ctrl+V) straight into the dialog, no need to save it to disk first.
 4. The new photo appears on the card immediately — no page reload.
 
+A few more actions are available in this dialog:
+
+- **📋 Paste Image from Clipboard** — pulls an image already on your clipboard straight in, no need to save it to disk first. This is the button form of the Ctrl+V shortcut mentioned above — use whichever is more convenient; both do exactly the same thing.
+- **📋 Copy Image to Clipboard** (only when the item already has a photo) — copies the current photo to your system clipboard so you can paste it (Ctrl+V) somewhere else: another app, an email, or another item's own image dialog. Works the same whether the original photo is a JPEG, PNG, or anything else — it's converted automatically so pasting works reliably wherever you paste it. **Ctrl+C** while this dialog is open does the same thing, so copy and paste are both available either as a button or a keyboard shortcut.
+- **🗑 Remove Image** (only when the item already has a photo) — clears the photo entirely; the card falls back to showing its category emoji instead.
+
 ---
 
 ### Adjusting an Item's Price
@@ -13487,6 +13493,12 @@ Aligns the restaurant POS with the printed menu's numbering, and makes sure a cu
 ### Menu Number Badges
 
 Every menu item and AYLI combo with a menu number assigned (via Menu Numbers) shows that number as a badge, top-right on its POS card — the same corner it's always shown in, now guaranteed to appear whenever a number is assigned, even on a card that's also discounted, out of stock, or sold by weight (those indicators moved to top-left so they no longer compete). Items without a number show no badge at all.
+
+---
+
+### Undo a Card Tap
+
+Tapping a card in the grid adds one of that item to the cart, and a blue count badge appears bottom-right on the card to show how many are in the cart. A small **✕** button sits right above that badge whenever the count is showing — tap it to undo: it clears the cart of that item entirely (not just one unit), without opening the cart panel. Handy for a mis-tap or a customer who changed their mind before checkout.
 
 ---
 

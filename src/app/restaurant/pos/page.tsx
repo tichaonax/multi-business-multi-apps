@@ -4918,9 +4918,20 @@ export default function RestaurantPOS() {
                       </div>
                     )}
 
-                    {/* Cart quantity badge - bottom right, only show when in cart */}
+                    {/* Cart quantity badge - bottom right, only show when in cart.
+                        The ✕ above it undoes an accidental tap without opening the
+                        cart panel — clears this item's entire quantity, not just
+                        one unit, since a mis-tap is usually "I didn't mean to add
+                        this at all" rather than "one too many". */}
                     {cartQuantity > 0 && (
-                      <div className="absolute bottom-1 right-1">
+                      <div className="absolute bottom-1 right-1 flex flex-col items-center gap-0.5">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); removeFromCart(item.id) }}
+                          title="Remove from cart"
+                          className="inline-flex items-center justify-center bg-gray-700 hover:bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 shadow"
+                        >
+                          ✕
+                        </button>
                         <span className="inline-flex items-center justify-center bg-blue-600 text-white text-sm font-bold rounded-full w-6 h-6">
                           {cartQuantity}
                         </span>

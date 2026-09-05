@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useToastContext } from '@/components/ui/toast'
 import { useClipboardImagePaste } from '@/hooks/use-clipboard-image-paste'
 
@@ -49,6 +49,7 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
   const toast = useToastContext()
   const [uploading, setUploading] = useState(false)
   const [copying, setCopying] = useState(false)
+  const [pasting, setPasting] = useState(false)
 
   useClipboardImagePaste(handleFile, !uploading)
 
@@ -69,6 +70,48 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
       toast.error(e.message ?? 'Failed to copy image')
     } finally {
       setCopying(false)
+    }
+  }
+
+  // Ctrl+C / Cmd+C while this dialog is open copies the current image —
+  // mirrors the explicit Copy Image button, the same way Ctrl+V already
+  // mirrors the Paste button (via useClipboardImagePaste above). Skipped
+  // when there's an actual text selection so a deliberate text copy
+  // elsewhere on the page still works normally.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'c') return
+      if (!currentImageUrl || uploading || copying) return
+      if ((window.getSelection()?.toString().length ?? 0) > 0) return
+      e.preventDefault()
+      handleCopyImage()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [currentImageUrl, uploading, copying])
+
+  async function handlePasteButton() {
+    setPasting(true)
+    try {
+      if (!navigator.clipboard?.read) {
+        toast.error('Clipboard read is not supported here — use Ctrl+V instead')
+        return
+      }
+      const items = await navigator.clipboard.read()
+      for (const item of items) {
+        const imageType = item.types.find(t => t.startsWith('image/'))
+        if (imageType) {
+          const blob = await item.getType(imageType)
+          const file = new File([blob], 'pasted-image.png', { type: imageType })
+          await handleFile(file)
+          return
+        }
+      }
+      toast.error('No image found on clipboard')
+    } catch (e: any) {
+      toast.error(e.message ?? 'Could not read clipboard — try Ctrl+V instead')
+    } finally {
+      setPasting(false)
     }
   }
 
@@ -212,7 +255,15 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
             onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }}
           />
         </label>
-        <p className="text-xs text-center text-secondary">or paste an image from your clipboard (Ctrl+V)</p>
+
+        <button
+          onClick={handlePasteButton}
+          disabled={pasting || uploading}
+          className="block w-full text-center py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium disabled:opacity-50"
+        >
+          {pasting ? 'Pasting…' : '📋 Paste Image from Clipboard'}
+        </button>
+        <p className="text-xs text-center text-secondary">or just press Ctrl+V anywhere in this dialog</p>
 
         {currentImageUrl && (
           <button
