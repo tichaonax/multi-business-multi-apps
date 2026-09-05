@@ -13430,7 +13430,7 @@ None of this needs the admin screen to be open or anyone to be watching — it's
 
 Authorized users can update a menu item's photo or price directly from the POS screen — no need to leave the register and go to a separate admin page.
 
-**Where:** Two small buttons — **📷 Update Images** and **💲 Adjust Prices** — visible only to users with `canQuickEditPOSItems`. On Restaurant they sit in the category-tab grid, right after the **📶 R710 WiFi** tab; on other POS screens they're in the header toolbar.
+**Where:** Two small buttons — **📷 Update Images** and **💲 Adjust Prices** — visible only to users with `canQuickEditPOSItems`. On Restaurant they sit in the category-tab grid, right after the **📶 R710 WiFi** tab; on other POS screens they're in the header toolbar. On every POS they stay on screen (float) as you scroll through the product list, and always show their text label — the same behavior everywhere, since staff often work across more than one business.
 
 ---
 

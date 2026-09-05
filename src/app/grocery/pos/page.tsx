@@ -3059,8 +3059,10 @@ function GroceryPOSContent() {
         )}
       </div>
 
-      {/* Toolbar — mode toggle | view toggles */}
-      <div className="flex flex-wrap items-center gap-2 mb-2">
+      {/* Toolbar — mode toggle | view toggles. Sticky so Update Images/Adjust
+          Prices stay reachable while scrolling the product grid, matching the
+          Restaurant POS pattern, regardless of Desk Mode/Scan Mode. */}
+      <div className="sticky top-20 z-20 bg-white dark:bg-gray-900 flex flex-wrap items-center gap-2 py-2 mb-2">
         {/* POS mode toggle (Live / Manual) */}
         {(isAdmin || hasPermission('canEnterManualOrders')) && (
           <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">

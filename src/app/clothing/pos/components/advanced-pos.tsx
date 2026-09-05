@@ -1959,8 +1959,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
         {/* Quick Add / Bale Items tabbed panel */}
         <div className="card p-4">
-          {/* Tab selector */}
-          <div className="flex items-center gap-3 mb-4">
+          {/* Tab selector — sticky so Update Images/Adjust Prices stay reachable
+              while scrolling the product list, matching the Restaurant POS pattern. */}
+          <div className="sticky top-20 z-20 bg-white dark:bg-gray-800 flex items-center gap-3 mb-4 py-2 -mt-4 px-4 -mx-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
               <button
                 type="button"

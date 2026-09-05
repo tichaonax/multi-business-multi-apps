@@ -260,7 +260,6 @@ export function ProductPanel({
                 activeMode={quickEditMode}
                 onToggleImage={toggleImageMode}
                 onTogglePrice={togglePriceMode}
-                compact
               />
             </div>
           )}
