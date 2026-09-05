@@ -9,11 +9,22 @@ import { useEffect, type ClipboardEvent as ReactClipboardEvent } from 'react'
  */
 export function getImageFileFromClipboardEvent(e: ClipboardEvent | ReactClipboardEvent): File | null {
   const items = e.clipboardData?.items
-  if (!items) return null
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i]
-    if (item.type.startsWith('image/')) {
-      return item.getAsFile()
+  if (items) {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (file) return file
+      }
+    }
+  }
+  // Fallback: a file copied in the OS file manager (rather than image data
+  // copied from a browser/viewer) sometimes only shows up in `.files`, not
+  // as an `image/*` entry in `.items`.
+  const files = e.clipboardData?.files
+  if (files) {
+    for (let i = 0; i < files.length; i++) {
+      if (files[i].type.startsWith('image/')) return files[i]
     }
   }
   return null
