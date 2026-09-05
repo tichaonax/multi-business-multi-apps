@@ -6,6 +6,28 @@ import { useClipboardImagePaste } from '@/hooks/use-clipboard-image-paste'
 
 export type QuickEditSourceTable = 'BUSINESS_PRODUCT' | 'BARCODE_ITEM'
 
+function toPngBlob(source: Blob): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(source)
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { URL.revokeObjectURL(url); reject(new Error('Canvas not supported')); return }
+      ctx.drawImage(img, 0, 0)
+      canvas.toBlob(blob => {
+        URL.revokeObjectURL(url)
+        if (blob) resolve(blob)
+        else reject(new Error('Failed to convert image'))
+      }, 'image/png')
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Failed to load image')) }
+    img.src = url
+  })
+}
+
 interface Props {
   businessId: string
   /** Raw (unprefixed) id of the item — same id the item's own table uses as its PK. */
@@ -26,8 +48,29 @@ interface Props {
 export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, currentImageUrl, onClose, onSaved }: Props) {
   const toast = useToastContext()
   const [uploading, setUploading] = useState(false)
+  const [copying, setCopying] = useState(false)
 
   useClipboardImagePaste(handleFile, !uploading)
+
+  async function handleCopyImage() {
+    if (!currentImageUrl) return
+    setCopying(true)
+    try {
+      const res = await fetch(currentImageUrl)
+      if (!res.ok) throw new Error('Failed to load image')
+      const blob = await res.blob()
+      // Clipboard image formats aren't universally supported across apps the
+      // way PNG is (a raw JPEG blob can silently fail to paste into some
+      // targets), so always normalize to PNG via canvas before writing.
+      const pngBlob = await toPngBlob(blob)
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })])
+      toast.push('Image copied to clipboard')
+    } catch (e: any) {
+      toast.error(e.message ?? 'Failed to copy image')
+    } finally {
+      setCopying(false)
+    }
+  }
 
   async function handleFile(file: File) {
     setUploading(true)
@@ -151,6 +194,16 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
             <span className="text-sm text-secondary">No image</span>
           )}
         </div>
+
+        {currentImageUrl && (
+          <button
+            onClick={handleCopyImage}
+            disabled={copying || uploading}
+            className="block w-full text-center py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium disabled:opacity-50"
+          >
+            {copying ? 'Copying…' : '📋 Copy Image to Clipboard'}
+          </button>
+        )}
 
         <label className="block w-full text-center py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium cursor-pointer">
           {uploading ? 'Uploading…' : currentImageUrl ? 'Replace Image' : 'Upload Image'}
