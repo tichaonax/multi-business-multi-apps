@@ -3769,7 +3769,7 @@ function GroceryPOSContent() {
                       </div>
                     )}
                     <div className={`font-medium ${deskMode ? 'text-base leading-snug mb-1' : ''}`}>
-                      {deskMode && <span className="mr-1 text-lg" title={product.category}>{resolveProductEmoji(product)}</span>}
+                      {deskMode && !product.imageUrl && <span className="mr-1 text-lg" title={product.category}>{resolveProductEmoji(product)}</span>}
                       {(product.name === 'Default' || product.name === 'default' || !product.name)
                         ? (product.barcode && !product.barcode.startsWith('inv_') ? product.barcode : product.pluCode || product.barcode || 'Item')
                         : product.name}
