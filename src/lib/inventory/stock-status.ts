@@ -23,7 +23,7 @@ export function getStockStatus(params: {
   const { stockQuantity, reorderLevel, hasInventoryTracking = false } = params
 
   if (stockQuantity <= 0) {
-    return { status: 'out', label: 'Out of Stock', color: 'text-red-600', canOrder: false }
+    return { status: 'out', label: `Out of Stock (${stockQuantity})`, color: 'text-red-600', canOrder: false }
   }
 
   const threshold = reorderLevel && reorderLevel > 0 ? reorderLevel : (hasInventoryTracking ? 10 : 5)

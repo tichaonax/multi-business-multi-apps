@@ -609,11 +609,12 @@ export function Sidebar() {
 
   return (
     <div className="w-full h-full bg-white dark:bg-gray-900 text-gray-900 dark:text-white flex flex-col shadow-xl">
-      <div className="p-4 xl:p-6 border-b border-gray-200 dark:border-gray-700">
-        <h1 className="text-xl xl:text-2xl font-bold text-blue-600 dark:text-blue-400">Business Hub</h1>
-        <p className="text-xs xl:text-sm text-gray-500 dark:text-gray-400 mt-1">Multi-Platform Management</p>
+      <div className="p-3 xl:p-4 border-b border-gray-200 dark:border-gray-700">
+        {/* "Business Hub" itself is already shown in the global header above —
+            repeating it here just duplicated it and wasted vertical space. */}
+        <p className="text-xs xl:text-sm text-gray-500 dark:text-gray-400">Multi-Platform Management</p>
         {currentBusiness && (
-          <div className="mt-3 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
+          <div className="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
             <p className="text-xs text-gray-500 dark:text-gray-400">Current Business:</p>
             <p title={currentBusiness.businessName} className="text-sm text-gray-900 dark:text-white font-medium truncate">{currentBusiness.businessName}</p>
           </div>
@@ -622,7 +623,7 @@ export function Sidebar() {
           <button
             onClick={openR710QuickSell}
             title="Sell an R710 WiFi token without leaving this page"
-            className="mt-2 w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+            className="mt-1.5 w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
           >
             <span>📶</span>
             <span>R710 Wi-Fi</span>

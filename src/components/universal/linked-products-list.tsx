@@ -132,10 +132,11 @@ export function LinkedProductsList({
                 <button
                   type="button"
                   onClick={() => handleOpenPriceEdit(item)}
-                  className="hover:underline decoration-dotted underline-offset-2 text-left"
+                  className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline underline-offset-2 text-left"
                   title="View / change price"
                 >
                   {item.productName}
+                  <span aria-hidden="true" className="text-xs">✏️</span>
                 </button>
               ) : (
                 item.productName
@@ -147,7 +148,9 @@ export function LinkedProductsList({
           <div className="flex gap-2 flex-shrink-0">
             <button
               onClick={() => handleAddToCart(item)}
-              className="text-xs px-2 py-1 rounded border border-blue-300 dark:border-blue-700 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+              disabled={item.price <= 0 || item.stockQuantity <= 0}
+              title={item.price <= 0 ? 'Set a price before adding to cart' : item.stockQuantity <= 0 ? 'Out of stock' : undefined}
+              className="text-xs px-2 py-1 rounded border border-blue-300 dark:border-blue-700 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             >
               🛒 Add to Cart
             </button>
