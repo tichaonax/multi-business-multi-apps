@@ -401,6 +401,18 @@ export function ClothingProductList({
                     </button>
                   </div>
 
+                  {/* Related images (MBM-294 §9.2 deferred follow-up) — jumps into the
+                      Business Image Gallery pre-filtered to this product's own images,
+                      via the gallery's existing linked-product search filter. */}
+                  <div className="mt-2">
+                    <button
+                      onClick={() => { window.location.href = `/universal/image-gallery?search=${encodeURIComponent(product.sku || product.name)}` }}
+                      className="w-full px-3 py-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors border border-gray-200 dark:border-gray-700"
+                    >
+                      🖼️ Related Images
+                    </button>
+                  </div>
+
                   {/* Quick Toggle Status */}
                   <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
                     <button

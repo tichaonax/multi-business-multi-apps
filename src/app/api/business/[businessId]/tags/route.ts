@@ -21,9 +21,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const tags = await prisma.tags.findMany({
     where: { businessId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, _count: { select: { image_tags: true } } },
     orderBy: { name: 'asc' },
   })
 
-  return NextResponse.json({ success: true, tags })
+  return NextResponse.json({
+    success: true,
+    tags: tags.map(t => ({ id: t.id, name: t.name, imageCount: t._count.image_tags })),
+  })
 }

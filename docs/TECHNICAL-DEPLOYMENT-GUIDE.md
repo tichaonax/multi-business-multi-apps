@@ -184,6 +184,21 @@ password: admin123
 
 > **Why `--no-admin` matters in §5.4:** `scripts/production-setup.js` can *also* create its own admin user if run without `--no-admin` — a second, independent code path (`createSystemAdmin()`) that uses a different internal ID and a different, larger default permissions object than `scripts/create-admin.js` does. Both are functionally fine on their own (neither creates duplicates — both check for an existing user by email first), but running both against the same database is pointless and potentially confusing. **Stick to the sequence above**: `production-setup.js --no-admin` for reference data, then `create-admin.js` for the admin user, exactly as the automated installer does internally.
 
+### 5.6 Optional: clothing category reference images (MBM-294)
+
+Unlike §5.4, this step is **entirely optional and safe to skip or defer indefinitely** — nothing else in the app depends on it, and there's no broken/error state for a server where it's never run. It seeds the shared "Reference Pool" of category photos that clothing businesses can browse and attach to their own products (Sidebar → 🖼️ Image Gallery → 🗂 Pool). Skipping it just means that server's clothing categories have no pool photos yet; everything else (manual image upload, the gallery itself, product photos already in the database) works identically either way.
+
+The image files themselves are **not in git** — they're copied to each server separately from the normal code deploy, same as `.env.local`. To populate the pool on a given server:
+
+1. Copy `scripts/mbm294-extracted/` (the `manifest.json` plus its `images/` folder) from a server where it's already been extracted — or run `node scripts/mbm294-extract-catalog-taxonomy.js` on this server if you have the source `.ods` file here instead. Either produces the same folder; extraction is idempotent and has no side effects on the database.
+2. Run the import once, by hand, against this server's own `.env.local`:
+   ```bash
+   node scripts/mbm294-import-categories-and-images.js
+   ```
+3. Review `scripts/mbm294-extracted/match-report.json` (which source categories matched existing ones vs. were created new) and spot-check a few categories in the Image Gallery's Reference Pool tab.
+
+This is a one-time, manual step **per server** (not wired into the automatic migrate/seed pipeline that runs on every service restart — see the schema-vs-data separation note in the MBM-294 plan, `ai-contexts/project-plans/review/projectplan-MBM-294-clothing-category-image-system-2026-09-05.md` §3.6, if you need the full reasoning). Re-running it on a server where it's already been run is safe (match-or-create, not a blind re-import) but pointless — there's nothing to gain from doing it twice.
+
 ---
 
 ## 6. Build
@@ -883,6 +898,7 @@ wraps `scripts/backup-database.js`. There isn't a separate, dedicated backup/res
 - [ ] Confirmed the PostgreSQL Windows service name matches what `windows-service/config.js` expects, if using Option C
 - [ ] `CORS_ORIGINS` covers however this server will actually be reached
 - [ ] A backup (`npm run backup:database`) has been taken at least once and you know where it writes to
+- [ ] *(Optional, clothing only)* Decided whether to run the MBM-294 category-image import (§5.6) on this server now or defer it — safe to skip indefinitely
 
 **Each workstation:**
 - [ ] Browser can reach the server and (if TLS) trusts its `rootCA.pem` (§10.1)

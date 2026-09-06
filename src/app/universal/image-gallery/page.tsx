@@ -4,6 +4,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useToastContext } from '@/components/ui/toast'
 import { SearchableSelect } from '@/components/ui/searchable-select'
@@ -11,6 +12,7 @@ import { ImageGalleryDetailModal } from '@/components/universal/image-gallery-de
 import { ImageGalleryInsights } from '@/components/universal/image-gallery-insights'
 import { ReferencePoolAttachModal } from '@/components/universal/reference-pool-attach-modal'
 import { ReferencePoolBulkUploadModal } from '@/components/universal/reference-pool-bulk-upload-modal'
+import { TagManagementModal } from '@/components/universal/tag-management-modal'
 
 interface Business {
   id: string
@@ -42,6 +44,8 @@ const PAGE_SIZE = 48
 export default function ImageGalleryPage() {
   const { currentBusinessId } = useBusinessPermissionsContext()
   const toast = useToastContext()
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [businessesLoaded, setBusinessesLoaded] = useState(false)
@@ -70,6 +74,7 @@ export default function ImageGalleryPage() {
   const [selectedPoolImage, setSelectedPoolImage] = useState<PoolImage | null>(null)
   const [mineStale, setMineStale] = useState(false)
   const [showBulkUpload, setShowBulkUpload] = useState(false)
+  const [showTagManager, setShowTagManager] = useState(false)
 
   // Clothing-only for now (2026-09-06, per direction): the category-image
   // import/reference pool only exists for clothing today — other business
@@ -96,13 +101,28 @@ export default function ImageGalleryPage() {
     }
   }, [currentBusinessId, businesses, selectedBusinessId])
 
-  useEffect(() => {
+  const loadTags = useCallback(() => {
     if (!selectedBusinessId) { setAvailableTags([]); return }
     fetch(`/api/business/${selectedBusinessId}/tags`)
       .then(r => r.ok ? r.json() : null)
       .then(d => setAvailableTags((d?.tags ?? []).map((t: any) => t.name)))
       .catch(() => setAvailableTags([]))
   }, [selectedBusinessId])
+
+  useEffect(() => { loadTags() }, [loadTags])
+
+  // "Related images" deep-link (MBM-294 §9.2/Phase 9 deferred follow-up) —
+  // a business's own product list can link straight in here pre-filtered to
+  // one product's images, via `?search=<name-or-sku>`, reusing the gallery's
+  // existing linked-product search filter rather than a separate view.
+  useEffect(() => {
+    const q = searchParams?.get('search')
+    if (!q) return
+    setSearch(q)
+    setView('mine')
+    router.replace('/universal/image-gallery', { scroll: false })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // `targetOffset` is passed in explicitly (read fresh from render scope at
   // the call site) rather than closed over from state — `fetchImages` is
@@ -334,6 +354,13 @@ export default function ImageGalleryPage() {
                 <datalist id="gallery-tag-options">
                   {availableTags.map(t => <option key={t} value={t} />)}
                 </datalist>
+                <button
+                  onClick={() => setShowTagManager(true)}
+                  title="Rename, merge, or delete tags"
+                  className="px-2.5 py-1.5 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  🏷️ Manage
+                </button>
               </>
             )}
 
@@ -473,6 +500,16 @@ export default function ImageGalleryPage() {
           businessType={businesses.find(b => b.id === selectedBusinessId)?.type ?? 'clothing'}
           imageId={selectedImageId}
           onClose={handleImageClosed}
+        />
+      )}
+
+      {showTagManager && selectedBusinessId && (
+        <TagManagementModal
+          businessId={selectedBusinessId}
+          onClose={(changed) => {
+            setShowTagManager(false)
+            if (changed) { loadTags(); if (tag) setTag('') }
+          }}
         />
       )}
     </div>
