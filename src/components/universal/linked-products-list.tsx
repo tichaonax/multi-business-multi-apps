@@ -56,13 +56,12 @@ export function LinkedProductsList({
   // single-variant item can go straight into the global cart in place,
   // without navigating away. That cart is shown app-wide by the header's
   // mini-cart, which is how the user keeps browsing and "checks out" later.
-  // A multi- (or zero-) variant item still needs the POS's own size/variant
-  // picker, so that case falls back to the old navigate-and-autoAdd route.
-  // The global cart also silently refuses any item priced at $0 or less —
-  // fall back for those too rather than show a false "Added" toast for
-  // something that never actually landed in the cart.
+  // A multi-variant item still needs the POS's own size/variant picker, so
+  // that case falls back to the old navigate-and-autoAdd route ($0 is a
+  // valid price — free/promo items — so that alone no longer disqualifies
+  // the in-place add).
   function handleAddToCart(item: LinkedProduct) {
-    if (item.variants.length === 1 && item.price > 0) {
+    if (item.variants.length === 1) {
       const variant = item.variants[0]
       addToCart({
         productId: item.productId,
@@ -74,6 +73,10 @@ export function LinkedProductsList({
         imageUrl: imageUrl ?? null,
       })
       toast.push(`Added ${item.productName} to cart`, { type: 'success' })
+      // Pop the header's mini-cart open (and keep it open — see mini-cart.tsx)
+      // so adding from here reads as "went into a floating cart", not a
+      // silent background update the user has to go hunt for.
+      window.dispatchEvent(new CustomEvent('global-cart:item-added'))
       return
     }
 

@@ -22,9 +22,27 @@ export function MiniCart() {
   const router = useRouter()
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
+  // While pinned, hovering away (e.g. to keep browsing the Image Gallery
+  // pool) does not auto-close the dropdown — only an explicit dismiss does.
+  // Set when an item is added from outside a POS page (see the
+  // 'global-cart:item-added' listener below); cleared on any explicit close.
+  const [pinned, setPinned] = useState(false)
 
   // Detect if user is already on a POS page — avoid navigating away and losing their cart
   const isOnPOSPage = !!(pathname?.includes('/pos'))
+
+  // Pop open (and pin open) when something is added to the cart from a
+  // non-POS page — e.g. the Image Gallery's Reference Pool "Add to Cart" —
+  // so it reads as "went into a floating cart" instead of a silent update
+  // the user has to go hunt for by hovering the header icon.
+  useEffect(() => {
+    const handleItemAdded = () => {
+      setIsOpen(true)
+      setPinned(true)
+    }
+    window.addEventListener('global-cart:item-added', handleItemAdded)
+    return () => window.removeEventListener('global-cart:item-added', handleItemAdded)
+  }, [])
 
   // Coupon state
   const [couponPhone, setCouponPhone] = useState('')
@@ -217,7 +235,14 @@ export function MiniCart() {
     setIsOpen(true)
   }
   const handleMouseLeave = () => {
+    if (pinned) return
     hideTimer.current = setTimeout(() => setIsOpen(false), 150)
+  }
+
+  // Explicit dismiss — the only way to close a pinned cart.
+  const handleClose = () => {
+    setIsOpen(false)
+    setPinned(false)
   }
 
   const itemCount = getCartItemCount()
@@ -231,7 +256,7 @@ export function MiniCart() {
   }
 
   const handleGoToPOS = () => {
-    setIsOpen(false)
+    handleClose()
     // If already on a POS page, just close the mini-cart so the user can
     // complete the purchase using the POS's own checkout flow.
     if (!isOnPOSPage) {
@@ -255,7 +280,7 @@ export function MiniCart() {
     <div className="relative" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
       {/* Cart Icon Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => (isOpen ? handleClose() : setIsOpen(true))}
         className="relative p-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
         title="Shopping Cart"
       >
@@ -286,7 +311,7 @@ export function MiniCart() {
           {/* Backdrop */}
           <div
             className="fixed inset-0 z-40"
-            onClick={() => setIsOpen(false)}
+            onClick={handleClose}
           />
 
           {/* Dropdown Panel */}
@@ -303,7 +328,7 @@ export function MiniCart() {
                   Shopping Cart
                 </h3>
                 <button
-                  onClick={() => setIsOpen(false)}
+                  onClick={handleClose}
                   className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 >
                   ✕

@@ -161,9 +161,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   // Add item to cart
   const addToCart = useCallback((item: Omit<CartItem, 'id' | 'quantity'> & { quantity?: number }) => {
-    // Validation guards
-    if (item.price <= 0) {
-      console.error('❌ [GlobalCart] Cannot add item with price <= 0')
+    // Validation guards — 0 is a legitimate price (free/promo items are
+    // supported at checkout elsewhere in the app), only negative is invalid.
+    if (item.price < 0) {
+      console.error('❌ [GlobalCart] Cannot add item with negative price')
       return
     }
 
