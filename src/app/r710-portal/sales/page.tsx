@@ -10,6 +10,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { ContentLayout } from '@/components/layout/content-layout'
 import { formatCurrency } from '@/lib/format-currency'
 import { ReceiptPrintManager } from '@/lib/receipts/receipt-print-manager'
+import { generatePlainTextReceipt } from '@/lib/printing/plain-text-receipt'
 import type { ReceiptData } from '@/types/printing'
 import { useToastContext } from '@/components/ui/toast'
 import { useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
@@ -106,6 +107,7 @@ export default function R710SalesPage() {
   const [printerId, setPrinterId] = useState<string | null>(null)
   const [businessDetails, setBusinessDetails] = useState<any>(null)
   const [isPrinting, setIsPrinting] = useState(false)
+  const [bannerCopied, setBannerCopied] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [amountReceived, setAmountReceived] = useState('')
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
@@ -517,6 +519,18 @@ export default function R710SalesPage() {
     else toast.push('No receipt data to preview')
   }
 
+  const handleCopyReceiptFromBanner = async () => {
+    const receiptData = buildReceiptData()
+    if (!receiptData) { toast.push('No receipt data to copy'); return }
+    try {
+      await navigator.clipboard.writeText(generatePlainTextReceipt(receiptData))
+      setBannerCopied(true)
+      setTimeout(() => setBannerCopied(false), 1200)
+    } catch {
+      toast.push('Could not copy receipt to clipboard')
+    }
+  }
+
   const handlePrintFromPreview = async (options: { printerId?: string; copies: number; printCustomerCopy: boolean }) => {
     const receiptData = buildReceiptData()
     if (!receiptData) throw new Error('No receipt data')
@@ -596,6 +610,9 @@ export default function R710SalesPage() {
                 ✅ {generatedTokens.length} token{generatedTokens.length > 1 ? 's' : ''} sold!
               </h3>
               <div className="flex gap-2">
+                <button onClick={handleCopyReceiptFromBanner} className="px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600">
+                  {bannerCopied ? '✅ Copied' : '📋 Copy'}
+                </button>
                 <button onClick={handleShowReceiptPreview} className="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
                   👁️ Preview
                 </button>

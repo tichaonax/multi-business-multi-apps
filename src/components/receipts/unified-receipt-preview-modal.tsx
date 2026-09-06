@@ -22,6 +22,7 @@ import { ReceiptTemplate } from '@/components/printing/receipt-template'
 import { LocalPrinterSetup } from '@/components/printing/local-printer-setup'
 import { QzTraySetup } from '@/components/printing/qz-tray-setup'
 import { generateReceipt } from '@/lib/printing/receipt-templates'
+import { generatePlainTextReceipt } from '@/lib/printing/plain-text-receipt'
 import {
   isWebSerialSupported,
   getLocalPrinterConfig,
@@ -126,6 +127,7 @@ export function UnifiedReceiptPreviewModal({
   const [showLocalSetup, setShowLocalSetup] = useState(false)
   const [showQzSetup, setShowQzSetup] = useState(false)
   const [checkingOnline, setCheckingOnline] = useState(false)
+  const [copied, setCopied] = useState(false)
   const toast = useToastContext()
   const { data: session } = useSession()
   const userId = (session?.user as any)?.id
@@ -391,6 +393,21 @@ export function UnifiedReceiptPreviewModal({
       toast.error('Error checking printer status')
     } finally {
       setCheckingOnline(false)
+    }
+  }
+
+  // Copies the entire receipt as plain text (same information as what
+  // prints, minus the raw ESC/POS control bytes) — same feature and copy
+  // as the POS workflow's own "Copy Full Receipt" button, so any screen
+  // using this shared modal (R710 token sales, vouchers, etc.) gets it too.
+  async function handleCopyReceipt() {
+    if (!receiptData) return
+    try {
+      await navigator.clipboard.writeText(generatePlainTextReceipt(receiptData))
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1200)
+    } catch {
+      toast.error('Could not copy receipt to clipboard')
     }
   }
 
@@ -787,6 +804,13 @@ export function UnifiedReceiptPreviewModal({
                 Cancel Order
               </button>
             )}
+            <Button variant="outline" onClick={handleCopyReceipt} disabled={!receiptData}>
+              {copied ? (
+                <><Check className="w-4 h-4 mr-2" />Copied</>
+              ) : (
+                <>📋 Copy</>
+              )}
+            </Button>
             <Button variant="outline" onClick={onClose} disabled={loading}>
               <X className="w-4 h-4 mr-2" />
               Cancel
