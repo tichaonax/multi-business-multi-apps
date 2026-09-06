@@ -1661,11 +1661,29 @@ export async function createCleanBackup(
   // businessType, not businessId — mirrors inventoryDomains/inventorySubcategories
   // above), so it's collected unconditionally like they are.
   businessData.categoryReferenceImages = await prisma.categoryReferenceImages.findMany()
+  // Tags.businessId is nullable (MBM-295) — null rows are the shared system
+  // vocabulary (e.g. the ~317 seeded clothing tags), not owned by any one
+  // business, so they must be included unconditionally alongside each
+  // business's own custom tags — same OR pattern businessCategories already
+  // uses for its own global/business-owned split.
   businessData.tags = await prisma.tags.findMany({
-    where: { businessId: { in: businessIds } }
+    where: { OR: [{ businessId: { in: businessIds } }, { businessId: null }] }
   })
+  // An ImageTags row is relevant if either the tag itself is business-owned
+  // (existing case) or the tagged image belongs to one of these businesses
+  // (new case, now that a shared system tag can be attached to any
+  // business's own image).
   businessData.imageTags = await prisma.imageTags.findMany({
-    where: { tags: { businessId: { in: businessIds } } }
+    where: { OR: [
+      { tags: { businessId: { in: businessIds } } },
+      { images: { businessId: { in: businessIds } } },
+    ] }
+  })
+  // ProductTags (MBM-295) — links BusinessProducts to Tags; scoped via the
+  // product's own businessId, same convention every other product-child
+  // table in this file already uses.
+  businessData.productTags = await prisma.productTags.findMany({
+    where: { business_products: { businessId: { in: businessIds } } }
   })
 
   // Extend image backup: warehouse images + product_images + inventory display images + ad images
@@ -1777,7 +1795,7 @@ export async function createCleanBackup(
       deviceRecords,
       uncompressedSize
     },
-    schemaVersion: '6.40.0',
+    schemaVersion: '6.41.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

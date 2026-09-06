@@ -198,6 +198,13 @@ export async function GET(request: NextRequest) {
               ]
             }
           }
+        },
+        // Tags (MBM-295) — matches any tag attached to the product, system
+        // vocabulary or business-owned custom tags alike.
+        {
+          product_tags: {
+            some: { tags: { name: { contains: search, mode: 'insensitive' } } }
+          }
         }
       ]
     }

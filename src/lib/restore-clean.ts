@@ -182,6 +182,7 @@ const RESTORE_ORDER = [
   'productBarcodes',
   'productImages',
   'productAttributes',
+  'productTags',              // MBM-295 — needs businessProducts + tags (tags is restored earlier, above)
   'businessStockMovements',
   'productPriceChanges',      // Product price audit trail
   'clothingBaleCategories',   // No FK dependencies (reference table)
@@ -644,6 +645,8 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   // MBM-294: Tags (unique per business+name), ImageTags (unique per image+tag)
   'tags': { fields: ['businessId', 'name'] },
   'imageTags': { fields: ['imageId', 'tagId'] },
+  // MBM-295: ProductTags (unique per product+tag)
+  'productTags': { fields: ['productId', 'tagId'] },
 }
 
 // (Composite unique and child dependency configs removed — replaced by ID remapping approach)

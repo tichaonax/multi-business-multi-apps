@@ -111,6 +111,8 @@ const NEW_TABLE_KEYS = [
   'productPromotions',
   // Category Reference Images, Tags & Image Tags (MBM-294)
   'categoryReferenceImages', 'tags', 'imageTags',
+  // Product Tags (MBM-295)
+  'productTags',
 ]
 
 async function main() {

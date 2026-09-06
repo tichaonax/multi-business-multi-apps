@@ -16,7 +16,7 @@ interface ImageDetail {
   size: number
   createdAt: string
   uploaderName: string | null
-  tags: Array<{ id: string; name: string }>
+  tags: Array<{ id: string; name: string; emoji?: string }>
 }
 
 interface Props {
@@ -194,7 +194,7 @@ export function ImageGalleryDetailModal({ businessId, businessType, imageId, onC
               <div className="flex flex-wrap gap-2 mb-2">
                 {image.tags.map(t => (
                   <span key={t.id} className="inline-flex items-center gap-1 text-xs bg-gray-100 dark:bg-gray-800 rounded-full px-2 py-1">
-                    {t.name}
+                    {t.emoji ?? '🏷️'} {t.name}
                     <button onClick={() => handleRemoveTag(t.id)} disabled={busyTagAction} className="text-secondary hover:text-red-600">✕</button>
                   </span>
                 ))}

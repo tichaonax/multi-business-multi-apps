@@ -6,6 +6,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { BusinessProvider, useBusinessContext } from '@/components/universal'
+import { ProductTagPicker } from '@/components/universal/product-tag-picker'
 
 interface ProductFormData {
   name: string
@@ -30,6 +31,7 @@ function NewProductContent() {
   const [error, setError] = useState<string | null>(null)
   const [categories, setCategories] = useState<any[]>([])
   const [brands, setBrands] = useState<any[]>([])
+  const [selectedTagNames, setSelectedTagNames] = useState<string[]>([])
 
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
@@ -99,6 +101,19 @@ function NewProductContent() {
       }
 
       const data = await response.json()
+
+      // Apply any tags picked during stocking (MBM-295) — the product
+      // didn't have an id to attach to until now, so these were only
+      // buffered locally up to this point.
+      if (data?.id && selectedTagNames.length > 0) {
+        await Promise.all(selectedTagNames.map(name =>
+          fetch(`/api/universal/products/${data.id}/tags`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name }),
+          }).catch(() => {})
+        ))
+      }
 
       // Redirect to products page or the newly created product
       router.push('/clothing/products')
@@ -264,6 +279,13 @@ function NewProductContent() {
                 </select>
               </div>
             </div>
+          </div>
+
+          {/* Tags (MBM-295) */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">Tags</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Fabric, fit, occasion, style — helps this product turn up in tag search later.</p>
+            <ProductTagPicker businessId={currentBusinessId} value={selectedTagNames} onChange={setSelectedTagNames} />
           </div>
 
           {/* Pricing */}

@@ -13,9 +13,12 @@ async function assertImageVisible(businessId: string, imageId: string) {
 
 /**
  * POST /api/business/[businessId]/images/[imageId]/tags
- * Body: { name: string }
- * Attaches a tag to an image, creating the business's own `Tags` row for
- * that name if it doesn't exist yet (MBM-294 §9.1/§9.3).
+ * Body: { name: string, emoji?: string }
+ * Attaches a tag to an image. Reuses an existing tag by name if one already
+ * fits — checking the shared system vocabulary for this business's type
+ * first (MBM-295), then this business's own custom tags — and only creates
+ * a brand-new business-owned tag if neither exists (MBM-294 §9.1/§9.3).
+ * `emoji` is only used for a genuinely new tag; omitted → schema default.
  */
 export async function POST(
   request: NextRequest,
@@ -37,11 +40,19 @@ export async function POST(
 
   const body = await request.json().catch(() => ({}))
   const name = typeof body.name === 'string' ? body.name.trim() : ''
+  const emoji = typeof body.emoji === 'string' && body.emoji.trim() ? body.emoji.trim() : undefined
   if (!name) return NextResponse.json({ error: 'Tag name is required' }, { status: 400 })
 
-  let tag = await prisma.tags.findFirst({ where: { businessId, name: { equals: name, mode: 'insensitive' } } })
+  const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { type: true } })
+
+  let tag = await prisma.tags.findFirst({
+    where: {
+      name: { equals: name, mode: 'insensitive' },
+      OR: [{ businessId }, { businessId: null, businessType: business?.type }],
+    },
+  })
   if (!tag) {
-    tag = await prisma.tags.create({ data: { businessId, name, createdBy: user.id } })
+    tag = await prisma.tags.create({ data: { businessId, name, createdBy: user.id, ...(emoji ? { emoji } : {}) } })
   }
 
   await prisma.imageTags.upsert({

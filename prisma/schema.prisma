@@ -315,6 +315,7 @@ model BusinessProducts {
   daily_specials              DailySpecial[]
   daily_special_add_ons       DailySpecialAddOn[]
   vehicle_part_compatibility  VehiclePartCompatibility[]
+  product_tags                ProductTags[]
 
   @@unique([businessId, sku])
   @@map("business_products")
@@ -2297,16 +2298,36 @@ model CategoryReferenceImages {
 }
 
 model Tags {
-  id         String      @id @default(uuid())
-  businessId String
-  name       String
-  createdBy  String?
-  createdAt  DateTime    @default(now())
-  businesses Businesses  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  users      Users?      @relation("TagCreatedBy", fields: [createdBy], references: [id])
-  image_tags ImageTags[]
+  id           String       @id @default(uuid())
+  // Nullable (MBM-295) — null means a shared system tag (scoped by
+  // businessType instead), matching BusinessCategories.businessId's own
+  // nullable global/business-owned split. Set = a business's own custom tag.
+  businessId   String?
+  // Set on system tags (e.g. 'clothing') so they're scoped by business type
+  // without needing a businessId; left null on business-owned custom tags.
+  businessType String?
+  name         String
+  // Every tag has one — user-created tags that don't specify one fall back
+  // to this schema default automatically (MBM-295).
+  emoji        String       @default("🏷️")
+  // The seeded vocabulary's own section header (e.g. "Fabric / Material",
+  // "Occasion / Use Case") — null for user-created tags, which aren't part
+  // of a predefined group (MBM-295).
+  groupLabel   String?
+  createdBy    String?
+  createdAt    DateTime     @default(now())
+  businesses   Businesses?  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  users        Users?       @relation("TagCreatedBy", fields: [createdBy], references: [id])
+  image_tags   ImageTags[]
+  product_tags ProductTags[]
 
   @@unique([businessId, name])
+  // Only actually constrains system tags (businessId is null on all of
+  // them) — Postgres treats every NULL as distinct, so this never collides
+  // with per-business custom tags. Lets the seed migration's INSERT target
+  // a real ON CONFLICT clause, matching this repo's own category-seeding
+  // migrations (e.g. business_categories' businessType+name constraint).
+  @@unique([businessType, name])
   @@map("tags")
 }
 
@@ -2321,6 +2342,19 @@ model ImageTags {
   @@unique([imageId, tagId])
   @@index([tagId])
   @@map("image_tags")
+}
+
+model ProductTags {
+  id        String          @id @default(uuid())
+  productId String
+  tagId     String
+  createdAt DateTime        @default(now())
+  business_products BusinessProducts @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tags      Tags            @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, tagId])
+  @@index([tagId])
+  @@map("product_tags")
 }
 
 model InventoryDomains {

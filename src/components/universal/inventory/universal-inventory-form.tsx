@@ -6,6 +6,7 @@ import { LocationSelector } from '@/components/locations/location-selector'
 import { InventorySubcategoryEditor } from '@/components/inventory/inventory-subcategory-editor'
 import { BarcodeManager, ProductBarcode } from '@/components/universal/barcode-manager'
 import { SearchableSelect } from '@/components/ui/searchable-select'
+import { ProductTagsEditor } from '@/components/universal/product-tag-picker'
 import { useSession } from 'next-auth/react'
 import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { LabelPreview } from '@/components/printing/label-preview'
@@ -1735,6 +1736,16 @@ export function UniversalInventoryForm({
           </div>
 
         </div>
+
+        {/* Tags (MBM-295) — clothing only, and only once the product actually
+            has an id (BarcodeInventoryItems, prefixed 'inv_', aren't taggable
+            here — see ProductTags' schema scope). */}
+        {businessType === 'clothing' && item?.id && !item.id.startsWith('inv_') && (
+          <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tags</label>
+            <ProductTagsEditor businessId={businessId} productId={item.id} />
+          </div>
+        )}
 
         <div className="flex justify-end gap-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
           <button

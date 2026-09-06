@@ -3,9 +3,22 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
 
-async function assertOwnedTag(businessId: string, tagId: string) {
+/**
+ * Resolves a tag and checks whether the given business may edit it.
+ * Returns `null` if the tag doesn't exist or belongs to a different
+ * business's own custom vocabulary (404 either way, from the caller's
+ * perspective — no reason to reveal one business's tag exists to another).
+ * A system tag (businessId null — MBM-295's seeded vocabulary) exists and
+ * is visible, but `editable` is false unless the caller is a system admin —
+ * shared vocabulary can't be renamed/deleted/merged away from one
+ * business's own management screen.
+ */
+async function resolveEditableTag(businessId: string, tagId: string, isAdmin: boolean) {
   const tag = await prisma.tags.findUnique({ where: { id: tagId }, select: { businessId: true } })
-  return tag && tag.businessId === businessId
+  if (!tag) return null
+  if (tag.businessId !== null && tag.businessId !== businessId) return null
+  const editable = isAdmin || tag.businessId === businessId
+  return { isSystem: tag.businessId === null, editable }
 }
 
 /**
@@ -27,8 +40,10 @@ export async function PATCH(
     if (!membership) return NextResponse.json({ error: 'You do not have access to this business' }, { status: 403 })
   }
 
-  if (!(await assertOwnedTag(businessId, tagId))) {
-    return NextResponse.json({ error: 'Tag not found' }, { status: 404 })
+  const resolved = await resolveEditableTag(businessId, tagId, isAdmin)
+  if (!resolved) return NextResponse.json({ error: 'Tag not found' }, { status: 404 })
+  if (!resolved.editable) {
+    return NextResponse.json({ error: 'This is a shared system tag and cannot be renamed from here' }, { status: 403 })
   }
 
   const body = await request.json().catch(() => ({}))
@@ -48,8 +63,9 @@ export async function PATCH(
 
 /**
  * DELETE /api/business/[businessId]/tags/[tagId]
- * Deletes the tag entirely (not just detaching from one image) — `ImageTags`
- * rows cascade automatically via the schema's onDelete: Cascade.
+ * Deletes the tag entirely (not just detaching from one image/product) —
+ * `ImageTags`/`ProductTags` rows cascade automatically via the schema's
+ * onDelete: Cascade.
  */
 export async function DELETE(
   request: NextRequest,
@@ -65,8 +81,10 @@ export async function DELETE(
     if (!membership) return NextResponse.json({ error: 'You do not have access to this business' }, { status: 403 })
   }
 
-  if (!(await assertOwnedTag(businessId, tagId))) {
-    return NextResponse.json({ error: 'Tag not found' }, { status: 404 })
+  const resolved = await resolveEditableTag(businessId, tagId, isAdmin)
+  if (!resolved) return NextResponse.json({ error: 'Tag not found' }, { status: 404 })
+  if (!resolved.editable) {
+    return NextResponse.json({ error: 'This is a shared system tag and cannot be deleted from here' }, { status: 403 })
   }
 
   await prisma.tags.delete({ where: { id: tagId } })

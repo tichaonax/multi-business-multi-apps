@@ -226,6 +226,7 @@
 64. [POS Cart Badges — Decrement & Remove Without Opening the Cart](#64-pos-cart-badges--decrement--remove-without-opening-the-cart)
 65. [Business Image Gallery & Category Reference Pool](#65-business-image-gallery--category-reference-pool)
     - [Linked Products — Viewing, Selling & Editing Price](#linked-products--viewing-selling--editing-price)
+    - [Tag Vocabulary, Product Tags & Tag Search](#tag-vocabulary-product-tags--tag-search)
     - [Permissions](#permissions-16)
 
 ---
@@ -13654,7 +13655,7 @@ Shows only images this business has actually used — starts small and grows as 
 
 | Action | What it does |
 |--------|-------------|
-| **Tags** | Add or remove tags (autocomplete from this business's existing tags); typing a new name creates it |
+| **Tags** | Add or remove tags (autocomplete from this business's own tags **and** the shared vocabulary below); typing a name that doesn't exist yet creates it. Every tag shows its emoji next to its name. |
 | **Linked inventory items** | Every product using this image — see [Linked Products](#linked-products--viewing-selling--editing-price) below |
 | **Set Primary** | Makes this the product's main photo (shown on POS cards, receipts, etc.) |
 | **Remove** | Un-links this image from that one product (doesn't delete the image itself) |
@@ -13689,12 +13690,30 @@ Both the My Gallery detail panel and the Reference Pool's attach dialog show the
 
 ---
 
+### Tag Vocabulary, Product Tags & Tag Search
+
+Tags started as an image-organizing tool (above) and now cover three more things: a large built-in vocabulary, tagging products directly (not just images), and search.
+
+**Built-in vocabulary** — every clothing business automatically has access to a shared set of ~317 ready-made tags (fabric, pattern, color, fit, length, neckline, sleeve style, closures, occasion, season, audience, style/vibe, sustainability, and a handful of internal/operational tags), each with its own emoji, grouped the same way they're organized in this list (Fabric / Material, Pattern / Print, Occasion / Use Case, etc.). These are **system tags** — shared across every clothing business, not owned by yours specifically, so they show a small 🔒 in the Tag Management screen and can't be renamed, merged, or deleted from your own business (only created custom tags can be). You can still use every one of them freely on your own images and products.
+
+**🏷️ Manage Tags** (button next to the tag filter on the My Gallery tab) opens a screen to:
+- Browse the full vocabulary, grouped and searchable, or your own business's custom tags (a "Your Tags" section at the end)
+- **+ New Tag** — create your own custom tag with a name and an emoji (uses the same emoji picker as everywhere else in the app — search by description or paste one directly); leave the emoji blank and it defaults to 🏷️
+- **Rename / Merge / Delete** — only available on your own custom tags. Merge folds one tag into another (e.g. a duplicate you created by accident) and re-tags everything that had the old one.
+
+**Tagging a product directly** — when creating a new product (**Clothing → Products → New Product**) or editing an existing one, a **Tags** field lets you search and pick from the full vocabulary (or type a new one) — the same picker, showing emoji + name, with your current picks as removable chips. On the create screen, picks are applied right after the product is saved; on the edit screen, each pick/removal takes effect immediately, the same way Set Primary/Remove already work elsewhere in the gallery.
+
+**Tag search** — the product search used everywhere in the app (POS quick-add, this business's own inventory search, the Image Gallery's "add to a product" box, vehicle-service parts requests) now also matches tags. Searching "linen" or "clearance" finds every product tagged that way, on top of the existing name/SKU/barcode matching.
+
+---
+
 ### Permissions
 
 | Permission | What it allows |
 |------------|----------------|
-| Active membership in a clothing business | Browse My Gallery and the Reference Pool, tag images, attach/remove product links, add linked products to cart |
+| Active membership in a clothing business | Browse My Gallery and the Reference Pool, tag images/products, attach/remove product links, add linked products to cart, create custom tags |
 | `canQuickEditPOSItems` | Click a linked product's name to view/change its price from the gallery |
 | `canManageInventory` | Bulk-upload new images into the shared Reference Pool |
+| System admin | Rename, merge, or delete a shared **system** tag (not available from a business's own Tag Management screen) |
 
 ---

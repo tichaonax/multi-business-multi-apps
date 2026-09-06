@@ -34,7 +34,7 @@ export async function GET(
     select: {
       id: true, mimeType: true, size: true, createdAt: true, businessId: true, uploadedBy: true,
       uploader: { select: { name: true } },
-      image_tags: { select: { tags: { select: { id: true, name: true } } } },
+      image_tags: { select: { tags: { select: { id: true, name: true, emoji: true } } } },
     },
   })
   if (!image) return NextResponse.json({ error: 'Image not found' }, { status: 404 })
