@@ -31,6 +31,7 @@
 11. [Construction & Projects](#11-construction--projects)
 12. [Driver & Vehicle Log](#12-driver--vehicle-log)
 13. [WiFi Token Sales — ESP32 and R710](#13-wifi-token-sales--esp32-and-r710)
+    - [R710 Wi-Fi Quick Sell — From Any Page](#r710-wi-fi-quick-sell--from-any-page)
     - [Admin-Issued Long-Term Tokens (Workstation Access)](#admin-issued-long-term-tokens-workstation-access)
     - [Device Registry — Admin Setup & Fixing a Mixed-Up IP Address](#device-registry--admin-setup--fixing-a-mixed-up-ip-address)
     - [Remote Sites — R710 via Local Agent](#remote-sites--r710-via-local-agent)
@@ -224,6 +225,7 @@
     - [Using the Report](#using-the-report)
 64. [POS Cart Badges — Decrement & Remove Without Opening the Cart](#64-pos-cart-badges--decrement--remove-without-opening-the-cart)
 65. [Business Image Gallery & Category Reference Pool](#65-business-image-gallery--category-reference-pool)
+    - [Linked Products — Viewing, Selling & Editing Price](#linked-products--viewing-selling--editing-price)
     - [Permissions](#permissions-16)
 
 ---
@@ -586,6 +588,8 @@ After payment is processed:
    - **Browser Print** — opens the browser's print dialog. Works on any machine but may need margin adjustments.
 4. Click **Print Receipt**.
 5. If the sale includes a WiFi token, the token details (username and password) are printed on the receipt automatically.
+
+> **📋 Copy** — the receipt preview also has a Copy button (next to Preview/Print) that copies the full receipt as plain text to your clipboard, e.g. to paste into an email or chat instead of printing. It briefly shows **✅ Copied** as confirmation. This is available everywhere this same receipt preview is used, including WiFi/R710 token sales.
 
 > **Tip:** If the customer does not need a printed receipt, click **Skip**.
 
@@ -4217,9 +4221,18 @@ The **R710 Portal → Sales** page is a dedicated selling interface for R710 tok
 ──────────────────────────────────────────────
 ```
 
-10. Click **🖨️ Print** to print all credentials on a single receipt, or **👁️ Preview** to review before printing.
+10. Click **📋 Copy** to copy the credentials as plain text (shows **✅ Copied** briefly), **👁️ Preview** to review before printing, or **🖨️ Print** to print all credentials on a single receipt.
 
 > **Tip:** The cart is cleared after a successful sale. To sell another batch, simply add packages to the cart again — no page refresh needed.
+
+#### R710 Wi-Fi Quick Sell — From Any Page
+
+For businesses that sell R710 tokens often, a **📶 R710 Wi-Fi** button sits in the sidebar right under **Current Business**, on every page — not just the Sales page. Clicking it opens the exact same sell → checkout → generated-tokens workflow described above, but as a **pop-up window over whatever page you're already on**, instead of navigating away.
+
+- Whatever you were doing on the underlying page — a form half-filled-in, a report you had open — is untouched. Closing the window (✕ in its top-right corner) just removes it; you're back exactly where you were.
+- This workflow keeps its own cart, completely separate from the business's main shopping cart — selling a WiFi token this way never adds to, clears, or otherwise affects whatever is in the main cart (or vice versa).
+- Only shown to users who can sell R710 tokens (`canSellWifiTokens`), for a business with R710 selling already set up and at least one package enabled in its menu.
+- The full-page **R710 Portal → Sales** screen (and its Sales History panel below the cart) still works exactly as before — this button is an additional shortcut, not a replacement.
 
 #### Sales History & Reprinting
 
@@ -13481,6 +13494,8 @@ For Clothing specifically: it's on the **Quick Add Products** tab only — **Bal
 
 Every price change made this way — or through any other price-editing screen — is recorded (who, when, old value, new value) and reviewable on the [Price Change Report](#63-price-change-report).
 
+The same dialog also opens from the **Business Image Gallery**'s linked-products list — click a product's name (shown in blue with a ✏️ icon when you have `canQuickEditPOSItems`) to view or change its price without leaving the gallery. See [Section 65](#65-business-image-gallery--category-reference-pool).
+
 ---
 
 ### Permissions
@@ -13640,10 +13655,9 @@ Shows only images this business has actually used — starts small and grows as 
 | Action | What it does |
 |--------|-------------|
 | **Tags** | Add or remove tags (autocomplete from this business's existing tags); typing a new name creates it |
-| **Linked inventory items** | Every product using this image, with SKU, stock, and a primary-image indicator |
+| **Linked inventory items** | Every product using this image — see [Linked Products](#linked-products--viewing-selling--editing-price) below |
 | **Set Primary** | Makes this the product's main photo (shown on POS cards, receipts, etc.) |
 | **Remove** | Un-links this image from that one product (doesn't delete the image itself) |
-| **Sell/Restock** | Jumps straight to that product in its own business's POS, ready to add to cart — reuses the same cross-business navigation the barcode scanner already uses elsewhere in the app |
 | **Copy Image** | Copies the image to your clipboard (paste it anywhere, e.g. while creating a new product) |
 | **Add this image to another product** | Search by name, SKU, or **scan a barcode** — the search box is focused automatically so a physical scanner's input goes straight into it. Results are always limited to this business's own products. |
 
@@ -13656,10 +13670,22 @@ Shows only images this business has actually used — starts small and grows as 
 Browses the shared, business-agnostic category image pool — imported in bulk from a source catalog, plus anything added since via Bulk Upload. An image here isn't "yours" until you attach it to one of your own products.
 
 - **Category dropdown** — filter to one category, or browse "All categories"
-- **Clicking a thumbnail** opens a small dialog: the image, a note on whether it's already used by any of your products (with a count), and the same search-or-scan "add to a product" box described above
+- Images already used by one of your own products are shown **first**, most-used first — so the images your business actually relies on surface at the top of the grid instead of being buried among thousands of untouched ones
+- **Clicking a thumbnail** opens a small dialog: the image, [Linked Products](#linked-products--viewing-selling--editing-price) already using it (if any), and the same search-or-scan "add to a product" box described above
 - Once attached, the thumbnail shows the same count badge as My Gallery — no need to switch tabs to confirm it worked
+- If the same pool image is also used by **other businesses**, a second badge shows how many — groundwork for this feature eventually opening to more business types; it doesn't affect your own use of the image
 
 **⬆️ Bulk Upload** — add multiple images to the pool at once for a chosen category (including brand-new categories with nothing in them yet). Requires `canManageInventory` — this writes into a pool shared by every business of this type, not just your own data, so it's gated stricter than browsing.
+
+---
+
+### Linked Products — Viewing, Selling & Editing Price
+
+Both the My Gallery detail panel and the Reference Pool's attach dialog show the same list of "your products using this image" — name, SKU, price, and stock (e.g. *In Stock (12)*, *Low Stock (3)*, *Out of Stock (0)*):
+
+- **🛒 Add to Cart** — for a product with a single variant, this adds it straight into your **floating cart** (the shopping-cart icon in the top header) without leaving the gallery. The cart pops open and stays open — it won't auto-close as you keep browsing — until you dismiss it yourself (✕, clicking the icon again, clicking elsewhere, or checking out). Products with more than one variant (e.g. multiple sizes) instead jump to that product in its own business's POS so you can pick the variant, the same cross-business navigation the barcode scanner uses elsewhere.
+  - Disabled (greyed out) when the price is $0 or stock is 0 — hover it to see why.
+- **Click the product's name** (shown in blue with a ✏️, only if you have `canQuickEditPOSItems`) to open the same price dialog used by [POS Quick-Edit Mode](#61-pos-quick-edit-mode--update-images--adjust-prices) — view or change the price without leaving the gallery. Saving it updates the price shown here immediately, **and** if that product is already sitting in your floating cart, that cart line's price updates too.
 
 ---
 
@@ -13667,7 +13693,8 @@ Browses the shared, business-agnostic category image pool — imported in bulk f
 
 | Permission | What it allows |
 |------------|----------------|
-| Active membership in a clothing business | Browse My Gallery and the Reference Pool, tag images, attach/remove product links |
+| Active membership in a clothing business | Browse My Gallery and the Reference Pool, tag images, attach/remove product links, add linked products to cart |
+| `canQuickEditPOSItems` | Click a linked product's name to view/change its price from the gallery |
 | `canManageInventory` | Bulk-upload new images into the shared Reference Pool |
 
 ---
