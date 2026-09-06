@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useToastContext } from '@/components/ui/toast'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 
 interface Props {
   businessId: string
@@ -61,15 +62,14 @@ export function ReferencePoolBulkUploadModal({ businessId, domains, defaultDomai
 
         <div>
           <label className="block text-xs font-medium text-secondary mb-1">Category</label>
-          <select
+          <SearchableSelect
+            required
+            options={domains.map(d => ({ id: d.id, label: `${d.emoji} ${d.name}` }))}
             value={domainId}
-            onChange={e => setDomainId(e.target.value)}
-            className="w-full rounded-md border-gray-300 dark:bg-gray-800 dark:border-gray-700 dark:text-white py-2 px-3 text-sm"
-          >
-            {domains.map(d => (
-              <option key={d.id} value={d.id}>{d.emoji} {d.name}</option>
-            ))}
-          </select>
+            onChange={setDomainId}
+            placeholder="Select a category…"
+            searchPlaceholder="Search categories…"
+          />
         </div>
 
         <div>

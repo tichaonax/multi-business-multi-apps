@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect, useCallback } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useToastContext } from '@/components/ui/toast'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { ImageGalleryDetailModal } from '@/components/universal/image-gallery-detail-modal'
 import { ImageGalleryInsights } from '@/components/universal/image-gallery-insights'
 import { ReferencePoolAttachModal } from '@/components/universal/reference-pool-attach-modal'
@@ -268,17 +269,15 @@ export default function ImageGalleryPage() {
             </div>
 
             {view === 'pool' ? (
-              <select
-                aria-label="Category"
+              <SearchableSelect
+                className="w-56"
+                options={poolDomains.map(d => ({ id: d.id, label: `${d.emoji} ${d.name} (${d.count})` }))}
                 value={poolDomainId}
-                onChange={e => setPoolDomainId(e.target.value)}
-                className="rounded-md border-gray-300 dark:bg-gray-800 dark:border-gray-700 dark:text-white py-1.5 px-2 text-sm"
-              >
-                <option value="">All categories</option>
-                {poolDomains.map(d => (
-                  <option key={d.id} value={d.id}>{d.emoji} {d.name} ({d.count})</option>
-                ))}
-              </select>
+                onChange={setPoolDomainId}
+                placeholder="All categories"
+                allLabel="All categories"
+                searchPlaceholder="Search categories…"
+              />
             ) : null}
 
             {view === 'pool' && (
