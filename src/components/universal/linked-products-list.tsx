@@ -1,7 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { useToastContext } from '@/components/ui/toast'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { PriceEditDialog } from '@/components/pos/price-edit-dialog'
 
 export interface LinkedProduct {
   productImageId: string
@@ -9,6 +12,10 @@ export interface LinkedProduct {
   productName: string
   sku: string | null
   price: number
+  /** The variant the displayed price actually came from, if any — needed to
+   * PATCH the right record when the price is edited (null means it's the
+   * product's own basePrice). */
+  priceVariantId: string | null
   isPrimary: boolean
   stockQuantity: number
   stockLabel: string
@@ -31,6 +38,9 @@ interface Props {
   onRemove?: (item: LinkedProduct) => void
   busyProductImageId?: string | null
   emptyLabel?: string
+  /** Called after a price edit is saved — the caller owns `items`, so it
+   * needs to refetch/refresh to show the new price in this list. */
+  onItemChanged?: () => void
 }
 
 function fmt(n: number) {
@@ -45,10 +55,13 @@ function fmt(n: number) {
  * live in the same place instead of requiring a tab switch.
  */
 export function LinkedProductsList({
-  businessId, businessType, items, imageUrl, showManageActions, onSetPrimary, onRemove, busyProductImageId, emptyLabel,
+  businessId, businessType, items, imageUrl, showManageActions, onSetPrimary, onRemove, busyProductImageId, emptyLabel, onItemChanged,
 }: Props) {
-  const { addToCart } = useGlobalCart()
+  const { addToCart, updatePriceByVariant } = useGlobalCart()
   const toast = useToastContext()
+  const { hasPermission } = useBusinessPermissionsContext()
+  const canEditPrice = hasPermission('canQuickEditPOSItems')
+  const [editingPriceItem, setEditingPriceItem] = useState<LinkedProduct | null>(null)
 
   // The business you're browsing the pool/gallery for is always the current
   // business here (unlike the global barcode-scan modal's cross-business
@@ -87,6 +100,24 @@ export function LinkedProductsList({
     window.location.href = url
   }
 
+  // Only offered for single-variant items — the same eligibility as the
+  // in-place Add to Cart above, so there's never ambiguity about which
+  // variant's price is being shown/edited or which cart line to sync.
+  function handleOpenPriceEdit(item: LinkedProduct) {
+    if (item.variants.length !== 1) return
+    setEditingPriceItem(item)
+  }
+
+  function handlePriceSaved(newPrice: number) {
+    if (editingPriceItem && editingPriceItem.variants.length === 1) {
+      // Already in the floating cart? Update that line's price too, in
+      // place, rather than leaving it stale until the user removes/re-adds.
+      updatePriceByVariant(editingPriceItem.variants[0].id, newPrice)
+    }
+    setEditingPriceItem(null)
+    onItemChanged?.()
+  }
+
   if (items.length === 0) {
     return <p className="text-sm text-secondary">{emptyLabel ?? 'Not linked to any product yet.'}</p>
   }
@@ -97,7 +128,19 @@ export function LinkedProductsList({
         <div key={item.productImageId} className="flex items-center justify-between border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm">
           <div>
             <div className="font-medium text-primary">
-              {item.productName} {item.isPrimary && <span className="text-xs text-blue-600">(primary)</span>}
+              {canEditPrice && item.variants.length === 1 ? (
+                <button
+                  type="button"
+                  onClick={() => handleOpenPriceEdit(item)}
+                  className="hover:underline decoration-dotted underline-offset-2 text-left"
+                  title="View / change price"
+                >
+                  {item.productName}
+                </button>
+              ) : (
+                item.productName
+              )}
+              {' '}{item.isPrimary && <span className="text-xs text-blue-600">(primary)</span>}
             </div>
             <div className="text-xs text-secondary">{item.sku ?? '—'} · {fmt(item.price)} · {item.stockLabel}</div>
           </div>
@@ -129,6 +172,19 @@ export function LinkedProductsList({
           </div>
         </div>
       ))}
+
+      {editingPriceItem && (
+        <PriceEditDialog
+          businessId={businessId}
+          itemId={editingPriceItem.productId}
+          itemName={editingPriceItem.productName}
+          sourceTable="BUSINESS_PRODUCT"
+          variantId={editingPriceItem.priceVariantId ?? undefined}
+          currentPrice={editingPriceItem.price}
+          onClose={() => setEditingPriceItem(null)}
+          onSaved={handlePriceSaved}
+        />
+      )}
     </div>
   )
 }

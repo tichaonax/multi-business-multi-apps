@@ -47,16 +47,22 @@ export function ReferencePoolAttachModal({ businessId, businessType, imageId, ur
     return () => { cancelled = true }
   }, [businessId, imageId, linkedItemCount])
 
+  // Reused by both "just attached a product" and "just edited a price" —
+  // either way, "Your products using this image" needs a fresh fetch to show it.
+  function refetchLinkedItems() {
+    fetch(`/api/business/${businessId}/images/${imageId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setLinkedItems(d.linkedItems ?? []) })
+      .catch(() => {})
+  }
+
   function handleAttached() {
     setChanged(true)
     // Stay open (unlike a plain one-shot attach-and-close) and refetch so the
     // just-added product shows up in "Your products using this image" right
     // away — lets you confirm it worked, or keep adding more, without
     // reopening the modal.
-    fetch(`/api/business/${businessId}/images/${imageId}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setLinkedItems(d.linkedItems ?? []) })
-      .catch(() => {})
+    refetchLinkedItems()
   }
 
   return (
@@ -92,6 +98,7 @@ export function ReferencePoolAttachModal({ businessId, businessType, imageId, ur
                 items={linkedItems}
                 imageUrl={url}
                 emptyLabel="Not linked to any of your products yet."
+                onItemChanged={refetchLinkedItems}
               />
             )}
           </div>

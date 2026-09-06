@@ -29,6 +29,7 @@ interface CartContextType {
   removeFromCart: (itemId: string) => void
   updateQuantity: (itemId: string, quantity: number) => void
   updateDiscount: (itemId: string, discount: number) => void
+  updatePriceByVariant: (variantId: string, newPrice: number) => void
   clearCart: () => void
   replaceCart: (items: Omit<CartItem, 'id'>[]) => void
   getCartTotal: () => number
@@ -250,6 +251,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
     })
   }, [removeFromCart])
 
+  // Update the price of any cart line(s) matching a product variant — used
+  // when a product's price is edited elsewhere (e.g. the click-to-edit-price
+  // dialog on the Image Gallery's linked-products list) while it's already
+  // sitting in this cart, so the cart reflects the new price without the
+  // user having to remove and re-add it.
+  const updatePriceByVariant = useCallback((variantId: string, newPrice: number) => {
+    setCart(currentCart =>
+      currentCart.map(item =>
+        item.variantId === variantId ? { ...item, price: newPrice } : item
+      )
+    )
+  }, [])
+
   // Update item discount
   const updateDiscount = useCallback((itemId: string, discount: number) => {
     setCart(currentCart =>
@@ -308,6 +322,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     removeFromCart,
     updateQuantity,
     updateDiscount,
+    updatePriceByVariant,
     clearCart,
     replaceCart,
     getCartTotal,

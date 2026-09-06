@@ -230,6 +230,7 @@ export function ImageGalleryDetailModal({ businessId, businessType, imageId, onC
                 onSetPrimary={handleSetPrimary}
                 onRemove={handleRemoveLink}
                 busyProductImageId={busyLinkId}
+                onItemChanged={() => { setChanged(true); load() }}
               />
             </div>
 

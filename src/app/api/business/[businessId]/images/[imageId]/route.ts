@@ -67,14 +67,18 @@ export async function GET(
     const stock = getStockStatus({ stockQuantity, reorderLevel })
     // Product's own base price, or its cheapest variant override if it has one —
     // matches the same "variant price wins if set" convention used at POS.
-    const variantPrice = p.product_variants.find(v => v.price != null)?.price
-    const price = Number(variantPrice ?? p.basePrice ?? 0)
+    const priceVariant = p.product_variants.find(v => v.price != null)
+    const price = Number(priceVariant?.price ?? p.basePrice ?? 0)
     return {
       productImageId: link.id,
       productId: p.id,
       productName: p.name,
       sku: p.sku,
       price,
+      // Which variant the displayed price actually came from (if any) — the
+      // click-to-edit-price dialog needs this to PATCH the right record
+      // instead of the product's basePrice.
+      priceVariantId: priceVariant?.id ?? null,
       isPrimary: link.isPrimary,
       stockQuantity,
       stockStatus: stock.status,
