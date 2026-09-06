@@ -55,6 +55,13 @@ export function ProductAttachSearch({ businessId, imageId, onAttached }: { busin
       toast.push('Image added to product')
       setSearchText('')
       setSearchResults([])
+      // Reach the live customer display as early as possible — the newly
+      // attached image becomes the product's primary photo immediately, and
+      // the display's own per-item image already falls back to that when no
+      // dedicated advertising image is set, but only on its own refresh.
+      const bc = new BroadcastChannel('customer-display')
+      bc.postMessage({ type: 'DISPLAY_REFRESH', businessId, terminalId: null, payload: {} })
+      bc.close()
       onAttached()
     } catch (e: any) {
       toast.error(e.message ?? 'Failed to attach image')

@@ -87,10 +87,30 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     : []
   const usageByImageId = new Map(usageCounts.map(u => [u.imageId, u._count.imageId]))
 
+  // Cross-business usage (MBM-294 groundwork for opening the pool to more
+  // business types later): a plain groupBy can't COUNT(DISTINCT businessId),
+  // so this is a raw query — how many *other* businesses' products already
+  // use each image, separate from this business's own `linkedItemCount`.
+  const businessCountRows = imageIds.length > 0
+    ? await prisma.$queryRaw<Array<{ imageId: string; businessCount: number; includesCurrent: boolean }>>`
+        SELECT pi."imageId" as "imageId",
+               COUNT(DISTINCT bp."businessId")::int as "businessCount",
+               BOOL_OR(bp."businessId" = ${businessId}) as "includesCurrent"
+        FROM product_images pi
+        JOIN business_products bp ON bp.id = pi."productId"
+        WHERE pi."imageId" = ANY(${imageIds})
+        GROUP BY pi."imageId"
+      `
+    : []
+  const otherBusinessCountByImageId = new Map(
+    businessCountRows.map(r => [r.imageId, r.businessCount - (r.includesCurrent ? 1 : 0)])
+  )
+
   const images = rows.map(r => ({
     id: r.imageId,
     url: `/api/images/${r.imageId}`,
     linkedItemCount: usageByImageId.get(r.imageId) ?? 0,
+    otherBusinessCount: otherBusinessCountByImageId.get(r.imageId) ?? 0,
   }))
 
   return NextResponse.json({ success: true, images, total, limit, offset, domains: domainOptions, allDomains })

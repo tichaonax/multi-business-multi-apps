@@ -27,7 +27,7 @@ interface GalleryImage {
   stockStatuses: Array<'in' | 'low' | 'out'>
 }
 
-interface PoolImage { id: string; url: string; linkedItemCount: number }
+interface PoolImage { id: string; url: string; linkedItemCount: number; otherBusinessCount: number }
 interface PoolDomain { id: string; name: string; emoji: string; count: number }
 
 const STOCK_BADGE: Record<'in' | 'low' | 'out', { label: string; color: string }> = {
@@ -67,6 +67,7 @@ export default function ImageGalleryPage() {
   const [allPoolDomains, setAllPoolDomains] = useState<Array<{ id: string; name: string; emoji: string }>>([])
   const [poolDomainId, setPoolDomainId] = useState('')
   const [selectedPoolImage, setSelectedPoolImage] = useState<PoolImage | null>(null)
+  const [mineStale, setMineStale] = useState(false)
   const [showBulkUpload, setShowBulkUpload] = useState(false)
 
   // Clothing-only for now (2026-09-06, per direction): the category-image
@@ -180,15 +181,30 @@ export default function ImageGalleryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, selectedBusinessId, poolDomainId])
 
-  function handlePoolAttachClosed(attached: boolean) {
-    setSelectedPoolImage(null)
-    if (attached) {
-      // Selecting a pool image only ever happens from the pool grid, so the
-      // old `view === 'mine'` check here never actually fired — refresh both:
-      // the pool grid needs its badge count updated for this exact image, and
-      // My Gallery needs to not be stale next time the user switches to it.
-      fetchPool(0, false)
+  // Refresh My Gallery only once the user actually switches to it, rather
+  // than eagerly refetching (and resetting its own scroll position) the
+  // moment an attach happens somewhere else.
+  useEffect(() => {
+    if (view === 'mine' && mineStale) {
       fetchImages(0, false)
+      setMineStale(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, mineStale])
+
+  function handlePoolAttachClosed(attached: boolean) {
+    const attachedImageId = selectedPoolImage?.id
+    setSelectedPoolImage(null)
+    if (attached && attachedImageId) {
+      // Patch the one thumbnail's badge locally instead of refetching page 1 —
+      // a full fetchPool(0, false) was silently discarding whatever "Load
+      // More" pages were already loaded and snapping the grid back to the top.
+      setPoolImages(prev => prev.map(img =>
+        img.id === attachedImageId ? { ...img, linkedItemCount: img.linkedItemCount + 1 } : img
+      ))
+      // My Gallery isn't visible right now, so there's nothing to visibly
+      // disrupt by marking it stale instead of eagerly refetching it.
+      setMineStale(true)
     }
   }
 
@@ -352,6 +368,14 @@ export default function ImageGalleryPage() {
                           {img.linkedItemCount}
                         </span>
                       )}
+                      {img.otherBusinessCount > 0 && (
+                        <span
+                          className="absolute top-1 left-1 bg-indigo-600/80 text-white text-[10px] px-1.5 py-0.5 rounded-full"
+                          title={`Also used by ${img.otherBusinessCount} other business${img.otherBusinessCount === 1 ? '' : 'es'}`}
+                        >
+                          +{img.otherBusinessCount} biz
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -435,9 +459,11 @@ export default function ImageGalleryPage() {
       {selectedPoolImage && selectedBusinessId && (
         <ReferencePoolAttachModal
           businessId={selectedBusinessId}
+          businessType={businesses.find(b => b.id === selectedBusinessId)?.type ?? 'clothing'}
           imageId={selectedPoolImage.id}
           url={selectedPoolImage.url}
           linkedItemCount={selectedPoolImage.linkedItemCount}
+          otherBusinessCount={selectedPoolImage.otherBusinessCount}
           onClose={handlePoolAttachClosed}
         />
       )}

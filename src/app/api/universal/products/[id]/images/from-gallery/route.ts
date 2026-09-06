@@ -43,15 +43,30 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Selected images no longer exist' }, { status: 400 })
     }
 
+    // Skip images this product already has — creating a second ProductImages
+    // row for the same (productId, imageId) pair would be a literal duplicate,
+    // and demoting the existing primary below would be wrong if nothing new
+    // actually ends up getting attached.
+    const existingLinks = await prisma.productImages.findMany({
+      where: { productId, imageId: { in: validIds } },
+      select: { imageId: true },
+    })
+    const alreadyLinked = new Set(existingLinks.map(l => l.imageId))
+    const newIds = validIds.filter(id => !alreadyLinked.has(id))
+
+    if (newIds.length === 0) {
+      return NextResponse.json({ error: 'This image is already attached to that product' }, { status: 409 })
+    }
+
     const existingCount = await prisma.productImages.count({ where: { productId } })
     await prisma.productImages.updateMany({ where: { productId, isPrimary: true }, data: { isPrimary: false } })
 
-    for (let i = 0; i < validIds.length; i++) {
+    for (let i = 0; i < newIds.length; i++) {
       await prisma.productImages.create({
         data: {
           productId,
-          imageId: validIds[i],
-          imageUrl: `/api/images/${validIds[i]}`,
+          imageId: newIds[i],
+          imageUrl: `/api/images/${newIds[i]}`,
           isPrimary: i === 0,
           sortOrder: existingCount + i,
           imageSize: 'MEDIUM',
@@ -61,7 +76,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       })
     }
 
-    return NextResponse.json({ success: true, primaryImageUrl: `/api/images/${validIds[0]}` })
+    return NextResponse.json({
+      success: true,
+      primaryImageUrl: `/api/images/${newIds[0]}`,
+      skipped: validIds.length - newIds.length,
+    })
   } catch (error) {
     console.error('Attach gallery images error:', error)
     return NextResponse.json({ success: false, error: 'Failed to attach images' }, { status: 500 })

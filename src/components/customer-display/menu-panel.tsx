@@ -12,6 +12,7 @@ interface MenuItem {
   imageId?: string | null
   imageUrl?: string | null
   adImageId?: string | null
+  productImages?: string[]
   isHidden?: boolean
   advertisingNote?: string | null
   originalPrice?: number
@@ -217,6 +218,31 @@ function NoteBadge({ note }: { note: string }) {
 
 function Card({ item, isSpecial, isAyliView }: { item: MenuItem; isSpecial: boolean; isAyliView: boolean }) {
   const isAyli = item.itemType === 'ayli_combo'
+
+  // Cycle through every image assigned to this product (e.g. via the Image
+  // Gallery's multi-select attach), same 2.5s cadence as the left rotating
+  // panel — ad image shown first when set, matching this card's existing
+  // single-image priority (ad image over product image).
+  const allImageUrls = (() => {
+    const urls: string[] = []
+    if (item.adImageId) urls.push(`/api/images/${item.adImageId}`)
+    for (const url of item.productImages ?? []) {
+      if (!urls.includes(url)) urls.push(url)
+    }
+    if (urls.length === 0 && (item.imageUrl || item.imageId)) {
+      urls.push(item.imageUrl ?? `/api/images/${item.imageId}`)
+    }
+    return urls
+  })()
+  const [imgIdx, setImgIdx] = useState(0)
+  useEffect(() => {
+    setImgIdx(0)
+    if (isAyli || allImageUrls.length <= 1) return
+    const id = setInterval(() => setImgIdx(prev => (prev + 1) % allImageUrls.length), 2500)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allImageUrls.length, item.id, isAyli])
+  const currentImageUrl = allImageUrls[imgIdx] ?? null
   const bg = isSpecial
     ? 'bg-gradient-to-br from-amber-900/60 to-orange-900/40 border-amber-500/40'
     : isAyliView || isAyli
@@ -319,11 +345,13 @@ function Card({ item, isSpecial, isAyliView }: { item: MenuItem; isSpecial: bool
             </div>
           </div>
 
-          {/* Large image — ad image preferred, falls back to product image */}
-          {(item.adImageId || item.imageUrl || item.imageId) && (
+          {/* Large image — ad image preferred, falls back to product image(s);
+              cycles automatically when more than one image is available */}
+          {currentImageUrl && (
             <div className="flex-1 min-h-0 rounded-lg overflow-hidden">
               <img
-                src={item.adImageId ? `/api/images/${item.adImageId}` : (item.imageUrl ?? `/api/images/${item.imageId}`)}
+                key={currentImageUrl}
+                src={currentImageUrl}
                 alt={item.name}
                 className="w-full h-full object-cover"
                 onError={e => { (e.target as HTMLImageElement).parentElement!.style.display = 'none' }}

@@ -46,8 +46,8 @@ export async function GET(
       isPrimary: true,
       business_products: {
         select: {
-          id: true, name: true, sku: true,
-          product_variants: { select: { id: true, name: true, sku: true, stockQuantity: true, reorderLevel: true } },
+          id: true, name: true, sku: true, basePrice: true,
+          product_variants: { select: { id: true, name: true, sku: true, price: true, stockQuantity: true, reorderLevel: true } },
         },
       },
     },
@@ -65,11 +65,16 @@ export async function GET(
     const stockQuantity = p.product_variants.reduce((sum, v) => sum + v.stockQuantity, 0)
     const reorderLevel = p.product_variants.reduce((max, v) => Math.max(max, v.reorderLevel), 0)
     const stock = getStockStatus({ stockQuantity, reorderLevel })
+    // Product's own base price, or its cheapest variant override if it has one —
+    // matches the same "variant price wins if set" convention used at POS.
+    const variantPrice = p.product_variants.find(v => v.price != null)?.price
+    const price = Number(variantPrice ?? p.basePrice ?? 0)
     return {
       productImageId: link.id,
       productId: p.id,
       productName: p.name,
       sku: p.sku,
+      price,
       isPrimary: link.isPrimary,
       stockQuantity,
       stockStatus: stock.status,

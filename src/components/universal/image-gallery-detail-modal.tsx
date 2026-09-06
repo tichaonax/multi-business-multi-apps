@@ -3,17 +3,11 @@
 import { useState, useEffect } from 'react'
 import { useToastContext } from '@/components/ui/toast'
 import { ProductAttachSearch } from '@/components/universal/product-attach-search'
+import { LinkedProductsList, LinkedProduct } from '@/components/universal/linked-products-list'
 
-interface LinkedItem {
-  productImageId: string
-  productId: string
-  productName: string
-  sku: string | null
-  isPrimary: boolean
+interface LinkedItem extends LinkedProduct {
   stockQuantity: number
   stockStatus: 'in' | 'low' | 'out'
-  stockLabel: string
-  variants: Array<{ id: string; name: string | null; sku: string; stockQuantity: number }>
 }
 
 interface ImageDetail {
@@ -152,19 +146,6 @@ export function ImageGalleryDetailModal({ businessId, businessType, imageId, onC
     }
   }
 
-  // Reuses the exact same "switch active business, then navigate" pattern
-  // already established by the global barcode-scan modal's cross-business
-  // "Add to Cart" action (src/components/global/global-barcode-modal.tsx) —
-  // no new POS integration, just the one this app already has.
-  function handleSell(item: LinkedItem) {
-    const variantId = item.variants.length === 1 ? item.variants[0].id : undefined
-    const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${item.productId}${variantId ? `&variantId=${variantId}` : ''}&autoAdd=true`
-    if (localStorage.getItem('currentBusinessId') !== businessId) {
-      localStorage.setItem('currentBusinessId', businessId)
-    }
-    window.location.href = url
-  }
-
   async function handleCopyImage() {
     if (!image) return
     setCopying(true)
@@ -241,46 +222,15 @@ export function ImageGalleryDetailModal({ businessId, businessType, imageId, onC
 
             <div>
               <p className="text-xs font-medium text-secondary mb-2">Linked inventory items ({linkedItems.length})</p>
-              {linkedItems.length === 0 ? (
-                <p className="text-sm text-secondary">Not linked to any product yet.</p>
-              ) : (
-                <div className="space-y-2">
-                  {linkedItems.map(item => (
-                    <div key={item.productImageId} className="flex items-center justify-between border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm">
-                      <div>
-                        <div className="font-medium text-primary">
-                          {item.productName} {item.isPrimary && <span className="text-xs text-blue-600">(primary)</span>}
-                        </div>
-                        <div className="text-xs text-secondary">{item.sku ?? '—'} · {item.stockLabel}</div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleSell(item)}
-                          className="text-xs px-2 py-1 rounded border border-blue-300 dark:border-blue-700 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                        >
-                          Sell/Restock
-                        </button>
-                        {!item.isPrimary && (
-                          <button
-                            onClick={() => handleSetPrimary(item)}
-                            disabled={busyLinkId === item.productImageId}
-                            className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
-                          >
-                            Set Primary
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleRemoveLink(item)}
-                          disabled={busyLinkId === item.productImageId}
-                          className="text-xs px-2 py-1 rounded border border-red-300 dark:border-red-800 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <LinkedProductsList
+                businessId={businessId}
+                businessType={businessType}
+                items={linkedItems}
+                showManageActions
+                onSetPrimary={handleSetPrimary}
+                onRemove={handleRemoveLink}
+                busyProductImageId={busyLinkId}
+              />
             </div>
 
             <div>

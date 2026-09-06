@@ -456,10 +456,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
             orderBy: { createdAt: 'asc' },
             take: 10,
           },
+          // No `take` cap here (unlike the old version of this query) — a
+          // product with several images attached (e.g. via the Image
+          // Gallery's multi-select "Choose from Gallery"/pool attach) should
+          // cycle through all of them on the customer display, same as
+          // restaurant menu items already do.
           product_images: {
             select: { imageId: true },
             orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
-            take: 1,
           },
         }
       })
@@ -559,6 +563,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         { today: 0, yesterday: 0, dayBefore: 0 }
       )
       const ss = salesScore(variantSales) + (isNew ? 10 : 0)
+      const bizImages: string[] = ((p as any).product_images ?? [])
+        .map((img: any) => img.imageId)
+        .filter(Boolean)
+        .map((id: string) => `/api/images/${id}`)
       const bizImageId = (p as any).product_images?.[0]?.imageId ?? null
       const bizAdImageId = getAdImage('product', p.id)
       const bizPromo = applyPromotion(price, activePromotions.get(`product:${p.id}`))
@@ -570,6 +578,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         categoryIconUrl: domainIconUrlById.get((p as any).business_categories?.domainId) ?? null,
         imageId: bizImageId,
         imageUrl: bizImageId ? `/api/images/${bizImageId}` : (bizAdImageId ? `/api/images/${bizAdImageId}` : null),
+        productImages: bizImages,
         advertisingNote: getNote('product', p.id),
         adImageId: bizAdImageId,
         salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss) + promoBoost(`product:${p.id}`),
