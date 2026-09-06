@@ -39,6 +39,13 @@ export async function GET(request: NextRequest) {
     const includeAuditLogs = searchParams.get('includeAuditLogs') === 'true';
     const auditLogLimit = parseInt(searchParams.get('auditLogLimit') || '1000', 10);
     const createdBy = user.name || user.email || 'Unknown';
+    // Incremental backup (Phase 5, MBM-294 §3.5): `since` is the watermark
+    // (the base full backup's own metadata.timestamp, typically), and the
+    // base* fields are recorded so restore can confirm the right full
+    // backup was applied first.
+    const since = searchParams.get('since') || undefined;
+    const baseBackupTimestamp = searchParams.get('baseBackupTimestamp') || undefined;
+    const baseSourceNodeId = searchParams.get('baseSourceNodeId') || undefined;
 
     console.log('[backup] Creating backup with options:', {
       backupType,
@@ -48,7 +55,8 @@ export async function GET(request: NextRequest) {
       businessId,
       includeAuditLogs,
       auditLogLimit,
-      createdBy
+      createdBy,
+      since
     });
 
     // Create clean backup using new implementation
@@ -59,7 +67,10 @@ export async function GET(request: NextRequest) {
       businessId,
       includeAuditLogs,
       auditLogLimit,
-      createdBy
+      createdBy,
+      since,
+      baseBackupTimestamp,
+      baseSourceNodeId
     });
 
     // Generate filename
@@ -67,7 +78,9 @@ export async function GET(request: NextRequest) {
     const timestamp = now.toISOString().replace(/:/g, '-').replace(/\.\d{3}Z$/, '');
     const type = businessId
       ? `business-${businessId.substring(0, 8)}`
-      : backupType;
+      : since
+        ? `${backupType}-incremental`
+        : backupType;
     const baseFilename = `MultiBusinessSyncService-backup_${type}_${timestamp}`;
     const extension = compress ? '.json.gz' : '.json';
     const filename = baseFilename + extension;
@@ -184,6 +197,24 @@ export async function POST(request: NextRequest) {
         { error: 'Invalid backup data', details: validation.errors },
         { status: 400 }
       );
+    }
+
+    // Incremental backup (Phase 5, MBM-294 §3.5): restoring it standalone
+    // would leave images older than its watermark missing (their blobs were
+    // deliberately excluded — see backup-clean.ts) while the fully-included
+    // metadata rows referencing them do come through, so it must be applied
+    // on top of its base full backup — never as a first/only restore. Since
+    // restore itself is upsert-only (never deletes), applying it out of
+    // order can't corrupt anything, only leave older images unrestored —
+    // so this is a confirmation gate, not a hard technical block, and the
+    // client passes `confirmBaseRestored: true` once the admin has done so.
+    const incremental = backupData.metadata?.incremental;
+    if (incremental && !body.confirmBaseRestored) {
+      return NextResponse.json({
+        error: 'This is an incremental backup and needs confirmation',
+        requiresBaseConfirmation: true,
+        incremental
+      }, { status: 409 });
     }
 
     // Check if synchronous or background restore

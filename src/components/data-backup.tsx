@@ -137,6 +137,15 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
     includeBusinessData: true, // Business data included by default
     selectedDemoBusinessId: undefined,
   });
+  // Incremental backup (Phase 5, MBM-294 §3.5) — only Images created after
+  // `since` are included; everything else stays a full snapshot. `since`
+  // defaults to the last full backup's own timestamp, read from that file
+  // rather than typed in by hand, so there's no risk of picking the wrong
+  // watermark.
+  const [incrementalEnabled, setIncrementalEnabled] = useState(false);
+  const [baseBackupFile, setBaseBackupFile] = useState<File | null>(null);
+  const [baseBackupMeta, setBaseBackupMeta] = useState<{ timestamp: string; sourceNodeId: string } | null>(null);
+  const [readingBaseBackup, setReadingBaseBackup] = useState(false);
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
   const [restoreResult, setRestoreResult] = useState<RestoreResult | null>(null);
   const [restoreProgressId, setRestoreProgressId] = useState<string | null>(null);
@@ -271,6 +280,14 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
         params.set('businessId', backupOptions.selectedRealBusinessId);
       }
 
+      // Incremental backup (Phase 5, MBM-294 §3.5) — only sent once a base
+      // full backup file has actually been read successfully.
+      if (incrementalEnabled && baseBackupMeta) {
+        params.set('since', baseBackupMeta.timestamp);
+        params.set('baseBackupTimestamp', baseBackupMeta.timestamp);
+        if (baseBackupMeta.sourceNodeId) params.set('baseSourceNodeId', baseBackupMeta.sourceNodeId);
+      }
+
       const response = await fetch(`/api/backup?${params}`);
 
       if (!response.ok) {
@@ -283,7 +300,8 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
       a.href = url;
 
       // API always compresses backups by default, so always use .json.gz
-      const filename = `MultiBusinessSyncService-backup_${backupOptions.type}_${new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)}.json.gz`;
+      const typeLabel = incrementalEnabled && baseBackupMeta ? `${backupOptions.type}-incremental` : backupOptions.type;
+      const filename = `MultiBusinessSyncService-backup_${typeLabel}_${new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)}.json.gz`;
 
       a.download = filename;
       document.body.appendChild(a);
@@ -294,6 +312,46 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
       await customAlert({ title: 'Backup Failed', description: 'The backup operation failed. Please try again.' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Incremental backup (Phase 5, MBM-294 §3.5) — reads the base full
+  // backup's own metadata (timestamp/sourceNodeId) from the file itself,
+  // rather than having the admin type in a date, so there's no risk of
+  // picking the wrong watermark.
+  const handleBaseBackupSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setBaseBackupFile(file);
+    setBaseBackupMeta(null);
+    setReadingBaseBackup(true);
+    try {
+      const isCompressed = file.name.endsWith('.gz') || file.name.endsWith('.json.gz');
+      let requestBody: any;
+      if (isCompressed) {
+        const arrayBuffer = await file.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+        requestBody = { compressedData: btoa(binary) };
+      } else {
+        requestBody = { backupData: JSON.parse(await file.text()) };
+      }
+      const response = await fetch('/api/backup/metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.metadata?.timestamp) {
+        throw new Error(data.error || 'Could not read this backup file');
+      }
+      setBaseBackupMeta({ timestamp: data.metadata.timestamp, sourceNodeId: data.metadata.sourceNodeId });
+    } catch (error: any) {
+      setBaseBackupFile(null);
+      await customAlert({ title: 'Could not read backup', description: error.message || 'Please select a valid full backup file.' });
+    } finally {
+      setReadingBaseBackup(false);
     }
   };
 
@@ -365,7 +423,7 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
       const endpoint = '/api/backup';
 
       console.log('[Restore] Sending request to:', endpoint);
-      const response = await fetch(endpoint, {
+      let response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -374,6 +432,34 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
       });
 
       console.log('[Restore] Response status:', response.status);
+
+      // Incremental backup (Phase 5, MBM-294 §3.5) — the server refuses to
+      // apply it until the admin confirms its base full backup was already
+      // restored, since an incremental restored on its own would leave
+      // images older than its watermark missing.
+      if (response.status === 409) {
+        const gate = await response.json().catch(() => null);
+        if (gate?.requiresBaseConfirmation) {
+          const baseWhen = gate.incremental?.baseBackupTimestamp
+            ? new Date(gate.incremental.baseBackupTimestamp).toLocaleString()
+            : 'its base backup';
+          const proceed = await confirm({
+            title: 'Incremental backup',
+            description: `This backup only contains images added since ${new Date(gate.incremental.since).toLocaleString()}. Have you already restored the full backup from ${baseWhen} to this database? Only continue if you have — otherwise older images will be missing.`,
+            confirmText: 'Yes, continue',
+            cancelText: 'Cancel',
+          });
+          if (!proceed) {
+            setLoading(false);
+            return;
+          }
+          response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...requestBody, confirmBaseRestored: true }),
+          });
+        }
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -858,13 +944,55 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
               </div>
             </div>
           )}
+          {backupOptions.type === 'full' && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg dark:bg-blue-950 dark:border-blue-800">
+              <div className="flex items-center justify-between">
+                <label htmlFor="incrementalEnabled" className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                  Incremental (images added since a previous full backup)
+                </label>
+                <input
+                  type="checkbox"
+                  id="incrementalEnabled"
+                  checked={incrementalEnabled}
+                  onChange={(e) => {
+                    setIncrementalEnabled(e.target.checked);
+                    if (!e.target.checked) { setBaseBackupFile(null); setBaseBackupMeta(null); }
+                  }}
+                  className="ml-2"
+                />
+              </div>
+              <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                Everything except image files is still backed up in full — only image blobs are limited to ones added since your last full backup, to keep the file small. Must later be restored on top of that same full backup, never on its own.
+              </p>
+              {incrementalEnabled && (
+                <div className="mt-2 space-y-1.5">
+                  <label className="text-xs font-medium text-blue-900 dark:text-blue-100 block">
+                    Select the full backup file this extends
+                  </label>
+                  <input
+                    type="file"
+                    accept=".json,.gz,.json.gz"
+                    onChange={handleBaseBackupSelect}
+                    disabled={readingBaseBackup}
+                    className="block w-full text-xs text-blue-900 dark:text-blue-100 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-blue-600 file:text-white"
+                  />
+                  {readingBaseBackup && <p className="text-xs text-blue-700 dark:text-blue-300">Reading backup file…</p>}
+                  {baseBackupMeta && (
+                    <p className="text-xs text-green-700 dark:text-green-400">
+                      ✓ Base backup from {new Date(baseBackupMeta.timestamp).toLocaleString()} — images added after this will be included
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Create Backup Button */}
         <div className="flex justify-end">
           <Button
             onClick={handleBackup}
-            disabled={loading}
+            disabled={loading || (incrementalEnabled && !baseBackupMeta)}
             variant="outline"
             className="flex items-center gap-2"
           >
@@ -873,7 +1001,7 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
             ) : (
               <Download className="h-4 w-4" />
             )}
-            {loading ? 'Creating Backup...' : 'Create Backup'}
+            {loading ? 'Creating Backup...' : incrementalEnabled ? 'Create Incremental Backup' : 'Create Backup'}
           </Button>
         </div>
       </div>

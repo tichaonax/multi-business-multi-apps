@@ -41,6 +41,20 @@ export interface BackupMetadata {
   // List of actual business IDs captured in this backup (used for scoped validation)
   backedUpBusinessIds?: string[]
 
+  // Incremental backup (Phase 5, MBM-294 §3.5): when set, this backup only
+  // includes Images blobs created after `since` — every other table is still
+  // captured in full (images are the actual size driver; everything else is
+  // cheap metadata, so there's no real size win from watermark-filtering it
+  // too). Must be restored ON TOP OF the full backup identified by
+  // `baseBackupTimestamp`/`baseSourceNodeId` — restoring it standalone would
+  // leave older images referenced by (fully-included) metadata rows missing,
+  // since their blobs predate the watermark and were never re-included here.
+  incremental?: {
+    since: string
+    baseBackupTimestamp?: string
+    baseSourceNodeId?: string
+  }
+
   // Statistics
   stats: {
     totalRecords: number
@@ -144,6 +158,14 @@ export async function createCleanBackup(
     businessId?: string
     auditLogLimit?: number
     createdBy?: string
+    /** Incremental watermark (Phase 5, MBM-294 §3.5) — ISO date string. When
+     * set, only Images rows created after this are included; every other
+     * table stays a full snapshot. Pass the base full backup's own
+     * `metadata.timestamp`/`sourceNodeId` too so restore can verify this
+     * incremental is being applied on top of the right base. */
+    since?: string
+    baseBackupTimestamp?: string
+    baseSourceNodeId?: string
   } = {}
 ): Promise<BackupData> {
   const {
@@ -152,6 +174,9 @@ export async function createCleanBackup(
     includeDemoData = false,
     includeBusinessData = true,
     includeDeviceData = false,
+    since,
+    baseBackupTimestamp,
+    baseSourceNodeId,
     businessId,
     auditLogLimit = 1000,
     createdBy
@@ -248,10 +273,17 @@ export async function createCleanBackup(
 
   const allImageIds = [...new Set([...employeeImageIds, ...logoImageIds])]
 
+  // Incremental watermark (Phase 5, MBM-294 §3.5) — Images is the size
+  // driver (bytea blobs), so this is the one table actually worth
+  // watermark-filtering; every other table below stays a full snapshot.
+  const sinceDate = since ? new Date(since) : undefined
+
   // Prisma returns Bytes as Uint8Array which JSON.stringify turns into {"0":255,"1":216,...}
   // Converting to Buffer ensures it serializes as {type:"Buffer",data:[...]} which is safe to restore
   businessData.images = allImageIds.length > 0
-    ? (await prisma.images.findMany({ where: { id: { in: allImageIds } } })).map((img: any) => ({
+    ? (await prisma.images.findMany({
+        where: { id: { in: allImageIds }, ...(sinceDate ? { createdAt: { gt: sinceDate } } : {}) }
+      })).map((img: any) => ({
         ...img,
         data: Buffer.from(img.data)
       }))
@@ -1678,7 +1710,9 @@ export async function createCleanBackup(
     const alreadyFetched = new Set((businessData.images || []).map((i: any) => i.id))
     const missing = extendedImageIds.filter((id: string) => !alreadyFetched.has(id))
     if (missing.length > 0) {
-      const extra = (await (prisma as any).images.findMany({ where: { id: { in: missing } } }))
+      const extra = (await (prisma as any).images.findMany({
+        where: { id: { in: missing }, ...(sinceDate ? { createdAt: { gt: sinceDate } } : {}) }
+      }))
         .map((img: any) => ({ ...img, data: Buffer.from(img.data) }))
       businessData.images = [...(businessData.images || []), ...extra]
     }
@@ -1735,6 +1769,7 @@ export async function createCleanBackup(
       includeDemoData
     },
     backedUpBusinessIds: businessIds,
+    ...(since ? { incremental: { since, baseBackupTimestamp, baseSourceNodeId } } : {}),
     stats: {
       totalRecords,
       totalTables: countTables(businessData) + (deviceData ? countTables(deviceData) : 0),
