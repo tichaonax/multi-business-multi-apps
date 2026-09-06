@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useBusinessContext, useBusinessFeatures } from './business-context'
 import { QuickEditCardButton } from '@/components/pos/quick-edit-card-button'
 import type { QuickEditMode } from '@/hooks/use-pos-quick-edit-mode'
+import { getStockStatus as getSharedStockStatus } from '@/lib/inventory/stock-status'
 
 export type BarcodeType =
   | 'UPC_A' | 'UPC_E' | 'EAN_13' | 'EAN_8'
@@ -176,17 +177,7 @@ export function UniversalProductCard({
 
   const getStockStatus = () => {
     if (product.productType !== 'PHYSICAL') return null
-
-    if (stockQuantity <= 0) {
-      return { label: 'Out of Stock', color: 'text-red-600', canOrder: false }
-    }
-
-    const lowStockThreshold = businessFeatures.hasInventoryTracking() ? 10 : 5
-    if (stockQuantity <= lowStockThreshold) {
-      return { label: `Low Stock (${stockQuantity})`, color: 'text-orange-600', canOrder: true }
-    }
-
-    return { label: `In Stock (${stockQuantity})`, color: 'text-green-600', canOrder: true }
+    return getSharedStockStatus({ stockQuantity, hasInventoryTracking: businessFeatures.hasInventoryTracking() })
   }
 
   const getPrimaryBarcode = () => {

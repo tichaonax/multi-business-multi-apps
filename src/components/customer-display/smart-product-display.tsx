@@ -171,10 +171,16 @@ function DailySpecialCard({ special }: { special: TodaysSpecialData }) {
 function RotatingCard({ item }: { item: DisplayItem }) {
   const isAyli = item.itemType === 'ayli_combo'
 
-  // Build ordered image list: productImages first, then adImageId if not already included
+  // Build ordered image list: productImages first, then adImageId if not already included.
+  // `productImages` entries are already full, ready-to-use URLs (ProductImages.imageUrl,
+  // e.g. "/api/images/{id}"), but `adImageId` is a bare Images.id — must be converted to
+  // the same "/api/images/{id}" form here, or the cycling <img src> below 404s once it
+  // reaches the ad image (this is exactly what MenuPanel on the right side already does
+  // correctly for the same field, which is why the ad image showed there but not here).
   const allImageIds = (() => {
     const ids = [...(item.productImages ?? [])]
-    if (item.adImageId && !ids.includes(item.adImageId)) ids.push(item.adImageId)
+    const adImageUrl = item.adImageId ? `/api/images/${item.adImageId}` : null
+    if (adImageUrl && !ids.includes(adImageUrl)) ids.push(adImageUrl)
     return ids
   })()
 

@@ -8,6 +8,7 @@ import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { SessionUser } from '@/lib/permission-utils'
 import Link from 'next/link'
+import { AdImagePoolPicker } from '@/components/customer-display/ad-image-pool-picker'
 
 interface GlobalSettings {
   rotationIntervalSecs: number
@@ -21,11 +22,18 @@ interface GlobalSettings {
 
 interface DisplayItem {
   id: string
-  itemType: 'menu_item' | 'ayli_combo'
+  // Loosely typed: restaurant sends 'menu_item'/'ayli_combo', grocery/clothing
+  // send 'product' (real BusinessProducts/inventory item) or 'category' (a
+  // synthetic grouping row, not a real product — see the pool-picker gating below).
+  itemType: string
   name: string
   price: number
   emoji: string | null
   imageUrl: string | null
+  // Domain's representative icon image (MBM-294) — a fallback tier between a
+  // real photo and the emoji, since most imported categories never got a real
+  // emoji (they sit at the schema default, "📦").
+  categoryIconUrl?: string | null
   menuNumber: string | null
   sizes?: Array<{ sizeName: string; basePrice: number }>
   salesScore: number
@@ -54,9 +62,10 @@ function ScoreBar({ score, max }: { score: number; max: number }) {
   )
 }
 
-export default function RestaurantDisplaySettingsPage() {
+export default function DisplaySettingsPage() {
   const { data: session } = useSession()
-  const { currentBusinessId, hasPermission, loading } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness, hasPermission, loading } = useBusinessPermissionsContext()
+  const businessType = currentBusiness?.businessType || 'restaurant'
   const [isMounted, setIsMounted] = useState(false)
 
   const sessionUser = session?.user as SessionUser
@@ -77,6 +86,8 @@ export default function RestaurantDisplaySettingsPage() {
   const [dailySpecial, setDailySpecial] = useState<DisplayItem | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [poolPickerFor, setPoolPickerFor] = useState<DisplayItem | null>(null)
+  const [search, setSearch] = useState('')
   const [dataLoading, setDataLoading] = useState(true)
 
   useEffect(() => { setIsMounted(true) }, [])
@@ -89,7 +100,7 @@ export default function RestaurantDisplaySettingsPage() {
         // all=true: this is a management screen (Item Priority), not the customer-facing
         // feed — it must see every item, hidden ones included, so a hidden item can
         // actually be found again and un-hidden. Also bypasses the maxItemsInRotation cap.
-        fetch(`/api/business/${currentBusinessId}/display-smart-ads?businessType=restaurant&all=true`),
+        fetch(`/api/business/${currentBusinessId}/display-smart-ads?businessType=${businessType}&all=true`),
         fetch(`/api/business/${currentBusinessId}/display-smart-ads/settings`),
       ])
       const adsData = await adsRes.json()
@@ -115,7 +126,7 @@ export default function RestaurantDisplaySettingsPage() {
     } finally {
       setDataLoading(false)
     }
-  }, [currentBusinessId])
+  }, [currentBusinessId, businessType])
 
   useEffect(() => { if (currentBusinessId) load() }, [currentBusinessId, load])
 
@@ -130,15 +141,19 @@ export default function RestaurantDisplaySettingsPage() {
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
-      // Broadcast refresh to customer display
-      const bc = new BroadcastChannel('customer-display')
-      bc.postMessage({ type: 'DISPLAY_REFRESH', businessId: currentBusinessId, terminalId: null, payload: {} })
-      bc.close()
+      broadcastDisplayRefresh()
     } catch {
       // ignore
     } finally {
       setSaving(false)
     }
+  }
+
+  function broadcastDisplayRefresh() {
+    if (!currentBusinessId) return
+    const bc = new BroadcastChannel('customer-display')
+    bc.postMessage({ type: 'DISPLAY_REFRESH', businessId: currentBusinessId, terminalId: null, payload: {} })
+    bc.close()
   }
 
   async function updateItemConfig(itemType: string, itemId: string, patch: Partial<{
@@ -151,7 +166,29 @@ export default function RestaurantDisplaySettingsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ itemType, itemId, ...patch }),
     })
-    load()
+
+    // Patch locally instead of a full reload — re-fetching all 411 items for a
+    // one-field change on one row resets scroll position and re-renders the
+    // entire list. displayScore is recomputed from the visible score formula
+    // (Priority boost × 10) so the score bar doesn't go stale until next load.
+    const applyPatch = (i: DisplayItem): DisplayItem => {
+      if (i.itemType !== itemType || i.id !== itemId) return i
+      const next: DisplayItem = { ...i }
+      if (patch.priorityBoost !== undefined) {
+        next.displayScore = i.displayScore + (patch.priorityBoost - i.priorityBoost) * 10
+        next.priorityBoost = patch.priorityBoost
+      }
+      if (patch.isFeatured !== undefined) next.isFeatured = patch.isFeatured
+      if (patch.isHidden !== undefined) next.isHidden = patch.isHidden
+      if (patch.advertisingNote !== undefined) next.advertisingNote = patch.advertisingNote
+      if (patch.advertisingImageId !== undefined) next.adImageId = patch.advertisingImageId
+      return next
+    }
+    setItems(prev => prev.map(applyPatch))
+    setDailySpecial(prev => prev ? applyPatch(prev) : prev)
+
+    // Reach the live customer display as early as possible, same as saveSettings().
+    broadcastDisplayRefresh()
   }
 
   // Shared by both the file-picker input and the per-row paste handler below —
@@ -168,6 +205,15 @@ export default function RestaurantDisplaySettingsPage() {
       const imageId = data.data?.[0]?.filename
       if (imageId) await updateItemConfig(itemType, itemId, { advertisingImageId: imageId })
     }
+  }
+
+  // Picks an existing image (from the item's own category gallery or the
+  // shared reference pool, MBM-294) instead of uploading a new file — by
+  // reference, no new `Images` row is created, just the same config write
+  // uploadAdImage already does.
+  async function selectAdImageFromPool(item: DisplayItem, imageId: string) {
+    await updateItemConfig(item.itemType, item.id, { advertisingImageId: imageId })
+    setPoolPickerFor(null)
   }
 
   // Today's Special is a real, separate system (DailySpecial + day override) — not a
@@ -193,6 +239,7 @@ export default function RestaurantDisplaySettingsPage() {
       })
     }
     load()
+    broadcastDisplayRefresh()
   }
 
   if (!isMounted || loading) {
@@ -218,13 +265,17 @@ export default function RestaurantDisplaySettingsPage() {
     ? [dailySpecial, ...items]
     : items
   const maxScore = Math.max(...allDisplayItems.map(i => i.displayScore), 1)
+  const filteredDisplayItems = search.trim()
+    ? allDisplayItems.filter(i => i.name.toLowerCase().includes(search.trim().toLowerCase()))
+    : allDisplayItems
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+      {/* Header — sticky: floats at the top together with the left panel below,
+          while the Item Priority list scrolls underneath both (MBM-294 follow-up). */}
+      <div className="sticky top-20 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center gap-3">
-          <Link href="/restaurant/settings/pos" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-sm">
+          <Link href={`/${businessType}/settings/pos`} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-sm">
             ← Settings
           </Link>
           <span className="text-gray-300 dark:text-gray-600">/</span>
@@ -237,8 +288,9 @@ export default function RestaurantDisplaySettingsPage() {
 
       <div className="max-w-6xl mx-auto px-6 py-6 grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6">
 
-        {/* Left: Global Settings */}
-        <div className="space-y-4">
+        {/* Left: Global Settings — sticky below the header, same offset the rest of
+            this app uses for a second stacked sticky bar (see grocery/hardware POS). */}
+        <div className="space-y-4 lg:sticky lg:top-40 lg:self-start">
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
             <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">Global Settings</h2>
 
@@ -256,7 +308,7 @@ export default function RestaurantDisplaySettingsPage() {
               </label>
 
               <label className="flex items-center justify-between gap-3">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Daily Special left panel</span>
+                <span className="text-sm text-gray-700 dark:text-gray-300">Split layout (rotating ads + live grid)</span>
                 <button
                   type="button"
                   disabled={!canManage}
@@ -385,20 +437,42 @@ export default function RestaurantDisplaySettingsPage() {
 
         {/* Right: Item Priority List */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900 dark:text-gray-100">Item Priority</h2>
-            <span className="text-xs text-gray-400 dark:text-gray-500">{allDisplayItems.length} items</span>
+          <div className="sticky top-40 z-20 bg-white dark:bg-gray-800 px-5 py-4 border-b border-gray-100 dark:border-gray-700 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Item Priority</h2>
+              <span className="text-xs text-gray-400 dark:text-gray-500">
+                {search.trim() ? `${filteredDisplayItems.length} of ${allDisplayItems.length}` : allDisplayItems.length} items
+              </span>
+            </div>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search items…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-3 pr-8 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none"
+                  aria-label="Clear search"
+                >
+                  ×
+                </button>
+              )}
+            </div>
           </div>
 
           {dataLoading ? (
             <div className="p-8 text-center text-gray-400 text-sm">Loading items…</div>
-          ) : allDisplayItems.length === 0 ? (
+          ) : filteredDisplayItems.length === 0 ? (
             <div className="p-8 text-center text-gray-400 text-sm">
-              No menu items found. Add products in the restaurant menu first.
+              {search.trim() ? `No items match "${search.trim()}".` : 'No items found. Add products first.'}
             </div>
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-700">
-              {allDisplayItems.map(item => (
+              {filteredDisplayItems.map(item => (
                 <div key={`${item.itemType}:${item.id}`} className="px-5 py-4">
                   <div className="flex items-start gap-4">
                     {/* Menu number badge — same circular style as Menu Numbers / Menu Availability */}
@@ -410,8 +484,10 @@ export default function RestaurantDisplaySettingsPage() {
                     {/* Primary image (falls back to emoji when the item has no photo) + name */}
                     {item.imageUrl ? (
                       <img src={item.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 bg-gray-100 dark:bg-gray-700" />
+                    ) : item.categoryIconUrl ? (
+                      <img src={item.categoryIconUrl} alt="" title="Category photo — no product photo yet" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 bg-gray-100 dark:bg-gray-700 opacity-90" />
                     ) : (
-                      <div className="text-2xl flex-shrink-0">{item.emoji ?? '🍽️'}</div>
+                      <div className="text-2xl flex-shrink-0">{item.emoji ?? '📦'}</div>
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -468,15 +544,26 @@ export default function RestaurantDisplaySettingsPage() {
                             <img src={`/api/images/${item.adImageId}`} alt="ad" className="w-24 h-16 object-cover rounded border border-gray-200 dark:border-gray-600" />
                             <div className="flex flex-col items-start gap-1">
                               <span className="text-[10px] text-gray-400 dark:text-gray-500">Dedicated ad photo</span>
-                              {canManage && (
-                                <button
-                                  type="button"
-                                  onClick={() => updateItemConfig(item.itemType, item.id, { advertisingImageId: null })}
-                                  className="text-xs text-red-500 hover:underline"
-                                >
-                                  {item.imageUrl ? 'Remove (use catalog photo instead)' : 'Remove image'}
-                                </button>
-                              )}
+                              <div className="flex items-center gap-2">
+                                {canManage && (
+                                  <button
+                                    type="button"
+                                    onClick={() => updateItemConfig(item.itemType, item.id, { advertisingImageId: null })}
+                                    className="text-xs text-red-500 hover:underline"
+                                  >
+                                    {item.imageUrl ? 'Remove (use catalog photo instead)' : 'Remove image'}
+                                  </button>
+                                )}
+                                {canManage && businessType === 'clothing' && item.itemType === 'product' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setPoolPickerFor(item)}
+                                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                  >
+                                    🗂 Pool
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </>
                         ) : item.imageUrl ? (
@@ -504,6 +591,15 @@ export default function RestaurantDisplaySettingsPage() {
                                       }}
                                     />
                                   </label>
+                                  {businessType === 'clothing' && item.itemType === 'product' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setPoolPickerFor(item)}
+                                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline text-left"
+                                    >
+                                      🗂 Choose from Pool
+                                    </button>
+                                  )}
                                   <span className="text-[10px] text-gray-400 dark:text-gray-500">click here, then paste (Ctrl+V)</span>
                                 </div>
                               )}
@@ -529,6 +625,15 @@ export default function RestaurantDisplaySettingsPage() {
                                 }}
                               />
                             </label>
+                            {businessType === 'clothing' && item.itemType === 'product' && (
+                              <button
+                                type="button"
+                                onClick={() => setPoolPickerFor(item)}
+                                className="text-xs text-blue-600 dark:text-blue-400 hover:underline text-left"
+                              >
+                                🗂 Choose from Pool
+                              </button>
+                            )}
                             <span className="text-[10px] text-gray-400 dark:text-gray-500">click here, then paste (Ctrl+V)</span>
                           </div>
                         ) : (
@@ -599,6 +704,15 @@ export default function RestaurantDisplaySettingsPage() {
           )}
         </div>
       </div>
+
+      {poolPickerFor && currentBusinessId && (
+        <AdImagePoolPicker
+          businessId={currentBusinessId}
+          itemId={poolPickerFor.id}
+          onSelect={imageId => selectAdImageFromPool(poolPickerFor, imageId)}
+          onClose={() => setPoolPickerFor(null)}
+        />
+      )}
     </div>
   )
 }

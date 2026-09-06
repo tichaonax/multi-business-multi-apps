@@ -892,7 +892,7 @@ export function Sidebar() {
                   </Link>
                 )}
                 {(isSystemAdmin(currentUser) || hasPermission('canViewCustomerDisplay') || hasPermission('canManageCustomerDisplay')) && (
-                  <Link href="/restaurant/settings/display" className={getLinkClasses('/restaurant/settings/display')}>
+                  <Link href="/business/settings/display" className={getLinkClasses('/business/settings/display')}>
                     <span className="text-lg">⚙️</span>
                     <span>Display Settings</span>
                   </Link>
@@ -1084,6 +1084,12 @@ export function Sidebar() {
                   <Link href="/clothing/manage/customer-display" className={getLinkClasses('/clothing/manage/customer-display')}>
                     <span className="text-lg">📺</span>
                     <span>Customer Display</span>
+                  </Link>
+                )}
+                {(isSystemAdmin(currentUser) || hasPermission('canViewCustomerDisplay') || hasPermission('canManageCustomerDisplay')) && (
+                  <Link href="/business/settings/display" className={getLinkClasses('/business/settings/display')}>
+                    <span className="text-lg">⚙️</span>
+                    <span>Display Settings</span>
                   </Link>
                 )}
               </>
@@ -2120,6 +2126,22 @@ export function Sidebar() {
           >
             <span className="text-lg">🏷️</span>
             <span>Barcode Management</span>
+          </Link>
+        )}
+
+        {/* Image Gallery - Business-wide image browsing + inventory linkage (MBM-294).
+            Clothing-only for now (2026-09-06, per your direction): the category-image
+            import/reference pool only exists for clothing today, so surfacing this for
+            other business types would be confusing/unrelated until it's extended there
+            after clothing itself is validated. Gated on business membership, not a
+            specific permission — matches the API's own auth model. */}
+        {currentBusiness?.businessType === 'clothing' && (isSystemAdmin(currentUser) || !!currentBusinessId) && (
+          <Link
+            href="/universal/image-gallery"
+            className={getLinkClasses('/universal/image-gallery')}
+          >
+            <span className="text-lg">🖼️</span>
+            <span>Image Gallery</span>
           </Link>
         )}
 

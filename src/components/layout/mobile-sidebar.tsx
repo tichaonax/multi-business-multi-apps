@@ -176,7 +176,7 @@ export function MobileSidebar() {
             )}
             {(isAdmin || hasBusinessPermission('canViewBusiness')) && navLink('/restaurant/settings/pos', '⚙️', 'POS Settings')}
             {(isAdmin || hasBusinessPermission('canViewCustomerDisplay') || hasBusinessPermission('canManageCustomerDisplay')) && navLink('/restaurant/manage/customer-display', '📺', 'Customer Display Ads')}
-            {(isAdmin || hasBusinessPermission('canViewCustomerDisplay') || hasBusinessPermission('canManageCustomerDisplay')) && navLink('/restaurant/settings/display', '⚙️', 'Display Settings')}
+            {(isAdmin || hasBusinessPermission('canViewCustomerDisplay') || hasBusinessPermission('canManageCustomerDisplay')) && navLink('/business/settings/display', '⚙️', 'Display Settings')}
             {canViewOrders && navLink('/restaurant/orders', '📦', 'Orders')}
             {navLink('/services/list', '🔧', 'Services')}
             {wifiLinks()}
@@ -220,6 +220,8 @@ export function MobileSidebar() {
             {navLink('/clothing/products', '👗', 'Products')}
             {navLink('/clothing/inventory?tab=bales', '📦', 'Bales Inventory')}
             {(isAdmin || hasBusinessPermission('canViewBusiness')) && navLink('/clothing/settings/pos', '⚙️', 'POS Settings')}
+            {(isAdmin || hasBusinessPermission('canViewCustomerDisplay') || hasBusinessPermission('canManageCustomerDisplay')) && navLink('/clothing/manage/customer-display', '📺', 'Customer Display Ads')}
+            {(isAdmin || hasBusinessPermission('canViewCustomerDisplay') || hasBusinessPermission('canManageCustomerDisplay')) && navLink('/business/settings/display', '⚙️', 'Display Settings')}
             {canViewOrders && navLink('/clothing/orders', '📦', 'Orders')}
             {navLink('/services/list', '🔧', 'Services')}
             {wifiLinks()}
@@ -655,6 +657,12 @@ export function MobileSidebar() {
                     >
                       🏷️ Barcode Management
                     </Link>
+                  )}
+
+                  {/* Image Gallery - clothing-only for now (the category-image import/reference
+                      pool only exists for clothing today), gated on business membership (MBM-294) */}
+                  {currentBusiness?.businessType === 'clothing' && (isAdmin || !!currentBusinessId) && (
+                    <Link href="/universal/image-gallery" className={sectionLinkClass} onClick={close}>🖼️ Image Gallery</Link>
                   )}
 
                   {(isAdmin || hasBusinessPermission('canViewSuppliers') || hasBusinessPermission('canCreateSuppliers') || hasBusinessPermission('canEditSuppliers')) && (

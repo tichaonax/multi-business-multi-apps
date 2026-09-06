@@ -441,7 +441,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         where: { businessId, isActive: true, stockQuantity: { gt: 0 } },
         select: {
           id: true, name: true, sellingPrice: true, createdAt: true, imageId: true,
-          business_category: { select: { name: true, emoji: true } },
+          business_category: { select: { name: true, emoji: true, domainId: true } },
         }
       }),
       // BusinessProducts (quick-add items) — sold via productVariantId
@@ -449,7 +449,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         where: { businessId, isActive: true, isAvailable: true },
         select: {
           id: true, name: true, basePrice: true, createdAt: true,
-          business_categories: { select: { name: true, emoji: true } },
+          business_categories: { select: { name: true, emoji: true, domainId: true } },
           product_variants: {
             where: { isActive: true },
             select: { id: true, price: true },
@@ -470,6 +470,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
 
     const newArrivalsByCategory = new Map<string, number>()
     for (const row of newArrivalRows) newArrivalsByCategory.set(row.categoryId, Number(row.newCount))
+
+    // Domain icon fallback (MBM-294): most imported categories never got a real
+    // emoji (they sit at BusinessCategories' schema default, "📦"), but their
+    // domain often has a representative icon image from the same import. Batch
+    // resolve once per request rather than a query per item.
+    const involvedDomainIds = new Set<string>()
+    for (const p of invItems) { const d = (p as any).business_category?.domainId; if (d) involvedDomainIds.add(d) }
+    for (const p of bizProducts) { const d = (p as any).business_categories?.domainId; if (d) involvedDomainIds.add(d) }
+    const domainIcons = involvedDomainIds.size > 0
+      ? await prisma.inventoryDomains.findMany({
+          where: { id: { in: Array.from(involvedDomainIds) }, iconImageId: { not: null } },
+          select: { id: true, iconImageId: true },
+        })
+      : []
+    const domainIconUrlById = new Map<string, string>(
+      domainIcons.map(d => [d.id, `/api/images/${d.iconImageId}`])
+    )
 
     const candidates: any[] = []
 
@@ -513,6 +530,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         originalPrice: clothingInvPromo.originalPrice, isPromoActive: clothingInvPromo.isPromoActive, promoEndsAt: clothingInvPromo.promoEndsAt,
         emoji: (p as any).business_category?.emoji ?? '👕',
         category: (p as any).business_category?.name ?? null,
+        categoryIconUrl: domainIconUrlById.get((p as any).business_category?.domainId) ?? null,
         imageId: clothingInvImageId,
         imageUrl: clothingInvImageId ? `/api/images/${clothingInvImageId}` : (clothingInvAdImageId ? `/api/images/${clothingInvAdImageId}` : null),
         advertisingNote: getNote('product', p.id),
@@ -549,6 +567,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         originalPrice: bizPromo.originalPrice, isPromoActive: bizPromo.isPromoActive, promoEndsAt: bizPromo.promoEndsAt,
         emoji: (p as any).business_categories?.emoji ?? '👕',
         category: (p as any).business_categories?.name ?? null,
+        categoryIconUrl: domainIconUrlById.get((p as any).business_categories?.domainId) ?? null,
         imageId: bizImageId,
         imageUrl: bizImageId ? `/api/images/${bizImageId}` : (bizAdImageId ? `/api/images/${bizAdImageId}` : null),
         advertisingNote: getNote('product', p.id),

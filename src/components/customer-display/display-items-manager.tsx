@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useClipboardImagePaste } from '@/hooks/use-clipboard-image-paste'
+import { AdImagePoolPicker } from '@/components/customer-display/ad-image-pool-picker'
 
 interface DisplayItem {
   id: string
@@ -13,6 +14,10 @@ interface DisplayItem {
   imageUrl: string | null      // resolved primary/catalog photo (falls back to adImageId server-side) — prefer this over imageId
   menuNumber?: string | null   // restaurant only — grocery/clothing items never have one
   adImageId: string | null     // advertising-only image stored in DisplayProductConfig
+  // Domain's representative icon image (MBM-294) — a fallback tier between a
+  // real photo and the emoji, since most imported categories never got a real
+  // emoji (they sit at the schema default, "📦").
+  categoryIconUrl?: string | null
   advertisingNote: string | null
   isFeatured: boolean
   isHidden: boolean
@@ -47,6 +52,7 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
   const [saving, setSaving] = useState(false)
   const [uploadingFor, setUploadingFor] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [poolPickerFor, setPoolPickerFor] = useState<DisplayItem | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const fetchItems = useCallback(async () => {
@@ -72,6 +78,14 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
   function showToast(msg: string) {
     setToast(msg)
     setTimeout(() => setToast(null), 3000)
+  }
+
+  // Reach the live customer display as early as possible after any per-item
+  // change, rather than waiting for its periodic poll (MBM-294 follow-up).
+  function broadcastDisplayRefresh() {
+    const bc = new BroadcastChannel('customer-display')
+    bc.postMessage({ type: 'DISPLAY_REFRESH', businessId, terminalId: null, payload: {} })
+    bc.close()
   }
 
   function openEdit(item: DisplayItem) {
@@ -109,6 +123,7 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
       })
     }
     await fetchItems()
+    broadcastDisplayRefresh()
     showToast(isCurrentlySpecial ? "Removed today's special" : "Set as today's special")
   }
 
@@ -147,6 +162,7 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
         isHidden: editState.isHidden,
         priorityBoost: editState.priorityBoost,
       } : i))
+      broadcastDisplayRefresh()
       closeEdit()
       showToast('Saved')
     } catch {
@@ -183,11 +199,41 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
 
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, adImageId } : i))
       setEditState(s => s ? { ...s, adImageId } : s)
+      broadcastDisplayRefresh()
       showToast('Advertising image uploaded')
     } catch (e: any) {
       showToast(e.message ?? 'Upload failed')
     } finally {
       setUploadingFor(null)
+    }
+  }
+
+  // Picks an existing image (from the item's own category gallery/reference
+  // pool, MBM-294) instead of uploading a new file — by reference, no new
+  // `Images` row is created, just the same DisplayProductConfig write
+  // uploadAdImage already does.
+  async function selectAdImageFromPool(item: DisplayItem, imageId: string) {
+    setUploadingFor(item.id)
+    try {
+      const configRes = await fetch(
+        `/api/business/${businessId}/display-smart-ads/config`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemType: item.itemType, itemId: item.id, advertisingImageId: imageId }),
+        }
+      )
+      if (!configRes.ok) throw new Error('Save failed')
+
+      setItems(prev => prev.map(i => i.id === item.id ? { ...i, adImageId: imageId } : i))
+      setEditState(s => s ? { ...s, adImageId: imageId } : s)
+      broadcastDisplayRefresh()
+      showToast('Advertising image set')
+    } catch (e: any) {
+      showToast(e.message ?? 'Failed to set image')
+    } finally {
+      setUploadingFor(null)
+      setPoolPickerFor(null)
     }
   }
 
@@ -207,6 +253,7 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
     })
     setItems(prev => prev.map(i => i.id === item.id ? { ...i, adImageId: null } : i))
     setEditState(s => s ? { ...s, adImageId: null } : s)
+    broadcastDisplayRefresh()
     showToast('Advertising image removed')
   }
 
@@ -232,6 +279,15 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
         <div className="fixed top-4 right-4 z-50 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg text-sm">
           {toast}
         </div>
+      )}
+
+      {poolPickerFor && (
+        <AdImagePoolPicker
+          businessId={businessId}
+          itemId={poolPickerFor.id}
+          onSelect={imageId => selectAdImageFromPool(poolPickerFor, imageId)}
+          onClose={() => setPoolPickerFor(null)}
+        />
       )}
 
       {/* Sticky search bar */}
@@ -282,6 +338,8 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
                       <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
                     ) : item.imageId ? (
                       <img src={`/api/images/${item.imageId}`} alt={item.name} className="w-full h-full object-cover" />
+                    ) : item.categoryIconUrl ? (
+                      <img src={item.categoryIconUrl} alt="" title="Category photo — no product photo yet" className="w-full h-full object-cover opacity-90" />
                     ) : (
                       <span className="text-2xl">{item.emoji ?? '📦'}</span>
                     )}
@@ -342,6 +400,8 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
                           <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
                         ) : item.imageId ? (
                           <img src={`/api/images/${item.imageId}`} alt={item.name} className="w-full h-full object-cover" />
+                        ) : item.categoryIconUrl ? (
+                          <img src={item.categoryIconUrl} alt="" title="Category photo — no product photo yet" className="w-full h-full object-cover opacity-90" />
                         ) : (
                           <span className="text-3xl">{item.emoji ?? '📦'}</span>
                         )}
@@ -374,13 +434,24 @@ export function DisplayItemsManager({ businessId, businessType }: Props) {
                               e.target.value = ''
                             }}
                           />
-                          <button
-                            onClick={() => fileRef.current?.click()}
-                            disabled={uploadingFor === item.id}
-                            className="text-xs px-2 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                          >
-                            {uploadingFor === item.id ? 'Uploading…' : editState.adImageId ? 'Replace' : 'Upload'}
-                          </button>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => fileRef.current?.click()}
+                              disabled={uploadingFor === item.id}
+                              className="text-xs px-2 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                            >
+                              {uploadingFor === item.id ? 'Uploading…' : editState.adImageId ? 'Replace' : 'Upload'}
+                            </button>
+                            {businessType === 'clothing' && item.itemType === 'product' && (
+                              <button
+                                onClick={() => setPoolPickerFor(item)}
+                                disabled={uploadingFor === item.id}
+                                className="text-xs px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
+                              >
+                                🗂 Pool
+                              </button>
+                            )}
+                          </div>
                           <p className="text-[10px] text-gray-400">or paste (Ctrl+V)</p>
                           {editState.adImageId && (
                             <button
