@@ -9,6 +9,14 @@ import { useToastContext } from '@/components/ui/toast'
  * Reference Pool browser (MBM-294). Always attaches by reference via the
  * existing `POST .../images/from-gallery` endpoint (Phase 4) — never
  * duplicates the image blob.
+ *
+ * Scanner support (same pattern as `product-search-modal.tsx` elsewhere in
+ * this app): the input is autofocused, so a physical barcode scanner's
+ * keystrokes just type into it like a fast typist — no separate scan
+ * handling needed. `GET /api/universal/products` already matches `search`
+ * against product/variant barcodes as well as name/SKU, and the call is
+ * already scoped to this `businessId`, so a scanned code can only ever
+ * resolve to a product in the current business.
  */
 export function ProductAttachSearch({ businessId, imageId, onAttached }: { businessId: string; imageId: string; onAttached: () => void }) {
   const toast = useToastContext()
@@ -61,7 +69,8 @@ export function ProductAttachSearch({ businessId, imageId, onAttached }: { busin
         type="text"
         value={searchText}
         onChange={e => setSearchText(e.target.value)}
-        placeholder="Search product by name or SKU..."
+        placeholder="Search by name, SKU, or scan a barcode..."
+        autoFocus
         className="w-full text-sm rounded-md border-gray-300 dark:bg-gray-800 dark:border-gray-700 dark:text-white py-1.5 px-2"
       />
       {searching && <p className="text-xs text-secondary mt-1">Searching…</p>}

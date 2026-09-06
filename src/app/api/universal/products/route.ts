@@ -179,9 +179,13 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
+      // `description` deliberately excluded: verified live that ~98% of clothing
+      // products have a stray, mismatched category word in that field (a
+      // pre-existing data-quality issue, e.g. "Baby Towel" -> description
+      // "Shoes") rather than a real description, which made a search for any
+      // one of those words return a page of totally unrelated products.
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
         { sku: { contains: search, mode: 'insensitive' } },
         { barcode: { contains: search, mode: 'insensitive' } },
         // Search in variant SKUs and barcodes
