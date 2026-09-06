@@ -223,6 +223,7 @@
     - [What's Recorded](#whats-recorded)
     - [Using the Report](#using-the-report)
 64. [POS Cart Badges — Decrement & Remove Without Opening the Cart](#64-pos-cart-badges--decrement--remove-without-opening-the-cart)
+65. [Business Image Gallery & Category Reference Pool](#65-business-image-gallery--category-reference-pool)
     - [Permissions](#permissions-16)
 
 ---
@@ -12513,11 +12514,13 @@ Each item on the display can show two separate images:
 | **Product image** | Product / inventory record | Via inventory or product management |
 | **Advertising image** | Display settings (per-item) | Via the Product Display Settings panel |
 
-The **advertising image takes priority** on the customer display. If no advertising image is set, the product's own image is used. If neither is set, the category emoji is shown.
+The **advertising image takes priority** on the customer display. If no advertising image is set, the product's own image is used. If neither is set (clothing only), a **representative photo for the item's category** is shown, sourced from the shared category reference pool (see [Business Image Gallery & Category Reference Pool](#65-business-image-gallery--category-reference-pool)) — this catches most items, since the vast majority of imported categories never had a real emoji assigned. Only when none of the above exist does the category emoji show.
 
 The advertising image is completely separate — uploading or removing it does not affect the product record.
 
-This same priority order (advertising image → product image → category emoji) is what the thumbnails show on the management screens too — Item Priority, Product Display Settings, Menu Availability, and Product Availability all show whichever image is actually going to appear on the customer display, not just a generic placeholder.
+This same priority order (advertising image → product image → category reference photo → category emoji) is what the thumbnails show on the management screens too — Item Priority, Product Display Settings, Menu Availability, and Product Availability all show whichever image is actually going to appear on the customer display, not just a generic placeholder.
+
+**Setting the advertising image from the pool (clothing only):** on both Item Priority and Product Display Settings, a **🗂 Pool** link sits next to the Upload option whenever the item is a real product (not a bale category). Click it to browse a category-filtered picker instead of uploading a new file — it defaults to the item's own category but lets you switch to any category via the dropdown at the top. Picking an image sets it by reference immediately, same as Upload.
 
 ---
 
@@ -12536,7 +12539,7 @@ Customer Display access uses two separate permissions:
 | `canViewCustomerDisplay` | View the Customer Display page (read-only — no editing) | Owner, Manager, Employee, Restaurant-associate, Grocery-associate, Salesperson |
 | `canManageCustomerDisplay` | Upload/delete ads, edit product display settings, change global settings | Owner, Manager |
 
-**Sidebar link** — the **📺 Customer Display** link (or, for restaurant, both **📺 Customer Display Ads** and **⚙️ Display Settings**) is visible to anyone who has `canViewCustomerDisplay` or `canManageCustomerDisplay`.
+**Sidebar link** — the **📺 Customer Display** link (or, for restaurant and clothing, both **📺 Customer Display Ads** and **⚙️ Display Settings**) is visible to anyone who has `canViewCustomerDisplay` or `canManageCustomerDisplay`.
 
 **View-only mode** — users with only `canViewCustomerDisplay` see the page but the **Upload New Ad** button is hidden and ad edit/delete actions are unavailable. They can still open a **Preview Display** window to see what's currently showing.
 
@@ -12578,22 +12581,25 @@ Same as Menu Availability, this is a quick single-purpose toggle only — it doe
 
 ### Management — Where to Find It
 
-Restaurant is the only business type with **two separate** Customer Display destinations in the sidebar — don't confuse them:
+Restaurant and Clothing each have **two separate** Customer Display destinations in the sidebar — don't confuse them. Grocery currently has one combined page:
 
 | Business | Navigation | What it's for |
 |----------|-----------|----------------|
-| Restaurant | Sidebar → **📺 Customer Display Ads** | Upload/manage the image slideshow ads (only shown when Smart Display is turned **off** — see below) |
-| Restaurant | Sidebar → **⚙️ Display Settings** | Smart Display toggle, rotation speed, max items, and the Item Priority list |
-| Grocery | Sidebar → **📺 Customer Display** | Both ads and smart-display settings live on one combined page |
-| Clothing | Sidebar → **📺 Customer Display** | Both ads and smart-display settings live on one combined page |
+| Restaurant | Sidebar → **📺 Customer Display Ads** | "Product Display Settings" — per-item advertising note/image, priority, hide, with search and paging |
+| Restaurant | Sidebar → **⚙️ Display Settings** | Standalone page: global settings (rotation speed, panel columns/rows, etc.) plus a searchable, all-items "Item Priority" list |
+| Clothing | Sidebar → **📺 Customer Display Ads** | Same "Product Display Settings" screen as restaurant, scoped to clothing products/bale categories |
+| Clothing | Sidebar → **⚙️ Display Settings** | Same standalone Global Settings + Item Priority page as restaurant |
+| Grocery | Sidebar → **📺 Customer Display** | Ads and global settings live together on one combined page (no separate Item Priority list yet) |
 | Grocery | Sidebar → **🚫 Product Availability** | Quick hide/show toggle for salespeople — see above |
 | Clothing | Sidebar → **🚫 Product Availability** | Quick hide/show toggle for salespeople — see above |
 
-> **If your uploaded ads never seem to show on the customer screen:** check **Display Settings** — when "Smart display enabled" is turned on, the screen shows the rotating product/menu panels instead of your uploaded ad slideshow. Turn it off if you want the classic ad slideshow to play.
+> **If your uploaded ads never seem to show on the customer screen:** check **Display Settings** (or, on grocery, the Global Settings section of the combined page) — when "Smart display enabled" is turned on, the screen shows the rotating product/menu panels instead of your uploaded ad slideshow. Turn it off if you want the classic ad slideshow to play.
 
-The restaurant **Display Settings** page has two sections:
-1. **Global Settings** — rotation speed, max items, enable/disable the smart display
-2. **Item Priority** — configure every numbered item's priority, advertising image, and promo note
+> **Clothing note:** the same global settings (rotation speed, panel/grid layout) can currently be reached two ways — the embedded settings panel on the combined **Customer Display Ads** page, and the standalone **Display Settings** page. Both edit the exact same underlying settings, so changing one shows up in the other immediately; use whichever is more convenient.
+
+The standalone **Display Settings** page (restaurant and clothing) has two sections:
+1. **Global Settings** — rotation speed, max items, enable/disable the smart display, panel/grid layout — sticky at the top of the page so it stays visible while you scroll the item list
+2. **Item Priority** — a searchable list (search box sits in its own sticky header, right beside Global Settings) to configure every item's priority, advertising image, and promo note. Changes to any item apply instantly — no page reload, so your scroll position and search stay put — and reach the live customer display immediately rather than waiting for its periodic refresh.
 
 ---
 
@@ -12627,7 +12633,7 @@ Each item in the Item Priority list shows a display image that **defaults to the
 1. Go to **Restaurant → Display Settings**
 2. Find the item in the **Item Priority** list
 3. If it's currently showing the catalog photo, click **📷 Use a different ad photo** (or **📷 Add ad image** if it has no photo at all) under that item
-4. Pick an image file from your device — it uploads and saves immediately as a dedicated ad photo, replacing the catalog photo on the display
+4. Pick an image file from your device — it uploads and saves immediately as a dedicated ad photo, replacing the catalog photo on the display. Clothing products can instead click **🗂 Pool** to pick an existing image from the category reference pool — no upload needed
 5. A thumbnail appears confirming the image is set
 
 Click **Remove (use catalog photo instead)** to drop the dedicated ad photo and fall back to the catalog photo again (or **Remove image** if there's no catalog photo to fall back to).
@@ -12646,7 +12652,7 @@ The **Item Priority** panel lists every numbered item the display can show. Each
 |---------|-------------|
 | **Score bar** | Visual display score (T = today, Y = yesterday, D = day before) |
 | **Boost** | Number field (0–100); each point adds 10 to the display score. Tab away to save. Requires `canManageCustomerDisplay`. |
-| **Display image** | Defaults to the item's own catalog photo when one exists; **📷 Use a different ad photo** / **📷 Add ad image** overrides it with a dedicated promo photo. Requires `canManageCustomerDisplay`. |
+| **Display image** | Defaults to the item's own catalog photo when one exists; **📷 Use a different ad photo** / **📷 Add ad image** overrides it with a dedicated promo photo, or **🗂 Pool** (clothing products only) picks an existing image from the category reference pool instead of uploading a new file. Requires `canManageCustomerDisplay`. |
 | **Ad note field** | Type a short promo text (up to 80 chars). Tab away or click elsewhere to save. Determines the badge colour automatically (see Advertising Notes section). Requires `canManageCustomerDisplay`. |
 | **⭐ Special** | Set (or remove) this item as today's actual special — the same special the [Today's Special](#daily-special-restaurant) system resolves, not a cosmetic flag. Setting one replaces whatever was set before; if nothing is set for a day, there is no special that day. Only shown for regular menu items — AYLI combos can't be a Today's Special. Requires `canOverrideDailySpecial` — salespeople have this by default, so this is a quick shift-to-shift action, not a configuration change. |
 | **★ Feature** | Toggle featured — sorts item to the front of the rotation. Requires `canManageCustomerDisplay`. |
@@ -12658,7 +12664,7 @@ Users with only `canViewCustomerDisplay` see every row but can only use **⭐ Sp
 
 ### Global Display Settings
 
-**Where:** Restaurant sidebar → **⚙️ Display Settings** (restaurant only for now)
+**Where:** Restaurant or Clothing sidebar → **⚙️ Display Settings**
 
 Permission required: `canManageCustomerDisplay`. Users with only `canViewCustomerDisplay` see this page in read-only mode — toggles and sliders are disabled and the **Save Settings** button is hidden.
 
@@ -12675,7 +12681,7 @@ Permission required: `canManageCustomerDisplay`. Users with only `canViewCustome
 
 All of these settings apply to the live customer display immediately on **Save Settings** — no manual refresh needed on the display screen.
 
-Grocery and clothing have the same settings on their combined **Customer Display** page (see [Management — Where to Find It](#management--where-to-find-it)).
+Grocery has the same settings embedded on its combined **Customer Display** page. Clothing has them in both places — embedded on its combined page and on this standalone **Display Settings** page (see [Management — Where to Find It](#management--where-to-find-it)).
 
 ---
 
@@ -13599,5 +13605,69 @@ Both act immediately and never open the cart panel.
 - **Universal POS** (Vehicle Service, Construction, Vehicles, Consulting, Services, Retail, Other) — grid and list display modes, same corner placement as Restaurant/Grocery.
 
 Hardware POS's product browser doesn't have this yet — its cart lives in a separate panel from the browsing grid, so the same shortcut isn't available there today; the cart panel's own quantity controls still work as before.
+
+---
+
+## 65. Business Image Gallery & Category Reference Pool
+
+> **Who reads this:** Clothing business owners/managers browsing or organizing their product images. **Currently clothing-only** — other business types may get this later once it's proven out on clothing.
+
+**Where:** Sidebar → **🖼️ Image Gallery** (visible to anyone with access to a clothing business).
+
+The Image Gallery has two tabs at the top, alongside a business picker (only your clothing businesses are listed):
+
+| Tab | What it shows |
+|-----|---------------|
+| **My Gallery** | Every image this business actually owns or uses on one of its own products |
+| **🗂 Pool** | The shared category reference pool — thousands of pre-imported category photos, browsable by category, not yet tied to any specific business until you attach one |
+
+The top toolbar (business picker, tabs, filters/search, image count) is **sticky** — it stays in view while you scroll the grid below it.
+
+---
+
+### My Gallery Tab
+
+Shows only images this business has actually used — starts small and grows as you attach images to products (from either tab).
+
+**Filters** (all in the sticky toolbar): search by linked product name/SKU, inventory status (has inventory / not linked yet), stock status (in / low / out of stock), and a tag filter with autocomplete.
+
+**Each thumbnail shows:**
+- A count badge (top-right) — how many products use this image
+- A stock-status chip (bottom-left) — In Stock / Low Stock / Out of Stock, based on the linked product(s)' current stock
+
+**Clicking a thumbnail** opens the detail panel:
+
+| Action | What it does |
+|--------|-------------|
+| **Tags** | Add or remove tags (autocomplete from this business's existing tags); typing a new name creates it |
+| **Linked inventory items** | Every product using this image, with SKU, stock, and a primary-image indicator |
+| **Set Primary** | Makes this the product's main photo (shown on POS cards, receipts, etc.) |
+| **Remove** | Un-links this image from that one product (doesn't delete the image itself) |
+| **Sell/Restock** | Jumps straight to that product in its own business's POS, ready to add to cart — reuses the same cross-business navigation the barcode scanner already uses elsewhere in the app |
+| **Copy Image** | Copies the image to your clipboard (paste it anywhere, e.g. while creating a new product) |
+| **Add this image to another product** | Search by name, SKU, or **scan a barcode** — the search box is focused automatically so a physical scanner's input goes straight into it. Results are always limited to this business's own products. |
+
+**📊 Insights panel** (collapsible, above the grid): most-used images, images on high-turnover items (top sellers in the last 7 days), and images on low-stock/out-of-stock items — each thumbnail click-through to the detail panel above.
+
+---
+
+### Reference Pool Tab
+
+Browses the shared, business-agnostic category image pool — imported in bulk from a source catalog, plus anything added since via Bulk Upload. An image here isn't "yours" until you attach it to one of your own products.
+
+- **Category dropdown** — filter to one category, or browse "All categories"
+- **Clicking a thumbnail** opens a small dialog: the image, a note on whether it's already used by any of your products (with a count), and the same search-or-scan "add to a product" box described above
+- Once attached, the thumbnail shows the same count badge as My Gallery — no need to switch tabs to confirm it worked
+
+**⬆️ Bulk Upload** — add multiple images to the pool at once for a chosen category (including brand-new categories with nothing in them yet). Requires `canManageInventory` — this writes into a pool shared by every business of this type, not just your own data, so it's gated stricter than browsing.
+
+---
+
+### Permissions
+
+| Permission | What it allows |
+|------------|----------------|
+| Active membership in a clothing business | Browse My Gallery and the Reference Pool, tag images, attach/remove product links |
+| `canManageInventory` | Bulk-upload new images into the shared Reference Pool |
 
 ---
