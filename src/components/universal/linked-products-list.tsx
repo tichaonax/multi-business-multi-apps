@@ -1,5 +1,8 @@
 'use client'
 
+import { useGlobalCart } from '@/contexts/global-cart-context'
+import { useToastContext } from '@/components/ui/toast'
+
 export interface LinkedProduct {
   productImageId: string
   productId: string
@@ -7,6 +10,7 @@ export interface LinkedProduct {
   sku: string | null
   price: number
   isPrimary: boolean
+  stockQuantity: number
   stockLabel: string
   variants: Array<{ id: string; name: string | null; sku: string; stockQuantity: number }>
 }
@@ -15,6 +19,9 @@ interface Props {
   businessId: string
   businessType: string
   items: LinkedProduct[]
+  /** The reference/pool image's own URL — used as the cart line's thumbnail
+   * when adding straight to cart from here. */
+  imageUrl?: string
   /** Set Primary / Remove — only relevant once viewing from the business's
    * own gallery detail panel. The Reference Pool's lighter attach modal
    * shows this same list read-only (plus Add to Cart), since editing which
@@ -38,15 +45,39 @@ function fmt(n: number) {
  * live in the same place instead of requiring a tab switch.
  */
 export function LinkedProductsList({
-  businessId, businessType, items, showManageActions, onSetPrimary, onRemove, busyProductImageId, emptyLabel,
+  businessId, businessType, items, imageUrl, showManageActions, onSetPrimary, onRemove, busyProductImageId, emptyLabel,
 }: Props) {
-  // Reuses the exact same "switch active business, then navigate" pattern
-  // already established by the global barcode-scan modal's cross-business
-  // "Add to Cart" action (src/components/global/global-barcode-modal.tsx) —
-  // no new POS integration, just the one this app already has.
+  const { addToCart } = useGlobalCart()
+  const toast = useToastContext()
+
+  // The business you're browsing the pool/gallery for is always the current
+  // business here (unlike the global barcode-scan modal's cross-business
+  // "Add to Cart", which may need to switch business first) — so a
+  // single-variant item can go straight into the global cart in place,
+  // without navigating away. That cart is shown app-wide by the header's
+  // mini-cart, which is how the user keeps browsing and "checks out" later.
+  // A multi- (or zero-) variant item still needs the POS's own size/variant
+  // picker, so that case falls back to the old navigate-and-autoAdd route.
+  // The global cart also silently refuses any item priced at $0 or less —
+  // fall back for those too rather than show a false "Added" toast for
+  // something that never actually landed in the cart.
   function handleAddToCart(item: LinkedProduct) {
-    const variantId = item.variants.length === 1 ? item.variants[0].id : undefined
-    const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${item.productId}${variantId ? `&variantId=${variantId}` : ''}&autoAdd=true`
+    if (item.variants.length === 1 && item.price > 0) {
+      const variant = item.variants[0]
+      addToCart({
+        productId: item.productId,
+        variantId: variant.id,
+        name: item.productName,
+        sku: item.sku ?? variant.sku,
+        price: item.price,
+        stock: item.stockQuantity,
+        imageUrl: imageUrl ?? null,
+      })
+      toast.push(`Added ${item.productName} to cart`, { type: 'success' })
+      return
+    }
+
+    const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${item.productId}&autoAdd=true`
     if (localStorage.getItem('currentBusinessId') !== businessId) {
       localStorage.setItem('currentBusinessId', businessId)
     }

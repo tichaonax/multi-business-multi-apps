@@ -6,7 +6,6 @@ import { ProductAttachSearch } from '@/components/universal/product-attach-searc
 import { LinkedProductsList, LinkedProduct } from '@/components/universal/linked-products-list'
 
 interface LinkedItem extends LinkedProduct {
-  stockQuantity: number
   stockStatus: 'in' | 'low' | 'out'
 }
 
@@ -226,6 +225,7 @@ export function ImageGalleryDetailModal({ businessId, businessType, imageId, onC
                 businessId={businessId}
                 businessType={businessType}
                 items={linkedItems}
+                imageUrl={image.url}
                 showManageActions
                 onSetPrimary={handleSetPrimary}
                 onRemove={handleRemoveLink}

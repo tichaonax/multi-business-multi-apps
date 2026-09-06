@@ -35,26 +35,45 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '48', 10) || 48, 1), 200)
   const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10) || 0, 0)
 
-  const [domainCounts, rows, total] = await Promise.all([
+  const [domainCounts, allRows] = await Promise.all([
     prisma.categoryReferenceImages.groupBy({
       by: ['domainId'],
       where: { businessType: business.type, domainId: { not: null } },
       _count: { imageId: true },
     }),
-    prisma.categoryReferenceImages.findMany({
-      where: { businessType: business.type, ...(domainId ? { domainId } : {}) },
-      select: { imageId: true, domainId: true },
-      distinct: ['imageId'],
-      orderBy: { createdAt: 'desc' },
-      skip: offset,
-      take: limit,
-    }),
+    // Fetch every matching imageId (unpaginated) so usage counts can be
+    // computed pool-wide and the whole pool sorted by "most used first"
+    // before slicing a page — sorting only the current page would just
+    // reorder whichever 48 happened to land there, not surface the
+    // most-used images pool-wide.
     prisma.categoryReferenceImages.findMany({
       where: { businessType: business.type, ...(domainId ? { domainId } : {}) },
       select: { imageId: true },
       distinct: ['imageId'],
-    }).then(r => r.length),
+      orderBy: { createdAt: 'desc' },
+    }),
   ])
+  const total = allRows.length
+  const allImageIds = allRows.map(r => r.imageId)
+
+  // This business's own usage count for every pool image (not just the
+  // current page) — the sort key. Bounded by how many of this business's
+  // products use pool images, not by pool size, so this stays cheap.
+  const allUsageCounts = allImageIds.length > 0
+    ? await prisma.productImages.groupBy({
+        by: ['imageId'],
+        where: { imageId: { in: allImageIds }, business_products: { businessId } },
+        _count: { imageId: true },
+      })
+    : []
+  const allUsageByImageId = new Map(allUsageCounts.map(u => [u.imageId, u._count.imageId]))
+
+  // Most-used-first, stable on ties (Array#sort is stable) so unused images
+  // keep their original most-recently-imported-first order.
+  const sortedImageIds = [...allImageIds].sort(
+    (a, b) => (allUsageByImageId.get(b) ?? 0) - (allUsageByImageId.get(a) ?? 0)
+  )
+  const rows = sortedImageIds.slice(offset, offset + limit).map(imageId => ({ imageId }))
 
   const domainIds = domainCounts.map(d => d.domainId).filter((id): id is string => !!id)
   const domains = domainIds.length > 0
@@ -76,16 +95,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   // How many of THIS business's own products already use each pool image —
   // shown as a badge on the thumbnail so attaching one is visibly confirmed
-  // without having to switch to "My Gallery" to see it.
+  // without having to switch to "My Gallery" to see it. Already computed
+  // pool-wide above (for sorting) — reuse rather than re-querying.
   const imageIds = rows.map(r => r.imageId)
-  const usageCounts = imageIds.length > 0
-    ? await prisma.productImages.groupBy({
-        by: ['imageId'],
-        where: { imageId: { in: imageIds }, business_products: { businessId } },
-        _count: { imageId: true },
-      })
-    : []
-  const usageByImageId = new Map(usageCounts.map(u => [u.imageId, u._count.imageId]))
+  const usageByImageId = allUsageByImageId
 
   // Cross-business usage (MBM-294 groundwork for opening the pool to more
   // business types later): a plain groupBy can't COUNT(DISTINCT businessId),

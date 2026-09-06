@@ -90,6 +90,7 @@ export function ReferencePoolAttachModal({ businessId, businessType, imageId, ur
                 businessId={businessId}
                 businessType={businessType}
                 items={linkedItems}
+                imageUrl={url}
                 emptyLabel="Not linked to any of your products yet."
               />
             )}
