@@ -108,6 +108,14 @@ export function LinkedProductsList({
     setEditingPriceItem(item)
   }
 
+  // Full product record (name, SKU, category, images, variants, etc.) — the
+  // same deep-link every business type's own Inventory page already
+  // supports (?productId=…), so this reuses that instead of a second,
+  // separate product editor.
+  function handleOpenProductInventory(item: LinkedProduct) {
+    window.location.href = `/${businessType}/inventory?productId=${item.productId}`
+  }
+
   function handlePriceSaved(newPrice: number) {
     if (editingPriceItem && editingPriceItem.variants.length === 1) {
       // Already in the floating cart? Update that line's price too, in
@@ -127,21 +135,26 @@ export function LinkedProductsList({
       {items.map(item => (
         <div key={item.productImageId} className="flex items-center justify-between border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm">
           <div>
-            <div className="font-medium text-primary">
-              {canEditPrice && item.variants.length === 1 ? (
+            <div className="font-medium text-primary inline-flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleOpenProductInventory(item)}
+                className="text-blue-600 dark:text-blue-400 hover:underline underline-offset-2 text-left"
+                title="View / edit this product"
+              >
+                {item.productName}
+              </button>
+              {canEditPrice && item.variants.length === 1 && (
                 <button
                   type="button"
                   onClick={() => handleOpenPriceEdit(item)}
-                  className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline underline-offset-2 text-left"
-                  title="View / change price"
+                  className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-600 hover:bg-green-700 text-white text-[10px] leading-none shrink-0"
+                  title="Adjust price"
                 >
-                  {item.productName}
-                  <span aria-hidden="true" className="text-xs">✏️</span>
+                  💲
                 </button>
-              ) : (
-                item.productName
               )}
-              {' '}{item.isPrimary && <span className="text-xs text-blue-600">(primary)</span>}
+              {item.isPrimary && <span className="text-xs text-blue-600">(primary)</span>}
             </div>
             <div className="text-xs text-secondary">{item.sku ?? '—'} · {fmt(item.price)} · {item.stockLabel}</div>
           </div>
