@@ -27,7 +27,7 @@ interface GalleryImage {
   stockStatuses: Array<'in' | 'low' | 'out'>
 }
 
-interface PoolImage { id: string; url: string }
+interface PoolImage { id: string; url: string; linkedItemCount: number }
 interface PoolDomain { id: string; name: string; emoji: string; count: number }
 
 const STOCK_BADGE: Record<'in' | 'low' | 'out', { label: string; color: string }> = {
@@ -182,7 +182,14 @@ export default function ImageGalleryPage() {
 
   function handlePoolAttachClosed(attached: boolean) {
     setSelectedPoolImage(null)
-    if (attached && view === 'mine') fetchImages(0, false)
+    if (attached) {
+      // Selecting a pool image only ever happens from the pool grid, so the
+      // old `view === 'mine'` check here never actually fired — refresh both:
+      // the pool grid needs its badge count updated for this exact image, and
+      // My Gallery needs to not be stale next time the user switches to it.
+      fetchPool(0, false)
+      fetchImages(0, false)
+    }
   }
 
   function handleBulkUploadClosed(uploaded: boolean) {
@@ -334,9 +341,17 @@ export default function ImageGalleryPage() {
                     <button
                       key={img.id}
                       onClick={() => setSelectedPoolImage(img)}
-                      className="aspect-square rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow"
+                      className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow"
                     >
                       <img src={img.url} alt="" className="w-full h-full object-cover" />
+                      {img.linkedItemCount > 0 && (
+                        <span
+                          className="absolute top-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded-full"
+                          title={`Used by ${img.linkedItemCount} of your product${img.linkedItemCount === 1 ? '' : 's'}`}
+                        >
+                          {img.linkedItemCount}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -422,6 +437,7 @@ export default function ImageGalleryPage() {
           businessId={selectedBusinessId}
           imageId={selectedPoolImage.id}
           url={selectedPoolImage.url}
+          linkedItemCount={selectedPoolImage.linkedItemCount}
           onClose={handlePoolAttachClosed}
         />
       )}

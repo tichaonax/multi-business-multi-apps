@@ -6,6 +6,10 @@ interface Props {
   businessId: string
   imageId: string
   url: string
+  /** How many of this business's own products already use this image —
+   * shown so it's clear an earlier attach actually took, not just relying on
+   * the grid's badge (MBM-294 follow-up). */
+  linkedItemCount: number
   /** Called on close; `attached` is true if the image was just attached to a
    * product — worth refreshing the caller's own gallery/pool view. */
   onClose: (attached: boolean) => void
@@ -18,7 +22,7 @@ interface Props {
  * linked-items list, no primary/remove actions. Once attached, it shows up
  * in the full detail modal from the business's own gallery going forward.
  */
-export function ReferencePoolAttachModal({ businessId, imageId, url, onClose }: Props) {
+export function ReferencePoolAttachModal({ businessId, imageId, url, linkedItemCount, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => onClose(false)}>
       <div className="card w-full max-w-md p-5 space-y-4" onClick={e => e.stopPropagation()}>
@@ -32,7 +36,9 @@ export function ReferencePoolAttachModal({ businessId, imageId, url, onClose }: 
         </div>
 
         <p className="text-xs text-secondary">
-          This image is from the shared category reference pool — not tied to any of your products yet.
+          {linkedItemCount > 0
+            ? `This image is from the shared category reference pool — already used by ${linkedItemCount} of your product${linkedItemCount === 1 ? '' : 's'}.`
+            : 'This image is from the shared category reference pool — not tied to any of your products yet.'}
         </p>
 
         <div>

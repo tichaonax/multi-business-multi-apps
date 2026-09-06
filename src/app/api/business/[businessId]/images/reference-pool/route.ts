@@ -74,7 +74,24 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     orderBy: { name: 'asc' },
   })
 
-  const images = rows.map(r => ({ id: r.imageId, url: `/api/images/${r.imageId}` }))
+  // How many of THIS business's own products already use each pool image —
+  // shown as a badge on the thumbnail so attaching one is visibly confirmed
+  // without having to switch to "My Gallery" to see it.
+  const imageIds = rows.map(r => r.imageId)
+  const usageCounts = imageIds.length > 0
+    ? await prisma.productImages.groupBy({
+        by: ['imageId'],
+        where: { imageId: { in: imageIds }, business_products: { businessId } },
+        _count: { imageId: true },
+      })
+    : []
+  const usageByImageId = new Map(usageCounts.map(u => [u.imageId, u._count.imageId]))
+
+  const images = rows.map(r => ({
+    id: r.imageId,
+    url: `/api/images/${r.imageId}`,
+    linkedItemCount: usageByImageId.get(r.imageId) ?? 0,
+  }))
 
   return NextResponse.json({ success: true, images, total, limit, offset, domains: domainOptions, allDomains })
 }
