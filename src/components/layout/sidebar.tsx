@@ -9,6 +9,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { useNavigation } from '@/contexts/navigation-context'
 import { useScale } from '@/contexts/ScaleContext'
 import { useGlobalCart } from '@/contexts/global-cart-context'
+import { useR710QuickSell } from '@/contexts/r710-quick-sell-context'
 import { BusinessRevenueBreakdownModal } from '@/components/dashboard/business-revenue-breakdown-modal'
 import { getDefaultPagePath } from '@/lib/business-default-pages'
 
@@ -111,6 +112,14 @@ export function Sidebar() {
 
   // Get global cart for real-time sidebar badge updates
   const { getCartItemCount: getGlobalCartCount } = useGlobalCart()
+
+  // R710 Quick Sell — button next to "Current Business" opens the same
+  // sales workflow as the "R710 WiFi Sales" nav link, as a modal instead of
+  // a page navigation, so it works from any page without losing that page's
+  // state (production follow-up request).
+  const { open: openR710QuickSell } = useR710QuickSell()
+  const showR710QuickSellButton =
+    (isSystemAdmin(currentUser) || hasPermission('canSellWifiTokens')) && r710IntegrationEnabled && r710HasMenuItems
 
   const { isAvailable: isScaleAvailable, status: scaleStatus } = useScale()
   // Always show Livestock Purchase — the page handles scale setup when not connected
@@ -608,6 +617,16 @@ export function Sidebar() {
             <p className="text-xs text-gray-500 dark:text-gray-400">Current Business:</p>
             <p title={currentBusiness.businessName} className="text-sm text-gray-900 dark:text-white font-medium truncate">{currentBusiness.businessName}</p>
           </div>
+        )}
+        {currentBusiness && showR710QuickSellButton && (
+          <button
+            onClick={openR710QuickSell}
+            title="Sell an R710 WiFi token without leaving this page"
+            className="mt-2 w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+          >
+            <span>📶</span>
+            <span>R710 Wi-Fi</span>
+          </button>
         )}
       </div>
       

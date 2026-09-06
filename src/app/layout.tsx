@@ -18,6 +18,8 @@ import { GlobalBarcodeProvider } from '@/contexts/global-barcode-context'
 import ConfirmProvider from '@/components/ui/confirm-modal'
 import { GlobalLoadingSpinner } from '@/components/ui/global-loading-spinner'
 import { CartProvider } from '@/contexts/global-cart-context'
+import { R710QuickSellProvider } from '@/contexts/r710-quick-sell-context'
+import { R710QuickSellModal } from '@/components/global/r710-quick-sell-modal'
 import { NotificationProvider } from '@/components/providers/notification-provider'
 import { FloatingChat } from '@/components/chat/floating-chat'
 import { PolicyGuard } from '@/components/policies/PolicyGuard'
@@ -71,6 +73,7 @@ export default function RootLayout({
                 <PromptProvider>
                   <BusinessPermissionsProvider>
                     <CartProvider>
+                      <R710QuickSellProvider>
                       <ScaleProvider>
                       <NotificationProvider>
                       <NavigationProvider>
@@ -87,6 +90,7 @@ export default function RootLayout({
                             <GlobalLoadingSpinner />
                           </div>
                           <GlobalBarcodeModalManager />
+                          <R710QuickSellModal />
                           <FloatingChat />
                           {/* MBM-281 follow-up: needs BusinessPermissionsProvider (for the
                               admin/owner gate on the agent check) and CustomSessionProvider,
@@ -98,6 +102,7 @@ export default function RootLayout({
                       </NavigationProvider>
                       </NotificationProvider>
                       </ScaleProvider>
+                      </R710QuickSellProvider>
                     </CartProvider>
                   </BusinessPermissionsProvider>
                 </PromptProvider>

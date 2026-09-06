@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import { hasUserPermission, SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useScale } from '@/contexts/ScaleContext'
+import { useR710QuickSell } from '@/contexts/r710-quick-sell-context'
 
 const businessTypeModules = [
   { type: 'restaurant', icon: '🍽️', name: 'Restaurant' },
@@ -49,6 +50,12 @@ export function MobileSidebar() {
 
   const { isAvailable: isScaleAvailable, status: scaleStatus } = useScale()
   const showLivestock = true  // page handles scale setup when not connected
+
+  // R710 Quick Sell — same modal-based shortcut as the desktop sidebar,
+  // placed next to the current-business name here since mobile has no
+  // separate "Current Business" panel.
+  const { open: openR710QuickSell } = useR710QuickSell()
+  const showR710QuickSellButton = (isAdmin || hasBusinessPermission('canSellWifiTokens')) && r710IntegrationEnabled
 
   // Check WiFi integrations for current business
   useEffect(() => {
@@ -384,10 +391,19 @@ export function MobileSidebar() {
               {/* Current Business Module Links */}
               {currentBusiness && (
                 <>
-                  <div className="pt-3 pb-1">
-                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-4 mb-2">
+                  <div className="pt-3 pb-1 px-4">
+                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
                       {currentBusiness.businessName}
                     </div>
+                    {showR710QuickSellButton && (
+                      <button
+                        onClick={() => { openR710QuickSell(); setIsOpen(false) }}
+                        className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                      >
+                        <span>📶</span>
+                        <span>R710 Wi-Fi</span>
+                      </button>
+                    )}
                   </div>
                   <div className="space-y-0.5">
                     {getBusinessModuleLinks()}
