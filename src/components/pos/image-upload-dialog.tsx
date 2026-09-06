@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useToastContext } from '@/components/ui/toast'
 import { useClipboardImagePaste } from '@/hooks/use-clipboard-image-paste'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 export type QuickEditSourceTable = 'BUSINESS_PRODUCT' | 'BARCODE_ITEM'
 
@@ -53,6 +54,8 @@ interface GalleryImage {
 
 export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, currentImageUrl, onClose, onSaved }: Props) {
   const toast = useToastContext()
+  const { hasPermission } = useBusinessPermissionsContext()
+  const canUploadToPool = hasPermission('canManageInventory')
   const [uploading, setUploading] = useState(false)
   const [copying, setCopying] = useState(false)
   const [pasting, setPasting] = useState(false)
@@ -60,6 +63,8 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
   const [galleryLoading, setGalleryLoading] = useState(false)
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([])
   const [galleryTier, setGalleryTier] = useState<'subcategory' | 'category' | 'domain' | null>(null)
+  const [galleryResolvedName, setGalleryResolvedName] = useState<string | null>(null)
+  const [galleryUploadTarget, setGalleryUploadTarget] = useState<{ domainId: string | null; categoryId: string | null; subcategoryId: string | null } | null>(null)
   const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(new Set())
 
   useClipboardImagePaste(handleFile, !uploading && view === 'main')
@@ -242,11 +247,55 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
       const data = await res.json().catch(() => ({}))
       setGalleryImages(res.ok ? (data.images ?? []) : [])
       setGalleryTier(data.tier ?? null)
+      setGalleryResolvedName(res.ok ? (data.resolvedName ?? null) : null)
+      setGalleryUploadTarget(res.ok ? (data.uploadTarget ?? null) : null)
     } catch {
       setGalleryImages([])
       setGalleryTier(null)
+      setGalleryResolvedName(null)
+      setGalleryUploadTarget(null)
     } finally {
       setGalleryLoading(false)
+    }
+  }
+
+  // Upload straight into the shared category pool from this same picker,
+  // instead of having to leave it for the Image Gallery page's own Bulk
+  // Upload flow (Phase 9 follow-up). Requires `canManageInventory` — the
+  // same stricter permission the dedicated Bulk Upload modal requires,
+  // since this writes into a pool shared by every business of this type.
+  async function handleGalleryPoolUpload(files: FileList) {
+    if (!galleryUploadTarget?.domainId || files.length === 0) return
+    setUploading(true)
+    try {
+      const form = new FormData()
+      Array.from(files).forEach(f => form.append('files', f))
+      form.append('domainId', galleryUploadTarget.domainId)
+      if (galleryUploadTarget.categoryId) form.append('categoryId', galleryUploadTarget.categoryId)
+      if (galleryUploadTarget.subcategoryId) form.append('subcategoryId', galleryUploadTarget.subcategoryId)
+
+      const res = await fetch(`/api/business/${businessId}/images/reference-pool/bulk-upload`, {
+        method: 'POST',
+        body: form,
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? 'Upload failed')
+
+      const newImages: GalleryImage[] = (data.images ?? []).map((img: { id: string; url: string }) => ({
+        id: img.id, imageId: img.id, url: img.url,
+      }))
+      setGalleryImages(prev => [...newImages, ...prev])
+
+      if (data.created > 0) {
+        toast.push(`${data.created} image${data.created === 1 ? '' : 's'} added — select the one${data.created === 1 ? '' : 's'} you want below`)
+      }
+      if (data.skipped?.length > 0) {
+        toast.error(`Skipped: ${data.skipped.join(', ')}`)
+      }
+    } catch (e: any) {
+      toast.error(e.message ?? 'Failed to upload')
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -337,11 +386,19 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
             <button onClick={onClose} className="text-secondary hover:text-primary text-lg leading-none">✕</button>
           </div>
 
+          {!galleryLoading && galleryResolvedName && (
+            <p className="text-xs text-secondary text-center">
+              Category: <span className="font-medium text-primary">{galleryResolvedName}</span>
+            </p>
+          )}
+
           {galleryLoading ? (
             <p className="text-sm text-center text-secondary py-8">Loading…</p>
           ) : galleryImages.length === 0 ? (
-            <p className="text-sm text-center text-secondary py-8">
-              No gallery images yet for this category — upload one and it'll appear here for reuse.
+            <p className="text-sm text-center text-secondary py-4">
+              {galleryResolvedName
+                ? `No gallery images yet for "${galleryResolvedName}" — upload one below and it'll appear here for reuse.`
+                : "This item has no category assigned, so there's nowhere to file a shared gallery image yet — assign one first."}
             </p>
           ) : (
             <>
@@ -374,6 +431,16 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
                 })}
               </div>
             </>
+          )}
+
+          {!galleryLoading && canUploadToPool && galleryUploadTarget?.domainId && (
+            <label className="block w-full text-center py-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 text-sm cursor-pointer">
+              {uploading ? 'Uploading…' : `⬆️ Upload New Image${galleryImages.length > 0 ? 's' : ''} to This Category`}
+              <input
+                type="file" accept="image/*" multiple className="hidden" disabled={uploading}
+                onChange={e => { const files = e.target.files; if (files && files.length > 0) handleGalleryPoolUpload(files); e.target.value = '' }}
+              />
+            </label>
           )}
 
           {sourceTable === 'BUSINESS_PRODUCT' && galleryImages.length > 0 && (

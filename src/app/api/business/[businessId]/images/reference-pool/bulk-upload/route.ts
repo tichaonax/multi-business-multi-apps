@@ -44,6 +44,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   let created = 0
   const skipped: string[] = []
+  const images: Array<{ id: string; url: string }> = []
 
   for (const file of files) {
     if (!file.type.startsWith('image/')) {
@@ -73,7 +74,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       },
     })
     created++
+    images.push({ id: image.id, url: `/api/images/${image.id}` })
   }
 
-  return NextResponse.json({ success: true, created, skipped })
+  // `images` (the newly created ones, in upload order) lets a caller show/
+  // select them immediately without a full re-fetch — added for the POS
+  // Quick-Edit "Choose from Gallery" picker's own upload flow (Phase 9
+  // follow-up); the original Reference Pool bulk-upload modal only ever
+  // read `created`/`skipped`, so this is purely additive.
+  return NextResponse.json({ success: true, created, skipped, images })
 }
