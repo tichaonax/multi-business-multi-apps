@@ -402,11 +402,9 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
             </p>
           ) : (
             <>
-              {galleryTier && galleryTier !== 'subcategory' && (
+              {galleryTier === 'category' && (
                 <p className="text-xs text-secondary text-center">
-                  {galleryTier === 'businessType'
-                    ? "No images tagged for this item's own category yet — showing images from across the whole pool instead."
-                    : `Showing images from this item's ${galleryTier === 'category' ? 'category' : 'general product area'}.`}
+                  Showing images from this item's category.
                 </p>
               )}
               <div className="grid grid-cols-4 gap-2 max-h-72 overflow-y-auto">

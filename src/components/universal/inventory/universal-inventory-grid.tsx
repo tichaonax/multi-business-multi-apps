@@ -7,6 +7,7 @@ import { PrinterSelector } from '@/components/printing/printer-selector'
 import { usePrinterPermissions } from '@/hooks/use-printer-permissions'
 import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { Pagination } from '@/components/ui/pagination'
 import type { LabelData, NetworkPrinter } from '@/types/printing'
 
 interface UniversalInventoryItem {
@@ -80,6 +81,11 @@ interface UniversalInventoryGridProps {
   showBusinessSpecificFields?: boolean
   hideZeroStock?: boolean
   onHideZeroStockChange?: (value: boolean) => void
+  // CSS max-height for the scrollable table body, e.g. 'calc(100vh-460px)'.
+  // Callers with more chrome above the grid (multiple toolbars, filter bars)
+  // should pass a larger subtraction so the pagination footer stays on-screen
+  // without the whole page needing to scroll. Defaults to the original guess.
+  tableMaxHeight?: string
 }
 
 export function UniversalInventoryGrid({
@@ -115,6 +121,7 @@ export function UniversalInventoryGrid({
   showBusinessSpecificFields = true,
   hideZeroStock = false,
   onHideZeroStockChange,
+  tableMaxHeight = 'calc(100vh - 280px)',
 }: UniversalInventoryGridProps) {
   const [items, setItems] = useState<UniversalInventoryItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -127,6 +134,8 @@ export function UniversalInventoryGrid({
   const [sortField, setSortField] = useState<string>('name')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [currentPage, setCurrentPage] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
   const [categories, setCategories] = useState<string[]>([])
   const [suppliers, setSuppliers] = useState<string[]>([])
   const [locations, setLocations] = useState<string[]>([])
@@ -239,7 +248,9 @@ export function UniversalInventoryGrid({
   // Cast items to expected shape; backend may return unknown
   const fetchedItems = (data.items || []) as unknown as UniversalInventoryItem[]
   setItems(fetchedItems)
-  onTotalChange?.(fetchedItems.length)
+  setTotalItems(data.pagination?.total ?? fetchedItems.length)
+  setTotalPages(data.pagination?.totalPages ?? 1)
+  onTotalChange?.(data.pagination?.total ?? fetchedItems.length)
 
   // Extract categories for filtering
   const uniqueCategories = [...new Set(fetchedItems.map((item) => item.category || '').filter(Boolean))] as string[]
@@ -771,7 +782,7 @@ export function UniversalInventoryGrid({
           )}
           {/* Desktop Table View */}
           {!loading && (
-          <div className="hidden lg:block overflow-x-auto max-h-[calc(100vh-280px)] overflow-y-auto">
+          <div className="hidden lg:block overflow-x-auto overflow-y-auto" style={{ maxHeight: tableMaxHeight }}>
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
                 <tr>
@@ -1366,30 +1377,16 @@ export function UniversalInventoryGrid({
         </div>
       )}
 
-      {/* Pagination */}
+      {/* Pagination — total count + numbered page jump, not just Previous/Next */}
       {sortedItems.length > 0 && (
-        <div className="flex flex-col space-y-3 sm:space-y-0 sm:flex-row sm:justify-between sm:items-center">
-          <div className="text-sm text-secondary text-center sm:text-left">
-            Showing {sortedItems.length} of {items.length} items
-          </div>
-          <div className="flex justify-center sm:justify-end items-center gap-2">
-            <button
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1 text-sm bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Previous
-            </button>
-            <span className="px-3 py-1 text-sm text-secondary">Page {currentPage}</span>
-            <button
-              onClick={() => setCurrentPage(currentPage + 1)}
-              disabled={sortedItems.length < pageSize}
-              className="px-3 py-1 text-sm bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Next
-            </button>
-          </div>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          loading={loading}
+        />
       )}
 
       {/* Label Preview Modal */}

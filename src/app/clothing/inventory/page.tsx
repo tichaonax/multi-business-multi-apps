@@ -1381,6 +1381,7 @@ function ClothingInventoryContent() {
                       showBusinessSpecificFields={true}
                       hideZeroStock={hideZeroStock}
                       onHideZeroStockChange={setHideZeroStock}
+                      tableMaxHeight="calc(100vh - 460px)"
                     />
                   </div>
                 )}
@@ -2054,7 +2055,7 @@ function ClothingInventoryContent() {
           {showViewModal && selectedItem && (
             <ModalPortal>
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
                 <div className="p-6 pb-0 shrink-0">
                   {/* Header */}
                   <div className="flex justify-between items-start mb-6">
@@ -2085,8 +2086,11 @@ function ClothingInventoryContent() {
                 </div>
 
                 <div className="p-6 overflow-y-auto flex-1 min-h-0">
-                  {/* Content */}
-                  <div className="space-y-6">
+                  {/* Content — details on the left, a large photo filling the
+                      right column when one's available (falls back to a
+                      placeholder rather than losing the space entirely). */}
+                  <div className="flex flex-col-reverse lg:flex-row gap-6">
+                  <div className="space-y-6 flex-1 min-w-0">
                     {/* Basic Info */}
                     <div>
                       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase mb-3">Basic Information</h3>
@@ -2191,6 +2195,23 @@ function ClothingInventoryContent() {
                         <div className="text-gray-900 dark:text-gray-100">{selectedItem.description}</div>
                       </div>
                     )}
+                  </div>
+
+                  {/* Photo — large on the right (or a placeholder), instead
+                      of not showing an image at all in this modal. */}
+                  <div className="lg:w-72 shrink-0">
+                    <div className="w-full aspect-square rounded-lg bg-gray-100 dark:bg-gray-700 overflow-hidden flex items-center justify-center sticky top-0">
+                      {(selectedItem.imageUrl ?? (selectedItem.imageId ? `/api/images/${selectedItem.imageId}` : null)) ? (
+                        <img
+                          src={selectedItem.imageUrl ?? `/api/images/${selectedItem.imageId}`}
+                          alt={selectedItem.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-6xl">📦</span>
+                      )}
+                    </div>
+                  </div>
                   </div>
                 </div>
 

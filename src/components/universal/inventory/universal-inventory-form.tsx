@@ -2427,7 +2427,7 @@ function CreateModeImagePoolBrowser({ businessId, categoryId, subcategoryId, dom
   const [uploading, setUploading] = useState(false)
   const [images, setImages] = useState<Array<{ id: string; imageId: string; url: string }>>([])
   const [resolvedName, setResolvedName] = useState<string | null>(null)
-  const [tier, setTier] = useState<'subcategory' | 'category' | 'domain' | 'businessType' | null>(null)
+  const [tier, setTier] = useState<'subcategory' | 'category' | null>(null)
   const [uploadTarget, setUploadTarget] = useState<{ domainId: string | null; categoryId: string | null; subcategoryId: string | null } | null>(null)
 
   useEffect(() => {
@@ -2487,14 +2487,9 @@ function CreateModeImagePoolBrowser({ businessId, categoryId, subcategoryId, dom
           <h3 className="font-semibold text-gray-900 dark:text-gray-100">🖼 Choose from Image Pool</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
         </div>
-        {!loading && resolvedName && tier !== 'businessType' && (
+        {!loading && resolvedName && (
           <p className="text-xs text-secondary text-center">
             Category: <span className="font-medium text-primary">{resolvedName}</span>
-          </p>
-        )}
-        {!loading && tier === 'businessType' && (
-          <p className="text-xs text-secondary text-center">
-            No images tagged for "{resolvedName}" yet — showing images from across the whole pool instead.
           </p>
         )}
         {loading ? (
