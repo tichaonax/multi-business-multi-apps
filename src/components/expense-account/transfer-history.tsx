@@ -151,9 +151,9 @@ export function TransferHistory({ accountId, showFilters = false }: TransferHist
       ) : transfers.length === 0 ? (
         <p className="text-gray-400 dark:text-gray-500 text-sm text-center py-8">No transfers found</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)]">
           <table className="w-full text-sm">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-white dark:bg-gray-800">
               <tr className="border-b border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
                 <th className="text-left py-2 px-3 font-medium">Date</th>
                 {accountId && <th className="text-left py-2 px-3 font-medium">Dir</th>}

@@ -270,7 +270,7 @@ export function PaymentBatchModal({ accountId, accountName, businessId, onClose,
             <p className="text-center text-sm text-gray-400 py-8">No pending payment requests</p>
           ) : (
             <table className="w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-white dark:bg-gray-800">
                 <tr className="text-xs text-gray-500 dark:text-gray-400 uppercase">
                   <th className="pb-2 pr-3 w-8">
                     <input

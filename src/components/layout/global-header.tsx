@@ -1749,6 +1749,21 @@ function UserDropdown({ user, showMenu, setShowMenu, onQuickActivity, onTestBarc
                 </div>
               </Link>
 
+              {/* Image Gallery — faster access for staff who work with product
+                  photos regularly, without having to go through Inventory first */}
+              {(isSystemAdmin(user) || hasPermission('canManageInventory')) && (
+                <Link
+                  href="/universal/image-gallery"
+                  className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  onClick={() => closeUserMenu()}
+                >
+                  <div className="flex items-center space-x-2">
+                    <span>🖼️</span>
+                    <span>Image Gallery</span>
+                  </div>
+                </Link>
+              )}
+
               {isSystemAdmin(user) && (
                 <>
                   <Link

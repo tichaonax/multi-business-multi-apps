@@ -87,7 +87,7 @@ export function PayeeReceiptsModal({ payeeType, payeeId, payeeName, onClose }: P
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead>
+                <thead className="sticky top-0 z-10 bg-white dark:bg-gray-800">
                   <tr className="border-b border-gray-200 dark:border-gray-700 text-left text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                     <th className="pb-2 pr-3">Date</th>
                     <th className="pb-2 pr-3">Account</th>
