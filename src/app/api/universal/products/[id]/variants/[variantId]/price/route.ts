@@ -49,6 +49,10 @@ export async function PATCH(
     }
 
     const oldPrice = Number(variant.price)
+    // Same template-graduation rule as the main product PUT endpoint (MBM-133
+    // follow-up) — pricing a variant is just as much "this is now a real,
+    // sellable item" as pricing the product directly.
+    const graduatesFromTemplate = product.isProductTemplate && newPrice > 0
 
     await prisma.$transaction([
       prisma.productVariants.update({
@@ -57,7 +61,7 @@ export async function PATCH(
       }),
       prisma.businessProducts.update({
         where: { id },
-        data: { basePrice: newPrice },
+        data: { basePrice: newPrice, ...(graduatesFromTemplate ? { isProductTemplate: false } : {}) },
       }),
     ])
 

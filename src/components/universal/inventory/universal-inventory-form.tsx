@@ -10,6 +10,7 @@ import { ProductTagsEditor } from '@/components/universal/product-tag-picker'
 import { ImageUploadDialog } from '@/components/pos/image-upload-dialog'
 import { useSession } from 'next-auth/react'
 import { useUserPermissions } from '@/hooks/use-user-permissions'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { LabelPreview } from '@/components/printing/label-preview'
 import { usePrinterPermissions } from '@/hooks/use-printer-permissions'
 import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
@@ -56,6 +57,9 @@ interface UniversalInventoryItem {
   // straight in as `item` without a fresh fetch, so this form has to accept
   // either shape rather than only the single-item GET endpoint's `imageUrl`.
   imageId?: string | null
+  // MBM-133 follow-up — draft/unconfigured product flag. Hidden from
+  // inventory search until priced or manually converted.
+  isProductTemplate?: boolean
 }
 
 // MBM-270: hardware conditional fields, keyed by exact category name (see
@@ -317,6 +321,9 @@ export function UniversalInventoryForm({
 
   const { data: session } = useSession()
   const { permissions } = useUserPermissions()
+  const { isSystemAdmin, hasPermission: hasBusinessPermission } = useBusinessPermissionsContext()
+  const canManageInventory = isSystemAdmin || hasBusinessPermission('canManageInventory')
+  const [convertingTemplate, setConvertingTemplate] = useState(false)
 
   // Modal hooks
   const prompt = usePrompt()
@@ -644,6 +651,33 @@ export function UniversalInventoryForm({
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
+  }
+
+  // MBM-133 follow-up — manual escape hatch for a product stuck as a
+  // template (e.g. legitimately $0-priced) that a canManageInventory user
+  // wants visible in inventory search right now, without having to give it
+  // a price first. The auto-graduate-on-price path (server-side) covers the
+  // common case; this covers the rest.
+  const handleConvertToRegular = async () => {
+    if (!item?.id) return
+    setConvertingTemplate(true)
+    try {
+      const res = await fetch(`/api/inventory/${businessId}/items/${item.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isProductTemplate: false }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        await alert(data.error || 'Failed to convert item to regular inventory')
+        return
+      }
+      setFormData(prev => ({ ...prev, isProductTemplate: false }))
+    } catch {
+      await alert('Failed to convert item to regular inventory')
+    } finally {
+      setConvertingTemplate(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent, force = false) => {
@@ -1244,6 +1278,26 @@ export function UniversalInventoryForm({
           </div>
         </div>
       </div>
+      )}
+
+      {/* Template banner (MBM-133 follow-up) — a draft/unconfigured product
+          is hidden from inventory search until priced or converted here. */}
+      {mode === 'edit' && item?.id && formData.isProductTemplate && (
+        <div className="mx-4 sm:mx-6 mt-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg p-3 flex items-center justify-between gap-3 flex-wrap">
+          <div className="text-sm text-amber-800 dark:text-amber-300">
+            📋 This is a <strong>template</strong> item — it's hidden from inventory search until it's priced or converted to regular inventory.
+          </div>
+          {canManageInventory && (
+            <button
+              type="button"
+              onClick={handleConvertToRegular}
+              disabled={convertingTemplate}
+              className="px-3 py-1.5 text-sm rounded-md bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 whitespace-nowrap"
+            >
+              {convertingTemplate ? 'Converting...' : '✅ Convert to Regular Inventory'}
+            </button>
+          )}
+        </div>
       )}
 
       <form onSubmit={handleSubmit} className="p-4 sm:p-6">

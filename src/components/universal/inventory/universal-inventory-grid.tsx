@@ -6,6 +6,7 @@ import { LabelPreview } from '@/components/printing/label-preview'
 import { PrinterSelector } from '@/components/printing/printer-selector'
 import { usePrinterPermissions } from '@/hooks/use-printer-permissions'
 import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import type { LabelData, NetworkPrinter } from '@/types/printing'
 
 interface UniversalInventoryItem {
@@ -32,6 +33,8 @@ interface UniversalInventoryItem {
   attributes?: Record<string, any>
   isExpiryDiscount?: boolean
   imageId?: string | null
+  // MBM-133 follow-up — draft/unconfigured product flag (BusinessProducts only).
+  isProductTemplate?: boolean
   barcodes?: Array<{
     id: string
     code: string
@@ -135,12 +138,55 @@ export function UniversalInventoryGrid({
   const [showCopyModal, setShowCopyModal] = useState(false)
   const [selectedItemForCopy, setSelectedItemForCopy] = useState<UniversalInventoryItem | null>(null)
   const [copySuccessMessage, setCopySuccessMessage] = useState<string | null>(null)
+  // MBM-133 follow-up — items converted from template to regular inventory
+  // this session. Kept visible (badge flips to "Converted") instead of being
+  // refetched/removed, so the admin can see what just happened; a page
+  // refresh naturally drops them since the server no longer flags them.
+  const [convertedIds, setConvertedIds] = useState<Set<string>>(new Set())
+  const [convertingIds, setConvertingIds] = useState<Set<string>>(new Set())
+  const [hideConverted, setHideConverted] = useState(false)
+  const [conversionError, setConversionError] = useState<string | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const searchHadFocusRef = useRef(false)
 
   // Printing hooks
   const { canPrintInventoryLabels } = usePrinterPermissions()
   const { monitorJob, notifyJobQueued } = usePrintJobMonitor()
+
+  // MBM-133 follow-up — manual "Convert to Regular Inventory" gating,
+  // same permission the API endpoint itself requires.
+  const { isSystemAdmin, hasPermission: hasBusinessPermission } = useBusinessPermissionsContext()
+  const canManageInventory = isSystemAdmin || hasBusinessPermission('canManageInventory')
+
+  const handleConvertToRegular = async (item: UniversalInventoryItem) => {
+    if (convertingIds.has(item.id)) return
+    setConversionError(null)
+    setConvertingIds(prev => new Set(prev).add(item.id))
+    try {
+      const res = await fetch(`/api/inventory/${businessId}/items/${item.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isProductTemplate: false }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setConversionError(data.error || 'Failed to convert item to regular inventory')
+        return
+      }
+      // Update in place — no refetch, so the row stays put and other
+      // in-flight local state (selection, sort position) isn't disturbed.
+      setItems(prev => prev.map(i => i.id === item.id ? { ...i, isProductTemplate: false } : i))
+      setConvertedIds(prev => new Set(prev).add(item.id))
+    } catch {
+      setConversionError('Failed to convert item to regular inventory')
+    } finally {
+      setConvertingIds(prev => {
+        const next = new Set(prev)
+        next.delete(item.id)
+        return next
+      })
+    }
+  }
 
   // Debounce search term to avoid searching on every keystroke
   useEffect(() => {
@@ -226,7 +272,7 @@ export function UniversalInventoryGrid({
   }, [businessId, currentPage, pageSize, debouncedSearchTerm, selectedCategory, categoryFilter, departmentFilter, conditionFilter, menuOnlyFilter, posTrackedFilter, priceFilter, showTemplates, refreshTrigger, stockStatusFilter, selectedSupplier, selectedLocation, hideZeroStock])
 
   // Sort items (filtering is now server-side)
-  const sortedItems = [...items].sort((a, b) => {
+  const sortedItems = (hideConverted ? items.filter(i => !convertedIds.has(i.id)) : items).slice().sort((a, b) => {
   let aValue: any = (a as any)[sortField]
   let bValue: any = (b as any)[sortField]
 
@@ -544,6 +590,14 @@ export function UniversalInventoryGrid({
         </div>
       )}
 
+      {/* Convert-to-regular-inventory error banner */}
+      {conversionError && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg px-4 py-3 flex items-center justify-between text-sm text-red-800 dark:text-red-200">
+          <span>⚠️ {conversionError}</span>
+          <button onClick={() => setConversionError(null)} className="text-red-600 hover:text-red-800 ml-4">✕</button>
+        </div>
+      )}
+
       {/* Copy-to-business success banner */}
       {copySuccessMessage && (
         <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-700 rounded-lg px-4 py-3 flex items-center justify-between text-sm text-teal-800 dark:text-teal-200">
@@ -605,6 +659,22 @@ export function UniversalInventoryGrid({
             >
               {showTemplates ? '📋 Hide Templates' : '📋 Show Templates'}
             </button>
+
+            {/* Hide Converted Toggle (MBM-133 follow-up) — only relevant once
+                something has actually been converted this session */}
+            {convertedIds.size > 0 && (
+              <button
+                onClick={() => setHideConverted(prev => !prev)}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
+                  hideConverted
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border border-green-300 dark:border-green-700'
+                    : 'text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+                title={hideConverted ? 'Currently hiding converted items — click to show' : 'Hide items converted to regular inventory this session'}
+              >
+                {hideConverted ? '🙈 Hiding Converted' : `🙈 Hide Converted (${convertedIds.size})`}
+              </button>
+            )}
 
             {/* Reset Filters Button */}
             {hasActiveFilters && (
@@ -797,12 +867,20 @@ export function UniversalInventoryGrid({
                       <div>
                         <div className="font-medium text-primary flex items-center gap-2 flex-wrap">
                           {item.name}
-                          {(item as any).isProductTemplate && (
+                          {item.isProductTemplate && (
                             <span
                               title="Template product — no stock or price set yet. Use 'Stock in Current Business' on a barcode scan to activate it."
                               className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700 whitespace-nowrap"
                             >
                               📋 Template
+                            </span>
+                          )}
+                          {!item.isProductTemplate && convertedIds.has(item.id) && (
+                            <span
+                              title="Converted from a template to regular inventory this session"
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700 whitespace-nowrap"
+                            >
+                              ✅ Converted
                             </span>
                           )}
                           {item.isInventoryTracked && (
@@ -948,6 +1026,19 @@ export function UniversalInventoryGrid({
                               🔢
                             </button>
                           )}
+                          {showTemplates && item.isProductTemplate && canManageInventory && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleConvertToRegular(item)
+                              }}
+                              disabled={convertingIds.has(item.id)}
+                              className="text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 text-xs w-8 h-8 flex items-center justify-center rounded disabled:opacity-40"
+                              title="Convert to regular inventory"
+                            >
+                              {convertingIds.has(item.id) ? '⏳' : '✅'}
+                            </button>
+                          )}
                           {canPrintInventoryLabels && (
                             <button
                               onClick={(e) => {
@@ -1026,6 +1117,22 @@ export function UniversalInventoryGrid({
                             className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700 whitespace-nowrap"
                           >
                             🏷️ Expiry Deal
+                          </span>
+                        )}
+                        {item.isProductTemplate && (
+                          <span
+                            title="Template product — no stock or price set yet. Use 'Stock in Current Business' on a barcode scan to activate it."
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700 whitespace-nowrap"
+                          >
+                            📋 Template
+                          </span>
+                        )}
+                        {!item.isProductTemplate && convertedIds.has(item.id) && (
+                          <span
+                            title="Converted from a template to regular inventory this session"
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700 whitespace-nowrap"
+                          >
+                            ✅ Converted
                           </span>
                         )}
                       </div>
@@ -1165,6 +1272,19 @@ export function UniversalInventoryGrid({
                         >
                           Edit
                         </button>
+                        )}
+                        {showTemplates && item.isProductTemplate && canManageInventory && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleConvertToRegular(item)
+                            }}
+                            disabled={convertingIds.has(item.id)}
+                            className="px-3 py-1 text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-md hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors disabled:opacity-50"
+                            title="Convert to regular inventory"
+                          >
+                            {convertingIds.has(item.id) ? '⏳ Converting...' : '✅ Convert to Regular'}
+                          </button>
                         )}
                         {canPrintInventoryLabels && (
                           <button

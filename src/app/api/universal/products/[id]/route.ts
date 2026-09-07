@@ -214,6 +214,14 @@ export async function PUT(
       }
     }
 
+    // A draft/template product (MBM-133 — no price/stock/sales yet) "graduates"
+    // into a real one the moment it's actually priced. Until now the only path
+    // that cleared this flag was the barcode-scan activation flow — a plain
+    // price edit through this endpoint (Quick-Edit, Products page) left it
+    // stuck as a template forever, invisible from inventory search, even
+    // after someone gave it a real price.
+    const graduatesFromTemplate = existingProduct.isProductTemplate && updateData.basePrice !== undefined && updateData.basePrice > 0
+
     // Update product in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // Update the main product
@@ -221,6 +229,7 @@ export async function PUT(
         where: { id },
         data: {
           ...updateData,
+          ...(graduatesFromTemplate ? { isProductTemplate: false } : {}),
           attributes: Object.keys(finalAttributes).length > 0 ? finalAttributes : undefined
         },
         include: {

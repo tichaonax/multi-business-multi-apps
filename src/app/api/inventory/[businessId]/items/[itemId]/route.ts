@@ -159,7 +159,10 @@ export async function GET(
         isSoldByWeight: (product as any).isSoldByWeight ?? false,
         pricePerKg: (product as any).pricePerKg != null ? Number((product as any).pricePerKg) : null,
         weightPricingRuleId: (product as any).weightPricingRuleId ?? null,
-        reorderLevel: product.product_variants[0]?.reorderLevel ?? 0
+        reorderLevel: product.product_variants[0]?.reorderLevel ?? 0,
+        // MBM-133 follow-up — lets the edit form show the template badge and
+        // a "Convert to Regular Inventory" action for the right permissions.
+        isProductTemplate: (product as any).isProductTemplate ?? false
       }
     })
 
@@ -401,6 +404,25 @@ export async function PUT(
       if (body.weightPricingRuleId) updateData.isSoldByWeight = true
     }
 
+    // Manual "Convert to Regular Inventory" (MBM-133 follow-up) — explicitly
+    // clearing the template flag without necessarily changing price/stock in
+    // the same request. Gated stricter than this endpoint's general canEdit
+    // (which also allows canQuickEditPOSItems): only canManageInventory/admin
+    // may promote a product out of template status by hand.
+    if (body.isProductTemplate === false && existingProduct.isProductTemplate) {
+      if (!isSystemAdmin(user) && !hasPermission(user, 'canManageInventory', businessId)) {
+        return NextResponse.json({ error: 'canManageInventory permission required to convert a template to regular inventory' }, { status: 403 })
+      }
+      updateData.isProductTemplate = false
+    }
+
+    // Auto-graduate (MBM-133 follow-up): a plain price edit is just as much
+    // "this is now a real, sellable item" as the barcode-scan activation flow
+    // already treats it — previously only that one path ever cleared this flag.
+    if (existingProduct.isProductTemplate && updateData.basePrice !== undefined && updateData.basePrice > 0) {
+      updateData.isProductTemplate = false
+    }
+
     // Validate price is greater than 0 (except for WiFi promotional items)
     const finalPrice = updateData.basePrice ?? existingProduct.basePrice
     const mergedAttributes = { ...existingProduct.attributes, ...updateData.attributes }
@@ -610,6 +632,7 @@ export async function PUT(
         isActive: updatedProduct.isActive,
         createdAt: updatedProduct.createdAt.toISOString(),
         updatedAt: updatedProduct.updatedAt.toISOString(),
+        isProductTemplate: (updatedProduct as any).isProductTemplate ?? false,
         attributes: updatedProduct.attributes || {},
         barcodes: (finalProduct?.product_barcodes || []).map((bc: any) => ({
           id: bc.id,
