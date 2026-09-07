@@ -399,6 +399,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Salesperson fallback — when employeeId can't be resolved to a real
+    // Employees record (e.g. an admin/owner account with no employee
+    // profile), the order used to end up with NO record of who actually
+    // made the sale: employeeId is null and nothing else was ever
+    // persisted. The receipts list already knows to fall back to
+    // attributes.employeeName/soldByName when there's no linked employee —
+    // it just never gets a value to fall back to. Always persist the
+    // logged-in user's name here so a salesperson can always be resolved.
+    if (!orderData.employeeId) {
+      orderData.attributes = {
+        ...orderData.attributes,
+        employeeName: orderData.attributes?.employeeName || orderData.attributes?.soldByName || user.name || user.email || 'Unknown',
+      }
+    }
+
     // Separate WiFi tokens (ESP32), R710 tokens, and regular products
     const wifiTokenItems = items.filter(item => item.attributes?.wifiToken === true)
     const r710TokenItems = items.filter(item => item.attributes?.r710Token === true)

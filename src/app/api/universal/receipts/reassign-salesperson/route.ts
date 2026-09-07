@@ -12,6 +12,13 @@ import { getEffectivePermissions } from '@/lib/permission-utils'
 // Attribution fix only — does not touch payroll/commission, which is a flat contract
 // amount unrelated to per-order employeeId in this system. See MBM-260.
 //
+// The FROM side may be a non-employee sale (employeeId null — e.g. an
+// owner/admin with no Employees record rang it up; see the employeeName
+// fallback saved at order-creation time). The Employees table exists for
+// commission tracking, not as a gate on who's allowed to sell, so these are
+// still eligible to reassign for attribution/tracking purposes. The TO side
+// must always be a real, active employee of this business (validated below).
+//
 // Body: { businessId, orderIds?: string[], filter?: { query?, startDate?, endDate? }, toEmployeeId, reason }
 export async function POST(request: NextRequest) {
   try {
@@ -79,6 +86,7 @@ export async function POST(request: NextRequest) {
       select: {
         id: true,
         employeeId: true,
+        attributes: true,
         employees: { select: { fullName: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -93,9 +101,12 @@ export async function POST(request: NextRequest) {
     }
 
     const alreadyCorrect: string[] = []
-    const skippedNoSalesperson: string[] = []
+    // A null employeeId doesn't mean "no salesperson" — a non-employee
+    // (owner/admin with no Employees record) can still ring up a sale. The
+    // Employees table exists for commission tracking, not as a gate on who's
+    // allowed to sell, so these are still eligible to reassign onto a real
+    // employee for attribution/tracking purposes.
     const withEmployee = orders.filter(o => {
-      if (!o.employeeId) { skippedNoSalesperson.push(o.id); return false }
       if (o.employeeId === toEmployeeId) { alreadyCorrect.push(o.id); return false }
       return true
     })
@@ -125,7 +136,7 @@ export async function POST(request: NextRequest) {
 
     const blocked: Array<{ orderId: string; reason: string }> = []
     const eligibleOrderIds: string[] = []
-    const fromBreakdown = new Map<string, { employeeId: string; name: string; orderIds: string[] }>()
+    const fromBreakdown = new Map<string, { employeeId: string | null; name: string; orderIds: string[] }>()
 
     for (const o of withEmployee) {
       if (blockedIds.has(o.id)) {
@@ -133,9 +144,17 @@ export async function POST(request: NextRequest) {
         continue
       }
       eligibleOrderIds.push(o.id)
-      const key = o.employeeId as string
+      // Non-employee sales have no real employeeId to key/group on. Key by
+      // the employeeName fallback saved at sale time instead, so distinct
+      // non-employee sellers (e.g. two different admins) still get their
+      // own breakdown entry rather than collapsing into one bucket.
+      const fallbackName = !o.employeeId
+        ? ((o.attributes as any)?.employeeName || (o.attributes as any)?.soldByName || 'Non-employee')
+        : null
+      const key = o.employeeId ?? `non-employee:${fallbackName}`
       if (!fromBreakdown.has(key)) {
-        fromBreakdown.set(key, { employeeId: key, name: o.employees?.fullName ?? 'Unknown', orderIds: [] })
+        const name = o.employeeId ? (o.employees?.fullName ?? 'Unknown') : fallbackName!
+        fromBreakdown.set(key, { employeeId: o.employeeId, name, orderIds: [] })
       }
       fromBreakdown.get(key)!.orderIds.push(o.id)
     }
@@ -177,7 +196,6 @@ export async function POST(request: NextRequest) {
       reassigned: eligibleOrderIds,
       blocked,
       alreadyCorrect,
-      skippedNoSalesperson,
     })
   } catch (error) {
     console.error('Reassign salesperson error:', error)

@@ -11,7 +11,6 @@ export interface ReassignResult {
   reassigned: string[]
   blocked: Array<{ orderId: string; reason: string }>
   alreadyCorrect: string[]
-  skippedNoSalesperson: string[]
 }
 
 interface ReassignSalespersonModalProps {
@@ -152,11 +151,6 @@ export function ReassignSalespersonModal({
                 {result.alreadyCorrect.length > 0 && (
                   <p className="text-gray-500 dark:text-gray-400">
                     {result.alreadyCorrect.length} already assigned to this employee — skipped.
-                  </p>
-                )}
-                {result.skippedNoSalesperson.length > 0 && (
-                  <p className="text-gray-500 dark:text-gray-400">
-                    {result.skippedNoSalesperson.length} had no salesperson to reassign from — skipped.
                   </p>
                 )}
                 {result.blocked.length > 0 && (
