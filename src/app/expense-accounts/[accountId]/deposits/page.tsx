@@ -58,7 +58,7 @@ export default function ExpenseDepositsReportPage() {
           Back to Account
         </button>
       </div>
-      <TransactionHistory accountId={accountId} defaultType="DEPOSIT" defaultSortOrder="desc" pageLimit={50} />
+      <TransactionHistory accountId={accountId} defaultType="DEPOSIT" defaultSortOrder="desc" />
     </ContentLayout>
   )
 }

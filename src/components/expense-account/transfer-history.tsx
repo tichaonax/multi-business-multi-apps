@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { Pagination } from '@/components/ui/pagination'
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 
 interface TransferRecord {
   id: string
@@ -39,10 +41,15 @@ export function TransferHistory({ accountId, showFilters = false }: TransferHist
   const [endDate, setEndDate] = useState('')
   const [direction, setDirection] = useState('')
   const [page, setPage] = useState(0)
-  const [hasMore, setHasMore] = useState(false)
-  const limit = 50
+  const [total, setTotal] = useState(0)
+  const {
+    pageSize: limit,
+    setPageSize: setLocalPageSize,
+    isOverridden: isPageSizeOverridden,
+    resetToDefault: resetPageSizeToDefault,
+  } = usePageSize()
 
-  const load = useCallback(async (reset = false) => {
+  const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     const params = new URLSearchParams()
@@ -51,16 +58,15 @@ export function TransferHistory({ accountId, showFilters = false }: TransferHist
     if (startDate) params.set('startDate', startDate)
     if (endDate) params.set('endDate', endDate)
     params.set('limit', String(limit))
-    params.set('offset', String(reset ? 0 : page * limit))
+    params.set('offset', String(page * limit))
 
     try {
       const res = await fetch(`/api/expense-account/transfer-history?${params}`, { credentials: 'include' })
       const json = await res.json()
       if (json.success) {
-        setTransfers(reset ? json.data.transfers : prev => [...prev, ...json.data.transfers])
+        setTransfers(json.data.transfers)
         setAggregates(json.data.aggregates)
-        setHasMore(json.data.pagination.hasMore)
-        if (reset) setPage(0)
+        setTotal(json.data.pagination.total)
       } else {
         setError(json.error || 'Failed to load transfers')
       }
@@ -69,11 +75,17 @@ export function TransferHistory({ accountId, showFilters = false }: TransferHist
     } finally {
       setLoading(false)
     }
-  }, [accountId, direction, startDate, endDate, page])
+  }, [accountId, direction, startDate, endDate, page, limit])
 
   useEffect(() => {
-    load(true)
-  }, [accountId, direction, startDate, endDate])
+    load()
+  }, [accountId, direction, startDate, endDate, page, limit])
+
+  // Reset to page 1 whenever filters or the row-count preference change, so
+  // we don't land on a now out-of-range page.
+  useEffect(() => {
+    setPage(0)
+  }, [accountId, direction, startDate, endDate, limit])
 
   function directionBadge(t: TransferRecord) {
     if (!accountId) return null
@@ -186,7 +198,7 @@ export function TransferHistory({ accountId, showFilters = false }: TransferHist
                       ? <>{t.destinationAccount.accountName}<span className="text-xs text-gray-400 ml-1">({t.destinationAccount.accountNumber})</span></>
                       : <span className="text-gray-400 text-xs italic">Unknown</span>}
                   </td>
-                  <td className="py-2.5 px-3 hidden lg:table-cell text-gray-600 dark:text-gray-400 max-w-[200px] truncate">
+                  <td className="py-2.5 px-3 hidden lg:table-cell text-gray-600 dark:text-gray-400 max-w-[200px] truncate" title={t.notes || undefined}>
                     {t.notes || '—'}
                   </td>
                   <td className="py-2.5 px-3 hidden lg:table-cell text-gray-500 dark:text-gray-400 whitespace-nowrap">
@@ -199,17 +211,18 @@ export function TransferHistory({ accountId, showFilters = false }: TransferHist
         </div>
       )}
 
-      {hasMore && (
-        <div className="text-center pt-2">
-          <button
-            onClick={() => { setPage(p => p + 1); load() }}
-            disabled={loading}
-            className="btn-secondary text-sm"
-          >
-            {loading ? 'Loading...' : 'Load more'}
-          </button>
-        </div>
-      )}
+      <Pagination
+        currentPage={page + 1}
+        totalPages={Math.max(1, Math.ceil(total / limit))}
+        totalItems={total}
+        pageSize={limit}
+        onPageChange={(p) => setPage(p - 1)}
+        loading={loading}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
+        onPageSizeChange={setLocalPageSize}
+        isPageSizeOverridden={isPageSizeOverridden}
+        onResetPageSize={resetPageSizeToDefault}
+      />
     </div>
   )
 }

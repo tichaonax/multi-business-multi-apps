@@ -58,7 +58,7 @@ export default function ExpensePaymentsReportPage() {
           Back to Account
         </button>
       </div>
-      <TransactionHistory accountId={accountId} defaultType="PAYMENT" defaultSortOrder="desc" pageLimit={50} />
+      <TransactionHistory accountId={accountId} defaultType="PAYMENT" defaultSortOrder="desc" />
     </ContentLayout>
   )
 }

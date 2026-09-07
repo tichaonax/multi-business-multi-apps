@@ -14,6 +14,8 @@ import { AddReceiptModal } from './add-receipt-modal'
 import { ViewReceiptsModal } from './view-receipts-modal'
 import { ReceiptReviewBadge } from './receipt-review-badge'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
+import { Pagination } from '@/components/ui/pagination'
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 
 interface Transaction {
   id: string
@@ -122,7 +124,7 @@ function shortDescription(transaction: Transaction): string {
   return desc
 }
 
-export function TransactionHistory({ accountId, defaultType = '', defaultSortOrder = 'desc', pageLimit = 50, canEditPayments = false, isAdmin = false, initialStartDate, initialEndDate, refreshKey, onDataChanged, businessId, businessName, onRepeatPayment }: TransactionHistoryProps) {
+export function TransactionHistory({ accountId, defaultType = '', defaultSortOrder = 'desc', pageLimit, canEditPayments = false, isAdmin = false, initialStartDate, initialEndDate, refreshKey, onDataChanged, businessId, businessName, onRepeatPayment }: TransactionHistoryProps) {
   const { data: session } = useSession()
   const currentUserId = (session?.user as any)?.id as string | undefined
   const currentUserName = session?.user?.name ?? 'Staff'
@@ -162,8 +164,13 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   const [sourceTypeFilter, setSourceTypeFilter] = useState('')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(defaultSortOrder)
   const [page, setPage] = useState(0)
-  const [hasMore, setHasMore] = useState(true)
-  const limit = pageLimit
+  const [totalTransactions, setTotalTransactions] = useState(0)
+  const {
+    pageSize: limit,
+    setPageSize: setLocalPageSize,
+    isOverridden: isPageSizeOverridden,
+    resetToDefault: resetPageSizeToDefault,
+  } = usePageSize(pageLimit)
   const [editPaymentId, setEditPaymentId] = useState<string | null>(null)
   const [editDepositId, setEditDepositId] = useState<string | null>(null)
   const [detailPaymentId, setDetailPaymentId] = useState<string | null>(null)
@@ -313,12 +320,18 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
 
   useEffect(() => {
     loadTransactions()
-  }, [accountId, startDate, endDate, typeFilter, sourceTypeFilter, page, debouncedSearch, refreshKey, editVersion, debouncedMinAmount, debouncedMaxAmount])
+  }, [accountId, startDate, endDate, typeFilter, sourceTypeFilter, page, debouncedSearch, refreshKey, editVersion, debouncedMinAmount, debouncedMaxAmount, limit])
   // also refetch when sortOrder changes
   useEffect(() => {
     setPage(0)
     loadTransactions()
   }, [sortOrder])
+
+  // Reset to page 1 whenever the row-count preference changes, so we don't
+  // land on a now out-of-range page.
+  useEffect(() => {
+    setPage(0)
+  }, [limit])
 
   const loadTransactions = async () => {
     try {
@@ -344,7 +357,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
         const data = await response.json()
         const txns = data.data.transactions || []
         setTransactions(txns)
-        setHasMore(data.data.pagination?.hasMore || false)
+        setTotalTransactions(data.data.pagination?.total || 0)
 
         // Batch-check which payment IDs already have vouchers (only when businessId present)
         const paymentIds = txns
@@ -1071,29 +1084,20 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
         )}
 
         {/* Pagination */}
-        {(page > 0 || hasMore) && (
-          <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600 flex items-center justify-between">
-            <button
-              onClick={() => setPage(p => Math.max(0, p - 1))}
-              disabled={page === 0}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Previous
-            </button>
-
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              Page {page + 1}
-            </span>
-
-            <button
-              onClick={() => setPage(p => p + 1)}
-              disabled={!hasMore}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-        )}
+        <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600">
+          <Pagination
+            currentPage={page + 1}
+            totalPages={Math.max(1, Math.ceil(totalTransactions / limit))}
+            totalItems={totalTransactions}
+            pageSize={limit}
+            onPageChange={(p) => setPage(p - 1)}
+            loading={loading}
+            pageSizeOptions={PAGE_SIZE_OPTIONS}
+            onPageSizeChange={setLocalPageSize}
+            isPageSizeOverridden={isPageSizeOverridden}
+            onResetPageSize={resetPageSizeToDefault}
+          />
+        </div>
       </div>
       </div>
     </div>
