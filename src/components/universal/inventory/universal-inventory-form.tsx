@@ -50,6 +50,12 @@ interface UniversalInventoryItem {
   // MBM-296: the item's own display image, if it has one — not an editable
   // form field, just what the GET endpoint returns to seed the thumbnail.
   imageUrl?: string | null
+  // The inventory LIST endpoint's row shape carries the bare Images.id as
+  // `imageId` instead of a ready-made `imageUrl` (same convention the grid
+  // component already renders from) — "Edit" from the list passes that row
+  // straight in as `item` without a fresh fetch, so this form has to accept
+  // either shape rather than only the single-item GET endpoint's `imageUrl`.
+  imageId?: string | null
 }
 
 // MBM-270: hardware conditional fields, keyed by exact category name (see
@@ -377,7 +383,14 @@ export function UniversalInventoryForm({
   // Initialize form data when item prop changes
   useEffect(() => {
     if (item) {
-      setFormData(item)
+      // Normalize the two shapes `item` can arrive in (MBM-296): a fresh
+      // fetch from the single-item GET endpoint already has `imageUrl`, but
+      // "Edit" from the inventory list passes the grid row straight in,
+      // which only carries the bare `imageId` (same field the grid's own
+      // thumbnail renders from) — build the same `/api/images/{id}` path
+      // for that case so the form's thumbnail works either way.
+      const resolvedImageUrl = item.imageUrl ?? (item.imageId ? `/api/images/${item.imageId}` : null)
+      setFormData({ ...item, imageUrl: resolvedImageUrl })
       setBarcodes(item.barcodes || [])
       // Set selected category immediately when editing
       if (item.categoryId) {
@@ -1270,28 +1283,6 @@ export function UniversalInventoryForm({
           </div>
         )}
 
-        {/* Image (MBM-296) — only once the item has an id to attach a photo
-            to; universal across every business type, not clothing-gated,
-            same as the rest of this form. */}
-        {item?.id && (
-          <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center flex-shrink-0">
-              {formData.imageUrl ? (
-                <img src={formData.imageUrl} alt={formData.name} className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-2xl">📦</span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowImageDialog(true)}
-              className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700"
-            >
-              📷 {formData.imageUrl ? 'Change Image' : 'Add Image'}
-            </button>
-          </div>
-        )}
-
         {/* Two-panel layout: basic info left, business-specific + barcode right */}
         <div className="flex flex-col lg:flex-row lg:gap-5">
 
@@ -1411,6 +1402,30 @@ export function UniversalInventoryForm({
                   placeholder="lbs, each, gallons…"
                 />
                 {errors.unit && <p className="text-red-600 text-xs mt-1 font-medium">{errors.unit}</p>}
+
+                {/* Image (MBM-296) — only once the item has an id to attach a
+                    photo to; universal across every business type, not
+                    clothing-gated, same as the rest of this form. Sits here,
+                    below Unit, to use space that was otherwise blank rather
+                    than pushing the rest of the form down. */}
+                {item?.id && (
+                  <div className="flex items-center gap-3 mt-3">
+                    <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center flex-shrink-0">
+                      {formData.imageUrl ? (
+                        <img src={formData.imageUrl} alt={formData.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-2xl">📦</span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowImageDialog(true)}
+                      className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
+                      📷 {formData.imageUrl ? 'Change Image' : 'Add Image'}
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* SKU */}
