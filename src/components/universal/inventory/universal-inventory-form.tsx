@@ -315,6 +315,7 @@ export function UniversalInventoryForm({
     score: number
   }
   const [suggestOpen, setSuggestOpen] = useState(false)
+  const [suggestVisibleCount, setSuggestVisibleCount] = useState(5)
   const [calcDismissed, setCalcDismissed] = useState(false)
 
   // Weight selling — restaurant and grocery only
@@ -729,13 +730,17 @@ export function UniversalInventoryForm({
     }
     scored.sort((a, b) => b.score - a.score || a.categoryName.localeCompare(b.categoryName))
     const seen = new Set<string>()
-    const top = scored.filter(s => {
+    // No cap here — the panel shows a scrollable slice of this plus a
+    // "Load More" button when there's more than fits on screen, instead of
+    // silently discarding everything past the first 5.
+    const deduped = scored.filter(s => {
       const key = `${s.categoryId}|${s.subcategoryId}`
       if (seen.has(key)) return false
       seen.add(key)
       return true
-    }).slice(0, 5)
-    setSuggestions(top)
+    })
+    setSuggestions(deduped)
+    setSuggestVisibleCount(5)
     setSuggestOpen(true)
   }
 
@@ -1241,26 +1246,31 @@ export function UniversalInventoryForm({
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                  Material
-                </label>
-                <AttributeOptionsPicker
-                  businessId={businessId}
-                  attributeKey="materials"
-                  // Legacy data stored this as a single freeform string — normalize
-                  // it into the array shape the picker (and new data) uses, without
-                  // needing to touch existing records.
-                  value={
-                    Array.isArray(formData.attributes?.material)
-                      ? formData.attributes.material
-                      : formData.attributes?.material
-                        ? [formData.attributes.material]
-                        : []
-                  }
-                  onChange={(materials) => handleAttributeChange('material', materials)}
-                />
-              </div>
+            </div>
+
+            {/* Material — its own full-width row (not squeezed into the
+                Brand/Season 2-column grid), same width as Sizes/Colors below
+                so its chips get just as many per row instead of needing to
+                scroll a narrow, half-width list. */}
+            <div>
+              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+                Material
+              </label>
+              <AttributeOptionsPicker
+                businessId={businessId}
+                attributeKey="materials"
+                // Legacy data stored this as a single freeform string — normalize
+                // it into the array shape the picker (and new data) uses, without
+                // needing to touch existing records.
+                value={
+                  Array.isArray(formData.attributes?.material)
+                    ? formData.attributes.material
+                    : formData.attributes?.material
+                      ? [formData.attributes.material]
+                      : []
+                }
+                onChange={(materials) => handleAttributeChange('material', materials)}
+              />
             </div>
 
             <div>
@@ -1568,8 +1578,11 @@ export function UniversalInventoryForm({
                 />
               </div>
 
-              {/* Category + Subcategory — equal width, side by side */}
-              <div className="col-span-2 xl:col-span-3 grid grid-cols-2 gap-3">
+              {/* Category + Subcategory — equal width, side by side.
+                  `relative` anchors the Suggested Classifications panel
+                  (below) directly under this row instead of it floating as
+                  a screen-centered dialog far from where it's relevant. */}
+              <div className="col-span-2 xl:col-span-3 grid grid-cols-2 gap-3 relative">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Category *</label>
                   <SearchableSelect
@@ -1620,6 +1633,75 @@ export function UniversalInventoryForm({
                       : 'Select a category first'}
                   />
                 </div>
+
+                {/* Suggested Classifications — anchored right below this row
+                    (not a screen-centered dialog) since that's where the
+                    result actually applies. */}
+                {suggestOpen && (
+                  <div className="absolute z-30 top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-border rounded-lg shadow-xl">
+                    <div className="flex items-center justify-between p-3 border-b border-border">
+                      <h3 className="text-sm font-semibold text-primary">💡 Suggested Classifications</h3>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSuggestOpen(false)}
+                          className="text-sm px-2.5 py-1 rounded-md text-secondary hover:bg-gray-100 dark:hover:bg-gray-700"
+                        >
+                          Cancel
+                        </button>
+                        <button type="button" onClick={() => setSuggestOpen(false)} aria-label="Close"
+                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
+                      </div>
+                    </div>
+                    <div className="p-3">
+                      <p className="text-xs text-secondary mb-2">
+                        Based on: <span className="font-medium text-primary">&quot;{formData.name.trim()}&quot;</span>
+                      </p>
+                      {suggestions.length === 0 ? (
+                        <p className="text-sm text-secondary py-4 text-center">No matches found — please select manually.</p>
+                      ) : (
+                        <>
+                          <ul className="space-y-2 max-h-64 overflow-y-auto">
+                            {suggestions.slice(0, suggestVisibleCount).map((s, i) => (
+                              <li key={`${s.categoryId}|${s.subcategoryId}|${i}`}>
+                                <button
+                                  type="button"
+                                  onClick={() => applySuggestion(s)}
+                                  className="w-full text-left px-3 py-2.5 rounded-md border border-border hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                >
+                                  <div className="text-xs text-secondary mb-0.5">
+                                    {s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName}
+                                  </div>
+                                  {s.subcategoryId && (
+                                    <div className="text-sm font-medium text-primary">
+                                      {s.subcategoryEmoji} {s.subcategoryName}
+                                    </div>
+                                  )}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                          {suggestions.length > suggestVisibleCount && (
+                            <button
+                              type="button"
+                              onClick={() => setSuggestVisibleCount(c => c + 10)}
+                              className="w-full mt-2 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md font-medium"
+                            >
+                              Load {Math.min(10, suggestions.length - suggestVisibleCount)} more ({suggestions.length - suggestVisibleCount} remaining)
+                            </button>
+                          )}
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setSuggestOpen(false)}
+                        className="w-full mt-3 py-2 text-sm border border-border text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md font-medium"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Unit — min-w-0 overrides the grid item's default min-width:
@@ -2218,48 +2300,6 @@ export function UniversalInventoryForm({
           />
         )}
 
-        {/* Suggest Classification Modal */}
-        {suggestOpen && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
-              <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">💡 Suggested Classifications</h3>
-                <button type="button" onClick={() => setSuggestOpen(false)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
-              </div>
-              <div className="p-4">
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                  Based on: <span className="font-medium text-gray-800 dark:text-gray-200">&quot;{formData.name.trim()}&quot;</span>
-                </p>
-                {suggestions.length === 0 ? (
-                  <p className="text-sm text-gray-500 py-4 text-center">No matches found — please select manually.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {suggestions.map((s, i) => (
-                      <li key={`${s.categoryId}|${s.subcategoryId}|${i}`}>
-                        <button
-                          type="button"
-                          onClick={() => applySuggestion(s)}
-                          className="w-full text-left px-3 py-2.5 rounded-md border border-gray-200 dark:border-gray-700 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                        >
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
-                            {s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName}
-                          </div>
-                          {s.subcategoryId && (
-                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                              {s.subcategoryEmoji} {s.subcategoryName}
-                            </div>
-                          )}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Label Preview Modal */}
         {savedItemForLabel && (
           <LabelPreview
@@ -2314,47 +2354,6 @@ export function UniversalInventoryForm({
         />
       )}
 
-      {/* Suggest Classification Modal */}
-      {suggestOpen && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">💡 Suggested Classifications</h3>
-              <button type="button" onClick={() => setSuggestOpen(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
-            </div>
-            <div className="p-4">
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                Based on: <span className="font-medium text-gray-800 dark:text-gray-200">&quot;{formData.name.trim()}&quot;</span>
-              </p>
-              {suggestions.length === 0 ? (
-                <p className="text-sm text-gray-500 py-4 text-center">No matches found — please select manually.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {suggestions.map((s, i) => (
-                    <li key={`${s.categoryId}|${s.subcategoryId}|${i}`}>
-                      <button
-                        type="button"
-                        onClick={() => applySuggestion(s)}
-                        className="w-full text-left px-3 py-2.5 rounded-md border border-gray-200 dark:border-gray-700 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                      >
-                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
-                          {s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName}
-                        </div>
-                        {s.subcategoryId && (
-                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                            {s.subcategoryEmoji} {s.subcategoryName}
-                          </div>
-                        )}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Label Preview Modal */}
       {savedItemForLabel && (

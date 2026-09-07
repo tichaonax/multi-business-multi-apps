@@ -1738,20 +1738,32 @@ export function QuickPaymentModal({
     <>
     <ModalPortal>
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-2xl sm:max-w-4xl shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-hidden overflow-x-hidden flex flex-col">
+      <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-2xl sm:max-w-6xl shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-hidden overflow-x-hidden flex flex-col">
         {/* Header */}
-        <div className="mb-4 shrink-0">
-          <h2 className="text-xl font-bold text-primary">Quick Payment</h2>
-          <p className="text-sm text-secondary">
-            from {activeAccountName} (Balance:{' '}
-            {balanceLoading || loadingBusinessSwitch ? (
-              <span className="text-secondary font-semibold">Loading...</span>
-            ) : (
-              <span className={`font-semibold ${(liveBalance ?? activeBalance) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                ${(liveBalance ?? activeBalance).toFixed(2)}
-              </span>
-            )})
-          </p>
+        <div className="mb-4 shrink-0 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-primary">Quick Payment</h2>
+            <p className="text-sm text-secondary">
+              from {activeAccountName} (Balance:{' '}
+              {balanceLoading || loadingBusinessSwitch ? (
+                <span className="text-secondary font-semibold">Loading...</span>
+              ) : (
+                <span className={`font-semibold ${(liveBalance ?? activeBalance) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  ${(liveBalance ?? activeBalance).toFixed(2)}
+                </span>
+              )})
+            </p>
+          </div>
+          {/* Cancel here too — the form is long enough that the bottom
+              Cancel button isn't visible without scrolling first. */}
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={loading}
+            className="px-4 py-2 text-sm font-medium text-secondary bg-background border border-border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+          >
+            Cancel
+          </button>
         </div>
 
         <div className="overflow-y-auto flex-1 min-h-0">
