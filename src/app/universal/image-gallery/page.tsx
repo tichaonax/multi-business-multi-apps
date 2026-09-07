@@ -29,6 +29,7 @@ interface GalleryImage {
   linkedItemCount: number
   stockStatuses: Array<'in' | 'low' | 'out'>
   totalStock: number
+  totalSold: number
 }
 
 interface PoolImage { id: string; url: string; linkedItemCount: number; otherBusinessCount: number }
@@ -59,6 +60,7 @@ export default function ImageGalleryPage() {
   const [search, setSearch] = useState('')
   const [hasInventory, setHasInventory] = useState<'all' | 'true' | 'false'>('all')
   const [stockStatus, setStockStatus] = useState<'all' | 'in' | 'low' | 'out'>('all')
+  const [sortBy, setSortBy] = useState<'recent' | 'mostSelling'>('recent')
   const [tag, setTag] = useState('')
   const [availableTags, setAvailableTags] = useState<string[]>([])
 
@@ -146,6 +148,7 @@ export default function ImageGalleryPage() {
       if (stockStatus !== 'all') params.set('stockStatus', stockStatus)
       if (search.trim()) params.set('search', search.trim())
       if (tag.trim()) params.set('tag', tag.trim())
+      if (sortBy !== 'recent') params.set('sort', sortBy)
       params.set('limit', String(PAGE_SIZE))
       params.set('offset', String(targetOffset))
 
@@ -161,13 +164,13 @@ export default function ImageGalleryPage() {
       setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBusinessId, hasInventory, stockStatus, search, tag])
+  }, [selectedBusinessId, hasInventory, stockStatus, search, tag, sortBy])
 
   // Re-run from the top whenever the business or any filter changes.
   useEffect(() => {
     fetchImages(0, false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBusinessId, hasInventory, stockStatus, tag])
+  }, [selectedBusinessId, hasInventory, stockStatus, tag, sortBy])
 
   const fetchPool = useCallback(async (targetOffset: number, append: boolean) => {
     if (!selectedBusinessId) return
@@ -355,6 +358,15 @@ export default function ImageGalleryPage() {
                 <datalist id="gallery-tag-options">
                   {availableTags.map(t => <option key={t} value={t} />)}
                 </datalist>
+                <select
+                  aria-label="Sort"
+                  value={sortBy}
+                  onChange={e => setSortBy(e.target.value as any)}
+                  className="rounded-md border-gray-300 dark:bg-gray-800 dark:border-gray-700 dark:text-white py-1.5 px-2 text-sm"
+                >
+                  <option value="recent">Most Recent</option>
+                  <option value="mostSelling">Most Selling</option>
+                </select>
                 <button
                   onClick={() => setShowTagManager(true)}
                   title="Rename, merge, or delete tags"
@@ -452,6 +464,14 @@ export default function ImageGalleryPage() {
                       title={`${img.totalStock} unit${img.totalStock === 1 ? '' : 's'} total across ${img.linkedItemCount} product${img.linkedItemCount === 1 ? '' : 's'}`}
                     >
                       {STOCK_BADGE[img.stockStatuses[0]].label} · {img.totalStock}
+                    </span>
+                  )}
+                  {img.totalSold > 0 && (
+                    <span
+                      className="absolute bottom-1 right-1 bg-blue-600/90 text-white text-[10px] px-1.5 py-0.5 rounded-full"
+                      title={`${img.totalSold} unit${img.totalSold === 1 ? '' : 's'} sold all-time across ${img.linkedItemCount} product${img.linkedItemCount === 1 ? '' : 's'}`}
+                    >
+                      🔥 {img.totalSold} sold
                     </span>
                   )}
                 </button>

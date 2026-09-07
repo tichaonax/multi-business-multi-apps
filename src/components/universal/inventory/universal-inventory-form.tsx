@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { SupplierSelector } from '@/components/suppliers/supplier-selector'
 import { LocationSelector } from '@/components/locations/location-selector'
 import { InventorySubcategoryEditor } from '@/components/inventory/inventory-subcategory-editor'
 import { BarcodeManager, ProductBarcode } from '@/components/universal/barcode-manager'
 import { SearchableSelect } from '@/components/ui/searchable-select'
-import { ProductTagsEditor } from '@/components/universal/product-tag-picker'
+import { ProductTagPicker, ProductTagsEditor } from '@/components/universal/product-tag-picker'
 import { ImageUploadDialog } from '@/components/pos/image-upload-dialog'
 import { useSession } from 'next-auth/react'
 import { useUserPermissions } from '@/hooks/use-user-permissions'
@@ -334,6 +334,74 @@ export function UniversalInventoryForm({
   const canManageInventory = isSystemAdmin || hasBusinessPermission('canManageInventory')
   const [convertingTemplate, setConvertingTemplate] = useState(false)
   const [adjustingStock, setAdjustingStock] = useState(false)
+
+  // Create-mode image/tags staging — a brand-new item has no id yet to
+  // upload a photo to or attach tags on, so both are held locally and
+  // applied automatically the instant the item is actually created
+  // (watched via the effect below), instead of forcing a separate
+  // "create, then add image/tags" round trip.
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null)
+  const [pendingImagePreview, setPendingImagePreview] = useState<string | null>(null)
+  const [uploadingPendingImage, setUploadingPendingImage] = useState(false)
+  const [pendingTagNames, setPendingTagNames] = useState<string[]>([])
+  const pendingImageFileRef = useRef<File | null>(null)
+  const pendingTagNamesRef = useRef<string[]>([])
+  useEffect(() => { pendingImageFileRef.current = pendingImageFile }, [pendingImageFile])
+  useEffect(() => { pendingTagNamesRef.current = pendingTagNames }, [pendingTagNames])
+
+  function stagePendingImage(file: File) {
+    if (pendingImagePreview) URL.revokeObjectURL(pendingImagePreview)
+    setPendingImageFile(file)
+    setPendingImagePreview(URL.createObjectURL(file))
+  }
+
+  // Fires the moment `item` flips from "no id" (create) to "has an id"
+  // (right after a successful create, when the parent feeds the server's
+  // response back in as `item`) — applies whatever was staged.
+  useEffect(() => {
+    if (!item?.id || item.id.startsWith('inv_')) return
+    const file = pendingImageFileRef.current
+    const tagNames = pendingTagNamesRef.current
+    if (!file && tagNames.length === 0) return
+    const productId = item.id
+    pendingImageFileRef.current = null
+    pendingTagNamesRef.current = []
+    setPendingImageFile(null)
+    setPendingTagNames([])
+    ;(async () => {
+      if (file) {
+        setUploadingPendingImage(true)
+        try {
+          const form = new FormData()
+          form.append('files', file)
+          const uploadRes = await fetch(`/api/universal/products/${productId}/images`, { method: 'POST', body: form })
+          if (!uploadRes.ok) throw new Error('Upload failed')
+          const { data } = await uploadRes.json()
+          const images = data?.images ?? []
+          const newImg = images.length > 0 ? images.reduce((a: any, b: any) => (b.sortOrder > a.sortOrder ? b : a)) : null
+          if (newImg) {
+            await fetch(`/api/universal/products/${productId}/images/${newImg.id}/primary`, { method: 'POST' })
+            setFormData(prev => ({ ...prev, imageUrl: newImg.imageUrl }))
+            onSilentUpdate?.()
+          }
+        } catch {
+          await alert({ title: 'Image upload failed', description: 'The item was created, but the photo could not be uploaded. Use Add Image below to try again.' })
+        } finally {
+          setUploadingPendingImage(false)
+          setPendingImagePreview(prev => { if (prev) URL.revokeObjectURL(prev); return null })
+        }
+      }
+      for (const name of tagNames) {
+        await fetch(`/api/universal/products/${productId}/tags`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        }).catch(() => {})
+      }
+      if (tagNames.length > 0) onSilentUpdate?.()
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.id])
 
   // Modal hooks
   const prompt = usePrompt()
@@ -1553,6 +1621,36 @@ export function UniversalInventoryForm({
                     </button>
                   </div>
                 )}
+
+                {/* Create mode — no id yet, so stage the file locally and
+                    upload it automatically the instant the item is created
+                    (see the effect watching item?.id above). */}
+                {!item?.id && (
+                  <div className="flex items-center gap-3 mt-3">
+                    <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center flex-shrink-0">
+                      {pendingImagePreview ? (
+                        <img src={pendingImagePreview} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-2xl">📦</span>
+                      )}
+                    </div>
+                    <label className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                      📷 {pendingImageFile ? 'Change Image' : 'Add Image'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => { const f = e.target.files?.[0]; if (f) stagePendingImage(f); e.target.value = '' }}
+                      />
+                    </label>
+                    {pendingImageFile && !uploadingPendingImage && (
+                      <span className="text-xs text-secondary">Uploads once you create the item</span>
+                    )}
+                    {uploadingPendingImage && (
+                      <span className="text-xs text-secondary">Uploading photo…</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* SKU */}
@@ -1940,6 +2038,19 @@ export function UniversalInventoryForm({
           <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tags</label>
             <ProductTagsEditor businessId={businessId} productId={item.id} />
+          </div>
+        )}
+
+        {/* Create mode — no id yet to attach tags to, so selections are
+            buffered locally and applied automatically once the item is
+            created (see the effect watching item?.id above). */}
+        {businessType === 'clothing' && !item?.id && (
+          <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tags</label>
+            <ProductTagPicker businessId={businessId} value={pendingTagNames} onChange={setPendingTagNames} />
+            {pendingTagNames.length > 0 && (
+              <p className="text-xs text-secondary mt-1">Tags apply once you create the item.</p>
+            )}
           </div>
         )}
 

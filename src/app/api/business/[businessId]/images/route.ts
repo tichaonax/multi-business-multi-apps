@@ -41,6 +41,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const search = searchParams.get('search')?.trim() || null
   const tag = searchParams.get('tag')?.trim() || null
   const uploadedBy = searchParams.get('uploadedBy') || null
+  const sort = searchParams.get('sort') === 'mostSelling' ? 'mostSelling' : 'recent'
   const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '50', 10) || 50, 1), 200)
   const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10) || 0, 0)
 
@@ -77,19 +78,40 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     linksByImage.set(link.imageId, list)
   }
 
+  // All-time units sold per product, for the "sale count" shown on each card
+  // and the "Most Selling" sort — completed/active orders only (mirrors the
+  // Insights panel's turnover query, minus its 7-day window).
+  const linkedProductIds = Array.from(new Set(productLinks.map(l => l.business_products.id)))
+  const soldByProduct = new Map<string, number>()
+  if (linkedProductIds.length > 0) {
+    const soldItems = await prisma.businessOrderItems.findMany({
+      where: {
+        product_variants: { productId: { in: linkedProductIds } },
+        business_orders: { businessId, status: { not: 'CANCELLED' } },
+      },
+      select: { quantity: true, product_variants: { select: { productId: true } } },
+    })
+    for (const item of soldItems) {
+      const productId = item.product_variants?.productId
+      if (!productId) continue
+      soldByProduct.set(productId, (soldByProduct.get(productId) ?? 0) + item.quantity)
+    }
+  }
+
   function summarizeLinks(links: typeof productLinks) {
     const statuses = new Set<StockStatusLevel>()
-    const products: Array<{ id: string; name: string; sku: string | null; stockQuantity: number; status: StockStatusLevel }> = []
+    const products: Array<{ id: string; name: string; sku: string | null; stockQuantity: number; status: StockStatusLevel; unitsSold: number }> = []
     for (const link of links) {
       const p = link.business_products
       const stockQuantity = p.product_variants.reduce((sum, v) => sum + v.stockQuantity, 0)
       const reorderLevel = p.product_variants.reduce((max, v) => Math.max(max, v.reorderLevel), 0)
       const { status } = getStockStatus({ stockQuantity, reorderLevel })
       statuses.add(status)
-      products.push({ id: p.id, name: p.name, sku: p.sku, stockQuantity, status })
+      products.push({ id: p.id, name: p.name, sku: p.sku, stockQuantity, status, unitsSold: soldByProduct.get(p.id) ?? 0 })
     }
     const totalStock = products.reduce((sum, p) => sum + p.stockQuantity, 0)
-    return { statuses, products, totalStock }
+    const totalSold = products.reduce((sum, p) => sum + p.unitsSold, 0)
+    return { statuses, products, totalStock, totalSold }
   }
 
   let matchingIds = Array.from(candidateIds)
@@ -131,17 +153,42 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const total = matchingIds.length
 
-  const images = await prisma.images.findMany({
-    where: { id: { in: matchingIds } },
-    select: {
-      id: true, mimeType: true, size: true, createdAt: true, uploadedBy: true,
-      uploader: { select: { name: true } },
-      image_tags: { select: { tags: { select: { name: true } } } },
-    },
-    orderBy: { createdAt: 'desc' },
-    skip: offset,
-    take: limit,
-  })
+  let images: Array<{
+    id: string; mimeType: string; size: number; createdAt: Date; uploadedBy: string | null
+    uploader: { name: string | null } | null
+    image_tags: Array<{ tags: { name: string } }>
+  }>
+
+  if (sort === 'mostSelling') {
+    // Units sold is computed per-image (not a plain column), so paginate the
+    // id list ourselves instead of letting Prisma order/skip/take directly.
+    const sortedIds = [...matchingIds].sort((a, b) =>
+      summarizeLinks(linksByImage.get(b) ?? []).totalSold - summarizeLinks(linksByImage.get(a) ?? []).totalSold
+    )
+    const pageIds = sortedIds.slice(offset, offset + limit)
+    const rows = await prisma.images.findMany({
+      where: { id: { in: pageIds } },
+      select: {
+        id: true, mimeType: true, size: true, createdAt: true, uploadedBy: true,
+        uploader: { select: { name: true } },
+        image_tags: { select: { tags: { select: { name: true } } } },
+      },
+    })
+    const byId = new Map(rows.map(r => [r.id, r]))
+    images = pageIds.map(id => byId.get(id)).filter((r): r is typeof rows[number] => !!r)
+  } else {
+    images = await prisma.images.findMany({
+      where: { id: { in: matchingIds } },
+      select: {
+        id: true, mimeType: true, size: true, createdAt: true, uploadedBy: true,
+        uploader: { select: { name: true } },
+        image_tags: { select: { tags: { select: { name: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: offset,
+      take: limit,
+    })
+  }
 
   const results = images.map(img => {
     const links = linksByImage.get(img.id) ?? []
@@ -158,6 +205,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       linkedItemCount: links.length,
       stockStatuses: Array.from(summary.statuses),
       totalStock: summary.totalStock,
+      totalSold: summary.totalSold,
     }
   })
 
