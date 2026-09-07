@@ -15,6 +15,8 @@ import {
   ShoppingBag
 } from 'lucide-react'
 import { useToastContext } from '@/components/ui/toast'
+import { Pagination } from '@/components/ui/pagination'
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 
 interface Product {
   id: string
@@ -69,6 +71,12 @@ function UniversalProductsPageContent() {
     return searchParams.get('categoryId') || ''
   })
   const [stats, setStats] = useState<any>(null)
+  const {
+    pageSize,
+    setPageSize: setLocalPageSize,
+    isOverridden: isPageSizeOverridden,
+    resetToDefault: resetPageSizeToDefault,
+  } = usePageSize()
 
   const toast = useToastContext()
 
@@ -87,7 +95,7 @@ function UniversalProductsPageContent() {
       const params = new URLSearchParams({
         businessType,
         page: page.toString(),
-        limit: pagination.limit.toString()
+        limit: pageSize.toString()
       })
 
       if (searchQuery) {
@@ -141,7 +149,7 @@ function UniversalProductsPageContent() {
   // Fetch data when filters change
   useEffect(() => {
     fetchProducts(1)
-  }, [businessType, searchQuery, selectedBusiness, selectedDepartment, selectedCategory])
+  }, [businessType, searchQuery, selectedBusiness, selectedDepartment, selectedCategory, pageSize])
 
   // Fetch stats when businessType changes
   useEffect(() => {
@@ -386,7 +394,7 @@ function UniversalProductsPageContent() {
                           <span className="font-mono text-sm">{product.sku}</span>
                         </td>
                         <td className="p-4">
-                          <div className="max-w-xs truncate text-sm">{product.name}</div>
+                          <div className="max-w-xs truncate text-sm" title={product.name}>{product.name}</div>
                         </td>
                         <td className="p-4">
                           <span className="text-sm">{product.businesses?.name}</span>
@@ -434,48 +442,20 @@ function UniversalProductsPageContent() {
             </div>
 
             {/* Pagination */}
-            {pagination.totalPages > 1 && (
-              <div className="flex items-center justify-between border-t p-4">
-                <div className="text-sm text-muted-foreground">
-                  Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
-                  {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} products
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handlePageChange(pagination.page - 1)}
-                    disabled={pagination.page === 1}
-                    className="rounded-md border bg-background px-3 py-1 text-sm disabled:opacity-50"
-                  >
-                    Previous
-                  </button>
-                  <div className="flex gap-1">
-                    {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                      const pageNum = i + 1
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => handlePageChange(pageNum)}
-                          className={`rounded-md px-3 py-1 text-sm ${
-                            pagination.page === pageNum
-                              ? 'bg-primary text-primary-foreground'
-                              : 'border bg-background hover:bg-muted'
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <button
-                    onClick={() => handlePageChange(pagination.page + 1)}
-                    disabled={pagination.page === pagination.totalPages}
-                    className="rounded-md border bg-background px-3 py-1 text-sm disabled:opacity-50"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
+            <div className="border-t p-4">
+              <Pagination
+                currentPage={pagination.page}
+                totalPages={pagination.totalPages}
+                totalItems={pagination.total}
+                pageSize={pageSize}
+                onPageChange={handlePageChange}
+                loading={loading}
+                pageSizeOptions={PAGE_SIZE_OPTIONS}
+                onPageSizeChange={setLocalPageSize}
+                isPageSizeOverridden={isPageSizeOverridden}
+                onResetPageSize={resetPageSizeToDefault}
+              />
+            </div>
           </div>
 
           {/* Business Breakdown */}

@@ -8,6 +8,8 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { formatCurrency, formatDateTime } from '@/lib/date-format'
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getLocalDateString } from '@/lib/utils'
+import { Pagination } from '@/components/ui/pagination'
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 
 const defaultDateRange = (): DateRange => {
   const end = new Date()
@@ -44,7 +46,12 @@ export default function PriceChangesReportPage() {
   const businessType = currentBusiness?.businessType || 'grocery'
   const typesWithOwnPosPage = ['restaurant', 'grocery', 'clothing', 'hardware']
   const posLink = typesWithOwnPosPage.includes(businessType) ? `/${businessType}/pos` : '/universal/pos'
-  const limit = 20
+  const {
+    pageSize: limit,
+    setPageSize: setLocalPageSize,
+    isOverridden: isPageSizeOverridden,
+    resetToDefault: resetPageSizeToDefault,
+  } = usePageSize()
 
   useEffect(() => {
     const timer = setTimeout(() => setSearchDebounced(search), 300)
@@ -80,11 +87,11 @@ export default function PriceChangesReportPage() {
     }
 
     loadReports()
-  }, [currentBusinessId, allTime, dateRange, searchDebounced, currentPage])
+  }, [currentBusinessId, allTime, dateRange, searchDebounced, currentPage, limit])
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [allTime, dateRange, searchDebounced])
+  }, [allTime, dateRange, searchDebounced, limit])
 
   if (!isAuthenticated || !currentBusinessId) {
     return (
@@ -239,32 +246,20 @@ export default function PriceChangesReportPage() {
               </div>
 
               {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm text-gray-700 dark:text-gray-300">
-                      Showing page <span className="font-semibold">{currentPage}</span> of{' '}
-                      <span className="font-semibold">{totalPages}</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setCurrentPage(currentPage - 1)}
-                        disabled={currentPage === 1}
-                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-                      >
-                        ← Previous
-                      </button>
-                      <button
-                        onClick={() => setCurrentPage(currentPage + 1)}
-                        disabled={currentPage === totalPages}
-                        className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-                      >
-                        Next →
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={totalReports}
+                  pageSize={limit}
+                  onPageChange={setCurrentPage}
+                  loading={loading}
+                  pageSizeOptions={PAGE_SIZE_OPTIONS}
+                  onPageSizeChange={(size) => { setLocalPageSize(size); setCurrentPage(1) }}
+                  isPageSizeOverridden={isPageSizeOverridden}
+                  onResetPageSize={() => { resetPageSizeToDefault(); setCurrentPage(1) }}
+                />
+              </div>
             </>
           )}
         </div>

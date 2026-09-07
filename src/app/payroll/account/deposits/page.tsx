@@ -11,6 +11,8 @@ import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { DepositForm } from '@/components/payroll/deposit-form'
 import { useAlert } from '@/components/ui/confirm-modal'
+import { Pagination } from '@/components/ui/pagination'
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 
 export default function DepositsPage() {
   return (
@@ -32,16 +34,28 @@ function DepositsContent() {
     offset: 0,
     hasMore: false,
   })
+  const {
+    pageSize,
+    setPageSize: setLocalPageSize,
+    isOverridden: isPageSizeOverridden,
+    resetToDefault: resetPageSizeToDefault,
+  } = usePageSize()
 
   useEffect(() => {
     fetchDeposits()
-  }, [pagination.offset])
+  }, [pagination.offset, pageSize])
+
+  // Reset to the first page whenever the row-count preference changes, so
+  // we don't land on a now out-of-range offset.
+  useEffect(() => {
+    setPagination(p => ({ ...p, offset: 0 }))
+  }, [pageSize])
 
   const fetchDeposits = async () => {
     setLoading(true)
     try {
       const response = await fetch(
-        `/api/payroll/account/deposits?limit=${pagination.limit}&offset=${pagination.offset}`,
+        `/api/payroll/account/deposits?limit=${pageSize}&offset=${pagination.offset}`,
         { credentials: 'include' }
       )
 
@@ -106,20 +120,6 @@ function DepositsContent() {
       default:
         return `${baseClasses} bg-gray-100 text-gray-800`
     }
-  }
-
-  const handlePreviousPage = () => {
-    setPagination({
-      ...pagination,
-      offset: Math.max(0, pagination.offset - pagination.limit),
-    })
-  }
-
-  const handleNextPage = () => {
-    setPagination({
-      ...pagination,
-      offset: pagination.offset + pagination.limit,
-    })
   }
 
   return (
@@ -271,27 +271,20 @@ function DepositsContent() {
                   </div>
 
                   {/* Pagination */}
-                  {pagination.total > pagination.limit && (
-                    <div className="mt-6 flex items-center justify-between border-t pt-4">
-                      <button
-                        onClick={handlePreviousPage}
-                        disabled={pagination.offset === 0}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Previous
-                      </button>
-                      <span className="text-sm text-gray-600 dark:text-gray-400">
-                        Showing {pagination.offset + 1} - {Math.min(pagination.offset + pagination.limit, pagination.total)} of {pagination.total}
-                      </span>
-                      <button
-                        onClick={handleNextPage}
-                        disabled={!pagination.hasMore}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Next
-                      </button>
-                    </div>
-                  )}
+                  <div className="mt-6 border-t pt-4">
+                    <Pagination
+                      currentPage={Math.floor(pagination.offset / pageSize) + 1}
+                      totalPages={Math.max(1, Math.ceil(pagination.total / pageSize))}
+                      totalItems={pagination.total}
+                      pageSize={pageSize}
+                      onPageChange={(page) => setPagination(p => ({ ...p, offset: (page - 1) * pageSize }))}
+                      loading={loading}
+                      pageSizeOptions={PAGE_SIZE_OPTIONS}
+                      onPageSizeChange={setLocalPageSize}
+                      isPageSizeOverridden={isPageSizeOverridden}
+                      onResetPageSize={resetPageSizeToDefault}
+                    />
+                  </div>
                 </>
               )}
             </div>

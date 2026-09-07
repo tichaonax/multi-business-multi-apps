@@ -10,6 +10,8 @@ import { DriverPromotionModal } from '@/components/user-management/driver-promot
 import { VehicleAssignmentModal } from '@/components/vehicles/vehicle-assignment-modal'
 import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { Pagination } from '@/components/ui/pagination'
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 
 interface DriverListProps {
   onDriverSelect?: (driver: VehicleDriver) => void
@@ -26,7 +28,14 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
   const [error, setError] = useState('')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [totalDrivers, setTotalDrivers] = useState(0)
   const [vehicleCounts, setVehicleCounts] = useState<Record<string, number>>({})
+  const {
+    pageSize,
+    setPageSize: setLocalPageSize,
+    isOverridden: isPageSizeOverridden,
+    resetToDefault: resetPageSizeToDefault,
+  } = usePageSize()
   const controllerRef = useRef<AbortController | null>(null)
 
   // Driver promotion modal state
@@ -97,7 +106,7 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
 
     try {
       setLoading(true)
-      const response = await fetch(`/api/vehicles/drivers?page=${page}&limit=20`, { signal })
+      const response = await fetch(`/api/vehicles/drivers?page=${page}&limit=${pageSize}`, { signal })
 
       if (!response.ok) {
         throw new Error('Failed to fetch drivers')
@@ -109,6 +118,7 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
       if (result.success) {
         setDrivers(result.data)
         setTotalPages(result.meta?.totalPages || 1)
+        setTotalDrivers(result.meta?.total || 0)
 
         // Fetch vehicle counts for all drivers
         const driverIds = result.data.map(driver => driver.id)
@@ -134,7 +144,13 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
     return () => {
       controllerRef.current?.abort()
     }
-  }, [page, refreshSignal])
+  }, [page, refreshSignal, pageSize])
+
+  // Reset to page 1 whenever the row-count preference changes, so we don't
+  // land on a now out-of-range page.
+  useEffect(() => {
+    setPage(1)
+  }, [pageSize])
 
   const handleToggleActive = async (driver: VehicleDriver) => {
     const action = driver.isActive ? 'disable' : 'enable'
@@ -481,27 +497,29 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
                       onClick={() => onDriverSelect?.(driver)}
                     >
                     <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                          <h3 className="text-lg font-semibold text-primary">
+                      <div className="flex-1 min-w-0">
+                        <div className="mb-2">
+                          <h3 className="text-lg font-semibold text-primary line-clamp-2 break-words" title={driver.fullName}>
                             {driver.fullName}
                           </h3>
-                          {!driver.isActive && (
-                            <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-                              Inactive
-                            </span>
-                          )}
-                          {licenseExpired && (
-                            <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-                              License Expired
-                            </span>
-                          )}
-                          {licenseExpiringSoon && !licenseExpired && (
-                            <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                              License Expiring Soon
-                            </span>
-                          )}
-                          {getUserStatusBadge(driver)}
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
+                            {!driver.isActive && (
+                              <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                                Inactive
+                              </span>
+                            )}
+                            {licenseExpired && (
+                              <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                                License Expired
+                              </span>
+                            )}
+                            {licenseExpiringSoon && !licenseExpired && (
+                              <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                License Expiring Soon
+                              </span>
+                            )}
+                            {getUserStatusBadge(driver)}
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-secondary">
@@ -616,29 +634,20 @@ export function DriverList({ onDriverSelect, onAddDriver, refreshSignal }: Drive
             </div>
 
             {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex justify-center items-center space-x-2 mt-6">
-                <button
-                  onClick={() => setPage(page - 1)}
-                  disabled={page === 1}
-                  className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </button>
-
-                <span className="text-sm text-secondary">
-                  Page {page} of {totalPages}
-                </span>
-
-                <button
-                  onClick={() => setPage(page + 1)}
-                  disabled={page === totalPages}
-                  className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Next
-                </button>
-              </div>
-            )}
+            <div className="mt-6">
+              <Pagination
+                currentPage={page}
+                totalPages={totalPages}
+                totalItems={totalDrivers}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                loading={loading}
+                pageSizeOptions={PAGE_SIZE_OPTIONS}
+                onPageSizeChange={setLocalPageSize}
+                isPageSizeOverridden={isPageSizeOverridden}
+                onResetPageSize={resetPageSizeToDefault}
+              />
+            </div>
           </>
         )}
       </div>

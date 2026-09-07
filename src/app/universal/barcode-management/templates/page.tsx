@@ -9,6 +9,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal';
 import { globalBarcodeService } from '@/lib/services/global-barcode-service';
+import { Pagination } from '@/components/ui/pagination';
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference';
 
 interface Template {
   id: string;
@@ -45,6 +47,12 @@ export default function TemplatesPage() {
   const [businesses, setBusinesses] = useState<any[]>([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
+  const {
+    pageSize,
+    setPageSize: setLocalPageSize,
+    isOverridden: isPageSizeOverridden,
+    resetToDefault: resetPageSizeToDefault,
+  } = usePageSize();
 
   // Barcode scanner support
   const barcodeBufferRef = useRef<string>('');
@@ -72,7 +80,13 @@ export default function TemplatesPage() {
     if (businesses.length > 0) {
       fetchTemplates();
     }
-  }, [search, selectedBusinessId, selectedType, pagination.page, businesses]);
+  }, [search, selectedBusinessId, selectedType, pagination.page, businesses, pageSize]);
+
+  // Reset to page 1 whenever the row-count preference changes, so we don't
+  // land on a now out-of-range page.
+  useEffect(() => {
+    setPagination(p => ({ ...p, page: 1 }));
+  }, [pageSize]);
 
   // Barcode scanner detection
   useEffect(() => {
@@ -175,7 +189,7 @@ export default function TemplatesPage() {
     try {
       const params = new URLSearchParams({
         page: pagination.page.toString(),
-        limit: pagination.limit.toString(),
+        limit: pageSize.toString(),
       });
 
       if (search) params.append('search', search);
@@ -556,27 +570,20 @@ export default function TemplatesPage() {
         )}
 
         {/* Pagination */}
-        {pagination.pages > 1 && (
-          <div className="mt-6 flex items-center justify-between">
-            <button
-              onClick={() => setPagination({ ...pagination, page: pagination.page - 1 })}
-              disabled={pagination.page === 1}
-              className="px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg shadow disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Previous
-            </button>
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              Page {pagination.page} of {pagination.pages}
-            </span>
-            <button
-              onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })}
-              disabled={pagination.page === pagination.pages}
-              className="px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg shadow disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-        )}
+        <div className="mt-6">
+          <Pagination
+            currentPage={pagination.page}
+            totalPages={pagination.pages}
+            totalItems={pagination.total}
+            pageSize={pageSize}
+            onPageChange={(page) => setPagination(p => ({ ...p, page }))}
+            loading={loading}
+            pageSizeOptions={PAGE_SIZE_OPTIONS}
+            onPageSizeChange={setLocalPageSize}
+            isPageSizeOverridden={isPageSizeOverridden}
+            onResetPageSize={resetPageSizeToDefault}
+          />
+        </div>
       </div>
     </div>
   );

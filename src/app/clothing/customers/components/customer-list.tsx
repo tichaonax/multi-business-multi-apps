@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useBusinessContext } from '@/components/universal'
+import { Pagination } from '@/components/ui/pagination'
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 
 interface Customer {
   id: string
@@ -56,11 +58,22 @@ export function ClothingCustomerList({
   const [sortBy, setSortBy] = useState<'name' | 'spent' | 'orders' | 'lastOrder'>('lastOrder')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 20
+  const {
+    pageSize: itemsPerPage,
+    setPageSize: setLocalPageSize,
+    isOverridden: isPageSizeOverridden,
+    resetToDefault: resetPageSizeToDefault,
+  } = usePageSize()
 
   useEffect(() => {
     fetchCustomers()
   }, [businessId, selectedSegment])
+
+  // Reset to page 1 whenever the row-count preference changes, so we don't
+  // land on a now out-of-range page.
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [itemsPerPage])
 
   const fetchCustomers = async () => {
     try {
@@ -281,8 +294,8 @@ export function ClothingCustomerList({
 
                     {/* Customer Info */}
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-primary">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h3 className="font-semibold text-primary line-clamp-1 break-words" title={`${customer.firstName} ${customer.lastName}`}>
                           {customer.firstName} {customer.lastName}
                         </h3>
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusConfig.color}`}>
@@ -352,29 +365,18 @@ export function ClothingCustomerList({
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex justify-center gap-2">
-          <button
-            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-            disabled={currentPage === 1}
-            className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-primary"
-          >
-            Previous
-          </button>
-
-          <span className="px-3 py-1 text-sm text-secondary">
-            Page {currentPage} of {totalPages}
-          </span>
-
-          <button
-            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-            disabled={currentPage === totalPages}
-            className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-primary"
-          >
-            Next
-          </button>
-        </div>
-      )}
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={filteredCustomers.length}
+        pageSize={itemsPerPage}
+        onPageChange={setCurrentPage}
+        loading={loading}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
+        onPageSizeChange={(size) => { setLocalPageSize(size); setCurrentPage(1) }}
+        isPageSizeOverridden={isPageSizeOverridden}
+        onResetPageSize={() => { resetPageSizeToDefault(); setCurrentPage(1) }}
+      />
     </div>
   )
 }

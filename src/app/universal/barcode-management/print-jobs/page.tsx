@@ -12,6 +12,8 @@ import { fitTemplateName } from '@/lib/text-abbreviation';
 import { Barcode, X } from 'lucide-react';
 import { globalBarcodeService } from '@/lib/services/global-barcode-service';
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context';
+import { Pagination } from '@/components/ui/pagination';
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference';
 
 interface PrintJob {
   id: string;
@@ -61,6 +63,12 @@ export default function PrintJobsPage() {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [businesses, setBusinesses] = useState<any[]>([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, pages: 0 });
+  const {
+    pageSize,
+    setPageSize: setLocalPageSize,
+    isOverridden: isPageSizeOverridden,
+    resetToDefault: resetPageSizeToDefault,
+  } = usePageSize();
   const [printToPdf, setPrintToPdf] = useState(false); // Default to printer mode
   const [showPrinterSelect, setShowPrinterSelect] = useState(false);
   const [availablePrinters, setAvailablePrinters] = useState<any[]>([]);
@@ -190,7 +198,13 @@ export default function PrintJobsPage() {
     if (businesses.length > 0) {
       fetchPrintJobs();
     }
-  }, [selectedBusinessId, selectedStatus, pagination.page, businesses]);
+  }, [selectedBusinessId, selectedStatus, pagination.page, businesses, pageSize]);
+
+  // Reset to page 1 whenever the row-count preference changes, so we don't
+  // land on a now out-of-range page.
+  useEffect(() => {
+    setPagination(p => ({ ...p, page: 1 }));
+  }, [pageSize]);
 
   // Auto-refresh every 3 seconds to show updated job statuses (silent mode - no loading flash)
   useEffect(() => {
@@ -201,7 +215,7 @@ export default function PrintJobsPage() {
     }, 3000); // Refresh every 3 seconds
 
     return () => clearInterval(interval);
-  }, [selectedBusinessId, selectedStatus, pagination.page, businesses]);
+  }, [selectedBusinessId, selectedStatus, pagination.page, businesses, pageSize]);
 
   const fetchBusinesses = async () => {
     try {
@@ -228,7 +242,7 @@ export default function PrintJobsPage() {
     try {
       const params = new URLSearchParams({
         page: pagination.page.toString(),
-        limit: pagination.limit.toString(),
+        limit: pageSize.toString(),
       });
 
       if (selectedBusinessId !== 'all') params.append('businessId', selectedBusinessId);
@@ -816,27 +830,20 @@ export default function PrintJobsPage() {
         )}
 
         {/* Pagination */}
-        {pagination.pages > 1 && (
-          <div className="mt-6 flex items-center justify-between">
-            <button
-              onClick={() => setPagination({ ...pagination, page: pagination.page - 1 })}
-              disabled={pagination.page === 1}
-              className="px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg shadow disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Previous
-            </button>
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              Page {pagination.page} of {pagination.pages}
-            </span>
-            <button
-              onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })}
-              disabled={pagination.page === pagination.pages}
-              className="px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg shadow disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-        )}
+        <div className="mt-6">
+          <Pagination
+            currentPage={pagination.page}
+            totalPages={pagination.pages}
+            totalItems={pagination.total}
+            pageSize={pageSize}
+            onPageChange={(page) => setPagination(p => ({ ...p, page }))}
+            loading={loading}
+            pageSizeOptions={PAGE_SIZE_OPTIONS}
+            onPageSizeChange={setLocalPageSize}
+            isPageSizeOverridden={isPageSizeOverridden}
+            onResetPageSize={resetPageSizeToDefault}
+          />
+        </div>
       </div>
 
       {/* Printer Selection Modal */}

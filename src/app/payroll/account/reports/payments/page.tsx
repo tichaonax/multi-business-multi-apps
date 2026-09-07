@@ -7,6 +7,8 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
 import Link from 'next/link'
+import { Pagination } from '@/components/ui/pagination'
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 
 interface Payment {
   id: string
@@ -76,7 +78,12 @@ export default function PaymentRegisterPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage] = useState(0)
   const [total, setTotal] = useState(0)
-  const LIMIT = 50
+  const {
+    pageSize: LIMIT,
+    setPageSize: setLocalPageSize,
+    isOverridden: isPageSizeOverridden,
+    resetToDefault: resetPageSizeToDefault,
+  } = usePageSize()
 
   const applyPreset = (p: string) => {
     const today = new Date()
@@ -97,7 +104,13 @@ export default function PaymentRegisterPage() {
 
   useEffect(() => {
     if (status === 'authenticated') load()
-  }, [status, startDate, endDate, paymentType, statusFilter, page])
+  }, [status, startDate, endDate, paymentType, statusFilter, page, LIMIT])
+
+  // Reset to the first page whenever the row-count preference changes, so
+  // we don't land on a now out-of-range offset.
+  useEffect(() => {
+    setPage(0)
+  }, [LIMIT])
 
   const buildParams = (extra: Record<string, string> = {}) => {
     const p = new URLSearchParams({ limit: String(LIMIT), offset: String(page * LIMIT) })
@@ -272,17 +285,20 @@ export default function PaymentRegisterPage() {
                   </tbody>
                 </table>
               </div>
-              {total > LIMIT && (
-                <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-                  <span>Showing {page * LIMIT + 1}–{Math.min((page + 1) * LIMIT, total)} of {total}</span>
-                  <div className="flex gap-2">
-                    <button disabled={page === 0} onClick={() => setPage(p => p - 1)}
-                      className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-40">Previous</button>
-                    <button disabled={(page + 1) * LIMIT >= total} onClick={() => setPage(p => p + 1)}
-                      className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-40">Next</button>
-                  </div>
-                </div>
-              )}
+              <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+                <Pagination
+                  currentPage={page + 1}
+                  totalPages={Math.max(1, Math.ceil(total / LIMIT))}
+                  totalItems={total}
+                  pageSize={LIMIT}
+                  onPageChange={(p) => setPage(p - 1)}
+                  loading={loading}
+                  pageSizeOptions={PAGE_SIZE_OPTIONS}
+                  onPageSizeChange={setLocalPageSize}
+                  isPageSizeOverridden={isPageSizeOverridden}
+                  onResetPageSize={resetPageSizeToDefault}
+                />
+              </div>
             </>
           )}
         </div>
