@@ -7,6 +7,7 @@ import { InventorySubcategoryEditor } from '@/components/inventory/inventory-sub
 import { BarcodeManager, ProductBarcode } from '@/components/universal/barcode-manager'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { ProductTagPicker, ProductTagsEditor } from '@/components/universal/product-tag-picker'
+import { AttributeOptionsPicker } from '@/components/universal/attribute-options-picker'
 import { ImageUploadDialog } from '@/components/pos/image-upload-dialog'
 import { useSession } from 'next-auth/react'
 import { useUserPermissions } from '@/hooks/use-user-permissions'
@@ -341,18 +342,33 @@ export function UniversalInventoryForm({
   // (watched via the effect below), instead of forcing a separate
   // "create, then add image/tags" round trip.
   const [pendingImageFile, setPendingImageFile] = useState<File | null>(null)
+  const [pendingImageId, setPendingImageId] = useState<string | null>(null)
   const [pendingImagePreview, setPendingImagePreview] = useState<string | null>(null)
   const [uploadingPendingImage, setUploadingPendingImage] = useState(false)
+  const [showImageSourceMenu, setShowImageSourceMenu] = useState(false)
+  const [showImagePoolBrowser, setShowImagePoolBrowser] = useState(false)
   const [pendingTagNames, setPendingTagNames] = useState<string[]>([])
   const pendingImageFileRef = useRef<File | null>(null)
+  const pendingImageIdRef = useRef<string | null>(null)
   const pendingTagNamesRef = useRef<string[]>([])
   useEffect(() => { pendingImageFileRef.current = pendingImageFile }, [pendingImageFile])
+  useEffect(() => { pendingImageIdRef.current = pendingImageId }, [pendingImageId])
   useEffect(() => { pendingTagNamesRef.current = pendingTagNames }, [pendingTagNames])
 
   function stagePendingImage(file: File) {
     if (pendingImagePreview) URL.revokeObjectURL(pendingImagePreview)
+    setPendingImageId(null)
     setPendingImageFile(file)
     setPendingImagePreview(URL.createObjectURL(file))
+  }
+
+  function stagePendingPoolImage(imageId: string, url: string) {
+    if (pendingImagePreview) URL.revokeObjectURL(pendingImagePreview)
+    setPendingImageFile(null)
+    setPendingImageId(imageId)
+    setPendingImagePreview(url)
+    setShowImagePoolBrowser(false)
+    setShowImageSourceMenu(false)
   }
 
   // Fires the moment `item` flips from "no id" (create) to "has an id"
@@ -361,12 +377,15 @@ export function UniversalInventoryForm({
   useEffect(() => {
     if (!item?.id || item.id.startsWith('inv_')) return
     const file = pendingImageFileRef.current
+    const poolImageId = pendingImageIdRef.current
     const tagNames = pendingTagNamesRef.current
-    if (!file && tagNames.length === 0) return
+    if (!file && !poolImageId && tagNames.length === 0) return
     const productId = item.id
     pendingImageFileRef.current = null
+    pendingImageIdRef.current = null
     pendingTagNamesRef.current = []
     setPendingImageFile(null)
+    setPendingImageId(null)
     setPendingTagNames([])
     ;(async () => {
       if (file) {
@@ -389,6 +408,24 @@ export function UniversalInventoryForm({
         } finally {
           setUploadingPendingImage(false)
           setPendingImagePreview(prev => { if (prev) URL.revokeObjectURL(prev); return null })
+        }
+      } else if (poolImageId) {
+        setUploadingPendingImage(true)
+        try {
+          const res = await fetch(`/api/universal/products/${productId}/images/from-gallery`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageIds: [poolImageId] }),
+          })
+          if (!res.ok) throw new Error('Failed to attach image')
+          const { primaryImageUrl } = await res.json()
+          setFormData(prev => ({ ...prev, imageUrl: primaryImageUrl }))
+          onSilentUpdate?.()
+        } catch {
+          await alert({ title: 'Image attach failed', description: 'The item was created, but the pool image could not be attached. Use Add Image below to try again.' })
+        } finally {
+          setUploadingPendingImage(false)
+          setPendingImagePreview(null)
         }
       }
       for (const name of tagNames) {
@@ -1221,16 +1258,11 @@ export function UniversalInventoryForm({
               <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
                 Available Sizes
               </label>
-              <input
-                type="text"
-                defaultValue={formData.attributes?.sizes?.join(', ') || ''}
-                onBlur={(e) => {
-                  // Convert to array on blur
-                  const value = e.target.value
-                  handleAttributeChange('sizes', value.split(',').map(s => s.trim()).filter(Boolean))
-                }}
-                className="input-field"
-                placeholder="Comma-separated (e.g., XS, S, M, L, XL)"
+              <AttributeOptionsPicker
+                businessId={businessId}
+                attributeKey="sizes"
+                value={formData.attributes?.sizes || []}
+                onChange={(sizes) => handleAttributeChange('sizes', sizes)}
               />
             </div>
 
@@ -1238,16 +1270,11 @@ export function UniversalInventoryForm({
               <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
                 Available Colors
               </label>
-              <input
-                type="text"
-                defaultValue={formData.attributes?.colors?.join(', ') || ''}
-                onBlur={(e) => {
-                  // Convert to array on blur
-                  const value = e.target.value
-                  handleAttributeChange('colors', value.split(',').map(s => s.trim()).filter(Boolean))
-                }}
-                className="input-field"
-                placeholder="Comma-separated (e.g., Red, Blue, Black)"
+              <AttributeOptionsPicker
+                businessId={businessId}
+                attributeKey="colors"
+                value={formData.attributes?.colors || []}
+                onChange={(colors) => handleAttributeChange('colors', colors)}
               />
             </div>
           </div>
@@ -1634,22 +1661,52 @@ export function UniversalInventoryForm({
                         <span className="text-2xl">📦</span>
                       )}
                     </div>
-                    <label className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-                      📷 {pendingImageFile ? 'Change Image' : 'Add Image'}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => { const f = e.target.files?.[0]; if (f) stagePendingImage(f); e.target.value = '' }}
-                      />
-                    </label>
-                    {pendingImageFile && !uploadingPendingImage && (
-                      <span className="text-xs text-secondary">Uploads once you create the item</span>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setShowImageSourceMenu(v => !v)}
+                        className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700"
+                      >
+                        📷 {pendingImagePreview ? 'Change Image' : 'Add Image'}
+                      </button>
+                      {showImageSourceMenu && (
+                        <div className="absolute z-20 top-full left-0 mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden">
+                          <label className="block px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                            📁 Upload from device
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => { const f = e.target.files?.[0]; if (f) { stagePendingImage(f); setShowImageSourceMenu(false) }; e.target.value = '' }}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => { setShowImagePoolBrowser(true); setShowImageSourceMenu(false) }}
+                            className="block w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+                          >
+                            🖼 Choose from image pool
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {pendingImagePreview && !uploadingPendingImage && (
+                      <span className="text-xs text-secondary">Applied once you create the item</span>
                     )}
                     {uploadingPendingImage && (
-                      <span className="text-xs text-secondary">Uploading photo…</span>
+                      <span className="text-xs text-secondary">Saving photo…</span>
                     )}
                   </div>
+                )}
+
+                {showImagePoolBrowser && (
+                  <CreateModeImagePoolBrowser
+                    categoryId={formData.categoryId}
+                    subcategoryId={formData.subcategoryId}
+                    domainId={selectedDomainId}
+                    onSelect={stagePendingPoolImage}
+                    onClose={() => setShowImagePoolBrowser(false)}
+                  />
                 )}
               </div>
 
@@ -2314,5 +2371,77 @@ export function UniversalInventoryForm({
         />
       )}
     </>
+  )
+}
+
+// Browse the shared image pool by category while creating a new item — the
+// item has no id yet, so this can't reuse ImageUploadDialog's "Choose from
+// Gallery" (every one of its actions is keyed off an existing item's id).
+// Resolution mirrors that same tiered subcategory→category→domain fallback,
+// just fed explicit ids instead of an itemId to look them up from.
+function CreateModeImagePoolBrowser({ categoryId, subcategoryId, domainId, onSelect, onClose }: {
+  categoryId?: string
+  subcategoryId?: string
+  domainId?: string
+  onSelect: (imageId: string, url: string) => void
+  onClose: () => void
+}) {
+  const [loading, setLoading] = useState(true)
+  const [images, setImages] = useState<Array<{ id: string; imageId: string; url: string }>>([])
+  const [resolvedName, setResolvedName] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLoading(true)
+    const params = new URLSearchParams()
+    if (categoryId) params.set('categoryId', categoryId)
+    if (subcategoryId) params.set('subcategoryId', subcategoryId)
+    if (domainId) params.set('domainId', domainId)
+    fetch(`/api/pos/quick-edit/gallery-images?${params}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        setImages(d?.images ?? [])
+        setResolvedName(d?.resolvedName ?? null)
+      })
+      .catch(() => setImages([]))
+      .finally(() => setLoading(false))
+  }, [categoryId, subcategoryId, domainId])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100">🖼 Choose from Image Pool</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
+        </div>
+        {!loading && resolvedName && (
+          <p className="text-xs text-secondary text-center">
+            Category: <span className="font-medium text-primary">{resolvedName}</span>
+          </p>
+        )}
+        {loading ? (
+          <p className="text-sm text-center text-secondary py-8">Loading…</p>
+        ) : images.length === 0 ? (
+          <p className="text-sm text-center text-secondary py-4">
+            {resolvedName ? `No pool images yet for "${resolvedName}".` : 'Select a category first to browse the pool.'}
+          </p>
+        ) : (
+          <div className="grid grid-cols-4 gap-2 max-h-72 overflow-y-auto">
+            {images.map((img) => (
+              <button
+                key={img.id}
+                type="button"
+                onClick={() => onSelect(img.imageId, img.url)}
+                className="relative aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-blue-500"
+              >
+                <img src={img.url} alt="" className="w-full h-full object-cover" />
+              </button>
+            ))}
+          </div>
+        )}
+        <button onClick={onClose} className="w-full text-center py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">
+          Cancel
+        </button>
+      </div>
+    </div>
   )
 }

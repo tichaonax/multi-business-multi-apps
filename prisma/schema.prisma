@@ -667,6 +667,7 @@ model Businesses {
   vehicle_service_labour_rates                                             VehicleServiceLabourRates[]
   images                                                                   Images[]
   tags                                                                     Tags[]
+  attribute_options                                                       AttributeOptions[]
 
   @@map("businesses")
 }
@@ -2331,6 +2332,30 @@ model Tags {
   @@map("tags")
 }
 
+// Shared vocabulary for simple product-attribute pickers (sizes, colors) —
+// same global/business-owned split as Tags: businessId null = shared preset
+// for the businessType, set = a business's own custom addition. Kept generic
+// via attributeKey ('sizes' | 'colors') rather than one table per attribute.
+model AttributeOptions {
+  id           String             @id @default(uuid())
+  businessId   String?
+  businessType String?
+  attributeKey String
+  value        String
+  createdBy    String?
+  createdAt    DateTime           @default(now())
+  businesses   Businesses?        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  users        Users?             @relation("AttributeOptionCreatedBy", fields: [createdBy], references: [id])
+
+  @@unique([businessId, attributeKey, value])
+  // Only actually constrains shared presets (businessId is null on all of
+  // them) — Postgres treats every NULL as distinct, so this never collides
+  // with per-business custom additions. Lets the seed migration's INSERT
+  // target a real ON CONFLICT clause, same as Tags' own businessType+name.
+  @@unique([businessType, attributeKey, value])
+  @@map("attribute_options")
+}
+
 model ImageTags {
   id        String   @id @default(uuid())
   imageId   String
@@ -3935,6 +3960,7 @@ model Users {
   images_uploaded                                                 Images[]                          @relation("ImageUploadedBy")
   category_reference_images_created                               CategoryReferenceImages[]         @relation("CategoryReferenceImageCreatedBy")
   tags_created                                                    Tags[]                            @relation("TagCreatedBy")
+  attribute_options_created                                       AttributeOptions[]                @relation("AttributeOptionCreatedBy")
 
   @@map("users")
 }

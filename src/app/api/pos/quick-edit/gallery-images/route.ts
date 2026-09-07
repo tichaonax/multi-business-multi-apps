@@ -4,6 +4,9 @@ import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/pos/quick-edit/gallery-images?sourceTable=BUSINESS_PRODUCT|BARCODE_ITEM&itemId=...
+ *   OR ?categoryId=...&subcategoryId=...&domainId=...  (create mode — the
+ *   item doesn't exist yet, so the caller passes whatever it already has
+ *   selected in the form instead of an itemId to resolve from)
  *
  * Resolves the item's own category chain, then returns the reference images
  * already linked to it (MBM-294 §3.3) — falling back one tier at a time
@@ -23,7 +26,12 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const sourceTable = searchParams.get('sourceTable')
   const itemId = searchParams.get('itemId')
-  if (!itemId || (sourceTable !== 'BUSINESS_PRODUCT' && sourceTable !== 'BARCODE_ITEM')) {
+  const explicitCategoryId = searchParams.get('categoryId')
+  const explicitSubcategoryId = searchParams.get('subcategoryId')
+  const explicitDomainId = searchParams.get('domainId')
+  const hasExplicitIds = !!(explicitCategoryId || explicitSubcategoryId || explicitDomainId)
+
+  if (!hasExplicitIds && (!itemId || (sourceTable !== 'BUSINESS_PRODUCT' && sourceTable !== 'BARCODE_ITEM'))) {
     return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 })
   }
 
@@ -33,9 +41,22 @@ export async function GET(request: NextRequest) {
   let categoryName: string | null = null
   let subcategoryName: string | null = null
 
-  if (sourceTable === 'BUSINESS_PRODUCT') {
+  if (hasExplicitIds) {
+    categoryId = explicitCategoryId
+    subcategoryId = explicitSubcategoryId
+    domainId = explicitDomainId
+    if (categoryId) {
+      const category = await prisma.businessCategories.findUnique({ where: { id: categoryId }, select: { name: true, domainId: true } })
+      categoryName = category?.name ?? null
+      if (!domainId) domainId = category?.domainId ?? null
+    }
+    if (subcategoryId) {
+      const subcategory = await prisma.inventorySubcategories.findUnique({ where: { id: subcategoryId }, select: { name: true } })
+      subcategoryName = subcategory?.name ?? null
+    }
+  } else if (sourceTable === 'BUSINESS_PRODUCT') {
     const product = await prisma.businessProducts.findUnique({
-      where: { id: itemId },
+      where: { id: itemId! },
       select: {
         categoryId: true, subcategoryId: true,
         business_categories: { select: { name: true, domainId: true } },
@@ -50,7 +71,7 @@ export async function GET(request: NextRequest) {
     subcategoryName = product.inventory_subcategory?.name ?? null
   } else {
     const item = await prisma.barcodeInventoryItems.findUnique({
-      where: { id: itemId },
+      where: { id: itemId! },
       select: {
         categoryId: true, subcategoryId: true, domainId: true,
         business_category: { select: { name: true } },
