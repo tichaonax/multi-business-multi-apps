@@ -14,7 +14,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { LabelPreview } from '@/components/printing/label-preview'
 import { usePrinterPermissions } from '@/hooks/use-printer-permissions'
 import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
-import { usePrompt, useAlert } from '@/components/ui/confirm-modal'
+import { usePrompt, useAlert, useConfirm } from '@/components/ui/confirm-modal'
 import SKUGenerator from '@/components/products/sku-generator'
 import type { LabelData, NetworkPrinter, BarcodeFormat, LabelFormat } from '@/types/printing'
 import { PricingCalculator } from '@/components/inventory/pricing-calculator'
@@ -324,10 +324,19 @@ export function UniversalInventoryForm({
   const { isSystemAdmin, hasPermission: hasBusinessPermission } = useBusinessPermissionsContext()
   const canManageInventory = isSystemAdmin || hasBusinessPermission('canManageInventory')
   const [convertingTemplate, setConvertingTemplate] = useState(false)
+  const [adjustingStock, setAdjustingStock] = useState(false)
 
   // Modal hooks
   const prompt = usePrompt()
   const alert = useAlert()
+  const confirmDialog = useConfirm()
+
+  // Unsaved-changes guard — the "Adjust Stock" prompt and other edits used
+  // to only stage local state, silently lost if the modal was closed without
+  // hitting Update. Stock adjustments now persist immediately (see the
+  // 📦 Adjust button below); this flag covers everything else.
+  const [isDirty, setIsDirty] = useState(false)
+  const markDirty = () => setIsDirty(true)
 
   // Printing hooks
   const { canPrintInventoryLabels } = usePrinterPermissions()
@@ -428,6 +437,7 @@ export function UniversalInventoryForm({
       setSelectedCategory('')
       setAvailableSubcategories([])
     }
+    setIsDirty(false)
   }, [item, businessId, businessType])
 
   // Set selected category, subcategories, and domain when categories are loaded and item has a category
@@ -516,6 +526,7 @@ export function UniversalInventoryForm({
       ...prev,
       [field]: value
     }))
+    markDirty()
 
     // Clear error when user starts typing
     if (errors[field]) {
@@ -534,9 +545,16 @@ export function UniversalInventoryForm({
         [attributeKey]: value
       }
     }))
+    markDirty()
+  }
+
+  const handleBarcodesChange = (updated: ProductBarcode[]) => {
+    setBarcodes(updated)
+    markDirty()
   }
 
   const handleCategoryChange = (categoryId: string) => {
+    markDirty()
     // Update form data with new category
     setFormData(prev => ({
       ...prev,
@@ -669,19 +687,19 @@ export function UniversalInventoryForm({
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        await alert(data.error || 'Failed to convert item to regular inventory')
+        await alert({ title: 'Conversion failed', description: data.error || 'Failed to convert item to regular inventory' })
         return
       }
       setFormData(prev => ({ ...prev, isProductTemplate: false }))
     } catch {
-      await alert('Failed to convert item to regular inventory')
+      await alert({ title: 'Conversion failed', description: 'Failed to convert item to regular inventory' })
     } finally {
       setConvertingTemplate(false)
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent, force = false) => {
-    e.preventDefault()
+  const handleSubmit = async (e?: React.FormEvent, force = false) => {
+    e?.preventDefault()
 
     if (!validateForm()) {
       // Show alert for missing required fields
@@ -726,6 +744,7 @@ export function UniversalInventoryForm({
       // If onSubmit is provided, let the parent handle the submission
       if (onSubmit) {
         await onSubmit(submissionData)
+        setIsDirty(false)
         // If printOnSave is checked, show label preview
         if (printOnSave && canPrintInventoryLabels) {
           setSavedItemForLabel(submissionData)
@@ -752,6 +771,7 @@ export function UniversalInventoryForm({
       if (response.ok) {
         const data = await response.json()
         setDuplicateMatches([])
+        setIsDirty(false)
         // If printOnSave is checked, show label preview
         if (printOnSave && canPrintInventoryLabels) {
           setSavedItemForLabel(data.item)
@@ -1264,11 +1284,34 @@ export function UniversalInventoryForm({
             </button>
           )}
 
-          {/* Close button — clearly separated from Sell button to prevent mis-clicks */}
+          {/* Update button, duplicated here so it doesn't require scrolling
+              to the bottom of a long form to save. */}
+          <button
+            type="button"
+            onClick={() => handleSubmit()}
+            disabled={loading || !categoriesLoaded}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap flex-shrink-0"
+          >
+            {!categoriesLoaded ? 'Loading...' : loading ? 'Saving...' : (mode === 'edit' ? 'Update Item' : 'Create Item')}
+          </button>
+
+          {/* Close button — clearly separated from Sell/Update buttons to
+              prevent mis-clicks */}
           <div className="pl-4 ml-3 border-l border-gray-200 dark:border-gray-600 flex-shrink-0">
             <button
               type="button"
-              onClick={onCancel}
+              onClick={async () => {
+                if (isDirty) {
+                  const confirmed = await confirmDialog({
+                    title: 'Unsaved changes',
+                    description: 'You have unsaved changes on this item. Close without saving?',
+                    confirmText: 'Close without saving',
+                    cancelText: 'Keep editing',
+                  })
+                  if (!confirmed) return
+                }
+                onCancel()
+              }}
               disabled={isNavigatingToPOS}
               aria-label="Close"
               className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xl leading-none"
@@ -1278,6 +1321,23 @@ export function UniversalInventoryForm({
           </div>
         </div>
       </div>
+      )}
+
+      {/* Inline mode has no built-in header (the parent page supplies its
+          own chrome), so it gets its own slim top Update bar instead, for
+          the same "don't make me scroll to save" reason as the modal header
+          button above. */}
+      {renderMode === 'inline' && (
+        <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-2 flex justify-end">
+          <button
+            type="button"
+            onClick={() => handleSubmit()}
+            disabled={loading || !categoriesLoaded}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+          >
+            {!categoriesLoaded ? 'Loading...' : loading ? 'Saving...' : (mode === 'edit' ? 'Update Item' : 'Create Item')}
+          </button>
+        </div>
       )}
 
       {/* Template banner (MBM-133 follow-up) — a draft/unconfigured product
@@ -1543,13 +1603,39 @@ export function UniversalInventoryForm({
                           if (adjustment !== null) {
                             const adjustmentAmount = parseInt(adjustment)
                             const newStock = formData.currentStock + adjustmentAmount
-                            handleInputChange('_stockAdjustment', adjustmentAmount)
-                            handleInputChange('currentStock', newStock)
+                            // Persist immediately (previously this only staged
+                            // `_stockAdjustment` in local state, which was
+                            // silently lost if the modal was closed without
+                            // clicking the outer Update button).
+                            if (item?.id) {
+                              setAdjustingStock(true)
+                              try {
+                                const res = await fetch(`/api/inventory/${businessId}/items/${item.id}`, {
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ _stockAdjustment: adjustmentAmount }),
+                                })
+                                if (!res.ok) {
+                                  const data = await res.json().catch(() => ({}))
+                                  await alert({ title: 'Stock adjustment failed', description: data.error || 'Failed to adjust stock' })
+                                } else {
+                                  setFormData(prev => ({ ...prev, currentStock: newStock }))
+                                }
+                              } catch {
+                                await alert({ title: 'Stock adjustment failed', description: 'Network error occurred' })
+                              } finally {
+                                setAdjustingStock(false)
+                              }
+                            } else {
+                              handleInputChange('_stockAdjustment', adjustmentAmount)
+                              handleInputChange('currentStock', newStock)
+                            }
                           }
                         }}
-                        className="px-2 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 whitespace-nowrap text-xs"
+                        disabled={adjustingStock}
+                        className="px-2 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 whitespace-nowrap text-xs disabled:opacity-50"
                       >
-                        📦 Adjust
+                        {adjustingStock ? '⏳ Saving...' : '📦 Adjust'}
                       </button>
                     </div>
                   </div>
@@ -1827,7 +1913,7 @@ export function UniversalInventoryForm({
               productId={item?.id}
               businessId={businessId}
               barcodes={barcodes}
-              onBarcodesChange={setBarcodes}
+              onBarcodesChange={handleBarcodesChange}
             />
           </div>
 

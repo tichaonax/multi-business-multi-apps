@@ -379,10 +379,23 @@ export async function GET(
       ...(lowStock ? mergedBarcodeItems.filter(item => item.currentStock < 10) : mergedBarcodeItems),
     ]
 
-    // Hide zero-stock items when requested (default behaviour for most views)
-    // Services/non-tracked items are exempt — they never have physical stock
+    // Hide zero-stock items when requested (default behaviour for most views).
+    // `isInventoryTracked` is NOT a general "does this item have a stock
+    // count" flag — it's the opt-in POS live-stock-badge toggle, which
+    // defaults to false for virtually every product outside
+    // restaurant/grocery menus (clothing, hardware, vehicles, retail, etc.
+    // all track real stock unconditionally). Using it as a blanket exemption
+    // made this filter a no-op for those business types. Only exempt:
+    //  - services/consulting: no physical-stock concept at all
+    //  - restaurant/grocery items that opted OUT of live stock tracking:
+    //    "always available" menu items, not real out-of-stock inventory
     const visibleItems = hideZeroStock
-      ? allFilteredItems.filter(item => item.currentStock > 0 || !item.isInventoryTracked)
+      ? allFilteredItems.filter(item => {
+          if (item.currentStock > 0) return true
+          if (item.businessType === 'services' || item.businessType === 'consulting') return true
+          if ((item.businessType === 'restaurant' || item.businessType === 'grocery') && !item.isInventoryTracked) return true
+          return false
+        })
       : allFilteredItems
 
     // Apply pagination after filtering
