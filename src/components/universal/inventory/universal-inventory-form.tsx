@@ -1245,12 +1245,20 @@ export function UniversalInventoryForm({
                 <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
                   Material
                 </label>
-                <input
-                  type="text"
-                  value={formData.attributes?.material || ''}
-                  onChange={(e) => handleAttributeChange('material', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Cotton, Polyester, etc."
+                <AttributeOptionsPicker
+                  businessId={businessId}
+                  attributeKey="materials"
+                  // Legacy data stored this as a single freeform string — normalize
+                  // it into the array shape the picker (and new data) uses, without
+                  // needing to touch existing records.
+                  value={
+                    Array.isArray(formData.attributes?.material)
+                      ? formData.attributes.material
+                      : formData.attributes?.material
+                        ? [formData.attributes.material]
+                        : []
+                  }
+                  onChange={(materials) => handleAttributeChange('material', materials)}
                 />
               </div>
             </div>
@@ -1625,32 +1633,19 @@ export function UniversalInventoryForm({
                   placeholder="lbs, each, gallons…"
                 />
                 {errors.unit && <p className="text-red-600 text-xs mt-1 font-medium">{errors.unit}</p>}
-              </div>
 
-              {/* SKU */}
-              <div className="xl:col-span-2">
-                <SKUGenerator
-                  businessId={businessId}
-                  categoryName={categories.find(cat => cat.id === formData.categoryId)?.name}
-                  value={formData.sku}
-                  onChange={(sku) => handleInputChange('sku', sku)}
-                  onModeChange={(manual) => setIsManualSku(manual)}
-                  disabled={loading}
-                />
-                {errors.sku && <p className="text-red-600 text-xs mt-1 font-medium">{errors.sku}</p>}
-              </div>
-
-              {/* Image (MBM-296) — its own full-width row (not squeezed into
-                  the narrow Unit column, which forced "Add Image" to wrap
-                  and visually collide with the SKU helper text next to it). */}
-              <div className="col-span-2 xl:col-span-3">
+                {/* Image (MBM-296) — sits below Unit, to the left of the
+                    Auto-Generated SKU box, using the same vertical space
+                    that box already takes up. Image on top, button directly
+                    below it (not side-by-side, which wrapped awkwardly in
+                    this narrow column). */}
                 {item?.id && (
-                  <div className="flex items-center gap-3">
-                    <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center flex-shrink-0">
+                  <div className="flex flex-col items-start gap-2 mt-4">
+                    <div className="w-36 h-36 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center flex-shrink-0">
                       {formData.imageUrl ? (
                         <img src={formData.imageUrl} alt={formData.name} className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-2xl">📦</span>
+                        <span className="text-4xl">📦</span>
                       )}
                     </div>
                     <button
@@ -1667,12 +1662,12 @@ export function UniversalInventoryForm({
                     upload it automatically the instant the item is created
                     (see the effect watching item?.id above). */}
                 {!item?.id && (
-                  <div className="flex items-center gap-3">
-                    <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center flex-shrink-0">
+                  <div className="flex flex-col items-start gap-2 mt-4">
+                    <div className="w-36 h-36 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center flex-shrink-0">
                       {pendingImagePreview ? (
                         <img src={pendingImagePreview} alt="" className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-2xl">📦</span>
+                        <span className="text-4xl">📦</span>
                       )}
                     </div>
                     <div className="relative">
@@ -1723,6 +1718,19 @@ export function UniversalInventoryForm({
                     onClose={() => setShowImagePoolBrowser(false)}
                   />
                 )}
+              </div>
+
+              {/* SKU */}
+              <div className="xl:col-span-2">
+                <SKUGenerator
+                  businessId={businessId}
+                  categoryName={categories.find(cat => cat.id === formData.categoryId)?.name}
+                  value={formData.sku}
+                  onChange={(sku) => handleInputChange('sku', sku)}
+                  onModeChange={(manual) => setIsManualSku(manual)}
+                  disabled={loading}
+                />
+                {errors.sku && <p className="text-red-600 text-xs mt-1 font-medium">{errors.sku}</p>}
               </div>
 
               {/* Stock — hidden for weight-based items */}

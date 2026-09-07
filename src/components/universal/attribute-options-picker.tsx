@@ -6,7 +6,7 @@ interface Option { id: string; value: string; isShared: boolean }
 
 interface Props {
   businessId: string
-  attributeKey: 'sizes' | 'colors'
+  attributeKey: 'sizes' | 'colors' | 'materials'
   /** Selected values — controlled. */
   value: string[]
   onChange: (values: string[]) => void
@@ -93,7 +93,7 @@ export function AttributeOptionsPicker({ businessId, attributeKey, value, onChan
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && query.trim() && !exactMatch) { e.preventDefault(); handleAddNew() } }}
-          placeholder={placeholder ?? `Search or add a new ${attributeKey === 'sizes' ? 'size' : 'color'}…`}
+          placeholder={placeholder ?? `Search or add a new ${attributeKey === 'sizes' ? 'size' : attributeKey === 'colors' ? 'color' : 'material'}…`}
           className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:text-white text-sm"
         />
         {query.trim() && !exactMatch && (

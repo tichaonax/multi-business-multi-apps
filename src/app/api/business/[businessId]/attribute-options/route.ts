@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
 
-const VALID_KEYS = new Set(['sizes', 'colors'])
+const VALID_KEYS = new Set(['sizes', 'colors', 'materials'])
 
 /**
  * GET /api/business/[businessId]/attribute-options?key=sizes|colors

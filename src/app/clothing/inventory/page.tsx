@@ -2155,7 +2155,11 @@ function ClothingInventoryContent() {
                           {selectedItem.attributes.material && (
                             <div>
                               <div className="text-sm text-gray-500 dark:text-gray-400">Material</div>
-                              <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.attributes.material}</div>
+                              <div className="font-medium text-gray-900 dark:text-gray-100">
+                                {Array.isArray(selectedItem.attributes.material)
+                                  ? selectedItem.attributes.material.join(', ')
+                                  : selectedItem.attributes.material}
+                              </div>
                             </div>
                           )}
                           {selectedItem.attributes.brand && (
