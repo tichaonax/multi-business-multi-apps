@@ -9,10 +9,13 @@ import { getServerUser } from '@/lib/get-server-user'
  *   selected in the form instead of an itemId to resolve from)
  *
  * Resolves the item's own category chain, then returns the reference images
- * already linked to it (MBM-294 §3.3) — falling back one tier at a time
- * (subcategory -> category -> domain) so a picker still shows something
- * useful even when the specific subcategory has nothing yet. A category with
- * zero linked images is a normal empty state, never an error (§3.6).
+ * already linked to it (MBM-294 §3.3) — tries subcategory, then category,
+ * but does NOT fall back further than that: the pool is tagged by domain
+ * only with no real curation under it, so a domain- or business-type-wide
+ * fallback surfaces confidently wrong pictures instead of nothing. A
+ * category with zero linked images is a normal empty state, never an
+ * error (§3.6) — the caller's own upload-into-this-category action is the
+ * intended way to fill it in, not a loose match from somewhere else.
  *
  * Also resolves and returns the human-readable category name (`resolvedName`)
  * and the exact ids to tag a fresh upload against (`uploadTarget`) — the
@@ -105,10 +108,17 @@ export async function GET(request: NextRequest) {
   // this category" always names an actual category.
   const resolvedName = subcategoryName || categoryName || domainName || null
 
-  const tiers: Array<{ label: 'subcategory' | 'category' | 'domain'; where: { subcategoryId?: string; categoryId?: string; domainId?: string }; name: string | null }> = []
+  // Domain-only (and wider) fallbacks were tried here previously, but the
+  // pool is tagged by domain alone with no real curation under it — a
+  // product's own domain can be a broad, mixed bucket (e.g. "Boys
+  // Footwear" containing shorts, jackets, anything), so "fall back to the
+  // domain" or "fall back to the whole business type" surfaced confidently
+  // wrong pictures rather than nothing. Only trust an exact subcategory or
+  // category match now; anything looser is worse than an honest empty
+  // state + the "Upload New Images to This Category" option below it.
+  const tiers: Array<{ label: 'subcategory' | 'category'; where: { subcategoryId?: string; categoryId?: string }; name: string | null }> = []
   if (subcategoryId) tiers.push({ label: 'subcategory', where: { subcategoryId }, name: subcategoryName })
   if (categoryId) tiers.push({ label: 'category', where: { categoryId }, name: categoryName })
-  if (domainId) tiers.push({ label: 'domain', where: { domainId }, name: domainName })
 
   for (const tier of tiers) {
     const rows = await prisma.categoryReferenceImages.findMany({
@@ -123,32 +133,6 @@ export async function GET(request: NextRequest) {
         success: true,
         tier: tier.label,
         tierName: tier.name,
-        resolvedName,
-        uploadTarget,
-        images: rows.map(r => ({ id: r.id, imageId: r.imageId, url: `/api/images/${r.imageId}` })),
-      })
-    }
-  }
-
-  // Nothing in this item's own domain/category/subcategory chain — the pool
-  // is tagged by domain only, and products aren't necessarily categorized
-  // under the same domain taxonomy the pool was seeded with (e.g. a product
-  // filed under "Apparel" while the pool's relevant images sit under a
-  // sibling domain like "Women's"). Rather than come back empty, widen the
-  // search to every domain for this business type.
-  if (businessType) {
-    const rows = await prisma.categoryReferenceImages.findMany({
-      where: { businessType },
-      select: { id: true, imageId: true },
-      distinct: ['imageId'],
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    })
-    if (rows.length > 0) {
-      return NextResponse.json({
-        success: true,
-        tier: 'businessType',
-        tierName: null,
         resolvedName,
         uploadTarget,
         images: rows.map(r => ({ id: r.id, imageId: r.imageId, url: `/api/images/${r.imageId}` })),

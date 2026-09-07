@@ -85,9 +85,10 @@ export function TransferHistory({ accountId, showFilters = false }: TransferHist
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
+      {/* Filters — sticky so they stay visible alongside the table's own
+          sticky header instead of scrolling away first. */}
       {showFilters && (
-        <div className="flex flex-wrap gap-3 items-end">
+        <div className="sticky top-14 sm:top-16 z-20 bg-background flex flex-wrap gap-3 items-end py-2">
           <div>
             <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">From date</label>
             <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}

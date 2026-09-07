@@ -62,7 +62,7 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
   const [view, setView] = useState<'main' | 'gallery'>('main')
   const [galleryLoading, setGalleryLoading] = useState(false)
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([])
-  const [galleryTier, setGalleryTier] = useState<'subcategory' | 'category' | 'domain' | 'businessType' | null>(null)
+  const [galleryTier, setGalleryTier] = useState<'subcategory' | 'category' | null>(null)
   const [galleryResolvedName, setGalleryResolvedName] = useState<string | null>(null)
   const [galleryUploadTarget, setGalleryUploadTarget] = useState<{ domainId: string | null; categoryId: string | null; subcategoryId: string | null } | null>(null)
   const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(new Set())

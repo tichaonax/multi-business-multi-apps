@@ -490,8 +490,10 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   return (
     <>
     <div className="space-y-4">
-      {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow px-3 py-2.5">
+      {/* Filters — sticky so the search bar and filter pills stay visible
+          alongside the table's own sticky header (right below the global
+          nav) instead of scrolling away first. */}
+      <div className="sticky top-14 sm:top-16 z-20 bg-white dark:bg-gray-800 rounded-lg shadow px-3 py-2.5">
 
         {/* Row 1: Search + Reset */}
         <div className="flex gap-2 mb-2">

@@ -1456,14 +1456,34 @@ export function UniversalInventoryForm({
           <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
             {mode === 'edit' ? 'Edit Inventory Item' : 'Add New Inventory Item'}
           </h2>
-          <button
-            type="button"
-            onClick={() => handleSubmit()}
-            disabled={loading || !categoriesLoaded}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-          >
-            {!categoriesLoaded ? 'Loading...' : loading ? 'Saving...' : (mode === 'edit' ? 'Update Item' : 'Create Item')}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                if (isDirty) {
+                  const confirmed = await confirmDialog({
+                    title: 'Unsaved changes',
+                    description: 'You have unsaved changes on this item. Leave without saving?',
+                    confirmText: 'Leave without saving',
+                    cancelText: 'Keep editing',
+                  })
+                  if (!confirmed) return
+                }
+                onCancel()
+              }}
+              className="px-3 py-2 text-secondary hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSubmit()}
+              disabled={loading || !categoriesLoaded}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+            >
+              {!categoriesLoaded ? 'Loading...' : loading ? 'Saving...' : (mode === 'edit' ? 'Update Item' : 'Create Item')}
+            </button>
+          </div>
         </div>
       )}
 
