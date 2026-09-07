@@ -90,7 +90,7 @@ export function GenericAddInventoryPage({ businessType, businessLabel, icon = 'ð
           { label: 'Add Item', isActive: true },
         ]}
       >
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           <div className="card p-6">
             {error && (
               <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">

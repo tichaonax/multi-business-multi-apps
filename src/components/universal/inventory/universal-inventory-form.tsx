@@ -1622,8 +1622,12 @@ export function UniversalInventoryForm({
                 </div>
               </div>
 
-              {/* Unit */}
-              <div>
+              {/* Unit — min-w-0 overrides the grid item's default min-width:
+                  auto, which otherwise refuses to shrink this column below
+                  the image block's intrinsic width and lets it overflow
+                  into the SKU column next to it (rendering on top of the
+                  Auto-Generated SKU box instead of beside it). */}
+              <div className="min-w-0">
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Unit *</label>
                 <input
                   type="text"
@@ -1640,8 +1644,8 @@ export function UniversalInventoryForm({
                     below it (not side-by-side, which wrapped awkwardly in
                     this narrow column). */}
                 {item?.id && (
-                  <div className="flex flex-col items-start gap-2 mt-4">
-                    <div className="w-36 h-36 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center flex-shrink-0">
+                  <div className="flex flex-col items-start gap-2 mt-4 w-full">
+                    <div className="w-full max-w-36 aspect-square rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center">
                       {formData.imageUrl ? (
                         <img src={formData.imageUrl} alt={formData.name} className="w-full h-full object-cover" />
                       ) : (
@@ -1662,8 +1666,8 @@ export function UniversalInventoryForm({
                     upload it automatically the instant the item is created
                     (see the effect watching item?.id above). */}
                 {!item?.id && (
-                  <div className="flex flex-col items-start gap-2 mt-4">
-                    <div className="w-36 h-36 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center flex-shrink-0">
+                  <div className="flex flex-col items-start gap-2 mt-4 w-full">
+                    <div className="w-full max-w-36 aspect-square rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center">
                       {pendingImagePreview ? (
                         <img src={pendingImagePreview} alt="" className="w-full h-full object-cover" />
                       ) : (
