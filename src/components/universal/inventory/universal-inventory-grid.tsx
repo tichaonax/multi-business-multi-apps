@@ -8,6 +8,8 @@ import { usePrinterPermissions } from '@/hooks/use-printer-permissions'
 import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { Pagination } from '@/components/ui/pagination'
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
+import { useToastContext } from '@/components/ui/toast'
 import type { LabelData, NetworkPrinter } from '@/types/printing'
 
 interface UniversalInventoryItem {
@@ -113,7 +115,7 @@ export function UniversalInventoryGrid({
   showActions = true,
   headerActions,
   layout = 'table',
-  pageSize = 50,
+  pageSize: pageSizeProp,
   allowSearch = true,
   allowFiltering = true,
   allowSorting = true,
@@ -123,6 +125,15 @@ export function UniversalInventoryGrid({
   onHideZeroStockChange,
   tableMaxHeight = 'calc(100vh - 280px)',
 }: UniversalInventoryGridProps) {
+  const { push: showToast } = useToastContext()
+  const {
+    pageSize,
+    setPageSize: setLocalPageSize,
+    isOverridden: isPageSizeOverridden,
+    resetToDefault: resetPageSizeToDefault,
+  } = usePageSize(pageSizeProp, (newSize) => {
+    showToast(`Your default items-per-page setting changed to ${newSize} — applying it here too.`, { type: 'info' })
+  })
   const [items, setItems] = useState<UniversalInventoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -783,7 +794,7 @@ export function UniversalInventoryGrid({
           {/* Desktop Table View */}
           {!loading && (
           <div className="hidden lg:block overflow-x-auto overflow-y-auto" style={{ maxHeight: tableMaxHeight }}>
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-fixed">
               <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
                 <tr>
                   {mergeMode && (
@@ -801,7 +812,7 @@ export function UniversalInventoryGrid({
                     </th>
                   )}
                   <th
-                    className={`text-left p-3 font-medium text-secondary ${allowSorting ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''}`}
+                    className={`text-left p-3 font-medium text-secondary w-80 ${allowSorting ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''}`}
                     onClick={() => allowSorting && handleSort('name')}
                   >
                     Item {allowSorting && (sortField === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '')}
@@ -826,13 +837,13 @@ export function UniversalInventoryGrid({
                   </th>
                   <th className="text-left p-3 font-medium text-secondary">Supplier</th>
                   <th className="text-left p-3 font-medium text-secondary">Location</th>
-                  <th className="text-left p-3 font-medium text-secondary">Barcodes</th>
+                  <th className="text-left p-3 font-medium text-secondary w-56">Barcodes</th>
                   {showBusinessSpecificFields && (
                     <th className="text-left p-3 font-medium text-secondary">Details</th>
                   )}
                   <th className="text-left p-3 font-medium text-secondary">Status</th>
                   {showActions && (
-                    <th className="text-left p-3 font-medium text-secondary">Actions</th>
+                    <th className="text-left p-3 font-medium text-secondary min-w-[240px]">Actions</th>
                   )}
                 </tr>
               </thead>
@@ -875,40 +886,49 @@ export function UniversalInventoryGrid({
                             onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
                           />
                         )}
-                      <div>
-                        <div className="font-medium text-primary flex items-center gap-2 flex-wrap">
-                          {item.name}
-                          {item.isProductTemplate && (
-                            <span
-                              title="Template product — no stock or price set yet. Use 'Stock in Current Business' on a barcode scan to activate it."
-                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700 whitespace-nowrap"
-                            >
-                              📋 Template
-                            </span>
-                          )}
-                          {!item.isProductTemplate && convertedIds.has(item.id) && (
-                            <span
-                              title="Converted from a template to regular inventory this session"
-                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700 whitespace-nowrap"
-                            >
-                              ✅ Converted
-                            </span>
-                          )}
-                          {item.isInventoryTracked && (
-                            <span
-                              title="POS inventory tracking enabled — live stock badge shown on menu card"
-                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 whitespace-nowrap"
-                            >
-                              📦 POS tracked
-                            </span>
-                          )}
-                          {item.isExpiryDiscount && (
-                            <span
-                              title="Expiry discount — created from near-expiry stock"
-                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700 whitespace-nowrap"
-                            >
-                              🏷️ Expiry Deal
-                            </span>
+                      <div className="min-w-0">
+                        <div className="font-medium text-primary">
+                          <span
+                            className="line-clamp-2 break-words"
+                            title={item.name}
+                          >
+                            {item.name}
+                          </span>
+                          {(item.isProductTemplate || (!item.isProductTemplate && convertedIds.has(item.id)) || item.isInventoryTracked || item.isExpiryDiscount) && (
+                            <div className="flex items-center gap-2 flex-wrap mt-1">
+                              {item.isProductTemplate && (
+                                <span
+                                  title="Template product — no stock or price set yet. Use 'Stock in Current Business' on a barcode scan to activate it."
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700 whitespace-nowrap"
+                                >
+                                  📋 Template
+                                </span>
+                              )}
+                              {!item.isProductTemplate && convertedIds.has(item.id) && (
+                                <span
+                                  title="Converted from a template to regular inventory this session"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700 whitespace-nowrap"
+                                >
+                                  ✅ Converted
+                                </span>
+                              )}
+                              {item.isInventoryTracked && (
+                                <span
+                                  title="POS inventory tracking enabled — live stock badge shown on menu card"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 whitespace-nowrap"
+                                >
+                                  📦 POS tracked
+                                </span>
+                              )}
+                              {item.isExpiryDiscount && (
+                                <span
+                                  title="Expiry discount — created from near-expiry stock"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-700 whitespace-nowrap"
+                                >
+                                  🏷️ Expiry Deal
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
                         <div className="text-xs text-secondary">
@@ -1386,6 +1406,10 @@ export function UniversalInventoryGrid({
           pageSize={pageSize}
           onPageChange={setCurrentPage}
           loading={loading}
+          pageSizeOptions={pageSizeProp === undefined ? PAGE_SIZE_OPTIONS : undefined}
+          onPageSizeChange={pageSizeProp === undefined ? (size) => { setLocalPageSize(size); setCurrentPage(1) } : undefined}
+          isPageSizeOverridden={isPageSizeOverridden}
+          onResetPageSize={() => { resetPageSizeToDefault(); setCurrentPage(1) }}
         />
       )}
 

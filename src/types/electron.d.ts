@@ -52,6 +52,8 @@ export interface ElectronAPI {
   setPin: (pin: string) => Promise<boolean>
   getTheme: () => Promise<'light' | 'dark' | 'system' | null>
   setTheme: (theme: 'light' | 'dark' | 'system') => Promise<boolean>
+  getPageSize: (userId: string) => Promise<number | null>
+  setPageSize: (userId: string, size: number) => Promise<boolean>
   scale: {
     listPorts: () => Promise<ComPort[]>
     getSavedPort: () => Promise<string | null>

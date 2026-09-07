@@ -9,6 +9,12 @@ interface PaginationProps {
   pageSize: number
   onPageChange: (page: number) => void
   loading?: boolean
+  // Optional per-view page-size controls — omit to just show the footer
+  // without a rows-per-page selector.
+  pageSizeOptions?: readonly number[]
+  onPageSizeChange?: (size: number) => void
+  isPageSizeOverridden?: boolean
+  onResetPageSize?: () => void
 }
 
 // Compact page-number list with ellipses — always shows first, last, the
@@ -34,7 +40,18 @@ function buildPageList(current: number, total: number): Array<number | '…'> {
  * scattered across ~40 list pages in this app (none of which showed how
  * many more records existed or let you skip ahead).
  */
-export function Pagination({ currentPage, totalPages, totalItems, pageSize, onPageChange, loading }: PaginationProps) {
+export function Pagination({
+  currentPage,
+  totalPages,
+  totalItems,
+  pageSize,
+  onPageChange,
+  loading,
+  pageSizeOptions,
+  onPageSizeChange,
+  isPageSizeOverridden,
+  onResetPageSize,
+}: PaginationProps) {
   const [jumpValue, setJumpValue] = useState('')
   const pageList = useMemo(() => buildPageList(currentPage, totalPages), [currentPage, totalPages])
 
@@ -57,9 +74,36 @@ export function Pagination({ currentPage, totalPages, totalItems, pageSize, onPa
 
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-3">
-      <div className="text-sm text-secondary">
-        Showing <span className="font-medium text-primary">{startItem}–{endItem}</span> of{' '}
-        <span className="font-medium text-primary">{totalItems}</span>
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="text-sm text-secondary">
+          Showing <span className="font-medium text-primary">{startItem}–{endItem}</span> of{' '}
+          <span className="font-medium text-primary">{totalItems}</span>
+        </div>
+
+        {pageSizeOptions && onPageSizeChange && (
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-secondary whitespace-nowrap">Rows per page</label>
+            <select
+              value={pageSize}
+              onChange={e => onPageSizeChange(parseInt(e.target.value, 10))}
+              disabled={loading}
+              className="text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary px-1.5 py-1 disabled:opacity-50"
+            >
+              {pageSizeOptions.map(size => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+            {isPageSizeOverridden && onResetPageSize && (
+              <button
+                onClick={onResetPageSize}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+                title="Back to your saved default for this list, without changing that saved default"
+              >
+                Reset to default
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-1 flex-wrap justify-center">

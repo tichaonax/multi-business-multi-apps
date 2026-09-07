@@ -38,6 +38,11 @@ contextBridge.exposeInMainWorld('electron', {
 
   setTheme: (theme) => ipcRenderer.invoke('theme:set', theme),
 
+  // ── Device-level page-size preference (survives app restarts; see main.js) ──
+  getPageSize: (userId) => ipcRenderer.invoke('pageSize:get', userId),
+
+  setPageSize: (userId, size) => ipcRenderer.invoke('pageSize:set', { userId, size }),
+
   // ── Scale API ──────────────────────────────────────────────────────────────
   scale: {
     listPorts: () => ipcRenderer.invoke('scale:list-ports'),

@@ -583,6 +583,15 @@ ipcMain.handle('theme:set', (_e, theme) => {
   return true
 })
 
+// ─── IPC Handlers — device-level page-size preference (survives restarts) ──
+// Same non-persistent-session problem as theme above. Namespaced by userId
+// since a kiosk can be shared by multiple signed-in users.
+ipcMain.handle('pageSize:get', (_e, userId) => registry.getPageSize(userId))
+ipcMain.handle('pageSize:set', (_e, { userId, size }) => {
+  registry.setPageSize(userId, size)
+  return true
+})
+
 ipcMain.handle('business:getDefault', () => {
   if (!activeServerId) return null
   const entry = registry.get(activeServerId)

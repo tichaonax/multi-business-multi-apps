@@ -27,6 +27,7 @@ function defaultData() {
     lastUsedServerId: null,
     servers: [],
     theme: null,
+    pageSizeByUser: {},
   }
 }
 
@@ -195,6 +196,25 @@ function setTheme(theme) {
   save(data)
 }
 
+// Same reasoning as theme above — page-size is a display preference kept in
+// the web app's own localStorage, which the non-persistent per-server
+// session partition wipes on every restart. Namespaced by userId (unlike
+// theme) since this kiosk can be shared by multiple users signing in/out
+// on the same device, and one user's row-count choice shouldn't silently
+// become another's after a restart.
+function getPageSize(userId) {
+  if (!userId) return null
+  const data = load()
+  return data.pageSizeByUser?.[userId] ?? null
+}
+
+function setPageSize(userId, size) {
+  if (!userId) return
+  const data = load()
+  data.pageSizeByUser = { ...(data.pageSizeByUser || {}), [userId]: size }
+  save(data)
+}
+
 // ── PIN (add/remove gate) ───────────────────────────────────────────────
 // Deliberately a light deterrent, not a strong security boundary — see the
 // design discussion this shipped from. Anyone with real file access to this
@@ -255,6 +275,8 @@ module.exports = {
   setDefaultBusiness,
   getTheme,
   setTheme,
+  getPageSize,
+  setPageSize,
   setCertFingerprint,
   hasPin,
   setPin,

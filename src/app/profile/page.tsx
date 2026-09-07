@@ -11,6 +11,8 @@ import { EmployeeContractViewer } from '@/components/contracts/employee-contract
 import { PolicyViewer } from '@/components/policies/PolicyViewer'
 import { PolicyAcknowledgmentModal } from '@/components/policies/PolicyAcknowledgmentModal'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { usePageSizePreference, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
+import { useToastContext } from '@/components/ui/toast'
 
 const CATEGORY_LABELS: Record<string, string> = {
   HR: 'HR', SAFETY: 'Safety', IT: 'IT', FINANCE: 'Finance', CODE_OF_CONDUCT: 'Code of Conduct', OTHER: 'Other',
@@ -72,6 +74,8 @@ interface OverrideCodeStatus {
 export default function ProfilePage() {
   const { data: session, status, update } = useSession()
   const { currentBusinessId, hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
+  const { pageSize, setPageSize, isLoaded: pageSizeLoaded } = usePageSizePreference()
+  const { push: showToast } = useToastContext()
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -440,6 +444,38 @@ export default function ProfilePage() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Display Preferences */}
+        <div className="card">
+          <div className="p-6">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              Display Preferences
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Choose how many rows show per page on paginated lists across the app.
+            </p>
+            <div className="flex items-center gap-3">
+              <label htmlFor="page-size-preference" className="text-sm text-gray-700 dark:text-gray-300">
+                Items per page
+              </label>
+              <select
+                id="page-size-preference"
+                value={pageSize}
+                disabled={!pageSizeLoaded}
+                onChange={(e) => {
+                  const size = parseInt(e.target.value, 10)
+                  setPageSize(size)
+                  showToast(`Items per page set to ${size} — applies to paginated lists across the app.`, { type: 'success' })
+                }}
+                className="input-field w-32"
+              >
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
