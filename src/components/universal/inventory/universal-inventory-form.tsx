@@ -8,6 +8,7 @@ import { BarcodeManager, ProductBarcode } from '@/components/universal/barcode-m
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { ProductTagPicker, ProductTagsEditor } from '@/components/universal/product-tag-picker'
 import { AttributeOptionsPicker } from '@/components/universal/attribute-options-picker'
+import { useToastContext } from '@/components/ui/toast'
 import { ImageUploadDialog } from '@/components/pos/image-upload-dialog'
 import { useSession } from 'next-auth/react'
 import { useUserPermissions } from '@/hooks/use-user-permissions'
@@ -1624,14 +1625,27 @@ export function UniversalInventoryForm({
                   placeholder="lbs, each, gallons…"
                 />
                 {errors.unit && <p className="text-red-600 text-xs mt-1 font-medium">{errors.unit}</p>}
+              </div>
 
-                {/* Image (MBM-296) — only once the item has an id to attach a
-                    photo to; universal across every business type, not
-                    clothing-gated, same as the rest of this form. Sits here,
-                    below Unit, to use space that was otherwise blank rather
-                    than pushing the rest of the form down. */}
+              {/* SKU */}
+              <div className="xl:col-span-2">
+                <SKUGenerator
+                  businessId={businessId}
+                  categoryName={categories.find(cat => cat.id === formData.categoryId)?.name}
+                  value={formData.sku}
+                  onChange={(sku) => handleInputChange('sku', sku)}
+                  onModeChange={(manual) => setIsManualSku(manual)}
+                  disabled={loading}
+                />
+                {errors.sku && <p className="text-red-600 text-xs mt-1 font-medium">{errors.sku}</p>}
+              </div>
+
+              {/* Image (MBM-296) — its own full-width row (not squeezed into
+                  the narrow Unit column, which forced "Add Image" to wrap
+                  and visually collide with the SKU helper text next to it). */}
+              <div className="col-span-2 xl:col-span-3">
                 {item?.id && (
-                  <div className="flex items-center gap-3 mt-3">
+                  <div className="flex items-center gap-3">
                     <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center flex-shrink-0">
                       {formData.imageUrl ? (
                         <img src={formData.imageUrl} alt={formData.name} className="w-full h-full object-cover" />
@@ -1642,7 +1656,7 @@ export function UniversalInventoryForm({
                     <button
                       type="button"
                       onClick={() => setShowImageDialog(true)}
-                      className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700"
+                      className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 whitespace-nowrap"
                     >
                       📷 {formData.imageUrl ? 'Change Image' : 'Add Image'}
                     </button>
@@ -1653,7 +1667,7 @@ export function UniversalInventoryForm({
                     upload it automatically the instant the item is created
                     (see the effect watching item?.id above). */}
                 {!item?.id && (
-                  <div className="flex items-center gap-3 mt-3">
+                  <div className="flex items-center gap-3">
                     <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center flex-shrink-0">
                       {pendingImagePreview ? (
                         <img src={pendingImagePreview} alt="" className="w-full h-full object-cover" />
@@ -1665,7 +1679,7 @@ export function UniversalInventoryForm({
                       <button
                         type="button"
                         onClick={() => setShowImageSourceMenu(v => !v)}
-                        className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700"
+                        className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 whitespace-nowrap"
                       >
                         📷 {pendingImagePreview ? 'Change Image' : 'Add Image'}
                       </button>
@@ -1691,16 +1705,17 @@ export function UniversalInventoryForm({
                       )}
                     </div>
                     {pendingImagePreview && !uploadingPendingImage && (
-                      <span className="text-xs text-secondary">Applied once you create the item</span>
+                      <span className="text-xs text-secondary whitespace-nowrap">Applied once you create the item</span>
                     )}
                     {uploadingPendingImage && (
-                      <span className="text-xs text-secondary">Saving photo…</span>
+                      <span className="text-xs text-secondary whitespace-nowrap">Saving photo…</span>
                     )}
                   </div>
                 )}
 
                 {showImagePoolBrowser && (
                   <CreateModeImagePoolBrowser
+                    businessId={businessId}
                     categoryId={formData.categoryId}
                     subcategoryId={formData.subcategoryId}
                     domainId={selectedDomainId}
@@ -1708,19 +1723,6 @@ export function UniversalInventoryForm({
                     onClose={() => setShowImagePoolBrowser(false)}
                   />
                 )}
-              </div>
-
-              {/* SKU */}
-              <div className="xl:col-span-2">
-                <SKUGenerator
-                  businessId={businessId}
-                  categoryName={categories.find(cat => cat.id === formData.categoryId)?.name}
-                  value={formData.sku}
-                  onChange={(sku) => handleInputChange('sku', sku)}
-                  onModeChange={(manual) => setIsManualSku(manual)}
-                  disabled={loading}
-                />
-                {errors.sku && <p className="text-red-600 text-xs mt-1 font-medium">{errors.sku}</p>}
               </div>
 
               {/* Stock — hidden for weight-based items */}
@@ -2379,16 +2381,23 @@ export function UniversalInventoryForm({
 // Gallery" (every one of its actions is keyed off an existing item's id).
 // Resolution mirrors that same tiered subcategory→category→domain fallback,
 // just fed explicit ids instead of an itemId to look them up from.
-function CreateModeImagePoolBrowser({ categoryId, subcategoryId, domainId, onSelect, onClose }: {
+function CreateModeImagePoolBrowser({ businessId, categoryId, subcategoryId, domainId, onSelect, onClose }: {
+  businessId: string
   categoryId?: string
   subcategoryId?: string
   domainId?: string
   onSelect: (imageId: string, url: string) => void
   onClose: () => void
 }) {
+  const { isSystemAdmin, hasPermission } = useBusinessPermissionsContext()
+  const canUploadToPool = isSystemAdmin || hasPermission('canManageInventory')
+  const toast = useToastContext()
   const [loading, setLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
   const [images, setImages] = useState<Array<{ id: string; imageId: string; url: string }>>([])
   const [resolvedName, setResolvedName] = useState<string | null>(null)
+  const [tier, setTier] = useState<'subcategory' | 'category' | 'domain' | 'businessType' | null>(null)
+  const [uploadTarget, setUploadTarget] = useState<{ domainId: string | null; categoryId: string | null; subcategoryId: string | null } | null>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -2401,10 +2410,44 @@ function CreateModeImagePoolBrowser({ categoryId, subcategoryId, domainId, onSel
       .then(d => {
         setImages(d?.images ?? [])
         setResolvedName(d?.resolvedName ?? null)
+        setTier(d?.tier ?? null)
+        setUploadTarget(d?.uploadTarget ?? null)
       })
       .catch(() => setImages([]))
       .finally(() => setLoading(false))
   }, [categoryId, subcategoryId, domainId])
+
+  // Uploading straight from this "nothing here yet" state — instead of
+  // making the user leave the item form, go find the Reference Pool page,
+  // upload there, then come back — is worth it precisely because an empty
+  // pool category is the common case, not the exception, for a lot of
+  // clothing subcategories right now.
+  async function handleUpload(files: FileList) {
+    if (!uploadTarget?.domainId || files.length === 0) return
+    setUploading(true)
+    try {
+      const form = new FormData()
+      Array.from(files).forEach(f => form.append('files', f))
+      form.append('domainId', uploadTarget.domainId)
+      if (uploadTarget.categoryId) form.append('categoryId', uploadTarget.categoryId)
+      if (uploadTarget.subcategoryId) form.append('subcategoryId', uploadTarget.subcategoryId)
+
+      const res = await fetch(`/api/business/${businessId}/images/reference-pool/bulk-upload`, { method: 'POST', body: form })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? 'Upload failed')
+
+      const newImages = (data.images ?? []).map((img: { id: string; url: string }) => ({ id: img.id, imageId: img.id, url: img.url }))
+      setImages(prev => [...newImages, ...prev])
+      if (data.created > 0) {
+        toast.push(`${data.created} image${data.created === 1 ? '' : 's'} added to the pool — select the one${data.created === 1 ? '' : 's'} you want below`)
+      }
+      if (data.skipped?.length > 0) toast.error(`Skipped: ${data.skipped.join(', ')}`)
+    } catch (e: any) {
+      toast.error(e.message ?? 'Failed to upload')
+    } finally {
+      setUploading(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
@@ -2413,16 +2456,23 @@ function CreateModeImagePoolBrowser({ categoryId, subcategoryId, domainId, onSel
           <h3 className="font-semibold text-gray-900 dark:text-gray-100">🖼 Choose from Image Pool</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
         </div>
-        {!loading && resolvedName && (
+        {!loading && resolvedName && tier !== 'businessType' && (
           <p className="text-xs text-secondary text-center">
             Category: <span className="font-medium text-primary">{resolvedName}</span>
+          </p>
+        )}
+        {!loading && tier === 'businessType' && (
+          <p className="text-xs text-secondary text-center">
+            No images tagged for "{resolvedName}" yet — showing images from across the whole pool instead.
           </p>
         )}
         {loading ? (
           <p className="text-sm text-center text-secondary py-8">Loading…</p>
         ) : images.length === 0 ? (
           <p className="text-sm text-center text-secondary py-4">
-            {resolvedName ? `No pool images yet for "${resolvedName}".` : 'Select a category first to browse the pool.'}
+            {resolvedName
+              ? `This is a new pool category — "${resolvedName}" has no images yet. Upload one below to add it, then pick it right away.`
+              : 'Select a category first to browse the pool.'}
           </p>
         ) : (
           <div className="grid grid-cols-4 gap-2 max-h-72 overflow-y-auto">
@@ -2437,6 +2487,15 @@ function CreateModeImagePoolBrowser({ categoryId, subcategoryId, domainId, onSel
               </button>
             ))}
           </div>
+        )}
+        {!loading && canUploadToPool && uploadTarget?.domainId && (
+          <label className="block w-full text-center py-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 text-sm cursor-pointer">
+            {uploading ? 'Uploading…' : `⬆️ Upload New Image${images.length > 0 ? 's' : ''} to This Category`}
+            <input
+              type="file" accept="image/*" multiple className="hidden" disabled={uploading}
+              onChange={(e) => { const files = e.target.files; if (files && files.length > 0) handleUpload(files); e.target.value = '' }}
+            />
+          </label>
         )}
         <button onClick={onClose} className="w-full text-center py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">
           Cancel

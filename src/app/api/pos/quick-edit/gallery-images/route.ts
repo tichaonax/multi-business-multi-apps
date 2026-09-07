@@ -41,13 +41,16 @@ export async function GET(request: NextRequest) {
   let categoryName: string | null = null
   let subcategoryName: string | null = null
 
+  let businessType: string | null = null
+
   if (hasExplicitIds) {
     categoryId = explicitCategoryId
     subcategoryId = explicitSubcategoryId
     domainId = explicitDomainId
     if (categoryId) {
-      const category = await prisma.businessCategories.findUnique({ where: { id: categoryId }, select: { name: true, domainId: true } })
+      const category = await prisma.businessCategories.findUnique({ where: { id: categoryId }, select: { name: true, domainId: true, businessType: true } })
       categoryName = category?.name ?? null
+      businessType = category?.businessType ?? null
       if (!domainId) domainId = category?.domainId ?? null
     }
     if (subcategoryId) {
@@ -58,7 +61,7 @@ export async function GET(request: NextRequest) {
     const product = await prisma.businessProducts.findUnique({
       where: { id: itemId! },
       select: {
-        categoryId: true, subcategoryId: true,
+        categoryId: true, subcategoryId: true, businessType: true,
         business_categories: { select: { name: true, domainId: true } },
         inventory_subcategory: { select: { name: true } },
       },
@@ -69,6 +72,7 @@ export async function GET(request: NextRequest) {
     domainId = product.business_categories?.domainId ?? null
     categoryName = product.business_categories?.name ?? null
     subcategoryName = product.inventory_subcategory?.name ?? null
+    businessType = product.businessType ?? null
   } else {
     const item = await prisma.barcodeInventoryItems.findUnique({
       where: { id: itemId! },
@@ -76,6 +80,7 @@ export async function GET(request: NextRequest) {
         categoryId: true, subcategoryId: true, domainId: true,
         business_category: { select: { name: true } },
         inventory_subcategory: { select: { name: true } },
+        business: { select: { type: true } },
       },
     })
     if (!item) return NextResponse.json({ error: 'Item not found' }, { status: 404 })
@@ -84,12 +89,14 @@ export async function GET(request: NextRequest) {
     domainId = item.domainId
     categoryName = item.business_category?.name ?? null
     subcategoryName = item.inventory_subcategory?.name ?? null
+    businessType = item.business?.type ?? null
   }
 
   let domainName: string | null = null
   if (domainId) {
-    const domain = await prisma.inventoryDomains.findUnique({ where: { id: domainId }, select: { name: true } })
+    const domain = await prisma.inventoryDomains.findUnique({ where: { id: domainId }, select: { name: true, businessType: true } })
     domainName = domain?.name ?? null
+    if (!businessType) businessType = domain?.businessType ?? null
   }
 
   const uploadTarget = { domainId, categoryId, subcategoryId }
@@ -116,6 +123,32 @@ export async function GET(request: NextRequest) {
         success: true,
         tier: tier.label,
         tierName: tier.name,
+        resolvedName,
+        uploadTarget,
+        images: rows.map(r => ({ id: r.id, imageId: r.imageId, url: `/api/images/${r.imageId}` })),
+      })
+    }
+  }
+
+  // Nothing in this item's own domain/category/subcategory chain — the pool
+  // is tagged by domain only, and products aren't necessarily categorized
+  // under the same domain taxonomy the pool was seeded with (e.g. a product
+  // filed under "Apparel" while the pool's relevant images sit under a
+  // sibling domain like "Women's"). Rather than come back empty, widen the
+  // search to every domain for this business type.
+  if (businessType) {
+    const rows = await prisma.categoryReferenceImages.findMany({
+      where: { businessType },
+      select: { id: true, imageId: true },
+      distinct: ['imageId'],
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    })
+    if (rows.length > 0) {
+      return NextResponse.json({
+        success: true,
+        tier: 'businessType',
+        tierName: null,
         resolvedName,
         uploadTarget,
         images: rows.map(r => ({ id: r.id, imageId: r.imageId, url: `/api/images/${r.imageId}` })),

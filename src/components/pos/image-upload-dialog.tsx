@@ -62,7 +62,7 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
   const [view, setView] = useState<'main' | 'gallery'>('main')
   const [galleryLoading, setGalleryLoading] = useState(false)
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([])
-  const [galleryTier, setGalleryTier] = useState<'subcategory' | 'category' | 'domain' | null>(null)
+  const [galleryTier, setGalleryTier] = useState<'subcategory' | 'category' | 'domain' | 'businessType' | null>(null)
   const [galleryResolvedName, setGalleryResolvedName] = useState<string | null>(null)
   const [galleryUploadTarget, setGalleryUploadTarget] = useState<{ domainId: string | null; categoryId: string | null; subcategoryId: string | null } | null>(null)
   const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(new Set())
@@ -397,14 +397,16 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
           ) : galleryImages.length === 0 ? (
             <p className="text-sm text-center text-secondary py-4">
               {galleryResolvedName
-                ? `No gallery images yet for "${galleryResolvedName}" — upload one below and it'll appear here for reuse.`
+                ? `This is a new pool category — "${galleryResolvedName}" has no images yet. Upload one below to add it, then pick it right away.`
                 : "This item has no category assigned, so there's nowhere to file a shared gallery image yet — assign one first."}
             </p>
           ) : (
             <>
               {galleryTier && galleryTier !== 'subcategory' && (
                 <p className="text-xs text-secondary text-center">
-                  Showing images from this item's {galleryTier === 'category' ? 'category' : 'general product area'}.
+                  {galleryTier === 'businessType'
+                    ? "No images tagged for this item's own category yet — showing images from across the whole pool instead."
+                    : `Showing images from this item's ${galleryTier === 'category' ? 'category' : 'general product area'}.`}
                 </p>
               )}
               <div className="grid grid-cols-4 gap-2 max-h-72 overflow-y-auto">
