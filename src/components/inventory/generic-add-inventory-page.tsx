@@ -7,6 +7,7 @@ import { BusinessTypeRedirect } from '@/components/business-type-redirect'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { UniversalInventoryForm } from '@/components/universal/inventory'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { useToastContext } from '@/components/ui/toast'
 
 interface GenericAddInventoryPageProps {
   businessType: string
@@ -21,7 +22,13 @@ interface GenericAddInventoryPageProps {
 export function GenericAddInventoryPage({ businessType, businessLabel, icon = 'ðŸ“¦' }: GenericAddInventoryPageProps) {
   const router = useRouter()
   const { currentBusiness, currentBusinessId, isAuthenticated } = useBusinessPermissionsContext()
+  const { push: showToast } = useToastContext()
   const [error, setError] = useState<string | null>(null)
+  // Once set, the form switches into edit mode for the just-created item â€”
+  // the image-upload and tag-picker options only appear once an item has a
+  // real id, so closing/navigating away right after POST meant there was
+  // never a chance to attach a photo or tags.
+  const [createdItem, setCreatedItem] = useState<any>(null)
 
   const isCorrectBusinessType = currentBusiness?.businessType === businessType
 
@@ -45,18 +52,28 @@ export function GenericAddInventoryPage({ businessType, businessLabel, icon = 'ð
   const handleFormSubmit = async (formData: any) => {
     try {
       setError(null)
-      const response = await fetch(`/api/inventory/${businessId}/items`, {
-        method: 'POST',
+      const url = createdItem
+        ? `/api/inventory/${businessId}/items/${createdItem.id}`
+        : `/api/inventory/${businessId}/items`
+      const method = createdItem ? 'PUT' : 'POST'
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       })
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.message || errorData.error || 'Failed to create item')
+        throw new Error(errorData.message || errorData.error || 'Failed to save item')
       }
-      router.replace(`/${businessType}/inventory`)
+      if (!createdItem) {
+        const data = await response.json()
+        setCreatedItem(data.item)
+        showToast('Item created â€” add a photo or tags now, or go back to inventory when done', { type: 'success' })
+      } else {
+        router.replace(`/${businessType}/inventory`)
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create item')
+      setError(err instanceof Error ? err.message : 'Failed to save item')
       throw err
     }
   }
@@ -64,8 +81,8 @@ export function GenericAddInventoryPage({ businessType, businessLabel, icon = 'ð
   return (
     <BusinessTypeRoute requiredBusinessType={businessType}>
       <ContentLayout
-        title={`${icon} Add ${businessLabel} Inventory Item`}
-        subtitle={`Add a new product to your ${businessLabel.toLowerCase()} inventory`}
+        title={`${icon} ${createdItem ? 'Edit' : 'Add'} ${businessLabel} Inventory Item`}
+        subtitle={createdItem ? 'Add a photo or tags, or head back to inventory when done' : `Add a new product to your ${businessLabel.toLowerCase()} inventory`}
         breadcrumb={[
           { label: 'Dashboard', href: '/dashboard' },
           { label: businessLabel, href: `/${businessType}` },
@@ -83,6 +100,8 @@ export function GenericAddInventoryPage({ businessType, businessLabel, icon = 'ð
             <UniversalInventoryForm
               businessId={businessId}
               businessType={businessType}
+              item={createdItem ?? undefined}
+              mode={createdItem ? 'edit' : 'create'}
               onSubmit={handleFormSubmit}
               onCancel={() => router.push(`/${businessType}/inventory`)}
               renderMode="inline"

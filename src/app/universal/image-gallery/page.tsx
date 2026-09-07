@@ -28,6 +28,7 @@ interface GalleryImage {
   tags: string[]
   linkedItemCount: number
   stockStatuses: Array<'in' | 'low' | 'out'>
+  totalStock: number
 }
 
 interface PoolImage { id: string; url: string; linkedItemCount: number; otherBusinessCount: number }
@@ -446,8 +447,11 @@ export default function ImageGalleryPage() {
                     </span>
                   )}
                   {img.stockStatuses.length > 0 && (
-                    <span className={`absolute bottom-1 left-1 text-[10px] px-1.5 py-0.5 rounded-full ${STOCK_BADGE[img.stockStatuses[0]].color}`}>
-                      {STOCK_BADGE[img.stockStatuses[0]].label}
+                    <span
+                      className={`absolute bottom-1 left-1 text-[10px] px-1.5 py-0.5 rounded-full ${STOCK_BADGE[img.stockStatuses[0]].color}`}
+                      title={`${img.totalStock} unit${img.totalStock === 1 ? '' : 's'} total across ${img.linkedItemCount} product${img.linkedItemCount === 1 ? '' : 's'}`}
+                    >
+                      {STOCK_BADGE[img.stockStatuses[0]].label} · {img.totalStock}
                     </span>
                   )}
                 </button>

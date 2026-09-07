@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useToastContext } from '@/components/ui/toast'
 import { ProductAttachSearch } from '@/components/universal/product-attach-search'
+import { ProductTagPicker } from '@/components/universal/product-tag-picker'
 import { LinkedProductsList, LinkedProduct } from '@/components/universal/linked-products-list'
 
 interface LinkedItem extends LinkedProduct {
@@ -56,7 +57,6 @@ export function ImageGalleryDetailModal({ businessId, businessType, imageId, onC
   const [linkedItems, setLinkedItems] = useState<LinkedItem[]>([])
   const [loading, setLoading] = useState(true)
   const [changed, setChanged] = useState(false)
-  const [newTag, setNewTag] = useState('')
   const [busyTagAction, setBusyTagAction] = useState(false)
   const [busyLinkId, setBusyLinkId] = useState<string | null>(null)
   const [copying, setCopying] = useState(false)
@@ -78,36 +78,33 @@ export function ImageGalleryDetailModal({ businessId, businessType, imageId, onC
 
   useEffect(() => { load() }, [imageId])
 
-  async function handleAddTag() {
-    const name = newTag.trim()
-    if (!name) return
+  // Diffs against the currently-loaded tags and persists each add/remove via
+  // the existing per-tag endpoints — ProductTagPicker itself is purely
+  // presentational (search + multi-select over the shared tag vocabulary,
+  // MBM-295) and doesn't know how to attach to anything on its own.
+  async function handleTagsChange(names: string[]) {
+    if (!image) return
+    const currentNames = image.tags.map(t => t.name)
+    const added = names.filter(n => !currentNames.includes(n))
+    const removed = image.tags.filter(t => !names.includes(t.name))
     setBusyTagAction(true)
     try {
-      const res = await fetch(`/api/business/${businessId}/images/${imageId}/tags`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      })
-      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error ?? 'Failed to add tag') }
-      setNewTag('')
+      for (const name of added) {
+        const res = await fetch(`/api/business/${businessId}/images/${imageId}/tags`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        })
+        if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error ?? 'Failed to add tag') }
+      }
+      for (const t of removed) {
+        const res = await fetch(`/api/business/${businessId}/images/${imageId}/tags/${t.id}`, { method: 'DELETE' })
+        if (!res.ok) throw new Error('Failed to remove tag')
+      }
       setChanged(true)
       await load()
     } catch (e: any) {
-      toast.error(e.message ?? 'Failed to add tag')
-    } finally {
-      setBusyTagAction(false)
-    }
-  }
-
-  async function handleRemoveTag(tagId: string) {
-    setBusyTagAction(true)
-    try {
-      const res = await fetch(`/api/business/${businessId}/images/${imageId}/tags/${tagId}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Failed to remove tag')
-      setChanged(true)
-      await load()
-    } catch (e: any) {
-      toast.error(e.message ?? 'Failed to remove tag')
+      toast.error(e.message ?? 'Failed to update tags')
     } finally {
       setBusyTagAction(false)
     }
@@ -191,32 +188,12 @@ export function ImageGalleryDetailModal({ businessId, businessType, imageId, onC
 
             <div>
               <p className="text-xs font-medium text-secondary mb-1">Tags</p>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {image.tags.map(t => (
-                  <span key={t.id} className="inline-flex items-center gap-1 text-xs bg-gray-100 dark:bg-gray-800 rounded-full px-2 py-1">
-                    {t.emoji ?? '🏷️'} {t.name}
-                    <button onClick={() => handleRemoveTag(t.id)} disabled={busyTagAction} className="text-secondary hover:text-red-600">✕</button>
-                  </span>
-                ))}
-                {image.tags.length === 0 && <span className="text-xs text-secondary">No tags yet</span>}
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newTag}
-                  onChange={e => setNewTag(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddTag() } }}
-                  placeholder="Add a tag..."
-                  className="flex-1 text-sm rounded-md border-gray-300 dark:bg-gray-800 dark:border-gray-700 dark:text-white py-1.5 px-2"
-                />
-                <button
-                  onClick={handleAddTag}
-                  disabled={busyTagAction || !newTag.trim()}
-                  className="px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm disabled:opacity-50"
-                >
-                  Add
-                </button>
-              </div>
+              <ProductTagPicker
+                businessId={businessId}
+                value={image.tags.map(t => t.name)}
+                onChange={handleTagsChange}
+              />
+              {busyTagAction && <p className="text-xs text-secondary mt-1">Saving…</p>}
             </div>
 
             <div>

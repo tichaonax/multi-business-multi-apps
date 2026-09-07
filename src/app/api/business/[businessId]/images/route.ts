@@ -88,7 +88,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       statuses.add(status)
       products.push({ id: p.id, name: p.name, sku: p.sku, stockQuantity, status })
     }
-    return { statuses, products }
+    const totalStock = products.reduce((sum, p) => sum + p.stockQuantity, 0)
+    return { statuses, products, totalStock }
   }
 
   let matchingIds = Array.from(candidateIds)
@@ -156,6 +157,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       tags: img.image_tags.map(t => t.tags.name),
       linkedItemCount: links.length,
       stockStatuses: Array.from(summary.statuses),
+      totalStock: summary.totalStock,
     }
   })
 

@@ -1338,7 +1338,10 @@ export function UniversalInventoryForm({
           the same "don't make me scroll to save" reason as the modal header
           button above. */}
       {renderMode === 'inline' && (
-        <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-2 flex justify-end">
+        <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-2 flex items-center justify-between gap-4">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+            {mode === 'edit' ? 'Edit Inventory Item' : 'Add New Inventory Item'}
+          </h2>
           <button
             type="button"
             onClick={() => handleSubmit()}

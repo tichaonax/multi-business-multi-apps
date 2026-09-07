@@ -4781,6 +4781,21 @@ Once a barcode is assigned, print a label to stick on the product:
 
 > Labels print with: business name, product name, description, size, barcode, SKU, and price. Two fold lines are printed on the label for folding-tag style clothing labels.
 
+#### Adding a Photo When Creating a New Item
+
+The **Add Item** form only shows the image upload option once the item has been saved (a photo needs a real item to attach to). To add one:
+
+1. Fill in the item details as normal and click **Create Item** — the button appears both at the top and bottom of the form, so you don't have to scroll down on a long form just to save.
+2. Instead of closing, the form switches into **edit mode for the item you just created** and a **📷 Add Image** button appears.
+3. Click it to upload a photo, paste one, or choose from your business's image gallery.
+4. Close the form (×) when done — your photo and item details are already saved.
+
+> If you close the form immediately after creating without adding a photo, that's fine too — you can always add one later from the inventory list's ✏️ edit button.
+
+#### Editing an Existing Item — Unsaved Changes Warning
+
+When editing an item, an **📦 Adjust** stock change and any photo you add or change save immediately — you don't need to click **Update Item** for those. Everything else on the form (name, price, category, barcodes, etc.) only saves when you click **Update Item**. If you close the form (×) with other fields changed but not yet saved, you'll be asked to confirm — **Close without saving** or **Keep editing** — so an edit in progress is never silently lost.
+
 #### Duplicate Product Name Detection
 
 When you click **Save** on a new product, the system checks whether any active item in this business already has a similar name. If a match is found:
@@ -4792,15 +4807,25 @@ When you click **Save** on a new product, the system checks whether any active i
 
 > This check only runs when **creating** a new item. Editing an existing item does not trigger it.
 
+#### Template Products — Hidden Draft Items
+
+A **📋 Template** badge on a product (visible next to its name) means it's an unconfigured draft — no price and no stock yet. Template products are hidden from normal inventory search and lists so they don't clutter results, until either:
+
+- **Someone gives it a real price** — the next time a price is saved for it (via editing the item, a variant price change, or activating it from a barcode scan), it automatically graduates to a regular item. No manual step needed.
+- **A manager converts it manually** — useful for a legitimately $0-priced item that still needs to show up now. In the inventory list, turn on **📋 Show Templates**, then click **✅ Convert to Regular Inventory** on the item's row (requires the `canManageInventory` permission or admin). The converted row stays visible with a green **✅ Converted** badge so you can see what just changed, without needing to refresh the page.
+- Once you've converted one or more items, a **🙈 Hide Converted** button appears next to Show Templates, letting you tuck the converted rows out of view again without losing your place.
+
+> Refreshing the page naturally drops converted items out of the Show Templates view, since the server no longer flags them as templates.
+
 ---
 
 ### Workflow 2 — Receiving Stock for an Existing Product
 
 Use this when a product already exists in the system and you have received more units.
 
-#### Grocery — Receive Stock Page
+#### Receive Stock Page (Grocery, Restaurant, Clothing, Hardware, Construction)
 
-1. Go to **Grocery → Inventory → Receive Stock**.
+1. Go to **[Business] → Inventory → Receive Stock** — or click **Receive Stock** on the Inventory Overview card on the business home page.
 2. A grid shows all your existing products.
 3. For each item you received:
    - Enter the **quantity received** in the "Receive Qty" column.
@@ -4809,6 +4834,8 @@ Use this when a product already exists in the system and you have received more 
 4. Click **Submit Receipt** — the system increases the stock levels and records a stock-received movement.
 
 > You can update multiple products in a single session — fill in quantities for everything you received and submit once.
+
+> **Services** businesses don't have a Receive Stock page — services have no physical stock to receive. **Chicken Run** uses its own **Add Purchased Stock** flow instead (Chicken Run → Inventory → Add Purchased Stock), which records a feed/stock purchase directly.
 
 #### Clothing / Hardware / Universal — Single-Item Add Stock Form
 
@@ -4820,7 +4847,7 @@ For a new barcode inventory item (not yet in the system), use the **Add Stock** 
 | Field | Required | Notes |
 |-------|----------|-------|
 | **Barcode** | Auto-filled if from scan | Read-only if pre-filled from a scan |
-| **Product Name** | Yes | What this item is called |
+| **Product Name** | Yes | What this item is called. Once you've typed at least 2 characters, a **💡 Suggest Classification** button appears next to the label — click it to get department/category suggestions matched from the product name, instead of hunting through the dropdowns manually. |
 | **Domain** | No | Top-level classification (e.g. "🥦 Fresh Produce"). Available for all business types. |
 | **Category** | Yes | Filtered by the selected domain. Create inline with **+ New category**. |
 | **Supplier** | No | Searchable dropdown. Create inline with **+ New supplier**. |
@@ -4835,6 +4862,8 @@ For a new barcode inventory item (not yet in the system), use the **Add Stock** 
 **Domain → Category cascade:** When you select a domain, the category dropdown is automatically filtered to show only categories within that domain. Selecting a new domain clears the category field.
 
 > **For existing products (updating stock or price):** Open the product's detail page (from the product list, click on the product name), then click **Adjust Stock**. Enter the quantity and reason. The new units are added to the current stock count.
+
+> The Add Stock form doesn't have a photo field — it's built for fast barcode/print intake. If you want a photo on the item, save it here first, then open it from the inventory list with ✏️ **Edit** and use **Add Image** there.
 
 #### What a stock receipt records
 
@@ -13211,8 +13240,9 @@ The result screen reports what happened to every sale in the selection:
 |---------|---------|
 | **Reassigned** | Updated successfully |
 | **Already assigned to this employee** | No-op — skipped, not counted as an error |
-| **No salesperson to reassign from** | The sale had no salesperson recorded at all (e.g. some WiFi portal or meal-program sales) — skipped |
 | **Blocked** | The sale's date already has a submitted or manager-approved End-of-Day report for its *current* salesperson — see below |
+
+> **Sales with no employee record can be reassigned too.** A sale rung up by someone without an Employees profile (e.g. a business owner or admin covering the till) is recorded under their name for tracking, not credited to any employee. The Employees table exists for commission tracking, not as a gate on who's allowed to sell — so these sales are still fully eligible to reassign onto a real employee, the same as any other sale.
 
 ### Why a Sale Can Be Blocked
 
