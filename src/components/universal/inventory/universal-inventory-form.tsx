@@ -7,6 +7,7 @@ import { InventorySubcategoryEditor } from '@/components/inventory/inventory-sub
 import { BarcodeManager, ProductBarcode } from '@/components/universal/barcode-manager'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { ProductTagsEditor } from '@/components/universal/product-tag-picker'
+import { ImageUploadDialog } from '@/components/pos/image-upload-dialog'
 import { useSession } from 'next-auth/react'
 import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { LabelPreview } from '@/components/printing/label-preview'
@@ -46,6 +47,9 @@ interface UniversalInventoryItem {
   isAvailable?: boolean
   barcodes?: ProductBarcode[]
   attributes?: Record<string, any>
+  // MBM-296: the item's own display image, if it has one — not an editable
+  // form field, just what the GET endpoint returns to seed the thumbnail.
+  imageUrl?: string | null
 }
 
 // MBM-270: hardware conditional fields, keyed by exact category name (see
@@ -273,6 +277,7 @@ export function UniversalInventoryForm({
   const [categoriesLoaded, setCategoriesLoaded] = useState(false)
   const [isNavigatingToPOS, setIsNavigatingToPOS] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [showImageDialog, setShowImageDialog] = useState(false)
   const [showSubcategoryEditor, setShowSubcategoryEditor] = useState(false)
   const [printOnSave, setPrintOnSave] = useState(false)
   const [showLabelPreview, setShowLabelPreview] = useState(false)
@@ -1265,6 +1270,28 @@ export function UniversalInventoryForm({
           </div>
         )}
 
+        {/* Image (MBM-296) — only once the item has an id to attach a photo
+            to; universal across every business type, not clothing-gated,
+            same as the rest of this form. */}
+        {item?.id && (
+          <div className="flex items-center gap-3 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center flex-shrink-0">
+              {formData.imageUrl ? (
+                <img src={formData.imageUrl} alt={formData.name} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-2xl">📦</span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowImageDialog(true)}
+              className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              📷 {formData.imageUrl ? 'Change Image' : 'Add Image'}
+            </button>
+          </div>
+        )}
+
         {/* Two-panel layout: basic info left, business-specific + barcode right */}
         <div className="flex flex-col lg:flex-row lg:gap-5">
 
@@ -1894,6 +1921,22 @@ export function UniversalInventoryForm({
             onPrint={handlePrint}
           />
         )}
+
+        {/* Image Upload/Choose-from-Gallery (MBM-296) */}
+        {showImageDialog && item?.id && (
+          <ImageUploadDialog
+            businessId={businessId}
+            itemId={item.id.startsWith('inv_') ? item.id.slice(4) : item.id}
+            itemName={formData.name || item.name}
+            sourceTable={item.id.startsWith('inv_') ? 'BARCODE_ITEM' : 'BUSINESS_PRODUCT'}
+            currentImageUrl={formData.imageUrl ?? null}
+            onClose={() => setShowImageDialog(false)}
+            onSaved={(newImageUrl) => {
+              setFormData(prev => ({ ...prev, imageUrl: newImageUrl || null }))
+              setShowImageDialog(false)
+            }}
+          />
+        )}
       </>
     )
   }
@@ -1971,6 +2014,22 @@ export function UniversalInventoryForm({
           }}
           labelData={getLabelDataFromItem(savedItemForLabel)}
           onPrint={handlePrint}
+        />
+      )}
+
+      {/* Image Upload/Choose-from-Gallery (MBM-296) */}
+      {showImageDialog && item?.id && (
+        <ImageUploadDialog
+          businessId={businessId}
+          itemId={item.id.startsWith('inv_') ? item.id.slice(4) : item.id}
+          itemName={formData.name || item.name}
+          sourceTable={item.id.startsWith('inv_') ? 'BARCODE_ITEM' : 'BUSINESS_PRODUCT'}
+          currentImageUrl={formData.imageUrl ?? null}
+          onClose={() => setShowImageDialog(false)}
+          onSaved={(newImageUrl) => {
+            setFormData(prev => ({ ...prev, imageUrl: newImageUrl || null }))
+            setShowImageDialog(false)
+          }}
         />
       )}
     </>

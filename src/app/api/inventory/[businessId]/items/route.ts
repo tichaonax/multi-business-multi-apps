@@ -325,6 +325,10 @@ export async function GET(
       name: item.name,
       sku: item.sku || '',
       description: item.customLabel || '',
+      // MBM-296: BarcodeInventoryItems have their own imageId column — the
+      // grid already renders it (`<img src="/api/images/{imageId}">`) for
+      // BusinessProducts, it just never received one for these rows before.
+      imageId: (item as any).imageId || null,
       category: (item as any).business_category?.name || 'Uncategorized',
       categoryId: item.categoryId || null,
       categoryEmoji: (item as any).business_category?.emoji || '📦',

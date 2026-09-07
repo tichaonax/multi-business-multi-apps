@@ -42,6 +42,9 @@ export async function GET(
           name: item.name,
           sku: item.sku || '',
           description: item.customLabel || '',
+          // MBM-296: this item's own display image, if it has one — the edit
+          // form previously had no way to know an image existed at all.
+          imageUrl: item.imageId ? `/api/images/${item.imageId}` : null,
           category: (item as any).business_category?.name || item.category || 'Uncategorized',
           categoryId: item.categoryId || null,
           categoryEmoji: (item as any).business_category?.emoji || '📦',
@@ -86,7 +89,14 @@ export async function GET(
           include: {
             business_stock_movements: true
           }
-        }
+        },
+        // MBM-296: this product's own primary photo, if it has one — same
+        // "primary first, else whatever's there" resolution the rest of the
+        // app already uses (POS cards, receipts).
+        product_images: {
+          orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+          take: 1,
+        },
       }
     })
 
@@ -115,6 +125,7 @@ export async function GET(
         name: product.name,
         sku: product.sku || '',
         description: product.description || '',
+        imageUrl: product.product_images[0] ? `/api/images/${product.product_images[0].imageId}` : null,
         category: product.business_categories?.name || 'Uncategorized',
         categoryId: product.categoryId || null,
         categoryEmoji: product.business_categories?.emoji || '📦',
