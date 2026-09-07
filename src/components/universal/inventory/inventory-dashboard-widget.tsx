@@ -10,6 +10,15 @@ interface InventoryDashboardWidgetProps {
   showDetails?: boolean
   maxAlerts?: number
   refreshInterval?: number
+  // Override the default `/${businessType}/inventory[...]` routes for
+  // business types that manage their catalog through a different page
+  // (e.g. services uses /services/list + /services/add; chicken-run uses
+  // its own /chicken-run/inventory + /purchase flow). Pass `null` for
+  // receiveStockHref to hide that button entirely for business types with
+  // no physical-stock concept (e.g. services).
+  viewAllHref?: string
+  addItemHref?: string
+  receiveStockHref?: string | null
 }
 
 interface DashboardStats {
@@ -32,8 +41,14 @@ export function InventoryDashboardWidget({
   businessType,
   showDetails = true,
   maxAlerts = 5,
-  refreshInterval = 300000 // 5 minutes
+  refreshInterval = 300000, // 5 minutes
+  viewAllHref,
+  addItemHref,
+  receiveStockHref,
 }: InventoryDashboardWidgetProps) {
+  const resolvedViewAllHref = viewAllHref ?? `/${businessType}/inventory`
+  const resolvedAddItemHref = addItemHref ?? `/${businessType}/inventory/add`
+  const resolvedReceiveStockHref = receiveStockHref === undefined ? `/${businessType}/inventory/receive` : receiveStockHref
   const { data: session, status } = useSession()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -220,7 +235,7 @@ export function InventoryDashboardWidget({
           <h3 className="text-lg font-semibold text-primary">Inventory Overview</h3>
         </div>
         <Link
-          href={`/${businessType}/inventory`}
+          href={resolvedViewAllHref}
           className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
         >
           View All →
@@ -238,11 +253,11 @@ export function InventoryDashboardWidget({
             <div className="text-2xl font-bold text-primary">{formatCurrency(stats.totalValue)}</div>
             <div className="text-sm text-secondary">Total Value</div>
           </div>
-          <Link href={`/${businessType}/inventory?tab=inventory&stockStatus=low`} className="text-center hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-2 transition-colors block">
+          <Link href={`${resolvedViewAllHref}?tab=inventory&stockStatus=low`} className="text-center hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-2 transition-colors block">
             <div className="text-2xl font-bold text-orange-600">{stats.lowStockCount}</div>
             <div className="text-sm text-secondary">Low Stock</div>
           </Link>
-          <Link href={`/${businessType}/inventory?tab=inventory&stockStatus=out`} className="text-center hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-2 transition-colors block">
+          <Link href={`${resolvedViewAllHref}?tab=inventory&stockStatus=out`} className="text-center hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-2 transition-colors block">
             <div className="text-2xl font-bold text-red-600">{stats.outOfStockCount}</div>
             <div className="text-sm text-secondary">Out of Stock</div>
           </Link>
@@ -255,7 +270,7 @@ export function InventoryDashboardWidget({
               <h4 className="font-medium text-primary">Critical Alerts</h4>
               {stats.criticalAlerts.length > 0 && (
                 <Link
-                  href={`/${businessType}/inventory?tab=alerts`}
+                  href={`${resolvedViewAllHref}?tab=alerts`}
                   className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                 >
                   View All
@@ -310,17 +325,19 @@ export function InventoryDashboardWidget({
         {/* Quick Actions */}
         <div className="mt-6 flex gap-2">
           <Link
-            href={`/${businessType}/inventory/add`}
+            href={resolvedAddItemHref}
             className="flex-1 py-2 px-3 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 text-center"
           >
             Add Item
           </Link>
-          <Link
-            href={`/${businessType}/inventory/receive`}
-            className="flex-1 py-2 px-3 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 text-center"
-          >
-            Receive Stock
-          </Link>
+          {resolvedReceiveStockHref && (
+            <Link
+              href={resolvedReceiveStockHref}
+              className="flex-1 py-2 px-3 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 text-center"
+            >
+              Receive Stock
+            </Link>
+          )}
         </div>
 
         {/* Last Updated */}

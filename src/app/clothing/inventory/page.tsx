@@ -978,12 +978,21 @@ function ClothingInventoryContent() {
       })
 
       if (response.ok) {
-        // Close form immediately
-        setShowAddForm(false)
-        setSelectedItem(null)
-        setActiveTab('inventory')
-        // Trigger grid refresh by updating the key
+        const data = await response.json()
         setRefreshKey(prev => prev + 1)
+        if (!selectedItem) {
+          // Just created (not edited) — switch the modal into edit mode for
+          // the new item instead of closing immediately. The image-upload
+          // option only appears once an item has a real id, so closing here
+          // meant there was never a chance to attach a photo right after
+          // creating it.
+          setSelectedItem(data.item)
+          showToast('Item created — add a photo now, or close when done', { type: 'success' })
+        } else {
+          setShowAddForm(false)
+          setSelectedItem(null)
+          setActiveTab('inventory')
+        }
       } else {
         // Extract error message from API response
         const errorData = await response.json()
@@ -2036,6 +2045,7 @@ function ClothingInventoryContent() {
               setShowAddForm(false)
               setSelectedItem(null)
             }}
+            onSilentUpdate={() => setRefreshKey(prev => prev + 1)}
             isOpen={showAddForm}
             mode={selectedItem ? 'edit' : 'create'}
           />

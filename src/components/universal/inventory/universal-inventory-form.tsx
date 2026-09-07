@@ -219,6 +219,14 @@ interface UniversalInventoryFormProps {
   // preferred: onSubmit handler used by pages
   onSubmit?: (formData: any) => Promise<void> | void
   onCancel: () => void
+  // Fires after an in-modal action persists immediately to the server —
+  // stock adjustment, template conversion, image change — bypassing the
+  // normal onSubmit/onSave flow entirely. Without this, the parent's list
+  // (e.g. UniversalInventoryGrid) has no way to know data changed if the
+  // user closes the modal without ever clicking the main Update button,
+  // and shows stale data until a manual page refresh. Optional so existing
+  // callers that don't need it keep working unchanged.
+  onSilentUpdate?: () => void
   isOpen?: boolean
   customFields?: any[]
   mode?: 'create' | 'edit'
@@ -240,6 +248,7 @@ export function UniversalInventoryForm({
   onSave,
   onSubmit,
   onCancel,
+  onSilentUpdate,
   isOpen = true,
   customFields = [],
   mode = 'create',
@@ -691,6 +700,7 @@ export function UniversalInventoryForm({
         return
       }
       setFormData(prev => ({ ...prev, isProductTemplate: false }))
+      onSilentUpdate?.()
     } catch {
       await alert({ title: 'Conversion failed', description: 'Failed to convert item to regular inventory' })
     } finally {
@@ -1620,6 +1630,7 @@ export function UniversalInventoryForm({
                                   await alert({ title: 'Stock adjustment failed', description: data.error || 'Failed to adjust stock' })
                                 } else {
                                   setFormData(prev => ({ ...prev, currentStock: newStock }))
+                                  onSilentUpdate?.()
                                 }
                               } catch {
                                 await alert({ title: 'Stock adjustment failed', description: 'Network error occurred' })
@@ -2089,6 +2100,7 @@ export function UniversalInventoryForm({
             onSaved={(newImageUrl) => {
               setFormData(prev => ({ ...prev, imageUrl: newImageUrl || null }))
               setShowImageDialog(false)
+              onSilentUpdate?.()
             }}
           />
         )}

@@ -117,6 +117,13 @@ export default function ServicesPage() {
               businessType="services"
               showDetails={true}
               maxAlerts={3}
+              // Services manages its catalog through its own dedicated pages
+              // (not the generic /inventory route), and has no physical
+              // stock to "receive" — hide that button and point the other
+              // two at the real pages.
+              viewAllHref="/services/list"
+              addItemHref="/services/add"
+              receiveStockHref={null}
             />
           )}
 

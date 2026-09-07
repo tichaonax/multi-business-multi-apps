@@ -118,6 +118,12 @@ export default function ChickenRunDashboard() {
             businessType="chicken-run"
             showDetails={true}
             maxAlerts={3}
+            // Chicken-run has its own bespoke "purchase" flow instead of the
+            // generic add/receive pages — adding stock and receiving stock
+            // are the same action here (recording a purchase), so both
+            // buttons point at it.
+            addItemHref="/chicken-run/inventory/purchase"
+            receiveStockHref="/chicken-run/inventory/purchase"
           />
         )}
 

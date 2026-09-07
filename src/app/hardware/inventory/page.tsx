@@ -693,6 +693,7 @@ function HardwareInventoryContent() {
               setShowAddForm(false)
               setSelectedItem(null)
             }}
+            onSilentUpdate={() => setRefreshKey(prev => prev + 1)}
             isOpen={showAddForm}
             mode={selectedItem ? 'edit' : 'create'}
           />

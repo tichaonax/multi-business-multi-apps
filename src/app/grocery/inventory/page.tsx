@@ -995,6 +995,7 @@ function GroceryInventoryContent() {
                       setShowAddForm(false)
                       setSelectedItem(null)
                     }}
+                    onSilentUpdate={() => setRefreshKey(prev => prev + 1)}
                     onCategoriesLoaded={() => setFormReady(true)}
                     renderMode="inline"
                     mode={selectedItem ? 'edit' : 'create'}

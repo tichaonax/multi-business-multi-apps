@@ -1,0 +1,322 @@
+'use client'
+
+import { useState, useEffect, useRef } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { BusinessTypeRoute } from '@/components/auth/business-type-route'
+import { ContentLayout } from '@/components/layout/content-layout'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+
+interface InventoryItem {
+  id: string
+  name: string
+  sku?: string
+  currentStock: number
+  category: string
+  basePrice: number
+}
+
+interface GenericReceiveStockPageProps {
+  businessType: string
+  businessLabel: string
+  icon?: string
+}
+
+// Business-agnostic "Receive Stock" page — ported from the grocery
+// inventory/receive page, which already had zero grocery-specific logic
+// (generic /api/inventory/{businessId}/items + /movements endpoints).
+export function GenericReceiveStockPage({ businessType, businessLabel, icon = '📦' }: GenericReceiveStockPageProps) {
+  const { data: session } = useSession()
+  const router = useRouter()
+  const { currentBusinessId } = useBusinessPermissionsContext()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [items, setItems] = useState<InventoryItem[]>([])
+  const [selectedItems, setSelectedItems] = useState<{ [itemId: string]: { quantity: number; batchNumber?: string; expirationDate?: string; costPerUnit?: number } }>({})
+  const [search, setSearch] = useState('')
+  const [itemsLoading, setItemsLoading] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (currentBusinessId) fetchInventoryItems('')
+  }, [currentBusinessId])
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      if (currentBusinessId) fetchInventoryItems(search)
+    }, 300)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [search, currentBusinessId])
+
+  const fetchInventoryItems = async (query: string) => {
+    if (!currentBusinessId) return
+    try {
+      setItemsLoading(true)
+      const params = new URLSearchParams({ limit: '100', isActive: 'true' })
+      if (query.trim()) params.set('search', query.trim())
+      const response = await fetch(`/api/inventory/${currentBusinessId}/items?${params}`)
+      if (response.ok) {
+        const data = await response.json()
+        setItems(data.items || [])
+      }
+    } catch (error) {
+      console.error('Error fetching inventory items:', error)
+    } finally {
+      setItemsLoading(false)
+    }
+  }
+
+  const handleItemSelect = (itemId: string, quantity: number) => {
+    setSelectedItems(prev => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], quantity },
+    }))
+  }
+
+  const handleBatchInfo = (itemId: string, field: string, value: string) => {
+    setSelectedItems(prev => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], [field]: value },
+    }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!session?.user) {
+      setError('You must be logged in to receive inventory')
+      return
+    }
+
+    const receivedItems = Object.entries(selectedItems).filter(([_, data]) => data.quantity > 0)
+    if (receivedItems.length === 0) {
+      setError('Please select at least one item to receive')
+      return
+    }
+
+    try {
+      setLoading(true)
+      setError(null)
+      setSuccess(null)
+
+      for (const [itemId, data] of receivedItems) {
+        const item = items.find(i => i.id === itemId)
+        if (!item) continue
+
+        const movement = {
+          itemId,
+          itemName: item.name,
+          itemSku: item.sku || '',
+          movementType: 'receive',
+          quantity: data.quantity,
+          unit: 'units',
+          unitCost: data.costPerUnit ?? item.basePrice,
+          totalCost: (data.costPerUnit ?? item.basePrice) * data.quantity,
+          previousStock: item.currentStock,
+          newStock: item.currentStock + data.quantity,
+          reason: 'Stock Receipt',
+          notes: `Received ${data.quantity} units${data.batchNumber ? ` (Batch: ${data.batchNumber})` : ''}${data.expirationDate ? ` (Expires: ${data.expirationDate})` : ''}`,
+          employeeName: session.user.name || 'System',
+          batchNumber: data.batchNumber || '',
+          expirationDate: data.expirationDate || '',
+          location: 'Warehouse',
+        }
+
+        const response = await fetch(`/api/inventory/${currentBusinessId}/movements`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(movement),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || `Failed to receive ${item.name}`)
+        }
+      }
+
+      setSuccess(`Successfully received ${receivedItems.length} item(s)`)
+      setSelectedItems({})
+      fetchInventoryItems(search)
+
+      setTimeout(() => {
+        router.replace(`/${businessType}/inventory`)
+      }, 2000)
+    } catch (err) {
+      console.error('Error receiving inventory:', err)
+      setError(err instanceof Error ? err.message : 'Failed to receive inventory')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <BusinessTypeRoute requiredBusinessType={businessType}>
+      <ContentLayout
+        title={`${icon} Receive ${businessLabel} Inventory`}
+        subtitle="Record incoming stock shipments and deliveries"
+        breadcrumb={[
+          { label: 'Dashboard', href: '/dashboard' },
+          { label: businessLabel, href: `/${businessType}` },
+          { label: 'Inventory', href: `/${businessType}/inventory` },
+          { label: 'Receive Stock', isActive: true },
+        ]}
+      >
+        <div className="max-w-6xl mx-auto">
+          <div className="card">
+            <div className="p-6">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {error && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                    {error}
+                  </div>
+                )}
+
+                {success && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+                    {success}
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <h3 className="font-medium text-primary">Select Items to Receive</h3>
+                    <input
+                      type="text"
+                      placeholder="Search by name, SKU or category..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="input-field w-64 text-sm"
+                    />
+                  </div>
+
+                  {itemsLoading ? (
+                    <div className="text-center py-8 text-secondary">Searching...</div>
+                  ) : items.length === 0 ? (
+                    <div className="text-center py-8 text-secondary">
+                      <div className="text-4xl mb-4">📦</div>
+                      <p>{search.trim() ? `No items found for "${search}"` : 'No inventory items found.'}</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-8 gap-4 text-sm font-medium text-secondary border-b pb-2">
+                        <div>Product</div>
+                        <div>SKU</div>
+                        <div>Category</div>
+                        <div>Current Stock</div>
+                        <div>Receive Qty</div>
+                        <div>Cost/Unit</div>
+                        <div>Batch #</div>
+                        <div>Expiration</div>
+                      </div>
+
+                      {items.map(item => (
+                        <div key={item.id} className="grid grid-cols-8 gap-4 items-center py-3 border-b border-gray-100">
+                          <div>
+                            <div className="font-medium text-primary">{item.name}</div>
+                            <div className="text-sm text-secondary">${(item.basePrice ?? 0).toFixed(2)}/unit</div>
+                          </div>
+                          <div className="text-sm text-secondary">{item.sku || '-'}</div>
+                          <div className="text-sm text-secondary">{item.category}</div>
+                          <div className="text-sm">
+                            <span className={`inline-flex px-2 py-1 rounded text-xs ${
+                              item.currentStock <= 10
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-green-100 text-green-800'
+                            }`}>
+                              {item.currentStock} units
+                            </span>
+                          </div>
+                          <div>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              placeholder="0"
+                              value={selectedItems[item.id]?.quantity || ''}
+                              onChange={(e) => handleItemSelect(item.id, e.target.value === '' ? 0 : parseInt(e.target.value))}
+                              className="input-field w-full"
+                            />
+                          </div>
+                          <div>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder={`$${(item.basePrice ?? 0).toFixed(2)}`}
+                              value={selectedItems[item.id]?.costPerUnit || ''}
+                              onChange={(e) => handleBatchInfo(item.id, 'costPerUnit', e.target.value)}
+                              className="input-field w-full text-sm"
+                              disabled={!selectedItems[item.id]?.quantity}
+                            />
+                          </div>
+                          <div>
+                            <input
+                              type="text"
+                              placeholder="Batch #"
+                              value={selectedItems[item.id]?.batchNumber || ''}
+                              onChange={(e) => handleBatchInfo(item.id, 'batchNumber', e.target.value)}
+                              className="input-field w-full text-sm"
+                              disabled={!selectedItems[item.id]?.quantity}
+                            />
+                          </div>
+                          <div>
+                            <input
+                              type="date"
+                              value={selectedItems[item.id]?.expirationDate || ''}
+                              onChange={(e) => handleBatchInfo(item.id, 'expirationDate', e.target.value)}
+                              className="input-field w-full text-sm"
+                              disabled={!selectedItems[item.id]?.quantity}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {Object.keys(selectedItems).some(id => selectedItems[id].quantity > 0) && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 className="font-medium text-blue-900 mb-2">Receipt Summary</h4>
+                    <div className="space-y-1 text-sm text-blue-800">
+                      {Object.entries(selectedItems)
+                        .filter(([_, data]) => data.quantity > 0)
+                        .map(([itemId, data]) => {
+                          const item = items.find(i => i.id === itemId)
+                          return (
+                            <div key={itemId}>
+                              • {item?.name}: {data.quantity} units
+                              {data.batchNumber && ` (Batch: ${data.batchNumber})`}
+                              {data.expirationDate && ` (Expires: ${data.expirationDate})`}
+                            </div>
+                          )
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    type="button"
+                    onClick={() => router.back()}
+                    className="btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading || Object.keys(selectedItems).every(id => !selectedItems[id]?.quantity)}
+                    className="btn-primary"
+                  >
+                    {loading ? 'Processing...' : 'Receive Stock'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </ContentLayout>
+    </BusinessTypeRoute>
+  )
+}

@@ -117,6 +117,75 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
   const [supplierDropdownOpen, setSupplierDropdownOpen] = useState(false)
   const supplierRef = useRef<HTMLDivElement>(null)
 
+  // ── Suggest Classification (ported from UniversalInventoryForm's own
+  // client-side name-token scoring — same algorithm, adapted to this panel's
+  // flat department/category/sub-category state shape) ───────────────────────
+  interface SuggestItem {
+    domainId: string; domainName: string; domainEmoji: string
+    categoryId: string; categoryName: string; categoryEmoji: string
+    subcategoryId: string; subcategoryName: string; subcategoryEmoji: string
+    score: number
+  }
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  const [suggestions, setSuggestions] = useState<SuggestItem[]>([])
+
+  function handleSuggest() {
+    const q = productForm.name.trim()
+    if (q.length < 2) return
+    const tokens = q.toLowerCase().split(/[\s,./\\-]+/).filter(t => t.length >= 2)
+    const countMatches = (text: string) => {
+      const lower = text.toLowerCase()
+      return tokens.filter(t => lower.includes(t)).length
+    }
+    const scored: SuggestItem[] = []
+    for (const cat of allCategories) {
+      const domain = domains.find(d => d.id === cat.domainId)
+      const catScore = countMatches(cat.name) * 2
+      const domScore = domain ? countMatches(domain.name) * 1 : 0
+      const subs = allSubCategories.filter(s => s.parentId === cat.id)
+      if (subs.length > 0) {
+        for (const sub of subs) {
+          const subScore = countMatches(sub.name) * 3
+          const total = subScore + catScore + domScore
+          if (total === 0) continue
+          scored.push({
+            domainId: domain?.id ?? '', domainName: domain?.name ?? '', domainEmoji: domain?.emoji ?? '',
+            categoryId: cat.id, categoryName: cat.name, categoryEmoji: cat.emoji ?? '',
+            subcategoryId: sub.id, subcategoryName: sub.name, subcategoryEmoji: sub.emoji ?? '',
+            score: total,
+          })
+        }
+      } else {
+        const total = catScore + domScore
+        if (total === 0) continue
+        scored.push({
+          domainId: domain?.id ?? '', domainName: domain?.name ?? '', domainEmoji: domain?.emoji ?? '',
+          categoryId: cat.id, categoryName: cat.name, categoryEmoji: cat.emoji ?? '',
+          subcategoryId: '', subcategoryName: '', subcategoryEmoji: '',
+          score: total,
+        })
+      }
+    }
+    scored.sort((a, b) => b.score - a.score || a.categoryName.localeCompare(b.categoryName))
+    const seen = new Set<string>()
+    const top = scored.filter(s => {
+      const key = `${s.categoryId}|${s.subcategoryId}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    }).slice(0, 5)
+    setSuggestions(top)
+    setSuggestOpen(true)
+  }
+
+  function applySuggestion(s: SuggestItem) {
+    setSuggestOpen(false)
+    if (s.domainId) handleDepartmentChange(s.domainId)
+    setProductCategoryId(s.categoryId)
+    setFilteredSubCategories(allSubCategories.filter(c => c.parentId === s.categoryId))
+    if (s.subcategoryId) setProductSubCategoryId(s.subcategoryId)
+  }
+
   // ── Quick-create state ──────────────────────────────────────────────────────
   const [showCategoryEditor, setShowCategoryEditor] = useState(false)
   const [showNewCategoryForm, setShowNewCategoryForm] = useState(false)
@@ -720,7 +789,19 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
 
               {/* Product Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Product Name *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Product Name *</label>
+                  {productForm.name.trim().length >= 2 && (
+                    <button
+                      type="button"
+                      onClick={handleSuggest}
+                      className="text-xs px-2 py-0.5 rounded border border-amber-400 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+                      title="Suggest department / category from product name"
+                    >
+                      💡 Suggest Classification
+                    </button>
+                  )}
+                </div>
                 <input type="text" value={productForm.name}
                   onChange={e => setProductForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="e.g., Men's Denim Jacket" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
@@ -945,6 +1026,48 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
       onSuccess={handleCategoryEditorSuccess}
       onCancel={() => setShowCategoryEditor(false)}
     />
+
+    {/* Suggest Classification Modal */}
+    {suggestOpen && (
+      <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
+          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">💡 Suggested Classifications</h3>
+            <button type="button" onClick={() => setSuggestOpen(false)}
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
+          </div>
+          <div className="p-4">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+              Based on: <span className="font-medium text-gray-800 dark:text-gray-200">&quot;{productForm.name.trim()}&quot;</span>
+            </p>
+            {suggestions.length === 0 ? (
+              <p className="text-sm text-gray-500 py-4 text-center">No matches found — please select manually.</p>
+            ) : (
+              <ul className="space-y-2">
+                {suggestions.map((s, i) => (
+                  <li key={`${s.categoryId}|${s.subcategoryId}|${i}`}>
+                    <button
+                      type="button"
+                      onClick={() => applySuggestion(s)}
+                      className="w-full text-left px-3 py-2.5 rounded-md border border-gray-200 dark:border-gray-700 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                    >
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
+                        {s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName}
+                      </div>
+                      {s.subcategoryId && (
+                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {s.subcategoryEmoji} {s.subcategoryName}
+                        </div>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
     </>
   )
 }
