@@ -514,8 +514,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
           would disappear behind the (by-then fixed) filters bar instead of
           staying right below it. */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
-      <div ref={filtersRef} className="sticky top-0 z-20 bg-white dark:bg-gray-800 px-3 py-2.5 border-b border-gray-200 dark:border-gray-600">
+        <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}>
+      <div ref={filtersRef} className="sticky top-0 left-0 z-20 bg-white dark:bg-gray-800 px-3 py-2.5 border-b border-gray-200 dark:border-gray-600">
 
         {/* Row 1: Search + Reset */}
         <div className="flex gap-2 mb-2">
@@ -700,7 +700,6 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
             <p className="text-gray-500 dark:text-gray-400">No transactions found</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
             <table className="w-full">
               <thead
                 className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 sticky z-10"
@@ -1089,10 +1088,9 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                     </tr>
                   )
                 })}
-                <TableFillerRows count={limit - transactions.length} colSpan={7} cellClassName="p-3 h-[72px]" />
+                <TableFillerRows count={Math.min(limit, totalTransactions) - transactions.length} colSpan={7} cellClassName="p-3 h-[72px]" />
               </tbody>
             </table>
-          </div>
         )}
       </div>
         </div>

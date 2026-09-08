@@ -10,7 +10,10 @@ import { QuickPaymentModal } from './quick-payment-modal'
 import { TransferModal } from './transfer-modal'
 import type { OnSuccessArg } from '@/types/ui'
 import { Pagination } from '@/components/ui/pagination'
-import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
+
+// This card list's rows are far taller than a typical table row, so it uses
+// its own small page-size choices instead of the shared 10/25/50/100/200 set.
+const ACCOUNT_PAGE_SIZE_OPTIONS = [2, 3, 4, 5, 10] as const
 
 interface RecentTx {
   id: string
@@ -100,12 +103,13 @@ export function AccountList({
   const [showTransferModal, setShowTransferModal] = useState(false)
   const [selectedAccount, setSelectedAccount] = useState<ExpenseAccount | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const {
-    pageSize,
-    setPageSize: setLocalPageSize,
-    isOverridden: isPageSizeOverridden,
-    resetToDefault: resetPageSizeToDefault,
-  } = usePageSize()
+  // These account cards are much taller than a typical table row (header,
+  // stats sidebar, action buttons, up to 2 recent-activity lines each), so
+  // the shared 10/25/50/100/200 page-size preference — tuned for compact
+  // table rows — would make a single page absurdly long here. This list
+  // gets its own small local default instead of deferring to that
+  // preference.
+  const [pageSize, setPageSize] = useState(2)
 
   useEffect(() => {
     loadAccounts()
@@ -664,10 +668,8 @@ export function AccountList({
           pageSize={pageSize}
           onPageChange={setCurrentPage}
           loading={loading}
-          pageSizeOptions={PAGE_SIZE_OPTIONS}
-          onPageSizeChange={setLocalPageSize}
-          isPageSizeOverridden={isPageSizeOverridden}
-          onResetPageSize={resetPageSizeToDefault}
+          pageSizeOptions={ACCOUNT_PAGE_SIZE_OPTIONS}
+          onPageSizeChange={setPageSize}
         />
       )}
 

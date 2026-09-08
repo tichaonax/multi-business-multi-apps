@@ -638,10 +638,10 @@ export function UniversalInventoryGrid({
           means this wrapper isn't a scroll container on small screens, so
           the filters bar falls through to sticking against the window, and
           the mobile card list below is unaffected). */}
-      <div className="overflow-visible lg:overflow-y-auto lg:max-h-[var(--tbl-max-h)]" style={{ ['--tbl-max-h' as any]: tableMaxHeight }}>
+      <div className="overflow-visible lg:overflow-auto lg:max-h-[var(--tbl-max-h)]" style={{ ['--tbl-max-h' as any]: tableMaxHeight }}>
       {/* Search and Filters — sticky so it locks at top when scrolling the inventory list */}
       {(allowSearch || allowFiltering) && (
-        <div ref={filtersRef} className="sticky top-14 sm:top-16 lg:top-0 z-10 bg-background pt-2 pb-3 border-b border-border space-y-3">
+        <div ref={filtersRef} className="sticky top-14 sm:top-16 lg:top-0 lg:left-0 z-10 bg-background pt-2 pb-3 border-b border-border space-y-3">
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
             {allowSearch && (
               <div className="flex-1 w-full sm:w-auto flex items-center gap-2">
@@ -804,7 +804,7 @@ export function UniversalInventoryGrid({
           )}
           {/* Desktop Table View */}
           {!loading && (
-          <div className="hidden lg:block overflow-x-auto">
+          <div className="hidden lg:block">
             <table className="w-full text-sm table-fixed">
               <thead className="bg-gray-50 dark:bg-gray-800 sticky z-10" style={{ top: filtersHeight }}>
                 <tr>
@@ -1134,7 +1134,7 @@ export function UniversalInventoryGrid({
                   </tr>
                 )})}
                 <TableFillerRows
-                  count={pageSize - sortedItems.length}
+                  count={Math.min(pageSize, totalItems) - sortedItems.length}
                   colSpan={8 + (mergeMode ? 1 : 0) + (canPrintInventoryLabels ? 1 : 0) + (showBusinessSpecificFields ? 1 : 0) + (showActions ? 1 : 0)}
                   cellClassName="p-3 h-[72px]"
                 />

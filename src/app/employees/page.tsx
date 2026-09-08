@@ -13,6 +13,7 @@ import { AddEmployeeModal } from '@/components/employees/add-employee-modal'
 import { EmployeeIdCardModal } from '@/components/clock-in/employee-id-card'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { formatDate } from '@/lib/utils'
+import { useElementHeight } from '@/hooks/use-element-height'
 
 interface Employee {
   id: string
@@ -83,6 +84,7 @@ export default function EmployeesPage() {
   const { data: session } = useSession()
   const currentUser = session?.user as any
   const { hasPermission } = useBusinessPermissionsContext()
+  const { ref: filtersRef, height: filtersHeight } = useElementHeight<HTMLDivElement>()
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -515,8 +517,14 @@ export default function EmployeesPage() {
       }
     >
       <div className="space-y-6">
+        {/* Filters + table share one scroll/sticky region on desktop (lg+) so
+            the search bar and the table's column headers move together as a
+            single continuous unit and can never slide past each other. This
+            page had no sticky behavior before, so mobile is intentionally
+            left untouched (lg:-prefixed classes only). */}
+        <div className="overflow-visible lg:overflow-auto lg:max-h-[var(--tbl-max-h)]" style={{ ['--tbl-max-h' as any]: 'calc(100vh - 200px)' }}>
         {/* Search and Filters */}
-        <div className="card p-4 sm:p-6">
+        <div ref={filtersRef} className="card p-4 sm:p-6 lg:sticky lg:top-0 lg:left-0 lg:z-20">
           <div className="space-y-4">
             {/* Search - Full width on mobile */}
             <div>
@@ -893,9 +901,9 @@ export default function EmployeesPage() {
               </div>
 
               {/* Desktop Table Layout */}
-              <div className="hidden lg:block overflow-x-auto">
+              <div className="hidden lg:block">
                 <table className="w-full">
-                  <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 lg:sticky lg:z-10" style={{ top: filtersHeight }}>
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
                         Employee
@@ -1154,64 +1162,68 @@ export default function EmployeesPage() {
                   </tbody>
                 </table>
               </div>
-
-              {/* Pagination */}
-              <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between sm:px-6">
-                <div className="flex-1 flex justify-between sm:hidden">
-                  <button
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                    className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-primary bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage(Math.min(pagination.totalPages, currentPage + 1))}
-                    disabled={currentPage >= pagination.totalPages}
-                    className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-primary bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Next
-                  </button>
-                </div>
-
-                <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm text-secondary">
-                      Showing <span className="font-medium">{((currentPage - 1) * pagination.limit) + 1}</span> to{' '}
-                      <span className="font-medium">{Math.min(currentPage * pagination.limit, pagination.total)}</span> of{' '}
-                      <span className="font-medium">{pagination.total}</span> employees
-                    </p>
-                  </div>
-                  <div>
-                    <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                      <button
-                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                        disabled={currentPage === 1}
-                        className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-secondary hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <span className="sr-only">Previous</span>
-                        ← Previous
-                      </button>
-
-                      <span className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-primary">
-                        Page {currentPage} of {pagination.totalPages}
-                      </span>
-
-                      <button
-                        onClick={() => setCurrentPage(Math.min(pagination.totalPages, currentPage + 1))}
-                        disabled={currentPage >= pagination.totalPages}
-                        className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-secondary hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <span className="sr-only">Next</span>
-                        Next →
-                      </button>
-                    </nav>
-                  </div>
-                </div>
-              </div>
             </>
           )}
         </div>
+        </div>
+
+        {/* Pagination — outside the scrollable filters+table region so it
+            stays fixed beneath it instead of scrolling away with the rows. */}
+        {!loading && employees.length > 0 && (
+          <div className="card px-4 py-3 flex items-center justify-between sm:px-6">
+            <div className="flex-1 flex justify-between sm:hidden">
+              <button
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-primary bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setCurrentPage(Math.min(pagination.totalPages, currentPage + 1))}
+                disabled={currentPage >= pagination.totalPages}
+                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-primary bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+
+            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-secondary">
+                  Showing <span className="font-medium">{((currentPage - 1) * pagination.limit) + 1}</span> to{' '}
+                  <span className="font-medium">{Math.min(currentPage * pagination.limit, pagination.total)}</span> of{' '}
+                  <span className="font-medium">{pagination.total}</span> employees
+                </p>
+              </div>
+              <div>
+                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                  <button
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                    className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-secondary hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="sr-only">Previous</span>
+                    ← Previous
+                  </button>
+
+                  <span className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-primary">
+                    Page {currentPage} of {pagination.totalPages}
+                  </span>
+
+                  <button
+                    onClick={() => setCurrentPage(Math.min(pagination.totalPages, currentPage + 1))}
+                    disabled={currentPage >= pagination.totalPages}
+                    className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-secondary hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="sr-only">Next</span>
+                    Next →
+                  </button>
+                </nav>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Success/Error Message */}
