@@ -3,6 +3,7 @@
 import { Modal } from '@/components/ui/modal'
 import { useState, useEffect } from 'react'
 import { Package, Edit } from 'lucide-react'
+import { CategoryOptionGroups } from '@/lib/category-grouping'
 
 interface Product {
   id: string
@@ -35,6 +36,11 @@ interface Category {
     name: string
     emoji: string | null
   }
+  parent: {
+    id: string
+    name: string
+    emoji: string | null
+  } | null
   inventory_subcategories: {
     id: string
     name: string
@@ -264,11 +270,10 @@ export function ProductEditModal({ isOpen, onClose, product, onSuccess }: Produc
             disabled={loadingCategories}
           >
             <option value="">Select a category</option>
-            {filteredCategories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.emoji} {category.name} ({category.domain.emoji} {category.domain.name})
-              </option>
-            ))}
+            <CategoryOptionGroups
+              categories={filteredCategories.map((c) => ({ ...c, parentName: c.parent?.name ?? null }))}
+              renderLabel={(category) => `${category.emoji} ${category.name} (${category.domain.emoji} ${category.domain.name})`}
+            />
           </select>
           {errors.categoryId && (
             <p className="text-xs text-red-500 mt-1">{errors.categoryId}</p>

@@ -16,11 +16,18 @@ export async function GET(request: NextRequest) {
       where.domainId = domainId
     }
 
-    // Get all categories with their subcategories and domains
+    // Get all categories with their subcategories, domains, and parent group
     let categories = await prisma.businessCategories.findMany({
       where,
       include: {
         domain: {
+          select: {
+            id: true,
+            name: true,
+            emoji: true
+          }
+        },
+        business_categories: {
           select: {
             id: true,
             name: true,
@@ -55,6 +62,13 @@ export async function GET(request: NextRequest) {
       categories = categories.filter(c => !(c.attributes && (c.attributes as any).isGroup === true))
     }
 
+    // Alias the self-relation to `parent`, matching /api/universal/categories'
+    // shape, so shared client-side grouping helpers work against either.
+    const categoriesWithParent = categories.map((c: any) => {
+      const { business_categories, ...rest } = c
+      return { ...rest, parent: business_categories ?? null }
+    })
+
     // Also get all domains for filtering
     const domains = await prisma.inventoryDomains.findMany({
       where: {
@@ -74,7 +88,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        categories,
+        categories: categoriesWithParent,
         domains
       }
     })

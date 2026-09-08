@@ -1,12 +1,18 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { groupCategoriesByParent } from '@/lib/category-grouping'
 
 interface ExpenseCategory {
   id: string
   name: string
   emoji: string
   color: string
+  /** Optional parent group name (e.g. clothing's "Tops", "Bottoms") -- when
+   * present on any item, the dropdown organizes options under group headers.
+   * Callers that don't have a grouping concept (e.g. expense categories)
+   * simply omit it and get the same flat list as before. */
+  parentName?: string | null
 }
 
 interface SearchableCategorySelectorProps {
@@ -138,35 +144,44 @@ export function SearchableCategorySelector({
               </div>
             ) : (
               <div className="py-1">
-                {filteredCategories.map((category) => (
-                  <button
-                    key={category.id}
-                    type="button"
-                    onClick={() => handleSelect(category.id)}
-                    className={`w-full px-4 py-2 text-left flex items-center gap-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
-                      value === category.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''
-                    }`}
-                  >
-                    <span className="text-2xl">{category.emoji}</span>
-                    <div className="flex-1">
-                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                        {category.name}
+                {groupCategoriesByParent(filteredCategories).map((group, groupIndex) => (
+                  <div key={group.label ?? `ungrouped-${groupIndex}`}>
+                    {group.label && (
+                      <div className="px-4 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                        {group.label}
                       </div>
-                    </div>
-                    {value === category.id && (
-                      <svg
-                        className="w-5 h-5 text-blue-600"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
                     )}
-                  </button>
+                    {group.items.map((category) => (
+                      <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => handleSelect(category.id)}
+                        className={`w-full px-4 py-2 text-left flex items-center gap-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                          value === category.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                        }`}
+                      >
+                        <span className="text-2xl">{category.emoji}</span>
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {category.name}
+                          </div>
+                        </div>
+                        {value === category.id && (
+                          <svg
+                            className="w-5 h-5 text-blue-600"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 ))}
               </div>
             )}

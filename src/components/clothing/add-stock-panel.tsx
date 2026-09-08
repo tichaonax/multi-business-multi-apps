@@ -24,6 +24,8 @@ interface BusinessCategory {
   color: string
   parentId: string | null
   domainId?: string | null
+  /** Parent group name (e.g. "Tops", "Bottoms"), for grouping in the picker */
+  parentName?: string | null
 }
 
 interface Domain {
@@ -238,7 +240,8 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
       fetch(`/api/universal/categories?businessId=${effectiveBusinessId}&businessType=${effectiveBusinessType}`).then(r => r.json()),
       fetchDomains,
     ]).then(([catData, domainData]) => {
-      const list: BusinessCategory[] = Array.isArray(catData) ? catData : (catData.data ?? catData.categories ?? [])
+      const rawList: any[] = Array.isArray(catData) ? catData : (catData.data ?? catData.categories ?? [])
+      const list: BusinessCategory[] = rawList.map((c) => ({ ...c, parentName: c.parent?.name ?? null }))
       setAllCats(list)
       const domainList: Domain[] = domainData.domains ?? []
       setDomains(domainList)

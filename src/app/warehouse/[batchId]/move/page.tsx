@@ -10,6 +10,7 @@ import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
 import { useToastContext } from '@/components/ui/toast'
 import { PricingCalculator } from '@/components/inventory/pricing-calculator'
+import { CategoryOptionGroups } from '@/lib/category-grouping'
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,7 @@ interface Category {
   emoji: string
   parentId: string | null
   domainId: string | null
+  parent?: { id: string; name: string } | null
 }
 
 interface Domain {
@@ -448,7 +450,14 @@ export default function MoveWizardPage() {
       if (doms.length > 0) {
         const depts: Category[] = doms.map(d => ({ id: d.id, name: d.name, emoji: d.emoji, parentId: null, domainId: null }))
         setDepartments(depts)
-        const domainCats = cats.filter(c => !!c.domainId && !c.parentId)
+        // NOTE: previously also required `!c.parentId` here, which assumed every
+        // domain-scoped category was top-level. That's no longer true now that
+        // clothing categories are grouped under parent categories (Tops,
+        // Bottoms, ...) via parentId -- that filter would have hidden nearly
+        // every clothing category. domainId is what actually marks a
+        // domain-level category here; parentId is now used for grouping, not
+        // domain membership.
+        const domainCats = cats.filter(c => !!c.domainId)
         setCategories(domainCats)
         const catIds = domainCats.map(c => c.id).join(',')
         const parentBasedSubs = cats.filter(c => c.parentId != null && domainCats.some(dc => dc.id === c.parentId))
@@ -1022,9 +1031,10 @@ export default function MoveWizardPage() {
                             >
                               <option value="">Category…</option>
                               {extraCat && <option value={extraCat.id}>{extraCat.emoji ? `${extraCat.emoji} ` : ''}{extraCat.name}</option>}
-                              {filteredCats.map(c => (
-                                <option key={c.id} value={c.id}>{c.emoji ? `${c.emoji} ` : ''}{c.name}</option>
-                              ))}
+                              <CategoryOptionGroups
+                                categories={filteredCats.map(c => ({ ...c, parentName: c.parent?.name ?? null }))}
+                                renderLabel={(c) => `${c.emoji ? `${c.emoji} ` : ''}${c.name}`}
+                              />
                             </select>
                           )}
 

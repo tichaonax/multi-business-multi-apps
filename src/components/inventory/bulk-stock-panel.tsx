@@ -61,6 +61,8 @@ interface BusinessCategory {
   color: string
   parentId: string | null
   domainId?: string | null
+  /** Parent group name (e.g. "Tops", "Bottoms"), for grouping in the picker */
+  parentName?: string | null
 }
 
 interface Domain {
@@ -140,8 +142,12 @@ function formatTimeAgo(date: Date): string {
 function resolveHierarchy(categoryId: string, allCats: BusinessCategory[]) {
   const cat = allCats.find(c => c.id === categoryId)
   if (!cat) return { departmentId: '', categoryId, subCategoryId: '' }
-  // Domain-based departments (e.g. clothing): category has domainId, no parentId hierarchy
-  if (cat.domainId && !cat.parentId) return { departmentId: cat.domainId, categoryId: cat.id, subCategoryId: '' }
+  // Domain-based departments (e.g. clothing): category has domainId. Its own
+  // parentId, if set, is now used for organizational grouping (Tops, Bottoms,
+  // ...) rather than a subcategory relationship, so it doesn't affect this
+  // check -- only whether domainId is set distinguishes a domain-level leaf
+  // category from a real subcategory (which has domainId null).
+  if (cat.domainId) return { departmentId: cat.domainId, categoryId: cat.id, subCategoryId: '' }
   // ParentId-based hierarchy
   if (!cat.parentId) return { departmentId: '', categoryId: cat.id, subCategoryId: '' }
   const parent = allCats.find(c => c.id === cat.parentId)
@@ -315,7 +321,8 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
       fetch(`/api/universal/categories?businessId=${businessId}&businessType=${businessType}`).then(r => r.json()),
       fetchDomains,
     ]).then(([catData, domainData]) => {
-      const list: BusinessCategory[] = Array.isArray(catData) ? catData : (catData.data ?? catData.categories ?? [])
+      const rawList: any[] = Array.isArray(catData) ? catData : (catData.data ?? catData.categories ?? [])
+      const list: BusinessCategory[] = rawList.map((c) => ({ ...c, parentName: c.parent?.name ?? null }))
       setAllCats(list)
       const domainList: Domain[] = domainData.domains ?? []
       setDomains(domainList)

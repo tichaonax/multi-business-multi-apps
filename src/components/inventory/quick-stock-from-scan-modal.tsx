@@ -28,6 +28,7 @@ interface Category {
   domainId?: string | null
   domain?: Domain | null
   subcategories?: Subcategory[]
+  parent?: { id: string; name: string } | null
 }
 
 interface Supplier {
@@ -839,7 +840,7 @@ export function QuickStockFromScanModal({
                 <div className="h-9 bg-gray-200 dark:bg-gray-700 rounded-md animate-pulse" />
               ) : (
                 <SearchableSelect
-                  options={filteredCategories.map((c) => ({ id: c.id, name: c.name, emoji: c.emoji || undefined }))}
+                  options={filteredCategories.map((c) => ({ id: c.id, name: c.name, emoji: c.emoji || undefined, parentName: c.parent?.name ?? null }))}
                   value={categoryId}
                   onChange={(id) => { setCategoryId(id); setSubcategoryId(''); setShowNewSubcategory(false) }}
                   placeholder={hasDomains && domainId ? 'Select category in this department…' : 'Select category…'}

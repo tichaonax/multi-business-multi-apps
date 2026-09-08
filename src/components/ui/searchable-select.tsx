@@ -9,6 +9,11 @@ interface Option {
   label?: string
   name?: string
   emoji?: string
+  /** Optional parent group name (e.g. clothing's "Tops", "Bottoms") -- when
+   * any option carries this, the dropdown organizes options under group
+   * headers. Callers that don't have a grouping concept simply omit it and
+   * get the same flat list as before. */
+  parentName?: string | null
 }
 
 interface SearchableSelectProps {
@@ -44,6 +49,30 @@ function getOptionLabel(o: Option): string {
   if (o.label) return o.label
   const emoji = o.emoji ? `${o.emoji} ` : ''
   return `${emoji}${o.name ?? ''}`
+}
+
+/** Groups options by parentName (ungrouped ones last); a no-op single group
+ * when nothing carries a parentName, so existing flat-list callers render
+ * identically to before. */
+function groupOptions(options: Option[]): { label: string | null; items: Option[] }[] {
+  const groups = new Map<string, Option[]>()
+  const ungrouped: Option[] = []
+
+  for (const option of options) {
+    if (option.parentName) {
+      const bucket = groups.get(option.parentName) ?? []
+      bucket.push(option)
+      groups.set(option.parentName, bucket)
+    } else {
+      ungrouped.push(option)
+    }
+  }
+
+  const sortedGroups = [...groups.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([label, items]) => ({ label, items }))
+
+  return ungrouped.length > 0 ? [...sortedGroups, { label: null, items: ungrouped }] : sortedGroups
 }
 
 export function SearchableSelect({
@@ -180,19 +209,28 @@ export function SearchableSelect({
         {filtered.length === 0 && !(onCreateNew && search.trim()) ? (
           <p className="px-3 py-2 text-sm text-secondary italic">{emptyMessage}</p>
         ) : (
-          filtered.map(o => {
-            const val = getOptionValue(o)
-            return (
-              <button
-                key={val}
-                type="button"
-                onClick={() => select(val)}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 whitespace-nowrap ${value === val ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium' : 'text-primary'}`}
-              >
-                {renderOption ? renderOption(o) : getOptionLabel(o)}
-              </button>
-            )
-          })
+          groupOptions(filtered).map((group, groupIndex) => (
+            <div key={group.label ?? `ungrouped-${groupIndex}`}>
+              {group.label && (
+                <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  {group.label}
+                </div>
+              )}
+              {group.items.map(o => {
+                const val = getOptionValue(o)
+                return (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => select(val)}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 whitespace-nowrap ${value === val ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium' : 'text-primary'}`}
+                  >
+                    {renderOption ? renderOption(o) : getOptionLabel(o)}
+                  </button>
+                )
+              })}
+            </div>
+          ))
         )}
         {onCreateNew && search.trim() && !filtered.some(o => getOptionLabel(o).toLowerCase() === search.trim().toLowerCase()) && (
           <button
