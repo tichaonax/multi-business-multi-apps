@@ -164,7 +164,20 @@ export async function GET(request: NextRequest) {
       ]
     }
 
-    if (categoryId) where.categoryId = categoryId
+    // If categoryId is a "group" parent (e.g. clothing's Tops, Bottoms),
+    // expand one level to include its leaf children's products too --
+    // matches the same pattern already used by /api/admin/clothing/products
+    // and /api/admin/products, so selecting a group here behaves the same
+    // way instead of silently returning zero products.
+    if (categoryId) {
+      const children = await prisma.businessCategories.findMany({
+        where: { parentId: categoryId },
+        select: { id: true }
+      })
+      where.categoryId = children.length > 0
+        ? { in: [categoryId, ...children.map(c => c.id)] }
+        : categoryId
+    }
     if (brandId) where.brandId = brandId
     if (productType) where.productType = productType as any
     if (condition) where.condition = condition as any
