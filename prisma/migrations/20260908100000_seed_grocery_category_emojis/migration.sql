@@ -1,0 +1,61 @@
+-- Assign curated emojis to grocery inventory categories that were still on
+-- the default 📦. Matches by (businessType, name) so it applies to every
+-- domain/parent grouping that name appears under. Idempotent — safe to
+-- re-run (sets the same value again if already applied).
+
+UPDATE business_categories SET emoji = '🔋', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Battries';
+UPDATE business_categories SET emoji = '🍺', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Beer';
+UPDATE business_categories SET emoji = '🍺', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Beer Black Label';
+UPDATE business_categories SET emoji = '🥤', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Beverages';
+UPDATE business_categories SET emoji = '🍺', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Black Label';
+UPDATE business_categories SET emoji = '🧴', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Body Lotion';
+UPDATE business_categories SET emoji = '🍬', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Brown Sugar';
+UPDATE business_categories SET emoji = '🍺', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Castle Paint';
+UPDATE business_categories SET emoji = '🍬', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Chewing Gums';
+UPDATE business_categories SET emoji = '🌶️', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Chilli';
+UPDATE business_categories SET emoji = '🥫', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Chunks';
+UPDATE business_categories SET emoji = '🪥', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Colgate';
+UPDATE business_categories SET emoji = '🪥', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Colgate Strong Teeth';
+UPDATE business_categories SET emoji = '🛢️', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Cooking Oil';
+UPDATE business_categories SET emoji = '🥛', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Cremora';
+UPDATE business_categories SET emoji = '🥜', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Dovi';
+UPDATE business_categories SET emoji = '🥜', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Ellis Brown';
+UPDATE business_categories SET emoji = '🏷️', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Everest';
+UPDATE business_categories SET emoji = '🐟', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Fish';
+UPDATE business_categories SET emoji = '🌾', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Flour';
+UPDATE business_categories SET emoji = '🧂', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Gango Flavour';
+UPDATE business_categories SET emoji = '🛒', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'General Grocery';
+UPDATE business_categories SET emoji = '🌾', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Gloria Flour 2kg';
+UPDATE business_categories SET emoji = '🍬', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Hello';
+UPDATE business_categories SET emoji = '🔥', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Lighters';
+UPDATE business_categories SET emoji = '🌾', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Masamba';
+UPDATE business_categories SET emoji = '🍿', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Mega Snax';
+UPDATE business_categories SET emoji = '🍿', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Mega100g';
+UPDATE business_categories SET emoji = '🚬', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Menthol Filter Cigarattees';
+UPDATE business_categories SET emoji = '🍬', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Mints';
+UPDATE business_categories SET emoji = '🥛', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Nestle Cremora';
+UPDATE business_categories SET emoji = '🍿', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Nibbles';
+UPDATE business_categories SET emoji = '🍿', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Nibbles Naks';
+UPDATE business_categories SET emoji = '🌶️', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Peri Peri';
+UPDATE business_categories SET emoji = '🛍️', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Plastic';
+UPDATE business_categories SET emoji = '🥛', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Powder Milk Cremora';
+UPDATE business_categories SET emoji = '🍿', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Puffs';
+UPDATE business_categories SET emoji = '🍚', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Rice';
+UPDATE business_categories SET emoji = '🧂', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Royco';
+UPDATE business_categories SET emoji = '🐟', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Sable';
+UPDATE business_categories SET emoji = '🥗', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Salad Cream';
+UPDATE business_categories SET emoji = '🧂', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Salt';
+UPDATE business_categories SET emoji = '🍿', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Snacks';
+UPDATE business_categories SET emoji = '🍿', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Snax';
+UPDATE business_categories SET emoji = '🧼', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Soap';
+UPDATE business_categories SET emoji = '🌶️', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Spicy Mega Snax';
+UPDATE business_categories SET emoji = '🍬', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Sugar';
+UPDATE business_categories SET emoji = '🍭', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Sweets';
+UPDATE business_categories SET emoji = '🍿', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Toasted Maputi';
+UPDATE business_categories SET emoji = '🪥', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Toothbrush';
+UPDATE business_categories SET emoji = '🔁', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Transferred Items';
+UPDATE business_categories SET emoji = '🍴', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Utensils';
+UPDATE business_categories SET emoji = '🧺', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Washing Powder';
+UPDATE business_categories SET emoji = '🥃', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Whisky';
+UPDATE business_categories SET emoji = '🥃', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Whisky Blended';
+UPDATE business_categories SET emoji = '🍺', "updatedAt" = NOW() WHERE "businessType" = 'grocery' AND name = 'Zambezi';
