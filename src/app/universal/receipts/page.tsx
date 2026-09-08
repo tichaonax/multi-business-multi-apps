@@ -16,6 +16,10 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
 import { getPresetDateRange, type DatePreset } from '@/lib/date-presets'
+import { Pagination } from '@/components/ui/pagination'
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
+import { useElementHeight } from '@/hooks/use-element-height'
+import { TableFillerRows } from '@/components/ui/table-filler-rows'
 
 interface ReceiptListItem {
   id: string
@@ -80,6 +84,14 @@ function ReceiptHistoryPageContent() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [selectAllFilterActive, setSelectAllFilterActive] = useState(false)
   const [reassignTarget, setReassignTarget] = useState<{ orderIds?: string[]; filter?: { query?: string; startDate?: string; endDate?: string }; count: number } | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const { ref: filtersRef, height: filtersHeight } = useElementHeight<HTMLDivElement>()
+  const {
+    pageSize,
+    setPageSize: setLocalPageSize,
+    isOverridden: isPageSizeOverridden,
+    resetToDefault: resetPageSizeToDefault,
+  } = usePageSize()
 
   // Get businessId from URL params or localStorage
   useEffect(() => {
@@ -131,7 +143,7 @@ function ReceiptHistoryPageContent() {
 
       const params = new URLSearchParams({
         businessId,
-        limit: '50',
+        limit: pageSize.toString(),
         offset: offset.toString(),
       })
 
@@ -165,7 +177,13 @@ function ReceiptHistoryPageContent() {
     } finally {
       setLoading(false)
     }
-  }, [businessId, searchAcrossBusinesses, dateFrom, dateTo])
+  }, [businessId, searchAcrossBusinesses, dateFrom, dateTo, pageSize])
+
+  // Reset to page 1 whenever the row-count preference changes, so we don't
+  // land on a now out-of-range page.
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [pageSize])
 
   // Initial load - only run once when businessId changes
   useEffect(() => {
@@ -177,6 +195,7 @@ function ReceiptHistoryPageContent() {
   // Handle search - memoized to prevent infinite loops
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query)
+    setCurrentPage(1)
     fetchReceipts(query, 0)
   }, [fetchReceipts])
 
@@ -186,6 +205,7 @@ function ReceiptHistoryPageContent() {
     setDateFrom(from)
     setDateTo(to)
     setDatePreset(preset)
+    setCurrentPage(1)
     fetchReceipts(searchQuery, 0, from, to)
   }
 
@@ -193,6 +213,7 @@ function ReceiptHistoryPageContent() {
     setDateFrom('')
     setDateTo('')
     setDatePreset('')
+    setCurrentPage(1)
     fetchReceipts(searchQuery, 0, '', '')
   }
 
@@ -202,13 +223,21 @@ function ReceiptHistoryPageContent() {
     const newTo = (!dateTo || iso > dateTo) ? iso : dateTo
     setDateTo(newTo)
     setDatePreset('custom')
+    setCurrentPage(1)
     fetchReceipts(searchQuery, 0, iso, newTo)
   }
 
   function handleToChange(iso: string) {
     setDateTo(iso)
     setDatePreset('custom')
+    setCurrentPage(1)
     fetchReceipts(searchQuery, 0, dateFrom, iso)
+  }
+
+  // Jump to a specific page (1-indexed)
+  function handlePageChange(page: number) {
+    setCurrentPage(page)
+    fetchReceipts(searchQuery, (page - 1) * pageSize, dateFrom, dateTo)
   }
 
   // Handle receipt click
@@ -323,6 +352,7 @@ function ReceiptHistoryPageContent() {
   const handleReassignComplete = (result: ReassignResult) => {
     const reassignedSet = new Set(result.reassigned)
     if (reassignedSet.size > 0) {
+      setCurrentPage(1)
       fetchReceipts(searchQuery, 0, dateFrom, dateTo)
     }
     clearSelection()
@@ -347,7 +377,14 @@ function ReceiptHistoryPageContent() {
     <ContentLayout title="Receipt History" subtitle="Search and reprint past receipts">
       <div className="max-w-6xl mx-auto">
 
-        {/* Search + Date Filters */}
+        {/* Search + Date Filters — sticky so it and the table header below
+            stay glued together as one unit while scrolling. Sticks to the
+            WINDOW (not a bounded local scrollbox — that pattern has proven
+            fragile: it can drift out from under the fixed nav during normal
+            page scroll, and any overflow-x-auto ancestor silently traps the
+            sticky computation inside itself per the CSS overflow-axis-
+            coupling rule). */}
+        <div ref={filtersRef} className="sticky top-14 sm:top-16 z-20 bg-background pb-2">
         <ListSearchFilterBar
           onSearchChange={handleSearch}
           searchLoading={loading}
@@ -370,6 +407,7 @@ function ReceiptHistoryPageContent() {
           onToChange={handleToChange}
           onClearDates={clearDates}
         />
+        </div>
 
         {/* Error Message */}
         {error && (
@@ -427,9 +465,12 @@ function ReceiptHistoryPageContent() {
 
         {/* Receipts List */}
         {!loading && receipts.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden overflow-x-auto">
+          <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-900">
+              <thead
+                className="bg-gray-50 dark:bg-gray-900 sticky z-10 top-[calc(3.5rem+var(--filters-h,0px))] sm:top-[calc(4rem+var(--filters-h,0px))]"
+                style={{ ['--filters-h' as any]: `${filtersHeight}px` }}
+              >
                 <tr>
                   {canReassign && (
                     <th className="px-3 py-3 text-left w-8">
@@ -580,18 +621,29 @@ function ReceiptHistoryPageContent() {
                     </td>
                   </tr>
                 ))}
+                <TableFillerRows
+                  count={pagination ? Math.min(pageSize, pagination.total) - receipts.length : 0}
+                  colSpan={8 + (canReassign ? 1 : 0)}
+                  cellClassName="px-3 py-4 h-[65px]"
+                />
               </tbody>
             </table>
 
             {/* Pagination */}
-            {pagination && pagination.hasMore && (
+            {pagination && (
               <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
-                <button
-                  onClick={() => fetchReceipts(searchQuery, pagination.offset + pagination.limit, dateFrom, dateTo)}
-                  className="text-blue-600 dark:text-blue-400 hover:underline text-sm font-medium"
-                >
-                  Load More ({pagination.total - pagination.offset - pagination.limit} remaining)
-                </button>
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={Math.max(1, Math.ceil(pagination.total / pageSize))}
+                  totalItems={pagination.total}
+                  pageSize={pageSize}
+                  onPageChange={handlePageChange}
+                  loading={loading}
+                  pageSizeOptions={PAGE_SIZE_OPTIONS}
+                  onPageSizeChange={setLocalPageSize}
+                  isPageSizeOverridden={isPageSizeOverridden}
+                  onResetPageSize={resetPageSizeToDefault}
+                />
               </div>
             )}
           </div>
