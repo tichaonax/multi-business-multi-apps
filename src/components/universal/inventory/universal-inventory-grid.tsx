@@ -9,6 +9,7 @@ import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { Pagination } from '@/components/ui/pagination'
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
+import { TableFillerRows } from '@/components/ui/table-filler-rows'
 import { useToastContext } from '@/components/ui/toast'
 import type { LabelData, NetworkPrinter } from '@/types/printing'
 
@@ -1122,6 +1123,11 @@ export function UniversalInventoryGrid({
                     )}
                   </tr>
                 )})}
+                <TableFillerRows
+                  count={pageSize - sortedItems.length}
+                  colSpan={8 + (mergeMode ? 1 : 0) + (canPrintInventoryLabels ? 1 : 0) + (showBusinessSpecificFields ? 1 : 0) + (showActions ? 1 : 0)}
+                  cellClassName="p-3 h-[72px]"
+                />
               </tbody>
             </table>
           </div>

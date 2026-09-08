@@ -16,6 +16,7 @@ import { ReceiptReviewBadge } from './receipt-review-badge'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { Pagination } from '@/components/ui/pagination'
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
+import { TableFillerRows } from '@/components/ui/table-filler-rows'
 
 interface Transaction {
   id: string
@@ -1078,6 +1079,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                     </tr>
                   )
                 })}
+                <TableFillerRows count={limit - transactions.length} colSpan={7} cellClassName="p-3 h-[72px]" />
               </tbody>
             </table>
           </div>

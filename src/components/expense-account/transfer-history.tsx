@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Pagination } from '@/components/ui/pagination'
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
+import { TableFillerRows } from '@/components/ui/table-filler-rows'
 
 interface TransferRecord {
   id: string
@@ -206,6 +207,11 @@ export function TransferHistory({ accountId, showFilters = false }: TransferHist
                   </td>
                 </tr>
               ))}
+              <TableFillerRows
+                count={limit - transfers.length}
+                colSpan={6 + (accountId ? 1 : 0)}
+                cellClassName="py-2.5 px-3"
+              />
             </tbody>
           </table>
         </div>

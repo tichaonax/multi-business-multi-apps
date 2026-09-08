@@ -1763,7 +1763,14 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
         )}
 
         {/* Tabs */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        {/* No overflow-hidden here: it would establish this box as the
+            containing block for any `position: sticky` descendant (e.g. the
+            search/filters bar in TransactionHistory/TransferHistory), and
+            since this box itself isn't the scrolling element, that sticky
+            child would scroll away with it instead of pinning to the
+            viewport. The tab-nav row below has its own overflow-x-auto for
+            horizontal scrolling on mobile, which is unaffected. */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
           <div className="border-b border-gray-200 dark:border-gray-700 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <nav className="flex -mb-px min-w-0">
               <button
