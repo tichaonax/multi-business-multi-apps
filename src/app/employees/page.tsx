@@ -526,7 +526,7 @@ export default function EmployeesPage() {
             before, so mobile is intentionally left untouched (lg:-prefixed
             classes only). */}
         {/* Search and Filters */}
-        <div ref={filtersRef} className="card p-4 sm:p-6 lg:sticky lg:top-16 lg:z-20">
+        <div ref={filtersRef} className="card p-4 sm:p-6 lg:sticky lg:top-16 lg:z-20 lg:!bg-white lg:dark:!bg-neutral-800">
           <div className="space-y-4">
             {/* Search - Full width on mobile */}
             <div>

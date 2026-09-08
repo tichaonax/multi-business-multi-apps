@@ -91,6 +91,20 @@ body {
     @apply text-neutral-600 dark:text-neutral-300;
   }
 
+  /* `background`/`border` are not real Tailwind color tokens (not in
+     tailwind.config.ts, no DEFAULT key) — bg-background/border-border were
+     silently compiling to nothing everywhere they were used (54+ files),
+     leaving those elements fully transparent. Invisible on normal in-flow
+     content, but glaringly obvious on sticky/floating bars, which need a
+     solid backing to actually occlude whatever scrolls underneath them. */
+  .bg-background {
+    @apply bg-white dark:bg-neutral-800;
+  }
+
+  .border-border {
+    @apply border-neutral-200 dark:border-neutral-700;
+  }
+
   .border-primary {
     @apply border-primary-200 dark:border-neutral-700;
   }
