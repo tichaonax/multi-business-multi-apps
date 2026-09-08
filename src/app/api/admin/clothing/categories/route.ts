@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const domainId = searchParams.get('domainId')
+    const includeGroups = searchParams.get('includeGroups') === 'true'
 
     const where: any = {
       businessType: 'clothing'
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all categories with their subcategories and domains
-    const categories = await prisma.businessCategories.findMany({
+    let categories = await prisma.businessCategories.findMany({
       where,
       include: {
         domain: {
@@ -42,6 +43,17 @@ export async function GET(request: NextRequest) {
         { name: 'asc' }
       ]
     })
+
+    // "Group" categories (e.g. Tops, Bottoms) are organizational parents used
+    // to group the flat category list -- not selectable product categories
+    // themselves. Excluded by default so pickers only offer real leaf
+    // categories; pass includeGroups=true for a tree-style UI that wants them
+    // too. Filtered in JS rather than the Prisma where clause because a JSON
+    // path filter's NOT would also exclude every row with no `attributes` at
+    // all (SQL's NULL semantics), which is most rows here.
+    if (!includeGroups) {
+      categories = categories.filter(c => !(c.attributes && (c.attributes as any).isGroup === true))
+    }
 
     // Also get all domains for filtering
     const domains = await prisma.inventoryDomains.findMany({

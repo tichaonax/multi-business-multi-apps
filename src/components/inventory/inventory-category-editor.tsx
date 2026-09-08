@@ -31,8 +31,11 @@ export function InventoryCategoryEditor({
   const [description, setDescription] = useState('');
   const [selectedDomainId, setSelectedDomainId] = useState<string>('');
   const [domains, setDomains] = useState<InventoryDomain[]>([]);
+  const [selectedParentId, setSelectedParentId] = useState<string>('');
+  const [parentOptions, setParentOptions] = useState<InventoryCategory[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingDomains, setLoadingDomains] = useState(false);
+  const [loadingParents, setLoadingParents] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Load domains for domain selector
@@ -57,6 +60,36 @@ export function InventoryCategoryEditor({
     }
   }, [isOpen, businessType]);
 
+  // Load top-level categories as parent-category candidates. Any existing
+  // root category can be a parent (not just the ones tagged isGroup) -- that
+  // tag only hides organizational groups from leaf-category pickers
+  // elsewhere, it isn't a restriction on what can hold children.
+  useEffect(() => {
+    async function fetchParentOptions() {
+      try {
+        setLoadingParents(true);
+        const response = await fetch(
+          `/api/inventory/categories?businessId=${businessId}&businessType=${businessType}&includeProducts=false`
+        );
+        if (!response.ok) throw new Error('Failed to fetch categories');
+
+        const data = await response.json();
+        const roots = (data.categories || []).filter(
+          (c: InventoryCategory) => !c.parentId && c.id !== category?.id
+        );
+        setParentOptions(roots);
+      } catch (err) {
+        console.error('Error fetching parent category options:', err);
+      } finally {
+        setLoadingParents(false);
+      }
+    }
+
+    if (isOpen) {
+      fetchParentOptions();
+    }
+  }, [isOpen, businessId, businessType, category?.id]);
+
   // Initialize form with category data (edit mode) or defaults (create mode)
   // Must depend on isOpen so re-opening with the same initialDomainId still reinitializes
   useEffect(() => {
@@ -67,12 +100,14 @@ export function InventoryCategoryEditor({
       setColor(category.color);
       setDescription(category.description || '');
       setSelectedDomainId(category.domainId || '');
+      setSelectedParentId(category.parentId || '');
     } else {
       setName('');
       setEmoji('📦');
       setColor('#3B82F6');
       setDescription('');
       setSelectedDomainId(initialDomainId || '');
+      setSelectedParentId('');
     }
   }, [category, isEditMode, initialDomainId, isOpen]);
 
@@ -100,6 +135,10 @@ export function InventoryCategoryEditor({
         color: color || '#3B82F6',
         description: description.trim() || undefined,
         domainId: selectedDomainId || undefined,
+        // Explicit null (not undefined) so clearing the parent in edit mode
+        // actually clears it -- the PUT handler only touches parentId when
+        // the field is present (`!== undefined`) in the request body.
+        parentId: selectedParentId || null,
         businessType,
       };
 
@@ -131,6 +170,7 @@ export function InventoryCategoryEditor({
       setColor('#3B82F6');
       setDescription('');
       setSelectedDomainId('');
+      setSelectedParentId('');
     } catch (err) {
       console.error(`Error ${isEditMode ? 'updating' : 'creating'} category:`, err);
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -145,6 +185,7 @@ export function InventoryCategoryEditor({
     setColor('#3B82F6');
     setDescription('');
     setSelectedDomainId('');
+    setSelectedParentId('');
     setError(null);
     onCancel();
   };
@@ -196,6 +237,30 @@ export function InventoryCategoryEditor({
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Parent Category Selector */}
+              <div>
+                <label htmlFor="category-parent" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Parent Category (Optional)
+                </label>
+                <select
+                  id="category-parent"
+                  value={selectedParentId}
+                  onChange={(e) => setSelectedParentId(e.target.value)}
+                  disabled={loading || loadingParents}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                >
+                  <option value="">No parent (top-level category)</option>
+                  {parentOptions.map((parent) => (
+                    <option key={parent.id} value={parent.id}>
+                      {parent.emoji} {parent.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Group this category under an existing top-level category, e.g. "Tops" or "Bottoms".
+                </p>
               </div>
 
               {/* Category Name */}

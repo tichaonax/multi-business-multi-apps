@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
     const businessType = searchParams.get('businessType')
     const parentId = searchParams.get('parentId')
     const includeProducts = searchParams.get('includeProducts') === 'true'
+    const includeGroups = searchParams.get('includeGroups') === 'true'
 
     // Allow filtering by businessId OR businessType
     if (!businessId && !businessType) {
@@ -103,7 +104,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Map canonical relation names back to legacy API shape (parent, children, products, subcategories)
-    const mapped = (categories as any[]).map((c) => {
+    let mapped = (categories as any[]).map((c) => {
       const { business_categories, other_business_categories, businessProducts, inventory_subcategories, ...rest } = c || {}
       return {
         ...rest,
@@ -113,6 +114,14 @@ export async function GET(request: NextRequest) {
         subcategories: inventory_subcategories ?? []
       }
     })
+
+    // "Group" categories (e.g. clothing's Tops, Bottoms) are organizational
+    // parents, not selectable product categories -- excluded by default so
+    // flat pickers don't offer them; pass includeGroups=true for a
+    // tree-style UI that wants them too.
+    if (!includeGroups) {
+      mapped = mapped.filter((c) => !(c.attributes && c.attributes.isGroup === true))
+    }
 
     return NextResponse.json({
       success: true,
