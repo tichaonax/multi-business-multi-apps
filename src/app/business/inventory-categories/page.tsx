@@ -218,6 +218,9 @@ export default function InventoryCategoriesPage() {
     }
   };
 
+  const categoryProductCount = (cat: InventoryCategory) =>
+    (cat._count?.business_products || 0) + (cat._count?.barcode_inventory_items || 0);
+
   const filteredCategories = categories.filter(cat => {
     // Search filter
     const matchesSearch = cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -227,6 +230,15 @@ export default function InventoryCategoriesPage() {
     const matchesDepartment = !selectedDepartment || cat.domainId === selectedDepartment;
 
     return matchesSearch && matchesDepartment;
+  }).sort((a, b) => {
+    // Categories with products first (highest count first), so the ones
+    // actually worth looking at aren't buried in the alphabetical list --
+    // then everything with zero products, alphabetical.
+    const countA = categoryProductCount(a);
+    const countB = categoryProductCount(b);
+    if (countA > 0 && countB > 0) return countB - countA;
+    if (countA > 0 !== countB > 0) return countA > 0 ? -1 : 1;
+    return a.name.localeCompare(b.name);
   });
 
   const handleResetFilters = () => {
@@ -412,16 +424,15 @@ export default function InventoryCategoriesPage() {
                             {category.name}
                           </h3>
                           <Link
-                            href={`/admin/products?businessType=${selectedBusinessType}&categoryId=${category.id}`}
-                            className="px-2 py-1 rounded-full text-xs font-medium hover:opacity-80 transition-opacity cursor-pointer"
-                            style={{
-                              backgroundColor: category.color + '20',
-                              color: category.color,
-                              border: `1px solid ${category.color}40`
-                            }}
+                            href={`/admin/products?businessType=${selectedBusinessType}&categoryId=${category.id}${selectedDepartment ? `&domainId=${selectedDepartment}` : ''}`}
+                            className={`px-2 py-1 rounded-full text-xs font-medium hover:opacity-80 transition-opacity cursor-pointer ${
+                              categoryProductCount(category) > 0
+                                ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 border border-green-300 dark:border-green-700'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border border-gray-300 dark:border-gray-600'
+                            }`}
                             title="View products in this category"
                           >
-                            {(category._count?.business_products || 0) + (category._count?.barcode_inventory_items || 0)} products
+                            {categoryProductCount(category)} products
                           </Link>
                           {category.inventory_subcategories && category.inventory_subcategories.length > 0 && (
                             <span className="text-sm text-gray-500 dark:text-gray-400">

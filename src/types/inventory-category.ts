@@ -37,6 +37,7 @@ export interface InventoryCategory {
   inventory_subcategories?: InventorySubcategory[];
   _count?: {
     business_products?: number;
+    barcode_inventory_items?: number;
     inventory_subcategories?: number;
   };
 }

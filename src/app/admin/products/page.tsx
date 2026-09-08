@@ -66,7 +66,9 @@ function UniversalProductsPageContent() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedBusiness, setSelectedBusiness] = useState('')
-  const [selectedDepartment, setSelectedDepartment] = useState('')
+  const [selectedDepartment, setSelectedDepartment] = useState(() => {
+    return searchParams.get('domainId') || ''
+  })
   const [selectedCategory, setSelectedCategory] = useState(() => {
     return searchParams.get('categoryId') || ''
   })

@@ -79,7 +79,10 @@ function ClothingProductsPageContent() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedBusiness, setSelectedBusiness] = useState('')
-  const [selectedDepartment, setSelectedDepartment] = useState('')
+  const [selectedDepartment, setSelectedDepartment] = useState(() => {
+    // Initialize from URL params immediately
+    return searchParams.get('domainId') || ''
+  })
   const [selectedCategory, setSelectedCategory] = useState(() => {
     // Initialize from URL params immediately
     return searchParams.get('categoryId') || ''
