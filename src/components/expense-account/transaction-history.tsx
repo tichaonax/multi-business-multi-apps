@@ -703,7 +703,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
         ) : (
             <table className="w-full">
               <thead
-                className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 sticky z-10 top-[calc(3.5rem+var(--filters-h,0px))] sm:top-[calc(4rem+var(--filters-h,0px))]"
+                className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 sticky z-10 top-[calc(3.5rem+1rem+var(--filters-h,0px))] sm:top-[calc(4rem+1rem+var(--filters-h,0px))]"
                 style={{ ['--filters-h' as any]: `${filtersHeight}px` }}
               >
                 <tr>

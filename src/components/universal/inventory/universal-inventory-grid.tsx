@@ -631,17 +631,20 @@ export function UniversalInventoryGrid({
         </div>
       )}
 
-      {/* Filters + table share one scroll/sticky region on desktop (lg+) so
-          the search bar and the table's column headers move together as a
-          single continuous unit and can never slide past each other.
-          Mobile keeps its original page-level scroll (overflow-visible here
-          means this wrapper isn't a scroll container on small screens, so
-          the filters bar falls through to sticking against the window, and
-          the mobile card list below is unaffected). */}
-      <div className="overflow-visible lg:overflow-auto lg:max-h-[var(--tbl-max-h)]" style={{ ['--tbl-max-h' as any]: tableMaxHeight }}>
+      {/* Filters and the table header both stick to the WINDOW (not to a
+          bounded local scrollbox — a box like that can itself drift out
+          from under the fixed nav during normal page scroll, dragging its
+          "stuck" children out of view; a plain overflow-x-auto wrapper
+          around the table also silently traps sticky positioning inside
+          itself per the CSS overflow-axis-coupling rule, so it stops
+          sticking to the window at all). The header's `top` is filters'
+          own measured height, plus the sibling-margin gap between them,
+          added on top of the nav offset — so the two always sit flush.
+          Real pagination already caps this table at `pageSize` rows, so an
+          unbounded-height table is fine here; no local scrollbar needed. */}
       {/* Search and Filters — sticky so it locks at top when scrolling the inventory list */}
       {(allowSearch || allowFiltering) && (
-        <div ref={filtersRef} className="sticky top-14 sm:top-16 lg:top-0 lg:left-0 z-10 bg-background pt-2 pb-3 border-b border-border space-y-3">
+        <div ref={filtersRef} className="sticky top-14 sm:top-16 z-10 bg-background pt-2 pb-3 border-b border-border space-y-3">
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
             {allowSearch && (
               <div className="flex-1 w-full sm:w-auto flex items-center gap-2">
@@ -795,7 +798,7 @@ export function UniversalInventoryGrid({
 
       {/* Inventory Grid/Table */}
       {layout === 'table' ? (
-        <div className="card overflow-hidden">
+        <div className="card">
           {/* Header actions (e.g., Add button) */}
           {headerActions && (
             <div className="border-b border-gray-100 dark:border-gray-800 p-3 flex justify-end">
@@ -806,7 +809,7 @@ export function UniversalInventoryGrid({
           {!loading && (
           <div className="hidden lg:block">
             <table className="w-full text-sm table-fixed">
-              <thead className="bg-gray-50 dark:bg-gray-800 sticky z-10" style={{ top: filtersHeight }}>
+              <thead className="bg-gray-50 dark:bg-gray-800 sticky z-10" style={{ top: `calc(4rem + 1rem + ${filtersHeight}px)` }}>
                 <tr>
                   {mergeMode && (
                     <th className="w-10 p-3" />
@@ -1412,7 +1415,6 @@ export function UniversalInventoryGrid({
           <p className="text-secondary">Grid and card layouts coming soon!</p>
         </div>
       )}
-      </div>
 
       {/* Pagination — total count + numbered page jump, not just Previous/Next */}
       {sortedItems.length > 0 && (

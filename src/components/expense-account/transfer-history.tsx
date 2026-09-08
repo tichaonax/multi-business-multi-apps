@@ -174,7 +174,7 @@ export function TransferHistory({ accountId, showFilters = false }: TransferHist
       ) : (
           <table className="w-full text-sm">
             <thead
-              className="sticky z-10 bg-white dark:bg-gray-800 top-[calc(3.5rem+var(--filters-h,0px))] sm:top-[calc(4rem+var(--filters-h,0px))]"
+              className="sticky z-10 bg-white dark:bg-gray-800 top-[calc(3.5rem+1rem+var(--filters-h,0px))] sm:top-[calc(4rem+1rem+var(--filters-h,0px))]"
               style={{ ['--filters-h' as any]: `${filtersHeight}px` }}
             >
               <tr className="border-b border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
