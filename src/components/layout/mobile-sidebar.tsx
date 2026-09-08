@@ -7,6 +7,7 @@ import { hasUserPermission, SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useScale } from '@/contexts/ScaleContext'
 import { useR710QuickSell } from '@/contexts/r710-quick-sell-context'
+import { GALLERY_ENABLED_BUSINESS_TYPES } from '@/lib/image-gallery-config'
 
 const businessTypeModules = [
   { type: 'restaurant', icon: '🍽️', name: 'Restaurant' },
@@ -675,9 +676,9 @@ export function MobileSidebar() {
                     </Link>
                   )}
 
-                  {/* Image Gallery - clothing-only for now (the category-image import/reference
-                      pool only exists for clothing today), gated on business membership (MBM-294) */}
-                  {currentBusiness?.businessType === 'clothing' && (isAdmin || !!currentBusinessId) && (
+                  {/* Image Gallery - opened to clothing, grocery, hardware (MBM-294) --
+                      see GALLERY_ENABLED_BUSINESS_TYPES, gated on business membership */}
+                  {!!currentBusiness && GALLERY_ENABLED_BUSINESS_TYPES.includes(currentBusiness.businessType) && (isAdmin || !!currentBusinessId) && (
                     <Link href="/universal/image-gallery" className={sectionLinkClass} onClick={close}>🖼️ Image Gallery</Link>
                   )}
 

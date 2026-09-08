@@ -12,6 +12,7 @@ import { useGlobalCart } from '@/contexts/global-cart-context'
 import { useR710QuickSell } from '@/contexts/r710-quick-sell-context'
 import { BusinessRevenueBreakdownModal } from '@/components/dashboard/business-revenue-breakdown-modal'
 import { getDefaultPagePath } from '@/lib/business-default-pages'
+import { GALLERY_ENABLED_BUSINESS_TYPES } from '@/lib/image-gallery-config'
 
 interface Business {
   id: string
@@ -2150,12 +2151,10 @@ export function Sidebar() {
         )}
 
         {/* Image Gallery - Business-wide image browsing + inventory linkage (MBM-294).
-            Clothing-only for now (2026-09-06, per your direction): the category-image
-            import/reference pool only exists for clothing today, so surfacing this for
-            other business types would be confusing/unrelated until it's extended there
-            after clothing itself is validated. Gated on business membership, not a
+            Opened to clothing (2026-09-06), then grocery + hardware (2026-09-08) --
+            see GALLERY_ENABLED_BUSINESS_TYPES. Gated on business membership, not a
             specific permission — matches the API's own auth model. */}
-        {currentBusiness?.businessType === 'clothing' && (isSystemAdmin(currentUser) || !!currentBusinessId) && (
+        {!!currentBusiness && GALLERY_ENABLED_BUSINESS_TYPES.includes(currentBusiness.businessType) && (isSystemAdmin(currentUser) || !!currentBusinessId) && (
           <Link
             href="/universal/image-gallery"
             className={getLinkClasses('/universal/image-gallery')}

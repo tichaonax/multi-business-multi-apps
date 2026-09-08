@@ -1,8 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useToastContext } from '@/components/ui/toast'
 import { SearchableSelect } from '@/components/ui/searchable-select'
+
+interface CategoryOption {
+  id: string
+  name: string
+  emoji: string | null
+  parent: { id: string; name: string; emoji: string | null } | null
+}
 
 interface Props {
   businessId: string
@@ -22,9 +29,25 @@ interface Props {
 export function ReferencePoolBulkUploadModal({ businessId, domains, defaultDomainId, onClose }: Props) {
   const toast = useToastContext()
   const [domainId, setDomainId] = useState(defaultDomainId || domains[0]?.id || '')
+  const [categoryId, setCategoryId] = useState('')
+  const [categories, setCategories] = useState<CategoryOption[]>([])
+  const [loadingCategories, setLoadingCategories] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
   const [result, setResult] = useState<{ created: number; skipped: string[] } | null>(null)
+
+  // Category narrows the domain further (e.g. Women's -> "Tops"). Optional --
+  // most pool images are still just tagged to a domain, same as before.
+  useEffect(() => {
+    setCategoryId('')
+    if (!domainId) { setCategories([]); return }
+    setLoadingCategories(true)
+    fetch(`/api/inventory/categories?businessId=${businessId}&domainId=${domainId}`)
+      .then(r => r.ok ? r.json() : { categories: [] })
+      .then(d => setCategories(d.categories ?? []))
+      .catch(() => setCategories([]))
+      .finally(() => setLoadingCategories(false))
+  }, [businessId, domainId])
 
   async function handleUpload() {
     if (!domainId || files.length === 0) return
@@ -34,6 +57,7 @@ export function ReferencePoolBulkUploadModal({ businessId, domains, defaultDomai
       const form = new FormData()
       files.forEach(f => form.append('files', f))
       form.append('domainId', domainId)
+      if (categoryId) form.append('categoryId', categoryId)
 
       const res = await fetch(`/api/business/${businessId}/images/reference-pool/bulk-upload`, {
         method: 'POST',
@@ -61,14 +85,31 @@ export function ReferencePoolBulkUploadModal({ businessId, domains, defaultDomai
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-secondary mb-1">Category</label>
+          <label className="block text-xs font-medium text-secondary mb-1">Domain</label>
           <SearchableSelect
             required
             options={domains.map(d => ({ id: d.id, label: `${d.emoji} ${d.name}` }))}
             value={domainId}
             onChange={setDomainId}
-            placeholder="Select a category…"
+            placeholder="Select a domain…"
+            searchPlaceholder="Search domains…"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-secondary mb-1">Category (optional)</label>
+          <SearchableSelect
+            options={categories.map(c => ({
+              id: c.id,
+              label: `${c.emoji ?? ''} ${c.name}`.trim(),
+              parentName: c.parent?.name ?? null,
+            }))}
+            value={categoryId}
+            onChange={setCategoryId}
+            placeholder={domainId ? 'Whole domain (no specific category)' : 'Select a domain first'}
             searchPlaceholder="Search categories…"
+            disabled={!domainId}
+            loading={loadingCategories}
           />
         </div>
 

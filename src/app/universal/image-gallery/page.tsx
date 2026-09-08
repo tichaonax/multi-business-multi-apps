@@ -13,6 +13,7 @@ import { ImageGalleryInsights } from '@/components/universal/image-gallery-insig
 import { ReferencePoolAttachModal } from '@/components/universal/reference-pool-attach-modal'
 import { ReferencePoolBulkUploadModal } from '@/components/universal/reference-pool-bulk-upload-modal'
 import { TagManagementModal } from '@/components/universal/tag-management-modal'
+import { GALLERY_ENABLED_BUSINESS_TYPES } from '@/lib/image-gallery-config'
 
 interface Business {
   id: string
@@ -74,20 +75,19 @@ export default function ImageGalleryPage() {
   const [poolDomains, setPoolDomains] = useState<PoolDomain[]>([])
   const [allPoolDomains, setAllPoolDomains] = useState<Array<{ id: string; name: string; emoji: string }>>([])
   const [poolDomainId, setPoolDomainId] = useState('')
+  const [poolCategories, setPoolCategories] = useState<Array<{ id: string; name: string; emoji: string | null; count: number }>>([])
+  const [poolCategoryId, setPoolCategoryId] = useState('')
   const [selectedPoolImage, setSelectedPoolImage] = useState<PoolImage | null>(null)
   const [mineStale, setMineStale] = useState(false)
   const [showBulkUpload, setShowBulkUpload] = useState(false)
   const [showTagManager, setShowTagManager] = useState(false)
 
-  // Clothing-only for now (2026-09-06, per direction): the category-image
-  // import/reference pool only exists for clothing today — other business
-  // types will get this once clothing itself has been validated.
   useEffect(() => {
     fetch('/api/user/business-memberships')
       .then(r => r.ok ? r.json() : [])
       .then((memberships: any[]) => {
         const list = memberships
-          .filter(m => !m.isUmbrellaBusiness && m.businessType === 'clothing')
+          .filter(m => !m.isUmbrellaBusiness && GALLERY_ENABLED_BUSINESS_TYPES.includes(m.businessType))
           .map(m => ({ id: m.businessId, name: m.businessName, type: m.businessType }))
         setBusinesses(list)
       })
@@ -181,6 +181,7 @@ export default function ImageGalleryPage() {
     try {
       const params = new URLSearchParams()
       if (poolDomainId) params.set('domainId', poolDomainId)
+      if (poolCategoryId) params.set('categoryId', poolCategoryId)
       params.set('limit', String(PAGE_SIZE))
       params.set('offset', String(targetOffset))
 
@@ -191,6 +192,7 @@ export default function ImageGalleryPage() {
       setPoolTotal(data.total ?? 0)
       setPoolDomains(data.domains ?? [])
       setAllPoolDomains(data.allDomains ?? [])
+      setPoolCategories(data.categories ?? [])
       setPoolOffset(targetOffset + data.images.length)
     } catch (e: any) {
       toast.error(e.message ?? 'Failed to load reference pool')
@@ -198,13 +200,20 @@ export default function ImageGalleryPage() {
       setPoolLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBusinessId, poolDomainId])
+  }, [selectedBusinessId, poolDomainId, poolCategoryId])
 
   useEffect(() => {
     if (view !== 'pool' || !selectedBusinessId) return
     fetchPool(0, false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, selectedBusinessId, poolDomainId])
+  }, [view, selectedBusinessId, poolDomainId, poolCategoryId])
+
+  // Category filter only makes sense within a domain -- clear it whenever
+  // the domain changes so a stale categoryId from a different domain can't
+  // silently zero out the results.
+  useEffect(() => {
+    setPoolCategoryId('')
+  }, [poolDomainId])
 
   // Refresh My Gallery only once the user actually switches to it, rather
   // than eagerly refetching (and resetting its own scroll position) the
@@ -257,7 +266,7 @@ export default function ImageGalleryPage() {
 
         {businessesLoaded && businesses.length === 0 ? (
           <p className="text-secondary">
-            The Image Gallery is available for clothing businesses only right now — you don't have access to one.
+            The Image Gallery is available for clothing, grocery, and hardware businesses only right now — you don't have access to one.
           </p>
         ) : (
         <>
@@ -298,11 +307,23 @@ export default function ImageGalleryPage() {
                 options={poolDomains.map(d => ({ id: d.id, label: `${d.emoji} ${d.name} (${d.count})` }))}
                 value={poolDomainId}
                 onChange={setPoolDomainId}
+                placeholder="All domains"
+                allLabel="All domains"
+                searchPlaceholder="Search domains…"
+              />
+            ) : null}
+
+            {view === 'pool' && poolDomainId && poolCategories.length > 0 && (
+              <SearchableSelect
+                className="w-56"
+                options={poolCategories.map(c => ({ id: c.id, label: `${c.emoji ?? ''} ${c.name} (${c.count})`.trim() }))}
+                value={poolCategoryId}
+                onChange={setPoolCategoryId}
                 placeholder="All categories"
                 allLabel="All categories"
                 searchPlaceholder="Search categories…"
               />
-            ) : null}
+            )}
 
             {view === 'pool' && (
               <button

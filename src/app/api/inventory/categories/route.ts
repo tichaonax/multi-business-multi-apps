@@ -87,6 +87,9 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         domain: true,
+        business_categories: {
+          select: { id: true, name: true, emoji: true },
+        },
         businesses: {
           select: {
             isDemo: true,

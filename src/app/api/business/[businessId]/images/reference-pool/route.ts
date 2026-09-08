@@ -32,6 +32,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { searchParams } = new URL(request.url)
   const domainId = searchParams.get('domainId') || undefined
+  const categoryId = searchParams.get('categoryId') || undefined
   const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '48', 10) || 48, 1), 200)
   const offset = Math.max(parseInt(searchParams.get('offset') || '0', 10) || 0, 0)
 
@@ -47,7 +48,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // reorder whichever 48 happened to land there, not surface the
     // most-used images pool-wide.
     prisma.categoryReferenceImages.findMany({
-      where: { businessType: business.type, ...(domainId ? { domainId } : {}) },
+      where: {
+        businessType: business.type,
+        ...(domainId ? { domainId } : {}),
+        ...(categoryId ? { categoryId } : {}),
+      },
       select: { imageId: true },
       distinct: ['imageId'],
       orderBy: { createdAt: 'desc' },
@@ -93,6 +98,27 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     orderBy: { name: 'asc' },
   })
 
+  // Category-level browse filter, scoped to the selected domain (categories
+  // only make sense within one) -- counts are pool images tagged to that
+  // exact category, for the "narrow further" dropdown once a domain filter
+  // is active. Mirrors the same optional categoryId the bulk-upload modal
+  // already writes.
+  let categoryOptions: Array<{ id: string; name: string; emoji: string | null; count: number }> = []
+  if (domainId) {
+    const categoryCounts = await prisma.categoryReferenceImages.groupBy({
+      by: ['categoryId'],
+      where: { businessType: business.type, domainId, categoryId: { not: null } },
+      _count: { imageId: true },
+    })
+    const categoryIds = categoryCounts.map(c => c.categoryId).filter((id): id is string => !!id)
+    const categoryRows = categoryIds.length > 0
+      ? await prisma.businessCategories.findMany({ where: { id: { in: categoryIds } }, select: { id: true, name: true, emoji: true } })
+      : []
+    categoryOptions = categoryRows
+      .map(c => ({ ...c, count: categoryCounts.find(cc => cc.categoryId === c.id)?._count.imageId ?? 0 }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }
+
   // How many of THIS business's own products already use each pool image —
   // shown as a badge on the thumbnail so attaching one is visibly confirmed
   // without having to switch to "My Gallery" to see it. Already computed
@@ -126,5 +152,5 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     otherBusinessCount: otherBusinessCountByImageId.get(r.imageId) ?? 0,
   }))
 
-  return NextResponse.json({ success: true, images, total, limit, offset, domains: domainOptions, allDomains })
+  return NextResponse.json({ success: true, images, total, limit, offset, domains: domainOptions, allDomains, categories: categoryOptions })
 }

@@ -42,6 +42,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'Category does not belong to this business type' }, { status: 400 })
   }
 
+  if (categoryId) {
+    const category = await prisma.businessCategories.findUnique({ where: { id: categoryId }, select: { domainId: true, businessType: true } })
+    if (!category || category.businessType !== business.type || category.domainId !== domainId) {
+      return NextResponse.json({ error: 'Category does not belong to the selected domain' }, { status: 400 })
+    }
+  }
+
   let created = 0
   const skipped: string[] = []
   const images: Array<{ id: string; url: string }> = []
