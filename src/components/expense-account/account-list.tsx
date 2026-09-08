@@ -9,6 +9,8 @@ import { QuickDepositModal } from './quick-deposit-modal'
 import { QuickPaymentModal } from './quick-payment-modal'
 import { TransferModal } from './transfer-modal'
 import type { OnSuccessArg } from '@/types/ui'
+import { Pagination } from '@/components/ui/pagination'
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 
 interface RecentTx {
   id: string
@@ -97,10 +99,23 @@ export function AccountList({
   const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false)
   const [showTransferModal, setShowTransferModal] = useState(false)
   const [selectedAccount, setSelectedAccount] = useState<ExpenseAccount | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const {
+    pageSize,
+    setPageSize: setLocalPageSize,
+    isOverridden: isPageSizeOverridden,
+    resetToDefault: resetPageSizeToDefault,
+  } = usePageSize()
 
   useEffect(() => {
     loadAccounts()
   }, [])
+
+  // Reset to page 1 whenever the filters or the row-count preference change,
+  // so we don't land on a now out-of-range page.
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, filterStatus, pageSize])
 
   const loadAccounts = async () => {
     try {
@@ -290,6 +305,9 @@ export function AccountList({
     return true
   })
 
+  const totalPages = Math.max(1, Math.ceil(filteredAccounts.length / pageSize))
+  const paginatedAccounts = filteredAccounts.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -300,18 +318,17 @@ export function AccountList({
 
   return (
     <div className="space-y-4">
-      {/* Header with Create Button */}
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-lg sm:text-2xl font-bold text-primary">Expense Accounts</h2>
-        {canCreateAccount && (
+      {/* Create Button — the page title itself is rendered once by ContentLayout above */}
+      {canCreateAccount && (
+        <div className="flex items-center justify-end">
           <button
             onClick={() => setShowCreateModal(true)}
             className="px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors whitespace-nowrap"
           >
             + Create Account
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="sticky top-14 sm:top-16 z-40 bg-background py-2 -mx-4 px-4 sm:-mx-6 sm:px-6 shadow-sm border-b border-border flex flex-col sm:flex-row gap-2 sm:gap-4">
@@ -363,7 +380,7 @@ export function AccountList({
         </div>
       ) : (
         <div className="grid gap-4">
-          {filteredAccounts.map((account) => {
+          {paginatedAccounts.map((account) => {
             const isPersonal = account.userGrantLevel === 'PERSONAL'
             const balanceStatus = getBalanceStatus(
               Number(account.balance),
@@ -637,6 +654,21 @@ export function AccountList({
             )
           })}
         </div>
+      )}
+
+      {filteredAccounts.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredAccounts.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          loading={loading}
+          pageSizeOptions={PAGE_SIZE_OPTIONS}
+          onPageSizeChange={setLocalPageSize}
+          isPageSizeOverridden={isPageSizeOverridden}
+          onResetPageSize={resetPageSizeToDefault}
+        />
       )}
 
       {/* Create Account Modal */}

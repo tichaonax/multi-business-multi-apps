@@ -17,6 +17,7 @@ import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { Pagination } from '@/components/ui/pagination'
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 import { TableFillerRows } from '@/components/ui/table-filler-rows'
+import { useElementHeight } from '@/hooks/use-element-height'
 
 interface Transaction {
   id: string
@@ -172,6 +173,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
     isOverridden: isPageSizeOverridden,
     resetToDefault: resetPageSizeToDefault,
   } = usePageSize(pageLimit)
+  const { ref: filtersRef, height: filtersHeight } = useElementHeight<HTMLDivElement>()
   const [editPaymentId, setEditPaymentId] = useState<string | null>(null)
   const [editDepositId, setEditDepositId] = useState<string | null>(null)
   const [detailPaymentId, setDetailPaymentId] = useState<string | null>(null)
@@ -504,10 +506,16 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   return (
     <>
     <div className="space-y-4">
-      {/* Filters — sticky so the search bar and filter pills stay visible
-          alongside the table's own sticky header (right below the global
-          nav) instead of scrolling away first. */}
-      <div className="sticky top-14 sm:top-16 z-20 bg-white dark:bg-gray-800 rounded-lg shadow px-3 py-2.5">
+      {/* Filters + table share one scroll/sticky region so the search bar
+          and the table's column headers move together as a single
+          continuous unit and can never slide past each other — previously
+          the filters stuck to the window while the header stuck to its own
+          local scroll box, so once the page scrolled far enough the header
+          would disappear behind the (by-then fixed) filters bar instead of
+          staying right below it. */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+      <div ref={filtersRef} className="sticky top-0 z-20 bg-white dark:bg-gray-800 px-3 py-2.5 border-b border-gray-200 dark:border-gray-600">
 
         {/* Row 1: Search + Reset */}
         <div className="flex gap-2 mb-2">
@@ -687,15 +695,17 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
             </div>
           </div>
         )}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         {transactions.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500 dark:text-gray-400">No transactions found</p>
           </div>
         ) : (
-          <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)]">
+          <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 sticky top-0 z-10">
+              <thead
+                className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 sticky z-10"
+                style={{ top: filtersHeight }}
+              >
                 <tr>
                   <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Date
@@ -1084,8 +1094,11 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
             </table>
           </div>
         )}
+      </div>
+        </div>
 
-        {/* Pagination */}
+        {/* Pagination — outside the scrollable filters+table region so it
+            stays fixed beneath it instead of scrolling away with the rows. */}
         <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600">
           <Pagination
             currentPage={page + 1}
@@ -1100,7 +1113,6 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
             onResetPageSize={resetPageSizeToDefault}
           />
         </div>
-      </div>
       </div>
     </div>
 

@@ -10,6 +10,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { Pagination } from '@/components/ui/pagination'
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 import { TableFillerRows } from '@/components/ui/table-filler-rows'
+import { useElementHeight } from '@/hooks/use-element-height'
 import { useToastContext } from '@/components/ui/toast'
 import type { LabelData, NetworkPrinter } from '@/types/printing'
 
@@ -135,6 +136,7 @@ export function UniversalInventoryGrid({
   } = usePageSize(pageSizeProp, (newSize) => {
     showToast(`Your default items-per-page setting changed to ${newSize} — applying it here too.`, { type: 'info' })
   })
+  const { ref: filtersRef, height: filtersHeight } = useElementHeight<HTMLDivElement>()
   const [items, setItems] = useState<UniversalInventoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -629,9 +631,17 @@ export function UniversalInventoryGrid({
         </div>
       )}
 
+      {/* Filters + table share one scroll/sticky region on desktop (lg+) so
+          the search bar and the table's column headers move together as a
+          single continuous unit and can never slide past each other.
+          Mobile keeps its original page-level scroll (overflow-visible here
+          means this wrapper isn't a scroll container on small screens, so
+          the filters bar falls through to sticking against the window, and
+          the mobile card list below is unaffected). */}
+      <div className="overflow-visible lg:overflow-y-auto lg:max-h-[var(--tbl-max-h)]" style={{ ['--tbl-max-h' as any]: tableMaxHeight }}>
       {/* Search and Filters — sticky so it locks at top when scrolling the inventory list */}
       {(allowSearch || allowFiltering) && (
-        <div className="sticky top-14 sm:top-16 z-10 bg-background pt-2 pb-3 border-b border-border space-y-3">
+        <div ref={filtersRef} className="sticky top-14 sm:top-16 lg:top-0 z-10 bg-background pt-2 pb-3 border-b border-border space-y-3">
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
             {allowSearch && (
               <div className="flex-1 w-full sm:w-auto flex items-center gap-2">
@@ -794,9 +804,9 @@ export function UniversalInventoryGrid({
           )}
           {/* Desktop Table View */}
           {!loading && (
-          <div className="hidden lg:block overflow-x-auto overflow-y-auto" style={{ maxHeight: tableMaxHeight }}>
+          <div className="hidden lg:block overflow-x-auto">
             <table className="w-full text-sm table-fixed">
-              <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
+              <thead className="bg-gray-50 dark:bg-gray-800 sticky z-10" style={{ top: filtersHeight }}>
                 <tr>
                   {mergeMode && (
                     <th className="w-10 p-3" />
@@ -1402,6 +1412,7 @@ export function UniversalInventoryGrid({
           <p className="text-secondary">Grid and card layouts coming soon!</p>
         </div>
       )}
+      </div>
 
       {/* Pagination — total count + numbered page jump, not just Previous/Next */}
       {sortedItems.length > 0 && (

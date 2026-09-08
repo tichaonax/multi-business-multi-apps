@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Pagination } from '@/components/ui/pagination'
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 import { TableFillerRows } from '@/components/ui/table-filler-rows'
+import { useElementHeight } from '@/hooks/use-element-height'
 
 interface TransferRecord {
   id: string
@@ -88,6 +89,8 @@ export function TransferHistory({ accountId, showFilters = false }: TransferHist
     setPage(0)
   }, [accountId, direction, startDate, endDate, limit])
 
+  const { ref: filtersRef, height: filtersHeight } = useElementHeight<HTMLDivElement>()
+
   function directionBadge(t: TransferRecord) {
     if (!accountId) return null
     const isOut = t.sourceAccount.id === accountId
@@ -98,10 +101,37 @@ export function TransferHistory({ accountId, showFilters = false }: TransferHist
 
   return (
     <div className="space-y-4">
-      {/* Filters — sticky so they stay visible alongside the table's own
-          sticky header instead of scrolling away first. */}
+      {/* Summary bar — normal (non-sticky) content, sits above the
+          sticky/scroll unit below. */}
+      {aggregates && aggregates.count > 0 && (
+        <div className="flex flex-wrap gap-4 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg text-sm">
+          {(!accountId || direction !== 'IN') && (
+            <span className="text-red-600 dark:text-red-400">
+              Total Out: <strong>{fmt(aggregates.totalTransferredOut)}</strong>
+            </span>
+          )}
+          {(!accountId || direction !== 'OUT') && (
+            <span className="text-green-600 dark:text-green-400">
+              Total In: <strong>{fmt(aggregates.totalTransferredIn)}</strong>
+            </span>
+          )}
+          {accountId && !direction && (
+            <span className={`font-medium ${aggregates.net >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+              Net: {aggregates.net >= 0 ? '+' : '-'}{fmt(aggregates.net)}
+            </span>
+          )}
+          <span className="text-gray-500 dark:text-gray-400 ml-auto">
+            {aggregates.count} transfer{aggregates.count !== 1 ? 's' : ''}
+          </span>
+        </div>
+      )}
+
+      {/* Filters + table share one scroll/sticky region so the filters bar
+          and the table's column headers move together as a single
+          continuous unit and can never slide past each other. */}
+      <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
       {showFilters && (
-        <div className="sticky top-14 sm:top-16 z-20 bg-background flex flex-wrap gap-3 items-end py-2">
+        <div ref={filtersRef} className="sticky top-0 z-20 bg-background flex flex-wrap gap-3 items-end py-2">
           <div>
             <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">From date</label>
             <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
@@ -131,30 +161,6 @@ export function TransferHistory({ accountId, showFilters = false }: TransferHist
         </div>
       )}
 
-      {/* Summary bar */}
-      {aggregates && aggregates.count > 0 && (
-        <div className="flex flex-wrap gap-4 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg text-sm">
-          {(!accountId || direction !== 'IN') && (
-            <span className="text-red-600 dark:text-red-400">
-              Total Out: <strong>{fmt(aggregates.totalTransferredOut)}</strong>
-            </span>
-          )}
-          {(!accountId || direction !== 'OUT') && (
-            <span className="text-green-600 dark:text-green-400">
-              Total In: <strong>{fmt(aggregates.totalTransferredIn)}</strong>
-            </span>
-          )}
-          {accountId && !direction && (
-            <span className={`font-medium ${aggregates.net >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-              Net: {aggregates.net >= 0 ? '+' : '-'}{fmt(aggregates.net)}
-            </span>
-          )}
-          <span className="text-gray-500 dark:text-gray-400 ml-auto">
-            {aggregates.count} transfer{aggregates.count !== 1 ? 's' : ''}
-          </span>
-        </div>
-      )}
-
       {/* Table */}
       {loading && transfers.length === 0 ? (
         <div className="text-center py-8">
@@ -165,9 +171,9 @@ export function TransferHistory({ accountId, showFilters = false }: TransferHist
       ) : transfers.length === 0 ? (
         <p className="text-gray-400 dark:text-gray-500 text-sm text-center py-8">No transfers found</p>
       ) : (
-        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)]">
+        <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 z-10 bg-white dark:bg-gray-800">
+            <thead className="sticky z-10 bg-white dark:bg-gray-800" style={{ top: filtersHeight }}>
               <tr className="border-b border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
                 <th className="text-left py-2 px-3 font-medium">Date</th>
                 {accountId && <th className="text-left py-2 px-3 font-medium">Dir</th>}
@@ -216,7 +222,10 @@ export function TransferHistory({ accountId, showFilters = false }: TransferHist
           </table>
         </div>
       )}
+      </div>
 
+      {/* Pagination — outside the scrollable filters+table region so it
+          stays fixed beneath it instead of scrolling away with the rows. */}
       <Pagination
         currentPage={page + 1}
         totalPages={Math.max(1, Math.ceil(total / limit))}
