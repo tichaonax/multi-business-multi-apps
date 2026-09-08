@@ -517,14 +517,16 @@ export default function EmployeesPage() {
       }
     >
       <div className="space-y-6">
-        {/* Filters + table share one scroll/sticky region on desktop (lg+) so
-            the search bar and the table's column headers move together as a
-            single continuous unit and can never slide past each other. This
-            page had no sticky behavior before, so mobile is intentionally
-            left untouched (lg:-prefixed classes only). */}
-        <div className="overflow-visible lg:overflow-auto lg:max-h-[var(--tbl-max-h)]" style={{ ['--tbl-max-h' as any]: 'calc(100vh - 200px)' }}>
+        {/* Filters and the table header both stick to the WINDOW on desktop
+            (lg+) — not to a bounded local scrollbox, which can itself drift
+            out from under the fixed nav during normal page scroll and drag
+            its "stuck" children out of view along with it. The header's
+            `top` adds filters' own measured height on top of the nav
+            offset so the two stay flush. This page had no sticky behavior
+            before, so mobile is intentionally left untouched (lg:-prefixed
+            classes only). */}
         {/* Search and Filters */}
-        <div ref={filtersRef} className="card p-4 sm:p-6 lg:sticky lg:top-0 lg:left-0 lg:z-20">
+        <div ref={filtersRef} className="card p-4 sm:p-6 lg:sticky lg:top-16 lg:z-20">
           <div className="space-y-4">
             {/* Search - Full width on mobile */}
             <div>
@@ -901,9 +903,9 @@ export default function EmployeesPage() {
               </div>
 
               {/* Desktop Table Layout */}
-              <div className="hidden lg:block">
+              <div className="hidden lg:block overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 lg:sticky lg:z-10" style={{ top: filtersHeight }}>
+                  <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 lg:sticky lg:z-10" style={{ top: `calc(4rem + ${filtersHeight}px)` }}>
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider">
                         Employee
@@ -1165,10 +1167,8 @@ export default function EmployeesPage() {
             </>
           )}
         </div>
-        </div>
 
-        {/* Pagination — outside the scrollable filters+table region so it
-            stays fixed beneath it instead of scrolling away with the rows. */}
+        {/* Pagination */}
         {!loading && employees.length > 0 && (
           <div className="card px-4 py-3 flex items-center justify-between sm:px-6">
             <div className="flex-1 flex justify-between sm:hidden">

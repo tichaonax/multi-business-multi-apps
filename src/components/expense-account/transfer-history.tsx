@@ -126,12 +126,13 @@ export function TransferHistory({ accountId, showFilters = false }: TransferHist
         </div>
       )}
 
-      {/* Filters + table share one scroll/sticky region so the filters bar
-          and the table's column headers move together as a single
-          continuous unit and can never slide past each other. */}
-      <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}>
+      {/* Filters and the table header both stick to the WINDOW (not a
+          bounded local scrollbox, which can itself drift out from under the
+          fixed nav during normal page scroll, dragging its stuck children
+          along with it). The header's `top` adds filters' own measured
+          height on top of the nav offset so the two stay flush. */}
       {showFilters && (
-        <div ref={filtersRef} className="sticky top-0 left-0 z-20 bg-background flex flex-wrap gap-3 items-end py-2">
+        <div ref={filtersRef} className="sticky top-14 sm:top-16 z-20 bg-background flex flex-wrap gap-3 items-end py-2">
           <div>
             <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">From date</label>
             <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
@@ -171,8 +172,12 @@ export function TransferHistory({ accountId, showFilters = false }: TransferHist
       ) : transfers.length === 0 ? (
         <p className="text-gray-400 dark:text-gray-500 text-sm text-center py-8">No transfers found</p>
       ) : (
+        <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="sticky z-10 bg-white dark:bg-gray-800" style={{ top: filtersHeight }}>
+            <thead
+              className="sticky z-10 bg-white dark:bg-gray-800 top-[calc(3.5rem+var(--filters-h,0px))] sm:top-[calc(4rem+var(--filters-h,0px))]"
+              style={{ ['--filters-h' as any]: `${filtersHeight}px` }}
+            >
               <tr className="border-b border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
                 <th className="text-left py-2 px-3 font-medium">Date</th>
                 {accountId && <th className="text-left py-2 px-3 font-medium">Dir</th>}
@@ -219,11 +224,10 @@ export function TransferHistory({ accountId, showFilters = false }: TransferHist
               />
             </tbody>
           </table>
+        </div>
       )}
-      </div>
 
-      {/* Pagination — outside the scrollable filters+table region so it
-          stays fixed beneath it instead of scrolling away with the rows. */}
+      {/* Pagination */}
       <Pagination
         currentPage={page + 1}
         totalPages={Math.max(1, Math.ceil(total / limit))}

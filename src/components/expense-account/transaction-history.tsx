@@ -506,16 +506,17 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   return (
     <>
     <div className="space-y-4">
-      {/* Filters + table share one scroll/sticky region so the search bar
-          and the table's column headers move together as a single
-          continuous unit and can never slide past each other — previously
-          the filters stuck to the window while the header stuck to its own
-          local scroll box, so once the page scrolled far enough the header
-          would disappear behind the (by-then fixed) filters bar instead of
-          staying right below it. */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}>
-      <div ref={filtersRef} className="sticky top-0 left-0 z-20 bg-white dark:bg-gray-800 px-3 py-2.5 border-b border-gray-200 dark:border-gray-600">
+      {/* Filters and the table header both stick to the WINDOW (not to a
+          bounded local scrollbox — a box like that can itself drift out
+          from under the fixed nav during normal page scroll, dragging its
+          "stuck" children out of view along with it). The header's `top`
+          is filters' own measured height added on top of the nav offset,
+          so the two always sit flush with no gap and can't slide past each
+          other. Real server-side pagination already caps this table at
+          `limit` rows, so an unbounded-height table here is fine — no local
+          scrollbar needed. */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+      <div ref={filtersRef} className="sticky top-14 sm:top-16 z-20 bg-white dark:bg-gray-800 px-3 py-2.5 border-b border-gray-200 dark:border-gray-600 rounded-t-lg">
 
         {/* Row 1: Search + Reset */}
         <div className="flex gap-2 mb-2">
@@ -700,10 +701,11 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
             <p className="text-gray-500 dark:text-gray-400">No transactions found</p>
           </div>
         ) : (
+          <div className="overflow-x-auto">
             <table className="w-full">
               <thead
-                className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 sticky z-10"
-                style={{ top: filtersHeight }}
+                className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 sticky z-10 top-[calc(3.5rem+var(--filters-h,0px))] sm:top-[calc(4rem+var(--filters-h,0px))]"
+                style={{ ['--filters-h' as any]: `${filtersHeight}px` }}
               >
                 <tr>
                   <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -1091,12 +1093,11 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                 <TableFillerRows count={Math.min(limit, totalTransactions) - transactions.length} colSpan={7} cellClassName="p-3 h-[72px]" />
               </tbody>
             </table>
+          </div>
         )}
       </div>
-        </div>
 
-        {/* Pagination — outside the scrollable filters+table region so it
-            stays fixed beneath it instead of scrolling away with the rows. */}
+        {/* Pagination */}
         <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600">
           <Pagination
             currentPage={page + 1}
