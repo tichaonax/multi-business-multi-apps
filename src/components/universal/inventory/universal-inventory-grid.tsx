@@ -857,7 +857,7 @@ export function UniversalInventoryGrid({
                   )}
                   <th className="text-left p-3 font-medium text-secondary">Status</th>
                   {showActions && (
-                    <th className="text-left p-3 font-medium text-secondary min-w-[240px]">Actions</th>
+                    <th className="text-left p-3 font-medium text-secondary min-w-[320px]">Actions</th>
                   )}
                 </tr>
               </thead>
@@ -1023,7 +1023,7 @@ export function UniversalInventoryGrid({
                     </td>
                     {showActions && (
                       <td className="p-3">
-                        <div className="flex gap-1 items-center">
+                        <div className="flex gap-1 items-center flex-wrap">
                           {onItemAddToCart && (
                             <button
                               onClick={(e) => {
