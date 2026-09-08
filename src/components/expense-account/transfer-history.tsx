@@ -172,7 +172,6 @@ export function TransferHistory({ accountId, showFilters = false }: TransferHist
       ) : transfers.length === 0 ? (
         <p className="text-gray-400 dark:text-gray-500 text-sm text-center py-8">No transfers found</p>
       ) : (
-        <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead
               className="sticky z-10 bg-white dark:bg-gray-800 top-[calc(3.5rem+var(--filters-h,0px))] sm:top-[calc(4rem+var(--filters-h,0px))]"
@@ -224,7 +223,6 @@ export function TransferHistory({ accountId, showFilters = false }: TransferHist
               />
             </tbody>
           </table>
-        </div>
       )}
 
       {/* Pagination */}

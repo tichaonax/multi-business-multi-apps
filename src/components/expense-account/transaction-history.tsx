@@ -701,7 +701,6 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
             <p className="text-gray-500 dark:text-gray-400">No transactions found</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
             <table className="w-full">
               <thead
                 className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 sticky z-10 top-[calc(3.5rem+var(--filters-h,0px))] sm:top-[calc(4rem+var(--filters-h,0px))]"
@@ -1093,7 +1092,6 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                 <TableFillerRows count={Math.min(limit, totalTransactions) - transactions.length} colSpan={7} cellClassName="p-3 h-[72px]" />
               </tbody>
             </table>
-          </div>
         )}
       </div>
 

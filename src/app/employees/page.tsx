@@ -903,7 +903,7 @@ export default function EmployeesPage() {
               </div>
 
               {/* Desktop Table Layout */}
-              <div className="hidden lg:block overflow-x-auto">
+              <div className="hidden lg:block">
                 <table className="w-full">
                   <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 lg:sticky lg:z-10" style={{ top: `calc(4rem + ${filtersHeight}px)` }}>
                     <tr>
