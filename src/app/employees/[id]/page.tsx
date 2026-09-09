@@ -578,10 +578,14 @@ export default function EmployeeDetailPage() {
           <div className="p-4 sm:p-6">
             <div className="space-y-4 sm:space-y-0 sm:flex sm:items-start sm:justify-between">
               <div className="flex items-center">
-                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-blue-100 dark:bg-blue-800 rounded-full flex items-center justify-center flex-shrink-0">
-                  <span className="text-blue-600 dark:text-blue-300 font-semibold text-sm sm:text-lg">
-                    {employee.firstName[0]}{employee.lastName[0]}
-                  </span>
+                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full flex-shrink-0 overflow-hidden bg-blue-100 dark:bg-blue-800 flex items-center justify-center">
+                  {employee.profilePhotoUrl ? (
+                    <img src={employee.profilePhotoUrl} alt={employee.fullName} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-blue-600 dark:text-blue-300 font-semibold text-sm sm:text-lg">
+                      {employee.firstName[0]}{employee.lastName[0]}
+                    </span>
+                  )}
                 </div>
                 <div className="ml-3 sm:ml-6 min-w-0 flex-1">
                   <h1 className="text-xl sm:text-2xl font-bold text-primary truncate">{employee.fullName}</h1>

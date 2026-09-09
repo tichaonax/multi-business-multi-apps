@@ -103,6 +103,7 @@ export type Employee = {
   nationalId: string | null
   nationalIdDocUrl: string | null
   nationalIdDocName: string | null
+  profilePhotoUrl?: string | null
   driverLicense: string | null
   passportNumber: string | null
   emergencyContactName: string | null
