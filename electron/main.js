@@ -198,8 +198,20 @@ async function openServer(serverEntry) {
   // exactly right.
   const scaleFactor = screen.getPrimaryDisplay().scaleFactor || 1
   const autoZoomFactor = 1 / scaleFactor
-  const savedZoomFactor = registry.getZoomFactor()
-  mainWindow.webContents.zoomFactor = savedZoomFactor ?? autoZoomFactor
+
+  // Applied on 'did-finish-load' rather than right here -- webContents is
+  // still on about:blank at this point (loadFile/loadURL below haven't run
+  // yet), and a zoomFactor set before the first real navigation doesn't
+  // survive it: Chromium's per-origin zoom controller resets once the actual
+  // page (loading.html, then the real server URL) navigates in, silently
+  // discarding this. Re-applying after every finished load (there are two --
+  // the local loading.html spinner, then the real app) means both the
+  // spinner and the app itself end up correctly sized, and it's re-read from
+  // the registry each time so a mid-session Ctrl+/Ctrl- change also survives
+  // a later reload.
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow.webContents.zoomFactor = registry.getZoomFactor() ?? autoZoomFactor
+  })
 
   // Safety net: if anything ever un-maximizes the window (the title bar's
   // own restore-down button, a stray OS shortcut, Windows restoring window
