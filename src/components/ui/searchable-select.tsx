@@ -115,6 +115,14 @@ export function SearchableSelect({
     const spaceAbove = rect.top
     const maxDropdownH = 256 // max-h-64
 
+    // Never narrower than the trigger, but free to grow with its longest
+    // option (up to what actually fits on screen) rather than being pinned
+    // to the trigger's exact width -- a narrow trigger (e.g. a compact filter
+    // button) paired with long option labels was forcing a horizontal
+    // scrollbar inside the dropdown instead of just showing the full text.
+    const minWidth = rect.width
+    const maxWidth = Math.max(minWidth, Math.min(420, window.innerWidth - rect.left - 8))
+
     if (spaceBelow < 160 && spaceAbove > spaceBelow) {
       // Open upward
       const dropH = Math.min(maxDropdownH, spaceAbove - 8)
@@ -122,7 +130,9 @@ export function SearchableSelect({
         position: 'fixed',
         bottom: window.innerHeight - rect.top,
         left: rect.left,
-        width: rect.width,
+        width: 'max-content',
+        minWidth,
+        maxWidth,
         maxHeight: dropH,
         zIndex: 9999,
       })
@@ -131,7 +141,9 @@ export function SearchableSelect({
         position: 'fixed',
         top: rect.bottom + 2,
         left: rect.left,
-        width: rect.width,
+        width: 'max-content',
+        minWidth,
+        maxWidth,
         maxHeight: Math.min(maxDropdownH, spaceBelow - 8),
         zIndex: 9999,
       })
@@ -223,7 +235,7 @@ export function SearchableSelect({
                     key={val}
                     type="button"
                     onClick={() => select(val)}
-                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 whitespace-nowrap ${value === val ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium' : 'text-primary'}`}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 whitespace-nowrap overflow-hidden text-ellipsis ${value === val ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium' : 'text-primary'}`}
                   >
                     {renderOption ? renderOption(o) : getOptionLabel(o)}
                   </button>
