@@ -4,7 +4,7 @@
 export const dynamic = 'force-dynamic';
 
 import { ProtectedRoute } from '@/components/auth/protected-route';
-import { useState, useEffect, useRef, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal';
 import { useSession } from 'next-auth/react';
@@ -39,7 +39,6 @@ function InventoryCategoriesPageContent() {
   const [selectedBusinessType, setSelectedBusinessType] = useState<string>(() => searchParams.get('businessType') || 'clothing');
   const [selectedDepartment, setSelectedDepartment] = useState<string>(() => searchParams.get('domainId') || '');
   const [stats, setStats] = useState<any>(null);
-  const isFirstBusinessTypeRun = useRef(true);
 
   // Selecting a department (or switching business type) swaps in a whole new
   // list in place -- no route change, so the browser has no reason to reset
@@ -83,20 +82,22 @@ function InventoryCategoriesPageContent() {
   // Fetch department statistics for clothing business
   useEffect(() => {
     async function fetchStats() {
-      if (selectedBusinessType !== 'clothing') {
-        setStats(null);
-        return;
-      }
-
       try {
-        const response = await fetch('/api/admin/clothing/stats');
+        // Generic, business-type-agnostic stats endpoint (same one
+        // /admin/products uses) -- previously this only fetched for
+        // clothing, so the Active Filter badge and Browse by Department
+        // tiles below silently never worked for any other business type.
+        const response = await fetch(`/api/admin/products/stats?businessType=${selectedBusinessType}`);
         const data = await response.json();
 
         if (data.success) {
           setStats(data.data);
+        } else {
+          setStats(null);
         }
       } catch (err) {
         console.error('Error fetching stats:', err);
+        setStats(null);
       }
     }
 
@@ -128,15 +129,7 @@ function InventoryCategoriesPageContent() {
     }
 
     fetchCategories();
-    // Reset department filter when business type changes -- but not on the
-    // very first run, which would otherwise immediately wipe out a
-    // department restored from the URL before it's ever used.
-    if (isFirstBusinessTypeRun.current) {
-      isFirstBusinessTypeRun.current = false;
-    } else {
-      setSelectedDepartment('');
-    }
-  }, [currentBusinessType, selectedBusinessType]);
+  }, [currentBusinessType]);
 
   const toggleCategory = (categoryId: string) => {
     const newExpanded = new Set(expandedCategories);
@@ -248,7 +241,7 @@ function InventoryCategoriesPageContent() {
     const matchesSearch = cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          cat.description?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    // Department filter (only for clothing)
+    // Department filter (any business type with domain-scoped categories)
     const matchesDepartment = !selectedDepartment || cat.domainId === selectedDepartment;
 
     return matchesSearch && matchesDepartment;
@@ -302,7 +295,16 @@ function InventoryCategoriesPageContent() {
             ].map(({ type, emoji, label }) => (
               <button
                 key={type}
-                onClick={() => setSelectedBusinessType(type)}
+                onClick={() => {
+                  // Only a real click here is a deliberate business-type
+                  // change -- clearing the department here (not in an effect
+                  // keyed on selectedBusinessType) means it can't be
+                  // triggered by React 18 Strict Mode's double-invoked
+                  // mount-time effects, which was wiping out a department
+                  // just restored from the URL.
+                  if (type !== selectedBusinessType) setSelectedDepartment('');
+                  setSelectedBusinessType(type);
+                }}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                   selectedBusinessType === type
                     ? 'bg-blue-600 text-white'
@@ -369,7 +371,7 @@ function InventoryCategoriesPageContent() {
           </div>
 
           {/* Active Department Filter Badge */}
-          {selectedDepartment && selectedBusinessType === 'clothing' && (
+          {selectedDepartment && (
             <div className="mt-4 flex items-center gap-2 flex-wrap">
               <span className="text-sm text-gray-600 dark:text-gray-400">Active filter:</span>
               <span className="inline-flex items-center gap-2 rounded-md bg-green-100 dark:bg-green-900 px-3 py-1 text-sm font-medium text-green-800 dark:text-green-200">
@@ -387,8 +389,8 @@ function InventoryCategoriesPageContent() {
           )}
         </div>
 
-        {/* Department Quick Navigation (Clothing Only) */}
-        {selectedBusinessType === 'clothing' && stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && !selectedDepartment && (
+        {/* Department Quick Navigation */}
+        {stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && !selectedDepartment && (
           <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Browse by Department</h3>
