@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 import { ProtectedRoute } from '@/components/auth/protected-route';
 import { useState, useEffect, useRef, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -28,7 +28,6 @@ function InventoryCategoriesPageContent() {
   const customAlert = useAlert();
   const confirm = useConfirm();
   const searchParams = useSearchParams();
-  const router = useRouter();
   const [categories, setCategories] = useState<InventoryCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,17 +40,6 @@ function InventoryCategoriesPageContent() {
   const [selectedDepartment, setSelectedDepartment] = useState<string>(() => searchParams.get('domainId') || '');
   const [stats, setStats] = useState<any>(null);
   const isFirstBusinessTypeRun = useRef(true);
-
-  // Keep the URL in sync so this page's own state survives a refresh/back
-  // button, and so links elsewhere (built from these same query params) can
-  // send you back to exactly this view.
-  useEffect(() => {
-    const params = new URLSearchParams();
-    params.set('businessType', selectedBusinessType);
-    if (selectedDepartment) params.set('domainId', selectedDepartment);
-    router.replace(`/business/inventory-categories?${params}`, { scroll: false });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBusinessType, selectedDepartment]);
 
   // Selecting a department (or switching business type) swaps in a whole new
   // list in place -- no route change, so the browser has no reason to reset
@@ -295,43 +283,41 @@ function InventoryCategoriesPageContent() {
           </p>
         </div>
 
-        {/* Business Type selector + search/filters all float as one unit
-            below the nav -- previously only search/filters were sticky, so
-            switching business type meant scrolling all the way back to the
-            top of a long category list to reach it. */}
-        <div className="sticky top-14 sm:top-16 z-20 -mx-4 px-4 py-3 mb-6 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-          {/* Business Type Selector */}
-          <div className="mb-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Select Business Type:
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { type: 'clothing',     emoji: '👗',  label: 'Clothing' },
-                { type: 'hardware',     emoji: '🔧',  label: 'Hardware' },
-                { type: 'grocery',      emoji: '🛒',  label: 'Grocery' },
-                { type: 'restaurant',   emoji: '🍽️', label: 'Restaurant' },
-                { type: 'retail',       emoji: '🏪',  label: 'Retail' },
-                { type: 'services',     emoji: '🛠️', label: 'Services' },
-                { type: 'consulting',   emoji: '💼',  label: 'Consulting' },
-                { type: 'construction', emoji: '🏗️', label: 'Construction' },
-                { type: 'other',        emoji: '📦',  label: 'Other' },
-              ].map(({ type, emoji, label }) => (
-                <button
-                  key={type}
-                  onClick={() => setSelectedBusinessType(type)}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                    selectedBusinessType === type
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  {emoji} {label}
-                </button>
-              ))}
-            </div>
+        {/* Business Type Selector */}
+        <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Select Business Type:
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { type: 'clothing',     emoji: '👗',  label: 'Clothing' },
+              { type: 'hardware',     emoji: '🔧',  label: 'Hardware' },
+              { type: 'grocery',      emoji: '🛒',  label: 'Grocery' },
+              { type: 'restaurant',   emoji: '🍽️', label: 'Restaurant' },
+              { type: 'retail',       emoji: '🏪',  label: 'Retail' },
+              { type: 'services',     emoji: '🛠️', label: 'Services' },
+              { type: 'consulting',   emoji: '💼',  label: 'Consulting' },
+              { type: 'construction', emoji: '🏗️', label: 'Construction' },
+              { type: 'other',        emoji: '📦',  label: 'Other' },
+            ].map(({ type, emoji, label }) => (
+              <button
+                key={type}
+                onClick={() => setSelectedBusinessType(type)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  selectedBusinessType === type
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                {emoji} {label}
+              </button>
+            ))}
           </div>
+        </div>
 
+        {/* Search + filters float as one unit below the nav; the category
+            list (and Browse by Department block) scrolls underneath it. */}
+        <div className="sticky top-14 sm:top-16 z-20 -mx-4 px-4 py-3 mb-6 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
           {/* Actions Bar */}
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
             {/* Search */}
@@ -346,6 +332,19 @@ function InventoryCategoriesPageContent() {
             </div>
 
             <div className="flex gap-2">
+              {/* Jump back to the Business Type selector above, without
+                  relying on the browser Back button -- it's not sticky
+                  itself (9 buttons would make the floating bar too tall),
+                  so this is the one-click way back to it from anywhere in
+                  a long, scrolled category list. */}
+              <button
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors whitespace-nowrap"
+                title="Back to business type selector"
+              >
+                🏢 Change Business Type
+              </button>
+
               {/* Reset Filters Button */}
               {hasActiveFilters && (
                 <button
