@@ -35,6 +35,16 @@ export default function InventoryCategoriesPage() {
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
   const [stats, setStats] = useState<any>(null);
 
+  // Selecting a department (or switching business type) swaps in a whole new
+  // list in place -- no route change, so the browser has no reason to reset
+  // scroll on its own. Without this, whatever scroll position you were at
+  // when you clicked (often mid-page, scrolled down to the department tiles)
+  // carries over onto the new, usually-shorter list, landing you somewhere
+  // in the middle of it instead of at the top.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [selectedDepartment, selectedBusinessType]);
+
   // Fetch DB-level user permissions (useSession only carries id/role/name, not permissions)
   const [userPerms, setUserPerms] = useState<Record<string, any>>({});
   useEffect(() => {

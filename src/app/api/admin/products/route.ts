@@ -24,7 +24,6 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       )
     }
-    where.businessType = businessType
 
     if (businessId) {
       where.businessId = businessId
@@ -39,13 +38,23 @@ export async function GET(request: NextRequest) {
       })
       categoryIds = [categoryId, ...subcategories.map(c => c.id)]
       where.categoryId = { in: categoryIds }
-    } else if (domainId) {
-      const categoriesInDomain = await prisma.businessCategories.findMany({
-        where: { domainId },
-        select: { id: true }
-      })
-      categoryIds = categoriesInDomain.map(c => c.id)
-      where.categoryId = { in: categoryIds }
+      // A specific category is a concrete target, not a business-type browse --
+      // categories are shared presets a product can reference regardless of its
+      // own businessType (e.g. a clothing business's product filed under a
+      // hardware category), so don't drop it from the results just because its
+      // businessType differs from the page's. Matches how the category's own
+      // product-count badge is computed (also businessType-agnostic) -- the two
+      // no longer disagree on whether a product "belongs" to the category.
+    } else {
+      where.businessType = businessType
+      if (domainId) {
+        const categoriesInDomain = await prisma.businessCategories.findMany({
+          where: { domainId },
+          select: { id: true }
+        })
+        categoryIds = categoriesInDomain.map(c => c.id)
+        where.categoryId = { in: categoryIds }
+      }
     }
 
     // Search by name or SKU
@@ -57,7 +66,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Build barcodeInventoryItems where clause (same filters, different field names)
-    const barcodeWhere: any = { isActive: true, business: { type: businessType } }
+    // Same businessType relaxation as above: only scope to businessType when
+    // there's no specific categoryId target.
+    const barcodeWhere: any = { isActive: true, ...(categoryId ? {} : { business: { type: businessType } }) }
     if (businessId) barcodeWhere.businessId = businessId
     if (categoryIds) barcodeWhere.categoryId = { in: categoryIds }
     if (search) {

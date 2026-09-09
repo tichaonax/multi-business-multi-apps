@@ -167,6 +167,14 @@ function ClothingProductsPageContent() {
     fetchProducts(1)
   }, [searchQuery, selectedBusiness, selectedDepartment, selectedCategory, pageSize])
 
+  // Selecting a department/category swaps the whole list in place via a
+  // query-param-only URL push, which Next.js doesn't auto-scroll for (that
+  // only happens on a pathname change) -- without this, the new, usually
+  // shorter list opens wherever the page happened to be scrolled to.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' })
+  }, [selectedDepartment, selectedCategory])
+
   // Fetch stats only once on mount
   useEffect(() => {
     fetchStats()
