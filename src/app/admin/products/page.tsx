@@ -395,8 +395,13 @@ function UniversalProductsPageContent() {
               Departments the stats endpoint always pre-seeds with every
               domain (count: 0 if nothing matches) -- while a search is
               active, drop the zero-count ones so this list actually shrinks
-              to match, instead of showing every department at "0 products". */}
-          {stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && !selectedDepartment && (() => {
+              to match, instead of showing every department at "0 products".
+              Hidden entirely once any of the Active Filters chips above are
+              set (business/department/category) -- at that point you've
+              already drilled into a specific result set, and re-browsing
+              every department is just noise sitting on top of the results
+              you're actually looking at. */}
+          {stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && !selectedDepartment && !selectedCategory && !selectedBusiness && (() => {
             const departmentEntries = Object.entries(stats.byDepartment)
               .filter(([, dept]: [string, any]) => !searchQuery || dept.count > 0)
               .sort(([, a]: [string, any], [, b]: [string, any]) => b.count - a.count)

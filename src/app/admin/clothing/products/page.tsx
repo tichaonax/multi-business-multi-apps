@@ -428,8 +428,12 @@ function ClothingProductsPageContent() {
             </form>
           </div>
 
-          {/* Department Quick Navigation */}
-          {stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && !selectedDepartment && (
+          {/* Department Quick Navigation -- hidden once any Active Filters
+              chip above is set (business/department/category), same as
+              /admin/products: at that point you've already drilled into a
+              specific result set, and re-browsing every department is just
+              noise on top of the results you're looking at. */}
+          {stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && !selectedDepartment && !selectedCategory && !selectedBusiness && (
             <div className="rounded-lg border bg-card p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold">Browse by Department</h3>
