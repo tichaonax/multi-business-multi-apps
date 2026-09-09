@@ -827,38 +827,38 @@ export function UniversalInventoryGrid({
                     </th>
                   )}
                   <th
-                    className={`text-left p-3 font-medium text-secondary w-80 ${allowSorting ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''}`}
+                    className={`text-left p-3 font-medium text-secondary w-[22%] ${allowSorting ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''}`}
                     onClick={() => allowSorting && handleSort('name')}
                   >
                     Item {allowSorting && (sortField === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '')}
                   </th>
                   <th
-                    className={`text-left p-3 font-medium text-secondary w-24 ${allowSorting ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''}`}
+                    className={`text-left p-3 font-medium text-secondary w-[7%] ${allowSorting ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''}`}
                     onClick={() => allowSorting && handleSort('currentStock')}
                   >
                     Stock {allowSorting && (sortField === 'currentStock' ? (sortDirection === 'asc' ? '↑' : '↓') : '')}
                   </th>
                   <th
-                    className={`text-left p-3 font-medium text-secondary w-24 ${allowSorting ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''}`}
+                    className={`text-left p-3 font-medium text-secondary w-[7%] ${allowSorting ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''}`}
                     onClick={() => allowSorting && handleSort('costPrice')}
                   >
                     Unit Cost {allowSorting && (sortField === 'costPrice' ? (sortDirection === 'asc' ? '↑' : '↓') : '')}
                   </th>
                   <th
-                    className={`text-left p-3 font-medium text-secondary w-24 ${allowSorting ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''}`}
+                    className={`text-left p-3 font-medium text-secondary w-[7%] ${allowSorting ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''}`}
                     onClick={() => allowSorting && handleSort('sellPrice')}
                   >
                     Sell Price {allowSorting && (sortField === 'sellPrice' ? (sortDirection === 'asc' ? '↑' : '↓') : '')}
                   </th>
-                  <th className="text-left p-3 font-medium text-secondary w-32">Supplier</th>
-                  <th className="text-left p-3 font-medium text-secondary w-28">Location</th>
-                  <th className="text-left p-3 font-medium text-secondary w-56">Barcodes</th>
+                  <th className="text-left p-3 font-medium text-secondary w-[10%]">Supplier</th>
+                  <th className="text-left p-3 font-medium text-secondary w-[9%]">Location</th>
+                  <th className="text-left p-3 font-medium text-secondary w-[16%]">Barcodes</th>
                   {showBusinessSpecificFields && (
-                    <th className="text-left p-3 font-medium text-secondary w-40">Details</th>
+                    <th className="text-left p-3 font-medium text-secondary w-[12%]">Details</th>
                   )}
-                  <th className="text-left p-3 font-medium text-secondary w-24">Status</th>
+                  <th className="text-left p-3 font-medium text-secondary w-[6%]">Status</th>
                   {showActions && (
-                    <th className="text-left p-3 font-medium text-secondary w-16">Actions</th>
+                    <th className="text-left p-3 font-medium text-secondary w-[4%]">Actions</th>
                   )}
                 </tr>
               </thead>

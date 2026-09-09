@@ -40,7 +40,11 @@ export function RowActionsMenu({ actions }: RowActionsMenuProps) {
     if (!buttonRef.current) return
     const rect = buttonRef.current.getBoundingClientRect()
     const menuWidth = 220
-    const estimatedHeight = Math.min(actions.length * 36 + 8, 320)
+    // No max-height / scrolling here on purpose -- the menu always renders
+    // at its full natural height so every action is visible at once. Only
+    // decide which side (above/below the trigger) has more room, to reduce
+    // how far off-screen it can run, not to cap or scroll it.
+    const estimatedHeight = actions.length * 36 + 8
     const spaceBelow = window.innerHeight - rect.bottom
     const spaceAbove = rect.top
 
@@ -50,7 +54,6 @@ export function RowActionsMenu({ actions }: RowActionsMenuProps) {
         bottom: window.innerHeight - rect.top,
         right: window.innerWidth - rect.right,
         width: menuWidth,
-        maxHeight: Math.min(estimatedHeight, spaceAbove - 8),
         zIndex: 9999,
       })
     } else {
@@ -59,7 +62,6 @@ export function RowActionsMenu({ actions }: RowActionsMenuProps) {
         top: rect.bottom + 4,
         right: window.innerWidth - rect.right,
         width: menuWidth,
-        maxHeight: Math.min(estimatedHeight, spaceBelow - 8),
         zIndex: 9999,
       })
     }
@@ -115,7 +117,7 @@ export function RowActionsMenu({ actions }: RowActionsMenuProps) {
         <div
           ref={menuRef}
           style={style}
-          className="overflow-y-auto rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl py-1"
+          className="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl py-1"
           onClick={(e) => e.stopPropagation()}
         >
           {actions.map((action) => (
