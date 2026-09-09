@@ -22,10 +22,15 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
+    const period = await prisma.payrollPeriods.findUnique({ where: { id: periodId }, select: { month: true } })
+    if (!period) {
+      return NextResponse.json({ error: 'Payroll period not found' }, { status: 404 })
+    }
+
     // Find entries in the period (minimal fields)
     const entries = await prisma.payrollEntries.findMany({
       where: { payrollPeriodId: periodId },
-      select: { id: true, employeeId: true }
+      select: { id: true, employeeId: true, baseSalary: true }
     })
 
     // Find any existing benefits for these entries
@@ -55,12 +60,25 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     for (const entry of entriesNoBenefits) {
       const contract = latestContractByEmployee[entry.employeeId]
       if (!contract) continue
+      const baseSalary = Number(entry.baseSalary || 0)
 
       for (const b of contract.contract_benefits || []) {
-        const amount = Number(b.amount ?? b.benefit_types?.defaultAmount ?? 0)
-        if (!amount || amount === 0) continue
+        const rawAmount = Number(b.amount ?? b.benefit_types?.defaultAmount ?? 0)
+        if (!rawAmount || rawAmount === 0) continue
         // skip deductions when inferring benefits
         if (b.benefit_types?.type === 'deduction') continue
+
+        // Month-restricted benefits (e.g. an Annual Bonus with paymentMonth=11)
+        // must only be persisted into the one period they actually apply to --
+        // otherwise this sync recreates them into every period going forward.
+        const restrictedMonth = b.benefit_types?.paymentMonth
+        if (restrictedMonth != null && restrictedMonth !== period.month) continue
+
+        // Percentage-based benefits store a rate (e.g. 50 for "50%"), not a
+        // dollar amount -- convert against this entry's own base salary
+        // before persisting, matching entries/bulk/route.ts's own handling.
+        const isPercentage = b.benefit_types?.isPercentage === true || b.isPercentage === true
+        const amount = isPercentage ? Math.round((rawAmount / 100) * baseSalary * 100) / 100 : rawAmount
 
         benefitRecords.push({
           id: `PEB-${nanoid(12)}`,

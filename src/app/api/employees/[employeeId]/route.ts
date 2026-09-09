@@ -65,7 +65,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           employee_contracts: { select: { id: true, contractNumber: true } },
           job_titles: { select: { id: true, title: true, department: true } },
           employees_employee_contracts_supervisorIdToemployees: { select: { id: true, fullName: true } },
-          contract_benefits: { include: { benefit_types: { select: { name: true, type: true } } } }
+          contract_benefits: { include: { benefit_types: { select: { name: true, type: true, paymentMonth: true } } } }
         } as Prisma.EmployeeContractSelect ),
         orderBy: { createdAt: 'desc' }
       },
@@ -176,8 +176,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           benefitsSource = contract.pdfGenerationData.benefits
         }
 
-        // Compute monthly benefits: fixed amounts added directly; percentage benefits calculated against monthlySalary
+        // Compute monthly benefits: fixed amounts added directly; percentage benefits calculated against monthlySalary.
+        // A benefit tied to a BenefitType with paymentMonth set (e.g. a 50%-of-salary Annual
+        // Bonus paid only in November) is a one-time annual payment, not a recurring monthly
+        // one -- it must not be folded into this ongoing "monthly benefits" figure at all,
+        // regardless of which calendar month this is viewed in.
         const monthlyBenefits = (benefitsSource || []).reduce((total: number, benefit: any) => {
+          if (benefit.benefit_types?.paymentMonth != null) return total
           const amt = Number(benefit.amount || 0)
           if (benefit.isPercentage) {
             return total + (monthlySalary * amt / 100)

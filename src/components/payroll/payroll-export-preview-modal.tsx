@@ -93,12 +93,23 @@ export function PayrollExportPreviewModal({
   }
 
   // Get unique active benefits across all entries
+  const MAX_DYNAMIC_HEADER_LEN = 24
+  const buildBenefitHeaderLabel = (name: string, isDeduction: boolean) => {
+    const prefix = isDeduction ? 'DED: ' : ''
+    const maxNameLen = MAX_DYNAMIC_HEADER_LEN - prefix.length
+    const trimmedName = name.length > maxNameLen ? `${name.slice(0, maxNameLen - 1)}…` : name
+    return `${prefix}${trimmedName}`
+  }
   const getUniqueBenefits = () => {
     if (!period) return []
-    // Use normalized name as the dedupe key so differently-typed benefits with the same
-    // visible name are combined into a single column.
+    // Keyed by type + normalized name -- a deduction and a benefit that
+    // happen to normalize to the same visible name (BenefitTypes.name is
+    // unique but case-sensitive, so e.g. "Living Allowance" and a legacy
+    // "LIVING ALLOWANCE" deduction can both exist) must stay separate
+    // columns, not collapse into one that silently drops the other's data.
     const normalizeName = (s?: string) => (s || '').normalize?.('NFKC').replace(/\s+/g, ' ').trim().toLowerCase()
-    const uniqueBenefitsMap = new Map<string, { benefitTypeId: string; benefitName: string }>()
+    const isDeductionEntry = (entryLike: any) => (entryLike?.type || entryLike?.entryType) === 'deduction'
+    const uniqueBenefitsMap = new Map<string, { benefitTypeId: string; benefitName: string; isDeduction: boolean }>()
 
     period.payrollEntries.forEach(entry => {
       // mergedBenefits from server already has month-restriction applied — use exclusively
@@ -109,10 +120,11 @@ export function PayrollExportPreviewModal({
           if (!mb) return
           if (mb.isActive === false) return
           const name = mb.benefitType?.name || mb.benefitName || mb.key || mb.name || ''
-          const key = normalizeName(name)
-          if (!key) return
+          const isDeduction = isDeductionEntry(mb)
+          const key = `${isDeduction ? 'deduction' : 'benefit'}:${normalizeName(name)}`
+          if (!normalizeName(name)) return
           if (!uniqueBenefitsMap.has(key)) {
-            uniqueBenefitsMap.set(key, { benefitTypeId: String(mb.benefitType?.id || mb.benefitTypeId || ''), benefitName: name })
+            uniqueBenefitsMap.set(key, { benefitTypeId: String(mb.benefitType?.id || mb.benefitTypeId || ''), benefitName: name, isDeduction })
           }
         })
         return // skip fallbacks — server data is authoritative
@@ -123,16 +135,18 @@ export function PayrollExportPreviewModal({
       entry.payrollEntryBenefits?.forEach(benefit => {
         if (!benefit.isActive) return
         const name = benefit.benefitName || ''
-        const key = normalizeName(name)
-        if (!key) return
+        const isDeduction = isDeductionEntry(benefit)
+        const key = `${isDeduction ? 'deduction' : 'benefit'}:${normalizeName(name)}`
+        if (!normalizeName(name)) return
         if (!uniqueBenefitsMap.has(key)) {
-          uniqueBenefitsMap.set(key, { benefitTypeId: String(benefit.benefitTypeId || benefit.benefitName || ''), benefitName: name })
+          uniqueBenefitsMap.set(key, { benefitTypeId: String(benefit.benefitTypeId || benefit.benefitName || ''), benefitName: name, isDeduction })
         }
       })
     })
 
     return Array.from(uniqueBenefitsMap.values())
       .sort((a, b) => (a.benefitName || '').localeCompare(b.benefitName || ''))
+      .map(b => ({ ...b, headerLabel: buildBenefitHeaderLabel(b.benefitName, b.isDeduction) }))
   }
 
   const formatCurrency = (amount: number) => {
@@ -377,8 +391,8 @@ export function PayrollExportPreviewModal({
                       <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Cash in Lieu</th>
                       <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Adjustments</th>
                       {getUniqueBenefits().map(benefit => (
-                        <th key={benefit.benefitTypeId} className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">
-                          {benefit.benefitName}
+                        <th key={`${benefit.isDeduction ? 'd' : 'b'}-${benefit.benefitTypeId}`} className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">
+                          {benefit.headerLabel}
                         </th>
                       ))}
                       <th className="px-3 py-2 text-right text-xs font-medium text-secondary uppercase">Absence (unearned)</th>

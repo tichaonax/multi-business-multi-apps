@@ -2390,8 +2390,20 @@ export function PayrollEntryDetailModal({
                         duplicate here. Persisted/manual overrides remain visible. */}
                     {(() => {
                       // Exclude zero-amount benefits from the Compensation Breakdown display
-                      // Ensure contract-inferred benefits are included individually as line items
-                      const contractInferred = (entry?.contract?.pdfGenerationData?.benefits || []).filter((cb: any) => Number(cb.amount || 0) !== 0 && cb.name && cb.type !== 'deduction').map((cb: any) => ({ benefitName: cb.name, amount: Number(cb.amount || 0), source: 'contract-inferred', benefitTypeId: cb.benefitTypeId || null }))
+                      // Ensure contract-inferred benefits are included individually as line items.
+                      // Prefer the server's `mergedBenefits` (computed in
+                      // /api/payroll/periods/[periodId]) when present -- it already converts
+                      // percentage-based benefits to a dollar amount off this entry's own
+                      // baseSalary and applies each BenefitType's paymentMonth restriction
+                      // (e.g. a 50%-of-salary Annual Bonus with paymentMonth=11 must show as
+                      // 50% × baseSalary only in November). Reading straight from the raw
+                      // contract snapshot below skips both of those, showing the raw stored
+                      // percentage number as a flat dollar amount in every month.
+                      const contractInferred = Array.isArray((entry as any)?.mergedBenefits)
+                        ? (entry as any).mergedBenefits
+                            .filter((mb: any) => mb.source === 'contract' && mb.isActive !== false && Number(mb.amount || 0) !== 0)
+                            .map((mb: any) => ({ benefitName: mb.benefitName, amount: Number(mb.amount || 0), source: 'contract-inferred', benefitTypeId: mb.benefitTypeId || null }))
+                        : (entry?.contract?.pdfGenerationData?.benefits || []).filter((cb: any) => Number(cb.amount || 0) !== 0 && cb.name && cb.type !== 'deduction').map((cb: any) => ({ benefitName: cb.name, amount: Number(cb.amount || 0), source: 'contract-inferred', benefitTypeId: cb.benefitTypeId || null }))
                       // Merge persisted/manual benefits (from `benefits`) with contract-inferred, avoiding duplicates by benefitTypeId or name
                       const displayedMap = new Map<string, any>()
                       for (const b of (benefits || [])) {

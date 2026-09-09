@@ -73,7 +73,23 @@ export async function generatePayrollExcel(
   // Get unique benefits using server-provided mergedBenefits when available
   // Match the preview logic: include active merged benefits (regardless of amount)
   const normalizeName = (s?: string) => (s || '').normalize?.('NFKC').replace(/\s+/g, ' ').trim().toLowerCase()
-  const uniqueBenefitsMap = new Map<string, { id: string, name: string }>()
+  // Column headers are only 20-ish characters wide and hold a single numeric
+  // value -- a deduction and a benefit that happen to normalize to the same
+  // name (e.g. "Living Allowance" vs a differently-cased/legacy "LIVING
+  // ALLOWANCE" deduction; BenefitTypes.name is unique but case-sensitive, so
+  // both can legitimately exist) would otherwise collapse into one column
+  // here, silently mixing a deduction's amount into a benefit column. Keying
+  // by type as well as name keeps them as separate columns; a short prefix
+  // on the header text keeps that distinction visible on the sheet itself.
+  const MAX_DYNAMIC_HEADER_LEN = 24
+  const isDeductionEntry = (entryLike: any) => (entryLike?.type || entryLike?.entryType) === 'deduction'
+  const buildHeader = (name: string, isDeduction: boolean) => {
+    const prefix = isDeduction ? 'DED: ' : ''
+    const maxNameLen = MAX_DYNAMIC_HEADER_LEN - prefix.length
+    const trimmedName = name.length > maxNameLen ? `${name.slice(0, maxNameLen - 1)}…` : name
+    return `${prefix}${trimmedName}`
+  }
+  const uniqueBenefitsMap = new Map<string, { id: string, name: string, isDeduction: boolean }>()
   entries.forEach(entry => {
     // Prefer mergedBenefits from server if present
     const merged = (entry as any).mergedBenefits || []
@@ -81,11 +97,12 @@ export async function generatePayrollExcel(
       if (!mb) return
       if (mb.isActive === false) return
       const name = mb.benefit_types?.name || mb.benefitName || mb.key || mb.name || ''
-      const key = normalizeName(name)
-      if (!key) return
+      const isDeduction = isDeductionEntry(mb)
+      const key = `${isDeduction ? 'deduction' : 'benefit'}:${normalizeName(name)}`
+      if (!normalizeName(name)) return
       if (!uniqueBenefitsMap.has(key)) {
         const id = String(mb.benefit_types?.id || mb.benefitTypeId || mb.benefitName || name)
-        uniqueBenefitsMap.set(key, { id, name })
+        uniqueBenefitsMap.set(key, { id, name, isDeduction })
       }
     })
 
@@ -93,17 +110,22 @@ export async function generatePayrollExcel(
     entry.payrollEntryBenefits?.forEach((benefit: any) => {
       if (!benefit.isActive) return
       const name = benefit.benefitName || ''
-      const key = normalizeName(name)
-      if (!key) return
+      const isDeduction = isDeductionEntry(benefit)
+      const key = `${isDeduction ? 'deduction' : 'benefit'}:${normalizeName(name)}`
+      if (!normalizeName(name)) return
       if (!uniqueBenefitsMap.has(key)) {
         const benefitId = benefit.benefitTypeId || benefit.benefitName
-        uniqueBenefitsMap.set(key, { id: String(benefitId), name })
+        uniqueBenefitsMap.set(key, { id: String(benefitId), name, isDeduction })
       }
     })
   })
+  // benefitName stays the raw, un-prefixed name -- it's used below to match
+  // this column back against each entry's mergedBenefits/payrollEntryBenefits
+  // by name. headerLabel (prefixed + length-capped) is only for the sheet's
+  // actual header row, built separately as `benefitHeaders`.
   const uniqueBenefits = Array.from(uniqueBenefitsMap.values())
     .sort((a, b) => a.name.localeCompare(b.name))
-    .map(b => ({ benefitTypeId: b.id, benefitName: b.name }))
+    .map(b => ({ benefitTypeId: b.id, benefitName: b.name, isDeduction: b.isDeduction, headerLabel: buildHeader(b.name, b.isDeduction) }))
 
   // Build dynamic header array
   // Align headers with the preview modal: include Employee ID and Adjustments
@@ -130,7 +152,7 @@ export async function generatePayrollExcel(
     'Cash in Lieu',
     'Adjustments'
   ]
-  const benefitHeaders = uniqueBenefits.map(b => b.benefitName)
+  const benefitHeaders = uniqueBenefits.map(b => b.headerLabel)
   // End columns: match preview which uses a single Deductions column
   const endHeaders = [
     'Absence (unearned)',
@@ -456,12 +478,12 @@ export async function generatePayrollExcel(
       // Prefer mergedBenefits value when available
       const mb = (entry as any).mergedBenefits || []
       const normalizedKey = normalizeName(uniqueBenefit.benefitName)
-      const mergedVal = mb.find((m: any) => normalizeName(m?.benefit_types?.name || m?.benefitName || m?.key || m?.name || '') === normalizedKey && m?.isActive !== false)
+      const mergedVal = mb.find((m: any) => normalizeName(m?.benefit_types?.name || m?.benefitName || m?.key || m?.name || '') === normalizedKey && isDeductionEntry(m) === uniqueBenefit.isDeduction && m?.isActive !== false)
 
       // Manual entry override
-      const manualOverride = entry.payrollEntryBenefits?.find((pb: any) => normalizeName(pb.benefitName || '') === normalizedKey && pb.isActive)
+      const manualOverride = entry.payrollEntryBenefits?.find((pb: any) => normalizeName(pb.benefitName || '') === normalizedKey && isDeductionEntry(pb) === uniqueBenefit.isDeduction && pb.isActive)
 
-      const deactivated = entry.payrollEntryBenefits?.find((pb: any) => normalizeName(pb.benefitName || '') === normalizedKey && pb.isActive === false)
+      const deactivated = entry.payrollEntryBenefits?.find((pb: any) => normalizeName(pb.benefitName || '') === normalizedKey && isDeductionEntry(pb) === uniqueBenefit.isDeduction && pb.isActive === false)
 
       const amount = deactivated ? null : (mergedVal?.amount ?? manualOverride?.amount ?? 0)
 
