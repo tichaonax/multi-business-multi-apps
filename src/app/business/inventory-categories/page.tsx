@@ -256,6 +256,22 @@ function InventoryCategoriesPageContent() {
     return a.name.localeCompare(b.name);
   });
 
+  // Browse by Department tiles shrink to match the same search too -- a
+  // department is worth showing while searching only if its own name
+  // matches, or it actually contains a category that matches (otherwise
+  // selecting it would just lead to an empty, already-filtered-out list).
+  const filteredDepartmentEntries = stats?.byDepartment
+    ? Object.entries(stats.byDepartment).filter(([id, dept]: [string, any]) => {
+        if (!searchQuery) return true;
+        const query = searchQuery.toLowerCase();
+        if (dept.name.toLowerCase().includes(query)) return true;
+        return categories.some(cat =>
+          cat.domainId === id &&
+          (cat.name.toLowerCase().includes(query) || cat.description?.toLowerCase().includes(query))
+        );
+      })
+    : [];
+
   const handleResetFilters = () => {
     setSearchQuery('');
     setSelectedDepartment('');
@@ -395,11 +411,14 @@ function InventoryCategoriesPageContent() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Browse by Department</h3>
               <span className="text-sm text-gray-600 dark:text-gray-400">
-                {Object.keys(stats.byDepartment).length} departments • Click to filter categories
+                {filteredDepartmentEntries.length} of {Object.keys(stats.byDepartment).length} departments • Click to filter categories
               </span>
             </div>
+            {filteredDepartmentEntries.length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-6">No departments match your search</p>
+            ) : (
             <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
-              {Object.entries(stats.byDepartment)
+              {filteredDepartmentEntries
                 .sort(([, a]: [string, any], [, b]: [string, any]) => b.count - a.count)
                 .map(([id, dept]: [string, any]) => (
                 <button
@@ -415,6 +434,7 @@ function InventoryCategoriesPageContent() {
                 </button>
               ))}
             </div>
+            )}
           </div>
         )}
 
