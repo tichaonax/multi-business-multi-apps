@@ -10,6 +10,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { Pagination } from '@/components/ui/pagination'
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 import { TableFillerRows } from '@/components/ui/table-filler-rows'
+import { RowActionsMenu, type RowAction } from '@/components/ui/row-actions-menu'
 import { useElementHeight } from '@/hooks/use-element-height'
 import { useToastContext } from '@/components/ui/toast'
 import type { LabelData, NetworkPrinter } from '@/types/printing'
@@ -857,7 +858,7 @@ export function UniversalInventoryGrid({
                   )}
                   <th className="text-left p-3 font-medium text-secondary w-24">Status</th>
                   {showActions && (
-                    <th className="text-left p-3 font-medium text-secondary w-[340px]">Actions</th>
+                    <th className="text-left p-3 font-medium text-secondary w-16">Actions</th>
                   )}
                 </tr>
               </thead>
@@ -1021,119 +1022,90 @@ export function UniversalInventoryGrid({
                         {item.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    {showActions && (
-                      <td className="p-3">
-                        <div className="flex gap-1 items-center">
-                          {onItemAddToCart && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                onItemAddToCart?.(item)
-                              }}
-                              disabled={item.currentStock === 0 || item.sellPrice <= 0}
-                              className="text-green-600 hover:text-green-800 text-xs w-8 h-8 flex items-center justify-center rounded disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-green-600"
-                              title={item.currentStock === 0 ? "Out of stock" : item.sellPrice <= 0 ? "Invalid price" : "Add to cart"}
-                            >
-                              🛒
-                            </button>
-                          )}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onItemView?.(item)
-                            }}
-                            className="text-blue-600 hover:text-blue-800 text-xs w-8 h-8 flex items-center justify-center rounded"
-                            title="View details"
-                          >
-                            👁️
-                          </button>
-                          {onItemEdit && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onItemEdit(item)
-                            }}
-                            className="text-orange-600 hover:text-orange-800 text-xs w-8 h-8 flex items-center justify-center rounded"
-                            title="Edit item"
-                          >
-                            ✏️
-                          </button>
-                          )}
-                          {onItemZeroOut && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                onItemZeroOut(item)
-                              }}
-                              className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-xs w-8 h-8 flex items-center justify-center rounded"
-                              title="Edit price / qty (audited)"
-                            >
-                              🔢
-                            </button>
-                          )}
-                          {showTemplates && item.isProductTemplate && canManageInventory && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleConvertToRegular(item)
-                              }}
-                              disabled={convertingIds.has(item.id)}
-                              className="text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 text-xs w-8 h-8 flex items-center justify-center rounded disabled:opacity-40"
-                              title="Convert to regular inventory"
-                            >
-                              {convertingIds.has(item.id) ? '⏳' : '✅'}
-                            </button>
-                          )}
-                          {canPrintInventoryLabels && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handlePrintLabel(item)
-                              }}
-                              className="text-purple-600 hover:text-purple-800 text-xs w-8 h-8 flex items-center justify-center rounded"
-                              title="Print label"
-                            >
-                              🏷️
-                            </button>
-                          )}
-                          {onItemReport && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                onItemReport(item)
-                              }}
-                              className="text-indigo-500 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 text-xs w-8 h-8 flex items-center justify-center rounded"
-                              title="Activity report"
-                            >
-                              📈
-                            </button>
-                          )}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setSelectedItemForCopy(item)
-                              setShowCopyModal(true)
-                            }}
-                            className="text-teal-600 hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300 text-xs w-8 h-8 flex items-center justify-center rounded"
-                            title="Copy to another business"
-                          >
-                            📋
-                          </button>
-                          {onItemDelete && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onItemDelete(item)
-                            }}
-                            className="text-red-600 hover:text-red-800 text-xs w-8 h-8 flex items-center justify-center rounded"
-                            title="Delete item"
-                          >
-                            🗑️
-                          </button>
-                          )}
-                        </div>
-                      </td>
-                    )}
+                    {showActions && (() => {
+                      const rowActions: RowAction[] = []
+                      if (onItemAddToCart) {
+                        rowActions.push({
+                          key: 'cart',
+                          label: 'Add to Cart',
+                          icon: '🛒',
+                          onClick: () => onItemAddToCart(item),
+                          disabled: item.currentStock === 0 || item.sellPrice <= 0,
+                          title: item.currentStock === 0 ? 'Out of stock' : item.sellPrice <= 0 ? 'Invalid price' : 'Add to cart',
+                        })
+                      }
+                      rowActions.push({
+                        key: 'view',
+                        label: 'View Details',
+                        icon: '👁️',
+                        onClick: () => onItemView?.(item),
+                      })
+                      if (onItemEdit) {
+                        rowActions.push({
+                          key: 'edit',
+                          label: 'Edit Item',
+                          icon: '✏️',
+                          onClick: () => onItemEdit(item),
+                        })
+                      }
+                      if (onItemZeroOut) {
+                        rowActions.push({
+                          key: 'zeroout',
+                          label: 'Edit Price / Qty (audited)',
+                          icon: '🔢',
+                          onClick: () => onItemZeroOut(item),
+                        })
+                      }
+                      if (showTemplates && item.isProductTemplate && canManageInventory) {
+                        rowActions.push({
+                          key: 'convert',
+                          label: convertingIds.has(item.id) ? 'Converting…' : 'Convert to Regular Inventory',
+                          icon: convertingIds.has(item.id) ? '⏳' : '✅',
+                          onClick: () => handleConvertToRegular(item),
+                          disabled: convertingIds.has(item.id),
+                        })
+                      }
+                      if (canPrintInventoryLabels) {
+                        rowActions.push({
+                          key: 'print',
+                          label: 'Print Label',
+                          icon: '🏷️',
+                          onClick: () => handlePrintLabel(item),
+                        })
+                      }
+                      if (onItemReport) {
+                        rowActions.push({
+                          key: 'report',
+                          label: 'Activity Report',
+                          icon: '📈',
+                          onClick: () => onItemReport(item),
+                        })
+                      }
+                      rowActions.push({
+                        key: 'copy',
+                        label: 'Copy to Another Business',
+                        icon: '📋',
+                        onClick: () => {
+                          setSelectedItemForCopy(item)
+                          setShowCopyModal(true)
+                        },
+                      })
+                      if (onItemDelete) {
+                        rowActions.push({
+                          key: 'delete',
+                          label: 'Delete Item',
+                          icon: '🗑️',
+                          onClick: () => onItemDelete(item),
+                          destructive: true,
+                        })
+                      }
+
+                      return (
+                        <td className="p-3">
+                          <RowActionsMenu actions={rowActions} />
+                        </td>
+                      )
+                    })()}
                   </tr>
                 )})}
                 <TableFillerRows
