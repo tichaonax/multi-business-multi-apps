@@ -1007,13 +1007,23 @@ export function UniversalInventoryGrid({
                             is reachable without scrolling all the way to the
                             far-right column too. */}
                         <div className="flex flex-col items-center gap-1 flex-shrink-0 mt-0.5">
-                          {item.imageId && (
+                          {item.imageId ? (
                             <img
                               src={`/api/images/${item.imageId}`}
                               alt={item.name}
                               className="w-8 h-8 object-cover rounded border border-gray-200 dark:border-gray-600"
                               onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
                             />
+                          ) : (
+                            // Same footprint as the image so the Actions trigger
+                            // below always lands on the same line as the one in
+                            // the far-right column, image or not.
+                            <div
+                              className="w-8 h-8 rounded border border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center text-gray-300 dark:text-gray-600 text-sm"
+                              title="No image"
+                            >
+                              🖼️
+                            </div>
                           )}
                           {showActions && (
                             <RowActionsMenu actions={rowActions} align="start" />
