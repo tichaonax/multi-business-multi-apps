@@ -50,7 +50,8 @@ export function RowActionsMenu({ actions, align = 'end' }: RowActionsMenuProps) 
     // at its full natural height so every action is visible at once. Only
     // decide which side (above/below the trigger) has more room, to reduce
     // how far off-screen it can run, not to cap or scroll it.
-    const estimatedHeight = actions.length * 36 + 8
+    const headerHeight = 33
+    const estimatedHeight = headerHeight + actions.length * 36 + 8
     const spaceBelow = window.innerHeight - rect.bottom
     const spaceAbove = rect.top
     const horizontal: CSSProperties = align === 'start'
@@ -126,9 +127,27 @@ export function RowActionsMenu({ actions, align = 'end' }: RowActionsMenuProps) 
         <div
           ref={menuRef}
           style={style}
-          className="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl py-1"
+          className="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl"
           onClick={(e) => e.stopPropagation()}
         >
+          {/* Explicit close affordance -- clicking outside or Escape also
+              close this, but neither is obvious from the menu itself, so
+              there was no visible way to back out without picking an action. */}
+          <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-200 dark:border-gray-700">
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Actions</span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setOpen(false)
+              }}
+              className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-base leading-none w-5 h-5 flex items-center justify-center"
+              title="Close"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="py-1">
           {actions.map((action) => (
             <button
               key={action.key}
@@ -148,6 +167,7 @@ export function RowActionsMenu({ actions, align = 'end' }: RowActionsMenuProps) 
               <span>{action.label}</span>
             </button>
           ))}
+          </div>
         </div>,
         document.body
       )}
