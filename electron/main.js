@@ -668,6 +668,25 @@ function buildMenu() {
         // replacement for it, since F12 not working turned out to need a
         // second attempt on at least one real machine.
         { role: 'toggleDevTools', label: 'Toggle Developer Tools', accelerator: 'F12' },
+        { type: 'separator' },
+        // Each registered server gets its own persistent session partition
+        // (webPreferences.partition above), which means its own disk HTTP
+        // cache -- completely separate from any regular browser and from
+        // the Next.js .next build folder. Clearing those never touches this
+        // cache, so after a rebuild this window can keep silently serving
+        // a stale bundle with no visible sign anything is wrong. A plain
+        // reload isn't enough either (it can still be served from cache);
+        // this clears the session's cache first, then reloads bypassing it.
+        {
+          label: 'Reload (Clear Cache)',
+          accelerator: 'CmdOrCtrl+Shift+R',
+          click: () => {
+            if (!mainWindow || mainWindow.isDestroyed()) return
+            mainWindow.webContents.session.clearCache()
+              .catch((err) => console.error('[App] clearCache failed:', err))
+              .finally(() => mainWindow.webContents.reloadIgnoringCache())
+          },
+        },
       ],
     },
   ]

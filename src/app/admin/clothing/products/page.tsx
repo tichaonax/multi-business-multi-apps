@@ -332,8 +332,9 @@ function ClothingProductsPageContent() {
             </div>
           )}
 
-          {/* Filters and Search */}
-          <div className="rounded-lg border bg-card p-6">
+          {/* Filters and Search float as one unit below the nav; the
+              statistics cards and product list scroll underneath it. */}
+          <div className="sticky top-14 sm:top-16 z-20 -mx-3 sm:-mx-4 lg:-mx-6 xl:-mx-8 px-3 sm:px-4 lg:px-6 xl:px-8 py-3 rounded-lg border bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <form onSubmit={handleSearch} className="space-y-4">
               <div className="flex gap-4">
                 <div className="flex-1">

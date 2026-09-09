@@ -255,8 +255,45 @@ function UniversalProductsPageContent() {
             </div>
           )}
 
-          {/* Filters and Search */}
-          <div className="rounded-lg border bg-card p-6">
+          {/* Filters and Search float as one unit below the nav; the
+              statistics cards and product list scroll underneath it. */}
+          <div className="sticky top-14 sm:top-16 z-20 -mx-3 sm:-mx-4 lg:-mx-6 xl:-mx-8 px-3 sm:px-4 lg:px-6 xl:px-8 py-3 rounded-lg border bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            {/* Business Type switcher -- there was previously no way to
+                change business type from this page short of going back to
+                All Categories and re-entering. */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              {[
+                { type: 'clothing',     emoji: '👗',  label: 'Clothing' },
+                { type: 'hardware',     emoji: '🔧',  label: 'Hardware' },
+                { type: 'grocery',      emoji: '🛒',  label: 'Grocery' },
+                { type: 'restaurant',   emoji: '🍽️', label: 'Restaurant' },
+                { type: 'retail',       emoji: '🏪',  label: 'Retail' },
+                { type: 'services',     emoji: '🛠️', label: 'Services' },
+                { type: 'consulting',   emoji: '💼',  label: 'Consulting' },
+                { type: 'construction', emoji: '🏗️', label: 'Construction' },
+                { type: 'other',        emoji: '📦',  label: 'Other' },
+              ].map(({ type, emoji, label }) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => {
+                    if (type !== businessType) {
+                      setSelectedDepartment('')
+                      setSelectedCategory('')
+                    }
+                    setBusinessType(type)
+                  }}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    businessType === type
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {emoji} {label}
+                </button>
+              ))}
+            </div>
+
             <form onSubmit={handleSearch} className="space-y-4">
               <div className="flex gap-4">
                 <div className="flex-1">
