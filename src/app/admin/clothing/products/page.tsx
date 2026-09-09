@@ -23,6 +23,7 @@ import { useToastContext } from '@/components/ui/toast'
 import Link from 'next/link'
 import { Pagination } from '@/components/ui/pagination'
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { PriceUpdateModal } from '@/components/admin/clothing/price-update-modal'
 import { BarcodeModal } from '@/components/admin/clothing/barcode-modal'
 import { BulkPriceModal } from '@/components/admin/clothing/bulk-price-modal'
@@ -350,31 +351,26 @@ function ClothingProductsPageContent() {
                   </div>
                 </div>
 
-                <select
+                <SearchableSelect
+                  className="min-w-[200px]"
                   value={selectedBusiness}
-                  onChange={(e) => setSelectedBusiness(e.target.value)}
-                  className="rounded-md border border-input bg-background px-4 py-2 text-sm"
-                >
-                  <option value="">All Businesses</option>
-                  {stats?.allBusinesses && stats.allBusinesses.map((biz: any) => (
-                    <option key={biz.id} value={biz.id}>
-                      {biz.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setSelectedBusiness}
+                  allLabel="All Businesses"
+                  placeholder="All Businesses"
+                  options={(stats?.allBusinesses ?? []).map((biz: any) => ({ value: biz.id, label: biz.name }))}
+                />
 
-                <select
+                <SearchableSelect
+                  className="min-w-[220px]"
                   value={selectedDepartment}
-                  onChange={(e) => setSelectedDepartment(e.target.value)}
-                  className="rounded-md border border-input bg-background px-4 py-2 text-sm"
-                >
-                  <option value="">All Departments</option>
-                  {stats?.byDepartment && Object.entries(stats.byDepartment).map(([id, dept]: [string, any]) => (
-                    <option key={id} value={id}>
-                      {dept.emoji} {dept.name} ({dept.count})
-                    </option>
-                  ))}
-                </select>
+                  onChange={setSelectedDepartment}
+                  allLabel="All Departments"
+                  placeholder="All Departments"
+                  options={Object.entries(stats?.byDepartment ?? {}).map(([id, dept]: [string, any]) => ({
+                    value: id,
+                    label: `${dept.emoji} ${dept.name} (${dept.count})`,
+                  }))}
+                />
 
                 <button
                   type="submit"

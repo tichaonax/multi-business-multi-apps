@@ -11,6 +11,7 @@ import { Pagination } from '@/components/ui/pagination'
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 import { TableFillerRows } from '@/components/ui/table-filler-rows'
 import { RowActionsMenu, type RowAction } from '@/components/ui/row-actions-menu'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { useElementHeight } from '@/hooks/use-element-height'
 import { useToastContext } from '@/components/ui/toast'
 import type { LabelData, NetworkPrinter } from '@/types/printing'
@@ -763,69 +764,62 @@ export function UniversalInventoryGrid({
           {allowFiltering && (
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
-                <select
+                <SearchableSelect
+                  required
                   value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="input-field w-full"
-                >
-                  <option value="all">All Categories</option>
-                  {categories.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setSelectedCategory}
+                  options={[
+                    { value: 'all', label: 'All Categories' },
+                    ...categories.map((category) => ({ value: category, label: category })),
+                  ]}
+                />
               </div>
 
               <div className="flex-1">
-                <select
+                <SearchableSelect
+                  required
                   value={selectedSupplier}
-                  onChange={(e) => { setSelectedSupplier(e.target.value); setCurrentPage(1) }}
-                  className="input-field w-full"
-                >
-                  <option value="all">All Suppliers</option>
-                  {suppliers.map((supplier) => (
-                    <option key={supplier} value={supplier}>
-                      {supplier}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => { setSelectedSupplier(v); setCurrentPage(1) }}
+                  options={[
+                    { value: 'all', label: 'All Suppliers' },
+                    ...suppliers.map((supplier) => ({ value: supplier, label: supplier })),
+                  ]}
+                />
               </div>
 
               <div className="flex-1">
-                <select
+                <SearchableSelect
+                  required
                   value={selectedLocation}
-                  onChange={(e) => { setSelectedLocation(e.target.value); setCurrentPage(1) }}
-                  className="input-field w-full"
-                >
-                  <option value="all">All Locations</option>
-                  {locations.map((location) => (
-                    <option key={location} value={location}>
-                      {location}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => { setSelectedLocation(v); setCurrentPage(1) }}
+                  options={[
+                    { value: 'all', label: 'All Locations' },
+                    ...locations.map((location) => ({ value: location, label: location })),
+                  ]}
+                />
               </div>
 
               <div className="flex-1">
-                <select
-                  onChange={(e) => {
-                    const [field, direction] = e.target.value.split(':')
+                <SearchableSelect
+                  required
+                  value={`${sortField}:${sortDirection}`}
+                  onChange={(v) => {
+                    const [field, direction] = v.split(':')
                     setSortField(field)
                     setSortDirection(direction as 'asc' | 'desc')
                   }}
-                  className="input-field w-full"
-                >
-                  <option value="name:asc">Sort by Name (A-Z)</option>
-                  <option value="name:desc">Sort by Name (Z-A)</option>
-                  <option value="category:asc">Sort by Category</option>
-                  <option value="currentStock:asc">Sort by Stock (Low-High)</option>
-                  <option value="currentStock:desc">Sort by Stock (High-Low)</option>
-                  <option value="costPrice:asc">Sort by Cost (Low-High)</option>
-                  <option value="costPrice:desc">Sort by Cost (High-Low)</option>
-                  <option value="sellPrice:asc">Sort by Sell Price (Low-High)</option>
-                  <option value="sellPrice:desc">Sort by Sell Price (High-Low)</option>
-                </select>
+                  options={[
+                    { value: 'name:asc', label: 'Sort by Name (A-Z)' },
+                    { value: 'name:desc', label: 'Sort by Name (Z-A)' },
+                    { value: 'category:asc', label: 'Sort by Category' },
+                    { value: 'currentStock:asc', label: 'Sort by Stock (Low-High)' },
+                    { value: 'currentStock:desc', label: 'Sort by Stock (High-Low)' },
+                    { value: 'costPrice:asc', label: 'Sort by Cost (Low-High)' },
+                    { value: 'costPrice:desc', label: 'Sort by Cost (High-Low)' },
+                    { value: 'sellPrice:asc', label: 'Sort by Sell Price (Low-High)' },
+                    { value: 'sellPrice:desc', label: 'Sort by Sell Price (High-Low)' },
+                  ]}
+                />
               </div>
             </div>
           )}
