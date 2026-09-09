@@ -1903,6 +1903,26 @@ Fixed-term contracts have an end date. When the end date approaches, the system 
 
 ---
 
+#### Adding or Removing a Benefit Without Renewing the Contract
+
+Small benefit changes — adding a gym allowance, discontinuing a perk company-wide — don't need a full contract renewal. Benefits can be added to or removed from an employee's **current, active contract** directly.
+
+**To add a benefit:**
+1. Open the employee's profile → **Contracts** tab.
+2. On the active contract, find the **Benefits** list and click **+ Add Benefit**.
+3. Search for the benefit type, enter the amount, and check the box if it's a percentage of salary rather than a flat amount.
+4. Optionally add a note. Click **Add**.
+
+**To remove a benefit:**
+1. In the same Benefits list, click the **✕** next to the benefit.
+2. You'll be prompted for an optional reason — this isn't required, but it's saved for the internal record if you provide one.
+
+Both actions take effect immediately on the contract and are recorded in the audit log (who made the change, when, and what changed). They do **not** regenerate or alter the originally signed contract PDF — that document remains the historical record of what was signed at the time. The employee's current benefits, as shown throughout the system (payroll, contract view), always reflect the latest list.
+
+> Every new contract now includes standard language stating the Company may add, modify, or remove any benefit at any time, for any reason — this is what makes the above possible without treating each change as a contract amendment. This clause only appears on contracts generated after this feature shipped; contracts signed earlier are unaffected.
+
+---
+
 ## 5. HR & Employee Management
 
 > **Who reads this:** HR staff and managers who add employees, manage contracts, and track attendance.
@@ -2064,6 +2084,8 @@ To add benefits to an employee (e.g., housing allowance, medical aid, transport)
 6. Click **Save**.
 
 Benefits are automatically included in the next payroll run.
+
+> This is a separate list from a **contract's own benefits** (Living Allowance, Annual Bonus, etc. shown on the Contracts tab) — see [Adding or Removing a Benefit Without Renewing the Contract](#adding-or-removing-a-benefit-without-renewing-the-contract) above for changing those.
 
 ### Tracking Absences
 
@@ -5117,6 +5139,8 @@ These extra fields are optional — leave any blank if not relevant to the item.
 > **Creating your own:** If the predefined taxonomy does not cover your product, use **+ New category** inline in the panel to create a custom category. Custom categories are saved permanently for your business.
 
 > **Clothing stores** have always had their own taxonomy (Men's, Women's, Kids, Footwear, Accessories). It works the same way — just select the domain in the Department column when stocking.
+
+> **Clothing category pickers are now grouped** — clothing's ~1,800 categories are organized under broader headings (Tops, Bottoms, Activewear, and similar) wherever you pick a category, including this panel, product forms, and the Bulk Upload dialog in the Image Gallery. A category still belongs to its usual department (Men's/Women's/Kids/etc.) — the grouping is a separate, second way of organizing the same list to make a long dropdown easier to scan. When creating or editing a category (**Business → Inventory Categories**), a **Parent Category** field lets you assign it to one of these groups, or leave it ungrouped.
 
 ---
 
@@ -13656,11 +13680,11 @@ Hardware POS's product browser doesn't have this yet — its cart lives in a sep
 
 ## 65. Business Image Gallery & Category Reference Pool
 
-> **Who reads this:** Clothing business owners/managers browsing or organizing their product images. **Currently clothing-only** — other business types may get this later once it's proven out on clothing.
+> **Who reads this:** Clothing, grocery, and hardware business owners/managers browsing or organizing their product images. Other business types may get this later.
 
-**Where:** Sidebar → **🖼️ Image Gallery** (visible to anyone with access to a clothing business).
+**Where:** Sidebar → **🖼️ Image Gallery** (visible to anyone with access to a clothing, grocery, or hardware business).
 
-The Image Gallery has two tabs at the top, alongside a business picker (only your clothing businesses are listed):
+The Image Gallery has two tabs at the top, alongside a business picker (only your clothing/grocery/hardware businesses are listed):
 
 | Tab | What it shows |
 |-----|---------------|
@@ -13700,13 +13724,19 @@ Shows only images this business has actually used — starts small and grows as 
 
 Browses the shared, business-agnostic category image pool — imported in bulk from a source catalog, plus anything added since via Bulk Upload. An image here isn't "yours" until you attach it to one of your own products.
 
-- **Category dropdown** — filter to one category, or browse "All categories"
+- **Domain dropdown** — filter to one department (e.g. Women's, Bakery), or browse "All domains". Most pool images are tagged at this level only.
+- **Category dropdown** — appears next to it once you've picked a domain, but only if at least one image in that domain has also been tagged to a specific category (see Bulk Upload below) — narrows further (e.g. within Women's, just "Blouses"). If it doesn't appear, no image in that domain has a category tag yet.
 - Images already used by one of your own products are shown **first**, most-used first — so the images your business actually relies on surface at the top of the grid instead of being buried among thousands of untouched ones
 - **Clicking a thumbnail** opens a small dialog: the image, [Linked Products](#linked-products--viewing-selling--editing-price) already using it (if any), and the same search-or-scan "add to a product" box described above
 - Once attached, the thumbnail shows the same count badge as My Gallery — no need to switch tabs to confirm it worked
 - If the same pool image is also used by **other businesses**, a second badge shows how many — groundwork for this feature eventually opening to more business types; it doesn't affect your own use of the image
 
-**⬆️ Bulk Upload** — add multiple images to the pool at once for a chosen category (including brand-new categories with nothing in them yet). Requires `canManageInventory` — this writes into a pool shared by every business of this type, not just your own data, so it's gated stricter than browsing.
+**⬆️ Bulk Upload** — add multiple images to the pool at once. Requires `canManageInventory` — this writes into a pool shared by every business of this type, not just your own data, so it's gated stricter than browsing.
+
+- **Category (optional)** is the primary field — search across every real category for the business type directly (e.g. "Blouses"), grouped under its parent department where one exists. Picking one **auto-fills the Domain** below it — no need to already know which department a category lives under.
+- **Domain** stays available for a whole-department upload with no specific category. Changing it manually after picking a category clears the category (they must always match).
+- **🔎 Browse all categories** (link at the top of the dialog) opens the full category tree — including the clothing group headers like Tops/Bottoms — in a new tab, useful for seeing what exists before deciding what to upload.
+- Once at least one image is tagged to a specific category, that category becomes filterable in the browse dropdown above for everyone — most existing pool images are still domain-only, so don't be surprised if the Category dropdown doesn't show up yet for a domain nobody has category-tagged.
 
 ---
 

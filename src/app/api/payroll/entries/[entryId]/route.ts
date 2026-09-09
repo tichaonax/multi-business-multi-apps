@@ -167,14 +167,45 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return n || ''
     }
 
+    // Month-restricted benefit types (e.g. Annual Bonus, paymentMonth=11) must not
+    // appear in this merged view outside their one applicable month -- the
+    // contract snapshot itself doesn't carry paymentMonth, only isPercentage, so
+    // it's looked up here the same way /api/payroll/periods/[periodId] already does.
+    let paymentMonthMap = new Map<string, number>()
+    let paymentMonthByName = new Map<string, number>()
+    try {
+      const monthRestrictedTypes = await prisma.benefitTypes.findMany({
+        where: { paymentMonth: { not: null } },
+        select: { id: true, name: true, paymentMonth: true },
+      })
+      paymentMonthMap = new Map(monthRestrictedTypes.map((b: any) => [b.id, b.paymentMonth as number]))
+      paymentMonthByName = new Map(monthRestrictedTypes.map((b: any) => [String(b.name || '').toLowerCase().trim(), b.paymentMonth as number]))
+    } catch (monthErr) {
+      console.warn('Could not load month-restricted benefit types:', monthErr)
+    }
+    const periodMonth = (entry as any).payroll_periods?.month ?? null
+    const entryBaseSalaryForBenefits = Number((entry as any).baseSalary || 0)
+
     const contractBenefits: any[] = []
     if (contract && contract.pdfGenerationData && Array.isArray(contract.pdfGenerationData.benefits)) {
       for (const cb of contract.pdfGenerationData.benefits) {
         const k = keyFor(cb) || `contract-${Math.random().toString(36).slice(2, 9)}`
         const id = cb.benefitTypeId || k
         const name = cb.name || cb.benefitType?.name || id
-        const amount = Number(cb.amount || 0)
-        if (amount === 0) continue
+        const rawAmount = Number(cb.amount || 0)
+        if (rawAmount === 0) continue
+
+        const restrictedMonth = cb.benefitTypeId
+          ? (paymentMonthMap.get(cb.benefitTypeId) ?? paymentMonthByName.get(String(name).toLowerCase().trim()))
+          : paymentMonthByName.get(String(name).toLowerCase().trim())
+        if (restrictedMonth != null && periodMonth != null && restrictedMonth !== periodMonth) continue
+
+        // Percentage-based benefits store a rate (e.g. 50 for "50%"), not a
+        // dollar amount -- convert against this entry's own base salary.
+        const amount = cb.isPercentage === true
+          ? Math.round((rawAmount / 100) * entryBaseSalaryForBenefits * 100) / 100
+          : rawAmount
+
         contractBenefits.push({ key: k, id, benefitTypeId: cb.benefitTypeId || null, benefitName: name, amount, source: 'contract' })
       }
     }

@@ -4239,7 +4239,7 @@ export default function RestaurantPOS() {
 
             {/* Live POS Mode */}
             {posMode === 'live' && (<>
-            <div ref={menuSectionRef} className="sticky top-20 z-10 bg-white dark:bg-gray-900 pb-2">
+            <div ref={menuSectionRef} className="sticky top-14 sm:top-16 z-10 bg-white dark:bg-gray-900 pb-2">
             <div className="flex items-center gap-2 mb-2">
               <div className="relative flex-1">
                 <input
@@ -4972,7 +4972,7 @@ export default function RestaurantPOS() {
 
           {/* Meal Program Panel (right panel) */}
           {posMode === 'meal_program' && currentBusinessId && (
-            <div className="card overflow-hidden sticky top-20 self-start" style={{ minHeight: '480px' }}>
+            <div className="card overflow-hidden sticky top-14 sm:top-16 self-start" style={{ minHeight: '480px' }}>
               <MealProgramPanel
                 key={mealPanelKey}
                 businessId={currentBusinessId}
@@ -5050,7 +5050,7 @@ export default function RestaurantPOS() {
 
           {/* Live Order Summary (right panel) */}
           {posMode === 'live' && (
-          <div className="card bg-white dark:bg-gray-900 p-4 rounded-lg shadow sticky top-20 self-start flex flex-col max-h-[calc(100vh-5.5rem)] overflow-hidden">
+          <div className="card bg-white dark:bg-gray-900 p-4 rounded-lg shadow sticky top-14 sm:top-16 self-start flex flex-col max-h-[calc(100vh-5.5rem)] overflow-hidden">
             <div className="flex items-center justify-between mb-3 flex-shrink-0">
               <h2 className="text-xl font-bold text-primary">Order Summary</h2>
               {dailySales && (isAdmin || hasPermission('canAccessFinancialData') || hasPermission('canViewWifiReports')) && (

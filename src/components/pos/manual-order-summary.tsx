@@ -178,7 +178,7 @@ export function ManualOrderSummary({
   // Success state
   if (successOrder) {
     return (
-      <div className="card bg-white dark:bg-gray-900 p-4 rounded-lg shadow sticky top-20 self-start">
+      <div className="card bg-white dark:bg-gray-900 p-4 rounded-lg shadow sticky top-14 sm:top-16 self-start">
         <div className="text-center space-y-4">
           <CheckCircle className="w-12 h-12 text-green-500 mx-auto" />
           <h3 className="text-lg font-bold text-gray-900 dark:text-white">Order Created</h3>
@@ -201,7 +201,7 @@ export function ManualOrderSummary({
   }
 
   return (
-    <div className="card bg-white dark:bg-gray-900 p-4 rounded-lg shadow sticky top-20 self-start">
+    <div className="card bg-white dark:bg-gray-900 p-4 rounded-lg shadow sticky top-14 sm:top-16 self-start">
       <h2 className="text-lg font-bold text-orange-600 dark:text-orange-400 mb-3">
         Manual Order
       </h2>

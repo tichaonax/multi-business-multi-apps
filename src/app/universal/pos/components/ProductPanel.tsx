@@ -249,7 +249,7 @@ export function ProductPanel({
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
       {/* Header — sticky so search/categories stay visible while scrolling products */}
-      <div className="sticky top-20 z-10 rounded-t-lg bg-white dark:bg-gray-800 p-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="sticky top-14 sm:top-16 z-10 rounded-t-lg bg-white dark:bg-gray-800 p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             Products

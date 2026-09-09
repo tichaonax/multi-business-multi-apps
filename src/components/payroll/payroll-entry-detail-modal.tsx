@@ -3434,12 +3434,23 @@ export function PayrollEntryDetailModal({
                               </div>
                               <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">Annual benefit — not paid this month</div>
                             </div>
-                            <span className="text-secondary font-medium line-through">{formatCurrency(Number(cb.amount || 0))}</span>
+                            <span className="text-secondary font-medium line-through">
+                              {cb.isPercentage ? formatCurrency(Math.round((Number(cb.amount || 0) / 100) * Number(entry?.baseSalary || 0) * 100) / 100) : formatCurrency(Number(cb.amount || 0))}
+                            </span>
                           </div>
                         )
                       }
 
-                      // In merged — show with Persist and Remove
+                      // In merged — show with Persist and Remove. Use the matching
+                      // mergedBenefits entry's amount, not cb.amount directly: for a
+                      // percentage-based benefit, cb.amount is the raw contract rate
+                      // (e.g. 50 for "50%"), while the server's merged entry has
+                      // already converted it against this entry's base salary.
+                      const mergedMatch = mergedBenefitsArr.find((mb: any) =>
+                        (mb.benefitTypeId && cb.benefitTypeId && String(mb.benefitTypeId) === String(cb.benefitTypeId)) ||
+                        String(mb.benefitName || mb.name || '').toLowerCase() === String(cb.name || '').toLowerCase()
+                      )
+                      const effectiveAmount = Number(mergedMatch?.amount ?? cb.amount ?? 0)
                       return (
                         <div key={cb.benefitTypeId || cb.name} className="p-3 rounded border bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800 flex items-center justify-between">
                           <div>
@@ -3448,9 +3459,9 @@ export function PayrollEntryDetailModal({
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
-                            <span className="text-primary font-medium">{formatCurrency(Number(cb.amount || 0))}</span>
-                            <button type="button" onClick={() => handleResetContractBenefit({ benefitTypeId: cb.benefitTypeId, amount: cb.amount })} className="text-sm text-blue-600">Persist</button>
-                            <button type="button" onClick={() => { setDeactivatingBenefit({ id: cb.benefitTypeId || `contract-${cb.name}`, benefitTypeId: cb.benefitTypeId || '', benefitName: cb.name, amount: Number(cb.amount || 0), isActive: false, source: 'contract-inferred' } as PayrollEntryBenefit); setDeactivationReason('') }} className="text-sm text-red-600">Remove</button>
+                            <span className="text-primary font-medium">{formatCurrency(effectiveAmount)}</span>
+                            <button type="button" onClick={() => handleResetContractBenefit({ benefitTypeId: cb.benefitTypeId, amount: effectiveAmount })} className="text-sm text-blue-600">Persist</button>
+                            <button type="button" onClick={() => { setDeactivatingBenefit({ id: cb.benefitTypeId || `contract-${cb.name}`, benefitTypeId: cb.benefitTypeId || '', benefitName: cb.name, amount: effectiveAmount, isActive: false, source: 'contract-inferred' } as PayrollEntryBenefit); setDeactivationReason('') }} className="text-sm text-red-600">Remove</button>
                           </div>
                         </div>
                       )

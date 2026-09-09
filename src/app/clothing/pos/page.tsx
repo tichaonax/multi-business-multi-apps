@@ -808,7 +808,7 @@ export default function ClothingPOSPage() {
                 )}
 
                 {/* POS Cart — 1/3 width on desktop, sticky */}
-                <div className={!showProductGrid ? 'max-w-2xl mx-auto w-full' : 'sticky top-20 self-start max-h-[calc(100vh-5.5rem)] overflow-y-auto rounded-xl'}>
+                <div className={!showProductGrid ? 'max-w-2xl mx-auto w-full' : 'sticky top-14 sm:top-16 self-start max-h-[calc(100vh-5.5rem)] overflow-y-auto rounded-xl'}>
                   <UniversalPOS
                     businessId={businessId}
                     employeeId={employeeId!}

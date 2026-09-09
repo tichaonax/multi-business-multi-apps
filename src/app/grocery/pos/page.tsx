@@ -3069,7 +3069,7 @@ function GroceryPOSContent() {
       {/* Toolbar — mode toggle | view toggles. Sticky so Update Images/Adjust
           Prices stay reachable while scrolling the product grid, matching the
           Restaurant POS pattern, regardless of Desk Mode/Scan Mode. */}
-      <div className="sticky top-20 z-20 bg-white dark:bg-gray-900 flex flex-wrap items-center gap-2 py-2 mb-2 px-2 sm:px-0">
+      <div className="sticky top-14 sm:top-16 z-20 bg-white dark:bg-gray-900 flex flex-wrap items-center gap-2 py-2 mb-2 px-2 sm:px-0">
         {/* POS mode toggle (Live / Manual) */}
         {(isAdmin || hasPermission('canEnterManualOrders')) && (
           <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">
@@ -3537,7 +3537,7 @@ function GroceryPOSContent() {
               const activeTab = selectedCategory ?? '__all__'
 
               return (
-                <div className="sticky top-40 z-20 bg-white dark:bg-gray-800 pt-3 pb-3 border-b border-gray-200 dark:border-gray-700 mb-3">
+                <div className="sticky top-[136px] sm:top-[144px] z-20 bg-white dark:bg-gray-800 pt-3 pb-3 border-b border-gray-200 dark:border-gray-700 mb-3">
                   {/* Category tabs + More button */}
                   <div className="flex flex-wrap gap-2 mb-2">
                     {visibleTabs.map(tab => (

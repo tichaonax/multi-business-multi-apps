@@ -344,7 +344,7 @@ export default function HardwarePOSPage() {
 
               {/* Sticky so Update Images/Adjust Prices stay reachable while
                   scrolling the product grid, matching the Restaurant POS pattern. */}
-              <div className="sticky top-20 z-20 bg-white dark:bg-gray-900 flex gap-2 py-2">
+              <div className="sticky top-14 sm:top-16 z-20 bg-white dark:bg-gray-900 flex gap-2 py-2">
                 {!isMobile && (
                   <button
                     onClick={async () => {
