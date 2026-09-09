@@ -16,6 +16,12 @@ export interface RowAction {
 
 interface RowActionsMenuProps {
   actions: RowAction[]
+  /** Which edge of the trigger the menu hangs from. 'start' anchors the
+   * menu's left edge to the trigger's left edge, growing rightward -- use for
+   * a trigger sitting at the left of a row. 'end' (default) anchors the
+   * menu's right edge to the trigger's right edge, growing leftward -- use
+   * for a trigger at the right of a row, so the menu doesn't run off-screen. */
+  align?: 'start' | 'end'
 }
 
 /**
@@ -30,7 +36,7 @@ interface RowActionsMenuProps {
  * needed because a table row can sit anywhere in a long scrollable body and
  * a plain `absolute` dropdown would get clipped by the table's own overflow.
  */
-export function RowActionsMenu({ actions }: RowActionsMenuProps) {
+export function RowActionsMenu({ actions, align = 'end' }: RowActionsMenuProps) {
   const [open, setOpen] = useState(false)
   const [style, setStyle] = useState<CSSProperties>({})
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -47,12 +53,15 @@ export function RowActionsMenu({ actions }: RowActionsMenuProps) {
     const estimatedHeight = actions.length * 36 + 8
     const spaceBelow = window.innerHeight - rect.bottom
     const spaceAbove = rect.top
+    const horizontal: CSSProperties = align === 'start'
+      ? { left: rect.left }
+      : { right: window.innerWidth - rect.right }
 
     if (spaceBelow < estimatedHeight && spaceAbove > spaceBelow) {
       setStyle({
         position: 'fixed',
         bottom: window.innerHeight - rect.top,
-        right: window.innerWidth - rect.right,
+        ...horizontal,
         width: menuWidth,
         zIndex: 9999,
       })
@@ -60,7 +69,7 @@ export function RowActionsMenu({ actions }: RowActionsMenuProps) {
       setStyle({
         position: 'fixed',
         top: rect.bottom + 4,
-        right: window.innerWidth - rect.right,
+        ...horizontal,
         width: menuWidth,
         zIndex: 9999,
       })

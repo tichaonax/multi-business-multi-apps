@@ -898,6 +898,83 @@ export function UniversalInventoryGrid({
                 {sortedItems.map((item) => {
                   const isMergeSelected = mergeMode && selectedMergeIds?.has(item.id)
                   const businessSummary = getBusinessSpecificSummary(item)
+
+                  const rowActions: RowAction[] = []
+                  if (onItemAddToCart) {
+                    rowActions.push({
+                      key: 'cart',
+                      label: 'Add to Cart',
+                      icon: '🛒',
+                      onClick: () => onItemAddToCart(item),
+                      disabled: item.currentStock === 0 || item.sellPrice <= 0,
+                      title: item.currentStock === 0 ? 'Out of stock' : item.sellPrice <= 0 ? 'Invalid price' : 'Add to cart',
+                    })
+                  }
+                  rowActions.push({
+                    key: 'view',
+                    label: 'View Details',
+                    icon: '👁️',
+                    onClick: () => onItemView?.(item),
+                  })
+                  if (onItemEdit) {
+                    rowActions.push({
+                      key: 'edit',
+                      label: 'Edit Item',
+                      icon: '✏️',
+                      onClick: () => onItemEdit(item),
+                    })
+                  }
+                  if (onItemZeroOut) {
+                    rowActions.push({
+                      key: 'zeroout',
+                      label: 'Edit Price / Qty (audited)',
+                      icon: '🔢',
+                      onClick: () => onItemZeroOut(item),
+                    })
+                  }
+                  if (showTemplates && item.isProductTemplate && canManageInventory) {
+                    rowActions.push({
+                      key: 'convert',
+                      label: convertingIds.has(item.id) ? 'Converting…' : 'Convert to Regular Inventory',
+                      icon: convertingIds.has(item.id) ? '⏳' : '✅',
+                      onClick: () => handleConvertToRegular(item),
+                      disabled: convertingIds.has(item.id),
+                    })
+                  }
+                  if (canPrintInventoryLabels) {
+                    rowActions.push({
+                      key: 'print',
+                      label: 'Print Label',
+                      icon: '🏷️',
+                      onClick: () => handlePrintLabel(item),
+                    })
+                  }
+                  if (onItemReport) {
+                    rowActions.push({
+                      key: 'report',
+                      label: 'Activity Report',
+                      icon: '📈',
+                      onClick: () => onItemReport(item),
+                    })
+                  }
+                  rowActions.push({
+                    key: 'copy',
+                    label: 'Copy to Another Business',
+                    icon: '📋',
+                    onClick: () => {
+                      setSelectedItemForCopy(item)
+                      setShowCopyModal(true)
+                    },
+                  })
+                  if (onItemDelete) {
+                    rowActions.push({
+                      key: 'delete',
+                      label: 'Delete Item',
+                      icon: '🗑️',
+                      onClick: () => onItemDelete(item),
+                      destructive: true,
+                    })
+                  }
                   return (
                   <tr
                     key={item.id}
@@ -926,14 +1003,22 @@ export function UniversalInventoryGrid({
                     )}
                     <td className="p-3">
                       <div className="flex items-start gap-2">
-                        {item.imageId && (
-                          <img
-                            src={`/api/images/${item.imageId}`}
-                            alt={item.name}
-                            className="w-8 h-8 object-cover rounded border border-gray-200 dark:border-gray-600 flex-shrink-0 mt-0.5"
-                            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-                          />
-                        )}
+                        {/* Image + a second Actions trigger below it, so Actions
+                            is reachable without scrolling all the way to the
+                            far-right column too. */}
+                        <div className="flex flex-col items-center gap-1 flex-shrink-0 mt-0.5">
+                          {item.imageId && (
+                            <img
+                              src={`/api/images/${item.imageId}`}
+                              alt={item.name}
+                              className="w-8 h-8 object-cover rounded border border-gray-200 dark:border-gray-600"
+                              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                            />
+                          )}
+                          {showActions && (
+                            <RowActionsMenu actions={rowActions} align="start" />
+                          )}
+                        </div>
                       <div className="min-w-0">
                         <div className="font-medium text-primary">
                           <span
@@ -1055,90 +1140,11 @@ export function UniversalInventoryGrid({
                         {item.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    {showActions && (() => {
-                      const rowActions: RowAction[] = []
-                      if (onItemAddToCart) {
-                        rowActions.push({
-                          key: 'cart',
-                          label: 'Add to Cart',
-                          icon: '🛒',
-                          onClick: () => onItemAddToCart(item),
-                          disabled: item.currentStock === 0 || item.sellPrice <= 0,
-                          title: item.currentStock === 0 ? 'Out of stock' : item.sellPrice <= 0 ? 'Invalid price' : 'Add to cart',
-                        })
-                      }
-                      rowActions.push({
-                        key: 'view',
-                        label: 'View Details',
-                        icon: '👁️',
-                        onClick: () => onItemView?.(item),
-                      })
-                      if (onItemEdit) {
-                        rowActions.push({
-                          key: 'edit',
-                          label: 'Edit Item',
-                          icon: '✏️',
-                          onClick: () => onItemEdit(item),
-                        })
-                      }
-                      if (onItemZeroOut) {
-                        rowActions.push({
-                          key: 'zeroout',
-                          label: 'Edit Price / Qty (audited)',
-                          icon: '🔢',
-                          onClick: () => onItemZeroOut(item),
-                        })
-                      }
-                      if (showTemplates && item.isProductTemplate && canManageInventory) {
-                        rowActions.push({
-                          key: 'convert',
-                          label: convertingIds.has(item.id) ? 'Converting…' : 'Convert to Regular Inventory',
-                          icon: convertingIds.has(item.id) ? '⏳' : '✅',
-                          onClick: () => handleConvertToRegular(item),
-                          disabled: convertingIds.has(item.id),
-                        })
-                      }
-                      if (canPrintInventoryLabels) {
-                        rowActions.push({
-                          key: 'print',
-                          label: 'Print Label',
-                          icon: '🏷️',
-                          onClick: () => handlePrintLabel(item),
-                        })
-                      }
-                      if (onItemReport) {
-                        rowActions.push({
-                          key: 'report',
-                          label: 'Activity Report',
-                          icon: '📈',
-                          onClick: () => onItemReport(item),
-                        })
-                      }
-                      rowActions.push({
-                        key: 'copy',
-                        label: 'Copy to Another Business',
-                        icon: '📋',
-                        onClick: () => {
-                          setSelectedItemForCopy(item)
-                          setShowCopyModal(true)
-                        },
-                      })
-                      if (onItemDelete) {
-                        rowActions.push({
-                          key: 'delete',
-                          label: 'Delete Item',
-                          icon: '🗑️',
-                          onClick: () => onItemDelete(item),
-                          destructive: true,
-                        })
-                      }
-
-                      return (
-                        <td className="p-3">
-                          <RowActionsMenu actions={rowActions} />
-                        </td>
-                      )
-                    })()}
+                    {showActions && (
+                      <td className="p-3">
+                        <RowActionsMenu actions={rowActions} />
+                      </td>
+                    )}
                   </tr>
                 )})}
                 <TableFillerRows
