@@ -414,6 +414,41 @@ export function UniversalInventoryGrid({
     }
   }
 
+  // Compact, single-line variant of getBusinessSpecificDisplay for the desktop
+  // table's Item column (styled to match the description line, not as
+  // colored badges -- there's only room for plain small print there).
+  const getBusinessSpecificSummary = (item: UniversalInventoryItem): string | null => {
+    const attributes = item.attributes || {}
+    const parts: string[] = []
+
+    switch (businessType) {
+      case 'restaurant':
+        if (attributes.storageTemp) parts.push(attributes.storageTemp)
+        if (attributes.allergens?.length) parts.push(`Allergens: ${attributes.allergens.join(', ')}`)
+        if (attributes.expirationDays) parts.push(`Expires in ${attributes.expirationDays} days`)
+        break
+      case 'grocery':
+        if (attributes.pluCode) parts.push(`PLU: ${attributes.pluCode}`)
+        if (attributes.organicCertified) parts.push('Organic')
+        if (attributes.batchNumber) parts.push(`Batch: ${attributes.batchNumber}`)
+        break
+      case 'clothing':
+        if (attributes.sizes?.length) parts.push(`Sizes: ${attributes.sizes.join(', ')}`)
+        if (attributes.colors?.length) parts.push(`Colors: ${attributes.colors.join(', ')}`)
+        if (attributes.brand) parts.push(attributes.brand)
+        break
+      case 'hardware':
+        if (typeof attributes.manufacturer === 'string') parts.push(attributes.manufacturer)
+        if (typeof attributes.model === 'string') parts.push(`Model: ${attributes.model}`)
+        if (typeof attributes.warranty === 'string') parts.push(`Warranty: ${attributes.warranty}`)
+        if (typeof attributes.material === 'string') parts.push(`Material: ${attributes.material}`)
+        if (typeof attributes.brand === 'string') parts.push(`Brand: ${attributes.brand}`)
+        break
+    }
+
+    return parts.length > 0 ? parts.join(' • ') : null
+  }
+
   const getStockStatusColor = (item: UniversalInventoryItem) => {
     const lowStockThreshold = 10 // Could be configurable per item
 
@@ -827,7 +862,7 @@ export function UniversalInventoryGrid({
                     </th>
                   )}
                   <th
-                    className={`text-left p-3 font-medium text-secondary w-[22%] ${allowSorting ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''}`}
+                    className={`text-left p-3 font-medium text-secondary w-[28%] ${allowSorting ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''}`}
                     onClick={() => allowSorting && handleSort('name')}
                   >
                     Item {allowSorting && (sortField === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '')}
@@ -852,19 +887,17 @@ export function UniversalInventoryGrid({
                   </th>
                   <th className="text-left p-3 font-medium text-secondary w-[10%]">Supplier</th>
                   <th className="text-left p-3 font-medium text-secondary w-[9%]">Location</th>
-                  <th className="text-left p-3 font-medium text-secondary w-[16%]">Barcodes</th>
-                  {showBusinessSpecificFields && (
-                    <th className="text-left p-3 font-medium text-secondary w-[12%]">Details</th>
-                  )}
+                  <th className="text-left p-3 font-medium text-secondary w-[20%]">Barcodes</th>
                   <th className="text-left p-3 font-medium text-secondary w-[6%]">Status</th>
                   {showActions && (
-                    <th className="text-left p-3 font-medium text-secondary w-[4%]">Actions</th>
+                    <th className="text-left p-3 font-medium text-secondary w-[6%]">Actions</th>
                   )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {sortedItems.map((item) => {
                   const isMergeSelected = mergeMode && selectedMergeIds?.has(item.id)
+                  const businessSummary = getBusinessSpecificSummary(item)
                   return (
                   <tr
                     key={item.id}
@@ -909,7 +942,7 @@ export function UniversalInventoryGrid({
                           >
                             {item.name}
                           </span>
-                          {(item.isProductTemplate || (!item.isProductTemplate && convertedIds.has(item.id)) || item.isInventoryTracked || item.isExpiryDiscount) && (
+                          {(item.isProductTemplate || (!item.isProductTemplate && convertedIds.has(item.id)) || item.isInventoryTracked || item.isExpiryDiscount || businessSummary) && (
                             <div className="flex items-center gap-2 flex-wrap mt-1">
                               {item.isProductTemplate && (
                                 <span
@@ -933,6 +966,11 @@ export function UniversalInventoryGrid({
                                   className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 whitespace-nowrap"
                                 >
                                   📦 POS tracked
+                                </span>
+                              )}
+                              {businessSummary && (
+                                <span className="text-xs text-gray-500">
+                                  {businessSummary}
                                 </span>
                               )}
                               {item.isExpiryDiscount && (
@@ -1010,11 +1048,6 @@ export function UniversalInventoryGrid({
                         <span className="text-xs text-gray-400">No barcodes</span>
                       )}
                     </td>
-                    {showBusinessSpecificFields && (
-                      <td className="p-3 overflow-hidden break-words">
-                        {getBusinessSpecificDisplay(item)}
-                      </td>
-                    )}
                     <td className="p-3">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         item.isActive ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100'
@@ -1110,7 +1143,7 @@ export function UniversalInventoryGrid({
                 )})}
                 <TableFillerRows
                   count={Math.min(pageSize, totalItems) - sortedItems.length}
-                  colSpan={8 + (mergeMode ? 1 : 0) + (canPrintInventoryLabels ? 1 : 0) + (showBusinessSpecificFields ? 1 : 0) + (showActions ? 1 : 0)}
+                  colSpan={8 + (mergeMode ? 1 : 0) + (canPrintInventoryLabels ? 1 : 0) + (showActions ? 1 : 0)}
                   cellClassName="p-3 h-[72px]"
                 />
               </tbody>
