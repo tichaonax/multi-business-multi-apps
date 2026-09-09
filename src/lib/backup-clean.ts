@@ -1686,6 +1686,15 @@ export async function createCleanBackup(
     where: { business_products: { businessId: { in: businessIds } } }
   })
 
+  // 66. Attribute Options (sizes/colors preset picker) - NEW. Same nullable
+  // businessId/businessType split as Tags above: businessId null +
+  // businessType set are the shared clothing size/color presets seeded by
+  // the migration, not owned by any one business, so they're included
+  // unconditionally alongside each business's own custom values.
+  businessData.attributeOptions = await prisma.attributeOptions.findMany({
+    where: { OR: [{ businessId: { in: businessIds } }, { businessId: null }] }
+  })
+
   // Extend image backup: warehouse images + product_images + inventory display images + ad images
   const warehouseImageIds = businessData.warehouseItems
     .map((i: any) => i.imageId)
@@ -1795,7 +1804,9 @@ export async function createCleanBackup(
       deviceRecords,
       uncompressedSize
     },
-    schemaVersion: '6.41.0',
+    // 6.42.0 (2026-09-09): added attributeOptions (sizes/colors preset
+    // picker, migration 20260907080000) — landed without backup coverage.
+    schemaVersion: '6.42.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

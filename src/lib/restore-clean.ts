@@ -144,6 +144,9 @@ const RESTORE_ORDER = [
   'categoryReferenceImages',
   'tags',
   'imageTags',
+  // Attribute Options (sizes/colors preset picker) — only depends on
+  // businesses/users, same shared/business-owned split as tags above.
+  'attributeOptions',
 
   // Persons (for various associations)
   'persons',
@@ -647,6 +650,11 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   'imageTags': { fields: ['imageId', 'tagId'] },
   // MBM-295: ProductTags (unique per product+tag)
   'productTags': { fields: ['productId', 'tagId'] },
+  // Attribute Options: unique per business+attributeKey+value (same
+  // businessId-null-for-shared-presets convention as Tags above — the
+  // businessType-scoped unique constraint isn't used as the match key here
+  // either, for the same reason).
+  'attributeOptions': { fields: ['businessId', 'attributeKey', 'value'] },
 }
 
 // (Composite unique and child dependency configs removed — replaced by ID remapping approach)

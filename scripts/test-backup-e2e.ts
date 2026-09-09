@@ -113,6 +113,8 @@ const NEW_TABLE_KEYS = [
   'categoryReferenceImages', 'tags', 'imageTags',
   // Product Tags (MBM-295)
   'productTags',
+  // Attribute Options — sizes/colors preset picker
+  'attributeOptions',
 ]
 
 async function main() {

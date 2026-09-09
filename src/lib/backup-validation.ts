@@ -276,6 +276,10 @@ const SKIP_BUSINESS_SCOPING = new Set([
   // MBM-295: product<->tag join — no direct businessId column (scoped via
   // its product's businessId instead).
   'productTags',
+  // Attribute Options: businessId is nullable — a null row is a shared
+  // preset (e.g. the seeded clothing sizes/colors), backed up unconditionally
+  // alongside each business's own custom values, same OR pattern as Tags.
+  'attributeOptions',
   // Persons — global table
   'persons',
   // Expense account tables — backed up with findMany() (no business filter)
