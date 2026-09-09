@@ -530,6 +530,7 @@ export default function ImageGalleryPage() {
       {showBulkUpload && selectedBusinessId && (
         <ReferencePoolBulkUploadModal
           businessId={selectedBusinessId}
+          businessType={businesses.find(b => b.id === selectedBusinessId)?.type ?? 'clothing'}
           domains={allPoolDomains}
           defaultDomainId={poolDomainId}
           onClose={handleBulkUploadClosed}

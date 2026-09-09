@@ -8,12 +8,15 @@ interface CategoryOption {
   id: string
   name: string
   emoji: string | null
+  domainId: string | null
+  domain: { id: string; name: string; emoji: string } | null
   attributes: { isGroup?: boolean } | null
   parent: { id: string; name: string; emoji: string | null } | null
 }
 
 interface Props {
   businessId: string
+  businessType: string
   domains: Array<{ id: string; name: string; emoji: string }>
   defaultDomainId: string
   /** Called on close; `uploaded` is true if at least one image was added —
@@ -27,7 +30,7 @@ interface Props {
  * script, so the pool can keep growing without a developer running a script
  * by hand every time.
  */
-export function ReferencePoolBulkUploadModal({ businessId, domains, defaultDomainId, onClose }: Props) {
+export function ReferencePoolBulkUploadModal({ businessId, businessType, domains, defaultDomainId, onClose }: Props) {
   const toast = useToastContext()
   const [domainId, setDomainId] = useState(defaultDomainId || domains[0]?.id || '')
   const [categoryId, setCategoryId] = useState('')
@@ -37,13 +40,15 @@ export function ReferencePoolBulkUploadModal({ businessId, domains, defaultDomai
   const [uploading, setUploading] = useState(false)
   const [result, setResult] = useState<{ created: number; skipped: string[] } | null>(null)
 
-  // Category narrows the domain further (e.g. Women's -> "Tops"). Optional --
-  // most pool images are still just tagged to a domain, same as before.
+  // Fetched once, across every domain -- picking a category is now the
+  // primary action (search "Blouses" directly rather than first having to
+  // already know it lives under "Women's"), with the domain auto-derived
+  // from whichever category gets picked. The domain-only path (upload for a
+  // whole domain, no specific category) still exists via the Domain field
+  // below for the cases that genuinely have no finer category to tag.
   useEffect(() => {
-    setCategoryId('')
-    if (!domainId) { setCategories([]); return }
     setLoadingCategories(true)
-    fetch(`/api/inventory/categories?businessId=${businessId}&domainId=${domainId}`)
+    fetch(`/api/inventory/categories?businessId=${businessId}&businessType=${businessType}`)
       .then(r => r.ok ? r.json() : { categories: [] })
       .then(d => {
         // Group-header rows (the 51 clothing "Tops"/"Bottoms"/... parents,
@@ -52,14 +57,39 @@ export function ReferencePoolBulkUploadModal({ businessId, domains, defaultDomai
         // so they're excluded here the same way leaf-category pickers
         // elsewhere already do (see /api/admin/clothing/categories's
         // includeGroups handling).
+        // Also excludes the small number of real leaf categories with no
+        // domain at all -- the upload endpoint always requires a matching
+        // domainId for a tagged category (see its own domainId check), so a
+        // domainless category could never actually be submitted here.
         const leaves = ((d.categories ?? []) as CategoryOption[]).filter(
-          c => !(c.attributes && c.attributes.isGroup === true)
+          c => !(c.attributes && c.attributes.isGroup === true) && !!c.domainId
         )
         setCategories(leaves)
       })
       .catch(() => setCategories([]))
       .finally(() => setLoadingCategories(false))
-  }, [businessId, domainId])
+  }, [businessId, businessType])
+
+  function handleCategoryChange(newCategoryId: string) {
+    setCategoryId(newCategoryId)
+    if (!newCategoryId) return
+    // The server rejects a category/domain pair that doesn't match, so the
+    // domain field is driven from whichever category was actually picked
+    // rather than requiring that as a separate manual step first.
+    const category = categories.find(c => c.id === newCategoryId)
+    if (category?.domainId) setDomainId(category.domainId)
+  }
+
+  function handleDomainChange(newDomainId: string) {
+    setDomainId(newDomainId)
+    // Manually switching the domain away from the selected category's own
+    // domain would leave a mismatched pair the server would reject -- clear
+    // the category rather than silently leaving that invalid combination in
+    // place. This is also how a deliberate "actually, whole domain, no
+    // specific category" change happens.
+    const category = categories.find(c => c.id === categoryId)
+    if (category && category.domainId !== newDomainId) setCategoryId('')
+  }
 
   async function handleUpload() {
     if (!domainId || files.length === 0) return
@@ -96,33 +126,49 @@ export function ReferencePoolBulkUploadModal({ businessId, domains, defaultDomai
           <button onClick={() => onClose(!!result && result.created > 0)} className="text-secondary hover:text-primary text-lg leading-none">✕</button>
         </div>
 
-        <div>
-          <label className="block text-xs font-medium text-secondary mb-1">Domain</label>
-          <SearchableSelect
-            required
-            options={domains.map(d => ({ id: d.id, label: `${d.emoji} ${d.name}` }))}
-            value={domainId}
-            onChange={setDomainId}
-            placeholder="Select a domain…"
-            searchPlaceholder="Search domains…"
-          />
-        </div>
+        {/* The Domain/Category pickers below only reveal categories one
+            domain at a time -- no way to see the whole tree (including the
+            new parent-grouped clothing categories) before picking one. Link
+            out to the existing full category browser rather than building a
+            second one here. */}
+        <a
+          href={`/business/inventory-categories?businessType=${businessType}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block text-xs text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          🔎 Browse all {businessType} categories (opens in a new tab)
+        </a>
 
         <div>
           <label className="block text-xs font-medium text-secondary mb-1">Category (optional)</label>
           <SearchableSelect
             options={categories.map(c => ({
               id: c.id,
-              label: `${c.emoji ?? ''} ${c.name}`.trim(),
-              parentName: c.parent?.name ?? null,
+              label: `${c.emoji ?? ''} ${c.name}`.trim() + (c.domain ? ` · ${c.domain.emoji ?? ''} ${c.domain.name}`.trim() : ''),
+              parentName: c.parent?.name ?? c.domain?.name ?? null,
             }))}
             value={categoryId}
-            onChange={setCategoryId}
-            placeholder={domainId ? 'Whole domain (no specific category)' : 'Select a domain first'}
+            onChange={handleCategoryChange}
+            placeholder="Search any category…"
             searchPlaceholder="Search categories…"
-            disabled={!domainId}
             loading={loadingCategories}
           />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-secondary mb-1">Domain</label>
+          <SearchableSelect
+            required
+            options={domains.map(d => ({ id: d.id, label: `${d.emoji} ${d.name}` }))}
+            value={domainId}
+            onChange={handleDomainChange}
+            placeholder="Select a domain…"
+            searchPlaceholder="Search domains…"
+          />
+          {categoryId && (
+            <p className="text-[11px] text-secondary mt-1">Auto-filled from the selected category</p>
+          )}
         </div>
 
         <div>
