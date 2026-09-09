@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { Sidebar } from './sidebar'
 import { MobileSidebar } from './mobile-sidebar'
+import { useElectronBuildFreshnessCheck } from '@/hooks/use-electron-build-freshness'
 
 interface MainLayoutProps {
   children: React.ReactNode
@@ -13,6 +14,11 @@ export function MainLayout({ children }: MainLayoutProps) {
   const { data: session } = useSession()
   const searchParams = useSearchParams()
   const isPopup = searchParams.get('popup') === '1'
+
+  // Runs once per authenticated session, Electron only -- see the hook for
+  // why this specifically needs to happen right after login rather than
+  // continuously, and why it's capped at one retry per app launch.
+  useElectronBuildFreshnessCheck(!!session)
 
   // No BusinessPermissionsProvider here - it's already provided by RootLayout
   if (!session) {

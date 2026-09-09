@@ -23,6 +23,11 @@ contextBridge.exposeInMainWorld('electron', {
 
   getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
 
+  // Clears this window's session HTTP cache and force-reloads bypassing it --
+  // fixes the server-bundle-went-stale-in-Electron's-own-cache problem (see
+  // main.js), independent of the Electron shell's own installer version.
+  clearCacheAndReload: () => ipcRenderer.invoke('app:clearCacheAndReload'),
+
   // ── Device-level default business ─────────────────────────────────────────
   getDefaultBusiness: () => ipcRenderer.invoke('business:getDefault'),
 

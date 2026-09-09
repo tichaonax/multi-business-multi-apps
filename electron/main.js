@@ -637,6 +637,25 @@ ipcMain.handle('scale:disconnect', () => {
 ipcMain.handle('scale:tare', () => ({ ok: scaleService.tare() }))
 ipcMain.handle('scale:detect-baud', (_event, comPort) => scaleService.detectBaud(comPort))
 
+// Each registered server gets its own persistent session partition
+// (webPreferences.partition, above), which means its own disk HTTP cache --
+// completely separate from a regular browser and from the Next.js .next
+// build folder on the server. A server rebuild/redeploy never touches this
+// cache, so this window can silently keep serving a stale bundle with no
+// visible sign anything is wrong. Shared by the manual "Reload (Clear
+// Cache)" menu item and the renderer-triggered auto version check
+// (electron:clearCacheAndReload) so there's exactly one implementation.
+function clearCacheAndReload() {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  mainWindow.webContents.session.clearCache()
+    .catch((err) => console.error('[App] clearCache failed:', err))
+    .finally(() => mainWindow.webContents.reloadIgnoringCache())
+}
+
+ipcMain.handle('app:clearCacheAndReload', () => {
+  clearCacheAndReload()
+})
+
 // ─── Menu — "Switch Server" needs to survive kiosk mode hiding the menu bar,
 // so it's reachable via a keyboard accelerator too, not just a visible menu
 // item. ────────────────────────────────────────────────────────────────────
@@ -680,12 +699,7 @@ function buildMenu() {
         {
           label: 'Reload (Clear Cache)',
           accelerator: 'CmdOrCtrl+Shift+R',
-          click: () => {
-            if (!mainWindow || mainWindow.isDestroyed()) return
-            mainWindow.webContents.session.clearCache()
-              .catch((err) => console.error('[App] clearCache failed:', err))
-              .finally(() => mainWindow.webContents.reloadIgnoringCache())
-          },
+          click: () => clearCacheAndReload(),
         },
       ],
     },
