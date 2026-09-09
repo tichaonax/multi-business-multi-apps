@@ -503,7 +503,18 @@ export function PayrollEntryDetailModal({
 
         // Ensure contract-inferred benefits are included as separate line items under Compensation Breakdown
         // Skip contract items flagged as deductions — they belong in the deductions section only
-        if (data.contract && data.contract.pdfGenerationData && Array.isArray(data.contract.pdfGenerationData.benefits)) {
+        //
+        // Only runs when the server didn't return mergedBenefits at all (a defensive fallback for a
+        // stale/older API response shape). When mergedBenefits WAS returned, it's already the
+        // authoritative, correctly-computed list (percentage benefits converted to a dollar amount,
+        // month-restricted ones like Annual Bonus excluded outside their one applicable month) --
+        // looping over the raw, unconverted, unfiltered contract snapshot here and re-adding
+        // anything "missing" would silently undo that filtering and reintroduce the raw rate as a
+        // flat dollar amount every month.
+        if (
+          (!Array.isArray(data.mergedBenefits) || data.mergedBenefits.length === 0) &&
+          data.contract && data.contract.pdfGenerationData && Array.isArray(data.contract.pdfGenerationData.benefits)
+        ) {
           for (const cb of data.contract.pdfGenerationData.benefits) {
             try {
               if (cb.type === 'deduction') continue
