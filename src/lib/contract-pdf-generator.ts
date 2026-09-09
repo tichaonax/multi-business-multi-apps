@@ -657,7 +657,7 @@ export function generateComprehensiveContract(data: ContractData): jsPDF {
   if (data.benefits && data.benefits.length > 0) {
     yPosition += addText('2.6.2 Benefits:', margin, yPosition, { bold: true, size: 10 })
     yPosition += 4
-    
+
     data.benefits.forEach((benefit, index) => {
       const benefitText = benefit.isPercentage
         ? `2.6.2.${index + 1} ${benefit.name}: ${benefit.amount}%`
@@ -667,6 +667,21 @@ export function generateComprehensiveContract(data: ContractData): jsPDF {
     })
     yPosition += 4
   }
+
+  // 2.6.3 Right to modify benefits -- stated unconditionally (not just when
+  // benefits are listed above), since the right to add a benefit later must
+  // hold even for a contract signed with none. Employees can now be added to
+  // or removed from an existing contract's benefits directly (see
+  // /api/employees/[employeeId]/contracts/[contractId]/benefits), without a
+  // full renewal -- this clause is the contractual basis for that.
+  checkPageBreak(20)
+  yPosition += addText('2.6.3 Modification of Benefits:', margin, yPosition, { bold: true, size: 10 })
+  yPosition += 4
+  yPosition += addText(
+    'The Company reserves the right to add, modify, or remove any benefit listed above, in whole or in part, at any time and for any reason, with or without prior notice.',
+    margin + 10, yPosition, { size: 10 }
+  )
+  yPosition += 8
 
   yPosition += 15
 

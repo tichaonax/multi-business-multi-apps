@@ -14,6 +14,7 @@ import { useDateFormat } from '@/contexts/settings-context'
 import { CreateUserModal } from '@/components/employees/create-user-modal'
 import { ManageUserAccountModal } from '@/components/employees/manage-user-account-modal'
 import { ContractRenewalModal } from '@/components/contracts/contract-renewal-modal'
+import { ManageContractBenefits } from '@/components/contracts/manage-contract-benefits'
 import { ContractApprovalModal } from '@/components/contracts/contract-approval-modal'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { useToastContext } from '@/components/ui/toast'
@@ -1142,21 +1143,19 @@ export default function EmployeeDetailPage() {
                         return null
                       })()}
 
-                      {contract.benefits.length > 0 && (
-                        <div className="mt-4">
-                          <label className="block text-sm font-medium text-secondary mb-2">Benefits</label>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {contract.benefits.map((benefit, idx) => (
-                              <div key={benefit.id ?? `${benefit.benefitType?.name || (benefit as any).name || 'benefit'}-${benefit.amount}-${idx}`} className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-800 rounded">
-                                <span className="text-sm text-primary">{benefit.benefitType.name}</span>
-                                <span className="text-sm font-medium text-primary">
-                                  {benefit.isPercentage ? `${benefit.amount}%` : formatCurrency(benefit.amount)}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                      <ManageContractBenefits
+                        employeeId={employeeId}
+                        contractId={contract.id}
+                        benefits={contract.benefits}
+                        canEdit={canEditEmployeeContracts && contract.status !== 'terminated'}
+                        formatCurrency={formatCurrency}
+                        onChange={(updatedBenefits) => {
+                          setEmployee(prev => prev ? {
+                            ...prev,
+                            contracts: prev.contracts.map(c => c.id === contract.id ? { ...c, benefits: updatedBenefits } : c)
+                          } : prev)
+                        }}
+                      />
 
                       {contract.notes && (
                         <div className="mt-4">

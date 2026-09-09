@@ -216,12 +216,16 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
           // Normalized benefits list (if using pdfGenerationData the shape may be different)
           benefits: (benefitsSource || []).map((benefit: any) => ({
             id: benefit.id || null,
+            benefitTypeId: benefit.benefitTypeId || null,
             amount: benefit.amount,
             isPercentage: benefit.isPercentage,
             notes: benefit.notes || null,
+            // DB-sourced rows carry the relation as `benefit_types` (the schema's
+            // actual relation name); `benefitType`/`name` are only ever present
+            // on the pdfGenerationData.benefits fallback shape below.
             benefitType: {
-              name: benefit.benefitType?.name || benefit.name || null,
-              type: benefit.benefitType?.type || null
+              name: benefit.benefit_types?.name || benefit.benefitType?.name || benefit.name || null,
+              type: benefit.benefit_types?.type || benefit.benefitType?.type || null
             }
           })),
           // Expose a normalized previousContract when available from the DB relation

@@ -4,6 +4,7 @@ export type Benefit = {
   amount: number
   isPercentage: boolean
   notes: string | null
+  benefitTypeId?: string
   benefitType: {
     name: string
     type: string
