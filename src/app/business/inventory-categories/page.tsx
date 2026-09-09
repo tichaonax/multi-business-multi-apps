@@ -4,7 +4,8 @@
 export const dynamic = 'force-dynamic';
 
 import { ProtectedRoute } from '@/components/auth/protected-route';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -22,18 +23,35 @@ const DEMO_BUSINESS_MAP: Record<string, string> = {
   restaurant: 'restaurant-demo-business',
 };
 
-export default function InventoryCategoriesPage() {
+function InventoryCategoriesPageContent() {
   const { data: session } = useSession();
   const customAlert = useAlert();
   const confirm = useConfirm();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [categories, setCategories] = useState<InventoryCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedBusinessType, setSelectedBusinessType] = useState<string>('clothing');
-  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  // Restored from the URL so arriving here (e.g. via the "All Categories"
+  // link from a product list) lands back on whatever business type/department
+  // you were just looking at, instead of always resetting to clothing.
+  const [selectedBusinessType, setSelectedBusinessType] = useState<string>(() => searchParams.get('businessType') || 'clothing');
+  const [selectedDepartment, setSelectedDepartment] = useState<string>(() => searchParams.get('domainId') || '');
   const [stats, setStats] = useState<any>(null);
+  const isFirstBusinessTypeRun = useRef(true);
+
+  // Keep the URL in sync so this page's own state survives a refresh/back
+  // button, and so links elsewhere (built from these same query params) can
+  // send you back to exactly this view.
+  useEffect(() => {
+    const params = new URLSearchParams();
+    params.set('businessType', selectedBusinessType);
+    if (selectedDepartment) params.set('domainId', selectedDepartment);
+    router.replace(`/business/inventory-categories?${params}`, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBusinessType, selectedDepartment]);
 
   // Selecting a department (or switching business type) swaps in a whole new
   // list in place -- no route change, so the browser has no reason to reset
@@ -122,8 +140,14 @@ export default function InventoryCategoriesPage() {
     }
 
     fetchCategories();
-    // Reset department filter when business type changes
-    setSelectedDepartment('');
+    // Reset department filter when business type changes -- but not on the
+    // very first run, which would otherwise immediately wipe out a
+    // department restored from the URL before it's ever used.
+    if (isFirstBusinessTypeRun.current) {
+      isFirstBusinessTypeRun.current = false;
+    } else {
+      setSelectedDepartment('');
+    }
   }, [currentBusinessType, selectedBusinessType]);
 
   const toggleCategory = (categoryId: string) => {
@@ -271,41 +295,43 @@ export default function InventoryCategoriesPage() {
           </p>
         </div>
 
-        {/* Business Type Selector */}
-        <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Select Business Type:
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { type: 'clothing',     emoji: '👗',  label: 'Clothing' },
-              { type: 'hardware',     emoji: '🔧',  label: 'Hardware' },
-              { type: 'grocery',      emoji: '🛒',  label: 'Grocery' },
-              { type: 'restaurant',   emoji: '🍽️', label: 'Restaurant' },
-              { type: 'retail',       emoji: '🏪',  label: 'Retail' },
-              { type: 'services',     emoji: '🛠️', label: 'Services' },
-              { type: 'consulting',   emoji: '💼',  label: 'Consulting' },
-              { type: 'construction', emoji: '🏗️', label: 'Construction' },
-              { type: 'other',        emoji: '📦',  label: 'Other' },
-            ].map(({ type, emoji, label }) => (
-              <button
-                key={type}
-                onClick={() => setSelectedBusinessType(type)}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  selectedBusinessType === type
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
-                }`}
-              >
-                {emoji} {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Search + filters float as one unit below the nav; the category
-            list (and Browse by Department block) scrolls underneath it. */}
+        {/* Business Type selector + search/filters all float as one unit
+            below the nav -- previously only search/filters were sticky, so
+            switching business type meant scrolling all the way back to the
+            top of a long category list to reach it. */}
         <div className="sticky top-14 sm:top-16 z-20 -mx-4 px-4 py-3 mb-6 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+          {/* Business Type Selector */}
+          <div className="mb-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Select Business Type:
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { type: 'clothing',     emoji: '👗',  label: 'Clothing' },
+                { type: 'hardware',     emoji: '🔧',  label: 'Hardware' },
+                { type: 'grocery',      emoji: '🛒',  label: 'Grocery' },
+                { type: 'restaurant',   emoji: '🍽️', label: 'Restaurant' },
+                { type: 'retail',       emoji: '🏪',  label: 'Retail' },
+                { type: 'services',     emoji: '🛠️', label: 'Services' },
+                { type: 'consulting',   emoji: '💼',  label: 'Consulting' },
+                { type: 'construction', emoji: '🏗️', label: 'Construction' },
+                { type: 'other',        emoji: '📦',  label: 'Other' },
+              ].map(({ type, emoji, label }) => (
+                <button
+                  key={type}
+                  onClick={() => setSelectedBusinessType(type)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    selectedBusinessType === type
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {emoji} {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Actions Bar */}
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
             {/* Search */}
@@ -613,5 +639,17 @@ export default function InventoryCategoriesPage() {
         )}
       </div>
     </ProtectedRoute>
+  );
+}
+
+export default function InventoryCategoriesPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex justify-center items-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    }>
+      <InventoryCategoriesPageContent />
+    </Suspense>
   );
 }
