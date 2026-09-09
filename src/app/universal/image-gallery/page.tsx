@@ -280,9 +280,11 @@ export default function ImageGalleryPage() {
         ) : (
         <>
         {/* Compact, sticky toolbar — floats at the top while scrolling the grid below.
-            top-20/z-20 matches the offset every other sticky POS toolbar in this app uses,
-            so it sits below the global header instead of underneath it. */}
-        <div className="sticky top-20 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-2 mb-4 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+            top-14/top-16 matches the global header's own h-14/h-16 height (see
+            main-layout.tsx) exactly, same as every other sticky filter bar in
+            this app -- top-20 left a gap above this bar that the header didn't
+            cover, letting scrolled-past grid rows show through above it. */}
+        <div className="sticky top-14 sm:top-16 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-2 mb-4 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
           <div className="flex flex-wrap items-center gap-2">
             <select
               aria-label="Business"
