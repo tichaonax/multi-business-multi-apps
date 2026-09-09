@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect, Suspense } from 'react'
+import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import {
   Package,
@@ -185,7 +186,21 @@ function UniversalProductsPageContent() {
 
   return (
     <ProtectedRoute>
-      <ContentLayout title={`${capitalizeBusinessType(businessType)} Products`}>
+      <ContentLayout
+        title={`${capitalizeBusinessType(businessType)} Products`}
+        headerActions={
+          // Drilling down through department -> category can be several
+          // clicks deep; "Back" only undoes one step of browser history at a
+          // time, so this jumps straight back to the business-type selector
+          // instead of making the user hit Back repeatedly.
+          <Link
+            href="/business/inventory-categories"
+            className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-secondary bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex-shrink-0"
+          >
+            🗂️ All Categories
+          </Link>
+        }
+      >
         <div className="space-y-6">
           {/* Statistics Cards */}
           {stats && (

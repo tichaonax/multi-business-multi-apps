@@ -293,60 +293,64 @@ export default function InventoryCategoriesPage() {
           </div>
         </div>
 
-        {/* Actions Bar */}
-        <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          {/* Search */}
-          <div className="flex-1 max-w-md">
-            <input
-              type="text"
-              placeholder="Search categories..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-            />
+        {/* Search + filters float as one unit below the nav; the category
+            list (and Browse by Department block) scrolls underneath it. */}
+        <div className="sticky top-14 sm:top-16 z-20 -mx-4 px-4 py-3 mb-6 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+          {/* Actions Bar */}
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            {/* Search */}
+            <div className="flex-1 max-w-md">
+              <input
+                type="text"
+                placeholder="Search categories..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              {/* Reset Filters Button */}
+              {hasActiveFilters && (
+                <button
+                  onClick={handleResetFilters}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors whitespace-nowrap"
+                  title="Reset all filters"
+                >
+                  🔄 Reset Filters
+                </button>
+              )}
+
+              {/* Create Button */}
+              {canCreateCategories && (
+                <button
+                  onClick={handleCreateCategory}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  ➕ Create Category
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="flex gap-2">
-            {/* Reset Filters Button */}
-            {hasActiveFilters && (
-              <button
-                onClick={handleResetFilters}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors whitespace-nowrap"
-                title="Reset all filters"
-              >
-                🔄 Reset Filters
-              </button>
-            )}
-
-            {/* Create Button */}
-            {canCreateCategories && (
-              <button
-                onClick={handleCreateCategory}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-              >
-                ➕ Create Category
-              </button>
-            )}
-          </div>
+          {/* Active Department Filter Badge */}
+          {selectedDepartment && selectedBusinessType === 'clothing' && (
+            <div className="mt-4 flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Active filter:</span>
+              <span className="inline-flex items-center gap-2 rounded-md bg-green-100 dark:bg-green-900 px-3 py-1 text-sm font-medium text-green-800 dark:text-green-200">
+                Department: {stats?.byDepartment?.[selectedDepartment]?.emoji} {stats?.byDepartment?.[selectedDepartment]?.name}
+                <button
+                  type="button"
+                  onClick={() => setSelectedDepartment('')}
+                  className="hover:text-green-600 dark:hover:text-green-400"
+                  title="Clear department filter"
+                >
+                  ×
+                </button>
+              </span>
+            </div>
+          )}
         </div>
-
-        {/* Active Department Filter Badge */}
-        {selectedDepartment && selectedBusinessType === 'clothing' && (
-          <div className="mb-6 flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-gray-600 dark:text-gray-400">Active filter:</span>
-            <span className="inline-flex items-center gap-2 rounded-md bg-green-100 dark:bg-green-900 px-3 py-1 text-sm font-medium text-green-800 dark:text-green-200">
-              Department: {stats?.byDepartment?.[selectedDepartment]?.emoji} {stats?.byDepartment?.[selectedDepartment]?.name}
-              <button
-                type="button"
-                onClick={() => setSelectedDepartment('')}
-                className="hover:text-green-600 dark:hover:text-green-400"
-                title="Clear department filter"
-              >
-                ×
-              </button>
-            </span>
-          </div>
-        )}
 
         {/* Department Quick Navigation (Clothing Only) */}
         {selectedBusinessType === 'clothing' && stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && !selectedDepartment && (

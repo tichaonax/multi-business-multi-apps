@@ -832,30 +832,30 @@ export function UniversalInventoryGrid({
                     Item {allowSorting && (sortField === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '')}
                   </th>
                   <th
-                    className={`text-left p-3 font-medium text-secondary ${allowSorting ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''}`}
+                    className={`text-left p-3 font-medium text-secondary w-24 ${allowSorting ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''}`}
                     onClick={() => allowSorting && handleSort('currentStock')}
                   >
                     Stock {allowSorting && (sortField === 'currentStock' ? (sortDirection === 'asc' ? '↑' : '↓') : '')}
                   </th>
                   <th
-                    className={`text-left p-3 font-medium text-secondary ${allowSorting ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''}`}
+                    className={`text-left p-3 font-medium text-secondary w-24 ${allowSorting ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''}`}
                     onClick={() => allowSorting && handleSort('costPrice')}
                   >
                     Unit Cost {allowSorting && (sortField === 'costPrice' ? (sortDirection === 'asc' ? '↑' : '↓') : '')}
                   </th>
                   <th
-                    className={`text-left p-3 font-medium text-secondary ${allowSorting ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''}`}
+                    className={`text-left p-3 font-medium text-secondary w-24 ${allowSorting ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700' : ''}`}
                     onClick={() => allowSorting && handleSort('sellPrice')}
                   >
                     Sell Price {allowSorting && (sortField === 'sellPrice' ? (sortDirection === 'asc' ? '↑' : '↓') : '')}
                   </th>
-                  <th className="text-left p-3 font-medium text-secondary">Supplier</th>
-                  <th className="text-left p-3 font-medium text-secondary">Location</th>
+                  <th className="text-left p-3 font-medium text-secondary w-32">Supplier</th>
+                  <th className="text-left p-3 font-medium text-secondary w-28">Location</th>
                   <th className="text-left p-3 font-medium text-secondary w-56">Barcodes</th>
                   {showBusinessSpecificFields && (
-                    <th className="text-left p-3 font-medium text-secondary">Details</th>
+                    <th className="text-left p-3 font-medium text-secondary w-40">Details</th>
                   )}
-                  <th className="text-left p-3 font-medium text-secondary">Status</th>
+                  <th className="text-left p-3 font-medium text-secondary w-24">Status</th>
                   {showActions && (
                     <th className="text-left p-3 font-medium text-secondary w-[340px]">Actions</th>
                   )}
@@ -974,10 +974,10 @@ export function UniversalInventoryGrid({
                     <td className="p-3 font-medium text-green-600 dark:text-green-400">
                       ${item.sellPrice.toFixed(2)}
                     </td>
-                    <td className="p-3 text-secondary">
+                    <td className="p-3 text-secondary truncate" title={item.supplier || 'Not specified'}>
                       {item.supplier || 'Not specified'}
                     </td>
-                    <td className="p-3 text-secondary">
+                    <td className="p-3 text-secondary truncate" title={item.location || 'Not specified'}>
                       {item.location || 'Not specified'}
                     </td>
                     <td className="p-3">
@@ -1010,7 +1010,7 @@ export function UniversalInventoryGrid({
                       )}
                     </td>
                     {showBusinessSpecificFields && (
-                      <td className="p-3">
+                      <td className="p-3 overflow-hidden break-words">
                         {getBusinessSpecificDisplay(item)}
                       </td>
                     )}
