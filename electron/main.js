@@ -186,15 +186,20 @@ async function openServer(serverEntry) {
   // without this app needing to track that setting itself.
   mainWindow.maximize()
 
-  // Electron's Chromium can render noticeably larger than a regular browser
-  // on the same display for the exact same page (Windows DPI scaling is a
-  // common cause) -- 0.8 was picked to visually match a typical browser
-  // window side-by-side. Persisted (see server-registry.js) so once an
-  // operator fine-tunes it with Ctrl+/Ctrl- for their specific display, it
-  // sticks across restarts instead of silently reverting to this default
-  // every launch.
+  // Electron's Chromium renders noticeably larger than a regular browser on
+  // the same display for the exact same page -- Windows applies its own
+  // compatibility upscaling on top of Chromium's own rendering here, the
+  // same way it does for any app that isn't fully per-monitor-DPI-aware.
+  // 1/scaleFactor cancels that back out automatically on whatever this
+  // machine's display scaling happens to be (e.g. 1/1.25 = 0.8 at 125%
+  // Windows scaling) -- no per-machine manual Ctrl+/Ctrl- tuning needed on
+  // a fresh kiosk install. Only falls back to that manual tuning (via the
+  // persisted override below) for a display this heuristic doesn't get
+  // exactly right.
+  const scaleFactor = screen.getPrimaryDisplay().scaleFactor || 1
+  const autoZoomFactor = 1 / scaleFactor
   const savedZoomFactor = registry.getZoomFactor()
-  mainWindow.webContents.zoomFactor = savedZoomFactor ?? 0.8
+  mainWindow.webContents.zoomFactor = savedZoomFactor ?? autoZoomFactor
 
   // Safety net: if anything ever un-maximizes the window (the title bar's
   // own restore-down button, a stray OS shortcut, Windows restoring window
@@ -266,12 +271,14 @@ async function openServer(serverEntry) {
       mainWindow.webContents.zoomFactor = Math.max(0.5, mainWindow.webContents.zoomFactor - 0.1)
       registry.setZoomFactor(mainWindow.webContents.zoomFactor)
     } else if (input.key === '0') {
-      // Resets to this app's own browser-matched default (0.8), not
+      // Resets to this display's auto-computed default (1/scaleFactor), not
       // Chromium's usual "1.0 = no zoom" -- 1.0 is the too-large size this
       // whole feature exists to correct, so it would be a confusing reset
-      // target here.
-      mainWindow.webContents.zoomFactor = 0.8
-      registry.setZoomFactor(0.8)
+      // target here. Clears the persisted override too, so this goes back
+      // to tracking the auto-computed value rather than pinning whatever
+      // the reset happened to land on.
+      mainWindow.webContents.zoomFactor = autoZoomFactor
+      registry.setZoomFactor(null)
     }
   })
 
