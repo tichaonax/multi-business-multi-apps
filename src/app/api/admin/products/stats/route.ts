@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const businessType = searchParams.get('businessType')
     const businessId = searchParams.get('businessId')
+    const search = searchParams.get('search')
 
     // BusinessType is required
     if (!businessType) {
@@ -22,6 +23,17 @@ export async function GET(request: NextRequest) {
 
     if (businessId) {
       where.businessId = businessId
+    }
+
+    // Same name/SKU search as /api/admin/products -- when present, every
+    // count below (including Browse by Department) reflects only matching
+    // products, so a search actually shrinks the department tiles instead
+    // of leaving every department's full, unfiltered count showing.
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { sku: { contains: search, mode: 'insensitive' } }
+      ]
     }
 
     const categoryInclude = {
@@ -43,7 +55,11 @@ export async function GET(request: NextRequest) {
         where: {
           isActive: true,
           business: { type: businessType },
-          ...(businessId ? { businessId } : {})
+          ...(businessId ? { businessId } : {}),
+          ...(search ? { OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { sku: { contains: search, mode: 'insensitive' } }
+          ] } : {})
         },
         include: {
           business: { select: { id: true, name: true, type: true } },

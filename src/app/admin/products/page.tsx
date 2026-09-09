@@ -146,6 +146,7 @@ function UniversalProductsPageContent() {
   const fetchStats = async () => {
     try {
       const params = new URLSearchParams({ businessType })
+      if (searchQuery) params.append('search', searchQuery)
       const response = await fetch(`/api/admin/products/stats?${params}`)
       const data = await response.json()
 
@@ -162,10 +163,13 @@ function UniversalProductsPageContent() {
     fetchProducts(1)
   }, [businessType, searchQuery, selectedBusiness, selectedDepartment, selectedCategory, pageSize])
 
-  // Fetch stats when businessType changes
+  // Fetch stats when businessType or search changes -- search is included so
+  // Browse by Department's counts (and, below, which tiles even show) track
+  // the same search as the product list instead of always showing every
+  // department's full unfiltered count.
   useEffect(() => {
     fetchStats()
-  }, [businessType])
+  }, [businessType, searchQuery])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -391,19 +395,29 @@ function UniversalProductsPageContent() {
             </form>
           </div>
 
-          {/* Department Quick Navigation - Show for all business types */}
-          {stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && !selectedDepartment && (
+          {/* Department Quick Navigation - Show for all business types.
+              Departments the stats endpoint always pre-seeds with every
+              domain (count: 0 if nothing matches) -- while a search is
+              active, drop the zero-count ones so this list actually shrinks
+              to match, instead of showing every department at "0 products". */}
+          {stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && !selectedDepartment && (() => {
+            const departmentEntries = Object.entries(stats.byDepartment)
+              .filter(([, dept]: [string, any]) => !searchQuery || dept.count > 0)
+              .sort(([, a]: [string, any], [, b]: [string, any]) => b.count - a.count)
+
+            return (
             <div className="rounded-lg border bg-card p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold">Browse by Department</h3>
                 <span className="text-sm text-muted-foreground">
-                  {Object.keys(stats.byDepartment).length} departments
+                  {departmentEntries.length} of {Object.keys(stats.byDepartment).length} departments
                 </span>
               </div>
+              {departmentEntries.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">No departments match your search</p>
+              ) : (
               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                {Object.entries(stats.byDepartment)
-                  .sort(([, a]: [string, any], [, b]: [string, any]) => b.count - a.count)
-                  .map(([id, dept]: [string, any]) => (
+                {departmentEntries.map(([id, dept]: [string, any]) => (
                   <button
                     key={id}
                     onClick={() => handleDepartmentSelect(id)}
@@ -417,8 +431,10 @@ function UniversalProductsPageContent() {
                   </button>
                 ))}
               </div>
+              )}
             </div>
-          )}
+            )
+          })()}
 
           {/* Products Table */}
           <div className="rounded-lg border bg-card">

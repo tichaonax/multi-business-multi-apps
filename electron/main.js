@@ -186,6 +186,16 @@ async function openServer(serverEntry) {
   // without this app needing to track that setting itself.
   mainWindow.maximize()
 
+  // Electron's Chromium can render noticeably larger than a regular browser
+  // on the same display for the exact same page (Windows DPI scaling is a
+  // common cause) -- 0.8 was picked to visually match a typical browser
+  // window side-by-side. Persisted (see server-registry.js) so once an
+  // operator fine-tunes it with Ctrl+/Ctrl- for their specific display, it
+  // sticks across restarts instead of silently reverting to this default
+  // every launch.
+  const savedZoomFactor = registry.getZoomFactor()
+  mainWindow.webContents.zoomFactor = savedZoomFactor ?? 0.8
+
   // Safety net: if anything ever un-maximizes the window (the title bar's
   // own restore-down button, a stray OS shortcut, Windows restoring window
   // state on display-topology changes), snap straight back — the window
@@ -246,12 +256,22 @@ async function openServer(serverEntry) {
       return
     }
     if (!input.control) return
+    // Persisted (registry.setZoomFactor) on every change -- once an operator
+    // dials this in to match their browser on this specific display, it
+    // should stick, not silently revert to the default on the next launch.
     if (input.key === '=' || input.key === '+') {
       mainWindow.webContents.zoomFactor = Math.min(2.0, mainWindow.webContents.zoomFactor + 0.1)
+      registry.setZoomFactor(mainWindow.webContents.zoomFactor)
     } else if (input.key === '-') {
       mainWindow.webContents.zoomFactor = Math.max(0.5, mainWindow.webContents.zoomFactor - 0.1)
+      registry.setZoomFactor(mainWindow.webContents.zoomFactor)
     } else if (input.key === '0') {
-      mainWindow.webContents.zoomFactor = 1.0
+      // Resets to this app's own browser-matched default (0.8), not
+      // Chromium's usual "1.0 = no zoom" -- 1.0 is the too-large size this
+      // whole feature exists to correct, so it would be a confusing reset
+      // target here.
+      mainWindow.webContents.zoomFactor = 0.8
+      registry.setZoomFactor(0.8)
     }
   })
 

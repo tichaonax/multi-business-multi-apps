@@ -28,6 +28,7 @@ function defaultData() {
     servers: [],
     theme: null,
     pageSizeByUser: {},
+    zoomFactor: null,
   }
 }
 
@@ -215,6 +216,23 @@ function setPageSize(userId, size) {
   save(data)
 }
 
+// Device-wide, same reasoning and same non-persistent-session-partition
+// problem as theme above -- Electron's Chromium can render noticeably
+// larger than a regular browser on the same display (Windows DPI scaling
+// is one common cause), and Ctrl+/Ctrl- (see main.js) would otherwise reset
+// to 1.0 every restart, making the operator redo the same correction every
+// time the kiosk launches. Not namespaced by user -- it's a property of
+// this specific display/machine, not a per-operator preference.
+function getZoomFactor() {
+  return load().zoomFactor
+}
+
+function setZoomFactor(zoomFactor) {
+  const data = load()
+  data.zoomFactor = zoomFactor
+  save(data)
+}
+
 // ── PIN (add/remove gate) ───────────────────────────────────────────────
 // Deliberately a light deterrent, not a strong security boundary — see the
 // design discussion this shipped from. Anyone with real file access to this
@@ -277,6 +295,8 @@ module.exports = {
   setTheme,
   getPageSize,
   setPageSize,
+  getZoomFactor,
+  setZoomFactor,
   setCertFingerprint,
   hasPin,
   setPin,
