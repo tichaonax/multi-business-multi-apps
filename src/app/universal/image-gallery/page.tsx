@@ -56,6 +56,12 @@ export default function ImageGalleryPage() {
   const [images, setImages] = useState<GalleryImage[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
+  // Separate from `loading` (which also covers "Load More" appends, where
+  // dimming the whole grid would be distracting) -- true only during a fresh,
+  // non-append refetch (business/filter change), so that case can dim the
+  // existing grid instead of hard-clearing it to a blank "Loading…" screen,
+  // which read as the whole page flashing on a fast connection.
+  const [refreshing, setRefreshing] = useState(false)
   const [offset, setOffset] = useState(0)
 
   const [search, setSearch] = useState('')
@@ -72,6 +78,7 @@ export default function ImageGalleryPage() {
   const [poolTotal, setPoolTotal] = useState(0)
   const [poolLoading, setPoolLoading] = useState(false)
   const [poolOffset, setPoolOffset] = useState(0)
+  const [poolRefreshing, setPoolRefreshing] = useState(false)
   const [poolDomains, setPoolDomains] = useState<PoolDomain[]>([])
   const [allPoolDomains, setAllPoolDomains] = useState<Array<{ id: string; name: string; emoji: string }>>([])
   const [poolDomainId, setPoolDomainId] = useState('')
@@ -137,11 +144,10 @@ export default function ImageGalleryPage() {
   const fetchImages = useCallback(async (targetOffset: number, append: boolean) => {
     if (!selectedBusinessId) return
     setLoading(true)
-    // Clear the currently-shown set immediately on a fresh (non-append) fetch
-    // — otherwise the old filter's images stay on screen with no visible
-    // change until the new response arrives, which reads as "the filter did
-    // nothing" even though it's working.
-    if (!append) setImages([])
+    // Dim the existing grid instead of clearing it to blank -- still visibly
+    // obvious the filter is refetching, but without the hard flash of
+    // everything disappearing and reappearing a moment later.
+    if (!append) setRefreshing(true)
     try {
       const params = new URLSearchParams()
       if (hasInventory !== 'all') params.set('hasInventory', hasInventory)
@@ -162,6 +168,7 @@ export default function ImageGalleryPage() {
       toast.error(e.message ?? 'Failed to load gallery')
     } finally {
       setLoading(false)
+      if (!append) setRefreshing(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBusinessId, hasInventory, stockStatus, search, tag, sortBy])
@@ -175,9 +182,10 @@ export default function ImageGalleryPage() {
   const fetchPool = useCallback(async (targetOffset: number, append: boolean) => {
     if (!selectedBusinessId) return
     setPoolLoading(true)
-    // Same reasoning as fetchImages — clear immediately so switching
-    // categories is visibly obvious, not just "the same-looking grid".
-    if (!append) setPoolImages([])
+    // Dim the existing grid instead of clearing it to blank -- switching
+    // domains/categories is still visibly obvious once the new set lands,
+    // without the hard flash of the whole grid disappearing first.
+    if (!append) setPoolRefreshing(true)
     try {
       const params = new URLSearchParams()
       if (poolDomainId) params.set('domainId', poolDomainId)
@@ -198,6 +206,7 @@ export default function ImageGalleryPage() {
       toast.error(e.message ?? 'Failed to load reference pool')
     } finally {
       setPoolLoading(false)
+      if (!append) setPoolRefreshing(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBusinessId, poolDomainId, poolCategoryId])
@@ -411,7 +420,7 @@ export default function ImageGalleryPage() {
             ) : poolImages.length === 0 ? (
               <p className="text-center text-secondary py-16">No reference images available yet for this business type.</p>
             ) : (
-              <>
+              <div className={`transition-opacity ${poolRefreshing ? 'opacity-40 pointer-events-none' : ''}`}>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                   {poolImages.map(img => (
                     <button
@@ -450,7 +459,7 @@ export default function ImageGalleryPage() {
                     </button>
                   </div>
                 )}
-              </>
+              </div>
             )}
           </>
         ) : (
@@ -465,7 +474,7 @@ export default function ImageGalleryPage() {
         ) : images.length === 0 ? (
           <p className="text-center text-secondary py-16">No images match these filters yet.</p>
         ) : (
-          <>
+          <div className={`transition-opacity ${refreshing ? 'opacity-40 pointer-events-none' : ''}`}>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
               {images.map(img => (
                 <button
@@ -510,7 +519,7 @@ export default function ImageGalleryPage() {
                 </button>
               </div>
             )}
-          </>
+          </div>
         )}
         </>
         )}

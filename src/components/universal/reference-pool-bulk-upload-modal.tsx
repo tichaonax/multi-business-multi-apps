@@ -8,6 +8,7 @@ interface CategoryOption {
   id: string
   name: string
   emoji: string | null
+  attributes: { isGroup?: boolean } | null
   parent: { id: string; name: string; emoji: string | null } | null
 }
 
@@ -44,7 +45,18 @@ export function ReferencePoolBulkUploadModal({ businessId, domains, defaultDomai
     setLoadingCategories(true)
     fetch(`/api/inventory/categories?businessId=${businessId}&domainId=${domainId}`)
       .then(r => r.ok ? r.json() : { categories: [] })
-      .then(d => setCategories(d.categories ?? []))
+      .then(d => {
+        // Group-header rows (the 51 clothing "Tops"/"Bottoms"/... parents,
+        // and any future equivalents) exist only to organize real categories
+        // under a heading -- they're never themselves a taggable category,
+        // so they're excluded here the same way leaf-category pickers
+        // elsewhere already do (see /api/admin/clothing/categories's
+        // includeGroups handling).
+        const leaves = ((d.categories ?? []) as CategoryOption[]).filter(
+          c => !(c.attributes && c.attributes.isGroup === true)
+        )
+        setCategories(leaves)
+      })
       .catch(() => setCategories([]))
       .finally(() => setLoadingCategories(false))
   }, [businessId, domainId])

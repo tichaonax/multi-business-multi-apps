@@ -123,8 +123,16 @@ export async function GET(request: NextRequest) {
       ],
     });
 
+    // Alias the self-relation to `parent`, matching /api/admin/clothing/categories
+    // and /api/universal/categories' shape, so shared client-side grouping
+    // helpers (parentName-based) work against whichever endpoint a caller used.
+    const categoriesWithParent = categories.map((c: any) => {
+      const { business_categories, ...rest } = c;
+      return { ...rest, parent: business_categories ?? null };
+    });
+
     return NextResponse.json({
-      categories,
+      categories: categoriesWithParent,
       total: categories.length,
     });
   } catch (error) {
