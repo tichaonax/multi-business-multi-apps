@@ -3092,7 +3092,17 @@ export function PayrollEntryDetailModal({
                                       try { onError('This benefit type is already present for this payroll entry') } catch (e) { /* ignore */ }
                                       return
                                     }
-                                    setBenefitForm({ ...benefitForm, benefitTypeId: bt.id, amount: bt.defaultAmount ?? benefitForm.amount })
+                                    // A percentage-type benefit's defaultAmount is a rate (e.g. 50
+                                    // for "50%"), not a dollar figure -- pre-filling it verbatim let
+                                    // someone add "Annual Bonus" and unknowingly submit a flat $50
+                                    // instead of 50% of this entry's own base salary. Convert it here
+                                    // so the pre-filled value is already correct; still freely editable
+                                    // for a deliberate flat override (e.g. a one-off bonus amount).
+                                    const rate = Number(bt.defaultAmount ?? 0)
+                                    const prefillAmount = bt.isPercentage
+                                      ? Math.round((rate / 100) * Number(entry?.baseSalary || 0) * 100) / 100
+                                      : (bt.defaultAmount ?? benefitForm.amount)
+                                    setBenefitForm({ ...benefitForm, benefitTypeId: bt.id, amount: prefillAmount })
                                     setBenefitSearch('')
                                   }}
                                 >
@@ -3112,7 +3122,7 @@ export function PayrollEntryDetailModal({
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-secondary mb-1">Amount</label>
+                      <label className="block text-sm font-medium text-secondary mb-1">Amount ($)</label>
                       <input
                         type="number"
                         step="0.01"
@@ -3124,6 +3134,15 @@ export function PayrollEntryDetailModal({
                         className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         placeholder="0.00"
                       />
+                      {(() => {
+                        const selectedType = (Array.isArray(benefitTypes) ? benefitTypes : []).find((bt: any) => String(bt.id) === String(benefitForm.benefitTypeId))
+                        if (!selectedType?.isPercentage) return null
+                        return (
+                          <p className="mt-1 text-xs text-secondary">
+                            This is a dollar amount, not a percentage — pre-filled as {Number(selectedType.defaultAmount ?? 0)}% of this entry's base salary (${formatCurrency(Number(entry?.baseSalary || 0))}). Edit it directly if you want a different flat amount instead.
+                          </p>
+                        )
+                      })()}
                     </div>
                   </div>
                   <div className="flex gap-3">
