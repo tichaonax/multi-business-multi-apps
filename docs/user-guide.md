@@ -4388,13 +4388,17 @@ Normally the application server talks to an R710 device directly over the local 
 
 > If you accidentally try to test-connect to a device that's actually remote, the failure message includes a **"switch to Remote Agent mode"** link that flips the form over for you — no need to start again.
 
+**Before you install, on a workstation that's never run the agent before:** install the **Microsoft Visual C++ Redistributable (x64)** — https://aka.ms/vs/17/release/vc_redist.x64.exe. The agent needs it to talk to a scale; most Windows PCs already have it from other software, but a fresh/newly-imaged machine often doesn't, and a missing copy has been known to freeze the agent (occasionally the whole machine) the very first time it's run.
+
 **Installing the local agent (one time, on a workstation at the remote site):**
 1. From the device's **Agent** panel (**R710 Portal → Devices → Agent** button, or via the link shown right after registering), click **Download r710-agent.zip**.
 2. Copy the zip to the workstation at the remote site — the one that's on the same local network as the R710 and stays logged in.
-3. Unzip it and double-click **r710-agent.exe**. No installer, no Node.js, nothing else to set up — it's a single self-contained program. A tray icon appears showing it's running and waiting to be paired. Right-click it any time to see every server this workstation is currently paired to (each its own line, with its own status), plus **Preferences**, **Restart**, and **Quit**.
+3. Unzip it and double-click **r710-agent.exe**. No installer, no Node.js, nothing else to set up beyond the Visual C++ Redistributable above — it's a single self-contained program. A tray icon appears showing it's running and waiting to be paired. Right-click it any time to see every server this workstation is currently paired to (each its own line, with its own status), plus **Preferences**, **Restart**, and **Quit**.
 4. Set it to start automatically so it survives reboots: right-click the tray icon → **Preferences → Start with Windows**. This flips a per-user Windows setting (no administrator elevation needed to toggle it later) — no shortcuts or Startup folder to manage by hand. The same toggle is also available from the **Manage Profiles** page (see below) and, once paired, from that device's Agent panel in the browser.
 
 > **If the agent seems stuck** (e.g. it won't start, or the tray icon is missing but you suspect it's still running) — run **`Stop R710 Agent.bat`**, included in the same unzipped folder, then double-click `r710-agent.exe` again. This forcibly closes any running copy without needing Task Manager.
+>
+> **If it freezes the whole machine on that very first run** — this has been seen when the Visual C++ Redistributable above is missing, or from antivirus scanning the freshly downloaded, unsigned `.exe` heavily on a resource-constrained machine (wait it out, or add an antivirus exclusion for the extracted folder before running). Install the Redistributable and reboot, then try again.
 
 **Pairing the workstation to the device:**
 1. On that same workstation, open the app in a browser and log in as an administrator.

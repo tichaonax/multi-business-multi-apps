@@ -14,7 +14,7 @@ This is a single Next.js 15 application with a **custom Node HTTP server** (`ser
 
 ## 2. Prerequisites
 
-Install these on the machine that will run the server, before touching the repo.
+Install these on the machine that will run the server, before touching the repo. **For the actual download links and install/verify steps** (nvm-windows → Node 20, PostgreSQL installer + `psql` verification, Git, Java for QZ Tray), see `ADMIN-INSTALLATION-GUIDE.md` §1 — that file is the step-by-step checklist form of this same install; the table below is just the version/rationale reference.
 
 | Software | Version | Notes |
 |---|---|---|
@@ -503,11 +503,25 @@ Everything above is done once, on the server. This section is what needs to happ
 
 Only needed for: (a) an R710 WiFi controller that isn't on the same local network as the app server, or (b) a scale/printer physically attached to a workstation the server can't reach directly. If neither applies to a given workstation, skip this.
 
+**Prerequisite software (install before first run):**
+
+- **Microsoft Visual C++ Redistributable (x64)** — https://aka.ms/vs/17/release/vc_redist.x64.exe. The agent bundles a prebuilt native addon (`@serialport/bindings-cpp`, for scale support) that dynamically links against the VC++ runtime (`vcruntime140.dll` / `msvcp140.dll`). Most Windows 10/11 machines already have this from Windows Update or other installed software, but a bare test VM or freshly imaged machine often doesn't — on those, the missing runtime can make the native module fail to load, which has been observed to hang the whole agent process (and in a couple of cases the whole machine) on its very first launch rather than failing cleanly. Install this first on any workstation that's never run the agent (or any other Node/Electron native-module app) before.
+- No separate Node.js/runtime install is needed beyond that — `r710-agent.exe` is otherwise a self-contained executable (no installer, no repo checkout).
+
 1. From the relevant device's **Agent panel** in the app (R710 Portal → Devices → Agent, or Admin → Workstation Agents), download `r710-agent.zip` — the download link is always available there, not just during initial setup.
-2. Unzip it on the workstation and run `r710-agent.exe`. No installer, no separate Node.js/runtime needed — it's a self-contained executable. A tray icon appears.
+2. Unzip it on the workstation and run `r710-agent.exe`. A tray icon appears.
 3. From the browser, **on that same workstation**, open the Agent panel again and click **Pair this machine**.
 4. Right-click the tray icon → **Preferences → Start with Windows** so it survives a reboot without manual intervention.
 5. One agent install can be paired to R710, a scale, a printer relay, or any combination, and even to more than one server at once — see `docs/user-guide.md`'s R710/Workstation Agent sections for the full day-to-day usage, pairing screenshots, and troubleshooting detail; this guide only covers that it needs installing.
+
+#### Troubleshooting: the agent freezes (or freezes the whole machine) on first launch
+
+Seen on freshly imaged/test machines that have never run the agent or any similar Node/Electron native-module app before. Two independent causes have been observed, and a retry alone sometimes "fixes" it without telling you which one it was:
+
+- **Missing VC++ Redistributable** (see prerequisite above) — install it, reboot if it was just installed, then try again.
+- **Antivirus/Defender scanning the freshly downloaded, unsigned executable** — `r710-agent.exe` is a Node Single Executable Application (literally a copy of `node.exe` with a code blob injected via `postject`), which some AV engines scan aggressively on first run, and on a resource-constrained VM that scan can stall the whole machine for several minutes rather than just the process. Adding a Defender exclusion for the extracted agent folder before the first run avoids this; waiting it out (5-10 min) also works if you don't want to add an exclusion.
+
+If it freezes again after both of those, capture a log before it locks up — since a hard freeze may not give you a chance to read the console — by running it with output redirected to a file (Node writes synchronously to a redirected file on Windows, so this survives even a subsequent freeze): `r710-agent.exe > agent-log.txt 2>&1`. Whatever's printed last in that file pinpoints which startup step hung.
 
 #### Troubleshooting: agent pairs successfully but immediately loops on a bare `websocket error`
 
