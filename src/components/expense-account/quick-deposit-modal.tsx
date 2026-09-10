@@ -408,12 +408,34 @@ export function QuickDepositModal({
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-2xl shadow-2xl border border-gray-200 dark:border-gray-700">
-        <h2 className="text-xl font-bold text-primary mb-2">Quick Deposit</h2>
-        <p className="text-sm text-secondary mb-4">
-          to {accountName}
-        </p>
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-xl font-bold text-primary mb-2">Quick Deposit</h2>
+            <p className="text-sm text-secondary">
+              to {accountName}
+            </p>
+          </div>
+          <div className="flex gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="px-4 py-2 text-sm font-medium text-secondary bg-background border border-border rounded-md hover:bg-muted"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="quick-deposit-form"
+              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50"
+              disabled={loading}
+            >
+              {loading ? 'Creating...' : 'Create Deposit'}
+            </button>
+          </div>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form id="quick-deposit-form" onSubmit={handleSubmit} className="space-y-4">
           {/* Source Type — hidden for personal accounts (always MANUAL) */}
           {!isPersonalAccount && (
           <div>
