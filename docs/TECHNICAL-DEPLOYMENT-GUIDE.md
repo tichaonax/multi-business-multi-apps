@@ -275,7 +275,7 @@ mkcert -version
 #### Generating and installing the TLS certificate
 
 > **Prefer the scripted path** (`npm run cert:generate` / `npm run cert:install`,
-> documented in `ADMIN-INSTALLATION-GUIDE.md` §6) over the manual
+> documented in `ADMIN-INSTALLATION-GUIDE.md` §7) over the manual
 > commands below — it maintains the server IP list in
 > `scripts/lan-server-ips.json`, always copies the correct current
 > `rootCA.pem` from `mkcert -CAROOT` (avoiding the second ⚠️ below entirely),

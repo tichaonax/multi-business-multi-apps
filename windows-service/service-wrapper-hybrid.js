@@ -457,10 +457,10 @@ class HybridServiceWrapper extends EventEmitter {
 
             // Run UI validation after ALL migrations complete, before seeding
             console.log('🔍 Running UI relations validation...');
-            const uiValidationProcess = spawn('node', ['scripts/validate-ui-relations.js'], {
+            const uiValidationProcess = spawn(process.execPath, ['scripts/validate-ui-relations.js'], {
               cwd: path.join(__dirname, '..'),
               stdio: ['ignore', 'pipe', 'pipe'],
-              shell: true,
+              shell: false,
               env: {
                 ...process.env,
                 NODE_ENV: 'production',
@@ -1117,7 +1117,7 @@ class HybridServiceWrapper extends EventEmitter {
       // output instead of the source tree. Without this, the spawned
       // process crashes immediately with "Cannot find module '@/...'" and
       // the service silently has no working web interface.
-      this.appProcess = spawn('node', ['-r', 'tsconfig-paths/register', serverScript], {
+      this.appProcess = spawn(process.execPath, ['-r', 'tsconfig-paths/register', serverScript], {
         cwd: this.appRoot,
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: false,

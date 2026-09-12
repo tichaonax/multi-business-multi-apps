@@ -343,24 +343,6 @@ npm run service:restart
 
 ## Monitoring and Maintenance
 
-### Log Rotation
-
-Automatic log rotation is configured:
-
-```bash
-# Manual log rotation
-npm run rotate:logs
-```
-
-### Service Monitoring
-
-Automated service monitoring:
-
-```bash
-# Start monitoring
-npm run monitor:service
-```
-
 ### Health Checks
 
 Regular health checks ensure service availability:

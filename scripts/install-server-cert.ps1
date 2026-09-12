@@ -1,7 +1,9 @@
 # Run this ON a server (new or existing) to install/refresh the shared LAN
 # HTTPS certificate and restart the app. Pair with scripts/generate-server-cert.js,
 # which is run once centrally (wherever mkcert + the root CA live) whenever a
-# new server joins - see ADMIN-INSTALLATION-GUIDE.md Section 6 for the full story.
+# new server joins - see ADMIN-INSTALLATION-GUIDE.md Section 7 for the full story.
+# Requires the Windows service to already be installed (Section 6) - this
+# script restarts it to apply the cert.
 #
 # Prefer running this via npm rather than calling the .ps1 directly - it
 # handles execution policy for you (see package.json's "cert:install" script):
@@ -68,9 +70,19 @@ if (-not $covered) {
   Write-Warning "This machine's IP address(es) ($($localIps -join ', ')) were NOT found in the certificate. HTTPS will not validate correctly here. Add this server's IP to scripts/lan-server-ips.json, regenerate the cert centrally, and re-copy it here before continuing."
 }
 
-Write-Host "`nRestarting the service..."
 Set-Location $appRoot
-npm run service:restart
 
-Write-Host "`nVerify with: Get-Content windows-service\daemon\service-$(Get-Date -Format 'yyyy-MM-dd').log -Tail 20"
-Write-Host "Look for: [Server] HTTPS enabled - certs loaded from ./certs/"
+# On a fresh install the Windows service doesn't exist yet - restarting it
+# would just fail. The cert files are already in place at this point, so the
+# service will pick them up on its first real start; nothing to restart yet.
+$serviceQuery = & sc.exe query "MultiBusinessSyncService" 2>$null
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "`nService is not installed yet - skipping restart."
+  Write-Host "Run 'npm run service:install' next; it will start up with HTTPS already enabled."
+} else {
+  Write-Host "`nRestarting the service..."
+  npm run service:restart
+
+  Write-Host "`nVerify with: Get-Content windows-service\daemon\service-$(Get-Date -Format 'yyyy-MM-dd').log -Tail 20"
+  Write-Host "Look for: [Server] HTTPS enabled - certs loaded from ./certs/"
+}

@@ -12,8 +12,8 @@
 3. [Environment Configuration](#3-environment-configuration)
 4. [Database Setup](#4-database-setup)
 5. [Build](#5-build)
-6. [SSL Certificates (HTTPS)](#6-ssl-certificates-https)
-7. [Windows Service Installation](#7-windows-service-installation)
+6. [Windows Service Installation](#6-windows-service-installation)
+7. [SSL Certificates (HTTPS)](#7-ssl-certificates-https)
 8. [QZ Tray Receipt Printing](#8-qz-tray-receipt-printing)
 9. [Electron Desktop App](#9-electron-desktop-app)
 10. [Client Machine Setup](#10-client-machine-setup)
@@ -174,102 +174,13 @@ This runs:
 
 ---
 
-## 6. SSL Certificates (HTTPS)
-
-The app auto-detects HTTPS by checking the `certs/` folder for `.pem` files. If certs are present, the server starts on HTTPS; otherwise it falls back to HTTP.
-
-**One shared certificate covers every server on the LAN** — generated once on a
-single "certificate authority" machine and copied out to each server. Only
-that one machine needs `mkcert` installed; every other server just receives
-the already-generated files.
-
-### 6a. One-time setup — the certificate authority machine only
-
-Pick one machine to be the permanent cert authority (this only needs to be
-done once, ever — subsequent servers never repeat this step). `mkcert` isn't
-on the Node/Git installers used elsewhere in this guide, so download it
-directly rather than assuming Scoop/Chocolatey are available:
-
-1. Download the Windows binary from the
-   [mkcert releases page](https://github.com/FiloSottile/mkcert/releases) —
-   grab `mkcert-vX.Y.Z-windows-amd64.exe`.
-2. Rename it to `mkcert.exe` and place it somewhere on `PATH` (e.g.
-   `C:\mkcert\mkcert.exe`, then add `C:\mkcert` to your `PATH` environment
-   variable) — no installer, no admin rights needed for the binary itself.
-3. Install the local CA once:
-   ```bash
-   mkcert -install
-   ```
-4. In this repo, maintain the list of every server's IP in
-   `scripts/lan-server-ips.json`, then generate the shared certificate:
-   ```bash
-   npm run cert:generate
-   ```
-   This writes `certs/<ip>+N.pem` and `certs/<ip>+N-key.pem`, covering every
-   IP in that list plus `localhost`/`127.0.0.1`.
-
-> `openssl` (used only to verify a cert's coverage, in `install-server-cert.ps1`)
-> is **not** a separate install — it ships with Git for Windows, already a
-> prerequisite for every server per [§1](#1-prerequisites). No server other
-> than the cert-authority machine ever needs `mkcert` itself.
-
-### 6b. Adding or setting up a new server (do this on every other server)
-
-1. On the cert-authority machine, add the new server's IP and regenerate in
-   one step:
-   ```bash
-   npm run cert:generate -- --add <new-server-ip>
-   ```
-   (Existing servers are unaffected — they keep using their already-installed
-   cert with no changes.)
-2. Copy the two regenerated files (`certs/<ip>+N.pem` and
-   `certs/<ip>+N-key.pem`) to the new server — USB stick, shared folder, SCP;
-   the `certs/` folder is in `.gitignore`, so this is always a manual/out-of-band
-   transfer, never a `git pull`.
-3. On the new server, from the app root:
-   ```bash
-   npm run cert:install -- "<path containing the copied files>"
-   ```
-   This places the files in `certs/`, warns if the server's own IP wasn't
-   actually included in the certificate (the most common mistake — forgetting
-   step 1), and restarts the service for you.
-4. Confirm the service log shows `[Server] HTTPS enabled — certs loaded from ./certs/`.
-
-Every machine that opens the app in a browser also needs to trust the root
-CA once — that's covered separately in [§10](#10-client-machine-setup), since
-it's a one-time step per *client*, not per server.
-
-### 6c. Certificate renewal
-
-Check the current expiry:
-```bash
-openssl x509 -noout -enddate -in certs/<name>+N.pem
-```
-
-Renewing is the same as adding a server, minus changing the IP list:
-
-1. On the cert-authority machine: `npm run cert:generate`
-2. Redistribute the regenerated `.pem` files to **every** server this time
-   (a renewal changes the file every existing server uses, unlike adding one
-   new server)
-3. Restart every server
-4. No client reinstallation needed — the root CA outlives any individual leaf certificate
-
-### Update NEXTAUTH_URL
-
-After SSL is working, update `.env.local` on that server to use its own IP:
-
-```env
-NEXTAUTH_URL="https://<this-server-ip>:8080"
-```
-
-Restart the service after this change.
-
----
-
-## 7. Windows Service Installation
+## 6. Windows Service Installation
 
 The app runs as a Windows service via `node-windows`. The service starts PostgreSQL → runs migrations → seeds reference data (including the default `admin@business.local` / `admin123` login — no separate step needed) → starts the Next.js app.
+
+> Install this **before** setting up SSL certificates in [§7](#7-ssl-certificates-https) —
+> `npm run cert:install` tries to restart the service to apply the cert, and
+> there's nothing to restart yet if the service isn't installed.
 
 ### Install (run as Administrator)
 
@@ -310,6 +221,103 @@ Healthy startup sequence ends with:
 [Server] HTTPS enabled — cert: <filename>.pem, key: <filename>-key.pem
 [Server] listening on https://localhost:8080
 ```
+
+---
+
+## 7. SSL Certificates (HTTPS)
+
+The app auto-detects HTTPS by checking the `certs/` folder for `.pem` files. If certs are present, the server starts on HTTPS; otherwise it falls back to HTTP.
+
+**One shared certificate covers every server on the LAN** — generated once on a
+single "certificate authority" machine and copied out to each server. Only
+that one machine needs `mkcert` installed; every other server just receives
+the already-generated files.
+
+> Do this after [§6](#6-windows-service-installation) — `npm run cert:install`
+> restarts the service to apply the cert.
+
+### 7a. One-time setup — the certificate authority machine only
+
+Pick one machine to be the permanent cert authority (this only needs to be
+done once, ever — subsequent servers never repeat this step). `mkcert` isn't
+on the Node/Git installers used elsewhere in this guide, so download it
+directly rather than assuming Scoop/Chocolatey are available:
+
+1. Download the Windows binary from the
+   [mkcert releases page](https://github.com/FiloSottile/mkcert/releases) —
+   grab `mkcert-vX.Y.Z-windows-amd64.exe`.
+2. Rename it to `mkcert.exe` and place it somewhere on `PATH` (e.g.
+   `C:\mkcert\mkcert.exe`, then add `C:\mkcert` to your `PATH` environment
+   variable) — no installer, no admin rights needed for the binary itself.
+3. Install the local CA once:
+   ```bash
+   mkcert -install
+   ```
+4. In this repo, maintain the list of every server's IP in
+   `scripts/lan-server-ips.json`, then generate the shared certificate:
+   ```bash
+   npm run cert:generate
+   ```
+   This writes `certs/<ip>+N.pem` and `certs/<ip>+N-key.pem`, covering every
+   IP in that list plus `localhost`/`127.0.0.1`.
+
+> `openssl` (used only to verify a cert's coverage, in `install-server-cert.ps1`)
+> is **not** a separate install — it ships with Git for Windows, already a
+> prerequisite for every server per [§1](#1-prerequisites). No server other
+> than the cert-authority machine ever needs `mkcert` itself.
+
+### 7b. Adding or setting up a new server (do this on every other server)
+
+1. On the cert-authority machine, add the new server's IP and regenerate in
+   one step:
+   ```bash
+   npm run cert:generate -- --add <new-server-ip>
+   ```
+   (Existing servers are unaffected — they keep using their already-installed
+   cert with no changes.)
+2. Copy the two regenerated files (`certs/<ip>+N.pem` and
+   `certs/<ip>+N-key.pem`) to the new server — USB stick, shared folder, SCP;
+   the `certs/` folder is in `.gitignore`, so this is always a manual/out-of-band
+   transfer, never a `git pull`.
+3. On the new server, from the app root — **after** the service is installed
+   (see [§6](#6-windows-service-installation)):
+   ```bash
+   npm run cert:install -- "<path containing the copied files>"
+   ```
+   This places the files in `certs/`, warns if the server's own IP wasn't
+   actually included in the certificate (the most common mistake — forgetting
+   step 1), and restarts the service for you.
+4. Confirm the service log shows `[Server] HTTPS enabled — certs loaded from ./certs/`.
+
+Every machine that opens the app in a browser also needs to trust the root
+CA once — that's covered separately in [§10](#10-client-machine-setup), since
+it's a one-time step per *client*, not per server.
+
+### 7c. Certificate renewal
+
+Check the current expiry:
+```bash
+openssl x509 -noout -enddate -in certs/<name>+N.pem
+```
+
+Renewing is the same as adding a server, minus changing the IP list:
+
+1. On the cert-authority machine: `npm run cert:generate`
+2. Redistribute the regenerated `.pem` files to **every** server this time
+   (a renewal changes the file every existing server uses, unlike adding one
+   new server)
+3. Restart every server
+4. No client reinstallation needed — the root CA outlives any individual leaf certificate
+
+### Update NEXTAUTH_URL
+
+After SSL is working, update `.env.local` on that server to use its own IP:
+
+```env
+NEXTAUTH_URL="https://<this-server-ip>:8080"
+```
+
+Restart the service after this change.
 
 ---
 
@@ -382,13 +390,26 @@ From this point, QZ Tray will silently trust all print requests from the app —
 
 Electron wraps the web app as a desktop application and launches automatically at Windows startup.
 
+### Install Electron's dependencies (do this first)
+
+`electron/` is a separate npm project with its own `package.json` — the root
+`npm install` in [§2](#2-clone-and-install) does **not** install it.
+
+```bash
+npm run electron:setup
+```
+
+This runs `npm install` inside `electron/` and creates the startup shortcut
+(see below) in one step — nothing else in this section works until it's run
+at least once.
+
 ### Install the startup shortcut
 
 ```bash
 npm run electron:install-startup
 ```
 
-This creates a shortcut in `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup` that launches Electron when the user logs in.
+This creates a shortcut in `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup` that launches Electron when the user logs in. (Already done for you by `electron:setup` above — only run this again on its own if you need to regenerate the shortcut, e.g. after changing certs.)
 
 > Run this command **after** setting up SSL certificates. The shortcut is regenerated with the correct `http://` or `https://` protocol based on what certs are present.
 
@@ -401,6 +422,27 @@ npm run electron:start
 ### How Electron detects HTTPS
 
 `electron/main.js` auto-detects certs in the `certs/` folder and loads `https://localhost:8080` if they exist, otherwise `http://localhost:8080`. It also has a certificate-error handler to trust the self-signed mkcert cert.
+
+### Building a distributable installer (for other client machines)
+
+Everything above runs Electron straight from source on **this** server. To
+package it as a standalone Windows installer that other client machines can
+install without cloning the repo:
+
+```bash
+cd electron
+npm run build:win
+```
+
+This produces an NSIS installer (`.exe`) under `multi-business-electron-dist/`
+(sibling to the app root — see `electron/package.json`'s `build.directories.output`).
+It's a one-click, per-machine installer that creates its own desktop/Start
+Menu shortcuts and launches on completion. Requires `electron:setup` (above)
+to have been run at least once first.
+
+Copy the generated `.exe` to each client machine and run it — no Node.js or
+this repo needed there. Client machines still need to trust the SSL
+certificate separately (see [§10](#10-client-machine-setup)).
 
 ---
 
@@ -457,7 +499,7 @@ npm run service:start
 
 > If only `server.ts` changed (no UI changes), you can skip the full build and just run `npm run build:server` instead of step 5.
 >
-> You can skip step 5 entirely if you'd rather let the service rebuild itself: the hybrid service wrapper (§7) detects a stale commit on startup and runs `npm run build` on its own before serving requests — since the service is already stopped at that point (step 1), it hits none of the locking issues a manual mid-run build would. Either way, the service must be stopped before step 3.
+> You can skip step 5 entirely if you'd rather let the service rebuild itself: the hybrid service wrapper (§6) detects a stale commit on startup and runs `npm run build` on its own before serving requests — since the service is already stopped at that point (step 1), it hits none of the locking issues a manual mid-run build would. Either way, the service must be stopped before step 3.
 
 ### After a failed migration
 
@@ -597,14 +639,16 @@ npm run db:deploy
 # 6. Build
 npm run build
 
-# 7. Get the shared HTTPS certificate onto this server (see Section 6)
+# 7. Install Windows service (Admin shell) — do this BEFORE step 8. cert:install
+#    tries to restart the service to apply the cert; on a fresh server there's
+#    nothing to restart yet if this is skipped.
+npm run service:install
+npm run service:start
+
+# 8. Get the shared HTTPS certificate onto this server (see Section 7)
 #    On the cert-authority machine: npm run cert:generate -- --add <this-server-ip>
 #    Copy the two regenerated certs/*.pem files here, then:
 npm run cert:install -- "<path to the copied files>"
-
-# 8. Install Windows service (Admin shell)
-npm run service:install
-npm run service:start
 
 # 9. Set up QZ Tray signing (eliminates print popups) — only needed if this
 #    server has receipt printers connected via QZ Tray (see Section 8).
