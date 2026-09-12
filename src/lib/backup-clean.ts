@@ -90,23 +90,17 @@ export interface BackupData {
 }
 
 /**
- * Helper: Get current node ID
+ * Deterministic per-machine identifier recorded on every backup's metadata
+ * (`sourceNodeId`) — used by restore-clean.ts's same-device-restore
+ * detection. Previously looked up a `SyncNodes` row (removed along with the
+ * rest of the legacy peer-sync system — see
+ * ai-contexts/project-plans/review/projectplan-NOTKT-remove-legacy-sync-service-2026-09-12.md);
+ * hostname+platform alone is simpler and, unlike the old fallback path, is
+ * actually stable across calls on the same machine (no random suffix).
+ * Must match restore-clean.ts's identical helper.
  */
-async function getCurrentNodeId(prisma: PrismaClient): Promise<string> {
-  const node = await prisma.syncNodes.findFirst({
-    where: { isActive: true },
-    orderBy: { lastSeen: 'desc' }
-  })
-
-  if (node) {
-    return node.id
-  }
-
-  // No node exists - generate temporary ID
-  const hostname = os.hostname()
-  const platform = os.platform()
-  const random = crypto.randomBytes(8).toString('hex')
-  return `node-${platform}-${hostname}-${random}`
+function getCurrentNodeId(): string {
+  return `node-${os.platform()}-${os.hostname()}`
 }
 
 /**
@@ -183,7 +177,7 @@ export async function createCleanBackup(
   } = options
 
   const timestamp = new Date().toISOString()
-  const currentNodeId = await getCurrentNodeId(prisma)
+  const currentNodeId = getCurrentNodeId()
 
   // Initialize business data container
   const businessData: any = {}
@@ -989,8 +983,6 @@ export async function createCleanBackup(
   businessData.permissionTemplates = await prisma.permissionTemplates.findMany()
 
   // 20. System data
-  businessData.conflictResolutions = await prisma.conflictResolutions.findMany()
-  businessData.dataSnapshots = await prisma.dataSnapshots.findMany()
   businessData.seedDataTemplates = await prisma.seedDataTemplates.findMany()
 
   // 21. WiFi Portal - ESP32 System (6 tables) - NEW
@@ -1750,17 +1742,8 @@ export async function createCleanBackup(
 
   if (includeDeviceData) {
     deviceData = {
-      syncSessions: await prisma.syncSessions.findMany(),
-      fullSyncSessions: await prisma.fullSyncSessions.findMany(),
-      syncNodes: await prisma.syncNodes.findMany(),
-      syncMetrics: await prisma.syncMetrics.findMany(),
-      nodeStates: await prisma.nodeStates.findMany(),
-      syncEvents: await prisma.syncEvents.findMany(),
-      syncConfigurations: await prisma.syncConfigurations.findMany(),
-      offlineQueue: await prisma.offlineQueue.findMany(),
       deviceRegistry: await prisma.deviceRegistry.findMany(),
       deviceConnectionHistory: await prisma.deviceConnectionHistory.findMany(),
-      networkPartitions: await prisma.networkPartitions.findMany()
     }
   }
 

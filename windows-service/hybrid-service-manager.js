@@ -283,11 +283,9 @@ class HybridServiceManager {
           // Only identify processes that belong to THIS service (multi-business)
           // Check for unique identifiers in command line:
           // 1. multi-business-multi-apps path (unique to this service)
-          // 2. sync-service-runner (unique to this service)
-          // 3. MultiBusinessSyncService (service name)
+          // 2. MultiBusinessSyncService (service name)
           // NOTE: Avoid using 'service-wrapper-hybrid' as both services use it
           if (commandLine.includes('multi-business-multi-apps') ||
-              commandLine.includes('sync-service-runner') ||
               commandLine.includes('MultiBusinessSyncService') ||
               commandLine.includes('Multi-Business') ||
               parseInt(pid, 10) === this.getServicePid()) {

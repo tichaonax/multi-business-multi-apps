@@ -26,8 +26,8 @@ const ALL_TABLES = [
   'constructionExpenses', 'constructionProjects', 'menuItems', 'menuCombos', 'menuComboItems',
   'menuPromotions', 'orders', 'orderItems', 'customerLaybys', 'customerLaybyPayments',
   'personalBudgets', 'personalExpenses', 'fundSources', 'interBusinessLoans', 'loanTransactions',
-  'conflictResolutions', 'disciplinaryActions', 'employeeAttendance', 'employeeTimeTracking',
-  'dataSnapshots', 'seedDataTemplates'
+  'disciplinaryActions', 'employeeAttendance', 'employeeTimeTracking',
+  'seedDataTemplates'
 ];
 
 export async function POST(request: NextRequest) {

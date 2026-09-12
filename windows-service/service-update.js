@@ -852,11 +852,6 @@ const { PrismaClient } = require('@prisma/client');
         this.log('✅ Next.js production build exists - skipping rebuild');
       }
 
-      // Build the TypeScript service
-      this.log('🔨 Building TypeScript service files...');
-      await execAsync('npm run build:service');
-      this.log('✅ Service build completed');
-
     } catch (error) {
       this.log(`❌ Service build failed: ${error.message}`, 'ERROR');
       throw error;

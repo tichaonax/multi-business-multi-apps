@@ -79,11 +79,11 @@ if ($needsFullSetup) {
     npx prisma generate
   }
 
-  # Rebuild sync service
-  npm run build:service
+  # Rebuild the app
+  npm run build
 
   Write-Host ""
-  Write-Host "✅ Sync service rebuilt successfully!" -ForegroundColor Green
+  Write-Host "✅ App rebuilt successfully!" -ForegroundColor Green
   Write-Host ""
   Write-Host "⚠️  REMINDER: If the service is running, restart it:" -ForegroundColor Yellow
   Write-Host "   npm run service:restart (as Administrator)" -ForegroundColor Yellow

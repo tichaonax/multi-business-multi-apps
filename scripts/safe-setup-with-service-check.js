@@ -170,7 +170,7 @@ async function main() {
   if (!SKIP_SERVICE_CHECK) {
     log('\n⚠️  IMPORTANT: Restart the Multi-Business Sync Service')
     log('\n📋 To restart the service:')
-    log('   npm run sync-service:start\n')
+    log('   npm run service:start\n')
     log('📊 To check service status:')
     log('   npm run sync-service:status\n')
   }

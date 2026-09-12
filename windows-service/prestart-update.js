@@ -42,7 +42,7 @@ loadEnvironmentVariables();
 async function runPrestartUpdate(options = {}) {
   const root = path.join(__dirname, '..');
   const distDir = path.join(root, 'dist');
-  const runnerPath = path.join(distDir, 'service', 'sync-service-runner.js');
+  const serverPath = path.join(distDir, 'server.js');
   const commitFile = path.join(distDir, '.build-commit');
 
   if (process.env.SYNC_SKIP_PREUPDATE === '1') {
@@ -75,8 +75,8 @@ async function runPrestartUpdate(options = {}) {
 
   // Determine if build is needed
   let needBuild = false;
-  if (!fs.existsSync(runnerPath)) {
-    console.log('Service runner binary missing, build required');
+  if (!fs.existsSync(serverPath)) {
+    console.log('App server build missing, build required');
     needBuild = true;
   } else if (localCommit && recordedCommit && localCommit !== recordedCommit) {
     console.log('Local commit differs from recorded build commit -> build required');
@@ -84,9 +84,9 @@ async function runPrestartUpdate(options = {}) {
   }
 
   if (needBuild) {
-    console.log('Running build: npm run build:service');
+    console.log('Running build: npm run build');
     try {
-      const { stdout, stderr } = await execAsync('npm run build:service', { cwd: root, maxBuffer: 10 * 1024 * 1024 });
+      const { stdout, stderr } = await execAsync('npm run build', { cwd: root, maxBuffer: 10 * 1024 * 1024 });
       if (stdout) console.log(stdout);
       if (stderr) console.error(stderr);
       console.log('Build completed');

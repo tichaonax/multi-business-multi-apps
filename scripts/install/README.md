@@ -366,11 +366,8 @@ npm run monitor:service
 Regular health checks ensure service availability:
 
 ```bash
-# Manual health check
-curl http://localhost:8766/health
-
-# Sync system validation
-npm run validate:sync
+# Service status
+npm run service:status
 ```
 
 ## Troubleshooting
@@ -433,14 +430,13 @@ npm run install:dev --force
 ### Getting Help
 
 1. **Check Logs**: Review logs in `logs/` directory
-2. **Run Validation**: Use `npm run validate:sync`
+2. **Check Service Status**: Use `npm run service:status`
 3. **Review Configuration**: Check `config/` files
 4. **Test Components**: Use individual test scripts
 
 ### Support Resources
 
 - **Installation Guide**: This README
-- **Sync Documentation**: `src/lib/sync/__tests__/README.md`
 - **API Documentation**: Available at `/api-docs` when running
 - **Admin Dashboard**: Available at `/admin/sync`
 

@@ -16,6 +16,7 @@ import { r710AgentHub } from './src/lib/r710/agent-hub'
 import { workstationAgentHub } from './src/lib/workstation-agents/agent-hub'
 import { startAutoGenerateScheduler } from './src/lib/r710/auto-generate-scheduler'
 import { startBusinessTargetRecalculationScheduler } from './src/lib/business-targets/recalculate-all-targets-scheduler'
+import { startBackgroundJobs } from './src/lib/background-jobs'
 
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = '0.0.0.0'
@@ -84,6 +85,11 @@ app.prepare().then(() => {
 
   // MBM-288: nightly recalculation of business targets.
   startBusinessTargetRecalculationScheduler()
+
+  // Print-worker health check, WiFi token sanitization, R710/ESP32 client
+  // sync — relocated from the removed legacy sync engine (all opt-in, off
+  // by default; see src/lib/background-jobs.ts).
+  startBackgroundJobs()
 
   // Start listening
   httpServer.listen(port, () => {

@@ -367,21 +367,15 @@ npm run install:full -- --skip-database --skip-service
 
 **What this does NOT do**: it does not run `npm run build` (§6), and it does not touch `certs/` (§7). You still need to run the build yourself and set up certificates if you want them, whether or not you use this installer.
 
-### 8.1 ⚠️ Naming trap: two different things are both called "the service"
+### 8.1 ⚠️ Historical naming trap (resolved 2026-09-12)
 
-This repo has **two independently-installable Windows services, and their names are actively misleading**:
+Until 2026-09-12 this repo had **two independently-installable Windows services with actively misleading names**: `scripts/install/install-service.js` (run standalone, or as part of `install:full`'s step 4) installed a *separate* service literally named `multi-business-sync` — the legacy peer-to-peer database sync engine, which never worked in production and has since been removed entirely (see `ai-contexts/project-plans/review/projectplan-NOTKT-remove-legacy-sync-service-2026-09-12.md`). `install:full`/`install:dev`/`install:service` now all install the same one real service described below — there is no second one to confuse it with anymore.
 
-| What you run | Windows service name | What it actually does |
-|---|---|---|
-| `scripts/install/install-service.js` (installed as part of `install:full`'s step 4, or standalone) | `multi-business-sync` | The **peer-to-peer database sync** background service. Optional. Irrelevant if you're running a single, non-syncing server. |
-| `npm run service:install` → `node windows-service/force-install-hybrid.js` | `MultiBusinessSyncService` (display name "Multi-Business Sync Service") | Despite the name, this is the **main application server launcher** — see §8.2. It does not primarily do sync; the name is a legacy artifact. |
-
-Don't assume "I installed the service" from one of these covers the other. For a normal single-server production deployment, you want **§8.2's** service, not §8.1's.
+**If a server was set up before this date**, it may still have that old `multi-business-sync` service registered and running pointlessly — check with `sc query multi-business-sync` and remove it with `sc delete multi-business-sync` (as Administrator) if found. This is a one-time manual cleanup; nothing in the codebase will ever reinstall it.
 
 ### 8.2 Option C — The hybrid self-healing Windows Service (recommended for production)
 
 ```bash
-npm run build:service   # prepares windows-service/ assets
 npm run service:install # must run from an elevated/Administrator shell
 ```
 

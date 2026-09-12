@@ -1,25 +1,32 @@
-# Windows Sync Service Configuration
+# Background Jobs Configuration
 
-This document explains how to configure the Windows sync service to automatically sync connected clients from R710 and ESP32 devices.
+This document explains how to configure the app's four opt-in periodic maintenance jobs: print-worker health monitoring, WiFi token sanitization, and R710/ESP32 connected-clients sync.
 
 ## Overview
 
-The Multi-Business Sync Service is a Windows service that runs in the background and performs various periodic tasks:
-- **Database synchronization** between multiple instances
+These four jobs used to piggyback on a legacy peer-to-peer database sync engine (removed 2026-09-12 — see `ai-contexts/project-plans/review/projectplan-NOTKT-remove-legacy-sync-service-2026-09-12.md`) purely because that engine's process happened to be "always running." They have nothing to do with database sync themselves and are now started directly by the main app server (`src/lib/background-jobs.ts`, wired into `server.ts`) — no separate service, no `data/sync/` config file. Each is disabled by default; enable only the ones you need via env vars:
+
 - **Print worker health monitoring**
 - **WiFi token sanitization**
-- **R710 connected clients sync** (NEW)
-- **ESP32 connected clients sync** (NEW)
+- **R710 connected clients sync**
+- **ESP32 connected clients sync**
 
-## Configuration Files
+## Configuration
 
-The service can be configured in two ways:
-
-### Option 1: Environment Variables (Recommended)
-
-Add these to your `.env` or `.env.local` file:
+Set these in your `.env.local`. All four are off unless their `_ENABLED` var is `true`.
 
 ```env
+# Print worker health monitoring
+PRINT_WORKER_HEALTH_CHECK_ENABLED=true
+PRINT_WORKER_HEALTH_CHECK_URL=http://localhost:8080/api/health/print-worker
+PRINT_WORKER_HEALTH_CHECK_INTERVAL_MS=60000       # 1 minute
+PRINT_WORKER_HEALTH_CHECK_AUTO_RESTART=true
+
+# WiFi token sanitization
+WIFI_TOKEN_SANITIZATION_ENABLED=true
+WIFI_TOKEN_SANITIZATION_URL=http://localhost:8080/api/wifi-portal/admin/sanitize-tokens
+WIFI_TOKEN_SANITIZATION_INTERVAL_MS=21600000      # 6 hours
+
 # R710 Connected Clients Sync
 R710_SYNC_ENABLED=true
 R710_SYNC_URL=http://localhost:8080/api/r710/connected-clients/sync
@@ -31,35 +38,7 @@ ESP32_SYNC_URL=http://localhost:8080/api/esp32/connected-clients/sync
 ESP32_SYNC_INTERVAL=300000  # 5 minutes in milliseconds
 ```
 
-### Option 2: Service Configuration File
-
-Create or edit `data/sync/config.json`:
-
-```json
-{
-  "r710ConnectedClientsSync": {
-    "enabled": true,
-    "url": "http://localhost:8080/api/r710/connected-clients/sync",
-    "interval": 300000
-  },
-  "esp32ConnectedClientsSync": {
-    "enabled": true,
-    "url": "http://localhost:8080/api/esp32/connected-clients/sync",
-    "interval": 300000
-  },
-  "printWorkerHealthCheck": {
-    "enabled": true,
-    "url": "http://localhost:8080/api/health/print-worker",
-    "interval": 60000,
-    "autoRestart": true
-  },
-  "wifiTokenSanitization": {
-    "enabled": true,
-    "url": "http://localhost:8080/api/wifi-portal/admin/sanitize-tokens",
-    "interval": 21600000
-  }
-}
-```
+Restart the app (`npm run service:restart`) after changing these for them to take effect.
 
 ## Configuration Options
 
@@ -119,18 +98,15 @@ node scripts/sync-service-restart.js
 
 ### View Service Logs
 
-Logs are written to:
-- **Location:** `data/sync/logs/`
-- **Format:** Daily rotating logs
-- **Files:** `sync-service-YYYY-MM-DD.log`
+These jobs log via plain `console.log`/`console.error` inside the main app process, same as everything else the app logs — there's no dedicated log file just for them anymore. The Windows service captures the app's stdout/stderr to:
+- **Location:** `windows-service/daemon/`
+- **Files:** `multibusinesssyncservice.out.log` (stdout), `multibusinesssyncservice.err.log` (stderr)
 
 **Example log entries:**
 ```
-[2025-12-28T10:00:00.000Z] INFO: Starting R710 connected clients sync (http://localhost:8080/api/r710/connected-clients/sync, interval: 300000ms = 5 minutes)
-[2025-12-28T10:00:01.234Z] INFO: 📶 Starting R710 connected clients sync...
-[2025-12-28T10:00:03.567Z] INFO: ✅ R710 sync completed: 5 clients synced from 2 devices
-[2025-12-28T10:05:00.123Z] INFO: 📶 Starting R710 connected clients sync...
-[2025-12-28T10:05:02.456Z] INFO: ✅ R710 sync completed: 5 clients synced from 2 devices
+[Background Jobs] Starting R710 connected clients sync (http://localhost:8080/api/r710/connected-clients/sync, interval: 5min)
+[R710 Sync] ✅ 5 clients synced from 2 devices
+[R710 Sync] ✅ 5 clients synced from 2 devices
 ```
 
 ## Troubleshooting
@@ -222,19 +198,14 @@ Users can also trigger sync manually from the UI:
 
 ### Log Monitoring Commands
 
-**Count successful syncs in last hour:**
+**Count successful syncs:**
 ```bash
-grep "✅ R710 sync completed" data/sync/logs/sync-service-$(date +%Y-%m-%d).log | tail -12
+grep "R710 Sync.*✅" windows-service/daemon/multibusinesssyncservice.out.log | tail -12
 ```
 
 **Find sync errors:**
 ```bash
-grep "❌ R710 sync" data/sync/logs/sync-service-$(date +%Y-%m-%d).log
-```
-
-**Check sync timing:**
-```bash
-grep "📶 Starting R710 connected clients sync" data/sync/logs/sync-service-$(date +%Y-%m-%d).log
+grep "R710 Sync.*❌" windows-service/daemon/multibusinesssyncservice.err.log
 ```
 
 ## Best Practices

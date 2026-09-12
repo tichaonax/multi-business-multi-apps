@@ -118,25 +118,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get or create sync node for this printer
-    let nodeId = data.nodeId || process.env.NODE_ID || 'local-node';
-
-    // Ensure sync node exists before registering printer
-    const existingNode = await prisma.syncNodes.findUnique({
-      where: { nodeId: nodeId },
-    });
-
-    if (!existingNode) {
-      // Create default sync node if it doesn't exist
-      await prisma.syncNodes.create({
-        data: {
-          nodeId: nodeId,
-          nodeName: 'Local Node',
-          capabilities: { printing: true },
-        },
-      });
-      console.log(`✅ Created sync node: ${nodeId}`);
-    }
+    // NetworkPrinters.nodeId is a plain label (no longer an FK to a
+    // SyncNodes row, that table was removed along with the rest of the
+    // legacy peer-sync system) — no lookup/creation needed, just use it.
+    const nodeId = data.nodeId || process.env.NODE_ID || 'local-node';
 
     // Prepare printer data
     const printerData: PrinterFormData = {

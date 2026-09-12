@@ -19,56 +19,16 @@ const VERBOSE_LOGGING = process.env.VERBOSE_RESTORE_LOGGING === 'true'
 type AnyPrismaClient = PrismaClient & any
 
 /**
- * Device-specific tables that should NOT restore to different devices
- * These contain sync tracking metadata specific to the source device
+ * Deterministic per-machine identifier used for same-device-restore
+ * detection (see `isSameDevice` below) — gates whether device-specific data
+ * (deviceRegistry/deviceConnectionHistory) restores. Previously looked up a
+ * `SyncNodes` row (removed along with the rest of the legacy peer-sync
+ * system — see ai-contexts/project-plans/review/projectplan-NOTKT-remove-legacy-sync-service-2026-09-12.md);
+ * hostname+platform alone is simpler and, unlike the old fallback path, is
+ * actually stable across calls on the same machine (no random suffix).
  */
-const DEVICE_SPECIFIC_TABLES = [
-  'syncSessions',
-  'fullSyncSessions',
-  'syncNodes',
-  'syncMetrics',
-  'nodeStates',
-  'syncEvents',
-  'syncConfigurations',
-  'offlineQueue',
-  'deviceRegistry',
-  'deviceConnectionHistory',
-  'networkPartitions'
-]
-
-/**
- * Tables that depend on syncNodes (via networkPrinters.nodeId FK) and should
- * be skipped on cross-machine restores. NetworkPrinters references SyncNodes.nodeId,
- * and print jobs reference NetworkPrinters.id — so the whole chain fails when
- * the source machine's syncNode doesn't exist on the target.
- *
- * These are safe to skip: printers need to be re-registered on each machine,
- * and print jobs are historical queue entries (all COMPLETED).
- */
-const PRINTER_TABLES_SKIP_CROSS_MACHINE = [
-  'networkPrinters',
-  'printJobs',
-  'barcodePrintJobs'
-]
-
-/**
- * Get current node ID (matches backup-clean.ts implementation)
- */
-async function getCurrentNodeId(prisma: PrismaClient): Promise<string> {
-  const node = await prisma.syncNodes.findFirst({
-    where: { isActive: true },
-    orderBy: { lastSeen: 'desc' }
-  })
-
-  if (node) {
-    return node.id
-  }
-
-  // No node exists - generate temporary ID
-  const hostname = os.hostname()
-  const platform = os.platform()
-  const random = crypto.randomBytes(8).toString('hex')
-  return `node-${platform}-${hostname}-${random}`
+function getCurrentNodeId(): string {
+  return `node-${os.platform()}-${os.hostname()}`
 }
 
 /**
@@ -87,8 +47,6 @@ const RESTORE_ORDER = [
   'idFormatTemplates',
   'driverLicenseTemplates',
   'projectTypes',
-  'conflictResolutions',
-  'dataSnapshots',
 
   // Payroll tax reference data (global, no FK dependencies)
   'payeTaxBrackets',        // PAYE tax brackets by year
@@ -839,7 +797,7 @@ export async function restoreCleanBackup(
 
   // === DEVICE DETECTION ===
   // Check if backup is from same device or different device
-  const currentNodeId = await getCurrentNodeId(prisma)
+  const currentNodeId = getCurrentNodeId()
   const backupSourceNodeId = backupData.metadata?.sourceNodeId
   const isSameDevice = currentNodeId === backupSourceNodeId
   const hasDeviceData = backupData.deviceData && Object.keys(backupData.deviceData).length > 0
@@ -1017,14 +975,6 @@ export async function restoreCleanBackup(
       const data = source[tableName]
 
       if (!data || !Array.isArray(data) || data.length === 0) {
-        continue
-      }
-
-      // Skip printer-related tables on cross-machine restores
-      // NetworkPrinters has FK to SyncNodes.nodeId which is device-specific
-      // PrintJobs and BarcodePrintJobs have FK to NetworkPrinters.id
-      if (!isSameDevice && PRINTER_TABLES_SKIP_CROSS_MACHINE.includes(tableName)) {
-        console.log(`[restore-clean] Skipping ${tableName} (${data.length} records) — printer tables depend on device-specific syncNodes`)
         continue
       }
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Multi-Business Sync Service Status Checker
+ * Multi-Business Service Status Checker
  * Comprehensive status check using .exe service name
  */
 
@@ -39,32 +39,6 @@ function checkWindowsService() {
 }
 
 /**
- * Check if the sync service script exists
- */
-function checkServiceScript() {
-  const fs = require('fs');
-  const serviceScript = path.join(__dirname, '../dist/service/sync-service-runner.js');
-
-  return {
-    exists: fs.existsSync(serviceScript),
-    path: serviceScript
-  };
-}
-
-/**
- * Get service configuration
- */
-function getServiceConfig() {
-  return {
-    registrationKey: process.env.SYNC_REGISTRATION_KEY || 'b3f1c9d7a5e4f2c3819d6b7a2e4f0c1d2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7',
-  port: process.env.SYNC_PORT || '8765',
-    syncInterval: process.env.SYNC_INTERVAL || '30000',
-    logLevel: process.env.LOG_LEVEL || 'info',
-    isDefaultKey: !process.env.SYNC_REGISTRATION_KEY || process.env.SYNC_REGISTRATION_KEY === 'b3f1c9d7a5e4f2c3819d6b7a2e4f0c1d2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7'
-  };
-}
-
-/**
  * Check network connectivity
  */
 function checkNetwork() {
@@ -100,19 +74,8 @@ function checkNetwork() {
  * Main status check
  */
 async function main() {
-  console.log('🔍 Multi-Business Sync Service Status Check');
+  console.log('🔍 Multi-Business Service Status Check');
   console.log('=' .repeat(50));
-  console.log('');
-
-  // Check service script
-  const script = checkServiceScript();
-  console.log('📁 Service Script:');
-  console.log(`   Exists: ${script.exists ? '✅ Yes' : '❌ No'}`);
-  console.log(`   Path: ${script.path}`);
-
-  if (!script.exists) {
-    console.log('   💡 Build the service with: npm run build:service');
-  }
   console.log('');
 
   // Check Windows service
@@ -122,17 +85,8 @@ async function main() {
   if (service.installed) {
     console.log(`   Status: ${service.running ? '✅ Running' : '⏹️  Stopped'}`);
   } else {
-    console.log('   💡 Install with: npm run sync-service:install');
+    console.log('   💡 Install with: npm run service:install');
   }
-  console.log('');
-
-  // Check configuration
-  const config = getServiceConfig();
-  console.log('⚙️  Configuration:');
-  console.log(`   Registration Key: ${config.isDefaultKey ? '⚠️  DEFAULT (CHANGE IN PRODUCTION)' : '✅ Custom'}`);
-  console.log(`   Port: ${config.port}`);
-  console.log(`   Sync Interval: ${config.syncInterval}ms`);
-  console.log(`   Log Level: ${config.logLevel}`);
   console.log('');
 
   // Check network
@@ -149,45 +103,26 @@ async function main() {
 
   // Overall status
   console.log('📊 Overall Status:');
-  if (!script.exists) {
-    console.log('   ❌ Service script not built');
-    console.log('   👉 Run: npm run build:service');
-  } else if (!service.installed) {
+  if (!service.installed) {
     console.log('   ⚠️  Service not installed');
-    console.log('   👉 Run: npm run sync-service:install');
+    console.log('   👉 Run: npm run service:install');
   } else if (!service.running) {
     console.log('   ⚠️  Service installed but not running');
-    console.log('   👉 Run: npm run sync-service:start');
+    console.log('   👉 Run: npm run service:start');
   } else {
-    console.log('   ✅ Service is running and ready for sync');
-    if (config.isDefaultKey) {
-      console.log('   ⚠️  Using default registration key');
-      console.log('   👉 Set SYNC_REGISTRATION_KEY environment variable');
-    }
+    console.log('   ✅ Service is running');
   }
   console.log('');
 
   // Management commands
   console.log('🎛️  Management Commands:');
-  console.log('   npm run build:service           - Build the sync service');
-  console.log('   npm run sync-service:install    - Install as Windows service');
-  console.log('   npm run sync-service:uninstall  - Remove Windows service');
-  console.log('   npm run sync-service:start      - Start the service');
-  console.log('   npm run sync-service:stop       - Stop the service');
-  console.log('   npm run sync-service:restart    - Restart the service');
-  console.log('   npm run sync-service:status     - Show this status (current command)');
+  console.log('   npm run service:install    - Install as Windows service');
+  console.log('   npm run service:uninstall  - Remove Windows service');
+  console.log('   npm run service:start      - Start the service');
+  console.log('   npm run service:stop       - Stop the service');
+  console.log('   npm run service:restart    - Restart the service');
+  console.log('   npm run service:status     - Show this status (current command)');
   console.log('');
-
-  // Environment variables help
-  if (config.isDefaultKey) {
-    console.log('🔐 Security Setup:');
-    console.log('   Set environment variables for production:');
-    console.log('   set SYNC_REGISTRATION_KEY=your-secure-key-here');
-  console.log('   set SYNC_PORT=8765');
-    console.log('   set SYNC_INTERVAL=30000');
-    console.log('   set LOG_LEVEL=info');
-    console.log('');
-  }
 }
 
 // Run status check

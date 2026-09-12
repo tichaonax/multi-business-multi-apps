@@ -667,7 +667,7 @@ model Businesses {
   vehicle_service_labour_rates                                             VehicleServiceLabourRates[]
   images                                                                   Images[]
   tags                                                                     Tags[]
-  attribute_options                                                       AttributeOptions[]
+  attribute_options                                                        AttributeOptions[]
 
   @@map("businesses")
 }
@@ -812,24 +812,6 @@ model CompensationTypes {
   @@map("compensation_types")
 }
 
-model ConflictResolutions {
-  id                 String             @id @default(uuid())
-  conflictType       ConflictType
-  resolutionStrategy ResolutionStrategy
-  sourceEventId      String
-  targetEventId      String?
-  resolvedData       Json
-  resolvedBy         String?
-  resolvedAt         DateTime           @default(now())
-  eventIds           String[]           @default([])
-  resolution         Json?
-  strategy           String?
-  metadata           Json?
-  createdAt          DateTime           @default(now())
-
-  @@map("conflict_resolutions")
-}
-
 model ConstructionExpenses {
   id                    String                @id @default(uuid())
   category              String
@@ -971,28 +953,6 @@ model CustomerLaybyPayment {
 
   @@index([laybyId])
   @@map("customer_layby_payments")
-}
-
-model DataSnapshots {
-  id                  String   @id @default(uuid())
-  nodeId              String
-  tableName           String
-  recordId            String
-  snapshotData        Json
-  advanceBreakdown    Json?
-  advanceDeductions   Decimal  @default(0) @db.Decimal(12, 2)
-  deductionsBreakdown Json?
-  expectedWorkDays    Int?
-  hasAdjustments      Boolean?
-  isProRata           Boolean?
-  loanBreakdown       Json?
-  loanDeductions      Decimal  @default(0) @db.Decimal(12, 2)
-  proRataCalculation  Json?
-  proRataReason       String?
-  processedBy         String?
-  totalDeductions     Decimal  @default(0) @db.Decimal(12, 2)
-
-  @@map("data_snapshots")
 }
 
 model DisciplinaryActions {
@@ -2299,7 +2259,7 @@ model CategoryReferenceImages {
 }
 
 model Tags {
-  id           String       @id @default(uuid())
+  id           String        @id @default(uuid())
   // Nullable (MBM-295) — null means a shared system tag (scoped by
   // businessType instead), matching BusinessCategories.businessId's own
   // nullable global/business-owned split. Set = a business's own custom tag.
@@ -2310,15 +2270,15 @@ model Tags {
   name         String
   // Every tag has one — user-created tags that don't specify one fall back
   // to this schema default automatically (MBM-295).
-  emoji        String       @default("🏷️")
+  emoji        String        @default("🏷️")
   // The seeded vocabulary's own section header (e.g. "Fabric / Material",
   // "Occasion / Use Case") — null for user-created tags, which aren't part
   // of a predefined group (MBM-295).
   groupLabel   String?
   createdBy    String?
-  createdAt    DateTime     @default(now())
-  businesses   Businesses?  @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  users        Users?       @relation("TagCreatedBy", fields: [createdBy], references: [id])
+  createdAt    DateTime      @default(now())
+  businesses   Businesses?   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  users        Users?        @relation("TagCreatedBy", fields: [createdBy], references: [id])
   image_tags   ImageTags[]
   product_tags ProductTags[]
 
@@ -2337,15 +2297,15 @@ model Tags {
 // for the businessType, set = a business's own custom addition. Kept generic
 // via attributeKey ('sizes' | 'colors') rather than one table per attribute.
 model AttributeOptions {
-  id           String             @id @default(uuid())
+  id           String      @id @default(uuid())
   businessId   String?
   businessType String?
   attributeKey String
   value        String
   createdBy    String?
-  createdAt    DateTime           @default(now())
-  businesses   Businesses?        @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  users        Users?             @relation("AttributeOptionCreatedBy", fields: [createdBy], references: [id])
+  createdAt    DateTime    @default(now())
+  businesses   Businesses? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  users        Users?      @relation("AttributeOptionCreatedBy", fields: [createdBy], references: [id])
 
   @@unique([businessId, attributeKey, value])
   // Only actually constrains shared presets (businessId is null on all of
@@ -2370,12 +2330,12 @@ model ImageTags {
 }
 
 model ProductTags {
-  id        String          @id @default(uuid())
-  productId String
-  tagId     String
-  createdAt DateTime        @default(now())
+  id                String           @id @default(uuid())
+  productId         String
+  tagId             String
+  createdAt         DateTime         @default(now())
   business_products BusinessProducts @relation(fields: [productId], references: [id], onDelete: Cascade)
-  tags      Tags            @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  tags              Tags             @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@unique([productId, tagId])
   @@index([tagId])
@@ -2476,36 +2436,6 @@ model IdFormatTemplates {
   persons      Persons[]
 
   @@map("id_format_templates")
-}
-
-model FullSyncSessions {
-  id                     String    @id(map: "initial_load_sessions_pkey") @default(uuid())
-  sessionId              String    @unique(map: "initial_load_sessions_sessionId_key")
-  sourceNodeId           String
-  targetNodeId           String
-  tableName              String    @default("businesses")
-  totalRecords           Int       @default(0)
-  processedRecords       Int       @default(0)
-  status                 String    @default("PENDING")
-  startedAt              DateTime  @default(now())
-  completedAt            DateTime?
-  errorMessage           String?
-  batchSize              Int       @default(1000)
-  currentBatch           Int       @default(0)
-  metadata               Json?
-  createdAt              DateTime  @default(now())
-  transferredRecords     Int       @default(0)
-  transferredBytes       BigInt    @default(0)
-  progress               Int       @default(0)
-  currentStep            String?
-  estimatedTimeRemaining Int       @default(0)
-  direction              String    @default("push")
-  method                 String    @default("backup")
-  phase                  String?
-  transferSpeed          Float?
-  estimatedCompletion    DateTime?
-
-  @@map("full_sync_sessions")
 }
 
 model InterBusinessLoans {
@@ -2668,55 +2598,6 @@ model MenuPromotions {
   businesses           Businesses    @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@map("menu_promotions")
-}
-
-model NetworkPartitions {
-  id                 String    @id @default(uuid())
-  nodeId             String
-  partitionType      String
-  startTime          DateTime
-  detectedAt         DateTime
-  isResolved         Boolean   @default(false)
-  endTime            DateTime?
-  partitionMetadata  Json?
-  resolutionMetadata Json?
-  createdAt          DateTime  @default(now())
-
-  @@map("network_partitions")
-}
-
-model NodeStates {
-  id          String   @id @default(uuid())
-  nodeId      String   @unique
-  nodeName    String
-  lastSeen    DateTime @default(now())
-  isOnline    Boolean  @default(false)
-  syncVersion String
-  metadata    Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime
-
-  @@map("node_states")
-}
-
-model OfflineQueue {
-  id           String    @id @default(uuid())
-  nodeId       String
-  eventId      String
-  tableName    String
-  recordId     String
-  operation    String
-  changeData   Json
-  beforeData   Json?
-  queuedAt     DateTime  @default(now())
-  priority     Int       @default(5)
-  retryCount   Int       @default(0)
-  lastAttempt  DateTime?
-  errorMessage String?
-  dependencies Json?
-  isProcessed  Boolean   @default(false)
-
-  @@map("offline_queue")
 }
 
 model OrderItems {
@@ -3567,102 +3448,6 @@ model SupplierProducts {
   @@map("supplier_products")
 }
 
-model SyncConfigurations {
-  id                  String    @id @default(uuid())
-  nodeId              String    @unique
-  registrationKeyHash String?
-  lastConfigUpdate    DateTime?
-  configMetadata      Json?
-  createdAt           DateTime  @default(now())
-
-  @@map("sync_configurations")
-}
-
-model SyncEvents {
-  eventId         String        @id @default(uuid())
-  sourceNodeId    String
-  tableName       String
-  recordId        String
-  operation       SyncOperation
-  changeData      Json
-  beforeData      Json?
-  vectorClock     Json?
-  lamportClock    String?
-  checksum        String?
-  priority        Int           @default(5)
-  metadata        Json?
-  processed       Boolean       @default(false)
-  processedAt     DateTime?
-  processingError String?
-  retryCount      Int           @default(0)
-  createdAt       DateTime      @default(now())
-
-  @@map("sync_events")
-}
-
-model SyncMetrics {
-  id                   String   @id @default(uuid())
-  nodeId               String
-  metricDate           DateTime
-  eventsGenerated      Int      @default(0)
-  eventsReceived       Int      @default(0)
-  eventsProcessed      Int      @default(0)
-  eventsFailed         Int      @default(0)
-  conflictsDetected    Int      @default(0)
-  conflictsResolved    Int      @default(0)
-  syncLatencyMs        Int?
-  networkLatencyMs     Int?
-  dataTransferredBytes BigInt?
-  peersConnected       Int?     @default(0)
-  peersDiscovered      Int?     @default(0)
-  createdAt            DateTime @default(now())
-
-  @@unique([nodeId, metricDate], map: "nodeId_metricDate")
-  @@map("sync_metrics")
-}
-
-model SyncNodes {
-  id               String            @id @default(uuid())
-  nodeId           String            @unique
-  nodeName         String
-  ipAddress        String?
-  port             Int?
-  registrationKey  String?
-  publicKey        String?
-  isActive         Boolean           @default(true)
-  lastSeen         DateTime          @default(now())
-  nodeVersion      String?
-  databaseVersion  String?
-  schemaVersion    String?
-  schemaHash       String?
-  migrationName    String?
-  schemaAppliedAt  DateTime?
-  schemaCompatible Boolean           @default(true)
-  platformInfo     Json?
-  capabilities     Json?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @default(now())
-  network_printers NetworkPrinters[]
-
-  @@map("sync_nodes")
-}
-
-model SyncSessions {
-  id           String    @id @default(uuid())
-  sessionId    String    @unique
-  sourceNodeId String
-  targetNodeId String?
-  startedAt    DateTime  @default(now())
-  endedAt      DateTime?
-  endTime      DateTime?
-  status       String    @default("PENDING")
-  errorMessage String?
-  metadata     Json?
-  createdAt    DateTime  @default(now())
-
-  @@map("sync_sessions")
-}
-
 model NetworkPrinters {
   id                              String                         @id @default(uuid())
   printerId                       String                         @unique
@@ -3710,7 +3495,6 @@ model NetworkPrinters {
   // working unchanged.
   remotePrintingEnabled           Boolean                        @default(true)
   barcode_print_jobs              BarcodePrintJobs[]
-  sync_nodes                      SyncNodes                      @relation(fields: [nodeId], references: [nodeId])
   print_jobs                      PrintJobs[]
   workstation_agent               WorkstationAgents?             @relation(fields: [workstationAgentId], references: [id])
   default_receipt_printer_configs DefaultReceiptPrinterConfigs[]
@@ -5530,14 +5314,6 @@ enum AuthorizationLevel {
   EMERGENCY
 }
 
-enum ConflictType {
-  UPDATE_UPDATE
-  UPDATE_DELETE
-  DELETE_UPDATE
-  VECTOR_CLOCK
-  TIMESTAMP
-}
-
 enum CustomerType {
   INDIVIDUAL
   BUSINESS
@@ -5701,20 +5477,6 @@ enum ReimbursementStatus {
   REJECTED
 }
 
-enum ResolutionStrategy {
-  LATEST_TIMESTAMP
-  HIGHEST_PRIORITY
-  MANUAL_RESOLUTION
-  SOURCE_WINS
-  TARGET_WINS
-  MERGE_FIELDS
-  LAST_WRITER_WINS
-  NODE_PRIORITY
-  MERGE_CHANGES
-  BUSINESS_RULE
-  KEEP_BOTH
-}
-
 enum ServiceType {
   OIL_CHANGE
   TIRE_REPLACEMENT
@@ -5741,14 +5503,6 @@ enum StockMovementType {
   PRODUCTION_OUT
   SERVICE_USE
   INTERNAL_USE
-}
-
-enum SyncOperation {
-  CREATE
-  UPDATE
-  DELETE
-  TRUNCATE
-  UPSERT
 }
 
 enum TripType {

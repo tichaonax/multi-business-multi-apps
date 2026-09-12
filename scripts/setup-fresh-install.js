@@ -359,11 +359,6 @@ async function main() {
       command: 'npm run build',
       description: 'Building the application',
       required: true
-    },
-    {
-      command: 'npm run build:service',
-      description: 'Building the Windows service',
-      required: true
     }
   ]
 

@@ -501,7 +501,7 @@ rm -rf node_modules/.prisma/client
 
 # Regenerate everything
 npx prisma generate
-npm run build:service
+npm run build
 ```
 
 ---

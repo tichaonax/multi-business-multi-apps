@@ -342,9 +342,7 @@ class ForceInstallManager {
         console.log('   Diagnose:     npm run service:diagnose');
         console.log('');
         console.log('💡 The hybrid service provides:');
-        console.log('   • Direct sync service execution with PID management');
-        console.log('   • Database replication between multiple instances');
-        console.log('   • Automatic peer discovery and conflict resolution');
+        console.log('   • Runs database migrations, then launches the app server');
         console.log('   • Enhanced process tracking and cleanup');
         console.log('   • Graceful shutdown with fallback to force kill');
         console.log('   • Auto-restart capabilities for production reliability');
@@ -418,89 +416,13 @@ async function forceInstallHybrid() {
       await manager.log('✅ node_modules exists, skipping installation');
     }
 
-    // Step 5: Build fresh service files
-    await manager.log('=== Step 5: Build Fresh Service Files ===');
-    await manager.log('Cleaning dist folder for fresh build...');
-
-    const distPath = path.join(__dirname, '..', 'dist');
-    try {
-      if (fs.existsSync(distPath)) {
-        // Remove recursively (cross-platform)
-        fs.rmSync(distPath, { recursive: true, force: true });
-        await manager.log('✅ dist folder cleaned');
-      } else {
-        await manager.log('ℹ️  No dist folder to clean');
-      }
-    } catch (error) {
-      await manager.log(`⚠️  Could not clean dist folder: ${error.message}`, 'WARN');
-      await manager.log('   Proceeding with build anyway...');
-    }
-
-    await manager.log('Running build process to ensure latest code...');
-    try {
-      const { stdout, stderr } = await execAsync('npm run build:service', { cwd: path.join(__dirname, '..') });
-      
-      if (stdout) {
-        // Filter out unwanted "Next steps" messages from build script
-        const filteredLines = stdout.split('\n').filter(line => {
-          const trimmed = line.trim();
-          return trimmed && 
-                 !trimmed.includes('📋 Next steps:') &&
-                 !trimmed.includes('• Start the service:') &&
-                 !trimmed.includes('• Check status:') &&
-                 !trimmed.includes('• View logs:') &&
-                 !trimmed.includes('npm run sync-service:start') &&
-                 !trimmed.includes('npm run sync-service:status') &&
-                 !trimmed.includes('Windows Event Viewer');
-        });
-        
-        filteredLines.forEach(line => {
-          if (line.trim()) manager.log(`BUILD: ${line.trim()}`);
-        });
-      }
-      
-      if (stderr && !stderr.includes('npm WARN')) {
-        // Filter out service status warnings from build script
-        const filteredErrors = stderr.split('\n').filter(line => {
-          const trimmed = line.trim();
-          return trimmed && 
-                 !trimmed.includes('Could not determine service status') &&
-                 !trimmed.includes('assuming stopped');
-        });
-        
-        filteredErrors.forEach(line => {
-          if (line.trim()) manager.log(`BUILD: ${line.trim()}`, 'WARN');
-        });
-      }
-      await manager.log('✅ Service build completed successfully');
-      
-      // Verify build output exists
-      const serviceScript = path.join(__dirname, '..', 'dist', 'service', 'sync-service-runner.js');
-      if (!fs.existsSync(serviceScript)) {
-        throw new Error(`Build verification failed - service script not found: ${serviceScript}`);
-      }
-      await manager.log('✅ Build verification passed - service script exists');
-      
-      // Show some build info
-      const stats = fs.statSync(serviceScript);
-      await manager.log(`📄 Main service file: ${serviceScript}`);
-      await manager.log(`📅 Built: ${stats.mtime.toLocaleString()}`);
-      await manager.log(`📏 Size: ${Math.round(stats.size / 1024)}KB`);
-      
-    } catch (buildError) {
-      await manager.log(`❌ Build process failed: ${buildError.message}`, 'ERROR');
-      console.error('');
-      console.error('Build failed! This could be due to:');
-      console.error('  • TypeScript compilation errors');
-      console.error('  • Service is still running and locking files');
-      console.error('  • Missing dependencies or configuration');
-      console.error('');
-      console.error('To troubleshoot:');
-      console.error('  1. Manually run: npm run build:service');
-      console.error('  2. Check for TypeScript errors');
-      console.error('  3. Ensure service is fully stopped');
-      process.exit(1);
-    }
+    // Step 5 (formerly "Build Fresh Service Files") removed — that step only
+    // ever pre-built the legacy sync engine (dist/service/sync-service-runner.js),
+    // which no longer exists (see
+    // ai-contexts/project-plans/review/projectplan-NOTKT-remove-legacy-sync-service-2026-09-12.md).
+    // The app itself is built separately, later, by service-wrapper-hybrid.js's
+    // own start() → buildApplication() the first time the service actually
+    // starts — this installer never pre-built the app, only the sync engine.
 
     // Step 6: Wait and verify service registry cleanup
     await manager.log('Waiting for service registry to stabilize...');
@@ -542,12 +464,6 @@ async function forceInstallHybrid() {
     console.log('   2. Check status: npm run service:status');
     console.log('   3. View logs: npm run service:diagnose');
     console.log('');
-    console.log('🔐 Security Note:');
-    if (!process.env.SYNC_REGISTRATION_KEY || process.env.SYNC_REGISTRATION_KEY === 'b3f1c9d7a5e4f2c3819d6b7a2e4f0c1d2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7') {
-      console.log('   ⚠️  Set SYNC_REGISTRATION_KEY environment variable for production!');
-    } else {
-      console.log('   ✅ Custom registration key is configured');
-    }
 
   } catch (err) {
     console.error('❌ Force installation failed:', err.message);

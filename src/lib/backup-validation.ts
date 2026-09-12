@@ -224,8 +224,6 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'idFormatTemplates',
   'driverLicenseTemplates',
   'projectTypes',
-  'conflictResolutions',
-  'dataSnapshots',
   'payeTaxBrackets',
   'payrollTaxConstants',
   'inventoryDomains',

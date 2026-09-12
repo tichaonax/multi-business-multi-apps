@@ -42,30 +42,10 @@ async function seedPrintersDemo() {
     const hardware = demoBusinesses.find(b => b.type === 'hardware')
     const clothing = demoBusinesses.find(b => b.type === 'clothing')
 
-    // Get or create local sync node
-    let localNode = await prisma.syncNodes.findUnique({
-      where: { nodeId: 'local-node' }
-    })
-
-    if (!localNode) {
-      console.log('📡 Creating local sync node...')
-      localNode = await prisma.syncNodes.create({
-        data: {
-          nodeId: 'local-node',
-          nodeName: 'Local Development Node',
-          ipAddress: '127.0.0.1',
-          port: 8080,
-          isActive: true,
-          lastSeen: new Date(),
-          nodeVersion: '1.0.0',
-          schemaCompatible: true,
-          createdAt: new Date()
-        }
-      })
-      console.log('✅ Created local sync node\n')
-    } else {
-      console.log('✅ Using existing local sync node\n')
-    }
+    // NetworkPrinters.nodeId is a plain label (no longer an FK to a
+    // SyncNodes row, that table was removed along with the rest of the
+    // legacy peer-sync system) — just use the literal value directly.
+    const localNodeId = 'local-node'
 
     // Get admin user for print jobs
     const adminUser = await prisma.users.findFirst({
@@ -87,7 +67,7 @@ async function seedPrintersDemo() {
     let barcodePrinter = await prisma.networkPrinters.findFirst({
       where: {
         printerType: 'barcode',
-        nodeId: localNode.nodeId
+        nodeId: localNodeId
       }
     })
 
@@ -97,7 +77,7 @@ async function seedPrintersDemo() {
           printerId: 'ZEBRA-GK420D-DEMO',
           printerName: 'Zebra GK420d Barcode Printer',
           printerType: 'barcode',
-          nodeId: localNode.nodeId,
+          nodeId: localNodeId,
           ipAddress: '192.168.1.201',
           port: 9100,
           capabilities: {
@@ -120,7 +100,7 @@ async function seedPrintersDemo() {
     let thermalPrinter = await prisma.networkPrinters.findFirst({
       where: {
         printerType: 'receipt',
-        nodeId: localNode.nodeId
+        nodeId: localNodeId
       }
     })
 
@@ -130,7 +110,7 @@ async function seedPrintersDemo() {
           printerId: 'EPSON-TM-T20III-DEMO',
           printerName: 'EPSON TM-T20III Receipt',
           printerType: 'receipt',
-          nodeId: localNode.nodeId,
+          nodeId: localNodeId,
           ipAddress: '192.168.1.202',
           port: 9100,
           capabilities: {
@@ -154,7 +134,7 @@ async function seedPrintersDemo() {
     let documentPrinter = await prisma.networkPrinters.findFirst({
       where: {
         printerType: 'document',
-        nodeId: localNode.nodeId
+        nodeId: localNodeId
       }
     })
 
@@ -164,7 +144,7 @@ async function seedPrintersDemo() {
           printerId: 'BROTHER-MFC-7860DW-DEMO',
           printerName: 'Brother MFC-7860DW Printer',
           printerType: 'document',
-          nodeId: localNode.nodeId,
+          nodeId: localNodeId,
           ipAddress: '192.168.1.203',
           port: 9100,
           capabilities: {

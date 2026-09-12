@@ -282,17 +282,6 @@ export default function AdminPage() {
           </div>
 
           <div className="card p-6">
-            <h3 className="text-lg font-semibold mb-4 text-primary">Sync Management</h3>
-            <p className="text-secondary mb-4">Monitor and control database synchronization</p>
-            <a
-              href="/admin/sync"
-              className="btn-primary inline-block"
-            >
-              Manage Sync
-            </a>
-          </div>
-
-          <div className="card p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center">
                 <Package className="h-6 w-6 mr-2 text-blue-500" />

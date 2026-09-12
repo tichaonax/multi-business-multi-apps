@@ -83,10 +83,7 @@ class DatabaseInstaller {
       // Step 6: Create admin user
       await this.createAdminUser()
 
-      // Step 7: Initialize sync system
-      await this.initializeSyncSystem()
-
-      // Step 8: Verify installation
+      // Step 7: Verify installation
       await this.verifyInstallation()
 
       log('\n🎉 Database Installation Complete! 🎉', 'green')
@@ -758,104 +755,8 @@ module.exports = { seedPermissionTemplates }`
     return crypto.createHash('sha256').update(password).digest('hex')
   }
 
-  async initializeSyncSystem() {
-    logStep('7/8', 'Initializing sync system...')
-
-    try {
-      // Initialize sync tables and basic configuration
-      const syncInitScript = path.join(this.installDir, 'init-sync-system.js')
-
-      if (!fs.existsSync(syncInitScript)) {
-        await this.createSyncInitScript(syncInitScript)
-      }
-
-      execSync(`node "${syncInitScript}"`, {
-        stdio: 'inherit',
-        cwd: this.projectRoot,
-        env: { ...process.env, DATABASE_URL: this.databaseUrl }
-      })
-
-      logSuccess('Sync system initialized successfully')
-
-    } catch (error) {
-      logWarning(`Warning: Sync system initialization failed: ${error.message}`)
-      // Continue installation
-    }
-  }
-
-  async createSyncInitScript(scriptPath) {
-    const content = `/**
- * Initialize Sync System
- * Sets up initial sync configuration and node state
- */
-
-const { PrismaClient } = require('@prisma/client')
-const crypto = require('crypto')
-const os = require('os')
-
-async function initializeSyncSystem() {
-  const prisma = new PrismaClient()
-
-  try {
-    console.log('🔄 Initializing sync system...')
-
-    // Generate node ID for this installation
-    const nodeId = crypto.randomUUID()
-    const nodeName = os.hostname() || 'Unknown Node'
-
-    // Initialize node state
-    await prisma.nodeStates.upsert({
-      where: { nodeId },
-      update: {
-        nodeName,
-        lastSeen: new Date(),
-        isOnline: true,
-        syncVersion: '1.0.0'
-      },
-      create: {
-        id: crypto.randomUUID(),
-        nodeId,
-        nodeName,
-        lastSeen: new Date(),
-        isOnline: true,
-        syncVersion: '1.0.0',
-        metadata: {
-          installDate: new Date().toISOString(),
-          platform: os.platform(),
-          arch: os.arch()
-        },
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
-    })
-
-    console.log(\`✅ Sync system initialized for node: \${nodeId}\`)
-    console.log(\`   Node name: \${nodeName}\`)
-
-  } catch (error) {
-    console.error('❌ Error initializing sync system:', error)
-    throw error
-  } finally {
-    await prisma.$disconnect()
-  }
-}
-
-if (require.main === module) {
-  initializeSyncSystem()
-}
-
-module.exports = { initializeSyncSystem }`
-
-    // Ensure install directory exists
-    if (!fs.existsSync(path.dirname(scriptPath))) {
-      fs.mkdirSync(path.dirname(scriptPath), { recursive: true })
-    }
-
-    fs.writeFileSync(scriptPath, content)
-  }
-
   async verifyInstallation() {
-    logStep('8/8', 'Verifying installation...')
+    logStep('7/7', 'Verifying installation...')
 
     try {
       const { PrismaClient } = require('@prisma/client')
@@ -868,12 +769,10 @@ module.exports = { initializeSyncSystem }`
       const counts = {}
       try { counts.users = await prisma.users.count() } catch (e) { logWarning('Model prisma.user missing or inaccessible') }
       try { counts.jobTitles = await prisma.jobTitles.count() } catch (e) { logWarning('Model prisma.jobTitles missing or inaccessible') }
-      try { counts.nodeStates = await prisma.nodeStates.count() } catch (e) { logWarning('Model prisma.nodeStates missing or inaccessible') }
 
       log(`Database verification:`)
       log(`  - Users: ${counts.users ?? 'n/a'}`)
       log(`  - Job titles: ${counts.jobTitles ?? 'n/a'}`)
-      log(`  - Node states: ${counts.nodeStates ?? 'n/a'}`)
 
       await prisma.$disconnect()
 

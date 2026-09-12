@@ -22,7 +22,7 @@ const { execSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 const { DatabaseInstaller } = require('./install-database')
-const { ServiceInstaller } = require('./install-service')
+const forceInstallHybrid = require('../../windows-service/force-install-hybrid')
 
 // Colors for console output
 const colors = {
@@ -335,12 +335,9 @@ class MainInstaller {
     logStep('4/6', 'Installing service...')
 
     try {
-      const serviceInstaller = new ServiceInstaller()
-      const success = await serviceInstaller.run()
-
-      if (!success) {
-        throw new Error('Service installation failed')
-      }
+      // Same hybrid installer `npm run service:install` uses — the one real
+      // install path (see ai-contexts/project-plans/review/projectplan-NOTKT-remove-legacy-sync-service-2026-09-12.md).
+      await forceInstallHybrid()
 
       logSuccess('Service installation completed')
 
@@ -637,7 +634,6 @@ monitor() // Initial check`
       // Verify files were created
       const requiredFiles = [
         'config/service-config.json',
-        'service/sync-service-runner.js',
         '.env'
       ]
 

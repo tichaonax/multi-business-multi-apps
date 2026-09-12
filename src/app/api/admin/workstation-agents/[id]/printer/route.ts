@@ -23,22 +23,13 @@ function isBusinessAdmin(user: Awaited<ReturnType<typeof getServerUser>>, busine
   return isSystemAdmin(user) || getUserRoleInBusiness(user, businessId) === 'business-owner'
 }
 
-// The synthetic SyncNodes row every agent-declared printer hangs off of —
-// NetworkPrinters.nodeId is a required FK left over from the legacy
-// DIRECT-mode sync system (see printer-discovery.ts), which AGENT-mode
-// printers never actually read (print-dispatch.ts routes AGENT jobs purely
-// by workstationAgentId). Rather than requiring a real SyncNode to exist
-// first, every printer created through this route shares one placeholder
-// node instead of pulling in that unrelated legacy system.
+// NetworkPrinters.nodeId is a plain label (no longer an FK to a SyncNodes
+// row — that legacy DIRECT-mode sync system was removed entirely; see
+// ai-contexts/project-plans/review/projectplan-NOTKT-remove-legacy-sync-service-2026-09-12.md).
+// AGENT-mode printers never read through it (print-dispatch.ts routes AGENT
+// jobs purely by workstationAgentId) — every printer created through this
+// route just shares one placeholder value.
 const AGENT_PRINTER_NODE_ID = 'workstation-agents'
-
-async function ensurePlaceholderNode() {
-  await prisma.syncNodes.upsert({
-    where: { nodeId: AGENT_PRINTER_NODE_ID },
-    update: {},
-    create: { nodeId: AGENT_PRINTER_NODE_ID, nodeName: 'Workstation Agents (AGENT-mode printers)' },
-  })
-}
 
 // Two independent flags, not one — both stored directly, connectionMode
 // stays 'AGENT' always for a row created through this route:
@@ -118,7 +109,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         data: { printerName: printerName.trim(), remotePrintingEnabled: effectiveRemotePrintingEnabled, remoteEnabled: effectiveRemoteEnabled },
       })
     : await (async () => {
-        await ensurePlaceholderNode()
         return prisma.networkPrinters.create({
           data: {
             printerId: `agent-printer-${id}`,

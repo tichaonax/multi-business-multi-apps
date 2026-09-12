@@ -54,7 +54,7 @@ sc.exe stop "electricity-tokens.exe"
 npm run setup:production-safe
 
 # 3. Restart services after
-npm run sync-service:start
+npm run service:start
 sc.exe start "electricity-tokens.exe"
 ```
 
@@ -152,7 +152,7 @@ sc.exe query "electricity-tokens.exe"
 npm run setup:production-safe
 
 # 4. Restart services
-npm run sync-service:start
+npm run service:start
 sc.exe start "electricity-tokens.exe"
 
 # 5. Verify services running
@@ -196,7 +196,7 @@ Always use `npm run setup:production-safe` on production servers - it checks for
 | Check locked files | `node scripts/cleanup-prisma-locks.js --manual` |
 | Stop sync service | `npm run sync-service:stop` |
 | Stop electricity service | `sc.exe stop "electricity-tokens.exe"` |
-| Start sync service | `npm run sync-service:start` |
+| Start service | `npm run service:start` |
 | Start electricity service | `sc.exe start "electricity-tokens.exe"` |
 
 ## When to Contact Support

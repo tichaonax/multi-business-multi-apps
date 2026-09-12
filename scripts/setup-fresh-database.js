@@ -204,7 +204,7 @@ async function main() {
     console.log('✅ Fresh Database Setup Completed Successfully!');
     console.log('============================================================');
     console.log('\n📋 Next Steps:');
-    console.log('  1. Start the service: npm run sync-service:start');
+    console.log('  1. Start the service: npm run service:start');
     console.log('  2. Login with admin@business.local / admin123');
     console.log('  3. Configure your businesses and users');
     console.log('\n');

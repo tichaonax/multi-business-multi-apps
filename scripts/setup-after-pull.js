@@ -530,17 +530,13 @@ async function checkServiceNeedsRebuild() {
   try {
     // Service-related paths that require rebuild
     const serviceFiles = [
-      'src/lib/sync/',
-      'service/',
-      'windows-service/',
-      'tsconfig.service.json',
-      'scripts/build-service.js'
+      'windows-service/'
     ]
-    
-    // Check if dist folder exists - if not, definitely need rebuild
-    const distPath = path.join(ROOT_DIR, 'dist', 'service')
+
+    // Check if the app build exists - if not, definitely need rebuild
+    const distPath = path.join(ROOT_DIR, 'dist', 'server.js')
     if (!fs.existsSync(distPath)) {
-      log('Service dist folder missing - rebuild required', 'INFO')
+      log('App build missing - rebuild required', 'INFO')
       return true
     }
     
@@ -618,8 +614,8 @@ async function main() {
       serviceNeedsInstall = true // Mark that we need to reinstall
     }
 
-    // Rebuild the service
-    run('npm run build:service', 'Rebuilding Windows sync service', false)
+    // Rebuild the app
+    run('npm run build', 'Rebuilding app', false)
 
     // Reinstall the service if it was previously installed
     if (serviceNeedsInstall) {

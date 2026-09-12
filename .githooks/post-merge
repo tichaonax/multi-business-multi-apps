@@ -77,11 +77,11 @@ elif [ "$SRC_CHANGED" = "yes" ]; then
     npx prisma generate
   }
 
-  # Rebuild sync service
-  npm run build:service
+  # Rebuild the app
+  npm run build
 
   echo ""
-  echo "✅ Sync service rebuilt successfully!"
+  echo "✅ App rebuilt successfully!"
   echo ""
   echo "⚠️  REMINDER: If the service is running, restart it:"
   echo "   npm run service:restart (as Administrator)"

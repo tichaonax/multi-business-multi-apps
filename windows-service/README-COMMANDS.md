@@ -45,8 +45,8 @@ Notes & mappings
 - The `service:*` scripts provide user-friendly aliases. They map as follows:
   - `service:install` -> `windows-service/force-install-hybrid.js` (installer wrapper)
   - `service:diagnose` -> `windows-service/diagnose-hybrid.js` (comprehensive diagnostics)
-  - `service:start` -> runs `sync-service:start` (which uses `sc start "Multi-Business Sync Service"`)
-  - `service:stop` -> runs `sync-service:stop` (which uses `sc stop "Multi-Business Sync Service"`)
+  - `service:start` -> `scripts/service-start-with-flags.js` (`sc start "MultiBusinessSyncService"`, optionally rebuilding first)
+  - `service:stop` -> runs `sync-service:stop` (which uses `sc stop "MultiBusinessSyncService"`)
   - `service:restart` -> runs `sync-service:restart` (stop + wait + start)
   - `service:smoke-check` -> `scripts/smoke-check-service.js` (CI/validation)
 
@@ -58,10 +58,8 @@ CI note
 
 The repository workflow `.github/workflows/smoke-check.yml` now runs `npm run service:smoke-check` and will fail the check if the smoke-check script exits non-zero. Provide `DATABASE_URL` as a secret if you want CI to validate DB connectivity as well.
 
-- If you prefer the raw sync-service commands (direct control), use the `sync-service:*` scripts:
-  - `npm run sync-service:install`
+- If you prefer the raw `sync-service:*` scripts (direct control) for status/stop/restart:
   - `npm run sync-service:status` (recommended for low-level status output)
-  - `npm run sync-service:start`
   - `npm run sync-service:stop`
   - `npm run sync-service:restart`
 

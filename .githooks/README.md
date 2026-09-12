@@ -22,12 +22,12 @@ node scripts/install-git-hooks.js
 
 **Trigger:** Runs automatically after `git pull` or `git merge`
 
-**Purpose:** Automatically rebuilds the sync service when source files change
+**Purpose:** Automatically rebuilds the app when source files change
 
 **Behavior:**
 - Detects which files changed in the merge
 - If `package.json` changed → Runs full setup (`npm run setup:update`)
-- If `src/` files changed → Rebuilds service only (`npm run build:service`)
+- If `src/` files changed → Rebuilds the app only (`npm run build`)
 - Otherwise → Skips rebuild
 
 **Platforms:**

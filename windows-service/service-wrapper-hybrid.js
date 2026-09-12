@@ -1,6 +1,10 @@
 /**
  * Hybrid Service Wrapper
- * Wrapper for running the Multi-Business Sync Service as a Windows Service
+ * Wrapper that runs database migrations then launches the app as a Windows
+ * Service (still registered under the name "MultiBusinessSyncService" —
+ * that OS-level identity is unchanged; this file no longer spawns a
+ * separate sync-engine process alongside the app, see
+ * ai-contexts/project-plans/review/projectplan-NOTKT-remove-legacy-sync-service-2026-09-12.md).
  * Based on electricity-tokens hybrid service pattern with direct process execution
  */
 
@@ -44,9 +48,7 @@ function loadEnvironmentVariables() {
               loadedCount++;
               
               // Log critical variables (but redact sensitive data)
-              if (key === 'SYNC_REGISTRATION_KEY') {
-                console.log(`   ${key}: ${value.substring(0, 8)}... (${value.length} chars)`);
-              } else if (key.includes('SECRET') || key.includes('PASSWORD')) {
+              if (key.includes('SECRET') || key.includes('PASSWORD')) {
                 console.log(`   ${key}: *** (${value.length} chars)`);
               } else {
                 console.log(`   ${key}: ${value}`);
@@ -59,14 +61,10 @@ function loadEnvironmentVariables() {
       console.log(`✅ Environment variables loaded from .env.local (${loadedCount} variables)`);
       
       // Verify critical variables were loaded
-      const criticalVars = ['DATABASE_URL', 'SYNC_REGISTRATION_KEY', 'SYNC_PORT'];
+      const criticalVars = ['DATABASE_URL'];
       criticalVars.forEach(varName => {
         if (process.env[varName]) {
-          if (varName === 'SYNC_REGISTRATION_KEY') {
-            console.log(`✅ ${varName} loaded: ${process.env[varName].substring(0, 8)}...`);
-          } else {
-            console.log(`✅ ${varName} loaded: ${process.env[varName]}`);
-          }
+          console.log(`✅ ${varName} loaded: ${process.env[varName]}`);
         } else {
           console.warn(`⚠️  ${varName} not found in .env.local`);
         }
@@ -121,11 +119,11 @@ class HybridServiceWrapper extends EventEmitter {
   }
 
   /**
-   * Start the sync service
+   * Run migrations and start the app
    */
   async start() {
     try {
-      console.log('🚀 Starting Multi-Business Sync Service (Hybrid Mode)...');
+      console.log('🚀 Starting MultiBusinessSyncService (Hybrid Mode)...');
 
       // Production validation and safety checks
       await this.runProductionValidation();
@@ -154,58 +152,8 @@ class HybridServiceWrapper extends EventEmitter {
         }
       }
 
-      // Build the sync service if needed
-      console.log('🔧 Checking sync service build...');
-      await this.buildService();
-
-      // Ensure the compiled service exists (should exist after build)
-      const serviceScript = path.join(__dirname, '..', 'dist', 'service', 'sync-service-runner.js');
-
-      if (!fs.existsSync(serviceScript)) {
-        throw new Error(
-          `Service script not found: ${serviceScript}\n` +
-          'Service build may have failed. Check build logs above.'
-        );
-      }
-
-      // Always run database migrations BEFORE starting sync service
+      // Always run database migrations BEFORE starting the app
       await this.runDatabaseMigrations();
-
-      // Prepare arguments for sync service runner
-      const args = ['start'];
-      if (this.forceBuild) {
-        args.push('--force-build');
-      }
-
-      // Start the Node.js process directly AFTER migrations complete
-      this.childProcess = spawn('node', [serviceScript, ...args], {
-        cwd: path.join(__dirname, '..'),
-        env: {
-          ...process.env,
-          NODE_ENV: 'production',
-          SYNC_REGISTRATION_KEY: process.env.SYNC_REGISTRATION_KEY || 'b3f1c9d7a5e4f2c3819d6b7a2e4f0c1d2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7',
-          SYNC_PORT: process.env.SYNC_PORT || '8765',
-          SYNC_INTERVAL: process.env.SYNC_INTERVAL || '30000',
-          LOG_LEVEL: process.env.LOG_LEVEL || 'info',
-          SYNC_DATA_DIR: process.env.SYNC_DATA_DIR || './data/sync',
-          // Runner will also run migrations (idempotent via prisma migrate deploy)
-        },
-        stdio: ['ignore', 'pipe', 'pipe'],
-        detached: false
-      });
-
-      // Save PID
-      this.savePid(this.childProcess.pid);
-
-      // Record service start time for grace period
-      this.serviceStartTime = Date.now();
-
-      // Setup process event handlers
-      this.setupProcessHandlers();
-
-      console.log(`✅ Sync service started with PID: ${this.childProcess.pid}`);
-      console.log(`⏰ Grace period active: ${this.gracePeriodMs / 1000}s before failure monitoring begins`);
-      this.emit('started', { pid: this.childProcess.pid });
 
       // Build Next.js application if needed
       if (process.env.SKIP_BUILD !== 'true') {
@@ -221,7 +169,7 @@ class HybridServiceWrapper extends EventEmitter {
       }
 
     } catch (error) {
-      console.error('❌ Failed to start sync service:', error);
+      console.error('❌ Failed to start service:', error);
       this.emit('error', error);
 
       if (!this.isShuttingDown && this.restartAttempts < this.maxRestartAttempts) {
@@ -792,85 +740,6 @@ class HybridServiceWrapper extends EventEmitter {
   }
 
   /**
-   * Build the sync service TypeScript components
-   */
-  async buildService() {
-    return new Promise((resolve, reject) => {
-      console.log('🔧 Building sync service TypeScript components...');
-
-      // Check if build should be skipped
-      if (process.env.SKIP_SERVICE_BUILD === 'true') {
-        console.log('Skipping service build (SKIP_SERVICE_BUILD=true)');
-        resolve();
-        return;
-      }
-
-      // Check if service build should be forced or if it doesn't exist
-      const serviceScript = path.join(__dirname, '..', 'dist', 'service', 'sync-service-runner.js');
-      const shouldBuild = !fs.existsSync(serviceScript) || this.forceBuild === true;
-
-      if (!shouldBuild) {
-        console.log('✅ Service build already exists, skipping build');
-        resolve();
-        return;
-      }
-
-      const { spawn } = require('child_process');
-
-      console.log('Building service components (this may take a few minutes)...');
-      console.log('Executing: npm run build:service');
-
-      const buildProcess = spawn(this.npmCmd, ['run', 'build:service'], {
-        cwd: this.appRoot,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        shell: true,
-        env: this.spawnEnv,
-      });
-
-      let buildOutput = '';
-      let buildError = '';
-
-      buildProcess.stdout.on('data', (data) => {
-        const output = data.toString();
-        buildOutput += output;
-        output.split('\n').forEach((line) => {
-          if (line.trim()) {
-            console.log(`[SERVICE BUILD] ${line.trim()}`);
-          }
-        });
-      });
-
-      buildProcess.stderr.on('data', (data) => {
-        const output = data.toString();
-        buildError += output;
-        output.split('\n').forEach((line) => {
-          if (line.trim()) {
-            console.log(`[SERVICE BUILD ERROR] ${line.trim()}`);
-          }
-        });
-      });
-
-      buildProcess.on('close', (code) => {
-        if (code === 0) {
-          console.log('✅ Service build completed successfully');
-          resolve();
-        } else {
-          console.error(`❌ Service build failed with exit code ${code}`);
-          if (buildError) {
-            console.error('Build errors:', buildError);
-          }
-          reject(new Error(`Service build failed with exit code ${code}`));
-        }
-      });
-
-      buildProcess.on('error', (err) => {
-        console.error('❌ Service build process error:', err);
-        reject(err);
-      });
-    });
-  }
-
-  /**
    * Verify build completion
    */
   async verifyBuildCompletion() {
@@ -984,25 +853,6 @@ class HybridServiceWrapper extends EventEmitter {
       throw new Error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
     }
 
-    // Validate sync configuration
-    const syncPort = process.env.SYNC_PORT || '8765';
-    if (!/^\d+$/.test(syncPort) || parseInt(syncPort) < 1 || parseInt(syncPort) > 65535) {
-      throw new Error(`Invalid SYNC_PORT: ${syncPort}. Must be a number between 1-65535`);
-    }
-
-    // Check registration key
-    const regKey = process.env.SYNC_REGISTRATION_KEY;
-    console.log('🔑 Registration key debug:', {
-      hasKey: !!regKey,
-      keyLength: regKey ? regKey.length : 0,
-      keyFirst8: regKey ? regKey.substring(0, 8) : 'none',
-      keyLast8: regKey ? regKey.substring(regKey.length - 8) : 'none',
-      isDefault: regKey === 'b3f1c9d7a5e4f2c3819d6b7a2e4f0c1d2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7'
-    });
-    if (!regKey || regKey === 'b3f1c9d7a5e4f2c3819d6b7a2e4f0c1d2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7') {
-      console.warn('⚠️  WARNING: Using default registration key! Change SYNC_REGISTRATION_KEY environment variable for production.');
-    }
-
     console.log('✅ Environment configuration validated');
   }
 
@@ -1058,9 +908,9 @@ class HybridServiceWrapper extends EventEmitter {
       console.log('✅ Database connectivity validated');
     } catch (error) {
       // CRITICAL FIX: Don't crash the entire service if database is temporarily unavailable
-      // The sync service and Next.js app should still start and retry connection later
+      // The app should still start and retry connection later
       console.error('⚠️  Database connectivity validation failed:', error.message);
-      console.log('⚠️  Service will start anyway - database connection will be retried by sync service');
+      console.log('⚠️  Service will start anyway - database connection will be retried by the app');
       console.log('⚠️  If this persists, run: npm run diagnose:database');
       // Don't throw - just warn
     }
@@ -1075,7 +925,6 @@ class HybridServiceWrapper extends EventEmitter {
     const requiredFiles = [
       path.join(__dirname, '..', 'package.json'),
       path.join(__dirname, '..', 'prisma', 'schema.prisma'),
-      path.join(__dirname, '..', 'dist', 'service', 'sync-service-runner.js'),
     ];
 
     for (const filePath of requiredFiles) {
@@ -1087,7 +936,7 @@ class HybridServiceWrapper extends EventEmitter {
     // Check package.json structure
     try {
       const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
-      const requiredScripts = ['build:service', 'start'];
+      const requiredScripts = ['start'];
 
       for (const script of requiredScripts) {
         if (!packageJson.scripts || !packageJson.scripts[script]) {
@@ -1139,7 +988,6 @@ class HybridServiceWrapper extends EventEmitter {
   async validatePortAvailability() {
     console.log('🔍 Validating port availability...');
 
-    const syncPort = parseInt(process.env.SYNC_PORT || '8765');
     const appPort = parseInt(process.env.PORT || '8080');
 
     const checkPort = (port) => {
@@ -1161,13 +1009,6 @@ class HybridServiceWrapper extends EventEmitter {
         });
       });
     };
-
-    try {
-      await checkPort(syncPort);
-      console.log(`✅ Sync port ${syncPort} is available`);
-    } catch (error) {
-      console.warn(`⚠️  ${error.message} - sync service may conflict with existing service`);
-    }
 
     try {
       await checkPort(appPort);
@@ -1330,15 +1171,14 @@ class HybridServiceWrapper extends EventEmitter {
       } catch (verifyError) {
         console.warn(`⚠️  Next.js verification failed: ${verifyError.message}`);
         console.warn(`⚠️  Next.js process may still be starting or failed to bind to port ${appPort}`);
-        console.warn(`⚠️  Sync service will continue running, but web interface may not be available`);
 
         // Still try to start Electron - it may work if the server is just slow
         await this.startElectron();
       }
     } catch (error) {
       console.error(`❌ Failed to start Next.js application: ${error.message}`);
-      console.error(`❌ Sync service will continue running without web interface`);
-      // Don't throw - let sync service continue even if Next.js fails
+      // Don't throw — the wrapper process stays up either way (see start()'s
+      // own restart handling), rather than crashing the whole service here.
     }
   }
 
@@ -1474,7 +1314,7 @@ class HybridServiceWrapper extends EventEmitter {
   }
 
   /**
-   * Stop the sync service and app
+   * Stop the app
    */
   async stop() {
     this.isShuttingDown = true;
@@ -1520,101 +1360,8 @@ class HybridServiceWrapper extends EventEmitter {
       }
     }
 
-    // Stop the sync service
-    if (this.childProcess) {
-      try {
-        console.log('⏹️  Stopping sync service...');
-
-        // Send SIGTERM for graceful shutdown
-        this.childProcess.kill('SIGTERM');
-
-        // Wait for graceful shutdown
-        await new Promise((resolve) => {
-          const timeout = setTimeout(() => {
-            // Force kill if graceful shutdown takes too long
-            if (this.childProcess) {
-              console.log('🔪 Force killing sync service...');
-              this.childProcess.kill('SIGKILL');
-            }
-            resolve();
-          }, 10000); // 10 second timeout
-
-          this.childProcess.on('exit', () => {
-            clearTimeout(timeout);
-            resolve();
-          });
-        });
-
-        console.log('✅ Sync service stopped');
-        this.emit('stopped');
-
-      } catch (error) {
-        console.error('❌ Error stopping sync service:', error);
-        this.emit('error', error);
-      }
-    }
-
+    this.emit('stopped');
     this.cleanupPid();
-  }
-
-  /**
-   * Setup process event handlers
-   */
-  setupProcessHandlers() {
-    if (!this.childProcess) return;
-
-    this.childProcess.stdout.on('data', (data) => {
-      const output = data.toString();
-      this.logOutput('STDOUT', output);
-      console.log(output);
-    });
-
-    this.childProcess.stderr.on('data', (data) => {
-      const output = data.toString();
-      this.logOutput('STDERR', output);
-      console.error(output);
-    });
-
-    this.childProcess.on('error', (error) => {
-      console.error('🔥 Child process error:', error);
-      this.emit('error', error);
-
-      if (!this.isShuttingDown) {
-        const uptime = this.serviceStartTime ? Date.now() - this.serviceStartTime : 0;
-        const inGracePeriod = uptime < this.gracePeriodMs;
-
-        if (inGracePeriod) {
-          console.log(`⏰ Service error during grace period (${Math.round(uptime / 1000)}s < ${this.gracePeriodMs / 1000}s), restarting immediately...`);
-          // Reset restart attempts during grace period
-          this.restartAttempts = 0;
-          this.start();
-        } else {
-          this.handleRestart();
-        }
-      }
-    });
-
-    this.childProcess.on('exit', (code, signal) => {
-      console.log(`📤 Child process exited with code ${code}, signal ${signal}`);
-      this.cleanupPid();
-
-      if (!this.isShuttingDown && code !== 0) {
-        const uptime = this.serviceStartTime ? Date.now() - this.serviceStartTime : 0;
-        const inGracePeriod = uptime < this.gracePeriodMs;
-
-        if (inGracePeriod) {
-          console.log(`⏰ Service exited during grace period (${Math.round(uptime / 1000)}s < ${this.gracePeriodMs / 1000}s), restarting immediately...`);
-          // Reset restart attempts during grace period
-          this.restartAttempts = 0;
-          this.start();
-        } else {
-          console.log('🔄 Process exited unexpectedly after grace period, attempting restart...');
-          this.handleRestart();
-        }
-      } else {
-        this.emit('stopped');
-      }
-    });
   }
 
   /**
@@ -1813,12 +1560,11 @@ class HybridServiceWrapper extends EventEmitter {
    * Get service status
    */
   getStatus() {
-    const savedPid = this.getSavedPid();
-    const isRunning = this.childProcess && !this.childProcess.killed;
+    const isRunning = !!(this.appProcess && !this.appProcess.killed);
 
     return {
       isRunning,
-      pid: this.childProcess ? this.childProcess.pid : savedPid,
+      pid: this.appProcess ? this.appProcess.pid : undefined,
       restartAttempts: this.restartAttempts,
       maxRestartAttempts: this.maxRestartAttempts,
       isShuttingDown: this.isShuttingDown
@@ -1855,8 +1601,8 @@ switch (command) {
     console.log('Usage: node service-wrapper-hybrid.js [start|stop|status] [--force-build|-f]');
     console.log('');
     console.log('Commands:');
-    console.log('  start    Start the sync service');
-    console.log('  stop     Stop the sync service');
+    console.log('  start    Start the app');
+    console.log('  stop     Stop the app');
     console.log('  status   Show service status');
     console.log('');
     console.log('Flags:');

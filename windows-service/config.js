@@ -12,7 +12,7 @@ module.exports = {
   name: 'MultiBusinessSyncService',
   // Human-friendly display name shown in Services.msc
   displayName: 'Multi-Business Sync Service',
-  description: 'Background database synchronization service for Multi-Business Management Platform with automatic peer discovery and conflict resolution',
+  description: 'Runs database migrations then launches the Multi-Business Management Platform application server.',
 
   // Service executable
   script: path.resolve(__dirname, 'service-wrapper-hybrid.js'),
@@ -31,24 +31,8 @@ module.exports = {
       value: "production"
     },
     {
-      name: "SYNC_REGISTRATION_KEY",
-      value: process.env.SYNC_REGISTRATION_KEY || "b3f1c9d7a5e4f2c3819d6b7a2e4f0c1d2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7"
-    },
-    {
-      name: "SYNC_PORT",
-  value: process.env.SYNC_PORT || "8765"
-    },
-    {
-      name: "SYNC_INTERVAL",
-      value: process.env.SYNC_INTERVAL || "30000"
-    },
-    {
       name: "LOG_LEVEL",
       value: process.env.LOG_LEVEL || "info"
-    },
-    {
-      name: "SYNC_DATA_DIR",
-      value: process.env.SYNC_DATA_DIR || "./data/sync"
     }
   ],
 

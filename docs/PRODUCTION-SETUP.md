@@ -58,7 +58,7 @@ After setup completes successfully:
 
 ```powershell
 # Start Multi-Business Sync Service
-npm run sync-service:start
+npm run service:start
 
 # Start electricity-tokens service
 sc.exe start "electricity-tokens.exe"
@@ -81,7 +81,7 @@ sc.exe stop "electricity-tokens.exe"
 node scripts/setup-fresh-install.js
 
 # 3. Start services
-npm run sync-service:start
+npm run service:start
 sc.exe start "electricity-tokens.exe"
 ```
 
@@ -201,7 +201,7 @@ sc.exe stop "electricity-tokens.exe"
 ### Start All Services
 
 ```powershell
-npm run sync-service:start
+npm run service:start
 sc.exe start "electricity-tokens.exe"
 ```
 
