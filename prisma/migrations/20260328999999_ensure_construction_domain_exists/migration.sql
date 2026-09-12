@@ -10,23 +10,35 @@
 -- This one is trickier than a plain "row missing" case: expense_domains.name
 -- is globally UNIQUE, and 20260329000004_seed_existing_business_domains
 -- unconditionally creates a 'Construction' domain (with a fresh
--- gen_random_uuid() id) via `ON CONFLICT (name) DO UPDATE`. On a fresh
--- install, that runs first and claims the 'Construction' name with a random
--- id, so 20260413000002's hardcoded 'domain-construction' id never exists,
--- and it fails with a foreign key violation on expense_categories_domainId_fkey.
---
--- On the original dev database, this migration's job was effectively already
--- done — a 'domain-construction' row already existed there — so
--- 20260329000004's `ON CONFLICT (name) DO UPDATE` matched it by name and
--- preserved its existing id rather than creating a new one. Replicating that
--- exact row here (sorting immediately before 20260329000004) makes fresh
--- installs behave identically: this migration creates the 'Construction'
--- domain first, with the literal id everything downstream expects, and
+-- gen_random_uuid() id) via `ON CONFLICT (name) DO UPDATE`. On a genuinely
+-- fresh `prisma migrate deploy` run (all migrations applied in order from
+-- scratch), this migration sorts before that one, so it wins the 'Construction'
+-- name first with the literal id everything downstream expects, and
 -- 20260329000004's upsert-by-name then just updates its emoji in place.
 --
--- Idempotent (ON CONFLICT DO NOTHING) — safe to run on a database that
--- already has a 'Construction' domain under any id.
+-- But if a database already progressed past 20260329000004 before this fix
+-- existed (e.g. an in-progress install that was fixing these bugs one at a
+-- time rather than resetting), a 'Construction' domain already exists under a
+-- random UUID, and simply inserting a second row would violate the name
+-- unique constraint while leaving the wrong id in place. Handle that case too
+-- by renaming the existing row's id in-place — safe because
+-- expense_categories_domainId_fkey is declared ON UPDATE CASCADE (see
+-- 20251021122836_add_expense_category_system), so any categories already
+-- seeded under the old id (e.g. by 20260330000001_upsert_construction_domain)
+-- automatically follow the rename.
+--
+-- Idempotent — safe to run on a database in any of these three states.
 
-INSERT INTO expense_domains (id, name, emoji, description, "isActive", "createdAt")
-SELECT 'domain-construction', 'Construction', '🏗️', 'Construction and building trade expenses', true, NOW()
-WHERE NOT EXISTS (SELECT 1 FROM expense_domains WHERE name = 'Construction');
+DO $$
+DECLARE
+  existing_id TEXT;
+BEGIN
+  SELECT id INTO existing_id FROM expense_domains WHERE name = 'Construction';
+
+  IF existing_id IS NULL THEN
+    INSERT INTO expense_domains (id, name, emoji, description, "isActive", "createdAt")
+    VALUES ('domain-construction', 'Construction', '🏗️', 'Construction and building trade expenses', true, NOW());
+  ELSIF existing_id <> 'domain-construction' THEN
+    UPDATE expense_domains SET id = 'domain-construction' WHERE id = existing_id;
+  END IF;
+END $$;
