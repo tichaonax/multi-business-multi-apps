@@ -260,6 +260,36 @@ Healthy startup sequence ends with:
 [Server] listening on https://localhost:8080
 ```
 
+### Open the firewall port (for LAN access)
+
+The app binds `0.0.0.0:8080`, so it's reachable from other machines as soon
+as the service is running — **provided Windows Firewall allows it.** This is
+easy to miss because `https://localhost:8080` on the server itself works
+fine either way (loopback traffic never passes through the firewall's
+inbound filtering), which can make it look like everything's working right
+up until someone tries it from another PC on the network.
+
+**Run as Administrator, on the server:**
+```powershell
+New-NetFirewallRule -DisplayName "Multi-Business App" -Direction Inbound -Protocol TCP -LocalPort 8080 -Action Allow
+```
+
+**Verify from another machine on the LAN:**
+```powershell
+Test-NetConnection -ComputerName <this-server-ip> -Port 8080
+```
+`TcpTestSucceeded : True` confirms the port is reachable. If it's `False`,
+also check `Get-NetConnectionProfile` on the server — a network profile of
+`Public` isn't itself the problem (the rule above applies to `Any` profile
+by default), but it's worth confirming the rule's `Profile` actually covers
+whatever profile the active network interface is using:
+```powershell
+Get-NetFirewallRule -DisplayName "Multi-Business App" | Select-Object DisplayName, Enabled, Direction, Action, Profile
+```
+If both of those look correct and it's still unreachable, the block may be
+happening at the router/access point level instead (e.g. Wi-Fi client
+isolation) rather than in Windows — see §12 for further troubleshooting.
+
 ---
 
 ## 7. SSL Certificates (HTTPS)
@@ -597,6 +627,18 @@ Fix:
    if the local IP isn't covered.
 4. Ensure `dist/server.js` was compiled from the latest `server.ts` (run `npm run build:server`)
 5. Restart the service
+
+### `https://localhost:8080` works but `https://<server-ip>:8080` doesn't (from another machine)
+
+This is almost always a Windows Firewall rule missing on the server — see §6
+"Open the firewall port". Loopback traffic bypasses the firewall entirely,
+which is why localhost works regardless.
+
+Diagnose in order:
+1. On the server: `Get-NetFirewallRule -DisplayName "Multi-Business App" | Select-Object Enabled, Action, Profile` — confirm the rule exists, is `Enabled: True`, `Action: Allow`.
+2. From the *other* machine (not the server): `Test-NetConnection -ComputerName <server-ip> -Port 8080`. If `TcpTestSucceeded` is `False`, the block is somewhere in the network path, not the app.
+3. If a VPN/mesh network (e.g. Tailscale) is installed on either machine, check `Test-NetConnection`'s `InterfaceAlias` in its output — a successful connection routed through a VPN interface only proves that VPN path works, not that the real LAN path does. Retest with the VPN disabled if you need to confirm plain LAN connectivity.
+4. If the firewall rule and TCP path both check out but it's still unreachable from some devices and not others, suspect the router/access point — Wi-Fi client isolation (common on guest networks) blocks device-to-device traffic before it ever reaches Windows Firewall.
 
 ### QZ Tray popup appears every print job
 
