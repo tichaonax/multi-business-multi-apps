@@ -42,6 +42,7 @@ interface CartItem {
   quantity: number
   originalPrice?: number
   discount?: number
+  imageUrl?: string | null
   attributes?: {
     size?: string
     color?: string
@@ -1024,6 +1025,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         price: variant.price,
         quantity: quantity || 1,
         attributes: variant.attributes,
+        imageUrl: (product as any).imageUrl || null,
         isReturn: mode === 'return'
       }
       newCart = [...cart, newItem]
@@ -1112,6 +1114,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         price: unitPrice,
         quantity,
         attributes: variant?.attributes || {},
+        imageUrl: product.imageUrl || product.images?.[0]?.imageUrl || product.images?.[0]?.url || null,
         product,
         variant,
         isReturn: mode === 'return'
@@ -1179,6 +1182,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         price,
         quantity: 1,
         attributes: { isInventoryItem: true, inventoryItemId: item.inventoryItemId },
+        imageUrl: item.imageId ? `/api/images/${item.imageId}` : null,
         isReturn: false,
       }]
     }
@@ -2702,6 +2706,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 <div key={item.id} className={`flex items-start gap-2 p-2 rounded-lg border ${
                   item.isReturn ? 'bg-red-50 border-red-200 dark:bg-red-900/20' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
                 }`}>
+                  {item.imageUrl && (
+                    <img src={item.imageUrl} alt="" className="w-9 h-9 rounded object-cover flex-shrink-0" />
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-medium text-sm truncate">
