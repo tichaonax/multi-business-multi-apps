@@ -582,7 +582,7 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
 
         <div className="w-full aspect-video rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center">
           {currentImageUrl ? (
-            <img src={currentImageUrl} alt={itemName} className="w-full h-full object-cover" />
+            <img src={currentImageUrl} alt={itemName} className="w-full h-full object-contain" />
           ) : (
             <span className="text-sm text-secondary">No image</span>
           )}
