@@ -14,13 +14,24 @@ async function canEditProductImages(businessId: string): Promise<boolean> {
 
 /**
  * POST /api/universal/products/[id]/images/from-gallery
- * Body: { imageIds: string[] }
+ * Body: { imageIds: string[], uploadTarget?: { domainId?: string; categoryId?: string; subcategoryId?: string } }
  *
  * Attaches existing `Images` rows (picked from the category gallery, MBM-294
  * §3.3) to this product — by reference, never duplicating the blob. The
  * first id becomes the product's primary image, matching the Quick-Edit
  * dialog's single-thumbnail "replace" semantics; the rest are added as
  * additional (non-primary) product images.
+ *
+ * `uploadTarget` is passed when the picked image came from a domain browse
+ * (a different category than this product's own resolved one, e.g. an image
+ * found under "Women's Clothing" while filing a new "Women's Tops" item) —
+ * in that case a `CategoryReferenceImages` row is also created tagging the
+ * same image to this product's own category, so it's directly discoverable
+ * there next time too, without duplicating the underlying `Images` row.
+ * Skipped (not an error) if a row for that exact (imageId, categoryId) pair
+ * already exists — e.g. the image was picked from this product's own
+ * already-resolved category, matching the guard `display-image`'s PATCH
+ * route already uses for the same reason.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -33,6 +44,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const body = await request.json().catch(() => ({}))
     const requestedIds: string[] = Array.isArray(body.imageIds) ? body.imageIds.filter((v: any) => typeof v === 'string') : []
+    const uploadTarget = body.uploadTarget && typeof body.uploadTarget === 'object' ? body.uploadTarget : null
     if (requestedIds.length === 0) {
       return NextResponse.json({ error: 'No images selected' }, { status: 400 })
     }
@@ -74,6 +86,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           updatedAt: new Date(),
         },
       })
+    }
+
+    if (uploadTarget?.categoryId) {
+      for (const imageId of newIds) {
+        const already = await prisma.categoryReferenceImages.findFirst({
+          where: { imageId, categoryId: uploadTarget.categoryId },
+          select: { id: true },
+        })
+        if (!already) {
+          await prisma.categoryReferenceImages.create({
+            data: {
+              imageId,
+              categoryId: uploadTarget.categoryId,
+              subcategoryId: uploadTarget.subcategoryId ?? null,
+              domainId: uploadTarget.domainId ?? null,
+              businessType: product.businessType || 'restaurant',
+              isUserUploaded: true,
+            },
+          }).catch(() => {})
+        }
+      }
     }
 
     return NextResponse.json({

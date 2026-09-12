@@ -67,6 +67,22 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
   const [galleryUploadTarget, setGalleryUploadTarget] = useState<{ domainId: string | null; categoryId: string | null; subcategoryId: string | null } | null>(null)
   const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(new Set())
 
+  // Domain-browse sub-view — lets the user manually pull in an image that
+  // lives under a different domain than this item's own auto-resolved one
+  // (e.g. a new "Women's Tops" category with nothing of its own yet, but
+  // "Women's Clothing" already has 139 pool images). Deliberately separate
+  // from the auto-resolved fetch above, which never falls back across
+  // domains on its own (see gallery-images/route.ts's own comment on why:
+  // domain buckets are broad/mixed, so silent guessing surfaced wrong
+  // pictures) — this is the same pool, just a manual, deliberate browse.
+  const [browsing, setBrowsing] = useState(false)
+  const [browseDomains, setBrowseDomains] = useState<Array<{ id: string; name: string; emoji: string; count: number }>>([])
+  const [browseDomainId, setBrowseDomainId] = useState('')
+  const [browseImages, setBrowseImages] = useState<GalleryImage[]>([])
+  const [browseTotal, setBrowseTotal] = useState(0)
+  const [browseOffset, setBrowseOffset] = useState(0)
+  const [browseLoading, setBrowseLoading] = useState(false)
+
   useClipboardImagePaste(handleFile, !uploading && view === 'main')
 
   async function handleCopyImage() {
@@ -241,6 +257,9 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
   async function openGallery() {
     setView('gallery')
     setSelectedImageIds(new Set())
+    setBrowsing(false)
+    setBrowseDomainId('')
+    setBrowseImages([])
     setGalleryLoading(true)
     try {
       const res = await fetch(`/api/pos/quick-edit/gallery-images?sourceTable=${sourceTable}&itemId=${itemId}`)
@@ -257,6 +276,35 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
     } finally {
       setGalleryLoading(false)
     }
+  }
+
+  // Reuses the same reference-pool endpoint the standalone Image Gallery's
+  // Pool tab already uses — no new backend route needed for browsing.
+  async function fetchBrowseImages(domainId: string, targetOffset: number, append: boolean) {
+    setBrowseLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (domainId) params.set('domainId', domainId)
+      params.set('limit', '48')
+      params.set('offset', String(targetOffset))
+      const res = await fetch(`/api/business/${businessId}/images/reference-pool?${params}`)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? 'Failed to load images')
+      const images: GalleryImage[] = (data.images ?? []).map((img: { id: string; url: string }) => ({ id: img.id, imageId: img.id, url: img.url }))
+      setBrowseImages(prev => append ? [...prev, ...images] : images)
+      setBrowseTotal(data.total ?? 0)
+      setBrowseOffset(targetOffset + images.length)
+      if (!append) setBrowseDomains(data.domains ?? [])
+    } catch (e: any) {
+      toast.error(e.message ?? 'Failed to load images')
+    } finally {
+      setBrowseLoading(false)
+    }
+  }
+
+  function openDomainBrowse() {
+    setBrowsing(true)
+    if (browseImages.length === 0) fetchBrowseImages(browseDomainId, 0, false)
   }
 
   // Upload straight into the shared category pool from this same picker,
@@ -351,7 +399,7 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
       const res = await fetch(`/api/universal/products/${itemId}/images/from-gallery`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageIds: Array.from(selectedImageIds) }),
+        body: JSON.stringify({ imageIds: Array.from(selectedImageIds), uploadTarget: galleryUploadTarget }),
       })
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}))
@@ -386,13 +434,77 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
             <button onClick={onClose} className="text-secondary hover:text-primary text-lg leading-none">✕</button>
           </div>
 
-          {!galleryLoading && galleryResolvedName && (
+          {!galleryLoading && !browsing && galleryResolvedName && (
             <p className="text-xs text-secondary text-center">
               Category: <span className="font-medium text-primary">{galleryResolvedName}</span>
             </p>
           )}
 
-          {galleryLoading ? (
+          {!galleryLoading && !browsing && (
+            <button type="button" onClick={openDomainBrowse} className="block w-full text-center text-xs text-blue-600 dark:text-blue-400 hover:underline">
+              🌐 Browse other domains
+            </button>
+          )}
+
+          {browsing ? (
+            <>
+              <select
+                value={browseDomainId}
+                onChange={e => { const v = e.target.value; setBrowseDomainId(v); fetchBrowseImages(v, 0, false) }}
+                className="w-full px-2 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-background text-primary"
+              >
+                <option value="">All Domains</option>
+                {browseDomains.map(d => (
+                  <option key={d.id} value={d.id}>{d.emoji} {d.name} ({d.count})</option>
+                ))}
+              </select>
+
+              {browseLoading && browseImages.length === 0 ? (
+                <p className="text-sm text-center text-secondary py-8">Loading…</p>
+              ) : browseImages.length === 0 ? (
+                <p className="text-sm text-center text-secondary py-4">No images in this domain yet.</p>
+              ) : (
+                <div className="grid grid-cols-4 gap-2 max-h-72 overflow-y-auto">
+                  {browseImages.map(img => {
+                    const selected = selectedImageIds.has(img.imageId)
+                    return (
+                      <button
+                        key={img.id}
+                        type="button"
+                        disabled={uploading}
+                        onClick={() => sourceTable === 'BUSINESS_PRODUCT'
+                          ? toggleGallerySelection(img.imageId)
+                          : handleGalleryApplyBarcode(img.imageId, img.url)}
+                        className={`relative aspect-square rounded-lg overflow-hidden border-2 disabled:opacity-50 ${
+                          selected ? 'border-blue-600' : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'
+                        }`}
+                      >
+                        <img src={img.url} alt="" className="w-full h-full object-cover" />
+                        {selected && (
+                          <span className="absolute top-1 right-1 w-5 h-5 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center">✓</span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {browseImages.length < browseTotal && (
+                <button
+                  type="button"
+                  onClick={() => fetchBrowseImages(browseDomainId, browseOffset, true)}
+                  disabled={browseLoading}
+                  className="block w-full text-center py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+                >
+                  {browseLoading ? 'Loading…' : 'Load More'}
+                </button>
+              )}
+
+              <button type="button" onClick={() => setBrowsing(false)} className="block w-full text-center py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">
+                ← Back to {galleryResolvedName || 'category'}
+              </button>
+            </>
+          ) : galleryLoading ? (
             <p className="text-sm text-center text-secondary py-8">Loading…</p>
           ) : galleryImages.length === 0 ? (
             <p className="text-sm text-center text-secondary py-4">
@@ -433,7 +545,7 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
             </>
           )}
 
-          {!galleryLoading && canUploadToPool && galleryUploadTarget?.domainId && (
+          {!galleryLoading && !browsing && canUploadToPool && galleryUploadTarget?.domainId && (
             <label className="block w-full text-center py-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 text-sm cursor-pointer">
               {uploading ? 'Uploading…' : `⬆️ Upload New Image${galleryImages.length > 0 ? 's' : ''} to This Category`}
               <input
@@ -443,7 +555,7 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
             </label>
           )}
 
-          {sourceTable === 'BUSINESS_PRODUCT' && galleryImages.length > 0 && (
+          {sourceTable === 'BUSINESS_PRODUCT' && (browsing || galleryImages.length > 0) && (
             <button
               onClick={handleGalleryAttachProduct}
               disabled={selectedImageIds.size === 0 || uploading}
