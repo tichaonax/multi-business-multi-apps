@@ -885,7 +885,35 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       setSearchLoading(true)
       try {
         const searchUrl = `/api/universal/products?businessId=${currentBusiness.businessId}&businessType=clothing&includeVariants=true&includeImages=true&isAvailable=true&search=${encodeURIComponent(productSearchTerm)}&limit=10`
-        const response = await fetch(searchUrl)
+        // BarcodeInventoryItems (e.g. items added via the generic "Add Inventory
+        // Item" flow rather than New Product) live in a separate table that
+        // /api/universal/products never queries — this reuses the existing
+        // merged inventory-items endpoint (already used by the clothing
+        // Inventory page) and keeps only its barcode-item half, since the
+        // BusinessProducts half is already covered by the call above.
+        const invSearchUrl = `/api/inventory/${currentBusiness.businessId}/items?businessType=clothing&search=${encodeURIComponent(productSearchTerm)}&limit=10`
+        const [response, invResponse] = await Promise.all([fetch(searchUrl), fetch(invSearchUrl)])
+
+        const matchingInventoryItems = invResponse.ok
+          ? ((await invResponse.json().catch(() => ({ items: [] })))?.items ?? [])
+              .filter((it: any) => it.attributes?.isInventoryItem)
+              .map((it: any) => ({
+                id: it.id,
+                name: it.name,
+                isInventoryItem: true,
+                inventoryItemData: {
+                  inventoryItemId: String(it.id).replace(/^inv_/, ''),
+                  name: it.name,
+                  sku: it.sku,
+                  price: it.sellPrice,
+                  sellingPrice: it.sellPrice,
+                  barcodeData: it.barcodeData,
+                  imageId: it.imageId,
+                  currentStock: it.currentStock,
+                },
+                variants: [] as any[],
+              }))
+          : []
 
         if (response.ok) {
           const result = await response.json()
@@ -953,7 +981,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 variants: [] as any[]
               }))
 
-            setSearchResults([...matchingWifiTokens, ...matchingBales, ...products])
+            setSearchResults([...matchingWifiTokens, ...matchingBales, ...matchingInventoryItems, ...products])
           }
         }
       } catch (error) {
@@ -1912,41 +1940,80 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                                 Add Bale
                               </button>
                             </div>
+                          ) : product.isInventoryItem ? (
+                            <div className="flex gap-2">
+                              <div className="w-10 h-10 rounded bg-gray-100 dark:bg-gray-700 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                                {product.inventoryItemData.imageId ? (
+                                  <img src={`/api/images/${product.inventoryItemData.imageId}`} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <span className="text-base">📦</span>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0 flex items-center justify-between">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{product.name}</p>
+                                  <span className="text-xs text-gray-600 dark:text-gray-400">
+                                    {product.inventoryItemData.sku}
+                                    <span className="ml-1 text-gray-400">({product.inventoryItemData.currentStock} left)</span>
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                  <span className="text-sm font-bold text-green-400">{formatCurrency(product.inventoryItemData.price)}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => { addInventoryItemToCart(product.inventoryItemData); setProductSearchTerm('') }}
+                                    disabled={product.inventoryItemData.currentStock <= 0}
+                                    className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-50"
+                                  >
+                                    Add
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
                           ) : (
-                            <>
-                              <div className="flex items-center justify-between mb-1">
-                                <p className="text-sm font-medium text-gray-900 dark:text-white">{product.name}</p>
-                                <button
-                                  type="button"
-                                  onClick={() => toggleQuickAdd(product.id)}
-                                  className="text-base ml-2 hover:scale-110 transition-transform flex-shrink-0"
-                                  title={pinnedProductIds.has(product.id) ? 'Remove from Quick Add' : 'Pin to Quick Add'}
-                                >
-                                  {pinnedProductIds.has(product.id) ? '★' : '☆'}
-                                </button>
+                            <div className="flex gap-2">
+                              <div className="w-10 h-10 rounded bg-gray-100 dark:bg-gray-700 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                                {product.imageUrl ? (
+                                  <img src={product.imageUrl} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <span className="text-base">{product.categoryEmoji || '📦'}</span>
+                                )}
                               </div>
-                              <div className="space-y-1">
-                                {product.variants.map((variant: any) => (
-                                  <div key={variant.id} className="flex items-center justify-between">
-                                    <span className="text-xs text-gray-600 dark:text-gray-400">
-                                      {[variant.attributes?.size, variant.attributes?.color].filter(Boolean).join(' ') || 'Standard'}
-                                      <span className="ml-1 text-gray-400">({variant.stock} left)</span>
-                                    </span>
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="text-sm font-bold text-green-400">{formatCurrency(variant.price)}</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => { addToCart(product.id, variant.id); setProductSearchTerm('') }}
-                                        disabled={variant.stock === 0}
-                                        className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-50"
-                                      >
-                                        Add
-                                      </button>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-1">
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{product.name}</p>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleQuickAdd(product.id)}
+                                    className="text-base ml-2 hover:scale-110 transition-transform flex-shrink-0"
+                                    title={pinnedProductIds.has(product.id) ? 'Remove from Quick Add' : 'Pin to Quick Add'}
+                                  >
+                                    {pinnedProductIds.has(product.id) ? '★' : '☆'}
+                                  </button>
+                                </div>
+                                <div className="space-y-1">
+                                  {product.variants.map((variant: any) => (
+                                    <div key={variant.id} className="flex items-center justify-between">
+                                      <span className="text-xs text-gray-600 dark:text-gray-400">
+                                        {[variant.attributes?.size, variant.attributes?.color].filter(Boolean).join(' ') || 'Standard'}
+                                        <span className="ml-1 text-gray-400">({variant.stock} left)</span>
+                                      </span>
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-sm font-bold text-green-400">{formatCurrency(variant.price)}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => { addToCart(product.id, variant.id); setProductSearchTerm('') }}
+                                          disabled={variant.stock === 0}
+                                          className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-50"
+                                        >
+                                          Add
+                                        </button>
+                                      </div>
                                     </div>
-                                  </div>
-                                ))}
+                                  ))}
+                                </div>
                               </div>
-                            </>
+                            </div>
                           )}
                         </div>
                       ))}
@@ -3200,8 +3267,43 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         sourceTable="BUSINESS_PRODUCT"
         currentImageUrl={quickEditProduct.imageUrl ?? null}
         onClose={() => setQuickEditProduct(null)}
-        onSaved={newImageUrl => {
-          setQuickAddProducts(prev => prev.map(p => p.id === quickEditProduct.id ? { ...p, imageUrl: newImageUrl } : p))
+        onSaved={async newImageUrl => {
+          // Re-fetch this one product fresh from the server rather than trusting
+          // the passed URL alone — quickAddProducts is a one-time snapshot (capped
+          // at 50 products, see loadProducts()), so a plain local patch silently
+          // no-ops for any product that wasn't in that original snapshot (a newly
+          // created item, or one that fell outside the cap), leaving the grid
+          // showing stale "no image" data even though the save itself succeeded.
+          try {
+            const res = await fetch(`/api/universal/products?productId=${quickEditProduct.id}&includeVariants=true&includeImages=true`)
+            const result = await res.json().catch(() => null)
+            const match = result?.success ? result.data?.[0] : null
+            if (match) {
+              const validVariants = (match.variants || []).filter((v: any) => {
+                const price = parseFloat(v.price)
+                return !isNaN(price) && price > 0
+              })
+              const primaryImage = match.images?.find((img: any) => img.isPrimary) || match.images?.[0]
+              const refreshed = {
+                id: match.id,
+                name: match.name,
+                imageUrl: primaryImage?.imageUrl || primaryImage?.url || null,
+                category: match.category?.name || '',
+                categoryEmoji: match.category?.emoji || '📦',
+                productType: match.productType,
+                variants: validVariants.map((v: any) => ({
+                  id: v.id, sku: v.sku, price: parseFloat(v.price), attributes: v.attributes || {}, stock: v.stockQuantity ?? v.stock ?? 999,
+                })),
+              }
+              setQuickAddProducts(prev => prev.some(p => p.id === refreshed.id)
+                ? prev.map(p => p.id === refreshed.id ? refreshed : p)
+                : [refreshed, ...prev])
+            } else {
+              setQuickAddProducts(prev => prev.map(p => p.id === quickEditProduct.id ? { ...p, imageUrl: newImageUrl } : p))
+            }
+          } catch {
+            setQuickAddProducts(prev => prev.map(p => p.id === quickEditProduct.id ? { ...p, imageUrl: newImageUrl } : p))
+          }
           setQuickEditProduct(null)
         }}
       />

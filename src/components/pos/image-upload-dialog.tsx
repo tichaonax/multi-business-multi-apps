@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useToastContext } from '@/components/ui/toast'
 import { useClipboardImagePaste } from '@/hooks/use-clipboard-image-paste'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 
 export type QuickEditSourceTable = 'BUSINESS_PRODUCT' | 'BARCODE_ITEM'
 
@@ -448,16 +449,14 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
 
           {browsing ? (
             <>
-              <select
+              <SearchableSelect
                 value={browseDomainId}
-                onChange={e => { const v = e.target.value; setBrowseDomainId(v); fetchBrowseImages(v, 0, false) }}
-                className="w-full px-2 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-background text-primary"
-              >
-                <option value="">All Domains</option>
-                {browseDomains.map(d => (
-                  <option key={d.id} value={d.id}>{d.emoji} {d.name} ({d.count})</option>
-                ))}
-              </select>
+                onChange={v => { setBrowseDomainId(v); fetchBrowseImages(v, 0, false) }}
+                options={browseDomains.map(d => ({ id: d.id, label: `${d.emoji} ${d.name} (${d.count})` }))}
+                placeholder="All Domains"
+                allLabel="All Domains"
+                searchPlaceholder="Search domains…"
+              />
 
               {browseLoading && browseImages.length === 0 ? (
                 <p className="text-sm text-center text-secondary py-8">Loading…</p>
@@ -475,11 +474,11 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
                         onClick={() => sourceTable === 'BUSINESS_PRODUCT'
                           ? toggleGallerySelection(img.imageId)
                           : handleGalleryApplyBarcode(img.imageId, img.url)}
-                        className={`relative aspect-square rounded-lg overflow-hidden border-2 disabled:opacity-50 ${
+                        className={`relative aspect-square rounded-lg overflow-hidden border-2 bg-gray-100 dark:bg-gray-800 disabled:opacity-50 ${
                           selected ? 'border-blue-600' : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'
                         }`}
                       >
-                        <img src={img.url} alt="" className="w-full h-full object-cover" />
+                        <img src={img.url} alt="" className="w-full h-full object-contain" />
                         {selected && (
                           <span className="absolute top-1 right-1 w-5 h-5 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center">✓</span>
                         )}
@@ -530,11 +529,11 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
                       onClick={() => sourceTable === 'BUSINESS_PRODUCT'
                         ? toggleGallerySelection(img.imageId)
                         : handleGalleryApplyBarcode(img.imageId, img.url)}
-                      className={`relative aspect-square rounded-lg overflow-hidden border-2 disabled:opacity-50 ${
+                      className={`relative aspect-square rounded-lg overflow-hidden border-2 bg-gray-100 dark:bg-gray-800 disabled:opacity-50 ${
                         selected ? 'border-blue-600' : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'
                       }`}
                     >
-                      <img src={img.url} alt="" className="w-full h-full object-cover" />
+                      <img src={img.url} alt="" className="w-full h-full object-contain" />
                       {selected && (
                         <span className="absolute top-1 right-1 w-5 h-5 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center">✓</span>
                       )}
