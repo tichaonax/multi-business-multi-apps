@@ -413,51 +413,32 @@ There's no equivalent of §8.2's auto-rebuilding wrapper. Run the plain systemd 
 - `CORS_ORIGINS` (§4.3) needs to include whatever origin(s) the app is actually accessed from — the shipped default only covers `localhost`, `127.0.0.1`, and the `192.168.0.0/16` / `10.0.0.0/8` private ranges.
 - Tailscale, if you see it mentioned anywhere in ops discussion for this project, is an operational choice for a specific site's remote access — it is not referenced anywhere in the application code or install scripts and is not a deployment requirement.
 
-### 9.1 Firewall ports for the peer-to-peer sync service
+### 9.1 Firewall port for the app
 
-Each server also runs a peer discovery/sync service alongside the main app (§8.2/8.3), which needs its own inbound firewall rules — separate from the app's own port 8080:
-
-| Port | Protocol | Purpose |
-|---|---|---|
-| `SYNC_PORT` (default **8765**) | TCP | Sync data transfer between peer servers |
-| **5353** | UDP | mDNS peer discovery (multicast) |
+The app itself needs an inbound rule for its own port — Windows Firewall
+blocks connections to a machine's LAN-facing IP by default even though
+`https://localhost:8080` on that same machine works fine (loopback traffic
+never passes through the firewall's inbound filtering; a request to the
+machine's actual network IP does).
 
 **Automated (PowerShell, as Administrator):**
 ```powershell
-New-NetFirewallRule -DisplayName "Multi-Business Sync Service" -Direction Inbound -Protocol TCP -LocalPort 8765 -Action Allow
-New-NetFirewallRule -DisplayName "Multi-Business Sync Discovery" -Direction Inbound -Protocol UDP -LocalPort 5353 -Action Allow
+New-NetFirewallRule -DisplayName "Multi-Business App" -Direction Inbound -Protocol TCP -LocalPort 8080 -Action Allow
 ```
 
 **Manual (Windows Defender Firewall with Advanced Security):**
 1. **Inbound Rules** → **New Rule** → **Rule Type: Port**
-2. **Protocol**: TCP, **Specific local ports**: `8765` → Allow → all profiles → name it "Multi-Business Sync Service"
-3. Repeat for **UDP** port `5353`, named "Multi-Business Sync Discovery"
+2. **Protocol**: TCP, **Specific local ports**: `8080` → Allow → all profiles → name it "Multi-Business App"
 
 **Verify from another machine on the LAN:**
 ```powershell
-Test-NetConnection -ComputerName <this-server-ip> -Port 8765
+Test-NetConnection -ComputerName <this-server-ip> -Port 8080
 ```
 
-### 9.2 Initial Load — syncing an existing server's data to a brand-new one
-
-If a new server should start with a copy of an **existing** server's data (rather than a fresh empty database, or a manually restored `pg_dump`), the sync service has a built-in one-way transfer for exactly this — separate from its normal ongoing peer-to-peer sync, and **never triggered automatically** by deployment, a `git pull`, or a service restart.
-
-**Deploy the new (target) server first, as a completely normal fresh install** (§2–§8) — empty database, migrated and seeded, service running. Do not run Initial Load until the target is actually up and reachable.
-
-**Then, from the Admin UI on the SOURCE server** (the one that already has the data):
-1. Open `http://localhost:8080/admin/sync`
-2. Click the **Initial Load** tab
-3. Select the target peer from the list
-4. Click **Start Initial Load** and monitor progress in real time
-
-Advanced/scripted equivalent — `POST` to the source server's own API:
-```bash
-curl -X POST http://localhost:8080/api/admin/sync/initial-load \
-  -H "Content-Type: application/json" \
-  -d '{"action": "initiate", "targetPeer": {"nodeId": "<target-node-id>", "ipAddress": "<target-ip>"}}'
-```
-
-**Common mistake:** triggering this as part of a deployment script (`git pull && npm run service:restart && curl .../initial-load`) — always deploy, verify the target is actually up, *then* trigger the load as a separate manual step from the source.
+If that succeeds but the browser still doesn't load the page, check that the
+certificate actually covers this server's current IP (`scripts/lan-server-ips.json`
+→ regenerate via `npm run cert:generate`, see `ADMIN-INSTALLATION-GUIDE.md` §7)
+and that the IP hasn't changed since the cert was issued (DHCP lease renewal).
 
 ---
 

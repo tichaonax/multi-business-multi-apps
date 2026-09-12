@@ -131,6 +131,44 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
+### What's actually required vs. decorative
+
+`.env.example` has ~30 variables, most inherited from an older template. Only
+these are read by the app anywhere in the codebase — everything above this
+list is the complete required set:
+
+| Variable | Required for |
+|---|---|
+| `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `PORT`, `NODE_ENV`, `ENCRYPTION_KEY` | Core app — won't start correctly without these |
+| `QZ_PRIVATE_KEY`, `QZ_CERTIFICATE` | Only if using QZ Tray receipt printing (§8) |
+| `LOG_LEVEL` | Log verbosity (`src/lib/logger.ts`) |
+| `VERBOSE_BACKUP_LOGGING`, `VERBOSE_RESTORE_LOGGING` | Extra detail during backup/restore, off by default |
+| `SEED_API_KEY`, `SEED_API_BASE_URL` | Dev-only — headless seed scripts calling protected API endpoints |
+| `NODE_OPTIONS` | Not app-read — a real Node.js runtime flag (heap size), takes effect regardless |
+
+**Everything else in `.env.example` — `CORS_ORIGINS`, `RATE_LIMIT_REQUESTS`,
+`RATE_LIMIT_WINDOW`, `ALLOWED_FILE_TYPES`, `MAX_FILE_SIZE`, `ADMIN_EMAIL`,
+`APP_NAME`, `AUDIT_IP_TRACKING`, `AUDIT_USER_AGENT_TRACKING`,
+`DB_SCHEMA_VERSION`, `DEBUG`, `DEFAULT_THEME`, `EMAIL_FROM`, `FORCE_HTTPS`,
+`LOG_CONSOLE`, `LOG_DIRECTORY`, `LOG_MAX_FILE_SIZE`, `LOG_MAX_FILES`,
+`PRISMA_STUDIO_PORT`, `SESSION_MAX_AGE`, `THEME_STORAGE_ENABLED` — is not
+read anywhere in the app.** Setting them to anything (or leaving them out
+entirely) has no effect. In particular:
+- `CORS_ORIGINS` looks like it restricts cross-origin requests, but
+  `next.config.js` hardcodes `Access-Control-Allow-Origin: *` for every
+  response regardless of this variable — every origin is currently allowed.
+  Don't rely on this variable for any actual access control.
+- `RATE_LIMIT_REQUESTS`/`RATE_LIMIT_WINDOW` imply rate limiting exists; there
+  is no rate-limiting code anywhere in the app.
+- `ALLOWED_FILE_TYPES`/`MAX_FILE_SIZE` imply upload validation is
+  configurable; file-type/size checks (where they exist, e.g. document
+  uploads) are hardcoded per API route instead.
+
+They're harmless to leave in `.env.local` at their template defaults — this
+isn't a "clean these up" instruction — just don't spend time tuning them
+expecting a behavior change, and don't treat `CORS_ORIGINS` as a real
+security boundary until it's actually wired into `next.config.js`.
+
 ---
 
 ## 4. Database Setup
