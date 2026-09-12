@@ -50,9 +50,10 @@ Download and install from [postgresql.org](https://www.postgresql.org/download/w
 - Ensure the service name is `postgresql-x64-18` (the app depends on this)
 
 Verify:
-```bash
-"C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -c "SELECT version();"
+```powershell
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -c "SELECT version();"
 ```
+(The leading `&` is PowerShell's call operator — required to execute a quoted path; omitting it produces a confusing `Unexpected token '-U'` parser error instead of running psql at all.)
 
 ### Git
 
@@ -81,6 +82,19 @@ npm install
 
 > **Note:** `npm install` triggers a `postinstall` script. This is expected and safe.
 
+### Known issue: `printer` package's postinstall fails with ERESOLVE
+
+On a fresh install you may see `npm error ... path .../node_modules/printer` followed by an `ERESOLVE unable to resolve dependency tree` mentioning `grunt-node-gyp` and `grunt`. This is a broken dependency inside the third-party `printer` package's own postinstall build step (its `grunt-node-gyp` devDependency demands `grunt@~0.4`, but it also depends on a newer grunt) — not something specific to this server or this project's own `package.json`. It happens under npm 7+'s stricter peer-dependency resolution on any machine.
+
+**Fix (one-time per machine):**
+```powershell
+npm config set legacy-peer-deps true
+npm install
+```
+This writes to your user-level npm config, so it's also picked up by the nested `npm install` that `printer`'s postinstall spawns internally (a `--legacy-peer-deps` flag on just the outer command won't reach that child process, since it runs with its own working directory). The repo's own `.npmrc` sets this for the top-level install already, but can't reach into that nested call on its own — the command above is still needed once per machine.
+
+You can safely ignore any `npm warn cleanup ... EPERM` warnings before this error — those are just leftover files from a prior partial install that npm couldn't delete (often an antivirus or search-indexer file lock), and npm proceeds past them regardless.
+
 ---
 
 ## 3. Environment Configuration
@@ -103,15 +117,6 @@ APP_NAME="Multi-Business Management Platform"
 ADMIN_EMAIL="your-admin@email.com"
 ENCRYPTION_KEY="generate-a-64-char-hex-string"
 
-# ── Sync Service ──────────────────────────────────────────────────────────────
-SYNC_NODE_ID="generate-a-16-char-hex-string"
-SYNC_NODE_NAME="sync-node-MACHINENAME"
-SYNC_SERVICE_PORT=8765
-SYNC_HTTP_PORT=8080
-SYNC_AUTO_START=true
-SYNC_LOG_LEVEL=warn
-SYNC_REGISTRATION_KEY="generate-a-64-char-hex-string"
-
 # ── QZ Tray Printing (add after running npm run qz:generate-cert) ─────────────
 # QZ_PRIVATE_KEY=<base64 value from generate-qz-cert output>
 # QZ_CERTIFICATE=<base64 value from generate-qz-cert output>
@@ -124,12 +129,6 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 # ENCRYPTION_KEY (32 random bytes, hex)
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-
-# SYNC_NODE_ID (8 random bytes, hex)
-node -e "console.log(require('crypto').randomBytes(8).toString('hex'))"
-
-# SYNC_REGISTRATION_KEY (32 random bytes, hex)
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
 ---
@@ -138,8 +137,8 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ### Create the database
 
-```bash
-"C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -c "CREATE DATABASE multi_business_db;"
+```powershell
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -c "CREATE DATABASE multi_business_db;"
 ```
 
 ### Run migrations
@@ -589,6 +588,7 @@ npm install
 #    See Section 3 for all required variables
 
 # 4. Create database
+# (if running this in PowerShell rather than Git Bash, prefix the line below with `& `)
 "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -c "CREATE DATABASE multi_business_db;"
 
 # 5. Run migrations
@@ -606,7 +606,11 @@ npm run cert:install -- "<path to the copied files>"
 npm run service:install
 npm run service:start
 
-# 9. Set up QZ Tray signing (eliminates print popups)
+# 9. Set up QZ Tray signing (eliminates print popups) — only needed if this
+#    server has receipt printers connected via QZ Tray (see Section 8).
+#    QZ Tray itself installs on each PRINTING WORKSTATION, not this server —
+#    download it from https://qz.io/download/ (version 2.2.6) separately.
+#    This step below just generates the signing cert on the server:
 npm run qz:generate-cert
 # → add QZ_PRIVATE_KEY and QZ_CERTIFICATE to .env.local
 # → add certs/qz-certificate.pem to QZ Tray trusted list
