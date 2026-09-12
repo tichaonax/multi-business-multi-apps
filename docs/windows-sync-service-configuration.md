@@ -93,7 +93,7 @@ sc start MultiBusinessSyncService
 
 Or use the restart script:
 ```bash
-node scripts/sync-service-restart.js
+node scripts/service-restart.js
 ```
 
 ### View Service Logs

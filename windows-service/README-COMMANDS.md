@@ -46,8 +46,8 @@ Notes & mappings
   - `service:install` -> `windows-service/force-install-hybrid.js` (installer wrapper)
   - `service:diagnose` -> `windows-service/diagnose-hybrid.js` (comprehensive diagnostics)
   - `service:start` -> `scripts/service-start-with-flags.js` (`sc start "MultiBusinessSyncService"`, optionally rebuilding first)
-  - `service:stop` -> runs `sync-service:stop` (which uses `sc stop "MultiBusinessSyncService"`)
-  - `service:restart` -> runs `sync-service:restart` (stop + wait + start)
+  - `service:stop` -> `scripts/service-stop.js` (`sc stop "MultiBusinessSyncService"`)
+  - `service:restart` -> `scripts/service-restart.js` (stop + wait + start)
   - `service:smoke-check` -> `scripts/smoke-check-service.js` (CI/validation)
 
 - For CI usage that cannot access the database, use the SKIP_DB_PRECHECK environment variable:
@@ -58,10 +58,8 @@ CI note
 
 The repository workflow `.github/workflows/smoke-check.yml` now runs `npm run service:smoke-check` and will fail the check if the smoke-check script exits non-zero. Provide `DATABASE_URL` as a secret if you want CI to validate DB connectivity as well.
 
-- If you prefer the raw `sync-service:*` scripts (direct control) for status/stop/restart:
-  - `npm run sync-service:status` (recommended for low-level status output)
-  - `npm run sync-service:stop`
-  - `npm run sync-service:restart`
+- For low-level status output directly (no wrapper), run the backing script:
+  - `node scripts/service-status.js`
 
 Troubleshooting
 

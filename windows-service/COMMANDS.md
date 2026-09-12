@@ -20,6 +20,6 @@ This project follows the familiar electricity-tokens command pattern for service
 
 - status   -> query Windows service status
   - Command: node scripts/service-cmd.js status
-  - Equivalent: npm run sync-service:status
+  - Equivalent: npm run service:status
 
 The shim `scripts/service-cmd.js` exists to provide identical verbs to users coming from the electricity-tokens project.

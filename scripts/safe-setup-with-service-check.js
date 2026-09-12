@@ -63,7 +63,7 @@ function checkServiceStatus(serviceName) {
  */
 function checkAllServices() {
   const services = [
-    { name: 'Multi-Business Sync Service', stopCommand: 'npm run sync-service:stop' },
+    { name: 'Multi-Business Sync Service', stopCommand: 'npm run service:stop' },
     { name: 'electricity-tokens.exe', stopCommand: 'sc.exe stop "electricity-tokens.exe"' }
   ]
 
@@ -135,7 +135,7 @@ async function main() {
       if (!stopped) {
         error('\n❌ Could not stop the service.')
         log('\nPlease stop it manually and run this script again:')
-        log('  npm run sync-service:stop')
+        log('  npm run service:stop')
         log('  node scripts/safe-setup-with-service-check.js\n')
         process.exit(1)
       }
@@ -172,7 +172,7 @@ async function main() {
     log('\n📋 To restart the service:')
     log('   npm run service:start\n')
     log('📊 To check service status:')
-    log('   npm run sync-service:status\n')
+    log('   npm run service:status\n')
   }
 }
 

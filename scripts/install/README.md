@@ -338,7 +338,7 @@ cp -r backup-config/ config/
 cp backup-env .env
 
 # Restart service
-npm run sync-service:restart
+npm run service:restart
 ```
 
 ## Monitoring and Maintenance

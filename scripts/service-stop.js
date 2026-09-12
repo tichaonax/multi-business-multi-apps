@@ -106,7 +106,7 @@ async function run() {
       console.log('  2. In the elevated shell, run:');
       console.log(`     ${SC} stop ${SERVICE_NAME}`);
       console.log('  or from the project folder:');
-      console.log('     npm run sync-service:stop');
+      console.log('     npm run service:stop');
     } else {
       console.error('Unexpected error stopping service. Full error:');
       console.error(err);

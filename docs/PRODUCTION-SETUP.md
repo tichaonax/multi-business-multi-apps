@@ -20,13 +20,13 @@ Before running setup, stop all services that use Prisma:
 
 ```powershell
 # Stop Multi-Business Sync Service
-npm run sync-service:stop
+npm run service:stop
 
 # Stop electricity-tokens service
 sc.exe stop "electricity-tokens.exe"
 
 # Verify services are stopped
-npm run sync-service:status
+npm run service:status
 sc.exe query "electricity-tokens.exe"
 ```
 
@@ -64,7 +64,7 @@ npm run service:start
 sc.exe start "electricity-tokens.exe"
 
 # Verify services are running
-npm run sync-service:status
+npm run service:status
 sc.exe query "electricity-tokens.exe"
 ```
 
@@ -74,7 +74,7 @@ If you prefer manual control:
 
 ```powershell
 # 1. Stop services
-npm run sync-service:stop
+npm run service:stop
 sc.exe stop "electricity-tokens.exe"
 
 # 2. Run regular setup
@@ -93,7 +93,7 @@ If you encounter `EPERM` errors even after stopping services:
 
 ```powershell
 # 1. Verify NO services are running
-npm run sync-service:status
+npm run service:status
 sc.exe query "electricity-tokens.exe"
 
 # 2. Check for any Node processes holding files
@@ -187,14 +187,14 @@ const PRISMA_SERVICES = [
 ### Check Service Status
 
 ```powershell
-npm run sync-service:status
+npm run service:status
 sc.exe query "electricity-tokens.exe"
 ```
 
 ### Stop All Services
 
 ```powershell
-npm run sync-service:stop
+npm run service:stop
 sc.exe stop "electricity-tokens.exe"
 ```
 

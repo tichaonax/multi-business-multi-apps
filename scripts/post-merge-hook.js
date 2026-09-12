@@ -372,7 +372,7 @@ async function stopWindowsService() {
     const { spawn } = require('child_process')
     
     return new Promise((resolve, reject) => {
-      const stopProcess = spawn('node', ['scripts/sync-service-stop.js'], {
+      const stopProcess = spawn('node', ['scripts/service-stop.js'], {
         cwd: ROOT_DIR,
         stdio: 'inherit'
       })

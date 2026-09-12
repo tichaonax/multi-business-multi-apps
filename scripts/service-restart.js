@@ -75,7 +75,7 @@ async function smartRestart() {
   if (initialStatus === 'RUNNING' || initialStatus === 'START_PENDING') {
     console.log('🛑 Stopping service gracefully...');
     try {
-      await runScript('sync-service-stop.js');
+      await runScript('service-stop.js');
       console.log('✅ Service stopped successfully\n');
     } catch (error) {
       console.error('❌ Failed to stop service:', error.message);
@@ -103,7 +103,7 @@ async function smartRestart() {
   // Start the service
   console.log('\n🚀 Starting service...');
   try {
-    await runScript('sync-service-start.js');
+    await runScript('service-start-with-flags.js');
     console.log('✅ Service started successfully');
   } catch (error) {
     console.error('❌ Failed to start service:', error.message);

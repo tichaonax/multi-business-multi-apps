@@ -76,7 +76,7 @@ async function main() {
     log('  1. If EPERM errors persist, run nuclear cleanup:')
     log('     node scripts/prisma-nuclear-cleanup.js --force')
     log('  2. Ensure all services are stopped:')
-    log('     npm run sync-service:stop')
+    log('     npm run service:stop')
     log('     sc.exe stop "electricity-tokens.exe"')
     log('  3. Try running setup again:')
     log('     node scripts/clean-and-setup.js\n')

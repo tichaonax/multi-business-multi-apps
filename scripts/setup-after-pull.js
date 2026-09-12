@@ -399,8 +399,8 @@ async function stopWindowsServiceAndCleanup() {
   try {
     log('Stopping Windows service using proper stop script...', 'INFO')
     
-    // Use the proper sync-service-stop.js script which has correct wait logic
-    const stopProcess = spawn('node', ['scripts/sync-service-stop.js'], {
+    // Use the proper service-stop.js script which has correct wait logic
+    const stopProcess = spawn('node', ['scripts/service-stop.js'], {
       cwd: ROOT_DIR,
       stdio: 'inherit'
     })

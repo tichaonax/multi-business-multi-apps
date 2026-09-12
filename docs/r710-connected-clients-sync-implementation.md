@@ -247,7 +247,7 @@ sc stop MultiBusinessSyncService
 sc start MultiBusinessSyncService
 
 # Or use restart script
-node scripts/sync-service-restart.js
+node scripts/service-restart.js
 ```
 
 ## Usage

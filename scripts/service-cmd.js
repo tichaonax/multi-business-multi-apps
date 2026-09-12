@@ -68,7 +68,7 @@ switch (cmd) {
     try {
       runScCommand((name) => `sc.exe query "${name}"`)
     } catch (err) {
-      console.error('Failed to query service status via sc.exe. Try: npm run sync-service:status')
+      console.error('Failed to query service status via sc.exe. Try: npm run service:status')
       process.exit(1)
     }
     break

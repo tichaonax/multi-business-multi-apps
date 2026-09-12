@@ -47,7 +47,7 @@ npm run setup
 Instead:
 ```powershell
 # 1. Stop all services first
-npm run sync-service:stop
+npm run service:stop
 sc.exe stop "electricity-tokens.exe"
 
 # 2. Run safe setup
@@ -141,11 +141,11 @@ npm run setup
 
 ```powershell
 # 1. Stop services
-npm run sync-service:stop
+npm run service:stop
 sc.exe stop "electricity-tokens.exe"
 
 # 2. Verify services stopped
-npm run sync-service:status
+npm run service:status
 sc.exe query "electricity-tokens.exe"
 
 # 3. Run production-safe setup
@@ -156,7 +156,7 @@ npm run service:start
 sc.exe start "electricity-tokens.exe"
 
 # 5. Verify services running
-npm run sync-service:status
+npm run service:status
 sc.exe query "electricity-tokens.exe"
 ```
 
@@ -194,7 +194,7 @@ Always use `npm run setup:production-safe` on production servers - it checks for
 | Fresh setup (production, with services) | `npm run setup:production-safe` |
 | Manual nuclear cleanup | `node scripts/prisma-nuclear-cleanup.js` |
 | Check locked files | `node scripts/cleanup-prisma-locks.js --manual` |
-| Stop sync service | `npm run sync-service:stop` |
+| Stop sync service | `npm run service:stop` |
 | Stop electricity service | `sc.exe stop "electricity-tokens.exe"` |
 | Start service | `npm run service:start` |
 | Start electricity service | `sc.exe start "electricity-tokens.exe"` |
