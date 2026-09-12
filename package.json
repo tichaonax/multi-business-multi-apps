@@ -30,6 +30,7 @@
     "db:migrate": "npx prisma migrate dev",
     "db:studio": "npx prisma studio",
     "db:deploy": "node -e \"require('dotenv').config({path:'.env.local'});const {execSync}=require('child_process');execSync('npx prisma migrate deploy',{stdio:'inherit',env:process.env})\"",
+    "db:rollback": "node scripts/db-resolve-migration.js",
     "db:reset": "npx prisma migrate reset",
     "db:clear-locks": "node scripts/clear-migration-locks.js",
     "db:backfill-shortname": "ts-node --transpile-only scripts/backfill-business-shortname.ts",
