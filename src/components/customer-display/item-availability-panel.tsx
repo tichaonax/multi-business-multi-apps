@@ -21,6 +21,12 @@ interface AvailabilityItem {
   // marketing purposes, not the item's own real product photo (which this
   // item doesn't have) — see the route's own comment for why this matters.
   isAdvertisingImage?: boolean
+  // This panel mixes items from BOTH of the app's independent product
+  // catalogs under the same itemType: 'product' label (barcode/scan-based
+  // items AND "quick-add" BusinessProducts-catalog items) — the inventory
+  // edit deep-link needs the `inv_` id prefix for one and not the other, or
+  // it 404s ("cannot find the product") for whichever one gets it wrong.
+  catalogSource?: 'BARCODE_ITEM' | 'BUSINESS_PRODUCT'
 }
 
 interface Props {
@@ -162,7 +168,7 @@ export function ItemAvailabilityPanel({ businessType }: Props) {
                     <div className="flex-1 min-w-0">
                       {item.itemType === 'product' && canEditInventory ? (
                         <Link
-                          href={`/${businessType}/inventory?productId=${encodeURIComponent(`inv_${item.id}`)}&returnTo=${encodeURIComponent(`/${businessType}/product-availability`)}`}
+                          href={`/${businessType}/inventory?productId=${encodeURIComponent(item.catalogSource === 'BUSINESS_PRODUCT' ? item.id : `inv_${item.id}`)}&returnTo=${encodeURIComponent(`/${businessType}/product-availability`)}`}
                           className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline truncate block"
                           title="Edit this item"
                         >

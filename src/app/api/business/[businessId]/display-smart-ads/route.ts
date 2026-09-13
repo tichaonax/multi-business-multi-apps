@@ -369,7 +369,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
       const invAdImageId = getAdImage('product', p.id)
       const invPromo = applyPromotion(price, activePromotions.get(`product:${p.id}`))
       candidates.push({
-        id: p.id, itemType: 'product', name: p.name, price: invPromo.price,
+        id: p.id, itemType: 'product', catalogSource: 'BARCODE_ITEM', name: p.name, price: invPromo.price,
         originalPrice: invPromo.originalPrice, isPromoActive: invPromo.isPromoActive, promoEndsAt: invPromo.promoEndsAt,
         emoji: (p as any).business_category?.emoji ?? null,
         category: (p as any).business_category?.name ?? null,
@@ -402,7 +402,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
       const svcAdImageId = getAdImage('product', svc.id)
       const svcPromo = applyPromotion(Number(svc.basePrice), activePromotions.get(`product:${svc.id}`))
       candidates.push({
-        id: svc.id, itemType: 'product', name: svc.name, price: svcPromo.price,
+        id: svc.id, itemType: 'product', catalogSource: 'BUSINESS_PRODUCT', name: svc.name, price: svcPromo.price,
         originalPrice: svcPromo.originalPrice, isPromoActive: svcPromo.isPromoActive, promoEndsAt: svcPromo.promoEndsAt,
         emoji: (svc as any).business_categories?.emoji ?? null,
         category: (svc as any).business_categories?.name ?? null,
@@ -544,7 +544,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
       const clothingInvAdImageId = getAdImage('product', p.id)
       const clothingInvPromo = applyPromotion(price, activePromotions.get(`product:${p.id}`))
       candidates.push({
-        id: p.id, itemType: 'product', name: p.name, price: clothingInvPromo.price,
+        id: p.id, itemType: 'product', catalogSource: 'BARCODE_ITEM', name: p.name, price: clothingInvPromo.price,
         originalPrice: clothingInvPromo.originalPrice, isPromoActive: clothingInvPromo.isPromoActive, promoEndsAt: clothingInvPromo.promoEndsAt,
         emoji: (p as any).business_category?.emoji ?? '👕',
         category: (p as any).business_category?.name ?? null,
@@ -588,7 +588,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
       const bizAdImageId = getAdImage('product', p.id)
       const bizPromo = applyPromotion(price, activePromotions.get(`product:${p.id}`))
       candidates.push({
-        id: p.id, itemType: 'product', name: p.name, price: bizPromo.price,
+        id: p.id, itemType: 'product', catalogSource: 'BUSINESS_PRODUCT', name: p.name, price: bizPromo.price,
         originalPrice: bizPromo.originalPrice, isPromoActive: bizPromo.isPromoActive, promoEndsAt: bizPromo.promoEndsAt,
         emoji: (p as any).business_categories?.emoji ?? '👕',
         category: (p as any).business_categories?.name ?? null,
