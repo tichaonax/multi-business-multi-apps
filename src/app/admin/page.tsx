@@ -24,7 +24,18 @@ import {
   Package,
   Wifi,
   RefreshCw,
-  Clock
+  Clock,
+  Wallet,
+  Undo2,
+  Radio,
+  Building2,
+  ClipboardList,
+  Landmark,
+  Plug,
+  Network,
+  Receipt,
+  HandCoins,
+  Building
 } from 'lucide-react'
 import { useEffect } from 'react'
 import { useSession } from 'next-auth/react'
@@ -371,6 +382,155 @@ export default function AdminPage() {
             </div>
           )}
 
+          {/* The cards below mirror admin-only links that already exist in the
+              sidebar's "Administration" section (and a couple of system-admin-
+              only hardware links elsewhere) but were missing from this
+              dashboard, so this page wasn't actually a complete index of
+              admin functionality. */}
+
+          {isSysAdmin && (
+            <div className="card p-6">
+              <div className="flex items-center mb-3">
+                <Plug className="h-6 w-6 mr-2 text-cyan-600" />
+                <h3 className="text-lg font-semibold text-primary">Workstation Agents</h3>
+              </div>
+              <p className="text-secondary mb-4 text-sm">Pair and configure local workstation agents (scale + printer relay) for POS terminals.</p>
+              <Link href="/admin/workstation-agents" className="btn-primary inline-block text-sm">
+                Manage Workstation Agents
+              </Link>
+            </div>
+          )}
+
+          {isSysAdmin && (
+            <div className="card p-6">
+              <div className="flex items-center mb-3">
+                <Network className="h-6 w-6 mr-2 text-cyan-600" />
+                <h3 className="text-lg font-semibold text-primary">Printer Connection Mode</h3>
+              </div>
+              <p className="text-secondary mb-4 text-sm">Configure network vs. local printer connection routing.</p>
+              <Link href="/admin/network-printers" className="btn-primary inline-block text-sm">
+                Manage Connection Mode
+              </Link>
+            </div>
+          )}
+
+          {isSysAdmin && (
+            <div className="card p-6">
+              <div className="flex items-center mb-3">
+                <Radio className="h-6 w-6 mr-2 text-purple-500" />
+                <h3 className="text-lg font-semibold text-primary">Connected Clients</h3>
+              </div>
+              <p className="text-secondary mb-4 text-sm">Monitor WiFi guest devices connected across ESP32 and R710 hotspots.</p>
+              <Link href="/admin/connected-clients" className="btn-primary inline-block text-sm">
+                View Connected Clients
+              </Link>
+            </div>
+          )}
+
+          {isSysAdmin && (
+            <div className="card p-6">
+              <div className="flex items-center mb-3">
+                <Receipt className="h-6 w-6 mr-2 text-blue-500" />
+                <h3 className="text-lg font-semibold text-primary">Invoices &amp; Quotes</h3>
+              </div>
+              <p className="text-secondary mb-4 text-sm">Manage company branding, numbering, and generated invoices/quotations.</p>
+              <Link href="/admin/invoices" className="btn-primary inline-block text-sm">
+                Manage Invoices
+              </Link>
+            </div>
+          )}
+
+          {isSysAdmin && (
+            <div className="card p-6">
+              <div className="flex items-center mb-3">
+                <Wallet className="h-6 w-6 mr-2 text-green-600" />
+                <h3 className="text-lg font-semibold text-primary">Petty Cash Permissions</h3>
+              </div>
+              <p className="text-secondary mb-4 text-sm">Control which roles can request, approve, and reverse petty cash transactions.</p>
+              <Link href="/admin/petty-cash-permissions" className="btn-primary inline-block text-sm">
+                Manage Permissions
+              </Link>
+            </div>
+          )}
+
+          {isSysAdmin && (
+            <div className="card p-6">
+              <div className="flex items-center mb-3">
+                <Undo2 className="h-6 w-6 mr-2 text-orange-500" />
+                <h3 className="text-lg font-semibold text-primary">Reverse Payments</h3>
+              </div>
+              <p className="text-secondary mb-4 text-sm">Reverse payments back to petty cash when a payment was made in error.</p>
+              <Link href="/admin/reverse-payments" className="btn-primary inline-block text-sm">
+                Reverse a Payment
+              </Link>
+            </div>
+          )}
+
+          {isSysAdmin && (
+            <div className="card p-6">
+              <div className="flex items-center mb-3">
+                <Landmark className="h-6 w-6 mr-2 text-emerald-600" />
+                <h3 className="text-lg font-semibold text-primary">Global Finance</h3>
+              </div>
+              <p className="text-secondary mb-4 text-sm">System-wide personal/global finance records not tied to a single business.</p>
+              <Link href="/admin/personal-finance" className="btn-primary inline-block text-sm">
+                Manage Global Finance
+              </Link>
+            </div>
+          )}
+
+          {isSysAdmin && (
+            <div className="card p-6">
+              <div className="flex items-center mb-3">
+                <Building2 className="h-6 w-6 mr-2 text-slate-600" />
+                <h3 className="text-lg font-semibold text-primary">Global Contractors</h3>
+              </div>
+              <p className="text-secondary mb-4 text-sm">Manage the shared contractor directory available across all businesses.</p>
+              <Link href="/admin/contractors" className="btn-primary inline-block text-sm">
+                Manage Contractors
+              </Link>
+            </div>
+          )}
+
+          {isSysAdmin && (
+            <div className="card p-6">
+              <div className="flex items-center mb-3">
+                <ClipboardList className="h-6 w-6 mr-2 text-indigo-500" />
+                <h3 className="text-lg font-semibold text-primary">Policy Templates</h3>
+              </div>
+              <p className="text-secondary mb-4 text-sm">Create and manage reusable company policy templates for assignment to employees.</p>
+              <Link href="/admin/policy-templates" className="btn-primary inline-block text-sm">
+                Manage Policy Templates
+              </Link>
+            </div>
+          )}
+
+          {isSysAdmin && (
+            <div className="card p-6">
+              <div className="flex items-center mb-3">
+                <HandCoins className="h-6 w-6 mr-2 text-yellow-600" />
+                <h3 className="text-lg font-semibold text-primary">Loan Repayments</h3>
+              </div>
+              <p className="text-secondary mb-4 text-sm">Review and process business loan repayments awaiting lock/approval.</p>
+              <Link href="/admin/loans" className="btn-primary inline-block text-sm">
+                Manage Loan Repayments
+              </Link>
+            </div>
+          )}
+
+          {isSysAdmin && (
+            <div className="card p-6">
+              <div className="flex items-center mb-3">
+                <Building className="h-6 w-6 mr-2 text-slate-600" />
+                <h3 className="text-lg font-semibold text-primary">Umbrella Business</h3>
+              </div>
+              <p className="text-secondary mb-4 text-sm">Configure the umbrella business used to aggregate data across sub-businesses.</p>
+              <Link href="/admin/umbrella-business" className="btn-primary inline-block text-sm">
+                Manage Umbrella Business
+              </Link>
+            </div>
+          )}
+
           {isSysAdmin && (
             <div className="card p-6">
               <div className="flex items-center justify-between mb-4">
@@ -572,15 +732,18 @@ export default function AdminPage() {
             <DataResetComponent />
           </div>
 
-          {/* Developer Seeds Card - dedicated area for seed/unseed controls */}
+          {/* Demo Data Seeding - business-type-specific demo seed/unseed controls.
+              Renamed from "Developer Seeds" (both this and the card below shared
+              that title, which made two genuinely different feature sets look
+              like accidental duplicates - see the other card's comment). */}
           <div className="card p-6 col-span-1 md:col-span-2 lg:col-span-1">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center">
                 <TestTube className="h-6 w-6 mr-2 text-green-600" />
-                <h3 className="text-lg font-semibold text-primary">Developer Seeds</h3>
+                <h3 className="text-lg font-semibold text-primary">Demo Data Seeding</h3>
               </div>
             </div>
-            <p className="text-secondary mb-4">Quick seed/unseed operations for demo data (admin only)</p>
+            <p className="text-secondary mb-4">Quick seed/unseed operations for per-business-type demo data (admin only)</p>
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => {
@@ -712,12 +875,17 @@ export default function AdminPage() {
             )}
           </div>
 
-          {/* Developer Seeds */}
+          {/* System Seed & Admin Utilities - generic test data, system-wide
+              reference data (ID formats/job titles/etc, not tied to one
+              business type), and default admin account recreation. Renamed
+              from "Developer Seeds" - identical title to the demo-seeding
+              card above made these look like duplicates of each other, but
+              they cover entirely different, non-overlapping operations. */}
           <div className="card p-6 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center">
                 <TestTube className="h-6 w-6 mr-2 text-blue-500" />
-                <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-400">Developer Seeds</h3>
+                <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-400">System Seed &amp; Admin Utilities</h3>
               </div>
             </div>
             <div className="space-y-3">

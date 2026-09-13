@@ -162,10 +162,10 @@ function ConnectedClientsContent() {
   useEffect(() => {
     const fetchBusinesses = async () => {
       try {
-        const response = await fetch('/api/business')
+        const response = await fetch('/api/businesses')
         const data = await response.json()
-        if (data.success) {
-          setBusinesses(data.data)
+        if (response.ok && Array.isArray(data.businesses)) {
+          setBusinesses(data.businesses)
         }
       } catch (error) {
         console.error('Error fetching businesses:', error)

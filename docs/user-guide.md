@@ -11367,7 +11367,8 @@ Navigate to **Admin → Data Management** to access all backup and restore funct
 2. Select a **Backup Type** (see [Backup Types](#backup-types) below).
 3. Set any options (include business data, include audit logs, include/exclude demo businesses).
 4. Click **Create Backup**.
-5. The file downloads automatically as `MultiBusinessSyncService-backup_<type>_<timestamp>.json.gz`.
+5. A **live progress log** appears showing each table as it's written, the same style as a restore's progress display (see [Restore Progress & Warnings](#restore-progress--warnings)).
+6. Once every table finishes, the file downloads automatically as `MultiBusinessSyncService-backup_<type>_<timestamp>.json.gz`.
 
 Store the file in a safe location — cloud storage, an external drive, or a second server.
 
