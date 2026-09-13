@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Readable } from 'stream';
 import { createGunzip } from 'zlib';
 import { decompressBackup, isGzipped } from '@/lib/backup-compression';
-import { parseJSONStream } from '@/lib/backup-stream-parse';
+import { parseBackupMetadataOnly } from '@/lib/backup-stream-parse';
 import { getServerUser } from '@/lib/get-server-user'
 
 export const runtime = 'nodejs';
@@ -28,16 +28,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    let backupData: any;
+    let metadata: any;
 
     if (request.headers.get('x-restore-stream') === 'true') {
       const nodeStream = Readable.fromWeb(request.body as any);
       const isCompressed = request.headers.get('x-restore-compressed') === 'true';
       const source = isCompressed ? nodeStream.pipe(createGunzip()) : nodeStream;
-      backupData = await parseJSONStream(source);
+      // Fast path: reads only the metadata block (typically a few KB),
+      // never the potentially hundreds-of-MB businessData/deviceData payload
+      // that follows it — see parseBackupMetadataOnly's own doc comment.
+      metadata = await parseBackupMetadataOnly(source);
     } else {
       const body = await request.json();
-      backupData = body.backupData;
+      let backupData = body.backupData;
 
       if (body.compressedData) {
         const compressedBuffer = Buffer.from(body.compressedData, 'base64');
@@ -46,13 +49,14 @@ export async function POST(request: NextRequest) {
         }
         backupData = await decompressBackup(compressedBuffer);
       }
+      metadata = backupData?.metadata;
     }
 
-    if (!backupData?.metadata) {
+    if (!metadata) {
       return NextResponse.json({ error: 'No backup metadata found' }, { status: 400 });
     }
 
-    return NextResponse.json({ metadata: backupData.metadata });
+    return NextResponse.json({ metadata });
   } catch (error: any) {
     return NextResponse.json(
       { error: 'Failed to read backup metadata', details: error.message },
