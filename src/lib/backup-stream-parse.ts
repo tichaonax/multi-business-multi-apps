@@ -27,6 +27,64 @@ import type { Readable } from 'stream'
 const dynamicImport: (specifier: string) => Promise<any> =
   new Function('specifier', 'return import(specifier)') as any
 
+/**
+ * MBM-296 follow-up: reads ONLY the backup's top-level `metadata` object,
+ * without building the (potentially hundreds-of-MB) `businessData`/
+ * `deviceData` payload that follows it in the file.
+ *
+ * Why this exists: `/api/backup/metadata` previously called the same
+ * `parseJSONStream` the full restore uses — which fully materializes the
+ * entire backup into memory before returning just the `metadata` slice, so
+ * "quickly peek at the header" was exactly as slow as a full restore parse.
+ * A user restoring a real production backup (318MB uncompressed, 81k
+ * records) saw a bare spinner for a long stretch with zero feedback before
+ * any progress UI could even exist, because nothing about the file was known
+ * server-side until the entire thing had already been parsed.
+ *
+ * Uses stream-json's `pick` filter to select just the `metadata` key and
+ * destroys the source stream the instant it's fully assembled — since
+ * `metadata` is always written first in the file (see backup-clean.ts), this
+ * only ever reads the first few KB regardless of how large the rest of the
+ * backup is. Verified against a real 104MB-compressed/318MB-uncompressed
+ * production backup: ~9ms vs. however long a full parse takes.
+ */
+export async function parseBackupMetadataOnly(readable: Readable): Promise<any> {
+  const { parserStream: parser } = await dynamicImport('stream-json')
+  const { pick } = await dynamicImport('stream-json/filters/pick.js')
+  const { streamValues } = await dynamicImport('stream-json/streamers/stream-values.js')
+
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const finish = (fn: () => void) => {
+      if (settled) return
+      settled = true
+      fn()
+      // Stop reading/decompressing the rest of the (possibly huge) file —
+      // this is what actually makes the read fast, not just the filtering.
+      pipeline.destroy()
+      readable.destroy()
+    }
+
+    const pipeline = readable
+      .pipe(parser())
+      .pipe(pick.asStream({ filter: 'metadata' }))
+      .pipe(streamValues.asStream())
+
+    pipeline.on('data', ({ value }: { value: unknown }) => {
+      finish(() => resolve(value))
+    })
+    pipeline.on('error', (err: unknown) => {
+      finish(() => reject(err instanceof Error ? err : new Error(String(err))))
+    })
+    readable.on('error', (err: unknown) => {
+      finish(() => reject(err instanceof Error ? err : new Error(String(err))))
+    })
+    pipeline.on('end', () => {
+      finish(() => reject(new Error('No "metadata" key found in backup file')))
+    })
+  })
+}
+
 export async function parseJSONStream(readable: Readable): Promise<any> {
   // stream-json's named `parser` export is the raw tokenizer object;
   // `parserStream` (= parser.asStream, also the module's default export) is

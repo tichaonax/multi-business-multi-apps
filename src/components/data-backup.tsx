@@ -456,6 +456,38 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
 
       console.log('[Restore] File:', restoreFile.name, 'Size:', restoreFile.size, 'Compressed:', isCompressed);
 
+      // Show the user something concrete immediately instead of a bare
+      // spinner: a real restore of a large backup can take a while just to
+      // parse before the actual restore-progress panel exists (the server
+      // only creates a progressId once the whole file has been parsed and
+      // counted). A quick /api/backup/metadata read only touches the
+      // metadata block at the top of the file (a few KB, regardless of
+      // overall file size — see parseBackupMetadataOnly), so it comes back
+      // almost instantly and lets us show "0 / <total records>" right away.
+      // Best-effort only: if this fails, the real restore call below still
+      // runs and will surface any real error itself.
+      try {
+        const metaResponse = await fetch('/api/backup/metadata', {
+          method: 'POST',
+          headers: {
+            'x-restore-stream': 'true',
+            'x-restore-compressed': isCompressed ? 'true' : 'false',
+            'Content-Type': isCompressed ? 'application/gzip' : 'application/json',
+          },
+          body: restoreFile,
+        });
+        const metaData = await metaResponse.json();
+        const totalRecords = metaData?.metadata?.stats?.totalRecords;
+        const totalTables = metaData?.metadata?.stats?.totalTables;
+        if (metaResponse.ok && typeof totalRecords === 'number') {
+          setRestoreResult(null);
+          setRestoreProgressId(null);
+          setRestoreProgress({ model: 'starting', processed: 0, total: totalRecords, totalTables, counts: {}, errors: [] });
+        }
+      } catch (metaError) {
+        console.warn('[Restore] Could not pre-read backup metadata (non-fatal):', metaError);
+      }
+
       // Streaming upload (Increment 2 of the streaming backup/restore fix):
       // send the raw file body directly - no file.text()/JSON.parse() here,
       // no re-JSON.stringify-ing it for the request body. The old path did
