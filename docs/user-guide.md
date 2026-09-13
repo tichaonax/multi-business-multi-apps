@@ -225,6 +225,7 @@
     - [Using the Report](#using-the-report)
 64. [POS Cart Badges — Decrement & Remove Without Opening the Cart](#64-pos-cart-badges--decrement--remove-without-opening-the-cart)
 65. [Business Image Gallery & Category Reference Pool](#65-business-image-gallery--category-reference-pool)
+66. [Pricing, Cost, Value & Performance Intelligence Reports](#66-pricing-cost-value--performance-intelligence-reports)
     - [Linked Products — Viewing, Selling & Editing Price](#linked-products--viewing-selling--editing-price)
     - [Tag Vocabulary, Product Tags & Tag Search](#tag-vocabulary-product-tags--tag-search)
     - [Permissions](#permissions-16)
@@ -10689,45 +10690,11 @@ Click again to collapse them back.
 
 ---
 
-## 46. Missing Cost Price Report
+## 46. Missing Cost Price Report (superseded)
 
-**Who can access:** Admins, users with Manage Inventory permission, or Expense Account access.
+**Where:** Sidebar → Inventory → ⚠️ Missing Cost Price (old link) now shows a redirect notice.
 
-**Where:** Sidebar → Inventory → ⚠️ Missing Cost Price
-
-This report lists every **active inventory item that has no cost price set**. Without a cost price, profit margin calculations and inventory valuation are incomplete.
-
-### Summary Cards
-
-| Card | Meaning |
-|------|---------|
-| 🔴 Missing Cost Price | Total active items with no cost price — the number you need to fix |
-| 🟡 Businesses Affected | How many different businesses have at least one item missing a cost price |
-| 🔵 Showing (filtered) | How many items are currently visible after applying filters |
-
-### Filters
-
-- **Business** — drop-down to limit the list to one specific business
-- **Search** — type any part of an item name or SKU to narrow the list
-
-### Table Columns
-
-| Column | Description |
-|--------|-------------|
-| Business | Which business the item belongs to |
-| Item Name | Product name and SKU (if set) |
-| Category | Category emoji and name |
-| Selling Price | Current selling price |
-| Stock | Units currently in stock |
-| Updated | Date the item record was last modified |
-
-### Exporting
-
-Click **Export CSV** (top-right) to download the filtered list as a spreadsheet. The button is disabled when the filtered list is empty.
-
-### Fixing Items
-
-Click any row to go directly to that item's edit page where you can add the cost price.
+This report has been superseded by **[66. Pricing, Cost, Value & Performance Intelligence Reports](#66-pricing-cost-value--performance-intelligence-reports)** (see the end of this guide). Missing cost price is now one exception type inside the broader **Pricing & Value Exceptions** report, which also covers missing/zero selling prices, below-cost sales, suspicious values, price-change anomalies, and a review/approval workflow — scoped to the business currently selected in the business switcher (the old report's "all businesses at once" view has no direct replacement; the new reports work one business at a time).
 
 ---
 
@@ -13782,3 +13749,65 @@ Tags started as an image-organizing tool (above) and now cover three more things
 | System admin | Rename, merge, or delete a shared **system** tag (not available from a business's own Tag Management screen) |
 
 ---
+
+## 66. Pricing, Cost, Value & Performance Intelligence Reports
+
+**Who can access:** Admins, users with Manage Inventory permission, or Financial Data access. All four reports are scoped to the single business currently selected in the business switcher — they never combine data across businesses, even under an umbrella "All" selection.
+
+**Where:** Sidebar → Inventory → the four report links below, or from any business type's Reports page (Grocery, Clothing, Hardware, Restaurant, Retail).
+
+These reports work across **both** of the app's inventory systems (the barcode/scan-based items used by Bulk Stock Panel and Stock Take, and the catalog items used by menu/service-style products) — a product entered either way is included in every report below.
+
+### Pricing & Value Exceptions
+
+**Where:** Sidebar → Inventory → ⚠️ Pricing & Value Exceptions
+
+Lists every product with a pricing, cost, or value problem worth investigating. A product can appear with more than one issue at once.
+
+**What it detects:**
+- No selling price, or a selling price of $0 — flagged differently depending on how the item was created: menu/service-style items are simply **hidden from the POS** until priced, while barcode/scan-based items stay **visible and sellable at $0** if never priced. The report's POS Status column tells you which applies.
+- No cost price, or both cost and selling price missing.
+- Selling price below cost price (a loss on every sale), or exactly equal to cost (zero profit).
+- Margin below your configured minimum (10% by default).
+- A price that looks like a decimal-entry error (e.g. 10× or 100× what it should be, based on cost).
+- A selling price far outside the average for its category (needs at least 5 similarly-priced products in the same category to compare against — shown as "insufficient peer data" otherwise).
+- A cost or selling price that changed sharply (more than 30% by default) since the last time it was recorded. Price-change history only starts from when this feature shipped — items whose price hasn't changed since then show no "previous price" yet.
+
+**Filters:** date range (affects "qty sold"/"last sold" only — the exceptions themselves reflect current data), severity, POS status, profitability status, and text search.
+
+**Reviewing an exception:** click the status pill next to any exception badge to mark it Reviewed, Corrected, Approved, Ignored, or Follow-up, with an optional note. **Approving a below-cost sale** requires Manage Inventory permission (or admin) and a written reason — the same safeguard pattern used elsewhere in the app for sensitive approvals.
+
+### Inventory Value
+
+**Where:** Sidebar → Inventory → 💰 Inventory Value
+
+Shows what your stock is worth, at cost and at selling price, split three ways:
+- **Recently Stocked** — quantity/value received within the selected date range (based on stock-receiving history; items received before that history started fall under Existing even if actually received recently).
+- **Existing** — everything else already on hand.
+- **Combined** — the two added together (should match total quantity on hand).
+
+Items with no cost price are labeled **unvalued** and excluded from the cost-value totals (shown as a separate count so they aren't mistaken for zero-value stock). Items that are hidden from or sellable-at-$0 in the POS are flagged in the Status column, and any item selling below cost shows its potential loss on the remaining stock.
+
+### Product Performance
+
+**Where:** Sidebar → Inventory → 📈 Product Performance
+
+The full drill-down version of the Fast & Slow Moving Stock report (§27) — same underlying data, plus revenue, cost of goods sold, gross profit, margin %, transaction count, and days since last sale. Filter by profitable / loss-making / no sales / unreliable pricing, and sort by any of the money columns.
+
+> **Accuracy note:** cost of goods sold always uses today's cost price, not the cost at the time each historical sale happened — if a product's cost has changed recently, treat its margin figures for older sales as an approximation.
+
+### Poor-Performing Stock
+
+**Where:** Sidebar → Inventory → 📉 Poor-Performing Stock
+
+Surfaces the stock most likely tying up capital for no return: no or low sales, negative/zero margin, below-cost pricing, excess stock relative to how fast it sells, long since last sold, old stock, or missing/suspicious pricing. Each row shows every reason it was flagged and a suggested action (set a price, run a promotion, reduce future purchases, consider clearance, or discontinue).
+
+### Minimum-Stock Recommendation
+
+**Where:** Sidebar/Notifications → Reorder Report (`/admin/reports/reorder`) → tick **"Show all products (Minimum-Stock Recommendation view)"**
+
+By default this page only lists products already low on stock (see §27's Reorder Suggestions). Ticking this checkbox switches it to show **every** product with two extra columns:
+- **Recommended Min** — a suggested minimum stock level based on average daily sales, supplier lead time (when on file — mostly only available for menu/catalog-style products, not barcode/scan-based ones), and a safety buffer. Hover the number for the exact basis used; a ⚠ means there's too little sales history to trust the figure.
+- **Min Stock Status** — Below Min / At Min / Above Min, comparing current stock to the recommendation.
+
+This is decision support only — click **min N** in the Stock column (as before) to manually set the actual minimum stock level for any product.

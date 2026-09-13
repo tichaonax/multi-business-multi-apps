@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { getUnifiedProducts } from '@/lib/inventory/product-catalog-view'
+import { getSalesAggregates } from '@/lib/inventory/product-activity'
+import { grossMarginPct, unitProfitLoss } from '@/lib/inventory/pricing-math'
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,81 +27,72 @@ export async function GET(request: NextRequest) {
     const end = new Date(endDate + 'T23:59:59')
     const dayRange = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)))
 
-    // Fetch all completed sale order items for the business in the date range
-    const orderItems = await prisma.businessOrderItems.findMany({
-      where: {
-        business_orders: {
-          businessId,
-          status: 'COMPLETED',
-          orderType: 'SALE',
-          OR: [
-            { transactionDate: { gte: start, lte: end } },
-            { transactionDate: null, createdAt: { gte: start, lte: end } },
-          ],
-        },
-      },
-      select: {
-        productVariantId: true,
-        quantity: true,
-      },
-    })
+    // MBM-296: previously this report only ever queried ProductVariants,
+    // silently omitting every grocery/clothing/hardware business whose
+    // inventory lives in BarcodeInventoryItems instead (see MBM-296 plan
+    // §2.1 — the two-catalog problem). Both are now included via the shared
+    // unified-catalog helper, the same one every other MBM-296 report uses.
+    const [products, sales] = await Promise.all([
+      getUnifiedProducts({ businessId }),
+      getSalesAggregates(businessId, start, end),
+    ])
 
-    // Aggregate units sold per variant
-    const salesMap = new Map<string, number>()
-    for (const item of orderItems) {
-      if (!item.productVariantId) continue
-      salesMap.set(item.productVariantId, (salesMap.get(item.productVariantId) ?? 0) + item.quantity)
-    }
-
-    // Fetch all active product variants for this business
-    const variants = await prisma.productVariants.findMany({
-      where: {
-        business_products: {
-          businessId,
-          isActive: true,
-        },
-      },
-      select: {
-        id: true,
-        name: true,
-        sku: true,
-        stockQuantity: true,
-        price: true,
-        business_products: {
-          select: {
-            id: true,
-            name: true,
-            costPrice: true,
-            business_categories: { select: { name: true } },
-          },
-        },
-      },
-    })
-
-    // Build result rows
-    const rows = variants.map((variant) => {
-      const totalUnitsSold = salesMap.get(variant.id) ?? 0
+    const rows = products.map((p) => {
+      const salesAgg = p.catalogSource === 'PRODUCT_VARIANT' ? sales.byVariantId.get(p.id) : sales.byBarcodeItemId.get(p.productId)
+      const totalUnitsSold = salesAgg?.qtySold ?? 0
+      const revenue = salesAgg?.revenue ?? 0
+      const transactionCount = salesAgg?.transactionCount ?? 0
       const avgDailySales = totalUnitsSold / dayRange
-      const currentStock = variant.stockQuantity ?? 0
-      const daysOfStockLeft = avgDailySales > 0 ? currentStock / avgDailySales : null
+      const daysOfStockLeft = avgDailySales > 0 ? p.quantityOnHand / avgDailySales : null
+      const daysSinceLastSale = salesAgg?.lastSaleDate ? Math.floor((Date.now() - salesAgg.lastSaleDate.getTime()) / (1000 * 60 * 60 * 24)) : null
+
+      const hasCost = p.costPrice !== null && p.costPrice > 0
+      const hasSelling = p.sellingPrice !== null && p.sellingPrice > 0
+      // MBM-296: COGS/gross-profit here use TODAY's cost price, not the cost
+      // at the time of each historical sale — no snapshot exists on any
+      // order-item table (see MBM-296 plan §2.3). This is an approximation
+      // whenever cost has changed since a sale in this window.
+      const costOfGoodsSold = hasCost ? totalUnitsSold * p.costPrice! : null
+      const grossProfit = costOfGoodsSold !== null ? revenue - costOfGoodsSold : null
+      const grossMargin = hasSelling && hasCost ? grossMarginPct(p.sellingPrice!, p.costPrice!) : null
+      // Simple turnover proxy: units sold ÷ current stock on hand (a true
+      // average-inventory turnover ratio would need a stock snapshot at the
+      // start of the period, which isn't tracked — this is a lighter-weight
+      // stand-in the report labels as such).
+      const turnoverRatio = p.quantityOnHand > 0 ? Math.round((totalUnitsSold / p.quantityOnHand) * 100) / 100 : null
 
       return {
-        variantId: variant.id,
-        productId: variant.business_products.id,
-        productName: variant.business_products.name,
-        variantName: variant.name ?? 'Default',
-        sku: variant.sku ?? '',
-        category: variant.business_products.business_categories?.name ?? 'Uncategorised',
+        // `variantId` is kept as the primary id field name for backward
+        // compatibility with the existing grocery/reports/stock-velocity
+        // page (fast/slow-mover quick view) — it's really "this catalog
+        // row's id" for both catalogs, not literally always a variant.
+        id: p.id,
+        variantId: p.id,
+        catalogSource: p.catalogSource,
+        productId: p.productId,
+        productName: p.name,
+        variantName: p.variantName ?? 'Default',
+        sku: p.sku ?? '',
+        category: p.categoryName ?? 'Uncategorised',
         totalUnitsSold,
         avgDailySales: Math.round(avgDailySales * 100) / 100,
-        currentStock,
+        revenue: Math.round(revenue * 100) / 100,
+        costOfGoodsSold: costOfGoodsSold !== null ? Math.round(costOfGoodsSold * 100) / 100 : null,
+        grossProfit: grossProfit !== null ? Math.round(grossProfit * 100) / 100 : null,
+        grossMarginPct: grossMargin,
+        transactionCount,
+        currentStock: p.quantityOnHand,
         daysOfStockLeft: daysOfStockLeft !== null ? Math.round(daysOfStockLeft * 10) / 10 : null,
-        costPrice: variant.business_products.costPrice ? parseFloat(variant.business_products.costPrice.toString()) : null,
-        sellingPrice: variant.price ? parseFloat(variant.price.toString()) : null,
+        turnoverRatio,
+        lastSaleDate: salesAgg?.lastSaleDate?.toISOString() ?? null,
+        daysSinceLastSale,
+        costPrice: p.costPrice,
+        sellingPrice: p.sellingPrice,
+        posAvailabilityStatus: p.posAvailabilityStatus,
+        pricingDataReliable: hasCost && hasSelling,
       }
     })
 
-    // Sort by avgDailySales descending (fast movers first)
     rows.sort((a, b) => b.avgDailySales - a.avgDailySales)
 
     const totalUnitsSold = rows.reduce((s, r) => s + r.totalUnitsSold, 0)
@@ -112,6 +105,8 @@ export async function GET(request: NextRequest) {
         totalUnitsSold,
         productsWithSales: rows.filter((r) => r.totalUnitsSold > 0).length,
         productsWithNoSales: rows.filter((r) => r.totalUnitsSold === 0).length,
+        totalRevenue: Math.round(rows.reduce((s, r) => s + r.revenue, 0) * 100) / 100,
+        totalGrossProfit: Math.round(rows.reduce((s, r) => s + (r.grossProfit ?? 0), 0) * 100) / 100,
       },
       data: rows,
     })

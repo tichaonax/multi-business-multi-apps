@@ -1389,12 +1389,27 @@ export function Sidebar() {
               </Link>
             )}
 
-            {/* Missing Cost Price Report */}
-            {(isSystemAdmin(currentUser) || hasPermission('canManageInventory') || hasPermission('canAccessExpenseAccount')) && (
-              <Link href="/inventory/reports/missing-cost-price" className={getLinkClasses('/inventory/reports/missing-cost-price')}>
-                <span className="text-lg">⚠️</span>
-                <span>Missing Cost Price</span>
-              </Link>
+            {/* MBM-296: Pricing/Value Intelligence Reports — supersedes the old
+                Missing Cost Price link (that page now just redirects here) */}
+            {(isSystemAdmin(currentUser) || hasPermission('canManageInventory') || hasPermission('canAccessFinancialData')) && (
+              <>
+                <Link href="/inventory/reports/pricing-exceptions" className={getLinkClasses('/inventory/reports/pricing-exceptions')}>
+                  <span className="text-lg">⚠️</span>
+                  <span>Pricing &amp; Value Exceptions</span>
+                </Link>
+                <Link href="/inventory/reports/inventory-value" className={getLinkClasses('/inventory/reports/inventory-value')}>
+                  <span className="text-lg">💰</span>
+                  <span>Inventory Value</span>
+                </Link>
+                <Link href="/inventory/reports/performance" className={getLinkClasses('/inventory/reports/performance')}>
+                  <span className="text-lg">📈</span>
+                  <span>Product Performance</span>
+                </Link>
+                <Link href="/inventory/reports/poor-performers" className={getLinkClasses('/inventory/reports/poor-performers')}>
+                  <span className="text-lg">📉</span>
+                  <span>Poor-Performing Stock</span>
+                </Link>
+              </>
             )}
 
             {/* Expiry Management — shown for users who can view stock alerts or manage expiry actions */}

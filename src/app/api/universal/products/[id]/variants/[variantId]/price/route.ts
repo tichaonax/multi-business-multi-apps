@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { getServerUser } from '@/lib/get-server-user'
 import { hasPermission } from '@/lib/permission-utils'
 import { createAuditLog } from '@/lib/audit'
+import { recordPriceChangeIfDifferent } from '@/lib/inventory/price-history'
 
 const BodySchema = z.object({ price: z.number().gt(0) })
 
@@ -66,6 +67,16 @@ export async function PATCH(
     ])
 
     if (newPrice !== oldPrice) {
+      await recordPriceChangeIfDifferent({
+        businessId: product.businessId,
+        catalogSource: 'PRODUCT_VARIANT',
+        productRefId: variantId,
+        priceType: 'SELLING',
+        oldPrice,
+        newPrice,
+        changedBy: user.id,
+        changeReason: 'QUICK_EDIT',
+      })
       await createAuditLog({
         userId: user.id,
         action: 'PRODUCT_PRICE_UPDATED',

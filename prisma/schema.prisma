@@ -668,6 +668,9 @@ model Businesses {
   images                                                                   Images[]
   tags                                                                     Tags[]
   attribute_options                                                        AttributeOptions[]
+  product_exception_reviews                                                ProductExceptionReviews[]
+  pricing_exception_settings                                               PricingExceptionSettings?
+  product_price_history                                                    ProductPriceHistory[]
 
   @@map("businesses")
 }
@@ -3745,6 +3748,8 @@ model Users {
   category_reference_images_created                               CategoryReferenceImages[]         @relation("CategoryReferenceImageCreatedBy")
   tags_created                                                    Tags[]                            @relation("TagCreatedBy")
   attribute_options_created                                       AttributeOptions[]                @relation("AttributeOptionCreatedBy")
+  product_exception_reviews_acted                                 ProductExceptionReviews[]         @relation("ProductExceptionReviewActedBy")
+  product_price_history_changed                                   ProductPriceHistory[]             @relation("ProductPriceHistoryChangedBy")
 
   @@map("users")
 }
@@ -5137,6 +5142,10 @@ model product_price_changes {
   variantId    String?
   oldPrice     Decimal?          @db.Decimal(10, 2)
   newPrice     Decimal           @db.Decimal(10, 2)
+  // MBM-296: distinguishes a selling-price change from a cost-price change —
+  // this table previously only ever recorded selling price. Defaulted so
+  // every pre-existing row is correctly backfilled as a selling-price change.
+  priceType    String            @default("SELLING") @db.VarChar(10)
   changedBy    String?
   changedAt    DateTime          @default(now())
   changeReason String            @default("MANUAL_EDIT") @db.VarChar(100)
@@ -5151,7 +5160,85 @@ model product_price_changes {
   @@index([changedBy])
   @@index([variantId])
   @@index([changeReason])
+  @@index([priceType])
   @@map("product_price_changes")
+}
+
+// MBM-296: persists the review/approval workflow state for a pricing/cost/
+// value exception surfaced by the Pricing, Cost & Value Exceptions report.
+// One row per (product, exception type) — re-detection on each report load
+// just reads the latest status for that pair instead of re-deciding it.
+// `catalogSource`/`productRefId` are a polymorphic reference because the app
+// has two independent, non-overlapping product catalogs (BusinessProducts/
+// ProductVariants vs BarcodeInventoryItems — see MBM-296 plan §2.1); there is
+// no single FK target that covers both.
+model ProductExceptionReviews {
+  id            String    @id @default(uuid())
+  businessId    String
+  catalogSource String    @db.VarChar(20) // 'BUSINESS_PRODUCT' | 'PRODUCT_VARIANT' | 'BARCODE_ITEM'
+  productRefId  String
+  exceptionType String    @db.VarChar(40) // e.g. 'BELOW_COST', 'NO_COST_PRICE'
+  status        String    @default("OPEN") @db.VarChar(20) // OPEN|REVIEWED|CORRECTED|APPROVED|IGNORED|FOLLOW_UP
+  reason        String?
+  notes         String?
+  actedByUserId String?
+  actedAt       DateTime?
+  expiresAt     DateTime? // only meaningful for APPROVED below-cost sales
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  business    Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  actedByUser Users?     @relation("ProductExceptionReviewActedBy", fields: [actedByUserId], references: [id])
+
+  @@unique([businessId, catalogSource, productRefId, exceptionType])
+  @@index([businessId, status])
+  @@map("product_exception_reviews")
+}
+
+// MBM-296: per-business configurable thresholds for pricing/value exception
+// detection. A null businessId row (if ever created) would serve as a
+// system-wide default; in practice each business gets its own row on first
+// edit and the API falls back to hardcoded defaults when no row exists yet
+// (see src/lib/inventory/pricing-math.ts) rather than requiring a seeded
+// global row.
+// MBM-296: unified cost/selling price change history across BOTH product
+// catalogs (see product-catalog-view.ts header comment). The pre-existing
+// `product_price_changes` table is hard-FK'd to BusinessProducts only and
+// stays as-is for its existing callers; this table is the one the pricing
+// reports read "previous price" from, since it can reference either catalog.
+model ProductPriceHistory {
+  id            String   @id @default(uuid())
+  businessId    String
+  catalogSource String   @db.VarChar(20) // 'BUSINESS_PRODUCT' | 'PRODUCT_VARIANT' | 'BARCODE_ITEM'
+  productRefId  String
+  priceType     String   @db.VarChar(10) // 'SELLING' | 'COST'
+  oldPrice      Decimal? @db.Decimal(10, 2)
+  newPrice      Decimal  @db.Decimal(10, 2)
+  changedBy     String?
+  changeReason  String?  @db.VarChar(100)
+  createdAt     DateTime @default(now())
+
+  business  Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  changedByUser Users?  @relation("ProductPriceHistoryChangedBy", fields: [changedBy], references: [id])
+
+  @@index([businessId, catalogSource, productRefId, priceType, createdAt(sort: Desc)])
+  @@map("product_price_history")
+}
+
+model PricingExceptionSettings {
+  id                     String    @id @default(uuid())
+  businessId             String    @unique
+  minimumMarginPct       Decimal   @default(10) @db.Decimal(5, 2)
+  priceChangeAlertPct    Decimal   @default(30) @db.Decimal(5, 2)
+  decimalErrorMultiples  Decimal[] @default([10, 100, 0.1, 0.01])
+  benchmarkTolerancePct  Decimal   @default(50) @db.Decimal(5, 2)
+  highImpactThreshold    Decimal   @default(100) @db.Decimal(10, 2)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  business Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@map("pricing_exception_settings")
 }
 
 model Permissions {

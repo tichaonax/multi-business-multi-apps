@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { recordPriceChangeIfDifferent } from '@/lib/inventory/price-history'
+import { createAuditLog } from '@/lib/audit'
 
 /**
  * POST /api/inventory/bulk-add-stock
@@ -93,6 +95,48 @@ export async function POST(request: NextRequest) {
               businessType: business?.type ?? 'unknown',
             },
           }).catch(() => {}) // non-fatal
+          await Promise.all([
+            recordPriceChangeIfDifferent({
+              businessId,
+              catalogSource: 'BARCODE_ITEM',
+              productRefId: existing.id,
+              priceType: 'SELLING',
+              oldPrice: existing.sellingPrice ? parseFloat(existing.sellingPrice.toString()) : null,
+              newPrice: Number(sellingPrice),
+              changedBy: user.id,
+              changeReason: 'STOCK_RECEIVING',
+            }),
+            costPrice !== undefined && costPrice !== ''
+              ? recordPriceChangeIfDifferent({
+                  businessId,
+                  catalogSource: 'BARCODE_ITEM',
+                  productRefId: existing.id,
+                  priceType: 'COST',
+                  oldPrice: existing.costPrice ? parseFloat(existing.costPrice.toString()) : null,
+                  newPrice: Number(costPrice),
+                  changedBy: user.id,
+                  changeReason: 'STOCK_RECEIVING',
+                })
+              : Promise.resolve(),
+          ]).catch(() => {}) // non-fatal — price history is best-effort, must never block a stock save
+          if (Number(sellingPrice) !== Number(existing.sellingPrice)) {
+            // MBM-296: the user-facing Price Change Report (§63 of the user
+            // guide) reads AuditLogs, not product_price_history — this was a
+            // pre-existing gap (bulk stock receiving never wrote here) that
+            // made the report's "nothing slips through unrecorded" claim
+            // untrue for this path. Closing it here alongside the new
+            // history table, not replacing it.
+            await createAuditLog({
+              userId: user.id,
+              action: 'PRODUCT_PRICE_UPDATED',
+              entityType: 'Product',
+              entityId: existing.id,
+              oldValues: { price: Number(existing.sellingPrice) },
+              newValues: { price: Number(sellingPrice) },
+              metadata: { sourceTable: 'BARCODE_ITEM', businessId, productName: existing.name, viaBulkStockReceiving: true },
+              businessId,
+            }).catch(() => {})
+          }
           updated++
           results.push({ success: true, itemId: updatedRecord.id, action: 'updated' })
         } else {

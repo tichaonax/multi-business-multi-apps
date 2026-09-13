@@ -75,6 +75,34 @@ export default function RestaurantReportsPage() {
       href: `/${businessType}/reports/price-changes`,
       icon: '💲',
       color: 'bg-lime-600 hover:bg-lime-700'
+    },
+    {
+      title: '⚠️ Pricing & Value Exceptions',
+      description: 'Missing/zero prices, below-cost sales, suspicious values, and price-change anomalies — with a review/approval workflow',
+      href: '/inventory/reports/pricing-exceptions',
+      icon: '⚠️',
+      color: 'bg-red-600 hover:bg-red-700'
+    },
+    {
+      title: '💰 Inventory Value',
+      description: 'Item- and total-level valuation, split into recently-stocked, existing, and combined inventory',
+      href: '/inventory/reports/inventory-value',
+      icon: '💰',
+      color: 'bg-cyan-600 hover:bg-cyan-700'
+    },
+    {
+      title: '📈 Product Performance',
+      description: 'Sales, revenue, cost of goods sold, and margin per product — find your fast-moving, profitable items',
+      href: '/inventory/reports/performance',
+      icon: '📈',
+      color: 'bg-violet-600 hover:bg-violet-700'
+    },
+    {
+      title: '📉 Poor-Performing Stock',
+      description: 'Slow-moving, non-moving, excess, and loss-making stock with recommended actions',
+      href: '/inventory/reports/poor-performers',
+      icon: '📉',
+      color: 'bg-orange-600 hover:bg-orange-700'
     }
   ]
 

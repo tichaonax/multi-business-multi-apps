@@ -718,8 +718,13 @@ export function MobileSidebar() {
                     <Link href="/inventory/custom-bulk" className={sectionLinkClass} onClick={close}>📦 Custom Bulk Products</Link>
                   )}
 
-                  {(isAdmin || hasBusinessPermission('canManageInventory') || hasBusinessPermission('canAccessExpenseAccount')) && (
-                    <Link href="/inventory/reports/missing-cost-price" className={sectionLinkClass} onClick={close}>⚠️ Missing Cost Price</Link>
+                  {(isAdmin || hasBusinessPermission('canManageInventory') || hasBusinessPermission('canAccessFinancialData')) && (
+                    <>
+                      <Link href="/inventory/reports/pricing-exceptions" className={sectionLinkClass} onClick={close}>⚠️ Pricing &amp; Value Exceptions</Link>
+                      <Link href="/inventory/reports/inventory-value" className={sectionLinkClass} onClick={close}>💰 Inventory Value</Link>
+                      <Link href="/inventory/reports/performance" className={sectionLinkClass} onClick={close}>📈 Product Performance</Link>
+                      <Link href="/inventory/reports/poor-performers" className={sectionLinkClass} onClick={close}>📉 Poor-Performing Stock</Link>
+                    </>
                   )}
 
                   {(isAdmin || hasBusinessPermission('canManageAssets')) && (

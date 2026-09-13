@@ -32,6 +32,10 @@ interface ReorderRow {
   costPrice: number | null
   sellingPrice: number | null
   estimatedCost: number | null
+  recommendedMinimumStock: number
+  stockStatus: 'BELOW_MINIMUM' | 'AT_MINIMUM' | 'ABOVE_MINIMUM'
+  basisUsed: string
+  dataQualityWarning: string | null
 }
 
 interface ReportData {
@@ -167,6 +171,10 @@ export default function ReorderReportPage() {
   const [error, setError] = useState<string | null>(null)
   const [urgencyFilter, setUrgencyFilter] = useState<'all' | 'critical' | 'low'>('all')
   const [search, setSearch] = useState('')
+  // MBM-296 §8 — off by default so the existing "needs reorder now" view is
+  // unchanged; on, the report becomes the full Minimum-Stock Recommendation
+  // view (every product, including ones already above their minimum).
+  const [showAllProducts, setShowAllProducts] = useState(false)
 
   const loadReport = useCallback(async () => {
     if (!currentBusinessId) return
@@ -176,7 +184,7 @@ export default function ReorderReportPage() {
       const startDate = getLocalDateString(dateRange.start)
       const endDate = getLocalDateString(dateRange.end)
       const res = await fetch(
-        `/api/universal/reports/reorder?businessId=${currentBusinessId}&startDate=${startDate}&endDate=${endDate}`
+        `/api/universal/reports/reorder?businessId=${currentBusinessId}&startDate=${startDate}&endDate=${endDate}${showAllProducts ? '&includeAll=true' : ''}`
       )
       const json = await res.json()
       if (json.success) {
@@ -189,7 +197,7 @@ export default function ReorderReportPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentBusinessId, dateRange])
+  }, [currentBusinessId, dateRange, showAllProducts])
 
   useEffect(() => {
     loadReport()
@@ -241,6 +249,10 @@ export default function ReorderReportPage() {
         {/* Date range + urgency filter */}
         <div className="flex flex-wrap items-end gap-3 mb-4">
           <DateRangeSelector value={dateRange} onChange={setDateRange} />
+          <label className="flex items-center gap-2 text-xs font-medium text-secondary px-3 py-1.5 border border-border rounded-lg bg-white dark:bg-gray-800 cursor-pointer">
+            <input type="checkbox" checked={showAllProducts} onChange={(e) => setShowAllProducts(e.target.checked)} />
+            Show all products (Minimum-Stock Recommendation view)
+          </label>
           <div className="flex gap-1">
             {(['all', 'critical', 'low'] as const).map((f) => (
               <button
@@ -348,6 +360,8 @@ export default function ReorderReportPage() {
                       <th className="px-3 py-2.5 text-right">Max Order</th>
                       <th className="px-3 py-2.5 text-right">Est. Cost</th>
                       <th className="px-3 py-2.5 text-center">Urgency</th>
+                      {showAllProducts && <th className="px-3 py-2.5 text-right">Recommended Min</th>}
+                      {showAllProducts && <th className="px-3 py-2.5 text-center">Min Stock Status</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -432,6 +446,23 @@ export default function ReorderReportPage() {
                             </span>
                           )}
                         </td>
+                        {showAllProducts && (
+                          <td className="px-3 py-2.5 text-right text-secondary" title={row.basisUsed}>
+                            {row.recommendedMinimumStock}
+                            {row.dataQualityWarning && <span className="ml-1 text-amber-500" title={row.dataQualityWarning}>⚠</span>}
+                          </td>
+                        )}
+                        {showAllProducts && (
+                          <td className="px-3 py-2.5 text-center">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              row.stockStatus === 'BELOW_MINIMUM' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                              : row.stockStatus === 'AT_MINIMUM' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                              : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                            }`}>
+                              {row.stockStatus === 'BELOW_MINIMUM' ? 'Below min' : row.stockStatus === 'AT_MINIMUM' ? 'At min' : 'Above min'}
+                            </span>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { getServerUser } from '@/lib/get-server-user'
+import { recordPriceChangeIfDifferent } from '@/lib/inventory/price-history'
+import { createAuditLog } from '@/lib/audit'
 
 // Validation schema for price update
 const PriceUpdateSchema = z.object({
@@ -25,7 +28,7 @@ export async function PUT(
     // Check if product exists and is clothing type
     const product = await prisma.businessProducts.findUnique({
       where: { id },
-      select: { id: true, businessType: true, sku: true, name: true }
+      select: { id: true, businessId: true, businessType: true, sku: true, name: true, basePrice: true, costPrice: true }
     })
 
     if (!product) {
@@ -58,6 +61,46 @@ export async function PUT(
         }
       }
     })
+
+    const priceEditor = await getServerUser().catch(() => null)
+    const oldBasePrice = product.basePrice ? parseFloat(product.basePrice.toString()) : null
+    const oldCostPrice = product.costPrice ? parseFloat(product.costPrice.toString()) : null
+    await Promise.all([
+      recordPriceChangeIfDifferent({
+        businessId: product.businessId,
+        catalogSource: 'BUSINESS_PRODUCT',
+        productRefId: id,
+        priceType: 'SELLING',
+        oldPrice: oldBasePrice,
+        newPrice: validatedData.basePrice,
+        changedBy: priceEditor?.id ?? null,
+        changeReason: 'MANUAL_EDIT',
+      }),
+      validatedData.costPrice !== undefined
+        ? recordPriceChangeIfDifferent({
+            businessId: product.businessId,
+            catalogSource: 'BUSINESS_PRODUCT',
+            productRefId: id,
+            priceType: 'COST',
+            oldPrice: oldCostPrice,
+            newPrice: validatedData.costPrice,
+            changedBy: priceEditor?.id ?? null,
+            changeReason: 'MANUAL_EDIT',
+          })
+        : Promise.resolve(),
+    ])
+    if (priceEditor && validatedData.basePrice !== null && oldBasePrice !== null && validatedData.basePrice !== oldBasePrice) {
+      await createAuditLog({
+        userId: priceEditor.id,
+        action: 'PRODUCT_PRICE_UPDATED',
+        entityType: 'Product',
+        entityId: id,
+        oldValues: { price: oldBasePrice },
+        newValues: { price: validatedData.basePrice },
+        metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId: product.businessId, productName: product.name },
+        businessId: product.businessId,
+      }).catch(() => {})
+    }
 
     return NextResponse.json({
       success: true,
@@ -99,6 +142,14 @@ export async function PATCH(
       )
     }
 
+    const existing = await prisma.businessProducts.findUnique({
+      where: { id },
+      select: { businessId: true, basePrice: true },
+    })
+    if (!existing) {
+      return NextResponse.json({ success: false, error: 'Product not found' }, { status: 404 })
+    }
+
     const updatedProduct = await prisma.businessProducts.update({
       where: { id },
       data: {
@@ -113,6 +164,31 @@ export async function PATCH(
         updatedAt: true
       }
     })
+
+    const priceEditor = await getServerUser().catch(() => null)
+    const oldBasePriceForPatch = existing.basePrice ? parseFloat(existing.basePrice.toString()) : null
+    await recordPriceChangeIfDifferent({
+      businessId: existing.businessId,
+      catalogSource: 'BUSINESS_PRODUCT',
+      productRefId: id,
+      priceType: 'SELLING',
+      oldPrice: oldBasePriceForPatch,
+      newPrice: basePrice,
+      changedBy: priceEditor?.id ?? null,
+      changeReason: 'QUICK_EDIT',
+    })
+    if (priceEditor && oldBasePriceForPatch !== null && basePrice !== oldBasePriceForPatch) {
+      await createAuditLog({
+        userId: priceEditor.id,
+        action: 'PRODUCT_PRICE_UPDATED',
+        entityType: 'Product',
+        entityId: id,
+        oldValues: { price: oldBasePriceForPatch },
+        newValues: { price: basePrice },
+        metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId: existing.businessId, productName: updatedProduct.name },
+        businessId: existing.businessId,
+      }).catch(() => {})
+    }
 
     return NextResponse.json({
       success: true,

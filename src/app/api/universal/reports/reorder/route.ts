@@ -19,6 +19,21 @@ export async function GET(request: NextRequest) {
     const targetStockDays = parseInt(searchParams.get('targetStockDays') ?? '30', 10)
     // Historical window used for suggested reorder quantities (default 90 days)
     const historicalDays = 90
+    // MBM-296 §8: extra cushion added on top of supplier lead time (or the
+    // default below, when no lead time is on file) when computing a
+    // recommended MINIMUM stock level — distinct from the reorder-quantity
+    // suggestion above, which targets `targetStockDays` of cover instead.
+    const safetyBufferDays = parseInt(searchParams.get('safetyBufferDays') ?? '7', 10)
+    // No supplier lead time is on file for this product (SupplierProducts
+    // only exists for the BusinessProducts catalog — see MBM-296 plan §2.2/§8
+    // — so this default carries almost all of the barcode-item catalog).
+    const defaultLeadTimeDays = 7
+    // MBM-296 §8: when true, return every product with a computed
+    // recommendation (including ones already above their minimum) rather
+    // than only the ones this endpoint's original reorder-suggestion purpose
+    // cared about. The admin Minimum-Stock Recommendation view passes this;
+    // existing reorder-suggestion pages omit it and keep today's behaviour.
+    const includeAll = searchParams.get('includeAll') === 'true'
 
     if (!businessId || !startDate || !endDate) {
       return NextResponse.json(
@@ -80,12 +95,32 @@ export async function GET(request: NextRequest) {
               id: true,
               name: true,
               costPrice: true,
+              supplierId: true,
               business_categories: { select: { name: true } },
             },
           },
         },
       }),
     ])
+
+    // MBM-296 §8: supplier lead time, where available — SupplierProducts only
+    // links to the BusinessProducts catalog, so this enrichment applies to
+    // System 1 (product_variants) rows only; System 2 (barcode items) always
+    // falls back to defaultLeadTimeDays.
+    const productIdsWithSupplier = variants.map(v => v.business_products.id)
+    const leadTimeRows = productIdsWithSupplier.length > 0
+      ? await prisma.supplierProducts.findMany({
+          where: { productId: { in: productIdsWithSupplier } },
+          select: { productId: true, supplierId: true, leadTimeDays: true },
+        })
+      : []
+    const leadTimeByProductId = new Map<string, number>()
+    for (const row of leadTimeRows) {
+      // Prefer the row matching the product's own configured supplier; the
+      // first-seen row otherwise (a product can have more than one supplier
+      // on file, but this report only needs one usable estimate).
+      if (!leadTimeByProductId.has(row.productId)) leadTimeByProductId.set(row.productId, row.leadTimeDays)
+    }
 
     // Aggregate variant sales
     const salesMap = new Map<string, number>()
@@ -183,6 +218,7 @@ export async function GET(request: NextRequest) {
       lastOrderQty: number = 0,
       maxOrderQty: number = 0,
       lastOrderedAt: Date | null = null,
+      leadTimeDaysOnFile: number | null = null,
     ) {
       const avgDailySales = selectedUnitsSold / dayRange
       const daysOfStockLeft = avgDailySales > 0 ? currentStock / avgDailySales : null
@@ -193,7 +229,26 @@ export async function GET(request: NextRequest) {
       const belowReorderLevel = currentStock <= effectiveReorderLevel
       const belowVelocityThreshold = daysOfStockLeft !== null && daysOfStockLeft <= reorderThresholdDays
 
-      if (!belowVelocityThreshold && !belowReorderLevel) return
+      if (!includeAll && !belowVelocityThreshold && !belowReorderLevel) return
+
+      // MBM-296 §8 — recommended MINIMUM stock level (distinct from the
+      // reorder QUANTITY suggestion below): best-available daily sales rate
+      // × (lead time + safety buffer). Falls back to 2× the reorder level
+      // when there's no sales history to estimate a rate from at all.
+      const bestAvgDailySales = historicalAvgDailySales > 0 ? historicalAvgDailySales : avgDailySales
+      const effectiveLeadTimeDays = leadTimeDaysOnFile ?? defaultLeadTimeDays
+      const recommendedMinimumStock = bestAvgDailySales > 0
+        ? Math.ceil(bestAvgDailySales * (effectiveLeadTimeDays + safetyBufferDays))
+        : effectiveReorderLevel * 2
+      const stockStatus: 'BELOW_MINIMUM' | 'AT_MINIMUM' | 'ABOVE_MINIMUM' =
+        currentStock < recommendedMinimumStock ? 'BELOW_MINIMUM'
+        : currentStock === recommendedMinimumStock ? 'AT_MINIMUM'
+        : 'ABOVE_MINIMUM'
+      const basisUsed = `${historicalAvgDailySales > 0 ? '90-day avg sales' : avgDailySales > 0 ? 'recent-period avg sales' : 'no sales history — 2× reorder level'}, ${leadTimeDaysOnFile != null ? `${leadTimeDaysOnFile}d supplier lead time` : `${defaultLeadTimeDays}d default lead time (none on file)`} + ${safetyBufferDays}d safety buffer`
+      const dataQualityWarning =
+        bestAvgDailySales === 0 ? 'No sales history in the last 90 days — recommendation is a rough fallback, not a real estimate.'
+        : historicalUnitsSold < 5 ? 'Fewer than 5 units sold in the last 90 days — recommendation may be unreliable.'
+        : null
 
       let suggestedReorderQty: number
       let suggestionBasis: 'historical' | 'recent' | 'reorder_level'
@@ -241,6 +296,11 @@ export async function GET(request: NextRequest) {
         sellingPrice: sellingPriceRaw,
         estimatedCost,
         urgency,
+        recommendedMinimumStock,
+        stockStatus,
+        basisUsed,
+        dataQualityWarning,
+        leadTimeDaysOnFile,
       })
     }
 
@@ -261,6 +321,10 @@ export async function GET(request: NextRequest) {
         variant.price ? parseFloat(variant.price.toString()) : null,
         salesMap.get(variant.id) ?? 0,
         historicalMap.get(variant.id) ?? 0,
+        0,
+        0,
+        null,
+        leadTimeByProductId.get(variant.business_products.id) ?? null,
       )
     }
 

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { prisma } from '@/lib/prisma';
 import { getServerUser } from '@/lib/get-server-user'
+import { recordPriceChangeIfDifferent } from '@/lib/inventory/price-history'
 
 /**
  * PATCH /api/products/[productId]/price
@@ -137,11 +138,22 @@ export async function PATCH(
           variantId: variantId,
           oldPrice: oldPrice,
           newPrice: newPriceDecimal,
+          priceType: 'SELLING',
           changedBy: user.id,
           changeReason: reason,
           notes: notes || null,
           barcodeJobId: barcodeJobId || null,
         },
+      });
+      await recordPriceChangeIfDifferent({
+        businessId: product.businesses.id,
+        catalogSource: 'PRODUCT_VARIANT',
+        productRefId: variantId,
+        priceType: 'SELLING',
+        oldPrice,
+        newPrice: newPriceDecimal,
+        changedBy: user.id,
+        changeReason: reason,
       });
 
       return NextResponse.json({
@@ -153,13 +165,13 @@ export async function PATCH(
     }
 
     // Handle product price update
-    const oldPrice = parseFloat(product.sellPrice.toString());
+    const oldPrice = parseFloat(product.basePrice.toString());
 
     // Update product price
     const updatedProduct = await prisma.businessProducts.update({
       where: { id: productId },
       data: {
-        sellPrice: newPriceDecimal,
+        basePrice: newPriceDecimal,
         updatedAt: new Date(),
       },
     });
@@ -171,11 +183,22 @@ export async function PATCH(
         variantId: null,
         oldPrice: oldPrice,
         newPrice: newPriceDecimal,
+        priceType: 'SELLING',
         changedBy: user.id,
         changeReason: reason,
         notes: notes || null,
         barcodeJobId: barcodeJobId || null,
       },
+    });
+    await recordPriceChangeIfDifferent({
+      businessId: product.businesses.id,
+      catalogSource: 'BUSINESS_PRODUCT',
+      productRefId: productId,
+      priceType: 'SELLING',
+      oldPrice,
+      newPrice: newPriceDecimal,
+      changedBy: user.id,
+      changeReason: reason,
     });
 
     return NextResponse.json({

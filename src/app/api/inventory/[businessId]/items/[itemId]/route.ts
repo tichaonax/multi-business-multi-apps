@@ -4,6 +4,7 @@ import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 import { checkAndNotifyLowStockForBarcodeItem, checkAndNotifyLowStockForVariant } from '@/lib/inventory/low-stock-notifier'
 import { createAuditLog } from '@/lib/audit'
+import { recordPriceChangeIfDifferent } from '@/lib/inventory/price-history'
 
 export async function GET(
   request: NextRequest,
@@ -270,6 +271,28 @@ export async function PUT(
           businessId,
         })
       }
+      await Promise.all([
+        recordPriceChangeIfDifferent({
+          businessId,
+          catalogSource: 'BARCODE_ITEM',
+          productRefId: rawId,
+          priceType: 'SELLING',
+          oldPrice: existing.sellingPrice ? parseFloat(existing.sellingPrice.toString()) : null,
+          newPrice: updateData.sellingPrice !== undefined ? Number(updateData.sellingPrice) : null,
+          changedBy: user.id,
+          changeReason: 'MANUAL_EDIT',
+        }),
+        recordPriceChangeIfDifferent({
+          businessId,
+          catalogSource: 'BARCODE_ITEM',
+          productRefId: rawId,
+          priceType: 'COST',
+          oldPrice: existing.costPrice ? parseFloat(existing.costPrice.toString()) : null,
+          newPrice: updateData.costPrice !== undefined ? (updateData.costPrice !== null ? Number(updateData.costPrice) : null) : null,
+          changedBy: user.id,
+          changeReason: 'MANUAL_EDIT',
+        }),
+      ])
 
       return NextResponse.json({
         message: 'Product updated successfully',
@@ -604,6 +627,28 @@ export async function PUT(
         businessId,
       })
     }
+    await Promise.all([
+      recordPriceChangeIfDifferent({
+        businessId,
+        catalogSource: 'BUSINESS_PRODUCT',
+        productRefId: itemId,
+        priceType: 'SELLING',
+        oldPrice: existingProduct.basePrice ? parseFloat(existingProduct.basePrice.toString()) : null,
+        newPrice: updateData.basePrice !== undefined ? Number(updateData.basePrice) : null,
+        changedBy: user.id,
+        changeReason: 'MANUAL_EDIT',
+      }),
+      recordPriceChangeIfDifferent({
+        businessId,
+        catalogSource: 'BUSINESS_PRODUCT',
+        productRefId: itemId,
+        priceType: 'COST',
+        oldPrice: existingProduct.costPrice ? parseFloat(existingProduct.costPrice.toString()) : null,
+        newPrice: updateData.costPrice !== undefined ? (updateData.costPrice !== null ? Number(updateData.costPrice) : null) : null,
+        changedBy: user.id,
+        changeReason: 'MANUAL_EDIT',
+      }),
+    ])
 
     // Return response in same format as GET endpoint
     return NextResponse.json({
