@@ -1548,26 +1548,26 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
           </div>
         ) : (
           <table className="min-w-max w-full text-sm border-collapse">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="bg-gray-50 dark:bg-gray-800 text-xs text-gray-500 dark:text-gray-400">
-                <th className="px-2 py-2 text-center w-8">#</th>
-                <th className="px-2 py-2 text-left min-w-[110px]">Barcode</th>
-                <th className="px-2 py-2 text-left min-w-[180px]">Name *</th>
-                {hasDeptCol && <th className="px-2 py-2 text-left min-w-[150px]">Domain</th>}
-                <th className="px-2 py-2 text-left min-w-[160px]">Category *</th>
-                {hasSubCatCol && <th className="px-2 py-2 text-left min-w-[160px]">Sub-category</th>}
-                <th className="px-2 py-2 text-left min-w-[160px]">Supplier</th>
-                <th className="px-2 py-2 text-left min-w-[150px]">Description</th>
-                <th className="px-2 py-2 text-center w-16">System</th>
-                {hasExistingItems && <th className="px-2 py-2 text-center w-24">Physical</th>}
-                {hasExistingItems && <th className="px-2 py-2 text-center w-20">Variance</th>}
-                <th className="px-2 py-2 text-center w-24">Qty *</th>
-                <th className="px-2 py-2 text-center w-28">Sell Price *</th>
-                <th className="px-2 py-2 text-center w-14">Free?</th>
-                <th className="px-2 py-2 text-center w-28">Cost *</th>
-                <th className="px-2 py-2 text-left w-32">SKU</th>
-                <th className="px-2 py-2 text-center w-36">Expiry Date</th>
-                <th className="px-2 py-2 w-8"></th>
+                <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-center w-8">#</th>
+                <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-left min-w-[110px]">Barcode</th>
+                <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-left min-w-[180px]">Name *</th>
+                {hasDeptCol && <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-left min-w-[150px]">Domain</th>}
+                <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-left min-w-[160px]">Category *</th>
+                {hasSubCatCol && <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-left min-w-[160px]">Sub-category</th>}
+                <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-left min-w-[160px]">Supplier</th>
+                <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-left min-w-[150px]">Description</th>
+                <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-center w-16">System</th>
+                {hasExistingItems && <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-center w-24">Physical</th>}
+                {hasExistingItems && <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-center w-20">Variance</th>}
+                <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-center w-24">New Qty *</th>
+                <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-center w-28">Sell Price *</th>
+                <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-center w-14">Free?</th>
+                <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-center w-28">Cost *</th>
+                <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-left w-32">SKU</th>
+                <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-center w-36">Expiry Date</th>
+                <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 w-8"></th>
               </tr>
             </thead>
             <tbody>
@@ -1935,7 +1935,12 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
   // Existing BarcodeInventoryItems can be temporarily unlocked for category/domain editing
   const canEdit = row.isExistingItem && row.itemType !== 'bale' && row.itemType !== 'bulk' && row.itemType !== 'product'
   const inv = (field: string) => invalidFields.has(field)
-  const [calcDismissed, setCalcDismissed] = useState(false)
+  // Was calcDismissed (default false, meaning "shown by default until
+  // dismissed") - with hundreds of rows already carrying a cost price (any
+  // existing inventory item), that made the calculator cascade open for
+  // nearly every row on load, unrequested. It should only open when the
+  // user actually focuses that row's Sell Price field.
+  const [calcOpen, setCalcOpen] = useState(false)
 
   // ── Suggest Classification ──────────────────────────────────────────────────
   type SuggestItem = {
@@ -2289,28 +2294,29 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
         </td>
       )}
 
-      {/* Qty */}
+      {/* New Qty */}
       <td className="px-2 py-1.5">
         <input type="number" min="1" value={row.quantity} onChange={e => onChange({ quantity: e.target.value })}
-          className={`${inputClass} w-full text-center ${inv('quantity') ? 'border-red-400 dark:border-red-500' : ''}`} placeholder="qty" />
+          className={`${inputClass} w-full text-center ${inv('quantity') ? 'border-red-400 dark:border-red-500' : ''}`} placeholder="new qty" />
       </td>
 
       {/* Sell Price */}
       <td className="px-2 py-1.5 relative">
         <input type="number" min="0" step="0.01" value={row.sellingPrice} disabled={row.isFreeItem}
           onChange={e => onChange({ sellingPrice: e.target.value })}
+          onFocus={() => setCalcOpen(true)}
           className={`${row.isFreeItem ? roClass : inputClass} w-full text-center ${inv('sellingPrice') && !row.isFreeItem ? 'border-red-400 dark:border-red-500' : ''}`} placeholder="price" />
-        {!row.isFreeItem && row.costPrice && Number(row.costPrice) > 0 && !calcDismissed && (
+        {!row.isFreeItem && row.costPrice && Number(row.costPrice) > 0 && calcOpen && (
           <div className="absolute left-0 top-full z-30 w-72">
             <PricingCalculator
               costPrice={Number(row.costPrice)}
               sellingPrice={row.sellingPrice}
-              onSelectPrice={(price) => { onChange({ sellingPrice: String(price) }); setCalcDismissed(true) }}
+              onSelectPrice={(price) => { onChange({ sellingPrice: String(price) }); setCalcOpen(false) }}
               transportEnabled={transportConfig.enabled}
               transportDistanceKm={transportConfig.distanceKm}
               transportCostPerKm={transportConfig.ratePerKm}
               batchQuantity={totalBatchQuantity}
-              onClose={() => setCalcDismissed(true)}
+              onClose={() => setCalcOpen(false)}
             />
           </div>
         )}

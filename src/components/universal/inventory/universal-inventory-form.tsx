@@ -316,7 +316,12 @@ export function UniversalInventoryForm({
   }
   const [suggestOpen, setSuggestOpen] = useState(false)
   const [suggestVisibleCount, setSuggestVisibleCount] = useState(5)
-  const [calcDismissed, setCalcDismissed] = useState(false)
+  // Was calcDismissed (default false, meaning "shown by default until
+  // dismissed") - with an existing item already carrying a cost price, that
+  // popped the calculator open immediately whenever the form loaded, unrequested.
+  // It should only open when the user actually focuses the Sell Price field
+  // (or edits Cost Price, which re-opens it to help recompute a new price).
+  const [calcOpen, setCalcOpen] = useState(false)
 
   // Weight selling — restaurant and grocery only
   const isWeightBusiness = businessType === 'restaurant' || businessType === 'grocery'
@@ -1948,7 +1953,7 @@ export function UniversalInventoryForm({
                   type="number"
                   step="0.01"
                   value={formData.costPrice === 0 ? '' : formData.costPrice}
-                  onChange={(e) => { handleInputChange('costPrice', e.target.value === '' ? 0 : parseFloat(e.target.value)); setCalcDismissed(false) }}
+                  onChange={(e) => { handleInputChange('costPrice', e.target.value === '' ? 0 : parseFloat(e.target.value)); setCalcOpen(true) }}
                   className={`input-field ${errors.costPrice ? 'border-red-500 border-2' : ''}`}
                   placeholder="0.00"
                 />
@@ -1964,20 +1969,21 @@ export function UniversalInventoryForm({
                   step="0.01"
                   value={formData.sellPrice === 0 ? '' : formData.sellPrice}
                   onChange={(e) => handleInputChange('sellPrice', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                  onFocus={() => setCalcOpen(true)}
                   className={`input-field ${errors.sellPrice ? 'border-red-500 border-2' : ''}`}
                   placeholder="0.00"
                 />
                 {errors.sellPrice && <p className="text-red-600 text-xs mt-1 font-medium">{errors.sellPrice}</p>}
-                {!calcDismissed && !effectiveWeightMode && (
+                {calcOpen && !effectiveWeightMode && (
                   <PricingCalculator
                     costPrice={formData.costPrice > 0 ? formData.costPrice : null}
                     sellingPrice={formData.sellPrice > 0 ? String(formData.sellPrice) : ''}
-                    onSelectPrice={(price) => { handleInputChange('sellPrice', price); setCalcDismissed(true) }}
+                    onSelectPrice={(price) => { handleInputChange('sellPrice', price); setCalcOpen(false) }}
                     transportEnabled={transportConfig.enabled}
                     transportDistanceKm={transportConfig.distanceKm}
                     transportCostPerKm={transportConfig.ratePerKm}
                     batchQuantity={formData.currentStock > 0 ? formData.currentStock : 1}
-                    onClose={() => setCalcDismissed(true)}
+                    onClose={() => setCalcOpen(false)}
                   />
                 )}
               </div>}

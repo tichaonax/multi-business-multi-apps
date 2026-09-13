@@ -221,7 +221,7 @@ async function main() {
     { stdio: 'inherit' }
   )
 
-  console.log(`[build] Done. Standalone agent at: ${exePath}`)
+  console.log(`[build] Done. Standalone agent v${version} at: ${exePath}`)
 
   // The agent has no Windows Service / tray-Quit guaranteed to work (tray
   // start can itself fail — see the fs-extra bug this shipped alongside),
@@ -249,7 +249,7 @@ async function main() {
 
   console.log('[build] Zipping exe + stop script + systray2 helper folder + its runtime deps for a single-file download…')
   await zipDist(exePath, stopBatPath, join(distDir, 'node_modules'), join(distDir, 'r710-agent.zip'))
-  console.log(`[build] Download bundle at: ${join(distDir, 'r710-agent.zip')}`)
+  console.log(`[build] Download bundle (v${version}) at: ${join(distDir, 'r710-agent.zip')}`)
 
   // Only recorded once the build actually finished — a failed/aborted build
   // must never mark this source state as "already accounted for," or a

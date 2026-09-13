@@ -18,7 +18,7 @@
  * Usage: node scripts/build-agent.js
  */
 
-const { existsSync } = require('fs')
+const { existsSync, readFileSync } = require('fs')
 const { join } = require('path')
 const { execSync } = require('child_process')
 
@@ -50,7 +50,8 @@ function main() {
     }
 
     run('npm run build', AGENT_DIR)
-    console.log('   ✅ Agent built — agent/r710-local-agent/dist/r710-agent.zip is up to date.')
+    const { version } = JSON.parse(readFileSync(join(AGENT_DIR, 'package.json'), 'utf8'))
+    console.log(`   ✅ Agent v${version} built — agent/r710-local-agent/dist/r710-agent.zip is up to date.`)
   } catch (error) {
     // Best-effort only — an agent-packaging failure must never take down
     // the rest of the app's build/deploy. Degrades to the same "Agent
