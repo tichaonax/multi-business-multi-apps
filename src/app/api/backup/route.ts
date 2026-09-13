@@ -6,7 +6,7 @@ import { createGunzip } from 'zlib';
 
 import { prisma } from '@/lib/prisma';
 import { createCleanBackup, writeCleanBackupStream } from '@/lib/backup-clean';
-import { restoreCleanBackup, validateBackupData } from '@/lib/restore-clean';
+import { restoreCleanBackup, validateBackupData, RESTORE_ORDER } from '@/lib/restore-clean';
 import { createProgressId, updateProgress, getProgress } from '@/lib/backup-progress';
 import { compressBackup, decompressBackup, isGzipped } from '@/lib/backup-compression';
 import { parseJSONStream } from '@/lib/backup-stream-parse';
@@ -90,7 +90,10 @@ export async function GET(request: NextRequest) {
     const outputPath = path.join(BACKUPS_DIR, filename);
 
     const progressId = createProgressId();
-    updateProgress(progressId, { model: 'starting', processed: 0, total: 0 });
+    // Total record count isn't known until the backup actually finishes
+    // querying every table, so the progress bar tracks tables completed
+    // instead - RESTORE_ORDER's length is fixed and known upfront.
+    updateProgress(progressId, { model: 'starting', processed: 0, total: 0, totalTables: RESTORE_ORDER.length });
 
     console.log('[backup] Starting streamed backup:', {
       progressId, backupType, includeDemoData, includeDeviceData, businessId,

@@ -30,6 +30,11 @@ export type ProgressEntry = {
   filePath?: string;
   filename?: string;
   sizeBytes?: number;
+  // Backup creation only — total record count isn't known upfront (unlike
+  // restore, which reads it from the uploaded file before starting), so the
+  // progress bar tracks tables completed out of this fixed, known-upfront
+  // count instead of records processed out of a total.
+  totalTables?: number;
 }
 
 const _progress = new Map<string, ProgressEntry>()

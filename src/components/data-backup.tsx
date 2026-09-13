@@ -1034,14 +1034,65 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
         {backupProgress && (() => {
           const counts = backupProgress?.counts ?? {};
           const modelEntries = Object.entries(counts) as [string, { processed?: number; total?: number }][];
-          const activeModel = backupProgress?.model;
+          const isComplete = backupProgress?.model === 'completed';
+          const isInProgress = !isComplete;
+
+          // Total record count isn't known upfront for a backup (unlike
+          // restore, which reads it from the uploaded file before starting)
+          // - track tables completed out of the fixed, known-upfront table
+          // count instead of records processed out of a total.
+          const tablesTotal = backupProgress?.totalTables ?? 0;
+          const tablesDone = modelEntries.filter(([, s]) => (s.total ?? 0) > 0 && (s.processed ?? 0) >= (s.total ?? 0)).length;
+          const percent = tablesTotal > 0 ? Math.min(100, Math.round((tablesDone / tablesTotal) * 100)) : 0;
+
+          const activeModel = isInProgress ? backupProgress?.model : undefined;
+          const activeStats = activeModel && activeModel !== 'starting' && activeModel !== 'creating' ? counts[activeModel] : undefined;
+
           return (
-            <div className="space-y-2">
-              <RestoreProgressLog
-                entries={modelEntries.filter(([, s]) => (s.processed ?? 0) > 0)}
-                currentModel={activeModel}
-                isComplete={activeModel === 'completed'}
-              />
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg dark:bg-green-950 dark:border-green-800">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
+                  <h4 className="font-medium text-green-900 dark:text-green-100">
+                    {isComplete ? 'Backup Completed' : 'Backup In Progress'}
+                  </h4>
+                  {activeModel && activeStats && (
+                    <span className="flex items-center gap-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded-full font-mono">
+                      <span className="animate-pulse">↻</span>
+                      <span className="font-semibold">{activeModel}</span>
+                      <span className="text-blue-600 dark:text-blue-400">
+                        {(activeStats.processed ?? 0).toLocaleString()}{activeStats.total ? ` / ${activeStats.total.toLocaleString()}` : ''}
+                      </span>
+                    </span>
+                  )}
+                </div>
+                {isInProgress && tablesTotal > 0 && (
+                  <span className="text-xs font-medium text-green-700 dark:text-green-300 shrink-0">
+                    {tablesDone} / {tablesTotal} tables ({percent}%)
+                  </span>
+                )}
+              </div>
+
+              {/* Progress bar */}
+              {isInProgress && tablesTotal > 0 && (
+                <div className="mb-3">
+                  <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="h-2 bg-green-600 dark:bg-green-400 transition-all duration-300"
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Scrolling table-by-table progress log — only show tables that have started */}
+              {modelEntries.filter(([, s]) => (s.processed ?? 0) > 0).length > 0 && (
+                <RestoreProgressLog
+                  entries={modelEntries.filter(([, s]) => (s.processed ?? 0) > 0)}
+                  currentModel={activeModel}
+                  isComplete={isComplete}
+                />
+              )}
             </div>
           );
         })()}
