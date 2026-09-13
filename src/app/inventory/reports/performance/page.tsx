@@ -7,11 +7,15 @@ import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getLocalDateString } from '@/lib/utils'
+import { ProductCell } from '@/components/inventory/report-product-cell'
+import '@/styles/print-report.css'
 
 interface PerformanceRow {
   id: string
   productName: string
   variantName: string
+  imageUrl: string | null
+  editItemId: string
   sku: string
   category: string
   totalUnitsSold: number
@@ -30,6 +34,7 @@ interface PerformanceRow {
 }
 
 interface ReportData {
+  businessType: string | null
   dateRange: { startDate: string; endDate: string; days: number }
   summary: { totalProducts: number; totalUnitsSold: number; productsWithSales: number; productsWithNoSales: number; totalRevenue: number; totalGrossProfit: number }
   data: PerformanceRow[]
@@ -61,7 +66,8 @@ function exportCsv(rows: PerformanceRow[]) {
 }
 
 export default function ProductPerformanceReportPage() {
-  const { currentBusinessId } = useBusinessPermissionsContext()
+  const { currentBusinessId, hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
+  const canEditInventory = isSystemAdmin || hasPermission('canManageInventory')
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange())
   const [search, setSearch] = useState('')
   const [profitabilityFilter, setProfitabilityFilter] = useState<'ALL' | 'PROFITABLE' | 'LOSS' | 'NO_SALES' | 'UNRELIABLE_PRICING'>('ALL')
@@ -108,10 +114,12 @@ export default function ProductPerformanceReportPage() {
   })
 
   return (
-    <div className="flex flex-col bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 64px)' }}>
+    <div className="report-print-container flex flex-col bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 64px)' }}>
       <div className="flex-shrink-0 p-4 md:p-6 pb-0">
         <div className="flex items-center gap-2 text-xs text-secondary mb-1">
           <Link href="/inventory" className="hover:underline">Inventory</Link>
+          <span>/</span>
+          <Link href="/inventory/reports" className="hover:underline">Reports</Link>
           <span>/</span>
           <span>Product Performance</span>
         </div>
@@ -120,7 +128,7 @@ export default function ProductPerformanceReportPage() {
           Sales, revenue and profitability for the selected period. Cost of goods sold uses today&apos;s cost price, not the price at the time of each historical sale — flag &quot;unreliable pricing&quot; items before trusting their margin figures.
         </p>
 
-        <div className="flex flex-wrap items-end gap-3 my-4">
+        <div className="flex flex-wrap items-end gap-3 my-4 no-print">
           <DateRangeSelector value={dateRange} onChange={setDateRange} />
           <select value={profitabilityFilter} onChange={e => setProfitabilityFilter(e.target.value as any)} className="px-3 py-1.5 text-sm border border-border rounded-lg bg-white dark:bg-gray-800 text-primary">
             <option value="ALL">All products</option>
@@ -145,6 +153,7 @@ export default function ProductPerformanceReportPage() {
           {rows.length > 0 && (
             <button onClick={() => exportCsv(rows)} className="btn-secondary text-sm px-3 py-1.5">Export CSV</button>
           )}
+          <button onClick={() => window.print()} className="text-xs px-2 py-1 border border-border rounded hover:border-gray-400">Print / Save as PDF</button>
         </div>
 
         {reportData && (
@@ -198,10 +207,16 @@ export default function ProductPerformanceReportPage() {
                     {rows.map(row => (
                       <tr key={row.id} className={!row.pricingDataReliable ? 'bg-amber-50/40 dark:bg-amber-900/10' : 'bg-white dark:bg-gray-800'}>
                         <td className="px-3 py-2.5">
-                          <p className="font-medium text-primary">{row.productName}</p>
-                          {row.variantName !== 'Default' && <p className="text-xs text-secondary">{row.variantName}</p>}
-                          <p className="text-xs text-gray-400">{row.sku} · {row.category}</p>
-                          {!row.pricingDataReliable && <p className="text-xs text-amber-600">⚠ missing cost/sell price — profitability unreliable</p>}
+                          <ProductCell
+                            imageUrl={row.imageUrl}
+                            name={row.productName}
+                            subtitle={row.variantName !== 'Default' ? row.variantName : undefined}
+                            sku={`${row.sku} · ${row.category}`}
+                            businessType={reportData.businessType}
+                            editItemId={row.editItemId}
+                            canEdit={canEditInventory}
+                          />
+                          {!row.pricingDataReliable && <p className="text-xs text-amber-600 mt-0.5">⚠ missing cost/sell price — profitability unreliable</p>}
                         </td>
                         <td className="px-3 py-2.5 text-right text-secondary">{row.totalUnitsSold}</td>
                         <td className="px-3 py-2.5 text-right text-secondary">{money(row.revenue)}</td>

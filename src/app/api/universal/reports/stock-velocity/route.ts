@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getUnifiedProducts } from '@/lib/inventory/product-catalog-view'
 import { getSalesAggregates } from '@/lib/inventory/product-activity'
@@ -32,9 +33,10 @@ export async function GET(request: NextRequest) {
     // inventory lives in BarcodeInventoryItems instead (see MBM-296 plan
     // §2.1 — the two-catalog problem). Both are now included via the shared
     // unified-catalog helper, the same one every other MBM-296 report uses.
-    const [products, sales] = await Promise.all([
+    const [products, sales, business] = await Promise.all([
       getUnifiedProducts({ businessId }),
       getSalesAggregates(businessId, start, end),
+      prisma.businesses.findUnique({ where: { id: businessId }, select: { type: true } }),
     ])
 
     const rows = products.map((p) => {
@@ -72,6 +74,8 @@ export async function GET(request: NextRequest) {
         productId: p.productId,
         productName: p.name,
         variantName: p.variantName ?? 'Default',
+        imageUrl: p.imageUrl,
+        editItemId: p.editItemId,
         sku: p.sku ?? '',
         category: p.categoryName ?? 'Uncategorised',
         totalUnitsSold,
@@ -99,6 +103,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      businessType: business?.type ?? null,
       dateRange: { startDate, endDate, days: dayRange },
       summary: {
         totalProducts: rows.length,

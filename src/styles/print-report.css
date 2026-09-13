@@ -561,6 +561,23 @@
 }
 
 /* ======================
+   MBM-296: fixed-height/overflow-scroll report layouts (the new pricing/
+   inventory report pages use a `calc(100vh - 64px)` flex column with an
+   internal `overflow-auto` table region, designed for screen scrolling) —
+   without this, printing would only capture whatever happened to be
+   scrolled into view, cutting off the rest of the table. Opt in per-page
+   via the `report-print-container` class on the outer wrapper.
+   ====================== */
+@media print {
+  .report-print-container,
+  .report-print-container * {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
+
+/* ======================
    SCREEN STYLES (for print preview)
    ====================== */
 

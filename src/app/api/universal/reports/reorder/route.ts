@@ -50,6 +50,8 @@ export async function GET(request: NextRequest) {
     const historicalStart = new Date(end)
     historicalStart.setDate(historicalStart.getDate() - historicalDays)
 
+    const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { type: true } })
+
     // ─── SYSTEM 1: product_variants ────────────────────────────────────────────
     // Run sales queries + variant fetch in parallel
     const [selectedRangeItems, historicalItems, variants] = await Promise.all([
@@ -97,6 +99,11 @@ export async function GET(request: NextRequest) {
               costPrice: true,
               supplierId: true,
               business_categories: { select: { name: true } },
+              product_images: {
+                orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+                take: 1,
+                select: { imageId: true },
+              },
             },
           },
         },
@@ -152,6 +159,7 @@ export async function GET(request: NextRequest) {
           costPrice: true,
           sellingPrice: true,
           business_category: { select: { name: true } },
+          imageId: true,
         },
       }),
       // Sales in selected range for barcode items
@@ -219,6 +227,8 @@ export async function GET(request: NextRequest) {
       maxOrderQty: number = 0,
       lastOrderedAt: Date | null = null,
       leadTimeDaysOnFile: number | null = null,
+      imageUrl: string | null = null,
+      editItemId: string = id,
     ) {
       const avgDailySales = selectedUnitsSold / dayRange
       const daysOfStockLeft = avgDailySales > 0 ? currentStock / avgDailySales : null
@@ -277,6 +287,8 @@ export async function GET(request: NextRequest) {
         productId,
         productName,
         variantName,
+        imageUrl,
+        editItemId,
         sku: sku ?? '',
         category: category ?? 'Uncategorised',
         currentStock,
@@ -325,6 +337,8 @@ export async function GET(request: NextRequest) {
         0,
         null,
         leadTimeByProductId.get(variant.business_products.id) ?? null,
+        variant.business_products.product_images[0]?.imageId ? `/api/images/${variant.business_products.product_images[0].imageId}` : null,
+        variant.business_products.id,
       )
     }
 
@@ -346,6 +360,9 @@ export async function GET(request: NextRequest) {
         item.lastOrderQty ?? 0,
         item.maxOrderQty ?? 0,
         item.lastOrderedAt ?? null,
+        null,
+        item.imageId ? `/api/images/${item.imageId}` : null,
+        `inv_${item.id}`,
       )
     }
 
@@ -360,6 +377,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      businessType: business?.type ?? null,
       dateRange: { startDate, endDate, days: dayRange },
       config: { reorderThresholdDays, targetStockDays, historicalDays },
       summary: {

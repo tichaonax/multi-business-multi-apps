@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useSession } from 'next-auth/react'
 import { SessionUser } from '@/lib/permission-utils'
@@ -40,6 +41,10 @@ export function ItemAvailabilityPanel({ businessType }: Props) {
   const sessionUser = session?.user as SessionUser
   const isAdmin = sessionUser?.role === 'admin'
   const canView = isAdmin || hasPermission('canViewCustomerDisplay') || hasPermission('canManageCustomerDisplay')
+  // MBM-296 follow-up: items here are BarcodeInventoryItems for both grocery
+  // and clothing (this panel's only two business types), so the inventory
+  // page's `inv_` prefix convention applies uniformly.
+  const canEditInventory = isAdmin || hasPermission('canManageInventory')
 
   const [items, setItems] = useState<AvailabilityItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -141,7 +146,17 @@ export function ItemAvailabilityPanel({ businessType }: Props) {
                       <span className="w-10 h-10 rounded flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-[9px] text-secondary flex-shrink-0">No image</span>
                     )}
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-primary truncate">{item.name}</div>
+                      {item.itemType === 'product' && canEditInventory ? (
+                        <Link
+                          href={`/${businessType}/inventory?productId=${encodeURIComponent(`inv_${item.id}`)}`}
+                          className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline truncate block"
+                          title="Edit this item"
+                        >
+                          {item.name}
+                        </Link>
+                      ) : (
+                        <div className="text-sm font-medium text-primary truncate">{item.name}</div>
+                      )}
                       <div className="text-xs text-secondary">{item.category ?? 'Uncategorized'}</div>
                     </div>
                     <span className={`text-xs font-semibold px-2 py-1 rounded-full flex-shrink-0 ${

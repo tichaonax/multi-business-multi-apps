@@ -7,10 +7,14 @@ import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getLocalDateString } from '@/lib/utils'
+import { ProductCell } from '@/components/inventory/report-product-cell'
+import '@/styles/print-report.css'
 
 interface PoorPerformerRow {
   id: string
   name: string
+  imageUrl: string | null
+  editItemId: string
   sku: string | null
   category: string | null
   quantityOnHand: number
@@ -33,6 +37,7 @@ interface PoorPerformerRow {
 }
 
 interface ReportData {
+  businessType: string | null
   summary: { totalFlagged: number; totalUnvaluedQty: number; totalPotentialLoss: number; totalActualLossInPeriod: number; totalTiedUpCostValue: number }
   pagination: { page: number; limit: number; total: number; totalPages: number }
   data: PoorPerformerRow[]
@@ -61,7 +66,8 @@ const CRITERION_LABEL: Record<string, string> = {
 }
 
 export default function PoorPerformersReportPage() {
-  const { currentBusinessId } = useBusinessPermissionsContext()
+  const { currentBusinessId, hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
+  const canEditInventory = isSystemAdmin || hasPermission('canManageInventory')
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange())
   const [search, setSearch] = useState('')
   const [criterionFilter, setCriterionFilter] = useState('')
@@ -102,18 +108,37 @@ export default function PoorPerformersReportPage() {
   }
   if (criterionFilter) rows = rows.filter(r => r.criteria.includes(criterionFilter))
 
+  function exportCsv() {
+    const header = 'Product,SKU,Category,Qty on Hand,Cost Value,Qty Sold,Potential Loss,Actual Loss,Stock Age,Reasons,Suggested Action'
+    const lines = rows.map(r => [
+      `"${r.name}"`, `"${r.sku ?? ''}"`, `"${r.category ?? ''}"`, r.quantityOnHand,
+      r.unvaluedQty > 0 ? 'unvalued' : r.totalCostValue.toFixed(2), r.qtySoldInPeriod,
+      r.potentialLossOnHand.toFixed(2), r.actualLossInPeriod.toFixed(2), r.stockAgeDays,
+      `"${r.criteria.join('; ')}"`, `"${r.suggestedAction}"`,
+    ].join(','))
+    const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `poor-performers-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
-    <div className="flex flex-col bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 64px)' }}>
+    <div className="report-print-container flex flex-col bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 64px)' }}>
       <div className="flex-shrink-0 p-4 md:p-6 pb-0">
         <div className="flex items-center gap-2 text-xs text-secondary mb-1">
           <Link href="/inventory" className="hover:underline">Inventory</Link>
+          <span>/</span>
+          <Link href="/inventory/reports" className="hover:underline">Reports</Link>
           <span>/</span>
           <span>Poor-Performing &amp; Loss-Making Stock</span>
         </div>
         <h1 className="text-xl font-bold text-primary">Poor-Performing &amp; Loss-Making Stock</h1>
         <p className="text-sm text-secondary mt-0.5">Slow-moving, non-moving, excess, loss-making and poorly-priced stock, drawn from the same underlying data as the other inventory reports.</p>
 
-        <div className="flex flex-wrap items-end gap-3 my-4">
+        <div className="flex flex-wrap items-end gap-3 my-4 no-print">
           <DateRangeSelector value={dateRange} onChange={setDateRange} />
           <select value={criterionFilter} onChange={e => setCriterionFilter(e.target.value)} className="px-3 py-1.5 text-sm border border-border rounded-lg bg-white dark:bg-gray-800 text-primary">
             <option value="">All reasons</option>
@@ -159,7 +184,9 @@ export default function PoorPerformersReportPage() {
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-border flex flex-col h-full">
             <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border flex-shrink-0">
               <p className="text-sm text-secondary">{reportData.pagination.total} items · page {reportData.pagination.page} of {Math.max(1, reportData.pagination.totalPages)}</p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 no-print">
+                <button onClick={exportCsv} className="text-xs px-2 py-1 border border-border rounded hover:border-gray-400">Export CSV</button>
+                <button onClick={() => window.print()} className="text-xs px-2 py-1 border border-border rounded hover:border-gray-400">Print / Save as PDF</button>
                 <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="text-xs px-2 py-1 border border-border rounded disabled:opacity-40">← Prev</button>
                 <button disabled={page >= reportData.pagination.totalPages} onClick={() => setPage(p => p + 1)} className="text-xs px-2 py-1 border border-border rounded disabled:opacity-40">Next →</button>
               </div>
@@ -187,8 +214,14 @@ export default function PoorPerformersReportPage() {
                     {rows.map(row => (
                       <tr key={row.id} className={row.severity === 'CRITICAL' ? 'bg-red-50/40 dark:bg-red-900/10' : 'bg-white dark:bg-gray-800'}>
                         <td className="px-3 py-2.5">
-                          <p className="font-medium text-primary">{row.name}</p>
-                          {row.sku && <p className="text-xs text-gray-400">{row.sku} · {row.category ?? 'Uncategorised'}</p>}
+                          <ProductCell
+                            imageUrl={row.imageUrl}
+                            name={row.name}
+                            sku={row.sku ? `${row.sku} · ${row.category ?? 'Uncategorised'}` : undefined}
+                            businessType={reportData.businessType}
+                            editItemId={row.editItemId}
+                            canEdit={canEditInventory}
+                          />
                         </td>
                         <td className="px-3 py-2.5 text-right text-secondary">{row.quantityOnHand}</td>
                         <td className="px-3 py-2.5 text-right text-secondary">{row.unvaluedQty > 0 ? <span className="text-amber-600">unvalued</span> : money(row.totalCostValue)}</td>

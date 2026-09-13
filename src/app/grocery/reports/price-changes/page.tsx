@@ -28,6 +28,28 @@ interface PriceChangeReport {
   changedByEmail: string | null
   sourceTable: string | null
   viaPOSQuickEdit: boolean
+  viaBulkStockReceiving: boolean
+}
+
+/**
+ * MBM-296 follow-up: no free-text "reason" is captured for most price
+ * changes (only the dedicated legacy price-edit routes ask the user why —
+ * see product_price_changes.changeReason — and that isn't what this report
+ * reads). This synthesizes the closest honest equivalent from what IS
+ * captured for every change: which screen/flow made it, and who.
+ */
+function describeChange(r: PriceChangeReport): string {
+  const via = r.viaPOSQuickEdit
+    ? 'via POS Quick-Edit'
+    : r.viaBulkStockReceiving
+    ? 'via Bulk Stock Receiving'
+    : r.sourceTable === 'BARCODE_ITEM'
+    ? 'via inventory item edit'
+    : r.sourceTable === 'BUSINESS_PRODUCT'
+    ? 'via product edit'
+    : 'manual edit'
+  const by = r.changedByName ? ` by ${r.changedByName}` : ''
+  return `Changed ${via}${by}`
 }
 
 export default function PriceChangesReportPage() {
@@ -214,12 +236,15 @@ export default function PriceChangesReportPage() {
                               {formatDateTime(new Date(r.date))}
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          <td className="px-6 py-4 whitespace-nowrap" title={describeChange(r)}>
+                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100 cursor-help">
                               {r.productName || '—'}
                             </div>
                             {r.viaPOSQuickEdit && (
                               <div className="text-xs text-gray-500 dark:text-gray-400">via POS Quick-Edit</div>
+                            )}
+                            {r.viaBulkStockReceiving && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400">via Bulk Stock Receiving</div>
                             )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right">

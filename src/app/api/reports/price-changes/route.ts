@@ -84,6 +84,7 @@ export async function GET(request: NextRequest) {
         changedByEmail: log.users?.email ?? null,
         sourceTable: metadata?.sourceTable ?? null,
         viaPOSQuickEdit: metadata?.viaPOSQuickEdit === true,
+        viaBulkStockReceiving: metadata?.viaBulkStockReceiving === true,
       }
     })
 

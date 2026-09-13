@@ -54,6 +54,9 @@ export interface ProductRecord {
   isAvailable: boolean
   posAvailabilityStatus: PosAvailabilityStatus
   createdAt: Date
+  imageUrl: string | null
+  /** Deep-link to this item's edit/view screen — see buildInventoryItemLink(). */
+  editItemId: string
 }
 
 function deriveCatalogAStatus(isActive: boolean, isAvailable: boolean, basePrice: number | null, isSoldByWeight: boolean): PosAvailabilityStatus {
@@ -126,6 +129,11 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
             locationId: true,
             business_locations: { select: { name: true } },
             attributes: true,
+            product_images: {
+              orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+              take: 1,
+              select: { imageId: true },
+            },
           },
         },
       },
@@ -156,6 +164,7 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
         business_supplier: { select: { name: true } },
         locationId: true,
         business_location: { select: { name: true } },
+        imageId: true,
       },
     }),
   ])
@@ -197,6 +206,8 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
       isAvailable: v.isAvailable && bp.isAvailable,
       posAvailabilityStatus: deriveCatalogAStatus(v.isActive && bp.isActive, v.isAvailable && bp.isAvailable, sellingPrice, bp.isSoldByWeight),
       createdAt: v.createdAt,
+      imageUrl: bp.product_images[0]?.imageId ? `/api/images/${bp.product_images[0].imageId}` : null,
+      editItemId: bp.id,
     })
   }
 
@@ -230,6 +241,8 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
       isAvailable: item.isActive,
       posAvailabilityStatus: deriveCatalogBStatus(item.isActive, sellingPrice),
       createdAt: item.createdAt,
+      imageUrl: item.imageId ? `/api/images/${item.imageId}` : null,
+      editItemId: `inv_${item.id}`,
     })
   }
 

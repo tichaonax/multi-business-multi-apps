@@ -7,10 +7,14 @@ import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getLocalDateString } from '@/lib/utils'
+import { ProductCell } from '@/components/inventory/report-product-cell'
+import '@/styles/print-report.css'
 
 interface ValueRow {
   id: string
   name: string
+  imageUrl: string | null
+  editItemId: string
   sku: string | null
   category: string | null
   supplier: string | null
@@ -29,6 +33,7 @@ interface ValueRow {
 }
 
 interface ReportData {
+  businessType: string | null
   summary: { itemCount: number; totalCostValue: number; totalUnvaluedQty: number; totalSellingValue: number; totalPotentialLoss: number; totalRecentlyStockedValue: number; totalExistingValue: number }
   pagination: { page: number; limit: number; total: number; totalPages: number }
   data: ValueRow[]
@@ -46,7 +51,8 @@ function getDefaultDateRange(): DateRange {
 type ViewMode = 'combined' | 'recentlyStocked' | 'existing'
 
 export default function InventoryValueReportPage() {
-  const { currentBusinessId } = useBusinessPermissionsContext()
+  const { currentBusinessId, hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
+  const canEditInventory = isSystemAdmin || hasPermission('canManageInventory')
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange())
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('combined')
@@ -83,11 +89,29 @@ export default function InventoryValueReportPage() {
 
   const rows = reportData?.data ?? []
 
+  function exportCsv() {
+    const header = 'Product,SKU,Category,Supplier,Qty,Unit Cost,Unit Sell,Cost Value,Selling Value,Potential Loss,Status'
+    const lines = rows.map(r => [
+      `"${r.name}"`, `"${r.sku ?? ''}"`, `"${r.category ?? ''}"`, `"${r.supplier ?? ''}"`,
+      r.quantityOnHand, r.costPrice ?? '', r.sellingPrice ?? '', r.totalCostValue.toFixed(2), r.totalSellingValue.toFixed(2),
+      r.potentialLossOnHand.toFixed(2), r.posAvailabilityStatus,
+    ].join(','))
+    const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `inventory-value-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
-    <div className="flex flex-col bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 64px)' }}>
+    <div className="report-print-container flex flex-col bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 64px)' }}>
       <div className="flex-shrink-0 p-4 md:p-6 pb-0">
         <div className="flex items-center gap-2 text-xs text-secondary mb-1">
           <Link href="/inventory" className="hover:underline">Inventory</Link>
+          <span>/</span>
+          <Link href="/inventory/reports" className="hover:underline">Reports</Link>
           <span>/</span>
           <span>Inventory Value</span>
         </div>
@@ -96,7 +120,7 @@ export default function InventoryValueReportPage() {
           Item- and total-level valuation. &quot;Recently stocked&quot; only reflects movements recorded since stock-movement logging was added — older receipts fall under &quot;Existing&quot; even if actually received in this window.
         </p>
 
-        <div className="flex flex-wrap items-end gap-3 my-4">
+        <div className="flex flex-wrap items-end gap-3 my-4 no-print">
           <DateRangeSelector value={dateRange} onChange={setDateRange} />
           <div className="flex gap-1">
             {([['combined', 'Combined'], ['recentlyStocked', 'Recently Stocked'], ['existing', 'Existing']] as const).map(([mode, label]) => (
@@ -153,7 +177,9 @@ export default function InventoryValueReportPage() {
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-border flex flex-col h-full">
             <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border flex-shrink-0">
               <p className="text-sm text-secondary">{reportData.pagination.total} items · page {reportData.pagination.page} of {Math.max(1, reportData.pagination.totalPages)}</p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 no-print">
+                <button onClick={exportCsv} className="text-xs px-2 py-1 border border-border rounded hover:border-gray-400">Export CSV</button>
+                <button onClick={() => window.print()} className="text-xs px-2 py-1 border border-border rounded hover:border-gray-400">Print / Save as PDF</button>
                 <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="text-xs px-2 py-1 border border-border rounded disabled:opacity-40">← Prev</button>
                 <button disabled={page >= reportData.pagination.totalPages} onClick={() => setPage(p => p + 1)} className="text-xs px-2 py-1 border border-border rounded disabled:opacity-40">Next →</button>
               </div>
@@ -183,8 +209,14 @@ export default function InventoryValueReportPage() {
                       return (
                         <tr key={row.id} className={row.potentialLossOnHand > 0 ? 'bg-red-50/40 dark:bg-red-900/10' : 'bg-white dark:bg-gray-800'}>
                           <td className="px-3 py-2.5">
-                            <p className="font-medium text-primary">{row.name}</p>
-                            {row.sku && <p className="text-xs text-gray-400">{row.sku}</p>}
+                            <ProductCell
+                              imageUrl={row.imageUrl}
+                              name={row.name}
+                              sku={row.sku}
+                              businessType={reportData.businessType}
+                              editItemId={row.editItemId}
+                              canEdit={canEditInventory}
+                            />
                           </td>
                           <td className="px-3 py-2.5 text-secondary">
                             <p>{row.category ?? '—'}</p>

@@ -7,12 +7,16 @@ import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getLocalDateString } from '@/lib/utils'
+import { ProductCell } from '@/components/inventory/report-product-cell'
+import '@/styles/print-report.css'
 
 interface ReorderRow {
   variantId: string
   productId: string
   productName: string
   variantName: string
+  imageUrl: string | null
+  editItemId: string
   sku: string
   category: string
   currentStock: number
@@ -39,6 +43,7 @@ interface ReorderRow {
 }
 
 interface ReportData {
+  businessType: string | null
   dateRange: { startDate: string; endDate: string; days: number }
   summary: {
     itemsNeedingReorder: number
@@ -164,7 +169,8 @@ function exportCsv(rows: ReorderRow[]) {
 }
 
 export default function ReorderReportPage() {
-  const { currentBusinessId } = useBusinessPermissionsContext()
+  const { currentBusinessId, hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
+  const canEditInventory = isSystemAdmin || hasPermission('canManageInventory')
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange())
   const [reportData, setReportData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -227,7 +233,7 @@ export default function ReorderReportPage() {
   })
 
   return (
-    <div className="flex flex-col bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 64px)' }}>
+    <div className="report-print-container flex flex-col bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 64px)' }}>
       {/* ── Fixed top section ── */}
       <div className="flex-shrink-0 p-4 md:p-6 pb-0">
         {/* Header */}
@@ -241,13 +247,13 @@ export default function ReorderReportPage() {
             <h1 className="text-xl font-bold text-primary">Reorder Report</h1>
             <p className="text-sm text-secondary mt-0.5">
               Quantities based on 90-day historical sales. Click <span className="text-blue-500">min N</span> to edit minimum level.
-              Click a product name to view its inventory.
+              Click a product name to edit that item.
             </p>
           </div>
         </div>
 
         {/* Date range + urgency filter */}
-        <div className="flex flex-wrap items-end gap-3 mb-4">
+        <div className="flex flex-wrap items-end gap-3 mb-4 no-print">
           <DateRangeSelector value={dateRange} onChange={setDateRange} />
           <label className="flex items-center gap-2 text-xs font-medium text-secondary px-3 py-1.5 border border-border rounded-lg bg-white dark:bg-gray-800 cursor-pointer">
             <input type="checkbox" checked={showAllProducts} onChange={(e) => setShowAllProducts(e.target.checked)} />
@@ -316,7 +322,7 @@ export default function ReorderReportPage() {
               <p className="text-sm text-secondary">
                 {search ? `${rows.length} of ${reportData.data.length} items` : `${reportData.data.length} items`}
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 no-print">
                 <input
                   type="search"
                   placeholder="Search by name, SKU, category…"
@@ -332,6 +338,9 @@ export default function ReorderReportPage() {
                     Export CSV
                   </button>
                 )}
+                <button onClick={() => window.print()} className="text-xs px-2 py-1 border border-border rounded hover:border-gray-400 whitespace-nowrap">
+                  Print / Save as PDF
+                </button>
               </div>
             </div>
 
@@ -346,8 +355,8 @@ export default function ReorderReportPage() {
                     : `No ${urgencyFilter} items found.`}
                 </div>
               ) : (
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800/90 text-xs text-secondary uppercase tracking-wide">
+                <table className="w-full text-sm border-separate border-spacing-0">
+                  <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 text-xs text-secondary uppercase tracking-wide">
                     <tr>
                       <th className="px-3 py-2.5 text-left">Product</th>
                       <th className="px-3 py-2.5 text-left">Category</th>
@@ -373,16 +382,15 @@ export default function ReorderReportPage() {
                         }`}
                       >
                         <td className="px-3 py-2.5">
-                          <Link
-                            href="/admin/inventory"
-                            className="font-medium text-blue-600 dark:text-blue-400 hover:underline"
-                          >
-                            {row.productName}
-                          </Link>
-                          {row.variantName !== 'Default' && (
-                            <p className="text-xs text-secondary">{row.variantName}</p>
-                          )}
-                          {row.sku && <p className="text-xs text-gray-400">{row.sku}</p>}
+                          <ProductCell
+                            imageUrl={row.imageUrl}
+                            name={row.productName}
+                            subtitle={row.variantName !== 'Default' ? row.variantName : undefined}
+                            sku={row.sku}
+                            businessType={reportData.businessType}
+                            editItemId={row.editItemId}
+                            canEdit={canEditInventory}
+                          />
                         </td>
                         <td className="px-3 py-2.5 text-secondary">{row.category}</td>
                         <td className="px-3 py-2.5 text-right">

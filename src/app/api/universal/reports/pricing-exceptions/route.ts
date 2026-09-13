@@ -60,11 +60,12 @@ export async function GET(request: NextRequest) {
       ? new Date(searchParams.get('startDate') + 'T00:00:00')
       : (() => { const d = new Date(endDate); d.setDate(d.getDate() - 30); return d })()
 
-    const [settingsRow, products, sales, movements] = await Promise.all([
+    const [settingsRow, products, sales, movements, business] = await Promise.all([
       prisma.pricingExceptionSettings.findUnique({ where: { businessId } }),
       getUnifiedProducts({ businessId, categoryId, supplierId, locationId, search }),
       getSalesAggregates(businessId, startDate, endDate),
       getMovementAggregates(businessId, startDate, endDate),
+      prisma.businesses.findUnique({ where: { id: businessId }, select: { type: true } }),
     ])
 
     const config: PricingExceptionConfig = settingsRow
@@ -137,6 +138,8 @@ export async function GET(request: NextRequest) {
         catalogSource: p.catalogSource,
         productId: p.productId,
         name: p.variantName ? `${p.name} — ${p.variantName}` : p.name,
+        imageUrl: p.imageUrl,
+        editItemId: p.editItemId,
         sku: p.sku,
         barcode: p.barcode,
         category: p.categoryName,
@@ -213,6 +216,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      businessType: business?.type ?? null,
       dateRange: { startDate: startDate.toISOString(), endDate: endDate.toISOString() },
       config,
       summary,

@@ -7,6 +7,8 @@ import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getLocalDateString } from '@/lib/utils'
+import { ProductCell } from '@/components/inventory/report-product-cell'
+import '@/styles/print-report.css'
 
 interface ExceptionFlag {
   type: string
@@ -28,6 +30,8 @@ interface ExceptionRow {
   catalogSource: 'BUSINESS_PRODUCT' | 'PRODUCT_VARIANT' | 'BARCODE_ITEM'
   productId: string
   name: string
+  imageUrl: string | null
+  editItemId: string
   sku: string | null
   category: string | null
   brand: string | null
@@ -51,6 +55,7 @@ interface ExceptionRow {
 }
 
 interface ReportData {
+  businessType: string | null
   summary: { totalExceptions: number; criticalCount: number; warningCount: number; infoCount: number; totalPotentialLoss: number }
   pagination: { page: number; limit: number; total: number; totalPages: number }
   data: ExceptionRow[]
@@ -154,7 +159,8 @@ function ReviewAction({ businessId, row, flag, onSaved }: { businessId: string; 
 }
 
 export default function PricingExceptionsReportPage() {
-  const { currentBusinessId } = useBusinessPermissionsContext()
+  const { currentBusinessId, hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
+  const canEditInventory = isSystemAdmin || hasPermission('canManageInventory')
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange())
   const [search, setSearch] = useState('')
   const [severityFilter, setSeverityFilter] = useState<'ALL' | 'CRITICAL' | 'WARNING' | 'INFO'>('ALL')
@@ -207,11 +213,30 @@ export default function PricingExceptionsReportPage() {
 
   const rows = (reportData?.data ?? []).filter(r => severityFilter === 'ALL' || r.severity === severityFilter)
 
+  function exportCsv() {
+    const header = 'Product,SKU,Category,Supplier,Qty on Hand,Qty Sold,Cost,Sell,Margin %,Potential P/L,POS Status,Exceptions'
+    const lines = rows.map(r => [
+      `"${r.name}"`, `"${r.sku ?? ''}"`, `"${r.category ?? ''}"`, `"${r.supplier ?? ''}"`,
+      r.quantityOnHand, r.quantitySoldInPeriod, r.costPrice ?? '', r.sellingPrice ?? '',
+      r.grossMarginPct != null ? r.grossMarginPct.toFixed(1) : '', r.totalPotentialProfitLoss ?? '',
+      r.posAvailabilityStatus, `"${r.flags.map(f => f.type).join('; ')}"`,
+    ].join(','))
+    const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `pricing-exceptions-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
-    <div className="flex flex-col bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 64px)' }}>
+    <div className="report-print-container flex flex-col bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 64px)' }}>
       <div className="flex-shrink-0 p-4 md:p-6 pb-0">
         <div className="flex items-center gap-2 text-xs text-secondary mb-1">
           <Link href="/inventory" className="hover:underline">Inventory</Link>
+          <span>/</span>
+          <Link href="/inventory/reports" className="hover:underline">Reports</Link>
           <span>/</span>
           <span>Pricing, Cost &amp; Value Exceptions</span>
         </div>
@@ -220,7 +245,7 @@ export default function PricingExceptionsReportPage() {
           Products with missing, invalid, below-cost, or suspicious pricing/cost data. Sales window below only affects &quot;qty sold&quot; and &quot;last sold&quot; columns — pricing exceptions themselves reflect current data regardless of date range.
         </p>
 
-        <div className="flex flex-wrap items-end gap-3 my-4">
+        <div className="flex flex-wrap items-end gap-3 my-4 no-print">
           <DateRangeSelector value={dateRange} onChange={setDateRange} />
           <select value={severityFilter} onChange={e => setSeverityFilter(e.target.value as any)} className="px-3 py-1.5 text-sm border border-border rounded-lg bg-white dark:bg-gray-800 text-primary">
             <option value="ALL">All severities</option>
@@ -281,7 +306,9 @@ export default function PricingExceptionsReportPage() {
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-border flex flex-col h-full">
             <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border flex-shrink-0">
               <p className="text-sm text-secondary">{reportData.pagination.total} exceptions · page {reportData.pagination.page} of {Math.max(1, reportData.pagination.totalPages)}</p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 no-print">
+                <button onClick={exportCsv} className="text-xs px-2 py-1 border border-border rounded hover:border-gray-400">Export CSV</button>
+                <button onClick={() => window.print()} className="text-xs px-2 py-1 border border-border rounded hover:border-gray-400">Print / Save as PDF</button>
                 <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="text-xs px-2 py-1 border border-border rounded disabled:opacity-40">← Prev</button>
                 <button disabled={page >= reportData.pagination.totalPages} onClick={() => setPage(p => p + 1)} className="text-xs px-2 py-1 border border-border rounded disabled:opacity-40">Next →</button>
               </div>
@@ -310,8 +337,14 @@ export default function PricingExceptionsReportPage() {
                     {rows.map(row => (
                       <tr key={row.id} className={row.severity === 'CRITICAL' ? 'bg-red-50/40 dark:bg-red-900/10' : 'bg-white dark:bg-gray-800'}>
                         <td className="px-3 py-2.5">
-                          <p className="font-medium text-primary">{row.name}</p>
-                          {row.sku && <p className="text-xs text-gray-400">{row.sku}</p>}
+                          <ProductCell
+                            imageUrl={row.imageUrl}
+                            name={row.name}
+                            sku={row.sku}
+                            businessType={reportData.businessType}
+                            editItemId={row.editItemId}
+                            canEdit={canEditInventory}
+                          />
                         </td>
                         <td className="px-3 py-2.5 text-secondary">
                           <p>{row.category ?? '—'}</p>
