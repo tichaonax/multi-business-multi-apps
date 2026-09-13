@@ -12614,6 +12614,8 @@ Grocery and clothing have no menu-number concept, so there's no "configured subs
 - **Hide Now** — the item disappears from the customer display immediately. Nothing else about it changes.
 - **Show Again** — brings it right back.
 
+For users with `canManageInventory` (or admin), each product's name is also a link straight to its inventory edit screen — useful when you notice a price, image, or stock issue while reviewing display availability and want to fix it without a separate trip to Inventory. Users without that permission just see the plain name.
+
 Same as Menu Availability, this is a quick single-purpose toggle only — it doesn't touch pricing, images, or how an item scores for display priority. Hidden items still show (marked accordingly) in the combined Customer Display management page, so a manager can always review what's been hidden.
 
 ---
@@ -13588,7 +13590,7 @@ No credit line prints at all when no customer is attached to the order, or their
 
 ## 63. Price Change Report
 
-Every time a product's price changes — from the POS Quick-Edit **Adjust Prices** dialog, Menu Management, or a Products/Inventory edit form — it's recorded to an audit trail, and can be reviewed on a dedicated report.
+Every time a product's price changes — from the POS Quick-Edit **Adjust Prices** dialog, Menu Management, a Products/Inventory edit form, or Bulk Stock receiving — it's recorded to an audit trail, and can be reviewed on a dedicated report.
 
 ---
 
@@ -13605,7 +13607,7 @@ For every price change:
 | Column | Shows |
 |--------|-------|
 | Date | When the change was made |
-| Product | The item's name (and "via POS Quick-Edit" if that's how it was changed) |
+| Product | The item's name (and "via POS Quick-Edit" / "via Bulk Stock Receiving" underneath if that's how it was changed). Hover the name for a tooltip summarizing which screen made the change and who — since not every entry point captures a free-text reason, this is the most specific "why" the report can honestly show. |
 | Original Price | The price before the change (struck through) |
 | New Price | The price after the change — red if it went up, green if it went down |
 | Changed By | The name and email of the user who made the change |
@@ -13757,6 +13759,13 @@ Tags started as an image-organizing tool (above) and now cover three more things
 **Where:** Sidebar → Inventory → the four report links below, or from any business type's Reports page (Grocery, Clothing, Hardware, Restaurant, Retail).
 
 These reports work across **both** of the app's inventory systems (the barcode/scan-based items used by Bulk Stock Panel and Stock Take, and the catalog items used by menu/service-style products) — a product entered either way is included in every report below.
+
+**A hub page ties them together:** Sidebar → Inventory → any of the report links takes you into that report directly, but the **Reports** breadcrumb at the top of every one of them leads to `/inventory/reports` — a single page listing all five, so you can jump between them without going back through the sidebar each time.
+
+**Common to every report on this page:**
+- **Product thumbnail + edit link** — each row shows the item's photo (or a "No image" placeholder) next to its name. For users with Manage Inventory permission (or admin), the name is a link straight to that item's edit screen; other users just see the plain name.
+- **Export CSV** — downloads the currently filtered/sorted rows as a spreadsheet.
+- **Print / Save as PDF** — opens the browser's print dialog with a clean, filter-free layout; choose "Save as PDF" there for a PDF copy.
 
 ### Pricing & Value Exceptions
 
