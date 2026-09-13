@@ -17,6 +17,15 @@ import { workstationAgentHub } from './src/lib/workstation-agents/agent-hub'
 import { startAutoGenerateScheduler } from './src/lib/r710/auto-generate-scheduler'
 import { startBusinessTargetRecalculationScheduler } from './src/lib/business-targets/recalculate-all-targets-scheduler'
 import { startBackgroundJobs } from './src/lib/background-jobs'
+import { join as joinPath } from 'path'
+
+// Fails fast, loudly, if `npm install` hasn't been run since package.json
+// last changed — see scripts/check-dependencies.js for why this exists.
+// Runs regardless of how the server is started (npm start, the Windows
+// service exe, ts-node in dev) since it's the server process itself doing
+// the check, not an npm lifecycle hook that some start paths bypass.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+require(joinPath(process.cwd(), 'scripts', 'check-dependencies.js')).checkDependencies()
 
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = '0.0.0.0'
