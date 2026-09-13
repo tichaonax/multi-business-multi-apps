@@ -231,6 +231,7 @@ export default function AdminUsersPage() {
           <UserDeactivationModal
             user={deactivatingUser}
             currentUser={session.user as SessionUser}
+            activeAdminCount={users.filter(u => u.role === 'admin' && u.isActive).length}
             onClose={() => setDeactivatingUser(null)}
             onSuccess={handleDeactivationSuccess}
             onError={handleDeactivationError}

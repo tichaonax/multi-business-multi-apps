@@ -404,6 +404,24 @@ export async function DELETE(
       }
     }
 
+    // Defense-in-depth: this route isn't currently called from any UI (the
+    // admin users page uses the richer /deactivate endpoint instead, which
+    // has the same guard plus a typed confirmation), but it performs the
+    // same soft-deactivation, so it gets the same last-active-admin
+    // protection regardless of caller.
+    const targetUser = await prisma.users.findUnique({ where: { id: userId }, select: { role: true, isActive: true } })
+    if (targetUser?.role === 'admin' && targetUser.isActive) {
+      const otherActiveAdmins = await prisma.users.count({
+        where: { role: 'admin', isActive: true, id: { not: userId } }
+      })
+      if (otherActiveAdmins === 0) {
+        return NextResponse.json(
+          { error: 'Cannot deactivate the last active admin account. Create or reactivate another admin account first.' },
+          { status: 409 }
+        )
+      }
+    }
+
     // Soft delete user (set inactive instead of actual deletion)
     await prisma.users.update({
       where: { id: userId },
