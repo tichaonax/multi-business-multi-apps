@@ -343,6 +343,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         where: { businessId, isActive: true, stockQuantity: { gt: 0 } },
         select: {
           id: true, name: true, sellingPrice: true, imageId: true,
+          sku: true, barcodeData: true, stockQuantity: true,
           business_category: { select: { name: true, emoji: true } },
         }
       }),
@@ -372,8 +373,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         originalPrice: invPromo.originalPrice, isPromoActive: invPromo.isPromoActive, promoEndsAt: invPromo.promoEndsAt,
         emoji: (p as any).business_category?.emoji ?? null,
         category: (p as any).business_category?.name ?? null,
+        sku: (p as any).sku ?? null,
+        barcode: (p as any).barcodeData ?? null,
+        stockQuantity: (p as any).stockQuantity ?? null,
         imageId: invImageId,
         imageUrl: invImageId ? `/api/images/${invImageId}` : (invAdImageId ? `/api/images/${invAdImageId}` : null),
+        // MBM-296 follow-up: an item with no real photo of its own can still
+        // show a picture here via the customer-display "advertising image"
+        // fallback below — that's correct for THIS page's actual purpose
+        // (what will the customer see), but is misleading if read as "this
+        // product has a photo" elsewhere (it doesn't — Edit/Search show none).
+        isAdvertisingImage: !invImageId && !!invAdImageId,
         advertisingNote: getNote('product', p.id),
         adImageId: invAdImageId,
         salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss) + promoBoost(`product:${p.id}`),
@@ -396,7 +406,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         originalPrice: svcPromo.originalPrice, isPromoActive: svcPromo.isPromoActive, promoEndsAt: svcPromo.promoEndsAt,
         emoji: (svc as any).business_categories?.emoji ?? null,
         category: (svc as any).business_categories?.name ?? null,
+        sku: (svc as any).sku ?? null,
+        barcode: (svc as any).barcode ?? null,
         imageUrl: svcAdImageId ? `/api/images/${svcAdImageId}` : null,
+        isAdvertisingImage: !!svcAdImageId,
         advertisingNote: getNote('product', svc.id),
         adImageId: svcAdImageId,
         salesScore: ss, displayScore: buildDisplayScore('product', svc.id, ss) + promoBoost(`product:${svc.id}`),
@@ -418,20 +431,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
 
     const newArrivalCutoff = subDays(todayStart, 14)
 
-    const [baleCategories, baleRows, newArrivalRows, invItems, bizProducts]: [any[], any[], any[], any[], any[]] = await Promise.all([
+    const [baleCategories, baleRows, newArrivalRows, invItems, bizProducts] = await Promise.all([
       // Bale categories live in clothing_bale_categories, not business_categories
       prisma.clothingBaleCategories.findMany({
         where: { isActive: true },
         select: { id: true, name: true }
       }),
-      prisma.$queryRaw`
+      prisma.$queryRaw<{ categoryId: string; baleCount: bigint }[]>`
         SELECT "categoryId", COUNT(*) AS "baleCount"
         FROM clothing_bales
         WHERE "businessId" = ${businessId} AND "isActive" = true AND "remainingCount" > 0
         GROUP BY "categoryId"
       `,
       // Bales added in the last 14 days — used to rank new arrivals first
-      prisma.$queryRaw`
+      prisma.$queryRaw<{ categoryId: string; newCount: bigint }[]>`
         SELECT "categoryId", COUNT(*) AS "newCount"
         FROM clothing_bales
         WHERE "businessId" = ${businessId} AND "isActive" = true AND "remainingCount" > 0 AND "createdAt" >= ${newArrivalCutoff}
@@ -441,6 +454,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         where: { businessId, isActive: true, stockQuantity: { gt: 0 } },
         select: {
           id: true, name: true, sellingPrice: true, createdAt: true, imageId: true,
+          sku: true, barcodeData: true, stockQuantity: true,
           business_category: { select: { name: true, emoji: true, domainId: true } },
         }
       }),
@@ -448,7 +462,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
       prisma.businessProducts.findMany({
         where: { businessId, isActive: true, isAvailable: true },
         select: {
-          id: true, name: true, basePrice: true, createdAt: true,
+          id: true, name: true, basePrice: true, createdAt: true, sku: true, barcode: true,
           business_categories: { select: { name: true, emoji: true, domainId: true } },
           product_variants: {
             where: { isActive: true },
@@ -535,8 +549,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         emoji: (p as any).business_category?.emoji ?? '👕',
         category: (p as any).business_category?.name ?? null,
         categoryIconUrl: domainIconUrlById.get((p as any).business_category?.domainId) ?? null,
+        sku: (p as any).sku ?? null,
+        barcode: (p as any).barcodeData ?? null,
         imageId: clothingInvImageId,
         imageUrl: clothingInvImageId ? `/api/images/${clothingInvImageId}` : (clothingInvAdImageId ? `/api/images/${clothingInvAdImageId}` : null),
+        isAdvertisingImage: !clothingInvImageId && !!clothingInvAdImageId,
         advertisingNote: getNote('product', p.id),
         adImageId: clothingInvAdImageId,
         salesScore: ss, displayScore: buildDisplayScore('product', p.id, ss) + promoBoost(`product:${p.id}`),
@@ -576,8 +593,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         emoji: (p as any).business_categories?.emoji ?? '👕',
         category: (p as any).business_categories?.name ?? null,
         categoryIconUrl: domainIconUrlById.get((p as any).business_categories?.domainId) ?? null,
+        sku: (p as any).sku ?? null,
+        barcode: (p as any).barcode ?? null,
         imageId: bizImageId,
         imageUrl: bizImageId ? `/api/images/${bizImageId}` : (bizAdImageId ? `/api/images/${bizAdImageId}` : null),
+        isAdvertisingImage: !bizImageId && !!bizAdImageId,
         productImages: bizImages,
         advertisingNote: getNote('product', p.id),
         adImageId: bizAdImageId,

@@ -10,6 +10,8 @@ interface ProductCellProps {
   businessType: string | null
   editItemId: string
   canEdit: boolean
+  /** The report page's own path, e.g. "/inventory/reports/pricing-exceptions" — closing the edit form navigates back here instead of stranding the user on the generic inventory page. */
+  returnTo?: string
 }
 
 /**
@@ -23,8 +25,10 @@ interface ProductCellProps {
  * inventory pages currently have a separate read-only detail view to send
  * them to instead.
  */
-export function ProductCell({ imageUrl, name, sku, subtitle, businessType, editItemId, canEdit }: ProductCellProps) {
-  const href = businessType ? `/${businessType}/inventory?productId=${encodeURIComponent(editItemId)}` : null
+export function ProductCell({ imageUrl, name, sku, subtitle, businessType, editItemId, canEdit, returnTo }: ProductCellProps) {
+  const href = businessType
+    ? `/${businessType}/inventory?productId=${encodeURIComponent(editItemId)}${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`
+    : null
 
   return (
     <div className="flex items-center gap-2 min-w-0">

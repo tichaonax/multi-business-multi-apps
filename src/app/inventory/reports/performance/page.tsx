@@ -215,6 +215,7 @@ export default function ProductPerformanceReportPage() {
                             businessType={reportData.businessType}
                             editItemId={row.editItemId}
                             canEdit={canEditInventory}
+                            returnTo="/inventory/reports/performance"
                           />
                           {!row.pricingDataReliable && <p className="text-xs text-amber-600 mt-0.5">⚠ missing cost/sell price — profitability unreliable</p>}
                         </td>

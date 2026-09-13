@@ -344,6 +344,7 @@ export default function PricingExceptionsReportPage() {
                             businessType={reportData.businessType}
                             editItemId={row.editItemId}
                             canEdit={canEditInventory}
+                            returnTo="/inventory/reports/pricing-exceptions"
                           />
                         </td>
                         <td className="px-3 py-2.5 text-secondary">

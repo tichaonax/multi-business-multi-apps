@@ -34,6 +34,9 @@ function HardwareInventoryContent() {
   const [showBulkStockPanel, setShowBulkStockPanel] = useState(false)
   const [bulkStockInitialMode, setBulkStockInitialMode] = useState<'bulkStock' | 'stockTake' | undefined>(undefined)
   const [selectedItem, setSelectedItem] = useState<any>(null)
+  // Set when a report page's edit link included `?returnTo=` — see the
+  // productId effect below and closeEditForm().
+  const [editReturnTo, setEditReturnTo] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [isLoadingProduct, setIsLoadingProduct] = useState(false)
   const [insightsTarget, setInsightsTarget] = useState<{ type: 'bale' | 'inventory'; id: string; productId?: string } | null>(null)
@@ -105,6 +108,8 @@ function HardwareInventoryContent() {
   useEffect(() => {
     const productId = searchParams?.get('productId')
     if (productId && currentBusinessId) {
+      const returnTo = searchParams?.get('returnTo')
+      if (returnTo) setEditReturnTo(returnTo)
       setIsLoadingProduct(true)
       fetch(`/api/inventory/${currentBusinessId}/items/${productId}`)
         .then(res => res.json())
@@ -257,6 +262,18 @@ function HardwareInventoryContent() {
     setShowAddForm(true)
   }
 
+  // Closes the add/edit form. If it was opened via a report page's edit
+  // link (?returnTo=...), navigates back there instead of just closing —
+  // otherwise behaves exactly as before (close modal, stay on inventory).
+  function closeEditForm() {
+    if (editReturnTo) {
+      router.push(editReturnTo)
+      return
+    }
+    setShowAddForm(false)
+    setSelectedItem(null)
+  }
+
   const handleItemView = (item: any) => {
     setSelectedItem(item)
     if (item.id.startsWith('inv_')) {
@@ -342,11 +359,10 @@ function HardwareInventoryContent() {
       })
 
         if (response.ok) {
-        setShowAddForm(false)
-        setSelectedItem(null)
         setActiveTab('inventory')
         // Trigger grid refresh by updating the key
         setRefreshKey(prev => prev + 1)
+        closeEditForm()
       } else{
         const error = await response.json()
         await customAlert({ title: 'Save failed', description: error.message || 'Failed to save item' })
@@ -689,10 +705,7 @@ function HardwareInventoryContent() {
             businessType="hardware"
             item={selectedItem}
             onSave={handleFormSubmit}
-            onCancel={() => {
-              setShowAddForm(false)
-              setSelectedItem(null)
-            }}
+            onCancel={closeEditForm}
             onSilentUpdate={() => setRefreshKey(prev => prev + 1)}
             isOpen={showAddForm}
             mode={selectedItem ? 'edit' : 'create'}

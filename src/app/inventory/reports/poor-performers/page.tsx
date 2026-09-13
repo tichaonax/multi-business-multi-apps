@@ -221,6 +221,7 @@ export default function PoorPerformersReportPage() {
                             businessType={reportData.businessType}
                             editItemId={row.editItemId}
                             canEdit={canEditInventory}
+                            returnTo="/inventory/reports/poor-performers"
                           />
                         </td>
                         <td className="px-3 py-2.5 text-right text-secondary">{row.quantityOnHand}</td>

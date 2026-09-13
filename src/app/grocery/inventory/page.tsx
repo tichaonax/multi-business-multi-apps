@@ -98,6 +98,9 @@ function GroceryInventoryContent() {
   const [showBulkStockPanel, setShowBulkStockPanel] = useState(false)
   const [bulkStockInitialMode, setBulkStockInitialMode] = useState<'bulkStock' | 'stockTake' | undefined>(undefined)
   const [selectedItem, setSelectedItem] = useState<any>(null)
+  // Set when a report page's edit link included `?returnTo=` — see the
+  // productId effect below and closeEditForm().
+  const [editReturnTo, setEditReturnTo] = useState<string | null>(null)
   const [formReady, setFormReady] = useState(false)
   const [showViewModal, setShowViewModal] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -186,6 +189,13 @@ function GroceryInventoryContent() {
   useEffect(() => {
     const productId = searchParams?.get('productId')
     if (productId && currentBusinessId) {
+      // A report page (Pricing Exceptions, Inventory Value, etc.) linking
+      // here to edit one item passes `returnTo` — captured before the
+      // router.replace below wipes it, and used to send the user back to
+      // that report instead of stranding them on the general inventory
+      // page once they close the edit form.
+      const returnTo = searchParams?.get('returnTo')
+      if (returnTo) setEditReturnTo(returnTo)
       // Set loading state
       setIsLoadingProduct(true)
       // Fetch the product and open edit form
@@ -210,6 +220,18 @@ function GroceryInventoryContent() {
         })
     }
   }, [searchParams, currentBusinessId, router])
+
+  // Closes the add/edit form. If it was opened via a report page's edit
+  // link (?returnTo=...), navigates back there instead of just closing —
+  // otherwise behaves exactly as before (close modal, stay on inventory).
+  function closeEditForm() {
+    if (editReturnTo) {
+      router.push(editReturnTo)
+      return
+    }
+    setShowAddForm(false)
+    setSelectedItem(null)
+  }
 
   const stockStatusFilter = (searchParams?.get('stockStatus') as 'low' | 'out' | 'healthy' | 'overstock' | null) ?? undefined
 
@@ -449,11 +471,10 @@ function GroceryInventoryContent() {
       })
 
         if (response.ok) {
-        setShowAddForm(false)
-        setSelectedItem(null)
         setActiveTab('inventory')
         // Trigger grid refresh by updating the key
         setRefreshKey(prev => prev + 1)
+        closeEditForm()
       } else {
         const error = await response.json()
         await customAlert({ title: 'Save failed', description: error.error || error.message || 'Failed to save item' })
@@ -952,10 +973,7 @@ function GroceryInventoryContent() {
                       )}
                       <div className="pl-3 ml-2 border-l border-gray-200 dark:border-gray-600">
                         <button
-                          onClick={() => {
-                            setShowAddForm(false)
-                            setSelectedItem(null)
-                          }}
+                          onClick={closeEditForm}
                           className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors text-xl leading-none"
                         >
                           ✕
@@ -991,10 +1009,7 @@ function GroceryInventoryContent() {
                     onSubmit={handleFormSubmit}
                     hideWeightBar
                     soldByWeight={isSoldByWeight}
-                    onCancel={() => {
-                      setShowAddForm(false)
-                      setSelectedItem(null)
-                    }}
+                    onCancel={closeEditForm}
                     onSilentUpdate={() => setRefreshKey(prev => prev + 1)}
                     onCategoriesLoaded={() => setFormReady(true)}
                     renderMode="inline"

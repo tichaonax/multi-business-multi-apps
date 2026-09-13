@@ -14,6 +14,13 @@ interface AvailabilityItem {
   category: string | null
   isHidden: boolean
   imageUrl: string | null
+  sku?: string | null
+  barcode?: string | null
+  price?: number
+  // True when imageUrl is a customer-display "advertising image" set for
+  // marketing purposes, not the item's own real product photo (which this
+  // item doesn't have) — see the route's own comment for why this matters.
+  isAdvertisingImage?: boolean
 }
 
 interface Props {
@@ -140,15 +147,22 @@ export function ItemAvailabilityPanel({ businessType }: Props) {
                     key={`${item.itemType}-${item.id}`}
                     className={`flex items-center gap-3 px-4 py-3 ${item.isHidden ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}
                   >
-                    {item.imageUrl ? (
-                      <img src={item.imageUrl} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0 bg-gray-100 dark:bg-gray-800" />
-                    ) : (
-                      <span className="w-10 h-10 rounded flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-[9px] text-secondary flex-shrink-0">No image</span>
-                    )}
+                    <div className="flex-shrink-0 flex flex-col items-center">
+                      {item.imageUrl ? (
+                        <img src={item.imageUrl} alt="" className="w-10 h-10 rounded object-cover bg-gray-100 dark:bg-gray-800" />
+                      ) : (
+                        <span className="w-10 h-10 rounded flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-[9px] text-secondary">No image</span>
+                      )}
+                      {item.isAdvertisingImage && (
+                        <span className="text-[9px] text-amber-600 dark:text-amber-400 mt-0.5 whitespace-nowrap" title="This is a customer-display marketing photo, not the item's own product photo — it has none.">
+                          display photo
+                        </span>
+                      )}
+                    </div>
                     <div className="flex-1 min-w-0">
                       {item.itemType === 'product' && canEditInventory ? (
                         <Link
-                          href={`/${businessType}/inventory?productId=${encodeURIComponent(`inv_${item.id}`)}`}
+                          href={`/${businessType}/inventory?productId=${encodeURIComponent(`inv_${item.id}`)}&returnTo=${encodeURIComponent(`/${businessType}/product-availability`)}`}
                           className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline truncate block"
                           title="Edit this item"
                         >
@@ -157,7 +171,12 @@ export function ItemAvailabilityPanel({ businessType }: Props) {
                       ) : (
                         <div className="text-sm font-medium text-primary truncate">{item.name}</div>
                       )}
-                      <div className="text-xs text-secondary">{item.category ?? 'Uncategorized'}</div>
+                      <div className="text-xs text-secondary truncate">
+                        {item.category ?? 'Uncategorized'}
+                        {item.sku && <span className="text-gray-400"> · {item.sku}</span>}
+                        {typeof item.price === 'number' && item.price > 0 && <span className="text-gray-400"> · ${item.price.toFixed(2)}</span>}
+                      </div>
+                      {item.barcode && <div className="text-xs text-gray-400 truncate">{item.barcode}</div>}
                     </div>
                     <span className={`text-xs font-semibold px-2 py-1 rounded-full flex-shrink-0 ${
                       item.isHidden

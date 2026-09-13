@@ -390,6 +390,7 @@ export default function ReorderReportPage() {
                             businessType={reportData.businessType}
                             editItemId={row.editItemId}
                             canEdit={canEditInventory}
+                            returnTo="/admin/reports/reorder"
                           />
                         </td>
                         <td className="px-3 py-2.5 text-secondary">{row.category}</td>

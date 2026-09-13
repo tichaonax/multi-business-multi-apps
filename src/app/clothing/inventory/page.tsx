@@ -98,6 +98,9 @@ function ClothingInventoryContent() {
   const [activeTab, setActiveTab] = useState<'overview' | 'inventory' | 'bales' | 'movements' | 'alerts' | 'reports' | 'transfers'>('overview')
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
+  // Set when a report page's edit link included `?returnTo=` — see the
+  // productId effect below and closeEditForm().
+  const [editReturnTo, setEditReturnTo] = useState<string | null>(null)
   const [showViewModal, setShowViewModal] = useState(false)
   const [selectedDepartment, setSelectedDepartment] = useState('')
   const [selectedCondition, setSelectedCondition] = useState<'all' | 'NEW' | 'USED'>('all')
@@ -223,6 +226,8 @@ function ClothingInventoryContent() {
   useEffect(() => {
     const productId = searchParams?.get('productId')
     if (productId && currentBusinessId) {
+      const returnTo = searchParams?.get('returnTo')
+      if (returnTo) setEditReturnTo(returnTo)
       setIsLoadingProduct(true)
       fetch(`/api/inventory/${currentBusinessId}/items/${productId}`)
         .then(res => res.json())
@@ -712,6 +717,18 @@ function ClothingInventoryContent() {
     setShowViewModal(true)
   }
 
+  // Closes the add/edit form. If it was opened via a report page's edit
+  // link (?returnTo=...), navigates back there instead of just closing —
+  // otherwise behaves exactly as before (close modal, stay on inventory).
+  function closeEditForm() {
+    if (editReturnTo) {
+      router.push(editReturnTo)
+      return
+    }
+    setShowAddForm(false)
+    setSelectedItem(null)
+  }
+
   const handleItemAddToCart = async (item: any) => {
     try {
       // BarcodeInventoryItems (inv_ prefix) already have all cart data — no product lookup needed
@@ -989,9 +1006,8 @@ function ClothingInventoryContent() {
           setSelectedItem(data.item)
           showToast('Item created — add a photo now, or close when done', { type: 'success' })
         } else {
-          setShowAddForm(false)
-          setSelectedItem(null)
           setActiveTab('inventory')
+          closeEditForm()
         }
       } else {
         // Extract error message from API response
@@ -2042,10 +2058,7 @@ function ClothingInventoryContent() {
             businessType="clothing"
             item={selectedItem}
             onSubmit={handleFormSubmit}
-            onCancel={() => {
-              setShowAddForm(false)
-              setSelectedItem(null)
-            }}
+            onCancel={closeEditForm}
             onSilentUpdate={() => setRefreshKey(prev => prev + 1)}
             isOpen={showAddForm}
             mode={selectedItem ? 'edit' : 'create'}

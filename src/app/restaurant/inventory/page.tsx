@@ -34,6 +34,9 @@ function RestaurantInventoryContent() {
   const [showBulkStockPanel, setShowBulkStockPanel] = useState(false)
   const [bulkStockInitialMode, setBulkStockInitialMode] = useState<'bulkStock' | 'stockTake' | undefined>(undefined)
   const [selectedItem, setSelectedItem] = useState<any>(null)
+  // Set when a report page's edit link included `?returnTo=` — see the
+  // productId effect below and closeEditForm().
+  const [editReturnTo, setEditReturnTo] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [selectedDepartment, setSelectedDepartment] = useState('')
@@ -122,6 +125,8 @@ function RestaurantInventoryContent() {
   useEffect(() => {
     const productId = searchParams?.get('productId')
     if (productId && currentBusinessId) {
+      const returnTo = searchParams?.get('returnTo')
+      if (returnTo) setEditReturnTo(returnTo)
       setIsLoadingProduct(true)
       fetch(`/api/inventory/${currentBusinessId}/items/${productId}`)
         .then(res => res.json())
@@ -307,10 +312,21 @@ function RestaurantInventoryContent() {
   // At this point, we have a valid restaurant business selected
   const businessId = currentBusinessId!
 
-  const handleItemAdded = () => {
-    setRefreshTrigger(prev => prev + 1)
+  // Closes the add/edit form. If it was opened via a report page's edit
+  // link (?returnTo=...), navigates back there instead of just closing —
+  // otherwise behaves exactly as before (close modal, stay on inventory).
+  function closeEditForm() {
+    if (editReturnTo) {
+      router.push(editReturnTo)
+      return
+    }
     setShowAddForm(false)
     setSelectedItem(null)
+  }
+
+  const handleItemAdded = () => {
+    setRefreshTrigger(prev => prev + 1)
+    closeEditForm()
   }
 
   const handleFormSubmit = async (formData: any) => {
@@ -800,7 +816,7 @@ function RestaurantInventoryContent() {
           {showAddForm && (
             <div
               className="fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto"
-              onClick={(e) => { if (e.target === e.currentTarget) { setShowAddForm(false); setSelectedItem(null) } }}
+              onClick={(e) => { if (e.target === e.currentTarget) closeEditForm() }}
             >
               <div className="min-h-full flex items-start justify-center p-4 sm:p-6">
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-7xl my-4">
@@ -862,10 +878,7 @@ function RestaurantInventoryContent() {
                     item={selectedItem}
                     onSubmit={handleFormSubmit}
                     hideWeightBar
-                    onCancel={() => {
-                      setShowAddForm(false)
-                      setSelectedItem(null)
-                    }}
+                    onCancel={closeEditForm}
                     onSilentUpdate={() => setRefreshTrigger(prev => prev + 1)}
                     renderMode="inline"
                     mode={selectedItem ? 'edit' : 'create'}
