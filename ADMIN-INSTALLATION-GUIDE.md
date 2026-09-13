@@ -190,7 +190,7 @@ npm run db:deploy
 ### Verify
 
 ```bash
-npx prisma migrate status --env-file .env.local
+npm run db:status
 ```
 
 Expected: `Database schema is up to date!`
@@ -208,7 +208,7 @@ This runs:
 2. `next build` — compiles the Next.js app into `.next/`
 3. `tsc --project tsconfig.server.json` — compiles `server.ts` into `dist/server.js`
 
-> **Important:** `dist/server.js` must exist for the service to start. If it's missing after a `git pull`, run `npm run build:server` (faster than a full rebuild).
+> **Important:** `dist/server.js` must exist for the service to start. If it's missing after a `git pull` on an **existing** install, don't just run `npm run build:server` on its own — the service needs to be stopped first, or the build can fail with an `EPERM`/file-lock error. See §11 "Deploying Updates" for the full stop → rebuild → start sequence. (On a brand-new install, the service doesn't exist yet, so this section's plain `npm run build` above is fine as-is.)
 
 ---
 
@@ -575,11 +575,13 @@ If a migration fails and leaves the database in a `failed` state:
 
 ```bash
 # 1. Mark the failed migration as rolled back
-npx prisma migrate resolve --rolled-back "MIGRATION_NAME" --env-file .env.local
+npm run db:rollback MIGRATION_NAME
 
 # 2. Re-apply (with the fixed migration SQL)
 npm run db:deploy
 ```
+
+(`npm run db:status` and `npm run db:rollback` load `.env.local` for you — the raw `npx prisma` CLI only ever reads `.env`, never `.env.local`, and doesn't support `--env-file` with this project's `prisma.config.ts` setup.)
 
 ---
 
@@ -593,7 +595,7 @@ Get-Content "windows-service\daemon\multibusinesssyncservice.err.log" -Tail 50
 ```
 
 Common causes:
-- **`dist/server.js` not found** — run `npm run build:server`
+- **`dist/server.js` not found** — stop the service first (`npm run service:stop`), then `npm run build:server`, then `npm run service:start`. Building while the service is still running (or mid-restart-loop) can fail with an `EPERM`/file-lock error on the same files it's trying to overwrite — see §11's note on this.
 - **PostgreSQL not running** — start PostgreSQL service first
 - **Port 8080 in use** — find and stop the conflicting process
 - **Migration failed** — see "After a failed migration" above
@@ -625,8 +627,8 @@ Fix:
    still showing "not secure"/mismatch warnings usually means this, not a
    missing-file problem. Re-run `npm run cert:install` — it warns explicitly
    if the local IP isn't covered.
-4. Ensure `dist/server.js` was compiled from the latest `server.ts` (run `npm run build:server`)
-5. Restart the service
+4. Ensure `dist/server.js` was compiled from the latest `server.ts` — **stop the service first** (`npm run service:stop`), then `npm run build:server`; running it while the service is still up can fail with an `EPERM`/file-lock error
+5. Start the service back up (`npm run service:start`)
 
 ### `https://localhost:8080` works but `https://<server-ip>:8080` doesn't (from another machine)
 

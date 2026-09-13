@@ -1117,6 +1117,18 @@ class HybridServiceWrapper extends EventEmitter {
       // output instead of the source tree. Without this, the spawned
       // process crashes immediately with "Cannot find module '@/...'" and
       // the service silently has no working web interface.
+      // NODE_OPTIONS must be present in the CHILD's environment before node
+      // itself boots - V8's heap ceiling is fixed at process startup, so it
+      // can't be applied later by any application code (e.g. Next.js's own
+      // .env.local loading happens too late to matter for this one).
+      // loadEnvironmentVariables() above only sets process.env.NODE_OPTIONS
+      // if it found one in .env.local; explicitly default it here too so
+      // production never silently falls back to V8's own (much smaller,
+      // ~2GB) default the way dev never does - dev:server hardcodes
+      // --max-old-space-size=8192 directly in its npm script for the same
+      // reason.
+      const nodeOptions = process.env.NODE_OPTIONS || '--max-old-space-size=4096';
+
       this.appProcess = spawn(process.execPath, ['-r', 'tsconfig-paths/register', serverScript], {
         cwd: this.appRoot,
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -1125,11 +1137,13 @@ class HybridServiceWrapper extends EventEmitter {
           ...process.env,
           NODE_ENV: 'production',
           PORT: appPort,
+          NODE_OPTIONS: nodeOptions,
           TS_NODE_PROJECT: path.join(this.appRoot, 'tsconfig.server.json'),
           TS_NODE_BASEURL: path.join(this.appRoot, 'dist'),
           ...(nodeExtraCaCerts ? { NODE_EXTRA_CA_CERTS: nodeExtraCaCerts } : {}),
         },
       });
+      console.log(`🧠 NODE_OPTIONS: ${nodeOptions}`);
 
       // Log app PID
       console.log(`📌 Next.js process spawned with PID: ${this.appProcess.pid}`);
