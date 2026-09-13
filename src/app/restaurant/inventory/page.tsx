@@ -138,12 +138,16 @@ function RestaurantInventoryContent() {
             router.replace('/restaurant/inventory', { scroll: false })
             setTimeout(() => setIsLoadingProduct(false), 800)
           } else {
+            toast.push('Could not open that item for editing — it may have been deleted.', { type: 'error' })
             setIsLoadingProduct(false)
+            router.replace('/restaurant/inventory', { scroll: false })
           }
         })
         .catch(err => {
           console.error('Failed to load product:', err)
+          toast.push('Could not open that item for editing — it may have been deleted.', { type: 'error' })
           setIsLoadingProduct(false)
+          router.replace('/restaurant/inventory', { scroll: false })
         })
     }
   }, [searchParams, currentBusinessId, router])

@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getLocalDateString } from '@/lib/utils'
+import { ProductCell } from '@/components/inventory/report-product-cell'
 
 interface StockVelocityRow {
   variantId: string
@@ -20,6 +21,8 @@ interface StockVelocityRow {
   avgDailySales: number
   currentStock: number
   daysOfStockLeft: number | null
+  imageUrl: string | null
+  editItemId: string
 }
 
 interface ReportData {
@@ -58,7 +61,8 @@ function daysColor(days: number | null): string {
 }
 
 export default function StockVelocityPage() {
-  const { currentBusinessId, currentBusiness } = useBusinessPermissionsContext()
+  const { currentBusinessId, currentBusiness, hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
+  const canEditInventory = isSystemAdmin || hasPermission('canManageInventory')
   const router = useRouter()
   const businessType = currentBusiness?.businessType || 'grocery'
 
@@ -145,11 +149,15 @@ export default function StockVelocityPage() {
                 }`}
               >
                 <td className="px-4 py-2">
-                  <div className="font-medium text-gray-900 dark:text-gray-100">{row.productName}</div>
-                  {row.variantName !== 'Default' && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400">{row.variantName}</div>
-                  )}
-                  <div className="text-xs text-gray-400 dark:text-gray-500">{row.category}</div>
+                  <ProductCell
+                    imageUrl={row.imageUrl}
+                    name={row.productName}
+                    subtitle={row.variantName !== 'Default' ? row.variantName : row.category}
+                    businessType={businessType}
+                    editItemId={row.editItemId}
+                    canEdit={canEditInventory}
+                    returnTo={`/${businessType}/reports/stock-velocity`}
+                  />
                 </td>
                 <td className="px-4 py-2 text-gray-600 dark:text-gray-400 font-mono text-xs">{row.sku || '—'}</td>
                 <td className="px-4 py-2 text-right font-semibold text-gray-900 dark:text-gray-100">

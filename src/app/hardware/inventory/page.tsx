@@ -121,12 +121,16 @@ function HardwareInventoryContent() {
             router.replace('/hardware/inventory', { scroll: false })
             setTimeout(() => setIsLoadingProduct(false), 800)
           } else {
+            showToast('Could not open that item for editing — it may have been deleted.', { type: 'error' })
             setIsLoadingProduct(false)
+            router.replace('/hardware/inventory', { scroll: false })
           }
         })
         .catch(err => {
           console.error('Failed to load product:', err)
+          showToast('Could not open that item for editing — it may have been deleted.', { type: 'error' })
           setIsLoadingProduct(false)
+          router.replace('/hardware/inventory', { scroll: false })
         })
     }
   }, [searchParams, currentBusinessId, router])

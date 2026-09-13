@@ -17,6 +17,7 @@ interface AvailabilityItem {
   sku?: string | null
   barcode?: string | null
   price?: number
+  stockQuantity?: number | null
   // True when imageUrl is a customer-display "advertising image" set for
   // marketing purposes, not the item's own real product photo (which this
   // item doesn't have) — see the route's own comment for why this matters.
@@ -181,6 +182,11 @@ export function ItemAvailabilityPanel({ businessType }: Props) {
                         {item.category ?? 'Uncategorized'}
                         {item.sku && <span className="text-gray-400"> · {item.sku}</span>}
                         {typeof item.price === 'number' && item.price > 0 && <span className="text-gray-400"> · ${item.price.toFixed(2)}</span>}
+                        {typeof item.stockQuantity === 'number' && (
+                          <span className={item.stockQuantity <= 0 ? 'text-red-500 font-medium' : 'text-gray-400'}>
+                            {' '}· {item.stockQuantity <= 0 ? 'Out of stock' : `${item.stockQuantity} in stock`}
+                          </span>
+                        )}
                       </div>
                       {item.barcode && <div className="text-xs text-gray-400 truncate">{item.barcode}</div>}
                     </div>

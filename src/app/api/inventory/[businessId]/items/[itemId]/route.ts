@@ -86,11 +86,10 @@ export async function GET(
         business_suppliers: true,
         business_locations: true,
         product_barcodes: true,
-        product_variants: {
-          include: {
-            business_stock_movements: true
-          }
-        },
+        // Current stock now reads product_variants.stockQuantity directly
+        // (see the currentStock calc below) — no longer needs each variant's
+        // full business_stock_movements history just to sum it.
+        product_variants: true,
         // MBM-296: this product's own primary photo, if it has one — same
         // "primary first, else whatever's there" resolution the rest of the
         // app already uses (POS cards, receipts).
@@ -108,13 +107,16 @@ export async function GET(
       )
     }
 
-    // Calculate current stock
+    // Current stock: read the canonical stockQuantity column directly — the
+    // same field the inventory list, POS, and every report already treat as
+    // the source of truth. This used to instead re-sum every stock movement
+    // ever recorded for the variant, which drifts from the real stored value
+    // whenever a movement was logged without (or with a different) matching
+    // stockQuantity update — e.g. a legacy/manual adjustment — silently
+    // showing a different "current stock" here than everywhere else in the
+    // app for the exact same product.
     const currentStock = product.product_variants.reduce((total: number, variant: any) => {
-      const stockMovements: any[] = variant.business_stock_movements || []
-      const variantStock = stockMovements.reduce((sum: number, movement: any) => {
-        return sum + Number(movement.quantity)
-      }, 0)
-      return total + variantStock
+      return total + Number(variant.stockQuantity ?? 0)
     }, 0)
 
     return NextResponse.json({
@@ -485,11 +487,9 @@ export async function PUT(
         business_suppliers: true,
         business_locations: true,
         product_barcodes: true,
-        product_variants: {
-          include: {
-            business_stock_movements: true
-          }
-        }
+        // See the GET handler's matching comment — stockQuantity is read
+        // directly, no longer needs each variant's full movement history.
+        product_variants: true
       }
     })
 
@@ -600,13 +600,11 @@ export async function PUT(
       }
     }
 
-    // Calculate current stock
+    // Current stock: read the canonical stockQuantity column directly — see
+    // the matching comment in the GET handler above for why this no longer
+    // re-sums movement history.
     const currentStock = updatedProduct.product_variants.reduce((total: number, variant: any) => {
-      const stockMovements: any[] = variant.business_stock_movements || []
-      const variantStock = stockMovements.reduce((sum: number, movement: any) => {
-        return sum + Number(movement.quantity)
-      }, 0)
-      return total + variantStock
+      return total + Number(variant.stockQuantity ?? 0)
     }, 0)
 
     // Fetch updated barcodes after barcode operations

@@ -32,24 +32,20 @@ interface PriceChangeReport {
 }
 
 /**
- * MBM-296 follow-up: no free-text "reason" is captured for most price
- * changes (only the dedicated legacy price-edit routes ask the user why —
- * see product_price_changes.changeReason — and that isn't what this report
- * reads). This synthesizes the closest honest equivalent from what IS
- * captured for every change: which screen/flow made it, and who.
+ * No free-text "reason" is captured anywhere in this app's audit trail for
+ * price changes — verified directly: product_price_changes.changeReason
+ * (the one field actually designed to hold one) has zero rows in production,
+ * since the single legacy route that writes it is reachable from only one
+ * rarely-used screen. This shows the closest honest substitute — which
+ * screen/flow made the change — not a reason and not padded with "by X"
+ * (that's already its own visible column, no need to repeat it here).
  */
 function describeChange(r: PriceChangeReport): string {
-  const via = r.viaPOSQuickEdit
-    ? 'via POS Quick-Edit'
-    : r.viaBulkStockReceiving
-    ? 'via Bulk Stock Receiving'
-    : r.sourceTable === 'BARCODE_ITEM'
-    ? 'via inventory item edit'
-    : r.sourceTable === 'BUSINESS_PRODUCT'
-    ? 'via product edit'
-    : 'manual edit'
-  const by = r.changedByName ? ` by ${r.changedByName}` : ''
-  return `Changed ${via}${by}`
+  if (r.viaPOSQuickEdit) return 'Changed via POS Quick-Edit'
+  if (r.viaBulkStockReceiving) return 'Changed via Bulk Stock Receiving'
+  if (r.sourceTable === 'BARCODE_ITEM') return 'Changed via inventory item edit'
+  if (r.sourceTable === 'BUSINESS_PRODUCT') return 'Changed via product edit'
+  return 'Changed via manual edit — no reason captured for this change'
 }
 
 export default function PriceChangesReportPage() {

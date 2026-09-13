@@ -5216,6 +5216,7 @@ model ProductPriceHistory {
   newPrice      Decimal  @db.Decimal(10, 2)
   changedBy     String?
   changeReason  String?  @db.VarChar(100)
+  reason        String?  @db.VarChar(500)
   createdAt     DateTime @default(now())
 
   business  Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)

@@ -408,6 +408,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         category: (svc as any).business_categories?.name ?? null,
         sku: (svc as any).sku ?? null,
         barcode: (svc as any).barcode ?? null,
+        stockQuantity: (svc.product_variants as any[]).reduce((s, v) => s + (v.stockQuantity ?? 0), 0),
         imageUrl: svcAdImageId ? `/api/images/${svcAdImageId}` : null,
         isAdvertisingImage: !!svcAdImageId,
         advertisingNote: getNote('product', svc.id),
@@ -462,11 +463,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
       prisma.businessProducts.findMany({
         where: { businessId, isActive: true, isAvailable: true },
         select: {
-          id: true, name: true, basePrice: true, createdAt: true, sku: true, barcode: true,
+          id: true, name: true, basePrice: true, createdAt: true, sku: true, barcode: true, isInventoryTracked: true,
           business_categories: { select: { name: true, emoji: true, domainId: true } },
           product_variants: {
             where: { isActive: true },
-            select: { id: true, price: true },
+            select: { id: true, price: true, stockQuantity: true },
             orderBy: { createdAt: 'asc' },
             take: 10,
           },
@@ -551,6 +552,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         categoryIconUrl: domainIconUrlById.get((p as any).business_category?.domainId) ?? null,
         sku: (p as any).sku ?? null,
         barcode: (p as any).barcodeData ?? null,
+        stockQuantity: (p as any).stockQuantity ?? null,
         imageId: clothingInvImageId,
         imageUrl: clothingInvImageId ? `/api/images/${clothingInvImageId}` : (clothingInvAdImageId ? `/api/images/${clothingInvAdImageId}` : null),
         isAdvertisingImage: !clothingInvImageId && !!clothingInvAdImageId,
@@ -595,6 +597,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
         categoryIconUrl: domainIconUrlById.get((p as any).business_categories?.domainId) ?? null,
         sku: (p as any).sku ?? null,
         barcode: (p as any).barcode ?? null,
+        stockQuantity: (p.product_variants as any[]).reduce((s, v) => s + (v.stockQuantity ?? 0), 0),
         imageId: bizImageId,
         imageUrl: bizImageId ? `/api/images/${bizImageId}` : (bizAdImageId ? `/api/images/${bizAdImageId}` : null),
         isAdvertisingImage: !bizImageId && !!bizAdImageId,
