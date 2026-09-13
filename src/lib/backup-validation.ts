@@ -386,6 +386,16 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'r710AgentRequestLog',
   // Workstation agent request log (MBM-275/283) — workstationAgentId FK, no businessId
   'workstationAgentRequestLog',
+  // Payroll account transactions — DO have a direct businessId column, but
+  // backup-clean.ts deliberately scopes them via the owning payroll account's
+  // business instead (payroll_accounts.businessId, OR a shared/global
+  // account with no owning business) — same OR-null pattern as
+  // categoryReferenceImages/tags above. A naive direct-column scoped count
+  // here would false-fail whenever a deposit/payment's own businessId
+  // differs from its account's, which is a valid, expected case for shared
+  // accounts, not a real mismatch.
+  'payrollAccountDeposits',
+  'payrollAccountPayments',
 ])
 
 /**

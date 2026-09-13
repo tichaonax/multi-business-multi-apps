@@ -1,25 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
-
+import fs from 'fs';
+import path from 'path';
+import { Readable } from 'stream';
+import { createGunzip } from 'zlib';
 
 import { prisma } from '@/lib/prisma';
-import { createCleanBackup } from '@/lib/backup-clean';
+import { createCleanBackup, writeCleanBackupStream } from '@/lib/backup-clean';
 import { restoreCleanBackup, validateBackupData } from '@/lib/restore-clean';
-import { createProgressId, updateProgress } from '@/lib/backup-progress';
+import { createProgressId, updateProgress, getProgress } from '@/lib/backup-progress';
 import { compressBackup, decompressBackup, isGzipped } from '@/lib/backup-compression';
+import { parseJSONStream } from '@/lib/backup-stream-parse';
 import { getServerUser } from '@/lib/get-server-user'
 import { isBusinessOwner } from '@/lib/permission-utils'
 
+export const runtime = 'nodejs';
+export const maxDuration = 300;
+
+const BACKUPS_DIR = path.join(process.cwd(), 'backups');
+
 /**
- * GET /api/backup - Create and download backup
+ * GET /api/backup - Start a backup (streamed, memory-safe even with
+ * MBM-294's shared image pool), or download one already completed.
  *
  * Query parameters:
+ * - download: a progressId from a previous call - if present, every other
+ *   param is ignored and the completed file (if ready) is streamed back.
  * - backupType: 'full' | 'business-specific' | 'full-device' (default: 'full')
- * - compress: Enable gzip compression (default: true)
  * - includeDemoData: Include demo businesses (default: false)
  * - includeDeviceData: Include device-specific sync data (default: false)
  * - businessId: Backup specific business only (optional)
  * - includeAuditLogs: Include audit logs (default: false)
  * - auditLogLimit: Max audit logs to include (default: 1000)
+ *
+ * Returns `{ progressId }` immediately; poll GET /api/backup/progress?id=...
+ * (same mechanism restore already uses) for per-table status, then
+ * GET /api/backup?download=<progressId> once model === 'completed'.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -31,8 +46,23 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
+
+    const downloadId = searchParams.get('download');
+    if (downloadId) {
+      const progress = getProgress(downloadId);
+      if (!progress || progress.model !== 'completed' || !progress.filePath) {
+        return NextResponse.json({ error: 'Backup not found or not ready yet' }, { status: 404 });
+      }
+      const fileBuffer = await fs.promises.readFile(progress.filePath);
+      return new NextResponse(fileBuffer, {
+        headers: {
+          'Content-Type': 'application/gzip',
+          'Content-Disposition': `attachment; filename="${progress.filename}"`,
+        },
+      });
+    }
+
     const backupType = (searchParams.get('backupType') || 'full') as 'full' | 'business-specific' | 'full-device';
-    const compress = searchParams.get('compress') !== 'false'; // Default true
     const includeDemoData = searchParams.get('includeDemoData') === 'true';
     const includeDeviceData = searchParams.get('includeDeviceData') === 'true';
     const businessId = searchParams.get('businessId') || undefined;
@@ -47,33 +77,6 @@ export async function GET(request: NextRequest) {
     const baseBackupTimestamp = searchParams.get('baseBackupTimestamp') || undefined;
     const baseSourceNodeId = searchParams.get('baseSourceNodeId') || undefined;
 
-    console.log('[backup] Creating backup with options:', {
-      backupType,
-      compress,
-      includeDemoData,
-      includeDeviceData,
-      businessId,
-      includeAuditLogs,
-      auditLogLimit,
-      createdBy,
-      since
-    });
-
-    // Create clean backup using new implementation
-    const backupData = await createCleanBackup(prisma, {
-      backupType,
-      includeDemoData,
-      includeDeviceData,
-      businessId,
-      includeAuditLogs,
-      auditLogLimit,
-      createdBy,
-      since,
-      baseBackupTimestamp,
-      baseSourceNodeId
-    });
-
-    // Generate filename
     const now = new Date();
     const timestamp = now.toISOString().replace(/:/g, '-').replace(/\.\d{3}Z$/, '');
     const type = businessId
@@ -81,47 +84,61 @@ export async function GET(request: NextRequest) {
       : since
         ? `${backupType}-incremental`
         : backupType;
-    const baseFilename = `MultiBusinessSyncService-backup_${type}_${timestamp}`;
-    const extension = compress ? '.json.gz' : '.json';
-    const filename = baseFilename + extension;
+    const filename = `MultiBusinessSyncService-backup_${type}_${timestamp}.json.gz`;
 
-    console.log('[backup] Backup created successfully:', {
-      version: backupData.metadata.version,
-      timestamp: backupData.metadata.timestamp,
-      sourceNodeId: backupData.metadata.sourceNodeId,
-      totalRecords: backupData.metadata.stats.totalRecords,
-      uncompressedSize: backupData.metadata.stats.uncompressedSize,
-      compress,
-      filename
+    await fs.promises.mkdir(BACKUPS_DIR, { recursive: true });
+    const outputPath = path.join(BACKUPS_DIR, filename);
+
+    const progressId = createProgressId();
+    updateProgress(progressId, { model: 'starting', processed: 0, total: 0 });
+
+    console.log('[backup] Starting streamed backup:', {
+      progressId, backupType, includeDemoData, includeDeviceData, businessId,
+      includeAuditLogs, auditLogLimit, createdBy, since, filename
     });
 
-    // Return compressed or uncompressed backup
-    if (compress) {
-      // Compress backup
-      const compressedBuffer = await compressBackup(backupData);
+    const runBackup = async () => {
+      try {
+        updateProgress(progressId, { model: 'creating' });
+        const result = await writeCleanBackupStream(
+          prisma,
+          {
+            backupType, includeDemoData, includeDeviceData, businessId,
+            includeAuditLogs, auditLogLimit, createdBy, since,
+            baseBackupTimestamp, baseSourceNodeId
+          },
+          outputPath,
+          (p) => {
+            updateProgress(progressId, {
+              model: p.table,
+              counts: { [p.table]: { processed: p.processed, total: p.total } }
+            });
+          }
+        );
 
-      console.log('[backup] Backup compressed:', {
-        compressedSize: compressedBuffer.length,
-        filename
-      });
+        updateProgress(progressId, {
+          model: 'completed',
+          processed: result.totalRecords,
+          total: result.totalRecords,
+          filePath: result.filePath,
+          filename,
+          sizeBytes: result.sizeBytes
+        });
 
-      return new NextResponse(compressedBuffer, {
-        headers: {
-          'Content-Type': 'application/gzip',
-          'Content-Disposition': `attachment; filename="${filename}"`,
-          // Note: Do NOT use Content-Encoding: gzip - it causes browser to auto-decompress
-          // We want the compressed file to be downloaded as-is
-        },
-      });
-    } else {
-      // Return uncompressed JSON
-      return new NextResponse(JSON.stringify(backupData, null, 2), {
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Disposition': `attachment; filename="${filename}"`,
-        },
-      });
-    }
+        console.log('[backup] Streamed backup completed:', {
+          progressId, filename, sizeBytes: result.sizeBytes, totalRecords: result.totalRecords
+        });
+      } catch (error: any) {
+        console.error('[backup] Streamed backup failed:', error);
+        updateProgress(progressId, { model: 'error', errors: [error.message || 'Unknown error'] });
+        // Clean up a partial file rather than leaving a corrupt .json.gz behind.
+        try { await fs.promises.unlink(outputPath); } catch { /* ignore */ }
+      }
+    };
+
+    void runBackup();
+
+    return NextResponse.json({ message: 'Backup started in background', progressId });
   } catch (error: any) {
     console.error('[backup] Backup creation failed:', error);
     return NextResponse.json(
@@ -152,33 +169,63 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    let backupData = body.backupData;
+    let backupData: any;
+    let confirmBaseRestored = false;
 
-    // Check if compressed data was uploaded
-    if (body.compressedData) {
-      console.log('[restore] Decompressing backup data...');
+    // Streaming upload path (Increment 2 of the streaming backup/restore
+    // fix): the client sends the raw file body directly instead of
+    // file.text() -> JSON.parse() -> JSON.stringify()-ing it again into a
+    // JSON request body (that double round trip, one of them in the
+    // browser tab itself, was the other half of what made large backups
+    // OOM-risky). A streaming JSON parser builds the identical object
+    // JSON.parse would, just without ever holding the raw text and the
+    // parsed object in memory at the same time. restoreCleanBackup() below
+    // is completely unchanged either way - only how backupData gets built differs.
+    if (request.headers.get('x-restore-stream') === 'true') {
+      confirmBaseRestored = request.headers.get('x-restore-confirm-base') === 'true';
       try {
-        // Decode base64 and decompress
-        const compressedBuffer = Buffer.from(body.compressedData, 'base64');
+        const nodeStream = Readable.fromWeb(request.body as any);
+        const isCompressed = request.headers.get('x-restore-compressed') === 'true';
+        const source = isCompressed ? nodeStream.pipe(createGunzip()) : nodeStream;
+        backupData = await parseJSONStream(source);
+        console.log('[restore] Parsed backup via streaming upload', { isCompressed });
+      } catch (error: any) {
+        console.error('[restore] Streaming parse failed:', error);
+        return NextResponse.json(
+          { error: 'Failed to parse uploaded backup', details: error.message },
+          { status: 400 }
+        );
+      }
+    } else {
+      const body = await request.json();
+      backupData = body.backupData;
+      confirmBaseRestored = !!body.confirmBaseRestored;
 
-        // Check if actually gzipped
-        if (!isGzipped(compressedBuffer)) {
+      // Check if compressed data was uploaded
+      if (body.compressedData) {
+        console.log('[restore] Decompressing backup data...');
+        try {
+          // Decode base64 and decompress
+          const compressedBuffer = Buffer.from(body.compressedData, 'base64');
+
+          // Check if actually gzipped
+          if (!isGzipped(compressedBuffer)) {
+            return NextResponse.json(
+              { error: 'Invalid compressed data - not a gzip file' },
+              { status: 400 }
+            );
+          }
+
+          // Decompress
+          backupData = await decompressBackup(compressedBuffer);
+          console.log('[restore] Backup decompressed successfully');
+        } catch (error: any) {
+          console.error('[restore] Decompression failed:', error);
           return NextResponse.json(
-            { error: 'Invalid compressed data - not a gzip file' },
+            { error: 'Failed to decompress backup', details: error.message },
             { status: 400 }
           );
         }
-
-        // Decompress
-        backupData = await decompressBackup(compressedBuffer);
-        console.log('[restore] Backup decompressed successfully');
-      } catch (error: any) {
-        console.error('[restore] Decompression failed:', error);
-        return NextResponse.json(
-          { error: 'Failed to decompress backup', details: error.message },
-          { status: 400 }
-        );
       }
     }
 
@@ -209,7 +256,7 @@ export async function POST(request: NextRequest) {
     // so this is a confirmation gate, not a hard technical block, and the
     // client passes `confirmBaseRestored: true` once the admin has done so.
     const incremental = backupData.metadata?.incremental;
-    if (incremental && !body.confirmBaseRestored) {
+    if (incremental && !confirmBaseRestored) {
       return NextResponse.json({
         error: 'This is an incremental backup and needs confirmation',
         requiresBaseConfirmation: true,

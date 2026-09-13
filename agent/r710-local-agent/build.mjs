@@ -72,25 +72,32 @@ function stopRunningAgent() {
   }
 }
 
-// Bumps the patch version (X.Y.Z -> X.Y.Z+1) on every build, automatically
-// — this used to be a manual edit, easy to forget, which is exactly what
-// happened: a real fix shipped in a rebuild with no version change, so
-// there was no way for anyone (including whoever's running the agent) to
-// tell a fixed build apart from the one before it short of comparing file
-// timestamps. tray.ts/pairing-server.ts both read AGENT_VERSION straight
-// from package.json at bundle time, so this alone is enough to make every
-// build distinguishable — no separate step needed. Patch-only (not
-// minor/major) so the number doesn't run away on routine rebuilds; bump
-// minor/major by hand for an actual intentional release milestone.
-function bumpPatchVersion() {
-  const pkgPath = join(__dirname, 'package.json')
-  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
-  const parts = pkg.version.split('.').map(Number)
-  parts[2] = (parts[2] || 0) + 1
-  pkg.version = parts.join('.')
-  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
-  console.log(`[build] Bumped agent version to ${pkg.version}`)
-  return pkg.version
+// NOTE: this used to auto-bump the patch version and WRITE it into
+// package.json on every build whose source hash changed since the
+// machine's own last build (tracked via dist/.source-hash). That file lives
+// under dist/, which is gitignored - so it's local to each machine, never
+// synced. Two servers building the exact same git commit each independently
+// decided "this looks new to me" on their first build and wrote a different
+// bumped number into package.json, permanently diverging (v0.4.23 on one
+// server, v0.4.24 on another, same source) - the auto-write was the bug.
+//
+// The version must be a pure function of what's committed in git, the same
+// way electron/package.json's version works: a developer bumps it by hand
+// as part of the same commit that changes agent source, and every build
+// everywhere just reads and stamps whatever number is already there -
+// never writes one. This function only WARNS (to stdout, never touches
+// disk) if agent-relevant source changed since this machine's last local
+// build but the version wasn't bumped in git - a nudge for the developer
+// doing the commit, not something a build machine should ever act on itself.
+function warnIfVersionLikelyForgotten(sourceChanged, version) {
+  if (sourceChanged) {
+    console.warn(
+      `[build] NOTE: agent source changed since the last build on this machine, ` +
+      `but package.json's version is still ${version}. If this is a real fix, ` +
+      `bump the version by hand and commit it alongside the source change - ` +
+      `the build itself will never do this for you (see this function's comment).`
+    )
+  }
 }
 
 // Only bump when something that actually affects the shipped .exe changed
@@ -119,11 +126,11 @@ async function computeSourceHash() {
   })
 
   const inputPaths = Object.keys(result.metafile.inputs)
-    // package.json IS a real input (tray.ts imports it for AGENT_VERSION)
-    // but its own `version` field is exactly what bumpPatchVersion() below
-    // rewrites — hashing it would make every build look "changed" purely
-    // because of the PREVIOUS build's own bump, even with zero actual
-    // source changes in between. Deliberately excluded.
+    // package.json IS a real input (tray.ts imports it for AGENT_VERSION),
+    // but it's excluded from the hash since it's only ever hand-edited by a
+    // developer bumping the version deliberately - that's a real,
+    // intentional source change already visible in git history/diffs, not
+    // something this build-time "did anything change" check needs to catch.
     .filter((p) => !p.endsWith('package.json'))
     .sort()
 
@@ -141,13 +148,14 @@ async function main() {
   console.log('[build] Checking whether any agent-relevant source file changed since the last build…')
   const currentSourceHash = await computeSourceHash()
   const previousSourceHash = existsSync(sourceHashPath) ? readFileSync(sourceHashPath, 'utf8').trim() : null
+  const sourceChanged = currentSourceHash !== previousSourceHash
 
-  if (currentSourceHash !== previousSourceHash) {
-    bumpPatchVersion()
-  } else {
-    const pkg = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'))
-    console.log(`[build] No agent-relevant source changes since the last build — keeping version ${pkg.version}`)
-  }
+  // Version is read-only here, deliberately - see warnIfVersionLikelyForgotten()'s
+  // comment. Every build on every machine stamps whatever version is
+  // already committed in package.json; nothing here ever writes to it.
+  const { version } = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8'))
+  console.log(`[build] Building agent version ${version} (from package.json, as committed in git)`)
+  warnIfVersionLikelyForgotten(sourceChanged, version)
 
   stopRunningAgent()
 

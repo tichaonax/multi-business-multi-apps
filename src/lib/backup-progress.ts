@@ -25,6 +25,11 @@ export type ProgressEntry = {
   errors?: string[]
   // Track the highest processed value to prevent backward progress
   _maxProcessed?: number;
+  // Backup creation only (model: 'completed') — where the finished file
+  // landed, so GET /api/backup?download=<id> can serve it.
+  filePath?: string;
+  filename?: string;
+  sizeBytes?: number;
 }
 
 const _progress = new Map<string, ProgressEntry>()

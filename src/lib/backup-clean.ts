@@ -13,10 +13,19 @@
 import { PrismaClient } from '@prisma/client'
 import crypto from 'crypto'
 import os from 'os'
+import fs from 'fs'
+import { createGzip } from 'zlib'
+import { RESTORE_ORDER } from './restore-clean'
 
 export interface BackupMetadata {
   // Version
   version: string // "3.0"
+
+  /** Written only by writeCleanBackupStream. 2 = tables written in
+   * RESTORE_ORDER (dependency order), safe to restore via a single
+   * sequential streaming pass. Absent/1 = legacy in-memory format, order
+   * not guaranteed - restore via the original restoreCleanBackup() path. */
+  formatVersion?: number
 
   // Source device identification
   sourceNodeId: string
@@ -160,6 +169,14 @@ export async function createCleanBackup(
     since?: string
     baseBackupTimestamp?: string
     baseSourceNodeId?: string
+    /** Used only by writeCleanBackupStream (below) — skips fetching Images
+     * blob data into memory (the actual size/memory driver, MBM-294) and
+     * instead returns the deduplicated set of needed image IDs on
+     * `businessData.__imageIdsNeeded`, so the caller can fetch+stream them
+     * in paginated batches directly to disk instead of holding every image
+     * buffer in memory at once. Also skips the checksum/size stringify
+     * pass, since the streaming writer computes both from the real output. */
+    skipImageBuffers?: boolean
   } = {}
 ): Promise<BackupData> {
   const {
@@ -171,6 +188,7 @@ export async function createCleanBackup(
     since,
     baseBackupTimestamp,
     baseSourceNodeId,
+    skipImageBuffers = false,
     businessId,
     auditLogLimit = 1000,
     createdBy
@@ -274,14 +292,14 @@ export async function createCleanBackup(
 
   // Prisma returns Bytes as Uint8Array which JSON.stringify turns into {"0":255,"1":216,...}
   // Converting to Buffer ensures it serializes as {type:"Buffer",data:[...]} which is safe to restore
-  businessData.images = allImageIds.length > 0
-    ? (await prisma.images.findMany({
+  businessData.images = skipImageBuffers || allImageIds.length === 0
+    ? []
+    : (await prisma.images.findMany({
         where: { id: { in: allImageIds }, ...(sinceDate ? { createdAt: { gt: sinceDate } } : {}) }
       })).map((img: any) => ({
         ...img,
         data: Buffer.from(img.data)
       }))
-    : []
 
   businessData.employeeContracts = await prisma.employeeContracts.findMany({
     where: {
@@ -783,8 +801,14 @@ export async function createCleanBackup(
   // VehicleDrivers don't have direct business relation - include all
   businessData.vehicleDrivers = await prisma.vehicleDrivers.findMany()
 
-  // Include ALL vehicle expenses (including generic ones with businessId=null)
-  businessData.vehicleExpenses = await prisma.vehicleExpenses.findMany()
+  // Business-specific expenses + generic ones with businessId=null. Was
+  // previously an unscoped findMany() with no where clause at all, which
+  // pulled every business's vehicle expenses into every backup regardless
+  // of the businessId filter - the comment's stated intent (this business's
+  // + generic) never matched what the query actually did.
+  businessData.vehicleExpenses = await prisma.vehicleExpenses.findMany({
+    where: { OR: [{ businessId: { in: businessIds } }, { businessId: null }] }
+  })
 
   businessData.vehicleLicenses = await prisma.vehicleLicenses.findMany({
     where: {
@@ -1047,7 +1071,12 @@ export async function createCleanBackup(
     where: { businessId: { in: businessIds } }
   })
 
-  businessData.r710SyncLogs = await prisma.r710SyncLogs.findMany()
+  // Was previously an unscoped findMany() with no where clause, unlike
+  // every sibling r710* table above it - pulled every business's sync logs
+  // into every backup regardless of the businessId filter.
+  businessData.r710SyncLogs = await prisma.r710SyncLogs.findMany({
+    where: { businessId: { in: businessIds } }
+  })
 
   // R710 remote agent support (MBM-272) — no businessId, scoped via r710DeviceRegistry (already unscoped above)
   businessData.r710RemoteAgents = await (prisma as any).r710RemoteAgents.findMany()
@@ -1725,7 +1754,11 @@ export async function createCleanBackup(
     ...receiptImageIds,
     ...categoryReferenceImageIds,
   ])]
-  if (extendedImageIds.length > (businessData.images || []).length) {
+  if (skipImageBuffers) {
+    // Deferred to writeCleanBackupStream's paginated fetch-and-stream pass.
+    ;(businessData as any).__imageIdsNeeded = extendedImageIds
+    ;(businessData as any).__imageSinceDate = sinceDate ? sinceDate.toISOString() : undefined
+  } else if (extendedImageIds.length > (businessData.images || []).length) {
     const alreadyFetched = new Set((businessData.images || []).map((i: any) => i.id))
     const missing = extendedImageIds.filter((id: string) => !alreadyFetched.has(id))
     if (missing.length > 0) {
@@ -1809,4 +1842,131 @@ export async function createCleanBackup(
     businessData,
     deviceData
   }
+}
+
+export interface BackupStreamProgress {
+  table: string
+  processed: number
+  total: number
+}
+
+/**
+ * Streaming counterpart to createCleanBackup - writes tables directly to a
+ * gzip file on disk in RESTORE_ORDER (dependency order), instead of
+ * assembling one giant in-memory object and JSON.stringify-ing it (up to
+ * three times, previously - once for checksum, once for size, once for
+ * compression). Images (the actual size/memory driver added by MBM-294's
+ * shared image pool) are fetched and written in paginated batches, never
+ * all held in memory at once.
+ *
+ * Produces `metadata.formatVersion = 2` so the restore side can tell this
+ * file's tables are safely streamable in file order, vs. an older backup
+ * (formatVersion absent) whose key order isn't guaranteed and must go
+ * through the original restoreCleanBackup() in-memory path instead.
+ */
+export async function writeCleanBackupStream(
+  prisma: PrismaClient,
+  options: Parameters<typeof createCleanBackup>[1],
+  outputPath: string,
+  onProgress?: (p: BackupStreamProgress) => void
+): Promise<{ filePath: string; sizeBytes: number; checksum: string; totalRecords: number }> {
+  const { businessData, deviceData, metadata } = await createCleanBackup(prisma, {
+    ...options,
+    skipImageBuffers: true
+  })
+
+  const imageIdsNeeded: string[] = (businessData as any).__imageIdsNeeded || []
+  const imageSinceDate: string | undefined = (businessData as any).__imageSinceDate
+  delete (businessData as any).__imageIdsNeeded
+  delete (businessData as any).__imageSinceDate
+  delete (businessData as any).images // written specially below, in its RESTORE_ORDER position
+
+  const hash = crypto.createHash('sha256')
+  let totalRecords = 0
+
+  const gzip = createGzip()
+  const fileStream = fs.createWriteStream(outputPath)
+  gzip.pipe(fileStream)
+
+  const write = (text: string) => {
+    hash.update(text)
+    gzip.write(text)
+  }
+
+  write('{"businessData":{')
+
+  const tableNames = RESTORE_ORDER.filter(name => name !== 'images')
+  let firstKey = true
+  for (const tableName of tableNames) {
+    const rows = (businessData as any)[tableName]
+    if (rows === undefined) continue
+    if (!firstKey) write(',')
+    firstKey = false
+    write(JSON.stringify(tableName) + ':' + JSON.stringify(rows))
+    const count = Array.isArray(rows) ? rows.length : 0
+    totalRecords += count
+    onProgress?.({ table: tableName, processed: count, total: count })
+  }
+
+  // Images - fetched and written in paginated batches, never all in memory
+  // at once. This is the table MBM-294 made expensive.
+  if (!firstKey) write(',')
+  write('"images":[')
+  const BATCH_SIZE = 200
+  let imagesWritten = 0
+  for (let i = 0; i < imageIdsNeeded.length; i += BATCH_SIZE) {
+    const batchIds = imageIdsNeeded.slice(i, i + BATCH_SIZE)
+    const batch = await prisma.images.findMany({
+      where: {
+        id: { in: batchIds },
+        ...(imageSinceDate ? { createdAt: { gt: new Date(imageSinceDate) } } : {})
+      }
+    })
+    for (const img of batch as any[]) {
+      if (imagesWritten > 0) write(',')
+      // base64, not the default {type:"Buffer",data:[...]} shape - roughly
+      // a third of the size for the same binary data as decimal-byte-array JSON.
+      write(JSON.stringify({
+        ...img,
+        data: Buffer.from(img.data).toString('base64'),
+        __encoding: 'base64'
+      }))
+      imagesWritten++
+    }
+    totalRecords += batch.length
+    onProgress?.({ table: 'images', processed: imagesWritten, total: imageIdsNeeded.length })
+  }
+  write(']}') // close images array, close businessData object
+
+  if (deviceData) {
+    write(',"deviceData":' + JSON.stringify(deviceData))
+  }
+
+  // metadata last - its checksum covers everything written above, without a
+  // second full-file read/stringify pass just to compute one.
+  const dataChecksum = hash.digest('hex')
+  const finalMetadata = {
+    ...metadata,
+    stats: {
+      ...metadata.stats,
+      totalRecords,
+      totalTables: metadata.stats.totalTables + (imagesWritten > 0 ? 1 : 0)
+    },
+    checksums: { ...metadata.checksums, streamedData: dataChecksum },
+    formatVersion: 2
+  }
+  // Written directly to the gzip stream (not via write()) since the hash
+  // is already finalized above and metadata is deliberately excluded from it.
+  const metadataText = ',"metadata":' + JSON.stringify(finalMetadata) + '}'
+  gzip.write(metadataText)
+
+  gzip.end()
+  await new Promise<void>((resolve, reject) => {
+    fileStream.on('finish', () => resolve())
+    fileStream.on('error', reject)
+    gzip.on('error', reject)
+  })
+
+  const sizeBytes = fs.statSync(outputPath).size
+  return { filePath: outputPath, sizeBytes, checksum: dataChecksum, totalRecords }
 }

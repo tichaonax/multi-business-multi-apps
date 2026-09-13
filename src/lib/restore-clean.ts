@@ -35,7 +35,7 @@ function getCurrentNodeId(): string {
  * Restore order - dependencies first, then dependent tables
  * This ensures foreign key constraints are satisfied
  */
-const RESTORE_ORDER = [
+export const RESTORE_ORDER = [
   // System settings (no dependencies)
   'systemSettings',
 
@@ -1037,6 +1037,16 @@ export async function restoreCleanBackup(
               (cleaned as any)[key] = Buffer.from((value as any).data)
             }
           }
+
+          // writeCleanBackupStream (formatVersion 2) encodes bytea columns as
+          // base64 instead of {type:"Buffer",data:[...]} (roughly a third of
+          // the size for the same bytes) - decode back to a real Buffer here.
+          // Without this, Prisma would silently accept the raw base64 STRING
+          // into the bytea column with no error, corrupting the stored bytes.
+          if ((cleaned as any).__encoding === 'base64' && typeof (cleaned as any).data === 'string') {
+            (cleaned as any).data = Buffer.from((cleaned as any).data, 'base64')
+          }
+          delete (cleaned as any).__encoding
 
           return cleaned
         })

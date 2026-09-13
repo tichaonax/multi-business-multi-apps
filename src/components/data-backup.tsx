@@ -152,6 +152,10 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
   const [restoreProgress, setRestoreProgress] = useState<any | null>(null);
   const pollingRef = useRef<number | null>(null);
   const polling404Count = useRef<number>(0);
+  const [backupProgressId, setBackupProgressId] = useState<string | null>(null);
+  const [backupProgress, setBackupProgress] = useState<any | null>(null);
+  const backupPollingRef = useRef<number | null>(null);
+  const backupPolling404Count = useRef<number>(0);
   const [demoBusinesses, setDemoBusinesses] = useState<DemoBusiness[]>([]);
   const [loadingDemos, setLoadingDemos] = useState(false);
   const [deletingDemo, setDeletingDemo] = useState<string | null>(null);
@@ -294,26 +298,99 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
         throw new Error('Backup failed');
       }
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-
-      // API always compresses backups by default, so always use .json.gz
-      const typeLabel = incrementalEnabled && baseBackupMeta ? `${backupOptions.type}-incremental` : backupOptions.type;
-      const filename = `MultiBusinessSyncService-backup_${typeLabel}_${new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)}.json.gz`;
-
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      const { progressId } = await response.json();
+      if (!progressId) {
+        throw new Error('Backup did not start correctly (no progress ID returned)');
+      }
+      // setLoading(false) happens once the poller below sees completion/error -
+      // `loading` now covers the whole streamed creation, not just the initial request.
+      setBackupProgress(null);
+      setBackupProgressId(progressId as string);
     } catch (error) {
       await customAlert({ title: 'Backup Failed', description: 'The backup operation failed. Please try again.' });
-    } finally {
       setLoading(false);
     }
   };
+
+  // Poll progress for backup creation (mirrors the restore poller below) and
+  // trigger the actual file download once the streamed write completes.
+  useEffect(() => {
+    if (!backupProgressId) {
+      if (backupPollingRef.current) {
+        window.clearInterval(backupPollingRef.current);
+        backupPollingRef.current = null;
+      }
+      return;
+    }
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/backup/progress?id=${encodeURIComponent(backupProgressId)}`);
+        if (res.status === 404) {
+          backupPolling404Count.current += 1;
+          if (backupPolling404Count.current >= 3) {
+            if (backupPollingRef.current) {
+              window.clearInterval(backupPollingRef.current);
+              backupPollingRef.current = null;
+            }
+            setBackupProgressId(null);
+            setLoading(false);
+            await customAlert({ title: 'Backup Progress Unavailable', description: 'The backup progress ID could not be found on the server. The background backup may have failed or the server restarted. Please try again.' });
+          }
+          return;
+        }
+        backupPolling404Count.current = 0;
+        if (res.ok) {
+          const data = await res.json();
+          setBackupProgress(data?.progress ?? null);
+
+          const model = data?.progress?.model;
+          if (model === 'completed') {
+            if (backupPollingRef.current) {
+              window.clearInterval(backupPollingRef.current);
+              backupPollingRef.current = null;
+            }
+            // Download the completed file, then clear state.
+            try {
+              const dlRes = await fetch(`/api/backup?download=${encodeURIComponent(backupProgressId)}`);
+              const blob = await dlRes.blob();
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = data?.progress?.filename || 'backup.json.gz';
+              document.body.appendChild(a);
+              a.click();
+              window.URL.revokeObjectURL(url);
+              document.body.removeChild(a);
+            } finally {
+              setBackupProgressId(null);
+              setLoading(false);
+            }
+          } else if (model === 'error') {
+            if (backupPollingRef.current) {
+              window.clearInterval(backupPollingRef.current);
+              backupPollingRef.current = null;
+            }
+            setBackupProgressId(null);
+            setLoading(false);
+            await customAlert({ title: 'Backup Failed', description: 'The backup operation encountered errors. Please check the logs.' });
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to poll backup creation progress', err);
+      }
+    };
+
+    void poll();
+    backupPollingRef.current = window.setInterval(poll, 2000) as unknown as number;
+
+    return () => {
+      if (backupPollingRef.current) {
+        window.clearInterval(backupPollingRef.current);
+        backupPollingRef.current = null;
+      }
+    };
+  }, [backupProgressId]);
 
   // Incremental backup (Phase 5, MBM-294 §3.5) — reads the base full
   // backup's own metadata (timestamp/sourceNodeId) from the file itself,
@@ -327,20 +404,14 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
     setReadingBaseBackup(true);
     try {
       const isCompressed = file.name.endsWith('.gz') || file.name.endsWith('.json.gz');
-      let requestBody: any;
-      if (isCompressed) {
-        const arrayBuffer = await file.arrayBuffer();
-        const bytes = new Uint8Array(arrayBuffer);
-        let binary = '';
-        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-        requestBody = { compressedData: btoa(binary) };
-      } else {
-        requestBody = { backupData: JSON.parse(await file.text()) };
-      }
       const response = await fetch('/api/backup/metadata', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        headers: {
+          'x-restore-stream': 'true',
+          'x-restore-compressed': isCompressed ? 'true' : 'false',
+          'Content-Type': isCompressed ? 'application/gzip' : 'application/json',
+        },
+        body: file,
       });
       const data = await response.json();
       if (!response.ok || !data.metadata?.timestamp) {
@@ -385,50 +456,24 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
 
       console.log('[Restore] File:', restoreFile.name, 'Size:', restoreFile.size, 'Compressed:', isCompressed);
 
-      let requestBody: any;
-
-      if (isCompressed) {
-        console.log('[Restore] Reading compressed file...');
-        // For compressed files, read as ArrayBuffer
-        const arrayBuffer = await restoreFile.arrayBuffer();
-        console.log('[Restore] ArrayBuffer size:', arrayBuffer.byteLength);
-
-        // Convert ArrayBuffer to base64 using proper binary encoding
-        const bytes = new Uint8Array(arrayBuffer);
-        let binary = '';
-        const len = bytes.byteLength;
-        for (let i = 0; i < len; i++) {
-          binary += String.fromCharCode(bytes[i]);
-        }
-        const base64 = btoa(binary);
-        console.log('[Restore] Base64 size:', base64.length);
-
-        // Verify it's a gzip file (magic bytes 0x1f 0x8b)
-        console.log('[Restore] First two bytes:', bytes[0].toString(16), bytes[1].toString(16),
-                    'Expected: 1f 8b', bytes[0] === 0x1f && bytes[1] === 0x8b ? '✓' : '✗');
-
-        requestBody = { compressedData: base64 };
-      } else {
-        console.log('[Restore] Reading JSON file...');
-        // For JSON files, read as text and parse
-        const fileContent = await restoreFile.text();
-        console.log('[Restore] JSON content length:', fileContent.length);
-        const backupData = JSON.parse(fileContent);
-        console.log('[Restore] Parsed backup data, version:', backupData.metadata?.version);
-        requestBody = { backupData };
-      }
-
-      // Note: For now, always use /api/backup endpoint
-      // Demo backup detection will happen on server side based on metadata
+      // Streaming upload (Increment 2 of the streaming backup/restore fix):
+      // send the raw file body directly - no file.text()/JSON.parse() here,
+      // no re-JSON.stringify-ing it for the request body. The old path did
+      // both (plus base64-encoding the whole file for compressed uploads),
+      // which could hang or crash the tab on a large backup before the
+      // upload even started. The server streams-parses it as it arrives.
       const endpoint = '/api/backup';
+      const baseHeaders: Record<string, string> = {
+        'x-restore-stream': 'true',
+        'x-restore-compressed': isCompressed ? 'true' : 'false',
+        'Content-Type': isCompressed ? 'application/gzip' : 'application/json',
+      };
 
-      console.log('[Restore] Sending request to:', endpoint);
+      console.log('[Restore] Sending streamed request to:', endpoint);
       let response = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
+        headers: baseHeaders,
+        body: restoreFile,
       });
 
       console.log('[Restore] Response status:', response.status);
@@ -455,8 +500,8 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
           }
           response = await fetch(endpoint, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...requestBody, confirmBaseRestored: true }),
+            headers: { ...baseHeaders, 'x-restore-confirm-base': 'true' },
+            body: restoreFile,
           });
         }
       }
@@ -509,38 +554,19 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
 
       console.log('[Validate] File:', restoreFile.name, 'Size:', restoreFile.size, 'Compressed:', isCompressed);
 
-      let requestBody: any;
-
-      if (isCompressed) {
-        console.log('[Validate] Reading compressed file...');
-        // For compressed files, read as ArrayBuffer
-        const arrayBuffer = await restoreFile.arrayBuffer();
-
-        // Convert ArrayBuffer to base64
-        const bytes = new Uint8Array(arrayBuffer);
-        let binary = '';
-        const len = bytes.byteLength;
-        for (let i = 0; i < len; i++) {
-          binary += String.fromCharCode(bytes[i]);
-        }
-        const base64 = btoa(binary);
-
-        requestBody = { compressedData: base64 };
-      } else {
-        console.log('[Validate] Reading JSON file...');
-        // For JSON files, read as text and parse
-        const fileContent = await restoreFile.text();
-        const backupData = JSON.parse(fileContent);
-        requestBody = { backupData };
-      }
-
-      console.log('[Validate] Sending validation request...');
+      // Streaming upload (same fix as restore - see
+      // ai-contexts/project-plans/review/projectplan-NOTKT-streaming-backup-restore-2026-09-13.md):
+      // send the raw file directly instead of arrayBuffer()+base64-encoding
+      // it (or text()+JSON.parse()) client-side.
+      console.log('[Validate] Sending streamed validation request...');
       const response = await fetch('/api/backup/validate', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'x-restore-stream': 'true',
+          'x-restore-compressed': isCompressed ? 'true' : 'false',
+          'Content-Type': isCompressed ? 'application/gzip' : 'application/json',
         },
-        body: JSON.stringify(requestBody),
+        body: restoreFile,
       });
 
       if (!response.ok) {
@@ -1004,6 +1030,21 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
             {loading ? 'Creating Backup...' : incrementalEnabled ? 'Create Incremental Backup' : 'Create Backup'}
           </Button>
         </div>
+
+        {backupProgress && (() => {
+          const counts = backupProgress?.counts ?? {};
+          const modelEntries = Object.entries(counts) as [string, { processed?: number; total?: number }][];
+          const activeModel = backupProgress?.model;
+          return (
+            <div className="space-y-2">
+              <RestoreProgressLog
+                entries={modelEntries.filter(([, s]) => (s.processed ?? 0) > 0)}
+                currentModel={activeModel}
+                isComplete={activeModel === 'completed'}
+              />
+            </div>
+          );
+        })()}
       </div>
 
       {/* Divider */}

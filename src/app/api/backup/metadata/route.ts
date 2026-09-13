@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Readable } from 'stream';
+import { createGunzip } from 'zlib';
 import { decompressBackup, isGzipped } from '@/lib/backup-compression';
+import { parseJSONStream } from '@/lib/backup-stream-parse';
 import { getServerUser } from '@/lib/get-server-user'
+
+export const runtime = 'nodejs';
+export const maxDuration = 300;
 
 /**
  * POST /api/backup/metadata
@@ -10,7 +16,10 @@ import { getServerUser } from '@/lib/get-server-user'
  * full backup's own `timestamp`/`sourceNodeId` without running it through
  * the much heavier full-DB comparison `/api/backup/validate` does.
  *
- * Body: { backupData } for uncompressed JSON, or { compressedData } (base64) for .json.gz
+ * Streaming upload (preferred, see
+ * ai-contexts/project-plans/review/projectplan-NOTKT-streaming-backup-restore-2026-09-13.md):
+ * header `x-restore-stream: true`, raw file body, `x-restore-compressed: true` if gzipped.
+ * Legacy body (still supported): { backupData } or { compressedData } (base64).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -19,15 +28,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    let backupData = body.backupData;
+    let backupData: any;
 
-    if (body.compressedData) {
-      const compressedBuffer = Buffer.from(body.compressedData, 'base64');
-      if (!isGzipped(compressedBuffer)) {
-        return NextResponse.json({ error: 'Invalid compressed data - not a gzip file' }, { status: 400 });
+    if (request.headers.get('x-restore-stream') === 'true') {
+      const nodeStream = Readable.fromWeb(request.body as any);
+      const isCompressed = request.headers.get('x-restore-compressed') === 'true';
+      const source = isCompressed ? nodeStream.pipe(createGunzip()) : nodeStream;
+      backupData = await parseJSONStream(source);
+    } else {
+      const body = await request.json();
+      backupData = body.backupData;
+
+      if (body.compressedData) {
+        const compressedBuffer = Buffer.from(body.compressedData, 'base64');
+        if (!isGzipped(compressedBuffer)) {
+          return NextResponse.json({ error: 'Invalid compressed data - not a gzip file' }, { status: 400 });
+        }
+        backupData = await decompressBackup(compressedBuffer);
       }
-      backupData = await decompressBackup(compressedBuffer);
     }
 
     if (!backupData?.metadata) {
