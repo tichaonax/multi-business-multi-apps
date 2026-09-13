@@ -1547,7 +1547,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
             <p className="text-sm mt-2">Scan a barcode or click + Add Row to start</p>
           </div>
         ) : (
-          <table className="min-w-max w-full text-sm border-collapse">
+          <table className="min-w-max w-full text-sm border-separate border-spacing-0">
             <thead className="sticky top-0 z-10">
               <tr className="bg-gray-50 dark:bg-gray-800 text-xs text-gray-500 dark:text-gray-400">
                 <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-center w-8">#</th>
@@ -1951,6 +1951,7 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
   }
   const [suggestOpen, setSuggestOpen] = useState(false)
   const [suggestions, setSuggestions] = useState<SuggestItem[]>([])
+  const [suggestVisibleCount, setSuggestVisibleCount] = useState(5)
   const [isApplying, setIsApplying] = useState(false)
   const suggestBtnRef = useRef<HTMLButtonElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
@@ -2014,13 +2015,14 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
 
     scored.sort((a, b) => b.score - a.score || a.subCategoryName.localeCompare(b.subCategoryName))
     const seen = new Set<string>()
-    const top = scored.filter(s => {
+    const deduped = scored.filter(s => {
       if (seen.has(s.subCategoryId)) return false
       seen.add(s.subCategoryId)
       return true
-    }).slice(0, 5)
+    })
 
-    setSuggestions(top)
+    setSuggestions(deduped)
+    setSuggestVisibleCount(5)
     setSuggestOpen(true)
   }
 
@@ -2133,24 +2135,35 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
               {suggestions.length === 0 ? (
                 <p className="text-xs text-gray-500 py-2 text-center">No matches found — select manually.</p>
               ) : (
-                <ul className="space-y-1">
-                  {suggestions.map((s, i) => (
-                    <li key={`${s.subCategoryId}-${i}`}>
-                      <button
-                        type="button"
-                        onClick={() => applySuggestion(s)}
-                        className="w-full text-left px-2 py-2 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                      >
-                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
-                          {s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName}
-                        </div>
-                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                          {s.subCategoryEmoji} {s.subCategoryName}
-                        </div>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <ul className="space-y-1">
+                    {suggestions.slice(0, suggestVisibleCount).map((s, i) => (
+                      <li key={`${s.subCategoryId}-${i}`}>
+                        <button
+                          type="button"
+                          onClick={() => applySuggestion(s)}
+                          className="w-full text-left px-2 py-2 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                        >
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
+                            {s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName}
+                          </div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {s.subCategoryEmoji} {s.subCategoryName}
+                          </div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {suggestions.length > suggestVisibleCount && (
+                    <button
+                      type="button"
+                      onClick={() => setSuggestVisibleCount(c => c + 10)}
+                      className="w-full mt-1 px-2 py-1.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded text-center"
+                    >
+                      Load {Math.min(10, suggestions.length - suggestVisibleCount)} more ({suggestions.length - suggestVisibleCount} remaining)
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>

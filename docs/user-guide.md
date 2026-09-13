@@ -5529,7 +5529,7 @@ From here:
 | **Supplier** | Yes | Searchable dropdown. Optional. |
 | **Description** | Yes | Free text note. Optional. |
 | **Current Stock** | Read-only / overridable | System quantity at last sync. In Stock Take mode you can override it — see [Overriding the System Quantity](#overriding-the-system-quantity-stock-take-mode) below. |
-| **Qty to Add** | Yes | How many new units you are receiving |
+| **New Qty** | Yes | How many new units you are receiving |
 | **Physical Count** | Yes | What you counted on the shelf (for Stock Take mode — see below) |
 | **Variance** | Read-only | Physical Count − Effective System Quantity. Red = shortfall, green = surplus. Only calculated when Physical Count is entered. |
 | **Sell Price** | Yes | Selling price per unit. Tick **Free** for $0 items. |
@@ -5570,7 +5570,7 @@ When all items are entered, click **Review & Submit**. This opens the **Stock Ta
 | System Qty | Quantity recorded in the system at last sync |
 | Physical Count | What you entered |
 | Variance | Shortfall (red) or surplus (green) |
-| New Stock Added | Qty to Add you entered |
+| New Stock Added | New Qty you entered |
 | Sell Price | Per unit price |
 | Shortfall Value | \|Variance\| × Sell Price (shown for shortfall rows) |
 
@@ -5617,7 +5617,7 @@ Sometimes the system quantity recorded is known to be incorrect before you even 
 **Audit trail:**
 - The override value, reason, your username, and the timestamp are saved with the draft and included in the submitted report — managers reviewing the report can see exactly what was changed and why.
 
-> **Important:** Overriding the system quantity does **not** change the actual stock in the database. It only adjusts the reference point used to calculate variance for this stock take. The final stock quantity applied on submit is always **Physical Count + Qty to Add**.
+> **Important:** Overriding the system quantity does **not** change the actual stock in the database. It only adjusts the reference point used to calculate variance for this stock take. The final stock quantity applied on submit is always **Physical Count + New Qty**.
 
 ---
 
