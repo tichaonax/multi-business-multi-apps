@@ -100,6 +100,11 @@ export interface OpenPromotionInfo {
    * the price passed in, not stored, since the item's real price can change
    * independently of the promo. */
   promoPrice: number
+  /** The item's real price right now (before the discount) — NOT the same
+   * thing as `discountValue`, which for a FIXED_PRICE promo IS the new price
+   * (so showing "discountValue → promoPrice" would wrongly display the same
+   * number on both sides, e.g. "$4.50 → $4.50" instead of "$6.00 → $4.50"). */
+  originalPrice: number
 }
 
 /**
@@ -154,6 +159,7 @@ export function describeOpenPromotion(
     startAt: promo.startAt.toISOString(),
     endAt: promo.endAt.toISOString(),
     promoPrice: Math.round(promoPrice * 100) / 100,
+    originalPrice: currentPrice,
   }
 }
 

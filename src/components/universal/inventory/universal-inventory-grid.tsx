@@ -50,6 +50,7 @@ interface UniversalInventoryItem {
     startAt: string
     endAt: string
     promoPrice: number
+    originalPrice: number
   } | null
   barcodes?: Array<{
     id: string
@@ -104,11 +105,11 @@ interface UniversalInventoryGridProps {
 }
 
 function describePromoBadge(promo: NonNullable<UniversalInventoryItem['promo']>): string {
-  const discount = promo.discountType === 'FIXED_PRICE' ? `$${promo.discountValue.toFixed(2)}` : `${promo.discountValue}% off`
+  const discountLabel = promo.discountType === 'FIXED_PRICE' ? 'new fixed price' : `${promo.discountValue}% off`
   const start = new Date(promo.startAt).toLocaleString()
   const end = new Date(promo.endAt).toLocaleString()
   const verb = promo.status === 'SCHEDULED' ? 'Scheduled' : 'Active'
-  return `${verb} promotion: ${discount} → $${promo.promoPrice.toFixed(2)}\n${start} to ${end}`
+  return `${verb} promotion (${discountLabel}): $${promo.originalPrice.toFixed(2)} → $${promo.promoPrice.toFixed(2)}\n${start} to ${end}`
 }
 
 export function UniversalInventoryGrid({

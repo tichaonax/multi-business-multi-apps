@@ -2101,12 +2101,22 @@ function ClothingInventoryContent() {
                     </button>
                   </div>
                   {selectedItem.promo && (
-                    <div className="mb-4 px-4 py-3 rounded-lg bg-pink-50 dark:bg-pink-900/20 border-2 border-pink-400 dark:border-pink-600 text-sm text-pink-800 dark:text-pink-300">
-                      <span className="font-bold">🏷️ {selectedItem.promo.status === 'SCHEDULED' ? 'SALE SCHEDULED' : 'ON SALE NOW'}</span>
-                      {' — '}
-                      {selectedItem.promo.discountType === 'FIXED_PRICE' ? `$${Number(selectedItem.promo.discountValue).toFixed(2)}` : `${selectedItem.promo.discountValue}% off`}
-                      {' → '}<span className="font-semibold">${Number(selectedItem.promo.promoPrice).toFixed(2)}</span>
-                      {' · '}{new Date(selectedItem.promo.startAt).toLocaleString()} to {new Date(selectedItem.promo.endAt).toLocaleString()}
+                    <div className="mb-4 px-4 py-3 rounded-lg bg-pink-50 dark:bg-pink-900/20 border-2 border-pink-400 dark:border-pink-600">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <span className="font-bold text-sm text-pink-800 dark:text-pink-300">
+                          🏷️ {selectedItem.promo.status === 'SCHEDULED' ? 'SALE SCHEDULED' : 'ON SALE NOW'}
+                        </span>
+                        <span className="text-xs text-pink-700 dark:text-pink-400">
+                          {new Date(selectedItem.promo.startAt).toLocaleString()} to {new Date(selectedItem.promo.endAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline gap-2 mt-1.5">
+                        <span className="text-sm text-gray-500 dark:text-gray-400 line-through">${Number(selectedItem.promo.originalPrice).toFixed(2)}</span>
+                        <span className="text-2xl font-extrabold text-pink-600 dark:text-pink-400">${Number(selectedItem.promo.promoPrice).toFixed(2)}</span>
+                        <span className="text-xs font-semibold text-pink-700 dark:text-pink-300 bg-pink-100 dark:bg-pink-900/40 px-1.5 py-0.5 rounded">
+                          {selectedItem.promo.discountType === 'FIXED_PRICE' ? 'Fixed Price' : `${selectedItem.promo.discountValue}% OFF`}
+                        </span>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2242,7 +2252,17 @@ function ClothingInventoryContent() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-3 p-6 pt-4 border-t border-gray-200 dark:border-gray-700 shrink-0">
+                <div className="flex gap-3 p-6 pt-4 border-t border-gray-200 dark:border-gray-700 shrink-0 flex-wrap">
+                  <button
+                    onClick={() => {
+                      handleItemAddToCart(selectedItem)
+                      setShowViewModal(false)
+                      setSelectedItem(null)
+                    }}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white rounded-md px-3 py-2 text-sm font-medium"
+                  >
+                    🛒 Add to Cart
+                  </button>
                   <button
                     onClick={() => {
                       setShowViewModal(false)

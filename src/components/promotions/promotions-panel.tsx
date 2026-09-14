@@ -364,11 +364,22 @@ export function PromotionsPanel({ businessType, initialItemId, initialItemName }
                     <span className="text-sm font-medium text-primary truncate">{p.itemName}</span>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${STATUS_STYLE[p.status]}`}>{p.status}</span>
                   </div>
-                  <div className="text-xs text-secondary">
-                    {p.discountType === 'FIXED_PRICE'
-                      ? <>Now {fmt(p.discountValue)} <span className="line-through">{fmt(p.currentPrice)}</span></>
-                      : <>{p.discountValue}% off</>}
-                    {' · '}{new Date(p.startAt).toLocaleString()} → {new Date(p.endAt).toLocaleString()}
+                  <div className="flex items-baseline gap-2 mt-0.5">
+                    {p.discountType === 'FIXED_PRICE' ? (
+                      <>
+                        <span className="text-base font-extrabold text-pink-600 dark:text-pink-400">{fmt(p.discountValue)}</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 line-through">{fmt(p.currentPrice)}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-base font-extrabold text-pink-600 dark:text-pink-400">{fmt(p.currentPrice * (1 - p.discountValue / 100))}</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 line-through">{fmt(p.currentPrice)}</span>
+                        <span className="text-[10px] font-semibold text-pink-700 dark:text-pink-300 bg-pink-100 dark:bg-pink-900/40 px-1 py-0.5 rounded">{p.discountValue}% OFF</span>
+                      </>
+                    )}
+                  </div>
+                  <div className="text-xs text-secondary mt-0.5">
+                    {new Date(p.startAt).toLocaleString()} → {new Date(p.endAt).toLocaleString()}
                   </div>
                 </div>
                 <div className="flex-shrink-0 flex gap-2">

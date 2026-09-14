@@ -65,8 +65,24 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ busi
   if (discountValue !== undefined) data.discountValue = discountValue
   if (startAt !== undefined) data.startAt = new Date(startAt)
   if (endAt !== undefined) data.endAt = new Date(endAt)
-  if ((data.startAt as Date | undefined) && (data.endAt as Date | undefined) && (data.endAt as Date) <= (data.startAt as Date)) {
+  const newStart = (data.startAt as Date | undefined) ?? promo.startAt
+  const newEnd = (data.endAt as Date | undefined) ?? promo.endAt
+  if (newEnd <= newStart) {
     return NextResponse.json({ error: 'endAt must be after startAt' }, { status: 400 })
+  }
+
+  // Same rule as creating a new promotion: this item can't have two open
+  // (active-or-scheduled, non-ended, non-paused) promotions overlapping in
+  // time — re-check here since editing dates can just as easily create that
+  // overlap as creating a brand new promotion can.
+  const others = await prisma.productPromotions.findMany({
+    where: { businessId, itemType: promo.itemType, itemId: promo.itemId, id: { not: id } },
+  })
+  const conflicting = others.find(p => isOpenPromotion(p, now) && new Date(p.endAt) >= newStart && new Date(p.startAt) <= newEnd)
+  if (conflicting) {
+    return NextResponse.json({
+      error: `This item already has another active or scheduled promotion overlapping that window (${conflicting.discountType === 'FIXED_PRICE' ? `$${Number(conflicting.discountValue).toFixed(2)}` : `${conflicting.discountValue}% off`}, ${new Date(conflicting.startAt).toLocaleString()} → ${new Date(conflicting.endAt).toLocaleString()}). Pause or end it first.`,
+    }, { status: 409 })
   }
 
   const updated = await prisma.productPromotions.update({ where: { id }, data })
