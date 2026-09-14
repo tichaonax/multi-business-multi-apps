@@ -2100,6 +2100,15 @@ function ClothingInventoryContent() {
                       ✕
                     </button>
                   </div>
+                  {selectedItem.promo && (
+                    <div className="mb-4 px-4 py-3 rounded-lg bg-pink-50 dark:bg-pink-900/20 border-2 border-pink-400 dark:border-pink-600 text-sm text-pink-800 dark:text-pink-300">
+                      <span className="font-bold">🏷️ {selectedItem.promo.status === 'SCHEDULED' ? 'SALE SCHEDULED' : 'ON SALE NOW'}</span>
+                      {' — '}
+                      {selectedItem.promo.discountType === 'FIXED_PRICE' ? `$${Number(selectedItem.promo.discountValue).toFixed(2)}` : `${selectedItem.promo.discountValue}% off`}
+                      {' → '}<span className="font-semibold">${Number(selectedItem.promo.promoPrice).toFixed(2)}</span>
+                      {' · '}{new Date(selectedItem.promo.startAt).toLocaleString()} to {new Date(selectedItem.promo.endAt).toLocaleString()}
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-6 overflow-y-auto flex-1 min-h-0">
@@ -2263,17 +2272,30 @@ function ClothingInventoryContent() {
                   >
                     📊 Activity
                   </button>
-                  <button
-                    onClick={() => {
-                      setShowViewModal(false)
-                      const rawId = selectedItem.id.startsWith('inv_') ? selectedItem.id.replace(/^inv_/, '') : selectedItem.id
-                      router.push(`/clothing/promotions?productId=${encodeURIComponent(rawId)}&productName=${encodeURIComponent(selectedItem.name)}`)
-                    }}
-                    className="flex-1 btn-secondary"
-                    title="Start a promotional sale for this item"
-                  >
-                    🏷️ Put on Sale
-                  </button>
+                  {selectedItem.promo ? (
+                    <button
+                      onClick={() => {
+                        setShowViewModal(false)
+                        router.push('/clothing/promotions')
+                      }}
+                      className="flex-1 bg-pink-600 hover:bg-pink-700 text-white rounded-md px-3 py-2 text-sm font-medium"
+                      title="This item already has an active or scheduled promotion — manage it here"
+                    >
+                      🏷️ See Promos
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setShowViewModal(false)
+                        const rawId = selectedItem.id.startsWith('inv_') ? selectedItem.id.replace(/^inv_/, '') : selectedItem.id
+                        router.push(`/clothing/promotions?productId=${encodeURIComponent(rawId)}&productName=${encodeURIComponent(selectedItem.name)}`)
+                      }}
+                      className="flex-1 btn-secondary"
+                      title="Start a promotional sale for this item"
+                    >
+                      🏷️ Put on Sale
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       setShowViewModal(false)

@@ -5,6 +5,7 @@ import { getServerUser } from '@/lib/get-server-user'
 import { checkAndNotifyLowStockForBarcodeItem, checkAndNotifyLowStockForVariant } from '@/lib/inventory/low-stock-notifier'
 import { createAuditLog } from '@/lib/audit'
 import { recordPriceChangeIfDifferent, isPriceChangeReasonRequired } from '@/lib/inventory/price-history'
+import { getOpenPromotions, describeOpenPromotion } from '@/lib/promotions/resolve-active-promotions'
 
 export async function GET(
   request: NextRequest,
@@ -34,6 +35,7 @@ export async function GET(
       if (!item) {
         return NextResponse.json({ error: 'Inventory item not found' }, { status: 404 })
       }
+      const barcodeItemOpenPromotions = await getOpenPromotions(businessId)
       return NextResponse.json({
         success: true,
         data: {
@@ -70,6 +72,7 @@ export async function GET(
           isInventoryTracked: true,
           reorderLevel: (item as any).reorderLevel ?? 0,
           barcodeData: item.barcodeData,
+          promo: describeOpenPromotion(barcodeItemOpenPromotions.get(`product:${rawId}`), parseFloat(item.sellingPrice?.toString() || '0')),
         }
       })
     }
@@ -119,6 +122,8 @@ export async function GET(
       return total + Number(variant.stockQuantity ?? 0)
     }, 0)
 
+    const productOpenPromotions = await getOpenPromotions(businessId)
+
     return NextResponse.json({
       success: true,
       data: {
@@ -165,7 +170,8 @@ export async function GET(
         reorderLevel: product.product_variants[0]?.reorderLevel ?? 0,
         // MBM-133 follow-up — lets the edit form show the template badge and
         // a "Convert to Regular Inventory" action for the right permissions.
-        isProductTemplate: (product as any).isProductTemplate ?? false
+        isProductTemplate: (product as any).isProductTemplate ?? false,
+        promo: describeOpenPromotion(productOpenPromotions.get(`product:${product.id}`), parseFloat(product.basePrice?.toString() || '0')),
       }
     })
 

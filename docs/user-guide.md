@@ -13447,6 +13447,8 @@ The discount takes effect the moment the start time arrives — no further actio
 
 **Shortcut from the item itself:** open any item's details in Grocery or Clothing Inventory and click **🏷️ Put on Sale** — it opens Promotional Sales with that item already selected, skipping the search step. Just fill in the discount and schedule.
 
+**Already on sale?** The inventory list flags any item with an open promotion with a **🏷️ On Sale** (or **Sale Scheduled**, if it hasn't started yet) badge next to its name — hover it to see the discount, the sale price, and the start/end window. Opening that item's details shows the same information as a banner, and the **Put on Sale** button becomes **🏷️ See Promos** instead (an item can only have one open promotion at a time), taking you straight to the list to pause, resume, or end it.
+
 ---
 
 ### Pause, Resume, End

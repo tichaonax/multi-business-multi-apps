@@ -42,6 +42,15 @@ interface UniversalInventoryItem {
   imageId?: string | null
   // MBM-133 follow-up — draft/unconfigured product flag (BusinessProducts only).
   isProductTemplate?: boolean
+  // Open (active-or-scheduled) promotional sale on this item, if any.
+  promo?: {
+    status: 'SCHEDULED' | 'ACTIVE'
+    discountType: 'FIXED_PRICE' | 'PERCENT_OFF'
+    discountValue: number
+    startAt: string
+    endAt: string
+    promoPrice: number
+  } | null
   barcodes?: Array<{
     id: string
     code: string
@@ -92,6 +101,14 @@ interface UniversalInventoryGridProps {
   // should pass a larger subtraction so the pagination footer stays on-screen
   // without the whole page needing to scroll. Defaults to the original guess.
   tableMaxHeight?: string
+}
+
+function describePromoBadge(promo: NonNullable<UniversalInventoryItem['promo']>): string {
+  const discount = promo.discountType === 'FIXED_PRICE' ? `$${promo.discountValue.toFixed(2)}` : `${promo.discountValue}% off`
+  const start = new Date(promo.startAt).toLocaleString()
+  const end = new Date(promo.endAt).toLocaleString()
+  const verb = promo.status === 'SCHEDULED' ? 'Scheduled' : 'Active'
+  return `${verb} promotion: ${discount} → $${promo.promoPrice.toFixed(2)}\n${start} to ${end}`
 }
 
 export function UniversalInventoryGrid({
@@ -1023,7 +1040,7 @@ export function UniversalInventoryGrid({
                           >
                             {item.name}
                           </span>
-                          {(item.isProductTemplate || (!item.isProductTemplate && convertedIds.has(item.id)) || item.isInventoryTracked || item.isExpiryDiscount || businessSummary) && (
+                          {(item.isProductTemplate || (!item.isProductTemplate && convertedIds.has(item.id)) || item.isInventoryTracked || item.isExpiryDiscount || item.promo || businessSummary) && (
                             <div className="flex items-center gap-2 flex-wrap mt-1">
                               {item.isProductTemplate && (
                                 <span
@@ -1062,6 +1079,14 @@ export function UniversalInventoryGrid({
                                   🏷️ Expiry Deal
                                 </span>
                               )}
+                              {item.promo && (
+                                <span
+                                  title={describePromoBadge(item.promo)}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-pink-100 dark:bg-pink-900/40 text-pink-700 dark:text-pink-300 border border-pink-200 dark:border-pink-700 whitespace-nowrap cursor-help"
+                                >
+                                  🏷️ {item.promo.status === 'SCHEDULED' ? 'Sale Scheduled' : 'On Sale'}
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1076,6 +1101,10 @@ export function UniversalInventoryGrid({
                             </>
                           )}
                           {' • '}{item.sku}
+                          {' · '}
+                          <span className="text-gray-500 dark:text-gray-400" title="Total stock value at current sell price (stock × sell price)">
+                            Value: ${(item.currentStock * item.sellPrice).toFixed(2)}
+                          </span>
                         </div>
                         {item.description && (
                           <div className="text-xs text-gray-500 mt-1">{item.description}</div>
@@ -1176,6 +1205,14 @@ export function UniversalInventoryGrid({
                             🏷️ Expiry Deal
                           </span>
                         )}
+                        {item.promo && (
+                          <span
+                            title={describePromoBadge(item.promo)}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-pink-100 dark:bg-pink-900/40 text-pink-700 dark:text-pink-300 border border-pink-200 dark:border-pink-700 whitespace-nowrap cursor-help"
+                          >
+                            🏷️ {item.promo.status === 'SCHEDULED' ? 'Sale Scheduled' : 'On Sale'}
+                          </span>
+                        )}
                         {item.isProductTemplate && (
                           <span
                             title="Template product — no stock or price set yet. Use 'Stock in Current Business' on a barcode scan to activate it."
@@ -1204,6 +1241,10 @@ export function UniversalInventoryGrid({
                           </>
                         )}
                         {' • SKU: '}{item.sku}
+                        {' · '}
+                        <span className="text-gray-500 dark:text-gray-400" title="Total stock value at current sell price (stock × sell price)">
+                          Value: ${(item.currentStock * item.sellPrice).toFixed(2)}
+                        </span>
                       </div>
                       {item.description && (
                         <div className="text-xs text-gray-500 mt-1 line-clamp-2">{item.description}</div>

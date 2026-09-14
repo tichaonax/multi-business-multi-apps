@@ -10,6 +10,7 @@ interface Candidate {
   name: string
   category: string | null
   price: number
+  imageUrl: string | null
 }
 
 // GET /api/business/[businessId]/promotions/search?businessType=grocery|clothing&q=
@@ -37,11 +38,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
   const [invItems, bizProducts] = await Promise.all([
     prisma.barcodeInventoryItems.findMany({
       where: { businessId, isActive: true, stockQuantity: { gt: 0 }, sellingPrice: { gt: 0 } },
-      select: { id: true, name: true, sellingPrice: true, business_category: { select: { name: true } } },
+      select: { id: true, name: true, sellingPrice: true, imageId: true, business_category: { select: { name: true } } },
     }),
     prisma.businessProducts.findMany({
       where: { businessId, isActive: true, isAvailable: true, basePrice: { gt: 0 } },
-      select: { id: true, name: true, basePrice: true, business_categories: { select: { name: true } } },
+      select: {
+        id: true, name: true, basePrice: true,
+        business_categories: { select: { name: true } },
+        product_images: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }], take: 1, select: { imageId: true } },
+      },
     }),
   ])
 
@@ -49,12 +54,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
     candidates.push({
       itemType: 'product', itemId: item.id, sourceTable: 'BARCODE_ITEM',
       name: item.name, category: item.business_category?.name ?? null, price: Number(item.sellingPrice ?? 0),
+      imageUrl: item.imageId ? `/api/images/${item.imageId}` : null,
     })
   }
   for (const p of bizProducts) {
     candidates.push({
       itemType: 'product', itemId: p.id, sourceTable: 'BUSINESS_PRODUCT',
       name: p.name, category: p.business_categories?.name ?? null, price: Number(p.basePrice ?? 0),
+      imageUrl: p.product_images[0]?.imageId ? `/api/images/${p.product_images[0].imageId}` : null,
     })
   }
 
@@ -66,7 +73,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ busi
     for (const cat of categories) {
       candidates.push({
         itemType: 'category', itemId: cat.id, sourceTable: 'BALE_CATEGORY',
-        name: cat.name, category: null, price: 0,
+        name: cat.name, category: null, price: 0, imageUrl: null,
       })
     }
   }

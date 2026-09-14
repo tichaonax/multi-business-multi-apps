@@ -29,6 +29,7 @@ interface Candidate {
   name: string
   category: string | null
   price: number
+  imageUrl: string | null
 }
 
 interface Props {
@@ -258,10 +259,17 @@ export function PromotionsPanel({ businessType, initialItemId, initialItemName }
                     onClick={() => selectCandidate(c)}
                     className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700"
                   >
-                    <div>
-                      <div className="text-sm font-medium text-primary">{c.name}</div>
-                      <div className="text-xs text-secondary">
-                        {c.itemType === 'category' ? 'Bale category' : (c.category ?? 'Uncategorized')}
+                    <div className="flex items-center gap-3 min-w-0">
+                      {c.imageUrl ? (
+                        <img src={c.imageUrl} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0 bg-gray-100 dark:bg-gray-800" />
+                      ) : (
+                        <span className="w-10 h-10 rounded flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-[8px] text-secondary flex-shrink-0">No image</span>
+                      )}
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-primary truncate">{c.name}</div>
+                        <div className="text-xs text-secondary">
+                          {c.itemType === 'category' ? 'Bale category' : (c.category ?? 'Uncategorized')}
+                        </div>
                       </div>
                     </div>
                     {c.itemType === 'product' && <div className="text-sm text-secondary flex-shrink-0">{fmt(c.price)}</div>}
@@ -272,12 +280,19 @@ export function PromotionsPanel({ businessType, initialItemId, initialItemName }
           ) : (
             <div className="space-y-3">
               <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-900 rounded-lg px-3 py-2">
-                <div>
-                  <div className="text-sm font-medium text-primary">{selected.name}</div>
-                  {selected.itemType === 'product' && <div className="text-xs text-secondary">Current price: {fmt(selected.price)}</div>}
-                  {selected.itemType === 'category' && <div className="text-xs text-secondary">Bale category — applies % off every bale in it</div>}
+                <div className="flex items-center gap-3 min-w-0">
+                  {selected.imageUrl ? (
+                    <img src={selected.imageUrl} alt="" className="w-24 h-24 rounded-lg object-contain flex-shrink-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700" />
+                  ) : selected.itemType === 'product' ? (
+                    <span className="w-24 h-24 rounded-lg flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-[10px] text-secondary flex-shrink-0">No image</span>
+                  ) : null}
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-primary truncate">{selected.name}</div>
+                    {selected.itemType === 'product' && <div className="text-xs text-secondary">Current price: {fmt(selected.price)}</div>}
+                    {selected.itemType === 'category' && <div className="text-xs text-secondary">Bale category — applies % off every bale in it</div>}
+                  </div>
                 </div>
-                <button onClick={() => setSelected(null)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Change</button>
+                <button onClick={() => setSelected(null)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex-shrink-0">Change</button>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

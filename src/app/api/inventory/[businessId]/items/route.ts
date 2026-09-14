@@ -5,6 +5,7 @@ import { randomBytes } from 'crypto'
 import { randomUUID } from 'crypto'
 import { generateSKU } from '@/lib/sku-generator'
 import { getServerUser } from '@/lib/get-server-user'
+import { getOpenPromotions, describeOpenPromotion, type OpenPromotionInfo } from '@/lib/promotions/resolve-active-promotions'
 
 interface UniversalInventoryItem {
   id: string
@@ -23,6 +24,7 @@ interface UniversalInventoryItem {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  promo?: OpenPromotionInfo | null
   barcodes?: Array<{
     id: string
     code: string
@@ -216,6 +218,11 @@ export async function GET(
     // Only add category filter to where clause if we're sure it's a regular category
     const shouldFilterByCategory = category && category !== 'all'
 
+    // So the inventory list can flag "on sale" items — active or scheduled,
+    // not just active right now (see getOpenPromotions' own doc comment for
+    // why that's a different set than checkout/customer-display pricing uses).
+    const openPromotions = await getOpenPromotions(businessId)
+
     // Get products from database with proper relationships
     // Don't apply category filter in where clause - we'll do it after transformation
     const products = await prisma.businessProducts.findMany({
@@ -283,7 +290,8 @@ export async function GET(
         barcodes: (product as any).product_barcodes || [],
         attributes: product.attributes || {},
         isInventoryTracked: (product as any).isInventoryTracked ?? false,
-        imageId: (product as any).product_images?.[0]?.imageId || null
+        imageId: (product as any).product_images?.[0]?.imageId || null,
+        promo: describeOpenPromotion(openPromotions.get(`product:${product.id}`), parseFloat(product.basePrice?.toString() || '0')),
       }
     })
 
@@ -368,6 +376,7 @@ export async function GET(
       isInventoryTracked: true,
       barcodeData: item.barcodeData,
       isExpiryDiscount: item.isExpiryDiscount,
+      promo: describeOpenPromotion(openPromotions.get(`product:${item.id}`), parseFloat(item.sellingPrice?.toString() || '0')),
     }))
 
     // Merge barcodeItems into filteredItems (apply domainId filter only to businessProducts)
