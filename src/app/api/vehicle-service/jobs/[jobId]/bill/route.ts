@@ -287,7 +287,7 @@ export async function POST(
 
     notifyJobBilled(job.id, job.businessId, result.orderNumber, totalAmount)
     for (const p of partLines) {
-      checkAndNotifyLowStockForVariant(prisma, p.variantId, job.businessId)
+      checkAndNotifyLowStockForVariant(p.variantId, job.businessId)
     }
 
     return NextResponse.json({

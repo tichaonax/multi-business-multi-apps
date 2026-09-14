@@ -8,7 +8,7 @@
  * Notification type: LOW_STOCK — renders with 📦 icon, blue unread highlight.
  */
 
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
 
 /**
@@ -16,7 +16,6 @@ import { emitNotification } from '@/lib/notifications/notification-emitter'
  * Safe to call unconditionally — does nothing when reorderLevel is 0 or stock is fine.
  */
 export async function checkAndNotifyLowStockForBarcodeItem(
-  prisma: PrismaClient,
   itemId: string,
   businessId: string
 ): Promise<void> {
@@ -28,7 +27,7 @@ export async function checkAndNotifyLowStockForBarcodeItem(
 
     if (!item || item.reorderLevel <= 0 || item.stockQuantity > item.reorderLevel) return
 
-    const userIds = await getBusinessUserIds(prisma, businessId)
+    const userIds = await getBusinessUserIds(businessId)
     if (userIds.length === 0) return
 
     const isOut = item.stockQuantity === 0
@@ -52,7 +51,6 @@ export async function checkAndNotifyLowStockForBarcodeItem(
  * Check a ProductVariant and notify if stock is at or below reorderLevel.
  */
 export async function checkAndNotifyLowStockForVariant(
-  prisma: PrismaClient,
   variantId: string,
   businessId: string
 ): Promise<void> {
@@ -72,7 +70,7 @@ export async function checkAndNotifyLowStockForVariant(
     if (stock > level) return
 
     const name = variant.business_products?.name ?? 'Unknown product'
-    const userIds = await getBusinessUserIds(prisma, businessId)
+    const userIds = await getBusinessUserIds(businessId)
     if (userIds.length === 0) return
 
     const isOut = stock === 0
@@ -95,7 +93,7 @@ export async function checkAndNotifyLowStockForVariant(
  * Collect userIds for all active business members + their supervisors.
  * Deduplicates so each user only receives one notification.
  */
-async function getBusinessUserIds(prisma: PrismaClient, businessId: string): Promise<string[]> {
+async function getBusinessUserIds(businessId: string): Promise<string[]> {
   // All active members of the business
   const memberships = await prisma.businessMemberships.findMany({
     where: { businessId, isActive: true },

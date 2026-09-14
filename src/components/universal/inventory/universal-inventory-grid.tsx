@@ -147,8 +147,12 @@ export function UniversalInventoryGrid({
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [selectedSupplier, setSelectedSupplier] = useState<string>('all')
   const [selectedLocation, setSelectedLocation] = useState<string>('all')
-  const [sortField, setSortField] = useState<string>('name')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  // Defaults to most-recently-updated first — surfaces changes made anywhere
+  // in the system without anyone needing to know to look for them. The sort
+  // dropdown below lets the user pick anything else; it's remembered only
+  // for this session (resets to this default on next visit).
+  const [sortField, setSortField] = useState<string>('updatedAt')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
@@ -252,6 +256,8 @@ export function UniversalInventoryGrid({
           ...(selectedSupplier !== 'all' && { supplier: selectedSupplier }),
           ...(selectedLocation !== 'all' && { location: selectedLocation }),
           ...(hideZeroStock && { hideZeroStock: 'true' }),
+          sortBy: sortField,
+          sortDir: sortDirection,
         })
 
         const response = await fetch(`/api/inventory/${businessId}/items?${params}`)
@@ -296,28 +302,11 @@ export function UniversalInventoryGrid({
     if (businessId) {
       fetchItems()
     }
-  }, [businessId, currentPage, pageSize, debouncedSearchTerm, selectedCategory, categoryFilter, departmentFilter, conditionFilter, menuOnlyFilter, posTrackedFilter, priceFilter, showTemplates, refreshTrigger, stockStatusFilter, selectedSupplier, selectedLocation, hideZeroStock])
+  }, [businessId, currentPage, pageSize, debouncedSearchTerm, selectedCategory, categoryFilter, departmentFilter, conditionFilter, menuOnlyFilter, posTrackedFilter, priceFilter, showTemplates, refreshTrigger, stockStatusFilter, selectedSupplier, selectedLocation, hideZeroStock, sortField, sortDirection])
 
-  // Sort items (filtering is now server-side)
-  const sortedItems = (hideConverted ? items.filter(i => !convertedIds.has(i.id)) : items).slice().sort((a, b) => {
-  let aValue: any = (a as any)[sortField]
-  let bValue: any = (b as any)[sortField]
-
-    // Handle nested attributes
-    if (sortField.includes('.')) {
-  const path = sortField.split('.')
-  aValue = path.reduce((obj: any, key: string) => (obj ? obj[key] : undefined), a as any)
-  bValue = path.reduce((obj: any, key: string) => (obj ? obj[key] : undefined), b as any)
-    }
-
-    // Convert to comparable values
-    if (typeof aValue === 'string') aValue = aValue.toLowerCase()
-    if (typeof bValue === 'string') bValue = bValue.toLowerCase()
-
-    if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1
-    if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1
-    return 0
-  })
+  // Sorting now happens server-side (across both catalogs, not just the
+  // current page) — this just applies the client-only "hide converted" view.
+  const sortedItems = hideConverted ? items.filter(i => !convertedIds.has(i.id)) : items
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -326,6 +315,7 @@ export function UniversalInventoryGrid({
       setSortField(field)
       setSortDirection('asc')
     }
+    setCurrentPage(1)
   }
 
   const getBusinessSpecificDisplay = (item: UniversalInventoryItem) => {
@@ -807,8 +797,10 @@ export function UniversalInventoryGrid({
                     const [field, direction] = v.split(':')
                     setSortField(field)
                     setSortDirection(direction as 'asc' | 'desc')
+                    setCurrentPage(1)
                   }}
                   options={[
+                    { value: 'updatedAt:desc', label: 'Sort by Recently Updated' },
                     { value: 'name:asc', label: 'Sort by Name (A-Z)' },
                     { value: 'name:desc', label: 'Sort by Name (Z-A)' },
                     { value: 'category:asc', label: 'Sort by Category' },

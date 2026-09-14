@@ -30,12 +30,19 @@ interface Props {
 export function PriceEditDialog({ businessId, itemId, itemName, sourceTable, variantId, currentPrice, onClose, onSaved }: Props) {
   const toast = useToastContext()
   const [value, setValue] = useState(String(currentPrice.toFixed(2)))
+  const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
+  // No reason needed when there's no real previous price to explain changing.
+  const reasonRequired = currentPrice > 0
 
   async function handleSave() {
     const newPrice = Number(value)
     if (!Number.isFinite(newPrice) || newPrice <= 0) {
       toast.error('Enter a price greater than 0')
+      return
+    }
+    if (reasonRequired && newPrice !== currentPrice && !reason.trim()) {
+      toast.error('Enter a reason for this price change')
       return
     }
     setSaving(true)
@@ -45,17 +52,17 @@ export function PriceEditDialog({ businessId, itemId, itemName, sourceTable, var
           ? await fetch(`/api/universal/products/${itemId}/variants/${variantId}/price`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ price: newPrice }),
+              body: JSON.stringify({ price: newPrice, priceChangeReason: reason.trim() || undefined }),
             })
           : await fetch(`/api/universal/products/${itemId}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ basePrice: newPrice }),
+              body: JSON.stringify({ basePrice: newPrice, priceChangeReason: reason.trim() || undefined }),
             })
         : await fetch(`/api/inventory/${businessId}/items/inv_${itemId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sellPrice: newPrice }),
+            body: JSON.stringify({ sellPrice: newPrice, priceChangeReason: reason.trim() || undefined }),
           })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -93,6 +100,19 @@ export function PriceEditDialog({ businessId, itemId, itemName, sourceTable, var
             className="w-full text-lg font-semibold border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
           />
         </div>
+
+        {reasonRequired && (
+          <div>
+            <label className="text-xs text-secondary block mb-1">Reason for change</label>
+            <input
+              type="text"
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder="Why is this price changing?"
+              className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+        )}
 
         <div className="flex gap-2">
           <button

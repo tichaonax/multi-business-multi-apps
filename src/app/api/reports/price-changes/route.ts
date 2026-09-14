@@ -85,6 +85,7 @@ export async function GET(request: NextRequest) {
         sourceTable: metadata?.sourceTable ?? null,
         viaPOSQuickEdit: metadata?.viaPOSQuickEdit === true,
         viaBulkStockReceiving: metadata?.viaBulkStockReceiving === true,
+        reason: metadata?.reason ?? null,
       }
     })
 

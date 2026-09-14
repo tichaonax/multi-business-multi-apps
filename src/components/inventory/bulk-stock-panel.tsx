@@ -172,6 +172,11 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   const [duplicateAlert, setDuplicateAlert] = useState<{ barcode: string; rowId: string } | null>(null)
   const [submitLoading, setSubmitLoading] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  // Optional, applies to every price change in this batch — not required to
+  // submit (a big receiving batch must never be blocked by this), but shown
+  // whenever an existing item is in the batch since receiving stock is a
+  // common place a supplier's price change quietly slips in.
+  const [priceChangeReason, setPriceChangeReason] = useState('')
   const [successSummary, setSuccessSummary] = useState<string | null>(null)
 
   // Shared category/supplier state — loaded once, shared across all rows
@@ -1156,6 +1161,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
             physicalCount: r.isExistingItem && r.physicalCount !== '' ? Number(r.physicalCount) : undefined,
             expiryDate: r.expiryDate || undefined,
           })),
+          priceChangeReason: priceChangeReason.trim() || undefined,
         }),
       })
       const data = await res.json()
@@ -1499,6 +1505,18 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
           >
             Next Error →
           </button>
+        </div>
+      )}
+      {rows.some(r => r.isExistingItem) && (
+        <div className="mx-4 mt-3">
+          <label className="text-xs text-secondary block mb-1">Reason for any price changes in this batch (optional)</label>
+          <input
+            type="text"
+            value={priceChangeReason}
+            onChange={e => setPriceChangeReason(e.target.value)}
+            placeholder="e.g. supplier price increase"
+            className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
         </div>
       )}
       {submitError && (

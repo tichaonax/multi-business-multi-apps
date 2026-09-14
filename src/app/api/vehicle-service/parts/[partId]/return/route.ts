@@ -68,7 +68,7 @@ export async function POST(
     ])
 
     if (isSupplierReturn) {
-      await checkAndNotifyLowStockForVariant(prisma, variant.id, part.businessId)
+      await checkAndNotifyLowStockForVariant(variant.id, part.businessId)
     }
 
     return NextResponse.json({ success: true, stockQuantity: updatedVariant.stockQuantity })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useSession } from 'next-auth/react'
 import { SessionUser } from '@/lib/permission-utils'
@@ -33,6 +33,11 @@ interface Candidate {
 
 interface Props {
   businessType: 'grocery' | 'clothing'
+  /** Deep-link from the inventory item modal's "Put on Sale" button — when
+   * given, the create-promotion form opens automatically with this item
+   * pre-selected instead of the user having to search for it again. */
+  initialItemId?: string | null
+  initialItemName?: string | null
 }
 
 const STATUS_STYLE: Record<Promotion['status'], string> = {
@@ -52,7 +57,7 @@ function fmt(n: number) {
   return `$${n.toFixed(2)}`
 }
 
-export function PromotionsPanel({ businessType }: Props) {
+export function PromotionsPanel({ businessType, initialItemId, initialItemName }: Props) {
   const { data: session } = useSession()
   const { currentBusinessId, hasPermission } = useBusinessPermissionsContext()
   const toast = useToastContext()
@@ -93,6 +98,17 @@ export function PromotionsPanel({ businessType }: Props) {
 
   useEffect(() => { load() }, [load])
 
+  // Auto-open the create form, pre-filled with the item that was passed in,
+  // when arriving here via the inventory item modal's "Put on Sale" link.
+  // A ref (not state) so this only fires once even after the effect re-runs.
+  const appliedInitialItemRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!initialItemId || appliedInitialItemRef.current === initialItemId) return
+    appliedInitialItemRef.current = initialItemId
+    openForm()
+    setSearch(initialItemName ?? '')
+  }, [initialItemId, initialItemName])
+
   useEffect(() => {
     if (!currentBusinessId || !showForm) return
     const t = setTimeout(async () => {
@@ -101,14 +117,21 @@ export function PromotionsPanel({ businessType }: Props) {
         const res = await fetch(`/api/business/${currentBusinessId}/promotions/search?businessType=${businessType}&q=${encodeURIComponent(search)}`)
         if (res.ok) {
           const data = await res.json()
-          setCandidates(data.candidates ?? [])
+          const loadedCandidates: Candidate[] = data.candidates ?? []
+          setCandidates(loadedCandidates)
+          // Auto-select the item this form was opened for, once its
+          // candidate row has loaded.
+          if (initialItemId && !selected) {
+            const match = loadedCandidates.find(c => c.itemId === initialItemId)
+            if (match) setSelected(match)
+          }
         }
       } finally {
         setSearching(false)
       }
     }, 250)
     return () => clearTimeout(t)
-  }, [currentBusinessId, businessType, search, showForm])
+  }, [currentBusinessId, businessType, search, showForm, initialItemId, selected])
 
   function openForm() {
     setShowForm(true)

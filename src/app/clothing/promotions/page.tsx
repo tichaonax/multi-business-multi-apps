@@ -2,11 +2,13 @@
 
 export const dynamic = 'force-dynamic'
 
+import { useSearchParams } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { PromotionsPanel } from '@/components/promotions/promotions-panel'
 
 export default function ClothingPromotionsPage() {
+  const searchParams = useSearchParams()
   return (
     <BusinessTypeRoute requiredBusinessType="clothing">
       <ContentLayout
@@ -17,7 +19,11 @@ export default function ClothingPromotionsPage() {
           { label: 'Promotional Sales', isActive: true }
         ]}
       >
-        <PromotionsPanel businessType="clothing" />
+        <PromotionsPanel
+          businessType="clothing"
+          initialItemId={searchParams?.get('productId')}
+          initialItemName={searchParams?.get('productName')}
+        />
       </ContentLayout>
     </BusinessTypeRoute>
   )

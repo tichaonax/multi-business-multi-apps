@@ -1249,6 +1249,17 @@ function GroceryInventoryContent() {
                   <button
                     onClick={() => {
                       setShowViewModal(false)
+                      const rawId = selectedItem.id.startsWith('inv_') ? selectedItem.id.replace(/^inv_/, '') : selectedItem.id
+                      router.push(`/grocery/promotions?productId=${encodeURIComponent(rawId)}&productName=${encodeURIComponent(selectedItem.name)}`)
+                    }}
+                    className="flex-1 btn-secondary"
+                    title="Start a promotional sale for this item"
+                  >
+                    🏷️ Put on Sale
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowViewModal(false)
                       setSelectedItem(null)
                     }}
                     className="flex-1 btn-secondary"

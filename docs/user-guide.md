@@ -4719,6 +4719,12 @@ Confusing these two is the most common inventory mistake. Always check whether t
 
 ---
 
+### Inventory List Sort Order
+
+The inventory list defaults to **most recently updated first** — so a change made anywhere in the system (this screen, Bulk Stock, POS Quick-Edit, a price change, a stock adjustment) surfaces at the top without anyone needing to know to look for it. Use the **Sort by** dropdown above the list to switch to Name, Category, Stock, Cost, or Sell Price instead — your choice only lasts for the current visit; it resets to most-recently-updated next time you open the page.
+
+---
+
 ### Workflow 1 — Creating a New Product (Product Does Not Exist Yet)
 
 #### Step 1: Navigate to the Add Product screen
@@ -8188,6 +8194,8 @@ Every AGENT-relayed printer in the dropdown shows its paired workstation first, 
 ## 27. Stock Velocity & Reorder Reports
 
 These two reports help grocery and retail businesses understand how quickly products are moving and which items need restocking. Both are available to **all salespersons** — no admin permission required. Access them from **Reports → Fast & Slow Moving Stock** or **Reports → Reorder Suggestions**.
+
+Both show a thumbnail of the item's photo (or a "No image" placeholder) next to its name — same as the Pricing/Cost/Value/Performance reports (§66). Users with Manage Inventory permission (or admin) can click the name to open that item's edit screen directly; closing the edit form returns you to the report instead of the general inventory list.
 
 ### Stock Velocity Report
 
@@ -13437,6 +13445,8 @@ Only one promotion can be open on a given product at a time — if you try to sc
 
 The discount takes effect the moment the start time arrives — no further action needed. It shows up on both the POS (product card) and the customer display immediately once active.
 
+**Shortcut from the item itself:** open any item's details in Grocery or Clothing Inventory and click **🏷️ Put on Sale** — it opens Promotional Sales with that item already selected, skipping the search step. Just fill in the discount and schedule.
+
 ---
 
 ### Pause, Resume, End
@@ -13594,6 +13604,21 @@ Every time a product's price changes — from the POS Quick-Edit **Adjust Prices
 
 ---
 
+### Reason for Price Change
+
+Changing a price that already had a real value requires a reason — a short free-text explanation typed into the same dialog where the price is changed. **Setting an initial price** (the item had no price before, i.e. $0/none) never asks for one, since there's nothing yet to explain.
+
+This applies everywhere a price can be changed:
+
+- POS Quick-Edit **Adjust Prices** dialog
+- The inventory item edit form (Grocery, Clothing, Hardware, Restaurant)
+- The clothing admin price-update modal
+- Bulk Stock receiving — a single optional reason applies to every price change in that batch (not required, since a large receiving batch must never be blocked by a missing reason)
+
+Whoever makes the change also gets a notification sent to this business's managers/admins (and every system admin) — piggybacking on the same audit trail — so a price change never goes unnoticed by the people responsible for pricing decisions. The person who made the change doesn't notify themselves.
+
+---
+
 ### Where to Find It
 
 **Restaurant, Grocery, Clothing, and Hardware** → sidebar → **Reports** → **💲 Price Change Report** tile.
@@ -13607,7 +13632,7 @@ For every price change:
 | Column | Shows |
 |--------|-------|
 | Date | When the change was made |
-| Product | The item's name (and "via POS Quick-Edit" / "via Bulk Stock Receiving" underneath if that's how it was changed). Hover the name for a tooltip summarizing which screen made the change and who — since not every entry point captures a free-text reason, this is the most specific "why" the report can honestly show. |
+| Product | The item's name, the genuine reason typed in when the price was changed (in quotes), and "via POS Quick-Edit" / "via Bulk Stock Receiving" underneath if that's how it was changed. Rows from before this feature shipped show "no reason captured" instead. Hover the name for the same text as a tooltip. |
 | Original Price | The price before the change (struck through) |
 | New Price | The price after the change — red if it went up, green if it went down |
 | Changed By | The name and email of the user who made the change |

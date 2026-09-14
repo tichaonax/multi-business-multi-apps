@@ -17,6 +17,7 @@
 
 import { prisma } from '@/lib/prisma'
 import type { CatalogSource } from '@/lib/inventory/product-catalog-view'
+import { notifyManagersOfPriceChange } from '@/lib/inventory/price-change-notifier'
 
 export interface RecordPriceChangeParams {
   businessId: string
@@ -27,10 +28,28 @@ export interface RecordPriceChangeParams {
   newPrice: number | null
   changedBy: string | null
   changeReason?: string | null
+  /** The genuine, user-supplied reason for this change (distinct from
+   * `changeReason`, which is a technical flow label like MANUAL_EDIT). */
+  reason?: string | null
+  // Only needed to build a readable manager notification — omit to skip it
+  // (e.g. callers that don't have a display name handy).
+  productName?: string | null
+  changedByName?: string | null
+}
+
+/**
+ * A reason is required whenever a REAL previous price is being changed to a
+ * different value. Setting an initial price (no previous price, i.e. 0 or
+ * unset) needs no reason — there's nothing to explain yet.
+ */
+export function isPriceChangeReasonRequired(oldPrice: number | null | undefined, newPrice: number | null | undefined): boolean {
+  if (oldPrice === null || oldPrice === undefined || oldPrice <= 0) return false
+  if (newPrice === null || newPrice === undefined) return false
+  return oldPrice !== newPrice
 }
 
 export async function recordPriceChangeIfDifferent(params: RecordPriceChangeParams): Promise<void> {
-  const { businessId, catalogSource, productRefId, priceType, oldPrice, newPrice, changedBy, changeReason } = params
+  const { businessId, catalogSource, productRefId, priceType, oldPrice, newPrice, changedBy, changeReason, reason, productName, changedByName } = params
 
   // Nothing to compare against (new product), or no real change (including
   // both sides being null/unset) — don't write a no-op history row.
@@ -48,8 +67,24 @@ export async function recordPriceChangeIfDifferent(params: RecordPriceChangePara
       newPrice,
       changedBy: changedBy ?? null,
       changeReason: changeReason ?? null,
+      reason: reason ?? null,
     },
   })
+
+  if (productName) {
+    // Fire-and-forget — never let a notification failure affect the price
+    // update itself (notifyManagersOfPriceChange already catches internally).
+    void notifyManagersOfPriceChange({
+      businessId,
+      productName,
+      priceType,
+      oldPrice,
+      newPrice,
+      changedByUserId: changedBy,
+      changedByName: changedByName ?? null,
+      reason: reason ?? null,
+    })
+  }
 }
 
 export interface LatestPreviousPrices {

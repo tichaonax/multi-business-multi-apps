@@ -19,6 +19,11 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const { businessId, items } = body
+    // Optional, applies to every price change in this batch. Not hard-enforced
+    // here — bulk stock receiving must never be blocked by a missing reason
+    // (see the non-fatal price-history handling below); the UI asks for one
+    // up front when it detects a price is changing, but this stays best-effort.
+    const priceChangeReason = typeof body.priceChangeReason === 'string' ? body.priceChangeReason.trim() || null : null
 
     if (!businessId) return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
     if (!Array.isArray(items) || items.length === 0) return NextResponse.json({ error: 'items array is required' }, { status: 400 })
@@ -105,6 +110,9 @@ export async function POST(request: NextRequest) {
               newPrice: Number(sellingPrice),
               changedBy: user.id,
               changeReason: 'STOCK_RECEIVING',
+              reason: priceChangeReason,
+              productName: existing.name,
+              changedByName: user.name,
             }),
             costPrice !== undefined && costPrice !== ''
               ? recordPriceChangeIfDifferent({
@@ -116,6 +124,9 @@ export async function POST(request: NextRequest) {
                   newPrice: Number(costPrice),
                   changedBy: user.id,
                   changeReason: 'STOCK_RECEIVING',
+                  reason: priceChangeReason,
+                  productName: existing.name,
+                  changedByName: user.name,
                 })
               : Promise.resolve(),
           ]).catch(() => {}) // non-fatal — price history is best-effort, must never block a stock save
@@ -133,7 +144,7 @@ export async function POST(request: NextRequest) {
               entityId: existing.id,
               oldValues: { price: Number(existing.sellingPrice) },
               newValues: { price: Number(sellingPrice) },
-              metadata: { sourceTable: 'BARCODE_ITEM', businessId, productName: existing.name, viaBulkStockReceiving: true },
+              metadata: { sourceTable: 'BARCODE_ITEM', businessId, productName: existing.name, viaBulkStockReceiving: true, reason: priceChangeReason },
               businessId,
             }).catch(() => {})
           }

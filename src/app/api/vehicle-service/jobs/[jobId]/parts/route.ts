@@ -95,7 +95,7 @@ export async function POST(
       })
     })
 
-    await checkAndNotifyLowStockForVariant(prisma, productVariantId, job.businessId)
+    await checkAndNotifyLowStockForVariant(productVariantId, job.businessId)
 
     return NextResponse.json({ success: true, jobPart })
   } catch (error) {

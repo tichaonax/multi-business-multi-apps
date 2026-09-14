@@ -29,22 +29,22 @@ interface PriceChangeReport {
   sourceTable: string | null
   viaPOSQuickEdit: boolean
   viaBulkStockReceiving: boolean
+  reason: string | null
 }
 
 /**
- * No free-text "reason" is captured anywhere in this app's audit trail for
- * price changes — verified directly: product_price_changes.changeReason
- * (the one field actually designed to hold one) has zero rows in production,
- * since the single legacy route that writes it is reachable from only one
- * rarely-used screen. This shows the closest honest substitute — which
- * screen/flow made the change — not a reason and not padded with "by X"
- * (that's already its own visible column, no need to repeat it here).
+ * A genuine reason is now captured going forward (required whenever the item
+ * had a real previous price — not for setting an initial price). Older rows
+ * from before that shipped won't have one, so this falls back to naming
+ * which screen/flow made the change — not a reason, and not padded with
+ * "by X" (that's already its own visible column, no need to repeat it here).
  */
 function describeChange(r: PriceChangeReport): string {
-  if (r.viaPOSQuickEdit) return 'Changed via POS Quick-Edit'
-  if (r.viaBulkStockReceiving) return 'Changed via Bulk Stock Receiving'
-  if (r.sourceTable === 'BARCODE_ITEM') return 'Changed via inventory item edit'
-  if (r.sourceTable === 'BUSINESS_PRODUCT') return 'Changed via product edit'
+  if (r.reason) return r.reason
+  if (r.viaPOSQuickEdit) return 'Changed via POS Quick-Edit — no reason captured for this change'
+  if (r.viaBulkStockReceiving) return 'Changed via Bulk Stock Receiving — no reason captured for this change'
+  if (r.sourceTable === 'BARCODE_ITEM') return 'Changed via inventory item edit — no reason captured for this change'
+  if (r.sourceTable === 'BUSINESS_PRODUCT') return 'Changed via product edit — no reason captured for this change'
   return 'Changed via manual edit — no reason captured for this change'
 }
 
@@ -236,6 +236,11 @@ export default function PriceChangesReportPage() {
                             <div className="text-sm font-medium text-gray-900 dark:text-gray-100 cursor-help">
                               {r.productName || '—'}
                             </div>
+                            {r.reason ? (
+                              <div className="text-xs text-gray-600 dark:text-gray-300 italic">"{r.reason}"</div>
+                            ) : (
+                              <div className="text-xs text-gray-400 dark:text-gray-500">no reason captured</div>
+                            )}
                             {r.viaPOSQuickEdit && (
                               <div className="text-xs text-gray-500 dark:text-gray-400">via POS Quick-Edit</div>
                             )}

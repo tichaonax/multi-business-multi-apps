@@ -98,6 +98,12 @@ export async function GET(
     const hideZeroStock = searchParams.get('hideZeroStock') === 'true'
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '50')
+    // Default to most-recently-updated first, so changes made anywhere in the
+    // system (this UI, bulk stock, POS quick-edit, etc.) surface at the top
+    // without anyone needing to know to look for them. User can pick another
+    // sort from the UI same as before.
+    const sortBy = searchParams.get('sortBy') || 'updatedAt'
+    const sortDir = searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc'
 
     // Build where clause for filtering
     const where: any = {
@@ -228,10 +234,16 @@ export async function GET(
         product_barcodes: true,
         product_images: { where: { isPrimary: true }, take: 1 }
       },
-      orderBy: { name: 'asc' },
-      // Fetch more items before pagination to account for filtering by ingredientType
-      skip: shouldFilterByCategory ? 0 : (page - 1) * limit,
-      take: shouldFilterByCategory ? 1000 : limit
+      // Real sorting (incl. by recency, and any field the UI's sort dropdown
+      // offers) has to happen once BusinessProducts and BarcodeInventoryItems
+      // are merged below — a field like "current stock" isn't a raw column,
+      // and BarcodeInventoryItems previously weren't sorted at all. So this
+      // query fetches an unpaginated batch (same as the ingredientType-filter
+      // path already did) and the real orderBy/skip/take is applied to the
+      // merged, transformed list further down.
+      orderBy: { updatedAt: 'desc' },
+      skip: 0,
+      take: 2000,
     })
 
     // Transform to match the expected interface
@@ -378,6 +390,24 @@ export async function GET(
       ...filteredItems,
       ...(lowStock ? mergedBarcodeItems.filter(item => item.currentStock < 10) : mergedBarcodeItems),
     ]
+
+    // Sort the merged catalog (real column for BusinessProducts, JS-only
+    // for BarcodeInventoryItems previously had no order at all) so both
+    // catalogs interleave correctly by whichever field was requested.
+    const sortMultiplier = sortDir === 'asc' ? 1 : -1
+    allFilteredItems.sort((a: any, b: any) => {
+      const aValue = a[sortBy]
+      const bValue = b[sortBy]
+      if (aValue == null && bValue == null) return 0
+      if (aValue == null) return 1
+      if (bValue == null) return -1
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return aValue.localeCompare(bValue) * sortMultiplier
+      }
+      if (aValue < bValue) return -1 * sortMultiplier
+      if (aValue > bValue) return 1 * sortMultiplier
+      return 0
+    })
 
     // Hide zero-stock items when requested (default behaviour for most views).
     // `isInventoryTracked` is NOT a general "does this item have a stock

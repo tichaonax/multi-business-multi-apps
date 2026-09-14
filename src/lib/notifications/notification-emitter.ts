@@ -44,6 +44,7 @@ export type NotificationType =
   | 'JOB_START_ESCALATION'
   | 'RECEIPT_REMINDER'
   | 'RECEIPT_ESCALATION'
+  | 'PRICE_CHANGED'
 
 export interface NotificationPayload {
   userIds: string[]

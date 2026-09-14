@@ -4,7 +4,7 @@ import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 import { checkAndNotifyLowStockForBarcodeItem, checkAndNotifyLowStockForVariant } from '@/lib/inventory/low-stock-notifier'
 import { createAuditLog } from '@/lib/audit'
-import { recordPriceChangeIfDifferent } from '@/lib/inventory/price-history'
+import { recordPriceChangeIfDifferent, isPriceChangeReasonRequired } from '@/lib/inventory/price-history'
 
 export async function GET(
   request: NextRequest,
@@ -238,6 +238,20 @@ export async function PUT(
         }
       }
 
+      // A reason is required when a REAL previous price is changing — not
+      // when setting an initial price (previous price 0/unset).
+      const priceChangeReason = typeof body.priceChangeReason === 'string' ? body.priceChangeReason.trim() : ''
+      const existingSellPrice = existing.sellingPrice ? parseFloat(existing.sellingPrice.toString()) : null
+      const existingCostPrice = existing.costPrice ? parseFloat(existing.costPrice.toString()) : null
+      const nextSellPrice = updateData.sellingPrice !== undefined ? Number(updateData.sellingPrice) : null
+      const nextCostPrice = updateData.costPrice !== undefined ? (updateData.costPrice !== null ? Number(updateData.costPrice) : null) : null
+      if (
+        !priceChangeReason &&
+        (isPriceChangeReasonRequired(existingSellPrice, nextSellPrice) || isPriceChangeReasonRequired(existingCostPrice, nextCostPrice))
+      ) {
+        return NextResponse.json({ error: 'A reason is required when changing an existing price' }, { status: 400 })
+      }
+
       // Handle stock adjustment for barcodeInventoryItems
       if (body._stockAdjustment && body._stockAdjustment !== 0) {
         const adjustQty = parseInt(body._stockAdjustment)
@@ -259,7 +273,7 @@ export async function PUT(
       })
 
       // Fire low-stock notification (non-blocking)
-      checkAndNotifyLowStockForBarcodeItem(prisma, rawId, businessId)
+      checkAndNotifyLowStockForBarcodeItem(rawId, businessId)
 
       if (updateData.sellingPrice !== undefined && Number(updateData.sellingPrice) !== Number(existing.sellingPrice)) {
         await createAuditLog({
@@ -269,7 +283,7 @@ export async function PUT(
           entityId: rawId,
           oldValues: { price: Number(existing.sellingPrice) },
           newValues: { price: Number(updateData.sellingPrice) },
-          metadata: { sourceTable: 'BARCODE_ITEM', businessId, productName: existing.name },
+          metadata: { sourceTable: 'BARCODE_ITEM', businessId, productName: existing.name, reason: priceChangeReason || null },
           businessId,
         })
       }
@@ -279,20 +293,26 @@ export async function PUT(
           catalogSource: 'BARCODE_ITEM',
           productRefId: rawId,
           priceType: 'SELLING',
-          oldPrice: existing.sellingPrice ? parseFloat(existing.sellingPrice.toString()) : null,
-          newPrice: updateData.sellingPrice !== undefined ? Number(updateData.sellingPrice) : null,
+          oldPrice: existingSellPrice,
+          newPrice: nextSellPrice,
           changedBy: user.id,
           changeReason: 'MANUAL_EDIT',
+          reason: priceChangeReason || null,
+          productName: existing.name,
+          changedByName: user.name,
         }),
         recordPriceChangeIfDifferent({
           businessId,
           catalogSource: 'BARCODE_ITEM',
           productRefId: rawId,
           priceType: 'COST',
-          oldPrice: existing.costPrice ? parseFloat(existing.costPrice.toString()) : null,
-          newPrice: updateData.costPrice !== undefined ? (updateData.costPrice !== null ? Number(updateData.costPrice) : null) : null,
+          oldPrice: existingCostPrice,
+          newPrice: nextCostPrice,
           changedBy: user.id,
           changeReason: 'MANUAL_EDIT',
+          reason: priceChangeReason || null,
+          productName: existing.name,
+          changedByName: user.name,
         }),
       ])
 
@@ -450,7 +470,7 @@ export async function PUT(
 
     // Validate price is greater than 0 (except for WiFi promotional items)
     const finalPrice = updateData.basePrice ?? existingProduct.basePrice
-    const mergedAttributes = { ...existingProduct.attributes, ...updateData.attributes }
+    const mergedAttributes = { ...(existingProduct.attributes as Record<string, any> | null ?? {}), ...updateData.attributes }
     const isWiFiToken = mergedAttributes?.isWiFiToken === true ||
                         existingProduct.name?.toLowerCase().includes('wifi') ||
                         updateData.name?.toLowerCase().includes('wifi')
@@ -476,6 +496,20 @@ export async function PUT(
       if (conflict) {
         return NextResponse.json({ error: 'SKU already exists for this business' }, { status: 400 })
       }
+    }
+
+    // A reason is required when a REAL previous price is changing — not
+    // when setting an initial price (previous price 0/unset).
+    const productPriceChangeReason = typeof body.priceChangeReason === 'string' ? body.priceChangeReason.trim() : ''
+    const existingBasePrice = existingProduct.basePrice ? parseFloat(existingProduct.basePrice.toString()) : null
+    const existingProductCostPrice = existingProduct.costPrice ? parseFloat(existingProduct.costPrice.toString()) : null
+    const nextBasePrice = updateData.basePrice !== undefined ? Number(updateData.basePrice) : null
+    const nextProductCostPrice = updateData.costPrice !== undefined ? (updateData.costPrice !== null ? Number(updateData.costPrice) : null) : null
+    if (
+      !productPriceChangeReason &&
+      (isPriceChangeReasonRequired(existingBasePrice, nextBasePrice) || isPriceChangeReasonRequired(existingProductCostPrice, nextProductCostPrice))
+    ) {
+      return NextResponse.json({ error: 'A reason is required when changing an existing price' }, { status: 400 })
     }
     // Update the product
     const updatedProduct = await prisma.businessProducts.update({
@@ -562,7 +596,7 @@ export async function PUT(
 
         // Fire low-stock notification if adjustment reduced stock (non-blocking)
         if (adjustQty < 0) {
-          checkAndNotifyLowStockForVariant(prisma, variant.id, businessId)
+          checkAndNotifyLowStockForVariant(variant.id, businessId)
         }
       }
     }
@@ -621,7 +655,7 @@ export async function PUT(
         entityId: itemId,
         oldValues: { price: Number(existingProduct.basePrice) },
         newValues: { price: Number(updateData.basePrice) },
-        metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId, productName: existingProduct.name },
+        metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId, productName: existingProduct.name, reason: productPriceChangeReason || null },
         businessId,
       })
     }
@@ -631,20 +665,26 @@ export async function PUT(
         catalogSource: 'BUSINESS_PRODUCT',
         productRefId: itemId,
         priceType: 'SELLING',
-        oldPrice: existingProduct.basePrice ? parseFloat(existingProduct.basePrice.toString()) : null,
-        newPrice: updateData.basePrice !== undefined ? Number(updateData.basePrice) : null,
+        oldPrice: existingBasePrice,
+        newPrice: nextBasePrice,
         changedBy: user.id,
         changeReason: 'MANUAL_EDIT',
+        reason: productPriceChangeReason || null,
+        productName: existingProduct.name,
+        changedByName: user.name,
       }),
       recordPriceChangeIfDifferent({
         businessId,
         catalogSource: 'BUSINESS_PRODUCT',
         productRefId: itemId,
         priceType: 'COST',
-        oldPrice: existingProduct.costPrice ? parseFloat(existingProduct.costPrice.toString()) : null,
-        newPrice: updateData.costPrice !== undefined ? (updateData.costPrice !== null ? Number(updateData.costPrice) : null) : null,
+        oldPrice: existingProductCostPrice,
+        newPrice: nextProductCostPrice,
         changedBy: user.id,
         changeReason: 'MANUAL_EDIT',
+        reason: productPriceChangeReason || null,
+        productName: existingProduct.name,
+        changedByName: user.name,
       }),
     ])
 

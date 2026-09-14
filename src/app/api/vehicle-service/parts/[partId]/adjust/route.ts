@@ -61,7 +61,7 @@ export async function POST(
     ])
 
     if (Number(quantityDelta) < 0) {
-      await checkAndNotifyLowStockForVariant(prisma, variant.id, part.businessId)
+      await checkAndNotifyLowStockForVariant(variant.id, part.businessId)
     }
 
     return NextResponse.json({ success: true, stockQuantity: updatedVariant.stockQuantity })

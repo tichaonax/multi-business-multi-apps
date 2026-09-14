@@ -154,6 +154,9 @@ export async function PATCH(
         newPrice: newPriceDecimal,
         changedBy: user.id,
         changeReason: reason,
+        reason: notes || reason,
+        productName: product.name,
+        changedByName: user.name,
       });
 
       return NextResponse.json({
@@ -199,6 +202,9 @@ export async function PATCH(
       newPrice: newPriceDecimal,
       changedBy: user.id,
       changeReason: reason,
+      reason: notes || reason,
+      productName: product.name,
+      changedByName: user.name,
     });
 
     return NextResponse.json({

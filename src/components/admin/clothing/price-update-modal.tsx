@@ -27,7 +27,8 @@ export function PriceUpdateModal({ isOpen, onClose, product, onSuccess }: PriceU
     basePrice: '',
     costPrice: '',
     originalPrice: '',
-    discountPercent: ''
+    discountPercent: '',
+    priceChangeReason: ''
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -38,7 +39,8 @@ export function PriceUpdateModal({ isOpen, onClose, product, onSuccess }: PriceU
         basePrice: Number(product.basePrice) > 0 ? Number(product.basePrice).toString() : '',
         costPrice: product.costPrice ? Number(product.costPrice).toString() : '',
         originalPrice: product.originalPrice ? Number(product.originalPrice).toString() : '',
-        discountPercent: product.discountPercent ? Number(product.discountPercent).toString() : ''
+        discountPercent: product.discountPercent ? Number(product.discountPercent).toString() : '',
+        priceChangeReason: ''
       })
     }
   })
@@ -72,6 +74,19 @@ export function PriceUpdateModal({ isOpen, onClose, product, onSuccess }: PriceU
       }
     }
 
+    // A reason is required when a REAL previous price is changing — not when
+    // setting an initial price (previous price 0/unset).
+    if (product && !formData.priceChangeReason.trim()) {
+      const oldBase = Number(product.basePrice) || 0
+      const oldCost = product.costPrice ? Number(product.costPrice) : 0
+      const newCost = formData.costPrice ? parseFloat(formData.costPrice) : null
+      const baseChanging = oldBase > 0 && !isNaN(basePrice) && basePrice !== oldBase
+      const costChanging = oldCost > 0 && newCost !== null && newCost !== oldCost
+      if (baseChanging || costChanging) {
+        newErrors.priceChangeReason = 'A reason is required when changing an existing price'
+      }
+    }
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -91,7 +106,8 @@ export function PriceUpdateModal({ isOpen, onClose, product, onSuccess }: PriceU
           basePrice: parseFloat(formData.basePrice),
           costPrice: formData.costPrice ? parseFloat(formData.costPrice) : null,
           originalPrice: formData.originalPrice ? parseFloat(formData.originalPrice) : null,
-          discountPercent: formData.discountPercent ? parseFloat(formData.discountPercent) : null
+          discountPercent: formData.discountPercent ? parseFloat(formData.discountPercent) : null,
+          priceChangeReason: formData.priceChangeReason.trim() || undefined
         })
       })
 
@@ -116,7 +132,8 @@ export function PriceUpdateModal({ isOpen, onClose, product, onSuccess }: PriceU
       basePrice: '',
       costPrice: '',
       originalPrice: '',
-      discountPercent: ''
+      discountPercent: '',
+      priceChangeReason: ''
     })
     setErrors({})
     onClose()
@@ -228,6 +245,24 @@ export function PriceUpdateModal({ isOpen, onClose, product, onSuccess }: PriceU
           </div>
           {errors.discountPercent && (
             <p className="text-xs text-red-500 mt-1">{errors.discountPercent}</p>
+          )}
+        </div>
+
+        {/* Reason for price change (required only when changing a real existing price) */}
+        <div>
+          <label htmlFor="priceChangeReason" className="block text-sm font-medium mb-1">
+            Reason for change
+          </label>
+          <input
+            id="priceChangeReason"
+            type="text"
+            value={formData.priceChangeReason}
+            onChange={(e) => setFormData({ ...formData, priceChangeReason: e.target.value })}
+            className={`w-full rounded-md border ${errors.priceChangeReason ? 'border-red-500' : 'border-input'} bg-background px-3 py-2 text-sm`}
+            placeholder="Why is this price changing?"
+          />
+          {errors.priceChangeReason && (
+            <p className="text-xs text-red-500 mt-1">{errors.priceChangeReason}</p>
           )}
         </div>
 

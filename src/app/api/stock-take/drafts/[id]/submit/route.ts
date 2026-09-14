@@ -186,7 +186,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           }
 
           // Fire low-stock notification if new stock is at or below reorder level (non-blocking)
-          checkAndNotifyLowStockForBarcodeItem(prisma, existing.id, draft.businessId)
+          checkAndNotifyLowStockForBarcodeItem(existing.id, draft.businessId)
 
           totalShortfallQty += shortfall
           totalShortfallValue += shortfallValue

@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { getServerUser } from '@/lib/get-server-user'
 import { hasPermission } from '@/lib/permission-utils'
 import { createAuditLog } from '@/lib/audit'
+import { recordPriceChangeIfDifferent, isPriceChangeReasonRequired } from '@/lib/inventory/price-history'
 
 // Validation schema for updates
 const UpdateProductSchema = z.object({
@@ -19,6 +20,7 @@ const UpdateProductSchema = z.object({
   originalPrice: z.number().min(0).nullable().optional(),
   discountPercent: z.number().min(0).max(100).nullable().optional(),
   costPrice: z.number().min(0).optional(),
+  priceChangeReason: z.string().trim().optional(),
   businessType: z.string().optional(),
   attributes: z.record(z.string(), z.any()).optional(),
   isActive: z.boolean().optional(),
@@ -128,7 +130,7 @@ export async function PUT(
 
     // Parse and validate the request data
     const validatedData = UpdateProductSchema.parse(body)
-    const { variants, images, ...updateData } = validatedData
+    const { variants, images, priceChangeReason, ...updateData } = validatedData
 
     // Verify product exists
     const existingProduct = await prisma.businessProducts.findUnique({
@@ -212,6 +214,19 @@ export async function PUT(
           { status: 409 }
         )
       }
+    }
+
+    // A reason is required when a REAL previous price is changing — not
+    // when setting an initial price (previous price 0/unset).
+    const existingBasePriceNum = existingProduct.basePrice ? parseFloat(existingProduct.basePrice.toString()) : null
+    const existingCostPriceNum = existingProduct.costPrice ? parseFloat(existingProduct.costPrice.toString()) : null
+    const nextBasePriceNum = updateData.basePrice !== undefined ? updateData.basePrice : null
+    const nextCostPriceNum = updateData.costPrice !== undefined ? updateData.costPrice : null
+    if (
+      !priceChangeReason &&
+      (isPriceChangeReasonRequired(existingBasePriceNum, nextBasePriceNum) || isPriceChangeReasonRequired(existingCostPriceNum, nextCostPriceNum))
+    ) {
+      return NextResponse.json({ error: 'A reason is required when changing an existing price' }, { status: 400 })
     }
 
     // A draft/template product (MBM-133 — no price/stock/sales yet) "graduates"
@@ -360,10 +375,38 @@ export async function PUT(
         entityId: id,
         oldValues: { price: Number(existingProduct.basePrice) },
         newValues: { price: Number(updateData.basePrice) },
-        metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId: existingProduct.businessId, productName: existingProduct.name },
+        metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId: existingProduct.businessId, productName: existingProduct.name, reason: priceChangeReason || null },
         businessId: existingProduct.businessId,
       })
     }
+    await Promise.all([
+      recordPriceChangeIfDifferent({
+        businessId: existingProduct.businessId,
+        catalogSource: 'BUSINESS_PRODUCT',
+        productRefId: id,
+        priceType: 'SELLING',
+        oldPrice: existingBasePriceNum,
+        newPrice: nextBasePriceNum,
+        changedBy: user.id,
+        changeReason: 'MANUAL_EDIT',
+        reason: priceChangeReason || null,
+        productName: existingProduct.name,
+        changedByName: user.name,
+      }),
+      recordPriceChangeIfDifferent({
+        businessId: existingProduct.businessId,
+        catalogSource: 'BUSINESS_PRODUCT',
+        productRefId: id,
+        priceType: 'COST',
+        oldPrice: existingCostPriceNum,
+        newPrice: nextCostPriceNum,
+        changedBy: user.id,
+        changeReason: 'MANUAL_EDIT',
+        reason: priceChangeReason || null,
+        productName: existingProduct.name,
+        changedByName: user.name,
+      }),
+    ])
 
     return NextResponse.json({
       success: true,

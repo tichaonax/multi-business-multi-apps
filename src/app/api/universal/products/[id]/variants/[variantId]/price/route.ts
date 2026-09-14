@@ -4,9 +4,9 @@ import { z } from 'zod'
 import { getServerUser } from '@/lib/get-server-user'
 import { hasPermission } from '@/lib/permission-utils'
 import { createAuditLog } from '@/lib/audit'
-import { recordPriceChangeIfDifferent } from '@/lib/inventory/price-history'
+import { recordPriceChangeIfDifferent, isPriceChangeReasonRequired } from '@/lib/inventory/price-history'
 
-const BodySchema = z.object({ price: z.number().gt(0) })
+const BodySchema = z.object({ price: z.number().gt(0), priceChangeReason: z.string().trim().optional() })
 
 // PATCH - Update a single ProductVariant's price without touching sibling
 // variants (MBM-292). Every product's card price is resolved as
@@ -29,7 +29,7 @@ export async function PATCH(
     if (!parsed.success) {
       return NextResponse.json({ error: 'A price greater than 0 is required' }, { status: 400 })
     }
-    const { price: newPrice } = parsed.data
+    const { price: newPrice, priceChangeReason } = parsed.data
 
     const product = await prisma.businessProducts.findUnique({ where: { id } })
     if (!product) {
@@ -50,6 +50,9 @@ export async function PATCH(
     }
 
     const oldPrice = Number(variant.price)
+    if (!priceChangeReason && isPriceChangeReasonRequired(oldPrice, newPrice)) {
+      return NextResponse.json({ error: 'A reason is required when changing an existing price' }, { status: 400 })
+    }
     // Same template-graduation rule as the main product PUT endpoint (MBM-133
     // follow-up) — pricing a variant is just as much "this is now a real,
     // sellable item" as pricing the product directly.
@@ -76,6 +79,9 @@ export async function PATCH(
         newPrice,
         changedBy: user.id,
         changeReason: 'QUICK_EDIT',
+        reason: priceChangeReason || null,
+        productName: product.name,
+        changedByName: user.name,
       })
       await createAuditLog({
         userId: user.id,
@@ -90,6 +96,7 @@ export async function PATCH(
           productName: product.name,
           variantId,
           variantName: variant.name,
+          reason: priceChangeReason || null,
         },
         businessId: product.businessId,
       })
