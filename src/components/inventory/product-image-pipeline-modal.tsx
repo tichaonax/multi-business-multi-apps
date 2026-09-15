@@ -1,8 +1,7 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useIsMobileDevice } from '@/hooks/use-is-mobile-device'
-import { ProductPhotoCamera } from './product-photo-camera'
 import { ImageCropStep } from './image-crop-step'
 import { BackgroundRemovalStep } from './background-removal-step'
 import { hashBlob, resizeImageBlob } from '@/lib/inventory/crop-image'
@@ -20,7 +19,7 @@ interface Props {
   onCancel: () => void
 }
 
-type Step = 'source' | 'camera' | 'crop' | 'background' | 'finalizing'
+type Step = 'source' | 'crop' | 'background' | 'finalizing'
 
 const MAX_DIMENSION = 1600
 const THUMBNAIL_DIMENSION = 320
@@ -33,28 +32,33 @@ const THUMBNAIL_DIMENSION = 320
  * the caller a finished, already-resized blob pair (full + thumbnail) plus
  * the metadata `POST /api/universal/images` needs to record the pipeline
  * fields on the `Images` row.
+ *
+ * "Take Photo" uses the device's own native camera app via `<input
+ * capture>` rather than an in-page `getUserMedia` live preview — the
+ * original implementation (a custom `ProductPhotoCamera` overlay) shot
+ * back to the underlying edit screen with no photo captured on a real
+ * phone, most likely the live video preview getting killed under mobile
+ * memory pressure.
+ *
+ * The trigger is a `<label>` wrapping its `<input>` directly rather than a
+ * button that calls `inputRef.current.click()` — the first version used a
+ * ref-click, which returned from the native camera with no `change` event
+ * ever firing on at least one real device (the app was left looking
+ * exactly as it did before "Take Photo" was tapped, meaning the click
+ * never reopened, or React's listener never saw it). A label's native
+ * click-to-open-picker association doesn't go through JS at all, which is
+ * the same pattern this app's own plain "quick, no crop" upload button
+ * already uses successfully elsewhere in `ImageUploadDialog`.
  */
 export function ProductImagePipelineModal({ onComplete, onCancel }: Props) {
   const isMobile = useIsMobileDevice()
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [step, setStep] = useState<Step>('source')
   const [sourceType, setSourceType] = useState<ProductImagePipelineResult['sourceType']>('DESKTOP_UPLOAD')
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(null)
   const [croppedBlob, setCroppedBlob] = useState<Blob | null>(null)
 
-  function pickFile() {
-    setSourceType(isMobile ? 'MOBILE_UPLOAD' : 'DESKTOP_UPLOAD')
-    fileInputRef.current?.click()
-  }
-
   function handleFileSelected(file: File) {
     setRawImageSrc(URL.createObjectURL(file))
-    setStep('crop')
-  }
-
-  function handleCameraCapture(blob: Blob) {
-    setSourceType('MOBILE_CAMERA')
-    setRawImageSrc(URL.createObjectURL(blob))
     setStep('crop')
   }
 
@@ -93,45 +97,48 @@ export function ProductImagePipelineModal({ onComplete, onCancel }: Props) {
 
   return (
     <>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelected(f); e.target.value = '' }}
-      />
-
       {step === 'source' && (
         <div className="fixed inset-0 z-[90] bg-black/70 flex items-center justify-center p-4" onClick={onCancel}>
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
             <h2 className="text-sm font-bold text-gray-900 dark:text-white mb-4">Add Product Photo</h2>
             <div className="flex flex-col gap-2">
               {isMobile && (
-                <button
-                  onClick={() => setStep('camera')}
-                  className="w-full text-left px-4 py-3 rounded-xl border-2 border-blue-200 dark:border-blue-800 hover:border-blue-400 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                >
+                <label className="block w-full text-left px-4 py-3 rounded-xl border-2 border-blue-200 dark:border-blue-800 hover:border-blue-400 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer">
                   <p className="font-semibold text-gray-900 dark:text-white">📷 Take Photo</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Use your camera</p>
-                </button>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={e => {
+                      const f = e.target.files?.[0]
+                      if (f) { setSourceType('MOBILE_CAMERA'); handleFileSelected(f) }
+                      e.target.value = ''
+                    }}
+                  />
+                </label>
               )}
-              <button
-                onClick={pickFile}
-                className="w-full text-left px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800"
-              >
+              <label className="block w-full text-left px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
                 <p className="font-semibold text-gray-900 dark:text-white">⬆️ Upload From Device</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Choose an existing photo</p>
-              </button>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={e => {
+                    const f = e.target.files?.[0]
+                    if (f) { setSourceType(isMobile ? 'MOBILE_UPLOAD' : 'DESKTOP_UPLOAD'); handleFileSelected(f) }
+                    e.target.value = ''
+                  }}
+                />
+              </label>
             </div>
             <button onClick={onCancel} className="mt-4 w-full text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-center">
               Cancel
             </button>
           </div>
         </div>
-      )}
-
-      {step === 'camera' && (
-        <ProductPhotoCamera onCapture={handleCameraCapture} onClose={() => setStep('source')} />
       )}
 
       {step === 'crop' && rawImageSrc && (

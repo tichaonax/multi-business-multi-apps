@@ -23,6 +23,7 @@ export function ImageCropStep({ imageSrc, onCropped, onCancel }: Props) {
   const [square, setSquare] = useState(true)
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
   const [processing, setProcessing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const onCropComplete = useCallback((_croppedArea: Area, pixels: Area) => {
     setCroppedAreaPixels(pixels)
@@ -37,10 +38,15 @@ export function ImageCropStep({ imageSrc, onCropped, onCancel }: Props) {
   async function confirm() {
     if (!croppedAreaPixels) return
     setProcessing(true)
+    setError(null)
     try {
       const blob = await getCroppedImageBlob(imageSrc, croppedAreaPixels, rotation)
       onCropped(blob)
-    } finally {
+    } catch (e: any) {
+      // A silent failure here previously looked like "nothing happened,
+      // back to the app" — always surface it instead, so a real problem is
+      // visible rather than indistinguishable from the button doing nothing.
+      setError(e?.message || 'Could not process this photo. Try again, or use a different photo.')
       setProcessing(false)
     }
   }
@@ -86,6 +92,9 @@ export function ImageCropStep({ imageSrc, onCropped, onCancel }: Props) {
           </label>
           <button onClick={reset} className="text-xs text-white/60 hover:text-white underline">Reset</button>
         </div>
+        {error && (
+          <p className="text-xs text-red-400 bg-red-950/50 border border-red-800 rounded-lg px-3 py-2">{error}</p>
+        )}
         <div className="flex items-center gap-3 pt-1">
           <button onClick={onCancel} className="flex-1 py-2 rounded-lg border border-white/30 text-white text-sm font-medium">
             Cancel
