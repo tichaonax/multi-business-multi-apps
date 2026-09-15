@@ -590,17 +590,19 @@
    slides it up behind the nav instead of just being cut off cleanly.
    Fixing it here, once, covers every report that uses this shared class.
 
-   That alone wasn't sufficient: `MainLayout` (src/components/layout/
-   main-layout.tsx) wraps every page's content in a div with its own
-   `py-2 sm:py-3 pb-20` padding, which the report pages' own inline
-   `height: calc(100vh - 64px)` never accounted for — and a second attempt
-   at hardcoding a corrected constant here also didn't hold up. The height
-   is now measured directly in JS instead (see `useFillViewportHeight`,
-   `src/hooks/use-fill-viewport-height.ts`, applied on each report page),
-   which sidesteps needing to know the nav height or any ancestor's padding
-   at all. `overflow: hidden` still matters on its own: it stops the
-   container's own inner content (not just its ancestors' padding) from
-   ever pushing the page taller than the measured height.
+   That alone wasn't sufficient — two further attempts (a hardcoded
+   corrected height constant, then a JS-measured height via
+   `useFillViewportHeight`) still left the search bar clipped under the
+   nav on at least one report. Pricing, Cost & Value Exceptions has since
+   moved away from the fixed-height/internal-scroll model entirely: it now
+   lets the page scroll normally and uses a `sticky top-14 sm:top-16`
+   wrapper for its search bar — the same pattern already proven to work on
+   Receipt History — rather than fighting to compute an exact container
+   height. The other report pages below still use the older fixed-height
+   model for now (candidates for the same migration if they turn out to
+   have the same problem). `overflow: hidden` here is a no-op for any page
+   that no longer sets an explicit height on this class; it still matters
+   for the ones that do.
    ====================== */
 .report-print-container {
   overflow: hidden;

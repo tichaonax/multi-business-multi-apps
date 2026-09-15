@@ -2369,6 +2369,12 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
               transportCostPerKm={transportConfig.ratePerKm}
               batchQuantity={totalBatchQuantity}
               onClose={() => setCalcOpen(false)}
+              initialUnitsPerPack={row.unitsPerPack ? Number(row.unitsPerPack) : null}
+              onBulkInfoChange={info => onChange({
+                unitsPerPack: info.unitsPerPack != null ? String(info.unitsPerPack) : '',
+                bulkPackCost: info.bulkPackCost != null ? String(info.bulkPackCost) : '',
+                ...(info.effectiveCostPrice != null ? { costPrice: String(info.effectiveCostPrice) } : {}),
+              })}
             />
           </div>
         )}
