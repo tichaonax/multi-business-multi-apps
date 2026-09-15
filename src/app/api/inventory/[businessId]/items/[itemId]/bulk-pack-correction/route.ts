@@ -10,15 +10,26 @@ import { recordPriceChangeIfDifferent } from '@/lib/inventory/price-history'
  *
  * MBM-297 — the quick "Fix" action from the Pricing, Cost & Value Exceptions
  * report's Bulk Cost Allocation Issue flag. Deliberately narrow and safe by
- * construction: the ONLY thing this endpoint ever accepts is `unitsPerPack`
- * — it never accepts a cost value from the caller, so someone with report
- * access but no inventory-edit permission can use it without ever being
- * able to change a price. When the item already has a `bulkPackCost` on
- * file (set previously by someone with inventory-edit permission via the
- * full item editor), correcting the pack size also recalculates the derived
- * per-unit cost from that already-authorized number. When no bulk cost is
- * on file, this only records the pack size — cost price is left untouched,
- * since establishing a bulk cost requires the full item editor.
+ * construction: the ONLY thing this endpoint ever accepts from the caller
+ * is `unitsPerPack` — never a cost value, so nobody can inject an arbitrary
+ * price through it. What it does with that number depends on who's asking:
+ *
+ * - When the item already has a `bulkPackCost` on file (set previously via
+ *   the full item editor), anyone who can view this report may correct the
+ *   pack size, and the derived per-unit cost is recalculated from that
+ *   already-authorized number — no new financial fact is being asserted.
+ * - When no bulk cost is on file yet and the caller has inventory-edit
+ *   permission (`canManageInventory`), the report's own flag already means
+ *   the recorded cost is suspected of actually being the case cost — this
+ *   is exactly what that user could just as well do via the full editor by
+ *   copying the same number across, so it's inferred here as a convenience:
+ *   the existing cost price is treated as `bulkPackCost`, and the unit cost
+ *   is corrected from it. This is the only path that establishes a bulk
+ *   cost from scratch, and it never runs without that permission.
+ * - When no bulk cost is on file and the caller only has report access,
+ *   this only records the pack size — cost price is left untouched, since
+ *   inferring a cost is itself a financial decision that permission tier
+ *   isn't allowed to make.
  */
 export async function POST(
   request: NextRequest,
@@ -33,9 +44,8 @@ export async function POST(
     // safe, non-financial correction. Only the full item editor (a separate
     // route) can actually change a cost value, and that stays gated to
     // canManageInventory there.
-    const canCorrectQuantity = isSystemAdmin(user)
-      || hasPermission(user, 'canManageInventory', businessId)
-      || hasPermission(user, 'canAccessFinancialData', businessId)
+    const canEditInventory = isSystemAdmin(user) || hasPermission(user, 'canManageInventory', businessId)
+    const canCorrectQuantity = canEditInventory || hasPermission(user, 'canAccessFinancialData', businessId)
     if (!canCorrectQuantity) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const body = await request.json()
@@ -51,8 +61,14 @@ export async function POST(
       const existing = await prisma.barcodeInventoryItems.findFirst({ where: { id: rawId, businessId } })
       if (!existing) return NextResponse.json({ error: 'Item not found' }, { status: 404 })
 
-      const bulkPackCost = existing.bulkPackCost ? parseFloat(existing.bulkPackCost.toString()) : null
       const oldCostPrice = existing.costPrice ? parseFloat(existing.costPrice.toString()) : null
+      const existingBulkPackCost = existing.bulkPackCost ? parseFloat(existing.bulkPackCost.toString()) : null
+      // Infer the bulk cost from the current (suspected-wrong) cost price
+      // only when this user is allowed to establish one from scratch.
+      const inferredBulkPackCost = existingBulkPackCost === null && canEditInventory && oldCostPrice !== null && oldCostPrice > 0
+        ? oldCostPrice
+        : null
+      const bulkPackCost = existingBulkPackCost ?? inferredBulkPackCost
       const correctedUnitCost = bulkPackCost !== null && bulkPackCost > 0
         ? Math.round((bulkPackCost / unitsPerPack) * 100) / 100
         : null
@@ -61,6 +77,7 @@ export async function POST(
         where: { id: rawId },
         data: {
           unitsPerPack,
+          ...(inferredBulkPackCost !== null ? { bulkPackCost: inferredBulkPackCost } : {}),
           ...(correctedUnitCost !== null ? { costPrice: correctedUnitCost } : {}),
           updatedAt: new Date(),
         },
@@ -93,14 +110,18 @@ export async function POST(
         }),
       ])
 
-      return NextResponse.json({ success: true, unitsPerPack, costPrice: correctedUnitCost ?? oldCostPrice })
+      return NextResponse.json({ success: true, unitsPerPack, costPrice: correctedUnitCost ?? oldCostPrice, bulkPackCost })
     }
 
     const existing = await prisma.businessProducts.findFirst({ where: { id: rawId, businessId } })
     if (!existing) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
 
-    const bulkPackCost = existing.bulkPackCost ? parseFloat(existing.bulkPackCost.toString()) : null
     const oldCostPrice = existing.costPrice ? parseFloat(existing.costPrice.toString()) : null
+    const existingBulkPackCost = existing.bulkPackCost ? parseFloat(existing.bulkPackCost.toString()) : null
+    const inferredBulkPackCost = existingBulkPackCost === null && canEditInventory && oldCostPrice !== null && oldCostPrice > 0
+      ? oldCostPrice
+      : null
+    const bulkPackCost = existingBulkPackCost ?? inferredBulkPackCost
     const correctedUnitCost = bulkPackCost !== null && bulkPackCost > 0
       ? Math.round((bulkPackCost / unitsPerPack) * 100) / 100
       : null
@@ -109,6 +130,7 @@ export async function POST(
       where: { id: rawId },
       data: {
         unitsPerPack,
+        ...(inferredBulkPackCost !== null ? { bulkPackCost: inferredBulkPackCost } : {}),
         ...(correctedUnitCost !== null ? { costPrice: correctedUnitCost } : {}),
         updatedAt: new Date(),
       },
@@ -141,7 +163,7 @@ export async function POST(
       }),
     ])
 
-    return NextResponse.json({ success: true, unitsPerPack, costPrice: correctedUnitCost ?? oldCostPrice })
+    return NextResponse.json({ success: true, unitsPerPack, costPrice: correctedUnitCost ?? oldCostPrice, bulkPackCost })
   } catch (error) {
     console.error('[bulk-pack-correction POST]', error)
     return NextResponse.json({ error: 'Failed to save correction' }, { status: 500 })

@@ -63,6 +63,15 @@ interface ExceptionRow {
   flags: ExceptionFlag[]
   severity: 'INFO' | 'WARNING' | 'CRITICAL' | null
   reviewStates: ReviewState[]
+  /**
+   * Client-only, not from the API: the row's cost/margin/P&L right before
+   * the last in-place "Fix" correction, so the report can show a clear
+   * before/after comparison without waiting for a reload. Lets the user
+   * judge whether the fix looks right and, if not, click Fix again
+   * immediately — a real reload is what actually re-evaluates whether the
+   * row still qualifies as an exception at all.
+   */
+  previousFixSnapshot?: { costPrice: number | null; grossMarginPct: number | null; totalPotentialProfitLoss: number | null } | null
 }
 
 interface ReportData {
@@ -298,13 +307,15 @@ export default function PricingExceptionsReportPage() {
     setActiveRow(null)
   }
 
-  function handleCorrectionSaved(result: { unitsPerPack: number; costPrice: number | null }) {
-    // Patch the row in place instead of re-fetching the whole report: a
-    // re-fetch re-runs the exception rules server-side, and a
-    // now-corrected row can legitimately no longer qualify as an exception
-    // — silently dropping it out of the list right after the user fixed it
-    // reads as "did that even work?" Keep it visible with the corrected
-    // numbers; a manual refresh is what re-applies the exception filter.
+  function handleCorrectionSaved(result: { unitsPerPack: number; costPrice: number | null; bulkPackCost: number | null }) {
+    // Patch the row in place and keep it visible with a before/after
+    // comparison — deliberately NOT reloading the report here. The user
+    // needs to see what changed to judge whether the fix looks right, and
+    // Fix needs to stay clickable so a mistake can be corrected again
+    // immediately, without the row vanishing (or the flag disappearing)
+    // out from under them first. A real reload (manual, or the report's
+    // own periodic refresh) is what re-runs the exception rules for real
+    // and removes the row if it no longer qualifies.
     const correctedId = activeRow?.id
     if (correctedId) {
       setReportData(prev => {
@@ -324,13 +335,14 @@ export default function PricingExceptionsReportPage() {
               ...r,
               unitsPerPack: result.unitsPerPack,
               costPrice: newCost,
+              bulkPackCost: result.bulkPackCost ?? r.bulkPackCost,
+              hasBulkCostOnFile: result.bulkPackCost != null || r.hasBulkCostOnFile,
               unitProfitLoss: newUnitProfitLoss,
               totalPotentialProfitLoss: newTotalPL,
               grossMarginPct: newMarginPct,
-              // The specific issue just fixed no longer applies — other
-              // flags (if any still apply with the new numbers) are left
-              // as-is until the next real refresh recomputes them properly.
-              flags: r.flags.filter(f => f.type !== 'BULK_COST_ALLOCATION_ISSUE'),
+              // Flags are left exactly as they were — including this
+              // one's Fix link — until a real reload re-evaluates them.
+              previousFixSnapshot: { costPrice: r.costPrice, grossMarginPct: r.grossMarginPct, totalPotentialProfitLoss: r.totalPotentialProfitLoss },
             }
           }),
         }
@@ -357,9 +369,19 @@ export default function PricingExceptionsReportPage() {
     URL.revokeObjectURL(url)
   }
 
+  // Deliberately NOT `.report-print-container` — that shared class carries
+  // `overflow: hidden` (needed by the other, still fixed-height report
+  // pages), and `overflow` anything but `visible` on an ancestor silently
+  // disables `position: sticky` on descendants. That's what made the
+  // sticky search bar below not stick at all. This page no longer needs
+  // that class's fixed-height/print-override behavior now that it scrolls
+  // naturally.
   return (
-    <div className="report-print-container bg-gray-50 dark:bg-gray-900">
+    <div className="bg-gray-50 dark:bg-gray-900">
       <div className="p-4 md:p-6 pb-0">
+        <Link href="/inventory/reports" className="inline-flex items-center gap-1 text-sm text-secondary hover:text-primary hover:underline mb-2">
+          ← Back to Reports
+        </Link>
         <div className="flex items-center gap-2 text-xs text-secondary mb-1">
           <Link href="/inventory" className="hover:underline">Inventory</Link>
           <span>/</span>
@@ -486,8 +508,21 @@ export default function PricingExceptionsReportPage() {
                         <td className="px-3 py-2.5 text-right text-secondary">
                           {fmt(row.costPrice)}
                           {row.previousCostPrice != null && <p className="text-xs text-gray-400">was {fmt(row.previousCostPrice)}</p>}
+                          {row.previousFixSnapshot && (
+                            <p className="text-xs text-green-600 dark:text-green-400" title="From the correction just applied — reload the report to confirm this is now final">
+                              just fixed, was {fmt(row.previousFixSnapshot.costPrice)}
+                            </p>
+                          )}
                           {row.hasBulkCostOnFile && (
                             <p className="text-xs text-gray-400">Pack: {row.unitsPerPack ?? '?'} × {fmt(row.bulkPackCost)}</p>
+                          )}
+                          {!row.hasBulkCostOnFile && row.unitsPerPack != null && row.unitsPerPack > 1 && row.costPrice != null && (
+                            <p
+                              className="text-xs text-indigo-500 dark:text-indigo-400"
+                              title="Pack size recorded, but the cost shown hasn't been confirmed as the box/case cost yet — that still needs someone with inventory-edit access, via Open Full Item Editor. Shown here so the original case cost isn't lost."
+                            >
+                              {fmt(row.costPrice)} ÷ {row.unitsPerPack} = {fmt(row.costPrice / row.unitsPerPack)}/unit
+                            </p>
                           )}
                           {row.flags.some(f => f.type === 'BULK_COST_ALLOCATION_ISSUE') && (
                             <button
@@ -507,11 +542,19 @@ export default function PricingExceptionsReportPage() {
                           <span className={row.grossMarginPct !== null && row.grossMarginPct < 0 ? 'text-red-600 font-semibold' : 'text-secondary'}>
                             {row.grossMarginPct !== null ? `${row.grossMarginPct.toFixed(1)}%` : '—'}
                           </span>
+                          {row.previousFixSnapshot && (
+                            <p className="text-xs text-green-600 dark:text-green-400">
+                              was {row.previousFixSnapshot.grossMarginPct !== null ? `${row.previousFixSnapshot.grossMarginPct.toFixed(1)}%` : '—'}
+                            </p>
+                          )}
                         </td>
                         <td className="px-3 py-2.5 text-right">
                           <span className={row.totalPotentialProfitLoss !== null && row.totalPotentialProfitLoss < 0 ? 'text-red-600 font-semibold' : 'text-secondary'}>
                             {fmt(row.totalPotentialProfitLoss)}
                           </span>
+                          {row.previousFixSnapshot && (
+                            <p className="text-xs text-green-600 dark:text-green-400">was {fmt(row.previousFixSnapshot.totalPotentialProfitLoss)}</p>
+                          )}
                           {row.actualLossFromSalesInPeriod > 0 && (
                             <p className="text-xs text-red-500" title="Actual loss from sales in the selected period (uses today's cost price, not the cost at the time of each sale)">
                               actual: -{fmt(row.actualLossFromSalesInPeriod)}

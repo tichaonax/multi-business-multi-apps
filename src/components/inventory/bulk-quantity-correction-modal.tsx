@@ -22,7 +22,7 @@ interface Props {
   /** Whether this user may see/use "Open Full Item Editor" — that path can change the cost price directly, so it requires inventory-edit permission. Anyone who can see this report can still use this modal to fix the pack quantity. */
   canEditCost: boolean
   onClose: () => void
-  onSaved: (result: { unitsPerPack: number; costPrice: number | null }) => void
+  onSaved: (result: { unitsPerPack: number; costPrice: number | null; bulkPackCost: number | null }) => void
   onOpenFullEditor: () => void
 }
 
@@ -30,16 +30,23 @@ const money = (n: number | null) => (n != null ? `$${n.toFixed(2)}` : '—')
 
 /**
  * MBM-297 — the report-level "Fix" action for a Bulk Cost Allocation Issue.
- * Deliberately narrow, by design: this modal NEVER accepts a typed-in cost
- * value, in either state. The only thing a user can ever change here is
- * units per pack — a safe, non-financial correction (it just flags/derives
- * data, it never affects recorded sales) that anyone who can see this report
- * may make, even without inventory-edit permission. Bulk cost, selling
- * price, and stock balance are always read-only. When a bulk cost is
- * already on file, saving recalculates the unit cost from it; when none is
- * on file, saving only records the pack size and leaves cost price
- * untouched. Establishing or changing an actual cost figure requires the
- * full item editor, which is gated separately by inventory-edit permission.
+ * This modal NEVER accepts a typed-in cost value — the only thing a user
+ * can ever change here is units per pack. What saving it does depends on
+ * who's asking, mirroring the API's own permission split:
+ *
+ * - A bulk cost already on file → anyone who can view this report may
+ *   correct the pack size; the unit cost is recalculated from that
+ *   already-authorized number.
+ * - No bulk cost on file, but this user has inventory-edit permission →
+ *   the current (suspected-wrong) cost price is inferred as the bulk cost
+ *   and the unit cost is corrected from it — the same thing they could do
+ *   via the full editor, offered here as a one-step convenience.
+ * - No bulk cost on file and report-only access → only the pack size is
+ *   recorded; cost price is left untouched, since inferring one is a
+ *   financial decision that permission tier can't make.
+ *
+ * The actual decision is re-checked server-side regardless of what this
+ * component predicts — `canEditCost` here only drives the preview/copy.
  */
 export function BulkQuantityCorrectionModal({ businessId, itemId, row, canEditCost, onClose, onSaved, onOpenFullEditor }: Props) {
   const toast = useToastContext()
@@ -47,9 +54,12 @@ export function BulkQuantityCorrectionModal({ businessId, itemId, row, canEditCo
   const [saving, setSaving] = useState(false)
 
   const hasBulkCostOnFile = row.bulkPackCost !== null && row.bulkPackCost > 0
+  const willInferCost = !hasBulkCostOnFile && canEditCost && row.costPrice !== null && row.costPrice > 0
+  const effectiveBulkCost = hasBulkCostOnFile ? row.bulkPackCost : (willInferCost ? row.costPrice : null)
   const parsedUnits = parseInt(unitsPerPack, 10)
   const validUnits = Number.isFinite(parsedUnits) && parsedUnits > 0
-  const correctedUnitCost = validUnits && hasBulkCostOnFile && row.bulkPackCost ? Math.round((row.bulkPackCost / parsedUnits) * 100) / 100 : null
+  const correctedUnitCost = validUnits && effectiveBulkCost ? Math.round((effectiveBulkCost / parsedUnits) * 100) / 100 : null
+  const willCorrectCost = correctedUnitCost !== null
   const proposedProfitLoss = correctedUnitCost !== null && row.sellingPrice !== null ? row.sellingPrice - correctedUnitCost : null
   const proposedMarginPct = correctedUnitCost !== null && row.sellingPrice !== null && row.sellingPrice > 0
     ? ((row.sellingPrice - correctedUnitCost) / row.sellingPrice) * 100
@@ -72,8 +82,8 @@ export function BulkQuantityCorrectionModal({ businessId, itemId, row, canEditCo
         toast.error(data.error ?? 'Failed to save correction')
         return
       }
-      toast.push(hasBulkCostOnFile ? 'Unit cost corrected' : 'Pack quantity recorded')
-      onSaved({ unitsPerPack: data.unitsPerPack ?? parsedUnits, costPrice: data.costPrice ?? null })
+      toast.push(data.bulkPackCost != null ? 'Unit cost corrected' : 'Pack quantity recorded')
+      onSaved({ unitsPerPack: data.unitsPerPack ?? parsedUnits, costPrice: data.costPrice ?? null, bulkPackCost: data.bulkPackCost ?? null })
     } catch {
       toast.error('Failed to save correction')
     } finally {
@@ -97,10 +107,13 @@ export function BulkQuantityCorrectionModal({ businessId, itemId, row, canEditCo
           <p className="text-xs text-gray-600 dark:text-gray-400 mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5">
             This product may have been bought as a bulk pack but costed as one individual item. Enter the number of individual sellable units in the pack to recalculate the unit cost. Cost figures shown here are read-only.
           </p>
+        ) : willInferCost ? (
+          <p className="text-xs text-gray-600 dark:text-gray-400 mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5">
+            No bulk-pack cost is recorded yet — the current cost price ({money(row.costPrice)}) will be treated as the case/pack cost once you enter how many units it contains, and the unit cost will be corrected from it.
+          </p>
         ) : (
           <p className="text-xs text-gray-600 dark:text-gray-400 mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5">
             No bulk-pack cost is recorded for this item yet, so the unit cost can't be recalculated here. You can still record the pack size below — it's safe to set now and won't change the cost price.
-            {canEditCost && <> Use <strong>Open Full Item Editor</strong> to also set up the bulk/case cost.</>}
           </p>
         )}
 
@@ -108,7 +121,9 @@ export function BulkQuantityCorrectionModal({ businessId, itemId, row, canEditCo
           <div className="text-gray-500 dark:text-gray-400">Quantity on hand</div>
           <div className="text-right font-medium text-gray-900 dark:text-gray-100">{row.quantityOnHand}</div>
           <div className="text-gray-500 dark:text-gray-400">Bulk pack cost</div>
-          <div className="text-right font-medium text-gray-900 dark:text-gray-100">{hasBulkCostOnFile ? money(row.bulkPackCost) : 'not recorded'}</div>
+          <div className="text-right font-medium text-gray-900 dark:text-gray-100">
+            {hasBulkCostOnFile ? money(row.bulkPackCost) : willInferCost ? `${money(row.costPrice)} (inferred)` : 'not recorded'}
+          </div>
           <div className="text-gray-500 dark:text-gray-400">Current unit cost</div>
           <div className="text-right font-medium text-gray-900 dark:text-gray-100">{money(row.costPrice)}</div>
           <div className="text-gray-500 dark:text-gray-400">Selling price</div>
@@ -131,7 +146,7 @@ export function BulkQuantityCorrectionModal({ businessId, itemId, row, canEditCo
           />
         </div>
 
-        {hasBulkCostOnFile && validUnits && correctedUnitCost !== null && (
+        {validUnits && willCorrectCost && (
           <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
             <div className="text-gray-500 dark:text-gray-400">Proposed unit cost</div>
             <div className="text-right font-semibold text-green-600 dark:text-green-400">{money(correctedUnitCost)}</div>
@@ -149,7 +164,7 @@ export function BulkQuantityCorrectionModal({ businessId, itemId, row, canEditCo
             </div>
           </div>
         )}
-        {!hasBulkCostOnFile && validUnits && (
+        {!willCorrectCost && validUnits && (
           <p className="mt-3 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg p-2.5">
             Cost price will stay at {money(row.costPrice)} — only the pack size is being recorded.
           </p>
@@ -161,7 +176,7 @@ export function BulkQuantityCorrectionModal({ businessId, itemId, row, canEditCo
             disabled={!validUnits || saving}
             className="flex-1 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-medium"
           >
-            {saving ? 'Saving…' : hasBulkCostOnFile ? 'Confirm Correction' : 'Save Pack Size'}
+            {saving ? 'Saving…' : willCorrectCost ? 'Confirm Correction' : 'Save Pack Size'}
           </button>
           <button
             onClick={onClose}
@@ -175,7 +190,7 @@ export function BulkQuantityCorrectionModal({ businessId, itemId, row, canEditCo
             onClick={onOpenFullEditor}
             className="w-full mt-2 py-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline"
           >
-            Open Full Item Editor{!hasBulkCostOnFile ? ' — also set up the bulk cost' : ''}
+            Open Full Item Editor{!hasBulkCostOnFile && !willInferCost ? ' — also set up the bulk cost' : ''}
           </button>
         )}
       </div>
