@@ -13,6 +13,7 @@ import { Pagination } from '@/components/ui/pagination'
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 import { BulkQuantityCorrectionModal } from '@/components/inventory/bulk-quantity-correction-modal'
 import { UniversalInventoryForm } from '@/components/universal/inventory'
+import { useFillViewportHeight } from '@/hooks/use-fill-viewport-height'
 import '@/styles/print-report.css'
 
 interface ExceptionFlag {
@@ -180,6 +181,7 @@ export default function PricingExceptionsReportPage() {
   const [reportData, setReportData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { ref: fillRef, style: fillStyle } = useFillViewportHeight([loading, reportData])
 
   // Bulk Cost Allocation Issue "Fix" flow (MBM-297) — activeRow is whichever
   // row's cost is being corrected; showQuickModal/showFullEditor track which
@@ -322,7 +324,7 @@ export default function PricingExceptionsReportPage() {
   }
 
   return (
-    <div className="report-print-container flex flex-col bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 64px)' }}>
+    <div ref={fillRef} className="report-print-container flex flex-col bg-gray-50 dark:bg-gray-900" style={fillStyle}>
       <div className="flex-shrink-0 p-4 md:p-6 pb-0">
         <div className="flex items-center gap-2 text-xs text-secondary mb-1">
           <Link href="/inventory" className="hover:underline">Inventory</Link>
@@ -448,7 +450,7 @@ export default function PricingExceptionsReportPage() {
                           {row.hasBulkCostOnFile && (
                             <p className="text-xs text-gray-400">Pack: {row.unitsPerPack ?? '?'} × {fmt(row.bulkPackCost)}</p>
                           )}
-                          {row.flags.some(f => f.type === 'BULK_COST_ALLOCATION_ISSUE') && canEditInventory && (
+                          {row.flags.some(f => f.type === 'BULK_COST_ALLOCATION_ISSUE') && (
                             <button
                               onClick={() => handleFixClick(row)}
                               className="block text-xs text-amber-600 dark:text-amber-400 hover:underline mt-0.5 whitespace-nowrap"
@@ -532,6 +534,7 @@ export default function PricingExceptionsReportPage() {
             bulkPackCost: activeRow.bulkPackCost,
             sellingPrice: activeRow.sellingPrice,
           }}
+          canEditCost={canEditInventory}
           onClose={closeQuickModal}
           onSaved={handleCorrectionSaved}
           onOpenFullEditor={() => activeRow && openFullEditor(activeRow)}

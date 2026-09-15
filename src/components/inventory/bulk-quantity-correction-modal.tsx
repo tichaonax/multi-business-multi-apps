@@ -19,6 +19,8 @@ interface Props {
   /** The catalog-aware id used by /api/inventory/[businessId]/items/[itemId]/* — `inv_<id>` for a barcode item, plain id otherwise. */
   itemId: string
   row: BulkCorrectionRow
+  /** Whether this user may see/use "Open Full Item Editor" — that path can change the cost price directly, so it requires inventory-edit permission. Anyone who can see this report can still use this modal to fix the pack quantity. */
+  canEditCost: boolean
   onClose: () => void
   onSaved: () => void
   onOpenFullEditor: () => void
@@ -28,27 +30,26 @@ const money = (n: number | null) => (n != null ? `$${n.toFixed(2)}` : '—')
 
 /**
  * MBM-297 — the report-level "Fix" action for a Bulk Cost Allocation Issue.
- * When a bulk-pack cost is already on file, the only editable field is
- * units per pack — bulk cost, selling price, and stock balance stay
- * read-only. When no bulk cost is on file yet, the user must additionally
- * type in the real case/pack cost here; it's never guessed from the
- * existing per-unit cost price. "Open Full Item Editor" stays available for
- * anything beyond a pack-size/bulk-cost fix (e.g. the cost price itself
- * also needs correcting).
+ * Deliberately narrow, by design: this modal NEVER accepts a typed-in cost
+ * value, in either state. The only thing a user can ever change here is
+ * units per pack — a safe, non-financial correction (it just flags/derives
+ * data, it never affects recorded sales) that anyone who can see this report
+ * may make, even without inventory-edit permission. Bulk cost, selling
+ * price, and stock balance are always read-only. When a bulk cost is
+ * already on file, saving recalculates the unit cost from it; when none is
+ * on file, saving only records the pack size and leaves cost price
+ * untouched. Establishing or changing an actual cost figure requires the
+ * full item editor, which is gated separately by inventory-edit permission.
  */
-export function BulkQuantityCorrectionModal({ businessId, itemId, row, onClose, onSaved, onOpenFullEditor }: Props) {
+export function BulkQuantityCorrectionModal({ businessId, itemId, row, canEditCost, onClose, onSaved, onOpenFullEditor }: Props) {
   const toast = useToastContext()
   const [unitsPerPack, setUnitsPerPack] = useState(row.unitsPerPack ? String(row.unitsPerPack) : '')
-  const hasBulkCostOnFile = row.bulkPackCost !== null && row.bulkPackCost > 0
-  const [bulkPackCostInput, setBulkPackCostInput] = useState(hasBulkCostOnFile ? String(row.bulkPackCost) : '')
   const [saving, setSaving] = useState(false)
 
+  const hasBulkCostOnFile = row.bulkPackCost !== null && row.bulkPackCost > 0
   const parsedUnits = parseInt(unitsPerPack, 10)
   const validUnits = Number.isFinite(parsedUnits) && parsedUnits > 0
-  const effectiveBulkPackCost = hasBulkCostOnFile ? row.bulkPackCost : (parseFloat(bulkPackCostInput) || null)
-  const validBulkPackCost = effectiveBulkPackCost !== null && effectiveBulkPackCost > 0
-  const canSave = validUnits && validBulkPackCost
-  const correctedUnitCost = canSave && effectiveBulkPackCost ? Math.round((effectiveBulkPackCost / parsedUnits) * 100) / 100 : null
+  const correctedUnitCost = validUnits && hasBulkCostOnFile && row.bulkPackCost ? Math.round((row.bulkPackCost / parsedUnits) * 100) / 100 : null
   const proposedProfitLoss = correctedUnitCost !== null && row.sellingPrice !== null ? row.sellingPrice - correctedUnitCost : null
   const proposedMarginPct = correctedUnitCost !== null && row.sellingPrice !== null && row.sellingPrice > 0
     ? ((row.sellingPrice - correctedUnitCost) / row.sellingPrice) * 100
@@ -58,23 +59,20 @@ export function BulkQuantityCorrectionModal({ businessId, itemId, row, onClose, 
     : null
 
   async function handleConfirm() {
-    if (!canSave) return
+    if (!validUnits) return
     setSaving(true)
     try {
       const res = await fetch(`/api/inventory/${businessId}/items/${itemId}/bulk-pack-correction`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          unitsPerPack: parsedUnits,
-          ...(hasBulkCostOnFile ? {} : { bulkPackCost: effectiveBulkPackCost }),
-        }),
+        body: JSON.stringify({ unitsPerPack: parsedUnits }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         toast.error(data.error ?? 'Failed to save correction')
         return
       }
-      toast.push('Unit cost corrected')
+      toast.push(hasBulkCostOnFile ? 'Unit cost corrected' : 'Pack quantity recorded')
       onSaved()
     } catch {
       toast.error('Failed to save correction')
@@ -97,11 +95,12 @@ export function BulkQuantityCorrectionModal({ businessId, itemId, row, onClose, 
 
         {hasBulkCostOnFile ? (
           <p className="text-xs text-gray-600 dark:text-gray-400 mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5">
-            This product may have been bought as a bulk pack but costed as one individual item. Enter the number of individual sellable units in the pack to recalculate the unit cost.
+            This product may have been bought as a bulk pack but costed as one individual item. Enter the number of individual sellable units in the pack to recalculate the unit cost. Cost figures shown here are read-only.
           </p>
         ) : (
           <p className="text-xs text-gray-600 dark:text-gray-400 mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5">
-            No bulk-pack cost is recorded for this item yet. Enter the real case/pack cost and how many units it contains below to fix it here — or use <strong>Open Full Item Editor</strong> if the cost price itself also needs adjusting.
+            No bulk-pack cost is recorded for this item yet, so the unit cost can't be recalculated here. You can still record the pack size below — it's safe to set now and won't change the cost price.
+            {canEditCost && <> Use <strong>Open Full Item Editor</strong> to also set up the bulk/case cost.</>}
           </p>
         )}
 
@@ -116,24 +115,6 @@ export function BulkQuantityCorrectionModal({ businessId, itemId, row, onClose, 
           <div className="text-right font-medium text-gray-900 dark:text-gray-100">{money(row.sellingPrice)}</div>
         </div>
 
-        {!hasBulkCostOnFile && (
-          <div className="mb-3">
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-              Case/pack cost ($) <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={bulkPackCostInput}
-              onChange={e => setBulkPackCostInput(e.target.value)}
-              autoFocus
-              className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-amber-400 focus:outline-none"
-              placeholder="e.g. 6.70"
-            />
-          </div>
-        )}
-
         <div>
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
             Units per pack / case quantity <span className="text-red-500">*</span>
@@ -144,13 +125,13 @@ export function BulkQuantityCorrectionModal({ businessId, itemId, row, onClose, 
             step="1"
             value={unitsPerPack}
             onChange={e => setUnitsPerPack(e.target.value)}
-            autoFocus={hasBulkCostOnFile}
+            autoFocus
             className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-amber-400 focus:outline-none"
             placeholder="e.g. 24"
           />
         </div>
 
-        {canSave && correctedUnitCost !== null && (
+        {hasBulkCostOnFile && validUnits && correctedUnitCost !== null && (
           <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
             <div className="text-gray-500 dark:text-gray-400">Proposed unit cost</div>
             <div className="text-right font-semibold text-green-600 dark:text-green-400">{money(correctedUnitCost)}</div>
@@ -168,14 +149,19 @@ export function BulkQuantityCorrectionModal({ businessId, itemId, row, onClose, 
             </div>
           </div>
         )}
+        {!hasBulkCostOnFile && validUnits && (
+          <p className="mt-3 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg p-2.5">
+            Cost price will stay at {money(row.costPrice)} — only the pack size is being recorded.
+          </p>
+        )}
 
         <div className="flex items-center gap-2 mt-4">
           <button
             onClick={handleConfirm}
-            disabled={!canSave || saving}
+            disabled={!validUnits || saving}
             className="flex-1 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-medium"
           >
-            {saving ? 'Saving…' : 'Confirm Correction'}
+            {saving ? 'Saving…' : hasBulkCostOnFile ? 'Confirm Correction' : 'Save Pack Size'}
           </button>
           <button
             onClick={onClose}
@@ -184,12 +170,14 @@ export function BulkQuantityCorrectionModal({ businessId, itemId, row, onClose, 
             Cancel
           </button>
         </div>
-        <button
-          onClick={onOpenFullEditor}
-          className="w-full mt-2 py-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline"
-        >
-          Open Full Item Editor{!hasBulkCostOnFile ? ' — also adjust cost price' : ''}
-        </button>
+        {canEditCost && (
+          <button
+            onClick={onOpenFullEditor}
+            className="w-full mt-2 py-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            Open Full Item Editor{!hasBulkCostOnFile ? ' — also set up the bulk cost' : ''}
+          </button>
+        )}
       </div>
     </div>
   )

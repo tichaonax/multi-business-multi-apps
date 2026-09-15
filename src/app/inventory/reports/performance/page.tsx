@@ -11,6 +11,7 @@ import { ProductCell } from '@/components/inventory/report-product-cell'
 import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
 import { Pagination } from '@/components/ui/pagination'
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
+import { useFillViewportHeight } from '@/hooks/use-fill-viewport-height'
 import '@/styles/print-report.css'
 
 interface PerformanceRow {
@@ -78,6 +79,7 @@ export default function ProductPerformanceReportPage() {
   const [reportData, setReportData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { ref: fillRef, style: fillStyle } = useFillViewportHeight([loading, reportData])
   const [page, setPage] = useState(1)
   const { pageSize, setPageSize, isOverridden, resetToDefault } = usePageSize()
 
@@ -123,7 +125,7 @@ export default function ProductPerformanceReportPage() {
   const pagedRows = rows.slice((page - 1) * pageSize, page * pageSize)
 
   return (
-    <div className="report-print-container flex flex-col bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 64px)' }}>
+    <div ref={fillRef} className="report-print-container flex flex-col bg-gray-50 dark:bg-gray-900" style={fillStyle}>
       <div className="flex-shrink-0 p-4 md:p-6 pb-0">
         <div className="flex items-center gap-2 text-xs text-secondary mb-1">
           <Link href="/inventory" className="hover:underline">Inventory</Link>
