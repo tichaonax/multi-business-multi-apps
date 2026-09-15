@@ -22,7 +22,7 @@ interface Props {
   /** Whether this user may see/use "Open Full Item Editor" — that path can change the cost price directly, so it requires inventory-edit permission. Anyone who can see this report can still use this modal to fix the pack quantity. */
   canEditCost: boolean
   onClose: () => void
-  onSaved: () => void
+  onSaved: (result: { unitsPerPack: number; costPrice: number | null }) => void
   onOpenFullEditor: () => void
 }
 
@@ -73,7 +73,7 @@ export function BulkQuantityCorrectionModal({ businessId, itemId, row, canEditCo
         return
       }
       toast.push(hasBulkCostOnFile ? 'Unit cost corrected' : 'Pack quantity recorded')
-      onSaved()
+      onSaved({ unitsPerPack: data.unitsPerPack ?? parsedUnits, costPrice: data.costPrice ?? null })
     } catch {
       toast.error('Failed to save correction')
     } finally {

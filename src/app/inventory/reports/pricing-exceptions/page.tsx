@@ -300,10 +300,46 @@ export default function PricingExceptionsReportPage() {
     setActiveRow(null)
   }
 
-  function handleCorrectionSaved() {
+  function handleCorrectionSaved(result: { unitsPerPack: number; costPrice: number | null }) {
+    // Patch the row in place instead of re-fetching the whole report: a
+    // re-fetch re-runs the exception rules server-side, and a
+    // now-corrected row can legitimately no longer qualify as an exception
+    // — silently dropping it out of the list right after the user fixed it
+    // reads as "did that even work?" Keep it visible with the corrected
+    // numbers; a manual refresh is what re-applies the exception filter.
+    const correctedId = activeRow?.id
+    if (correctedId) {
+      setReportData(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          data: prev.data.map(r => {
+            if (r.id !== correctedId) return r
+            const newCost: number | null = result.costPrice ?? r.costPrice
+            const newUnitProfitLoss = newCost !== null && r.sellingPrice !== null ? r.sellingPrice - newCost : r.unitProfitLoss
+            const divisor = Math.max(r.quantityOnHand, r.quantitySoldInPeriod)
+            const newTotalPL = newUnitProfitLoss !== null ? newUnitProfitLoss * divisor : r.totalPotentialProfitLoss
+            const newMarginPct = newCost !== null && r.sellingPrice !== null && r.sellingPrice > 0
+              ? ((r.sellingPrice - newCost) / r.sellingPrice) * 100
+              : r.grossMarginPct
+            return {
+              ...r,
+              unitsPerPack: result.unitsPerPack,
+              costPrice: newCost,
+              unitProfitLoss: newUnitProfitLoss,
+              totalPotentialProfitLoss: newTotalPL,
+              grossMarginPct: newMarginPct,
+              // The specific issue just fixed no longer applies — other
+              // flags (if any still apply with the new numbers) are left
+              // as-is until the next real refresh recomputes them properly.
+              flags: r.flags.filter(f => f.type !== 'BULK_COST_ALLOCATION_ISSUE'),
+            }
+          }),
+        }
+      })
+    }
     setShowQuickModal(false)
     setActiveRow(null)
-    loadReport()
   }
 
   function exportCsv() {
