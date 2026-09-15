@@ -8,6 +8,9 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getLocalDateString } from '@/lib/utils'
 import { ProductCell } from '@/components/inventory/report-product-cell'
+import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
+import { Pagination } from '@/components/ui/pagination'
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 import '@/styles/print-report.css'
 
 interface ReorderRow {
@@ -177,6 +180,8 @@ export default function ReorderReportPage() {
   const [error, setError] = useState<string | null>(null)
   const [urgencyFilter, setUrgencyFilter] = useState<'all' | 'critical' | 'low'>('all')
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const { pageSize, setPageSize, isOverridden, resetToDefault } = usePageSize()
   // MBM-296 §8 — off by default so the existing "needs reorder now" view is
   // unchanged; on, the report becomes the full Minimum-Stock Recommendation
   // view (every product, including ones already above their minimum).
@@ -232,6 +237,11 @@ export default function ReorderReportPage() {
     )
   })
 
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const pagedRows = rows.slice((page - 1) * pageSize, page * pageSize)
+
+  useEffect(() => { setPage(1) }, [search, urgencyFilter, showAllProducts, pageSize])
+
   return (
     <div className="report-print-container flex flex-col bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 64px)' }}>
       {/* ── Fixed top section ── */}
@@ -250,6 +260,15 @@ export default function ReorderReportPage() {
               Click a product name to edit that item.
             </p>
           </div>
+        </div>
+
+        {/* Search */}
+        <div className="mb-4 no-print">
+          <ListSearchFilterBar
+            onSearchChange={setSearch}
+            searchLoading={loading}
+            searchPlaceholder="Search by name, SKU, category…"
+          />
         </div>
 
         {/* Date range + urgency filter */}
@@ -323,13 +342,6 @@ export default function ReorderReportPage() {
                 {search ? `${rows.length} of ${reportData.data.length} items` : `${reportData.data.length} items`}
               </p>
               <div className="flex items-center gap-2 no-print">
-                <input
-                  type="search"
-                  placeholder="Search by name, SKU, category…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="px-3 py-1.5 text-sm border border-border rounded-lg bg-white dark:bg-gray-700 text-primary w-52 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
                 {reportData.data.length > 0 && (
                   <button
                     onClick={() => exportCsv(rows)}
@@ -374,7 +386,7 @@ export default function ReorderReportPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {rows.map((row) => (
+                    {pagedRows.map((row) => (
                       <tr
                         key={row.variantId}
                         className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
@@ -477,6 +489,20 @@ export default function ReorderReportPage() {
                   </tbody>
                 </table>
               )}
+            </div>
+            <div className="px-4 py-3 border-t border-border flex-shrink-0 no-print">
+              <Pagination
+                currentPage={page}
+                totalPages={totalPages}
+                totalItems={rows.length}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                loading={loading}
+                pageSizeOptions={PAGE_SIZE_OPTIONS}
+                onPageSizeChange={setPageSize}
+                isPageSizeOverridden={isOverridden}
+                onResetPageSize={resetToDefault}
+              />
             </div>
           </div>
         )}

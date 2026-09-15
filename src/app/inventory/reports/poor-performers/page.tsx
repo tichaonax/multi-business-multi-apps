@@ -8,6 +8,9 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getLocalDateString } from '@/lib/utils'
 import { ProductCell } from '@/components/inventory/report-product-cell'
+import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
+import { Pagination } from '@/components/ui/pagination'
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 import '@/styles/print-report.css'
 
 interface PoorPerformerRow {
@@ -75,6 +78,7 @@ export default function PoorPerformersReportPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
+  const { pageSize, setPageSize, isOverridden, resetToDefault } = usePageSize()
 
   const loadReport = useCallback(async () => {
     if (!currentBusinessId) return
@@ -86,7 +90,8 @@ export default function PoorPerformersReportPage() {
         startDate: getLocalDateString(dateRange.start),
         endDate: getLocalDateString(dateRange.end),
         page: String(page),
-        limit: '50',
+        limit: String(pageSize),
+        ...(search.trim() ? { search: search.trim() } : {}),
       })
       const res = await fetch(`/api/universal/reports/poor-performers?${params}`)
       const json = await res.json()
@@ -97,15 +102,15 @@ export default function PoorPerformersReportPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentBusinessId, dateRange, page])
+  }, [currentBusinessId, dateRange, page, pageSize, search])
 
   useEffect(() => { loadReport() }, [loadReport])
+  useEffect(() => { setPage(1) }, [search, criterionFilter, pageSize])
 
+  // Search is applied server-side (against the full catalog, not just this
+  // page) — only the reason-type filter still narrows client-side, since
+  // it's cheap and doesn't need to affect the reported total/pagination.
   let rows = reportData?.data ?? []
-  if (search.trim()) {
-    const q = search.toLowerCase()
-    rows = rows.filter(r => r.name.toLowerCase().includes(q) || (r.sku ?? '').toLowerCase().includes(q))
-  }
   if (criterionFilter) rows = rows.filter(r => r.criteria.includes(criterionFilter))
 
   function exportCsv() {
@@ -138,19 +143,19 @@ export default function PoorPerformersReportPage() {
         <h1 className="text-xl font-bold text-primary">Poor-Performing &amp; Loss-Making Stock</h1>
         <p className="text-sm text-secondary mt-0.5">Slow-moving, non-moving, excess, loss-making and poorly-priced stock, drawn from the same underlying data as the other inventory reports.</p>
 
-        <div className="flex flex-wrap items-end gap-3 my-4 no-print">
+        <div className="my-4 no-print">
+          <ListSearchFilterBar
+            onSearchChange={setSearch}
+            searchLoading={loading}
+            searchPlaceholder="Search by name, SKU, or barcode…"
+          />
+        </div>
+        <div className="flex flex-wrap items-end gap-3 mb-4 no-print">
           <DateRangeSelector value={dateRange} onChange={setDateRange} />
           <select value={criterionFilter} onChange={e => setCriterionFilter(e.target.value)} className="px-3 py-1.5 text-sm border border-border rounded-lg bg-white dark:bg-gray-800 text-primary">
             <option value="">All reasons</option>
             {Object.entries(CRITERION_LABEL).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
           </select>
-          <input
-            type="search"
-            placeholder="Search by name, SKU…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="px-3 py-1.5 text-sm border border-border rounded-lg bg-white dark:bg-gray-800 text-primary w-56"
-          />
         </div>
 
         {reportData && (
@@ -187,8 +192,6 @@ export default function PoorPerformersReportPage() {
               <div className="flex items-center gap-2 no-print">
                 <button onClick={exportCsv} className="text-xs px-2 py-1 border border-border rounded hover:border-gray-400">Export CSV</button>
                 <button onClick={() => window.print()} className="text-xs px-2 py-1 border border-border rounded hover:border-gray-400">Print / Save as PDF</button>
-                <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="text-xs px-2 py-1 border border-border rounded disabled:opacity-40">← Prev</button>
-                <button disabled={page >= reportData.pagination.totalPages} onClick={() => setPage(p => p + 1)} className="text-xs px-2 py-1 border border-border rounded disabled:opacity-40">Next →</button>
               </div>
             </div>
 
@@ -243,6 +246,20 @@ export default function PoorPerformersReportPage() {
                   </tbody>
                 </table>
               )}
+            </div>
+            <div className="px-4 py-3 border-t border-border flex-shrink-0 no-print">
+              <Pagination
+                currentPage={page}
+                totalPages={Math.max(1, reportData.pagination.totalPages)}
+                totalItems={reportData.pagination.total}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                loading={loading}
+                pageSizeOptions={PAGE_SIZE_OPTIONS}
+                onPageSizeChange={setPageSize}
+                isPageSizeOverridden={isOverridden}
+                onResetPageSize={resetToDefault}
+              />
             </div>
           </div>
         )}

@@ -10,6 +10,7 @@ import { DateRangeSelector, DateRange } from '@/components/reports/date-range-se
 import { getLocalDateString } from '@/lib/utils'
 import { Pagination } from '@/components/ui/pagination'
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
+import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
 
 const defaultDateRange = (): DateRange => {
   const end = new Date()
@@ -53,7 +54,6 @@ export default function PriceChangesReportPage() {
   const [loading, setLoading] = useState(true)
   const [allTime, setAllTime] = useState(true)
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange)
-  const [search, setSearch] = useState('')
   const [searchDebounced, setSearchDebounced] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -70,11 +70,6 @@ export default function PriceChangesReportPage() {
     isOverridden: isPageSizeOverridden,
     resetToDefault: resetPageSizeToDefault,
   } = usePageSize()
-
-  useEffect(() => {
-    const timer = setTimeout(() => setSearchDebounced(search), 300)
-    return () => clearTimeout(timer)
-  }, [search])
 
   useEffect(() => {
     const loadReports = async () => {
@@ -159,16 +154,11 @@ export default function PriceChangesReportPage() {
           </div>
 
           {/* Filters */}
-          <div className="flex items-center gap-4 flex-wrap">
-            <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Search:</label>
-            <input
-              type="text"
-              placeholder="Search by product or user..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 text-sm"
-            />
-          </div>
+          <ListSearchFilterBar
+            onSearchChange={setSearchDebounced}
+            searchLoading={loading}
+            searchPlaceholder="Search by product or user..."
+          />
         </div>
       </div>
 

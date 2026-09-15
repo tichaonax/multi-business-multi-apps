@@ -8,6 +8,9 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getLocalDateString } from '@/lib/utils'
 import { ProductCell } from '@/components/inventory/report-product-cell'
+import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
+import { Pagination } from '@/components/ui/pagination'
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 import '@/styles/print-report.css'
 
 interface ValueRow {
@@ -60,6 +63,7 @@ export default function InventoryValueReportPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
+  const { pageSize, setPageSize, isOverridden, resetToDefault } = usePageSize()
 
   const loadReport = useCallback(async () => {
     if (!currentBusinessId) return
@@ -71,7 +75,7 @@ export default function InventoryValueReportPage() {
         startDate: getLocalDateString(dateRange.start),
         endDate: getLocalDateString(dateRange.end),
         page: String(page),
-        limit: '50',
+        limit: String(pageSize),
       })
       if (search.trim()) params.set('search', search.trim())
       const res = await fetch(`/api/universal/reports/inventory-value?${params}`)
@@ -83,9 +87,10 @@ export default function InventoryValueReportPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentBusinessId, dateRange, search, page])
+  }, [currentBusinessId, dateRange, search, page, pageSize])
 
   useEffect(() => { loadReport() }, [loadReport])
+  useEffect(() => { setPage(1) }, [search, viewMode, pageSize])
 
   const rows = reportData?.data ?? []
 
@@ -133,12 +138,12 @@ export default function InventoryValueReportPage() {
               </button>
             ))}
           </div>
-          <input
-            type="search"
-            placeholder="Search by name, SKU, barcode…"
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1) }}
-            className="px-3 py-1.5 text-sm border border-border rounded-lg bg-white dark:bg-gray-800 text-primary w-56"
+        </div>
+        <div className="mb-4 no-print">
+          <ListSearchFilterBar
+            onSearchChange={setSearch}
+            searchLoading={loading}
+            searchPlaceholder="Search by name, SKU, or barcode…"
           />
         </div>
 
@@ -180,8 +185,6 @@ export default function InventoryValueReportPage() {
               <div className="flex items-center gap-2 no-print">
                 <button onClick={exportCsv} className="text-xs px-2 py-1 border border-border rounded hover:border-gray-400">Export CSV</button>
                 <button onClick={() => window.print()} className="text-xs px-2 py-1 border border-border rounded hover:border-gray-400">Print / Save as PDF</button>
-                <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="text-xs px-2 py-1 border border-border rounded disabled:opacity-40">← Prev</button>
-                <button disabled={page >= reportData.pagination.totalPages} onClick={() => setPage(p => p + 1)} className="text-xs px-2 py-1 border border-border rounded disabled:opacity-40">Next →</button>
               </div>
             </div>
 
@@ -253,6 +256,20 @@ export default function InventoryValueReportPage() {
                   </tbody>
                 </table>
               )}
+            </div>
+            <div className="px-4 py-3 border-t border-border flex-shrink-0 no-print">
+              <Pagination
+                currentPage={page}
+                totalPages={Math.max(1, reportData.pagination.totalPages)}
+                totalItems={reportData.pagination.total}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                loading={loading}
+                pageSizeOptions={PAGE_SIZE_OPTIONS}
+                onPageSizeChange={setPageSize}
+                isPageSizeOverridden={isOverridden}
+                onResetPageSize={resetToDefault}
+              />
             </div>
           </div>
         )}

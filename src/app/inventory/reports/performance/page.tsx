@@ -8,6 +8,9 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getLocalDateString } from '@/lib/utils'
 import { ProductCell } from '@/components/inventory/report-product-cell'
+import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
+import { Pagination } from '@/components/ui/pagination'
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 import '@/styles/print-report.css'
 
 interface PerformanceRow {
@@ -75,6 +78,8 @@ export default function ProductPerformanceReportPage() {
   const [reportData, setReportData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const { pageSize, setPageSize, isOverridden, resetToDefault } = usePageSize()
 
   const loadReport = useCallback(async () => {
     if (!currentBusinessId) return
@@ -95,6 +100,7 @@ export default function ProductPerformanceReportPage() {
   }, [currentBusinessId, dateRange])
 
   useEffect(() => { loadReport() }, [loadReport])
+  useEffect(() => { setPage(1) }, [search, profitabilityFilter, sortBy, pageSize])
 
   let rows = reportData?.data ?? []
   if (search.trim()) {
@@ -113,6 +119,9 @@ export default function ProductPerformanceReportPage() {
     return (b.grossMarginPct ?? -Infinity) - (a.grossMarginPct ?? -Infinity)
   })
 
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const pagedRows = rows.slice((page - 1) * pageSize, page * pageSize)
+
   return (
     <div className="report-print-container flex flex-col bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 64px)' }}>
       <div className="flex-shrink-0 p-4 md:p-6 pb-0">
@@ -128,7 +137,14 @@ export default function ProductPerformanceReportPage() {
           Sales, revenue and profitability for the selected period. Cost of goods sold uses today&apos;s cost price, not the price at the time of each historical sale — flag &quot;unreliable pricing&quot; items before trusting their margin figures.
         </p>
 
-        <div className="flex flex-wrap items-end gap-3 my-4 no-print">
+        <div className="my-4 no-print">
+          <ListSearchFilterBar
+            onSearchChange={setSearch}
+            searchLoading={loading}
+            searchPlaceholder="Search by name, SKU, category…"
+          />
+        </div>
+        <div className="flex flex-wrap items-end gap-3 mb-4 no-print">
           <DateRangeSelector value={dateRange} onChange={setDateRange} />
           <select value={profitabilityFilter} onChange={e => setProfitabilityFilter(e.target.value as any)} className="px-3 py-1.5 text-sm border border-border rounded-lg bg-white dark:bg-gray-800 text-primary">
             <option value="ALL">All products</option>
@@ -143,13 +159,6 @@ export default function ProductPerformanceReportPage() {
             <option value="grossProfit">Sort: Gross profit</option>
             <option value="margin">Sort: Margin %</option>
           </select>
-          <input
-            type="search"
-            placeholder="Search by name, SKU, category…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="px-3 py-1.5 text-sm border border-border rounded-lg bg-white dark:bg-gray-800 text-primary w-56"
-          />
           {rows.length > 0 && (
             <button onClick={() => exportCsv(rows)} className="btn-secondary text-sm px-3 py-1.5">Export CSV</button>
           )}
@@ -186,7 +195,7 @@ export default function ProductPerformanceReportPage() {
         {!loading && reportData && (
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-border flex flex-col h-full">
             <div className="overflow-auto flex-1">
-              {rows.length === 0 ? (
+              {pagedRows.length === 0 ? (
                 <div className="text-center py-12 text-secondary text-sm">No products match the current filters.</div>
               ) : (
                 <table className="w-full text-sm border-separate border-spacing-0">
@@ -204,7 +213,7 @@ export default function ProductPerformanceReportPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {rows.map(row => (
+                    {pagedRows.map(row => (
                       <tr key={row.id} className={!row.pricingDataReliable ? 'bg-amber-50/40 dark:bg-amber-900/10' : 'bg-white dark:bg-gray-800'}>
                         <td className="px-3 py-2.5">
                           <ProductCell
@@ -234,6 +243,20 @@ export default function ProductPerformanceReportPage() {
                   </tbody>
                 </table>
               )}
+            </div>
+            <div className="px-4 py-3 border-t border-border flex-shrink-0 no-print">
+              <Pagination
+                currentPage={page}
+                totalPages={totalPages}
+                totalItems={rows.length}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                loading={loading}
+                pageSizeOptions={PAGE_SIZE_OPTIONS}
+                onPageSizeChange={setPageSize}
+                isPageSizeOverridden={isOverridden}
+                onResetPageSize={resetToDefault}
+              />
             </div>
           </div>
         )}

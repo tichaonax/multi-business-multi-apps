@@ -384,7 +384,7 @@ function ReceiptHistoryPageContent() {
             page scroll, and any overflow-x-auto ancestor silently traps the
             sticky computation inside itself per the CSS overflow-axis-
             coupling rule). */}
-        <div ref={filtersRef} className="sticky top-14 sm:top-16 z-20 bg-background pb-2">
+        <div ref={filtersRef} className="sticky top-14 sm:top-16 z-20 bg-background pt-3 pb-2">
         <ListSearchFilterBar
           onSearchChange={handleSearch}
           searchLoading={loading}
