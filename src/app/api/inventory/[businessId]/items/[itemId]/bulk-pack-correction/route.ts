@@ -9,13 +9,13 @@ import { recordPriceChangeIfDifferent } from '@/lib/inventory/price-history'
  * POST /api/inventory/[businessId]/items/[itemId]/bulk-pack-correction
  *
  * MBM-297 — the quick "Fix" action from the Pricing, Cost & Value Exceptions
- * report's Bulk Cost Allocation Issue flag. Deliberately narrow: the ONLY
- * thing this endpoint accepts is a corrected `unitsPerPack` for a product
- * that already has a `bulkPackCost` on file — it never accepts or guesses a
- * bulk cost, selling price, or stock balance change. A product with no bulk
- * cost on file at all must go through the full item editor instead (see
- * `UniversalInventoryForm`'s bulk-pack fields), since establishing one may
- * require the cost price to be corrected too, which this endpoint won't do.
+ * report's Bulk Cost Allocation Issue flag. Always requires an explicit
+ * `unitsPerPack`. `bulkPackCost` is optional: when the item already has one
+ * on file, it's reused as-is (the endpoint never overwrites a recorded bulk
+ * cost by itself); when none is on file yet, the caller must supply the real
+ * case/pack cost here — this endpoint never guesses one from the existing
+ * per-unit `costPrice`. Either way the persisted per-unit cost is always the
+ * computed `bulkPackCost ÷ unitsPerPack`, never a raw guess.
  */
 export async function POST(
   request: NextRequest,
@@ -34,6 +34,12 @@ export async function POST(
     if (!Number.isFinite(unitsPerPack) || unitsPerPack <= 0) {
       return NextResponse.json({ error: 'Units per pack must be a positive whole number' }, { status: 400 })
     }
+    const suppliedBulkPackCost = body.bulkPackCost !== undefined && body.bulkPackCost !== null && body.bulkPackCost !== ''
+      ? parseFloat(body.bulkPackCost)
+      : null
+    if (body.bulkPackCost !== undefined && body.bulkPackCost !== null && body.bulkPackCost !== '' && (!Number.isFinite(suppliedBulkPackCost) || (suppliedBulkPackCost as number) <= 0)) {
+      return NextResponse.json({ error: 'Case/pack cost must be a positive number' }, { status: 400 })
+    }
 
     const isBarcodeItem = itemId.startsWith('inv_')
     const rawId = isBarcodeItem ? itemId.replace(/^inv_/, '') : itemId
@@ -42,9 +48,10 @@ export async function POST(
       const existing = await prisma.barcodeInventoryItems.findFirst({ where: { id: rawId, businessId } })
       if (!existing) return NextResponse.json({ error: 'Item not found' }, { status: 404 })
 
-      const bulkPackCost = existing.bulkPackCost ? parseFloat(existing.bulkPackCost.toString()) : null
+      const existingBulkPackCost = existing.bulkPackCost ? parseFloat(existing.bulkPackCost.toString()) : null
+      const bulkPackCost = existingBulkPackCost ?? suppliedBulkPackCost
       if (bulkPackCost === null || bulkPackCost <= 0) {
-        return NextResponse.json({ error: 'No bulk-pack cost is on file for this item — use the full item editor to set one up first' }, { status: 400 })
+        return NextResponse.json({ error: 'A case/pack cost is required to calculate the unit cost' }, { status: 400 })
       }
 
       const oldCostPrice = existing.costPrice ? parseFloat(existing.costPrice.toString()) : null
@@ -52,7 +59,7 @@ export async function POST(
 
       await prisma.barcodeInventoryItems.update({
         where: { id: rawId },
-        data: { unitsPerPack, costPrice: correctedUnitCost, updatedAt: new Date() },
+        data: { unitsPerPack, bulkPackCost, costPrice: correctedUnitCost, updatedAt: new Date() },
       })
 
       await Promise.all([
@@ -86,9 +93,10 @@ export async function POST(
     const existing = await prisma.businessProducts.findFirst({ where: { id: rawId, businessId } })
     if (!existing) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
 
-    const bulkPackCost = existing.bulkPackCost ? parseFloat(existing.bulkPackCost.toString()) : null
+    const existingBulkPackCost = existing.bulkPackCost ? parseFloat(existing.bulkPackCost.toString()) : null
+    const bulkPackCost = existingBulkPackCost ?? suppliedBulkPackCost
     if (bulkPackCost === null || bulkPackCost <= 0) {
-      return NextResponse.json({ error: 'No bulk-pack cost is on file for this product — use the full item editor to set one up first' }, { status: 400 })
+      return NextResponse.json({ error: 'A case/pack cost is required to calculate the unit cost' }, { status: 400 })
     }
 
     const oldCostPrice = existing.costPrice ? parseFloat(existing.costPrice.toString()) : null
@@ -96,7 +104,7 @@ export async function POST(
 
     await prisma.businessProducts.update({
       where: { id: rawId },
-      data: { unitsPerPack, costPrice: correctedUnitCost, updatedAt: new Date() },
+      data: { unitsPerPack, bulkPackCost, costPrice: correctedUnitCost, updatedAt: new Date() },
     })
 
     await Promise.all([

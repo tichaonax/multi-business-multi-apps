@@ -12,6 +12,7 @@ import { useConfirm } from '@/components/ui/confirm-modal'
 import { useToastContext } from '@/components/ui/toast'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { PricingCalculator } from '@/components/inventory/pricing-calculator'
+import { BulkCostEntryPopover } from '@/components/inventory/bulk-cost-entry-popover'
 
 interface BulkStockRow {
   rowId: string
@@ -28,6 +29,11 @@ interface BulkStockRow {
   quantity: string
   sellingPrice: string
   costPrice: string
+  // MBM-297 — when set, `costPrice` above is the computed per-unit cost
+  // derived from these two (bulkPackCost ÷ unitsPerPack), never a raw
+  // guess. Blank when this row's cost was entered as a plain per-unit cost.
+  unitsPerPack: string
+  bulkPackCost: string
   sku: string
   isFreeItem: boolean
   isExistingItem: boolean
@@ -110,6 +116,8 @@ function makeRow(overrides: Partial<BulkStockRow> = {}): BulkStockRow {
     quantity: '',
     sellingPrice: '',
     costPrice: '',
+    unitsPerPack: '',
+    bulkPackCost: '',
     sku: '',
     isFreeItem: false,
     isExistingItem: false,
@@ -460,6 +468,11 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
           currentStock: item.systemQuantity ?? 0,
           sellingPrice: String(item.sellingPrice || ''),
           costPrice: item.costPrice != null ? String(item.costPrice) : '',
+          // MBM-297 — flag items already recorded as bought in bulk/case
+          // packs so the stock-take screen doesn't treat them as plain
+          // per-unit items when new stock is added against them.
+          unitsPerPack: item.unitsPerPack != null ? String(item.unitsPerPack) : '',
+          bulkPackCost: item.bulkPackCost != null ? String(item.bulkPackCost) : '',
           sku: item.sku || '',
           supplierId: item.supplierId || '',
           description: (item as any).description || '',
@@ -705,6 +718,8 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
         newQuantity: r.quantity ? Number(r.quantity) : 0,
         sellingPrice: r.sellingPrice ? Number(r.sellingPrice) : 0,
         costPrice: r.costPrice ? Number(r.costPrice) : undefined,
+        unitsPerPack: r.unitsPerPack ? Number(r.unitsPerPack) : undefined,
+        bulkPackCost: r.bulkPackCost ? Number(r.bulkPackCost) : undefined,
         sku: r.sku || undefined,
         isExistingItem: r.isExistingItem,
         systemQuantity: r.currentStock ?? undefined,
@@ -838,6 +853,8 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
           quantity: item.newQuantity != null ? String(item.newQuantity) : '',
           sellingPrice: item.sellingPrice != null ? String(item.sellingPrice) : '',
           costPrice: item.costPrice != null ? String(item.costPrice) : '',
+          unitsPerPack: item.unitsPerPack != null ? String(item.unitsPerPack) : '',
+          bulkPackCost: item.bulkPackCost != null ? String(item.bulkPackCost) : '',
           sku: item.sku || '',
           supplierId: item.supplierId || '',
           description: item.description || '',
@@ -1157,6 +1174,8 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
             quantity: Number(r.quantity),
             sellingPrice: r.isFreeItem ? 0 : Number(r.sellingPrice),
             costPrice: r.costPrice ? Number(r.costPrice) : undefined,
+            unitsPerPack: r.unitsPerPack ? Number(r.unitsPerPack) : undefined,
+            bulkPackCost: r.bulkPackCost ? Number(r.bulkPackCost) : undefined,
             sku: r.sku.trim() || undefined,
             physicalCount: r.isExistingItem && r.physicalCount !== '' ? Number(r.physicalCount) : undefined,
             expiryDate: r.expiryDate || undefined,
@@ -1959,6 +1978,8 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
   // nearly every row on load, unrequested. It should only open when the
   // user actually focuses that row's Sell Price field.
   const [calcOpen, setCalcOpen] = useState(false)
+  // MBM-297 — inline popover for explicit bulk/case cost entry on this row's Cost field
+  const [bulkPopoverOpen, setBulkPopoverOpen] = useState(false)
 
   // ── Suggest Classification ──────────────────────────────────────────────────
   type SuggestItem = {
@@ -2360,11 +2381,37 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
           className="w-4 h-4 cursor-pointer accent-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed" />
       </td>
 
-      {/* Cost — always editable (required field) */}
-      <td className="px-2 py-1.5">
-        <input type="number" min="0" step="0.01" value={row.costPrice}
-          onChange={e => { onChange({ costPrice: e.target.value }); setCalcDismissed(false) }}
-          className={`${inputClass} w-full text-center ${!row.isFreeItem && inv('costPrice') ? 'border-red-400 dark:border-red-500' : ''}`} placeholder="cost" />
+      {/* Cost — always editable (required field). MBM-297: the 📦 toggle
+          makes it explicit when the entered/recorded cost is for a whole
+          case/pack rather than one unit, instead of silently accepting
+          whatever number is typed as if it were always a per-unit cost. */}
+      <td className="px-2 py-1.5 relative">
+        <div className="flex items-center gap-1">
+          <input type="number" min="0" step="0.01" value={row.costPrice}
+            onChange={e => onChange({ costPrice: e.target.value })}
+            className={`${inputClass} w-full text-center ${!row.isFreeItem && inv('costPrice') ? 'border-red-400 dark:border-red-500' : ''}`} placeholder="cost" />
+          <button
+            type="button"
+            title={row.unitsPerPack && row.bulkPackCost ? 'Bulk/case cost on file — click to edit' : 'This cost is for a whole case/pack?'}
+            onClick={() => setBulkPopoverOpen(v => !v)}
+            className={`shrink-0 text-xs leading-none px-1 py-1 rounded ${row.unitsPerPack && row.bulkPackCost ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-300 dark:text-gray-600 hover:text-indigo-500'}`}
+          >📦</button>
+        </div>
+        {row.unitsPerPack && row.bulkPackCost && (
+          <div className="text-[9px] text-indigo-500 dark:text-indigo-400 leading-none mt-0.5 text-center">
+            {row.unitsPerPack}×${Number(row.bulkPackCost).toFixed(2)}/case
+          </div>
+        )}
+        {bulkPopoverOpen && (
+          <BulkCostEntryPopover
+            costPrice={row.costPrice}
+            unitsPerPack={row.unitsPerPack}
+            bulkPackCost={row.bulkPackCost}
+            onApply={patch => { onChange(patch); setBulkPopoverOpen(false) }}
+            onClear={() => { onChange({ unitsPerPack: '', bulkPackCost: '' }); setBulkPopoverOpen(false) }}
+            onClose={() => setBulkPopoverOpen(false)}
+          />
+        )}
       </td>
 
       {/* SKU */}

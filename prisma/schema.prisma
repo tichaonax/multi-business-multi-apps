@@ -7100,6 +7100,11 @@ model StockTakeDraftItems {
   newQuantity            Int
   sellingPrice           Decimal   @db.Decimal(12, 2)
   costPrice              Decimal?  @db.Decimal(12, 2)
+  // MBM-297 — carries the row's explicit case/pack cost entry (if any)
+  // through the draft save/resume round-trip; `costPrice` above stays the
+  // computed per-unit cost either way.
+  unitsPerPack           Int?
+  bulkPackCost           Decimal?  @db.Decimal(10, 2)
   sku                    String?
   isExistingItem         Boolean   @default(false)
   systemQuantity         Int?

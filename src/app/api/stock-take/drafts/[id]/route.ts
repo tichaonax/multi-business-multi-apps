@@ -80,6 +80,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
             newQuantity: Number(item.newQuantity) || 0,
             sellingPrice: Number(item.sellingPrice) || 0,
             costPrice: item.costPrice !== undefined && item.costPrice !== '' ? Number(item.costPrice) : null,
+            unitsPerPack: item.unitsPerPack !== undefined && item.unitsPerPack !== '' ? Number(item.unitsPerPack) : null,
+            bulkPackCost: item.bulkPackCost !== undefined && item.bulkPackCost !== '' ? Number(item.bulkPackCost) : null,
             sku: item.sku?.trim() || null,
             isExistingItem: Boolean(item.isExistingItem),
             systemQuantity: item.systemQuantity !== undefined ? Number(item.systemQuantity) : null,

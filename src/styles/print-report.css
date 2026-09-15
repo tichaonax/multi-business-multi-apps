@@ -589,9 +589,22 @@
    since this content isn't sticky (only the global nav is), scrolling
    slides it up behind the nav instead of just being cut off cleanly.
    Fixing it here, once, covers every report that uses this shared class.
+
+   That alone wasn't sufficient: `MainLayout` (src/components/layout/
+   main-layout.tsx) wraps every page's content in a div with its own
+   `py-2 sm:py-3 pb-20` padding, which the report pages' own inline
+   `height: calc(100vh - 64px)` never accounted for. That padding (~8-12px
+   top, 80px bottom) was always pushing the container taller than the
+   actual remaining viewport space, forcing exactly the page-level scroll
+   `overflow: hidden` above was meant to prevent — the search bar (first
+   thing after the header inside the container) ends up partly scrolled
+   under the sticky global nav. `!important` is required here because the
+   conflicting height is set as an inline style on the element, which
+   normally wins over an external stylesheet rule.
    ====================== */
 .report-print-container {
   overflow: hidden;
+  height: calc(100vh - 160px) !important;
 }
 
 /* ======================
