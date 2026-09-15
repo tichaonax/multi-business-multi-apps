@@ -47,6 +47,17 @@ function normalizeProduct(product: any) {
   product.categoryEmoji = product.business_categories?.emoji ?? product.category?.emoji ?? null
   product.variants = product.variants || product.product_variants || []
   product.images = product.images || product.product_images || []
+  // MBM-297 Phase C — `imageUrl` is a plain string stored once at upload
+  // time (never derived), so list/card views that read it directly would
+  // otherwise never see a thumbnail even after one exists. Override it here,
+  // once, for every consumer of this route instead of duplicating this in
+  // each card component.
+  if (Array.isArray(product.images)) {
+    product.images = product.images.map((img: any) => {
+      const thumbnailId = img.images?.thumbnailImageId
+      return thumbnailId ? { ...img, imageUrl: `/api/images/${thumbnailId}` } : img
+    })
+  }
   product.business = product.business || null
 
   // Convert Prisma Decimal prices to numbers for variants
@@ -246,7 +257,8 @@ export async function GET(request: NextRequest) {
               orderBy: [
                 { isPrimary: 'desc' },
                 { sortOrder: 'asc' }
-              ]
+              ],
+              include: { images: { select: { thumbnailImageId: true } } }
             }
           }),
           weight_pricing_rules: {
@@ -533,7 +545,8 @@ export async function PUT(request: NextRequest) {
             orderBy: [
               { isPrimary: 'desc' },
               { sortOrder: 'asc' }
-            ]
+            ],
+            include: { images: { select: { thumbnailImageId: true } } }
           }
         }
       })
@@ -618,7 +631,8 @@ export async function PUT(request: NextRequest) {
             orderBy: [
               { isPrimary: 'desc' },
               { sortOrder: 'asc' }
-            ]
+            ],
+            include: { images: { select: { thumbnailImageId: true } } }
           }
         }
       })

@@ -13791,6 +13791,7 @@ These reports work across **both** of the app's inventory systems (the barcode/s
 
 **Common to every report on this page:**
 - **Product thumbnail + edit link** — each row shows the item's photo (or a "No image" placeholder) next to its name. For users with Manage Inventory permission (or admin), the name is a link straight to that item's edit screen; other users just see the plain name.
+- **Search** — every report has a search box (by name/SKU/barcode) with pagination and an adjustable page size beneath it. Search debounces briefly as you type.
 - **Export CSV** — downloads the currently filtered/sorted rows as a spreadsheet.
 - **Print / Save as PDF** — opens the browser's print dialog with a clean, filter-free layout; choose "Save as PDF" there for a PDF copy.
 
@@ -13808,10 +13809,23 @@ Lists every product with a pricing, cost, or value problem worth investigating. 
 - A price that looks like a decimal-entry error (e.g. 10× or 100× what it should be, based on cost).
 - A selling price far outside the average for its category (needs at least 5 similarly-priced products in the same category to compare against — shown as "insufficient peer data" otherwise).
 - A cost or selling price that changed sharply (more than 30% by default) since the last time it was recorded. Price-change history only starts from when this feature shipped — items whose price hasn't changed since then show no "previous price" yet.
+- **Margin above your configured maximum** (90% by default) — the mirror image of the low-margin check; not necessarily wrong, just worth a second look (could be a cost-side decimal error, or a legitimately premium item).
+- **Possible bulk cost error** — the classic mistake this flag catches: a case/box of stock gets bought and its *whole-case* cost gets entered as if it were the cost of *one unit*. Example: a case of 24 drinks bought for $6.70 total entered as costing $6.70 each, against a $0.50 selling price — the report would otherwise show a huge loss on every sale that isn't real. See "Fixing a Bulk Cost Error" just below.
 
 **Filters:** date range (affects "qty sold"/"last sold" only — the exceptions themselves reflect current data), severity, POS status, profitability status, and text search.
 
 **Reviewing an exception:** click the status pill next to any exception badge to mark it Reviewed, Corrected, Approved, Ignored, or Follow-up, with an optional note. **Approving a below-cost sale** requires Manage Inventory permission (or admin) and a written reason — the same safeguard pattern used elsewhere in the app for sensitive approvals.
+
+#### Fixing a Bulk Cost Error
+
+When a row is flagged with **⚠ Possible bulk cost error**, click **Fix** next to the Cost figure to open a small correction modal — the underlying report page stays open behind it, so your search/filters/scroll position are never lost.
+
+- **The only thing you can ever change here is Units per Pack / Case Quantity.** Cost figures in this modal are always read-only — that split is deliberate:
+  - **Anyone who can view this report** (Financial Data access, Manage Inventory, or admin) can correct the pack quantity. It's treated as a safe, non-financial correction — it never touches recorded sales.
+  - **If you also have Manage Inventory permission (or admin)** and no bulk cost is on file yet for this item, confirming the pack quantity *also* infers the case cost from the item's current (suspected-wrong) cost price and fully corrects the unit cost, margin, and this exception in one step.
+  - **If you don't have Manage Inventory permission**, the same action only records the pack size — the cost price is left exactly as it was. A banner in the modal explains this plainly, and the row keeps showing the raw pack-cost math (e.g. "$6.70 ÷ 24 = $0.28/unit") as a hint even before anyone finalizes it, so the original case cost is never lost from view.
+- After confirming, the row stays visible with a green "just fixed, was $X.XX" line under Cost, Margin, and Potential P/L — so you can immediately judge whether the fix looks right, and click **Fix** again right away if you spot a mistake. A full page reload is what actually re-checks whether the row still qualifies as an exception at all.
+- **Open Full Item Editor** (visible only with Manage Inventory permission) is always available from this modal for anything beyond a pack-size fix — for example when the cost price itself also needs correcting, not just the pack quantity.
 
 ### Inventory Value
 
@@ -13847,3 +13861,32 @@ By default this page only lists products already low on stock (see §27's Reorde
 - **Min Stock Status** — Below Min / At Min / Above Min, comparing current stock to the recommendation.
 
 This is decision support only — click **min N** in the Stock column (as before) to manually set the actual minimum stock level for any product.
+
+## 67. Bulk/Case Cost Entry — Bulk Stocking & Stock Take
+
+**Where:** Bulk Stocking and Stock Take (the same screen, two modes) — wherever you enter or receive stock quantities.
+
+This closes the same "bulk cost error" gap described in §66 at the point where it actually happens: receiving stock. If you buy a case of 24 drinks for $6.70 total, typing $6.70 straight into the Cost field would silently record it as $6.70 *per drink* — this feature gives you an explicit way to say "that number is for the whole case," so the system works out the real per-unit cost itself instead of guessing.
+
+**Two ways to enter a case cost, either one works:**
+- **The 📦 button next to any row's Cost field** — click it to open a small popover: enter the case/pack cost and how many units it contains, and it shows the computed per-unit cost live (e.g. "$6.70 ÷ 24 = $0.28/unit") before you apply it.
+- **The pricing calculator** (opens when you focus a row's Sell Price field) — has a "Qty per box" field right in it. Enter it and every suggested price, the landed cost, and the margin math shown all use the corrected per-unit cost immediately. Leaving it at 0 keeps the calculator working exactly as it always has. The correction (and the case-cost info on the row) is only saved once you actually pick a price from the calculator — not while you're still typing the quantity.
+- Either way, once a row has a recorded case cost, it shows a small **"24×$6.70/case"** caption under the Cost field, and margin/price warnings appear right there if the price you're choosing would land outside the policy range (the same 10%–90% band §66 checks).
+
+**Existing stock is flagged automatically.** When Stock Take loads your current inventory (or you resume a saved draft), any item that already has a recorded case cost shows that same "N×$X.XX/case" caption right away — so you can see at a glance which items are already tracked as bulk purchases before you touch anything.
+
+## 68. Product Photos — Camera, Crop & Background Removal
+
+**Where:** Any product/item's image upload dialog (POS Quick-Edit's image action, §61) → **📷 Take Photo / Upload (Crop & Edit)**.
+
+A guided pipeline for adding a properly-framed product photo, sitting alongside the older plain upload button (now labeled "quick, no crop") for when you just want to drop in an image with no fuss.
+
+**The flow:**
+1. **Take Photo** (phones/tablets only — desktop never shows this option) or **Upload From Device**.
+2. **Crop** — zoom, rotate, and reset freely; square (1:1) is recommended and selected by default, with a toggle to keep the original aspect ratio instead.
+3. **Remove Background** — runs automatically on the cropped photo (the first run in a session can take a few seconds while it downloads what it needs; it's faster after that) and shows the before/after side by side. Choose **Use This** to keep the background-removed version, or **Keep Original** if it didn't come out right — nothing is saved until you make that choice.
+4. The final image is automatically resized and a smaller thumbnail is generated — list and grid views across the app use that thumbnail instead of the full photo where one exists, so pages with lots of product images load faster.
+
+**Duplicate check:** if the exact same image (byte-for-byte) has already been uploaded somewhere, you'll see a note after uploading — it's a heads-up, not a block; both copies are kept in case that was intentional (e.g. reusing a supplier's stock photo on purpose).
+
+**Not part of this flow:** bulk uploads to the shared image pool (adding many reference photos at once for a whole category) stay a plain, unattended upload — walking through crop and background removal one at a time for a batch of files would defeat the point of doing it in bulk.
