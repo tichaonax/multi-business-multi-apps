@@ -264,6 +264,13 @@ model BusinessProducts {
   condition                   ProductCondition           @default(NEW)
   basePrice                   Decimal                    @db.Decimal(10, 2)
   costPrice                   Decimal?                   @db.Decimal(10, 2)
+  // MBM-297 — bulk-pack cost allocation. `costPrice` above is always the
+  // real INDIVIDUAL unit cost; these two exist only to let the system derive
+  // it correctly (bulkPackCost ÷ unitsPerPack) when a product is bought as a
+  // case/pack, instead of the whole case cost silently being saved as if it
+  // were one unit's cost.
+  unitsPerPack                Int?
+  bulkPackCost                Decimal?                   @db.Decimal(10, 2)
   isActive                    Boolean                    @default(true)
   businessType                String
   attributes                  Json?
@@ -5047,6 +5054,11 @@ model BarcodeInventoryItems {
   quantity                 Int                      @default(1)
   costPrice                Decimal?                 @db.Decimal(10, 2)
   sellingPrice             Decimal?                 @db.Decimal(10, 2)
+  // MBM-297 — same bulk-pack cost allocation concept as BusinessProducts
+  // above: `costPrice` is always the real individual unit cost; these let
+  // the system derive it correctly when this item was bought as a case/pack.
+  unitsPerPack             Int?
+  bulkPackCost             Decimal?                 @db.Decimal(10, 2)
   isActive                 Boolean                  @default(true)
   createdById              String
   createdAt                DateTime                 @default(now())
@@ -5230,6 +5242,7 @@ model PricingExceptionSettings {
   id                     String    @id @default(uuid())
   businessId             String    @unique
   minimumMarginPct       Decimal   @default(10) @db.Decimal(5, 2)
+  maximumMarginPct       Decimal   @default(90) @db.Decimal(5, 2)
   priceChangeAlertPct    Decimal   @default(30) @db.Decimal(5, 2)
   decimalErrorMultiples  Decimal[] @default([10, 100, 0.1, 0.01])
   benchmarkTolerancePct  Decimal   @default(50) @db.Decimal(5, 2)

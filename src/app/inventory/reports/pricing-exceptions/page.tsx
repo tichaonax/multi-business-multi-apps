@@ -11,6 +11,8 @@ import { ProductCell } from '@/components/inventory/report-product-cell'
 import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
 import { Pagination } from '@/components/ui/pagination'
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
+import { BulkQuantityCorrectionModal } from '@/components/inventory/bulk-quantity-correction-modal'
+import { UniversalInventoryForm } from '@/components/universal/inventory'
 import '@/styles/print-report.css'
 
 interface ExceptionFlag {
@@ -36,10 +38,12 @@ interface ExceptionRow {
   imageUrl: string | null
   editItemId: string
   sku: string | null
+  barcode: string | null
   category: string | null
   brand: string | null
   supplier: string | null
   location: string | null
+  unitOfMeasure: string | null
   quantityOnHand: number
   quantitySoldInPeriod: number
   lastStockedDate: string
@@ -48,8 +52,12 @@ interface ExceptionRow {
   sellingPrice: number | null
   previousCostPrice: number | null
   previousSellingPrice: number | null
+  unitsPerPack: number | null
+  bulkPackCost: number | null
+  hasBulkCostOnFile: boolean
   unitProfitLoss: number | null
   totalPotentialProfitLoss: number | null
+  actualLossFromSalesInPeriod: number
   grossMarginPct: number | null
   posAvailabilityStatus: 'AVAILABLE' | 'HIDDEN_NO_PRICE' | 'VISIBLE_AT_ZERO_PRICE' | 'INACTIVE'
   flags: ExceptionFlag[]
@@ -172,6 +180,18 @@ export default function PricingExceptionsReportPage() {
   const [reportData, setReportData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Bulk Cost Allocation Issue "Fix" flow (MBM-297) — activeRow is whichever
+  // row's cost is being corrected; showQuickModal/showFullEditor track which
+  // of the two screens is currently on top. cameFromQuickModal records
+  // whether the full editor was reached by escalating out of the quick
+  // modal, so closing it knows whether to return there or just close.
+  const [activeRow, setActiveRow] = useState<ExceptionRow | null>(null)
+  const [showQuickModal, setShowQuickModal] = useState(false)
+  const [showFullEditor, setShowFullEditor] = useState(false)
+  const [fullEditorItem, setFullEditorItem] = useState<any | null>(null)
+  const [fullEditorLoading, setFullEditorLoading] = useState(false)
+  const [cameFromQuickModal, setCameFromQuickModal] = useState(false)
   const [page, setPage] = useState(1)
   const { pageSize, setPageSize, isOverridden, resetToDefault } = usePageSize()
 
@@ -217,6 +237,72 @@ export default function PricingExceptionsReportPage() {
   }
 
   const rows = (reportData?.data ?? []).filter(r => severityFilter === 'ALL' || r.severity === severityFilter)
+
+  function handleFixClick(row: ExceptionRow) {
+    setActiveRow(row)
+    if (row.hasBulkCostOnFile) {
+      setShowQuickModal(true)
+    } else {
+      openFullEditor(row)
+    }
+  }
+
+  async function openFullEditor(row: ExceptionRow) {
+    setCameFromQuickModal(showQuickModal)
+    setShowQuickModal(false)
+    setFullEditorLoading(true)
+    try {
+      const res = await fetch(`/api/inventory/${currentBusinessId}/items/${row.editItemId}`)
+      const data = await res.json()
+      if (data.success) {
+        setFullEditorItem(data.data)
+        setShowFullEditor(true)
+      } else {
+        setError(data.error ?? 'Failed to load item for editing')
+      }
+    } catch {
+      setError('Failed to load item for editing')
+    } finally {
+      setFullEditorLoading(false)
+    }
+  }
+
+  function closeFullEditor() {
+    setShowFullEditor(false)
+    setFullEditorItem(null)
+    if (cameFromQuickModal) setShowQuickModal(true)
+  }
+
+  async function handleFullEditorSubmit(formData: any) {
+    if (!activeRow || !currentBusinessId) return
+    try {
+      const res = await fetch(`/api/inventory/${currentBusinessId}/items/${activeRow.editItemId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.error ?? 'Failed to save changes')
+        return
+      }
+      closeFullEditor()
+      loadReport()
+    } catch {
+      setError('Failed to save changes')
+    }
+  }
+
+  function closeQuickModal() {
+    setShowQuickModal(false)
+    setActiveRow(null)
+  }
+
+  function handleCorrectionSaved() {
+    setShowQuickModal(false)
+    setActiveRow(null)
+    loadReport()
+  }
 
   function exportCsv() {
     const header = 'Product,SKU,Category,Supplier,Qty on Hand,Qty Sold,Cost,Sell,Margin %,Potential P/L,POS Status,Exceptions'
@@ -351,7 +437,7 @@ export default function PricingExceptionsReportPage() {
                           />
                         </td>
                         <td className="px-3 py-2.5 text-secondary">
-                          <p>{row.category ?? '—'}</p>
+                          <p>{row.category ?? '—'}{row.unitOfMeasure && <span className="text-gray-400"> · {row.unitOfMeasure}</span>}</p>
                           {row.supplier && <p className="text-xs text-gray-400">{row.supplier}</p>}
                         </td>
                         <td className="px-3 py-2.5 text-right text-secondary">{row.quantityOnHand}</td>
@@ -359,6 +445,18 @@ export default function PricingExceptionsReportPage() {
                         <td className="px-3 py-2.5 text-right text-secondary">
                           {fmt(row.costPrice)}
                           {row.previousCostPrice != null && <p className="text-xs text-gray-400">was {fmt(row.previousCostPrice)}</p>}
+                          {row.hasBulkCostOnFile && (
+                            <p className="text-xs text-gray-400">Pack: {row.unitsPerPack ?? '?'} × {fmt(row.bulkPackCost)}</p>
+                          )}
+                          {row.flags.some(f => f.type === 'BULK_COST_ALLOCATION_ISSUE') && canEditInventory && (
+                            <button
+                              onClick={() => handleFixClick(row)}
+                              className="block text-xs text-amber-600 dark:text-amber-400 hover:underline mt-0.5 whitespace-nowrap"
+                              title="Possible bulk cost error"
+                            >
+                              ⚠ Possible bulk cost error — Fix
+                            </button>
+                          )}
                         </td>
                         <td className="px-3 py-2.5 text-right text-secondary">
                           {fmt(row.sellingPrice)}
@@ -373,6 +471,11 @@ export default function PricingExceptionsReportPage() {
                           <span className={row.totalPotentialProfitLoss !== null && row.totalPotentialProfitLoss < 0 ? 'text-red-600 font-semibold' : 'text-secondary'}>
                             {fmt(row.totalPotentialProfitLoss)}
                           </span>
+                          {row.actualLossFromSalesInPeriod > 0 && (
+                            <p className="text-xs text-red-500" title="Actual loss from sales in the selected period (uses today's cost price, not the cost at the time of each sale)">
+                              actual: -{fmt(row.actualLossFromSalesInPeriod)}
+                            </p>
+                          )}
                         </td>
                         <td className="px-3 py-2.5">
                           <span className={`text-xs px-1.5 py-0.5 rounded ${row.posAvailabilityStatus === 'AVAILABLE' ? 'text-secondary' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'}`}>
@@ -414,6 +517,38 @@ export default function PricingExceptionsReportPage() {
           </div>
         )}
       </div>
+
+      {showQuickModal && activeRow && currentBusinessId && (
+        <BulkQuantityCorrectionModal
+          businessId={currentBusinessId}
+          itemId={activeRow.editItemId}
+          row={{
+            name: activeRow.name,
+            sku: activeRow.sku,
+            barcode: activeRow.barcode,
+            quantityOnHand: activeRow.quantityOnHand,
+            unitsPerPack: activeRow.unitsPerPack,
+            costPrice: activeRow.costPrice,
+            bulkPackCost: activeRow.bulkPackCost,
+            sellingPrice: activeRow.sellingPrice,
+          }}
+          onClose={closeQuickModal}
+          onSaved={handleCorrectionSaved}
+          onOpenFullEditor={() => activeRow && openFullEditor(activeRow)}
+        />
+      )}
+
+      {showFullEditor && fullEditorItem && currentBusinessId && (
+        <UniversalInventoryForm
+          businessId={currentBusinessId}
+          businessType={reportData?.businessType ?? 'grocery'}
+          item={fullEditorItem}
+          mode="edit"
+          renderMode="modal"
+          onSubmit={handleFullEditorSubmit}
+          onCancel={closeFullEditor}
+        />
+      )}
     </div>
   )
 }

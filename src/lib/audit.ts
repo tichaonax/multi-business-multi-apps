@@ -36,7 +36,8 @@ export type AuditAction =
   | 'RECEIPT_AMENDED'
   | 'RECEIPT_OVER_LIMIT_OVERRIDE'
   | 'PRODUCT_PRICE_UPDATED'
-  | 'PRODUCT_IMAGE_UPDATED';
+  | 'PRODUCT_IMAGE_UPDATED'
+  | 'PRODUCT_BULK_PACK_CORRECTED';
 
 export type AuditEntityType =
   | 'User'

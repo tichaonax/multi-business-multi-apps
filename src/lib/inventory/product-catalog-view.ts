@@ -48,6 +48,10 @@ export interface ProductRecord {
   packSize: string | null
   costPrice: number | null
   sellingPrice: number | null
+  /** MBM-297 — on-file bulk-pack cost allocation, when recorded. Never
+   * inferred from costPrice — null means "not recorded", not "same as cost". */
+  unitsPerPack: number | null
+  bulkPackCost: number | null
   quantityOnHand: number
   reorderLevel: number
   isActive: boolean
@@ -116,6 +120,8 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
             barcode: true,
             costPrice: true,
             basePrice: true,
+            unitsPerPack: true,
+            bulkPackCost: true,
             isSoldByWeight: true,
             isActive: true,
             isAvailable: true,
@@ -154,6 +160,8 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
         barcodeData: true,
         costPrice: true,
         sellingPrice: true,
+        unitsPerPack: true,
+        bulkPackCost: true,
         stockQuantity: true,
         reorderLevel: true,
         isActive: true,
@@ -200,6 +208,8 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
       packSize: (attrs?.packSize as string) ?? null,
       costPrice,
       sellingPrice,
+      unitsPerPack: bp.unitsPerPack ?? null,
+      bulkPackCost: bp.bulkPackCost ? parseFloat(bp.bulkPackCost.toString()) : null,
       quantityOnHand: v.stockQuantity ?? 0,
       reorderLevel: v.reorderLevel ?? 0,
       isActive: v.isActive && bp.isActive,
@@ -235,6 +245,8 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
       packSize: null,
       costPrice,
       sellingPrice,
+      unitsPerPack: item.unitsPerPack ?? null,
+      bulkPackCost: item.bulkPackCost ? parseFloat(item.bulkPackCost.toString()) : null,
       quantityOnHand: item.stockQuantity ?? 0,
       reorderLevel: item.reorderLevel ?? 0,
       isActive: item.isActive,

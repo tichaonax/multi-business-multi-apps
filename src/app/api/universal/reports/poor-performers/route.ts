@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
     const config: PricingExceptionConfig = settingsRow
       ? {
           minimumMarginPct: parseFloat(settingsRow.minimumMarginPct.toString()),
+          maximumMarginPct: parseFloat(settingsRow.maximumMarginPct.toString()),
           priceChangeAlertPct: parseFloat(settingsRow.priceChangeAlertPct.toString()),
           decimalErrorMultiples: settingsRow.decimalErrorMultiples.map(d => parseFloat(d.toString())),
           benchmarkTolerancePct: parseFloat(settingsRow.benchmarkTolerancePct.toString()),
