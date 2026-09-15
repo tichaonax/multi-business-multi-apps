@@ -36,7 +36,13 @@ export function ImageCropStep({ imageSrc, onCropped, onCancel }: Props) {
   }
 
   async function confirm() {
-    if (!croppedAreaPixels) return
+    if (!croppedAreaPixels) {
+      // Should be unreachable now that the crop area has a guaranteed
+      // minimum height (see the container below), but this still must
+      // never be a silent no-op — every tap gets a visible response.
+      setError('Still preparing the crop — wait a moment and try again.')
+      return
+    }
     setProcessing(true)
     setError(null)
     try {
@@ -52,13 +58,25 @@ export function ImageCropStep({ imageSrc, onCropped, onCancel }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-[90] bg-black flex flex-col">
-      <div className="flex items-center justify-between px-4 py-3 text-white">
+    // `overflow-y-auto` + `shrink-0` on the header/footer + a `min-h` floor
+    // on the crop area (below) are all defensive against the same failure:
+    // on a short mobile viewport, `flex-1` with no floor can compute to a
+    // near-zero height once the header and all the footer controls (zoom,
+    // rotate, square toggle, buttons) are accounted for. `react-easy-crop`
+    // measures its container to lay out the crop rectangle — a
+    // near-zero-height container means it never gets a usable crop region,
+    // which looks exactly like the reported bug: no visible crop grid, and
+    // "Next" staying permanently disabled (it never receives a valid
+    // region to work with, so tapping it does nothing at all). If the
+    // floor ever does push total content past the viewport, scrolling is
+    // now possible instead of the controls being unreachable.
+    <div className="fixed inset-0 z-[99999] bg-black flex flex-col overflow-y-auto">
+      <div className="flex items-center justify-between px-4 py-3 text-white shrink-0">
         <span className="text-sm font-medium">Crop Photo</span>
         <button onClick={onCancel} className="text-white/80 hover:text-white text-lg leading-none">✕</button>
       </div>
 
-      <div className="flex-1 relative">
+      <div className="flex-1 relative min-h-[45vh]">
         <Cropper
           image={imageSrc}
           crop={crop}
@@ -72,7 +90,7 @@ export function ImageCropStep({ imageSrc, onCropped, onCancel }: Props) {
         />
       </div>
 
-      <div className="p-4 space-y-3 bg-black">
+      <div className="p-4 space-y-3 bg-black shrink-0">
         <div className="flex items-center gap-3">
           <span className="text-white/70 text-xs w-12">Zoom</span>
           <input type="range" min={1} max={3} step={0.01} value={zoom}
@@ -99,7 +117,7 @@ export function ImageCropStep({ imageSrc, onCropped, onCancel }: Props) {
           <button onClick={onCancel} className="flex-1 py-2 rounded-lg border border-white/30 text-white text-sm font-medium">
             Cancel
           </button>
-          <button onClick={confirm} disabled={processing || !croppedAreaPixels}
+          <button onClick={confirm} disabled={processing}
             className="flex-1 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium disabled:opacity-50">
             {processing ? 'Processing…' : 'Next'}
           </button>

@@ -55,7 +55,7 @@ export function BackgroundRemovalStep({ imageBlob, onDone, onCancel }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-[90] bg-black flex flex-col">
+    <div className="fixed inset-0 z-[99999] bg-black flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 text-white">
         <span className="text-sm font-medium">Remove Background</span>
         <button onClick={onCancel} className="text-white/80 hover:text-white text-lg leading-none">✕</button>

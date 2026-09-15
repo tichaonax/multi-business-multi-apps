@@ -98,7 +98,7 @@ export function ProductImagePipelineModal({ onComplete, onCancel }: Props) {
   return (
     <>
       {step === 'source' && (
-        <div className="fixed inset-0 z-[90] bg-black/70 flex items-center justify-center p-4" onClick={onCancel}>
+        <div className="fixed inset-0 z-[99999] bg-black/70 flex items-center justify-center p-4" onClick={onCancel}>
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
             <h2 className="text-sm font-bold text-gray-900 dark:text-white mb-4">Add Product Photo</h2>
             <div className="flex flex-col gap-2">
@@ -154,7 +154,7 @@ export function ProductImagePipelineModal({ onComplete, onCancel }: Props) {
       )}
 
       {step === 'finalizing' && (
-        <div className="fixed inset-0 z-[90] bg-black/70 flex items-center justify-center">
+        <div className="fixed inset-0 z-[99999] bg-black/70 flex items-center justify-center">
           <div className="text-white text-sm">Preparing image…</div>
         </div>
       )}
