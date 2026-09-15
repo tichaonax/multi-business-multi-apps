@@ -2228,6 +2228,21 @@ model Images {
   createdAt                 DateTime                  @default(now())
   businessId                String?
   uploadedBy                String?
+  // MBM-297 — product image pipeline. All nullable/optional so every
+  // existing row (uploaded before this pipeline existed) stays valid with
+  // no backfill: `thumbnailImageId` unset means "no thumbnail, use the
+  // full image"; `sourceType`/`backgroundProcessingStatus` unset means
+  // "uploaded before this pipeline tracked that"; `contentHash` unset
+  // means "uploaded before duplicate detection existed."
+  thumbnailImageId          String?                   @unique
+  thumbnailImage            Images?                   @relation("ImageThumbnail", fields: [thumbnailImageId], references: [id], onDelete: SetNull)
+  fullImageFor              Images?                   @relation("ImageThumbnail")
+  sourceType                ImageSourceType?
+  backgroundProcessingStatus BackgroundProcessingStatus?
+  // SHA-256 of the final uploaded bytes — exact-duplicate detection only
+  // (a re-crop or re-compression changes the hash; that's a known,
+  // documented limitation, not a bug: see plan §6.5).
+  contentHash               String?
   product_images            ProductImages[]
   warehouse_items           WarehouseItems[]
   barcode_inventory_items   BarcodeInventoryItems[]
@@ -2240,7 +2255,21 @@ model Images {
   uploader                  Users?                    @relation("ImageUploadedBy", fields: [uploadedBy], references: [id])
 
   @@index([businessId])
+  @@index([contentHash])
   @@map("images")
+}
+
+enum ImageSourceType {
+  DESKTOP_UPLOAD
+  MOBILE_UPLOAD
+  MOBILE_CAMERA
+}
+
+enum BackgroundProcessingStatus {
+  NONE
+  PROCESSED
+  FAILED
+  KEPT_ORIGINAL
 }
 
 model CategoryReferenceImages {

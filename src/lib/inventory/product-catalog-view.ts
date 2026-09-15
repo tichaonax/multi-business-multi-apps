@@ -138,7 +138,7 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
             product_images: {
               orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
               take: 1,
-              select: { imageId: true },
+              select: { imageId: true, images: { select: { thumbnailImageId: true } } },
             },
           },
         },
@@ -173,6 +173,7 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
         locationId: true,
         business_location: { select: { name: true } },
         imageId: true,
+        image: { select: { thumbnailImageId: true } },
       },
     }),
   ])
@@ -216,7 +217,12 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
       isAvailable: v.isAvailable && bp.isAvailable,
       posAvailabilityStatus: deriveCatalogAStatus(v.isActive && bp.isActive, v.isAvailable && bp.isAvailable, sellingPrice, bp.isSoldByWeight),
       createdAt: v.createdAt,
-      imageUrl: bp.product_images[0]?.imageId ? `/api/images/${bp.product_images[0].imageId}` : null,
+      // MBM-297 Phase C — list views prefer the smaller thumbnail when one
+      // was generated for this image, falling back to the full image for
+      // every image uploaded before the pipeline existed (no thumbnail).
+      imageUrl: bp.product_images[0]?.imageId
+        ? `/api/images/${bp.product_images[0].images?.thumbnailImageId || bp.product_images[0].imageId}`
+        : null,
       editItemId: bp.id,
     })
   }
@@ -253,7 +259,7 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
       isAvailable: item.isActive,
       posAvailabilityStatus: deriveCatalogBStatus(item.isActive, sellingPrice),
       createdAt: item.createdAt,
-      imageUrl: item.imageId ? `/api/images/${item.imageId}` : null,
+      imageUrl: item.imageId ? `/api/images/${item.image?.thumbnailImageId || item.imageId}` : null,
       editItemId: `inv_${item.id}`,
     })
   }

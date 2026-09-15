@@ -1,11 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+const VALID_SOURCE_TYPES = new Set(['DESKTOP_UPLOAD', 'MOBILE_UPLOAD', 'MOBILE_CAMERA'])
+const VALID_BG_STATUS = new Set(['NONE', 'PROCESSED', 'FAILED', 'KEPT_ORIGINAL'])
+
 // POST /api/universal/images
 // Form fields:
-//   files         — one or more image File objects
-//   expiresInDays — optional number; when set, images expire after N days
-//                   (use 60 for clock-in verification photos)
+//   files                      — one or more image File objects
+//   expiresInDays              — optional number; when set, images expire after N days
+//                                 (use 60 for clock-in verification photos)
+//   sourceType                 — optional (MBM-297 Phase C): 'DESKTOP_UPLOAD' | 'MOBILE_UPLOAD' | 'MOBILE_CAMERA'
+//   backgroundProcessingStatus — optional (MBM-297 Phase C): 'PROCESSED' | 'FAILED' | 'KEPT_ORIGINAL'
+//   contentHash                — optional (MBM-297 Phase C): SHA-256 hex of the file's bytes, for
+//                                 exact-duplicate detection (a warning in the response, never a hard block)
+//   thumbnail                  — optional (MBM-297 Phase C): a smaller companion image for the FIRST
+//                                 uploaded file only, stored as its own row and linked via thumbnailImageId
+//
+// Raw SQL (not `prisma.images.create`) is deliberate here, not a shortcut:
+// this route predates the Prisma-client-locked-DLL workaround pattern
+// documented elsewhere in this app, and staying on raw SQL means the new
+// Phase C columns below work immediately without depending on a
+// `prisma generate` that a running server instance may be blocking.
 export async function POST(request: NextRequest) {
   try {
     const data = await request.formData()
@@ -15,16 +30,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No files uploaded' }, { status: 400 })
     }
 
-    // Optional expiry
     const expiresInDaysRaw = data.get('expiresInDays')
     const expiresInDays = expiresInDaysRaw ? Number(expiresInDaysRaw) : null
     const expiresAt = expiresInDays
       ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
       : null
 
+    const sourceTypeRaw = data.get('sourceType')
+    const sourceType = typeof sourceTypeRaw === 'string' && VALID_SOURCE_TYPES.has(sourceTypeRaw) ? sourceTypeRaw : null
+
+    const bgStatusRaw = data.get('backgroundProcessingStatus')
+    const backgroundProcessingStatus = typeof bgStatusRaw === 'string' && VALID_BG_STATUS.has(bgStatusRaw) ? bgStatusRaw : null
+
+    const contentHashRaw = data.get('contentHash')
+    const contentHash = typeof contentHashRaw === 'string' && contentHashRaw.trim() ? contentHashRaw.trim() : null
+
+    const thumbnailFile = data.get('thumbnail') as File | null
+
+    let duplicateOfId: string | null = null
+    if (contentHash) {
+      const existing = await prisma.$queryRaw<{ id: string }[]>`
+        SELECT "id" FROM "images" WHERE "contentHash" = ${contentHash} LIMIT 1
+      `
+      if (existing.length > 0) duplicateOfId = existing[0].id
+    }
+
     const uploadedFiles = []
 
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
       if (!file.type.startsWith('image/')) {
         return NextResponse.json({ error: `File ${file.name} is not an image` }, { status: 400 })
       }
@@ -35,17 +69,35 @@ export async function POST(request: NextRequest) {
       const bytes = await file.arrayBuffer()
       const buffer = Buffer.from(bytes)
 
-      // Store image binary in PostgreSQL so it is accessible from any
-      // machine that connects to the shared database.
+      // Only the first file in the batch gets the paired thumbnail — this
+      // route is called either with one product photo (Phase C pipeline,
+      // which is what ever supplies a `thumbnail`) or a legacy multi-file
+      // upload (which never does), so there's never ambiguity in practice.
+      let thumbnailImageId: string | null = null
+      if (i === 0 && thumbnailFile) {
+        const thumbBytes = await thumbnailFile.arrayBuffer()
+        const thumbBuffer = Buffer.from(thumbBytes)
+        const thumbRows = await prisma.$queryRaw<{ id: string }[]>`
+          INSERT INTO "images" ("id", "data", "mimeType", "size", "expiresAt", "createdAt", "sourceType")
+          VALUES (gen_random_uuid()::text, ${thumbBuffer}, ${thumbnailFile.type}, ${thumbnailFile.size}, ${expiresAt}, NOW(), ${sourceType}::"ImageSourceType")
+          RETURNING "id"
+        `
+        thumbnailImageId = thumbRows[0].id
+      }
+
       const rows = await prisma.$queryRaw<{ id: string }[]>`
-        INSERT INTO "images" ("id", "data", "mimeType", "size", "expiresAt", "createdAt")
+        INSERT INTO "images" ("id", "data", "mimeType", "size", "expiresAt", "createdAt", "sourceType", "backgroundProcessingStatus", "contentHash", "thumbnailImageId")
         VALUES (
           gen_random_uuid()::text,
           ${buffer},
           ${file.type},
           ${file.size},
           ${expiresAt},
-          NOW()
+          NOW(),
+          ${sourceType}::"ImageSourceType",
+          ${i === 0 ? backgroundProcessingStatus : null}::"BackgroundProcessingStatus",
+          ${i === 0 ? contentHash : null},
+          ${thumbnailImageId}
         )
         RETURNING "id"
       `
@@ -57,6 +109,8 @@ export async function POST(request: NextRequest) {
         size: file.size,
         type: file.type,
         url: `/api/images/${id}`,
+        ...(thumbnailImageId ? { thumbnailUrl: `/api/images/${thumbnailImageId}` } : {}),
+        ...(i === 0 && duplicateOfId ? { duplicateOf: duplicateOfId, duplicateOfUrl: `/api/images/${duplicateOfId}` } : {}),
       })
     }
 

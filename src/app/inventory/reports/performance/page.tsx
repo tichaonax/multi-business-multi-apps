@@ -11,7 +11,6 @@ import { ProductCell } from '@/components/inventory/report-product-cell'
 import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
 import { Pagination } from '@/components/ui/pagination'
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
-import { useFillViewportHeight } from '@/hooks/use-fill-viewport-height'
 import '@/styles/print-report.css'
 
 interface PerformanceRow {
@@ -79,7 +78,6 @@ export default function ProductPerformanceReportPage() {
   const [reportData, setReportData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { ref: fillRef, style: fillStyle } = useFillViewportHeight([loading, reportData])
   const [page, setPage] = useState(1)
   const { pageSize, setPageSize, isOverridden, resetToDefault } = usePageSize()
 
@@ -124,9 +122,18 @@ export default function ProductPerformanceReportPage() {
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
   const pagedRows = rows.slice((page - 1) * pageSize, page * pageSize)
 
+  // Deliberately NOT `.report-print-container` — see Pricing Exceptions
+  // (src/app/inventory/reports/pricing-exceptions/page.tsx) for why: that
+  // shared class's `overflow: hidden` silently disables `position: sticky`
+  // on descendants, which is what broke its search bar. Scrolls normally
+  // with a sticky search bar instead of a fixed-height/internal-scroll
+  // container.
   return (
-    <div ref={fillRef} className="report-print-container flex flex-col bg-gray-50 dark:bg-gray-900" style={fillStyle}>
-      <div className="flex-shrink-0 p-4 md:p-6 pb-0">
+    <div className="bg-gray-50 dark:bg-gray-900">
+      <div className="p-4 md:p-6 pb-0">
+        <Link href="/inventory/reports" className="inline-flex items-center gap-1 text-sm text-secondary hover:text-primary hover:underline mb-2">
+          ← Back to Reports
+        </Link>
         <div className="flex items-center gap-2 text-xs text-secondary mb-1">
           <Link href="/inventory" className="hover:underline">Inventory</Link>
           <span>/</span>
@@ -138,14 +145,17 @@ export default function ProductPerformanceReportPage() {
         <p className="text-sm text-secondary mt-0.5">
           Sales, revenue and profitability for the selected period. Cost of goods sold uses today&apos;s cost price, not the price at the time of each historical sale — flag &quot;unreliable pricing&quot; items before trusting their margin figures.
         </p>
+      </div>
 
-        <div className="my-4 no-print">
-          <ListSearchFilterBar
-            onSearchChange={setSearch}
-            searchLoading={loading}
-            searchPlaceholder="Search by name, SKU, category…"
-          />
-        </div>
+      <div className="sticky top-14 sm:top-16 z-20 bg-gray-50 dark:bg-gray-900 pt-3 pb-2 px-4 md:px-6 no-print">
+        <ListSearchFilterBar
+          onSearchChange={setSearch}
+          searchLoading={loading}
+          searchPlaceholder="Search by name, SKU, category…"
+        />
+      </div>
+
+      <div className="px-4 md:px-6 pb-4">
         <div className="flex flex-wrap items-end gap-3 mb-4 no-print">
           <DateRangeSelector value={dateRange} onChange={setDateRange} />
           <select value={profitabilityFilter} onChange={e => setProfitabilityFilter(e.target.value as any)} className="px-3 py-1.5 text-sm border border-border rounded-lg bg-white dark:bg-gray-800 text-primary">
@@ -189,29 +199,27 @@ export default function ProductPerformanceReportPage() {
         )}
 
         {error && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-sm text-red-700 dark:text-red-300 mb-4">{error}</div>}
-      </div>
 
-      <div className="flex-1 overflow-hidden px-4 md:px-6 pb-4">
         {loading && <div className="text-center py-12 text-secondary">Loading…</div>}
 
         {!loading && reportData && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-border flex flex-col h-full">
-            <div className="overflow-auto flex-1">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-border">
+            <div className="overflow-x-auto">
               {pagedRows.length === 0 ? (
                 <div className="text-center py-12 text-secondary text-sm">No products match the current filters.</div>
               ) : (
                 <table className="w-full text-sm border-separate border-spacing-0">
                   <thead>
                     <tr className="text-xs text-secondary uppercase tracking-wide">
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">Product</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Units Sold</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Revenue</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">COGS</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Gross Profit</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Margin</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Transactions</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Stock</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Days Since Sale</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">Product</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Units Sold</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Revenue</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">COGS</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Gross Profit</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Margin</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Transactions</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Stock</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Days Since Sale</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
