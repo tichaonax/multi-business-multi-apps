@@ -38,6 +38,7 @@ export function BulkQuantityCorrectionModal({ businessId, itemId, row, onClose, 
   const [unitsPerPack, setUnitsPerPack] = useState(row.unitsPerPack ? String(row.unitsPerPack) : '')
   const [saving, setSaving] = useState(false)
 
+  const hasBulkCostOnFile = row.bulkPackCost !== null && row.bulkPackCost > 0
   const parsedUnits = parseInt(unitsPerPack, 10)
   const validUnits = Number.isFinite(parsedUnits) && parsedUnits > 0
   const correctedUnitCost = validUnits && row.bulkPackCost ? Math.round((row.bulkPackCost / parsedUnits) * 100) / 100 : null
@@ -84,9 +85,15 @@ export function BulkQuantityCorrectionModal({ businessId, itemId, row, onClose, 
           {row.barcode && <span>{row.barcode}</span>}
         </p>
 
-        <p className="text-xs text-gray-600 dark:text-gray-400 mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5">
-          This product may have been bought as a bulk pack but costed as one individual item. Enter the number of individual sellable units in the pack to recalculate the unit cost.
-        </p>
+        {hasBulkCostOnFile ? (
+          <p className="text-xs text-gray-600 dark:text-gray-400 mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5">
+            This product may have been bought as a bulk pack but costed as one individual item. Enter the number of individual sellable units in the pack to recalculate the unit cost.
+          </p>
+        ) : (
+          <p className="text-xs text-gray-600 dark:text-gray-400 mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5">
+            No bulk-pack cost is recorded for this item yet, so the unit cost can't be recalculated here. Use <strong>Open Full Item Editor</strong> below to record the case cost and pack size together — that may also mean adjusting the cost price itself.
+          </p>
+        )}
 
         <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs mb-4">
           <div className="text-gray-500 dark:text-gray-400">Quantity on hand</div>
@@ -110,7 +117,8 @@ export function BulkQuantityCorrectionModal({ businessId, itemId, row, onClose, 
             value={unitsPerPack}
             onChange={e => setUnitsPerPack(e.target.value)}
             autoFocus
-            className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-amber-400 focus:outline-none"
+            disabled={!hasBulkCostOnFile}
+            className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-amber-400 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
             placeholder="e.g. 24"
           />
         </div>
@@ -135,23 +143,27 @@ export function BulkQuantityCorrectionModal({ businessId, itemId, row, onClose, 
         )}
 
         <div className="flex items-center gap-2 mt-4">
-          <button
-            onClick={handleConfirm}
-            disabled={!validUnits || saving}
-            className="flex-1 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-medium"
-          >
-            {saving ? 'Saving…' : 'Confirm Correction'}
-          </button>
+          {hasBulkCostOnFile && (
+            <button
+              onClick={handleConfirm}
+              disabled={!validUnits || saving}
+              className="flex-1 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-medium"
+            >
+              {saving ? 'Saving…' : 'Confirm Correction'}
+            </button>
+          )}
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg"
+            className={`py-1.5 text-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg ${hasBulkCostOnFile ? 'px-3' : 'flex-1'}`}
           >
             Cancel
           </button>
         </div>
         <button
           onClick={onOpenFullEditor}
-          className="w-full mt-2 py-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+          className={hasBulkCostOnFile
+            ? 'w-full mt-2 py-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline'
+            : 'w-full mt-2 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium'}
         >
           Open Full Item Editor
         </button>

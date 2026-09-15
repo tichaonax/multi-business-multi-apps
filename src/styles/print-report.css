@@ -578,6 +578,23 @@
 }
 
 /* ======================
+   MBM-297: `.report-print-container` is a fixed-height
+   (`calc(100vh - 64px)`) flex column used by every pricing/inventory
+   report page. It never had `overflow: hidden` on itself — only its inner
+   scrollable table region did — so whenever the header section (breadcrumb
+   + title + filters + search bar + summary cards + error banner) grows
+   taller than its viewport budget, the excess spills out below the
+   container's bottom edge instead of being clipped. That pushes the whole
+   page taller than the viewport, forcing the page itself to scroll — and
+   since this content isn't sticky (only the global nav is), scrolling
+   slides it up behind the nav instead of just being cut off cleanly.
+   Fixing it here, once, covers every report that uses this shared class.
+   ====================== */
+.report-print-container {
+  overflow: hidden;
+}
+
+/* ======================
    SCREEN STYLES (for print preview)
    ====================== */
 

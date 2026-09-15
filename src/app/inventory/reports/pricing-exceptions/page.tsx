@@ -239,12 +239,12 @@ export default function PricingExceptionsReportPage() {
   const rows = (reportData?.data ?? []).filter(r => severityFilter === 'ALL' || r.severity === severityFilter)
 
   function handleFixClick(row: ExceptionRow) {
+    // Always open the small modal first — even when there's no bulk cost on
+    // file yet, the modal itself explains that and offers "Open Full Item
+    // Editor" as the user's own next step, rather than the page deciding to
+    // skip straight to the heavier full editor on their behalf.
     setActiveRow(row)
-    if (row.hasBulkCostOnFile) {
-      setShowQuickModal(true)
-    } else {
-      openFullEditor(row)
-    }
+    setShowQuickModal(true)
   }
 
   async function openFullEditor(row: ExceptionRow) {
