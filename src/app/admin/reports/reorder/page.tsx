@@ -8,6 +8,9 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getLocalDateString } from '@/lib/utils'
 import { ProductCell } from '@/components/inventory/report-product-cell'
+import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
+import { Pagination } from '@/components/ui/pagination'
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 import '@/styles/print-report.css'
 
 interface ReorderRow {
@@ -177,6 +180,8 @@ export default function ReorderReportPage() {
   const [error, setError] = useState<string | null>(null)
   const [urgencyFilter, setUrgencyFilter] = useState<'all' | 'critical' | 'low'>('all')
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const { pageSize, setPageSize, isOverridden, resetToDefault } = usePageSize()
   // MBM-296 §8 — off by default so the existing "needs reorder now" view is
   // unchanged; on, the report becomes the full Minimum-Stock Recommendation
   // view (every product, including ones already above their minimum).
@@ -232,13 +237,26 @@ export default function ReorderReportPage() {
     )
   })
 
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const pagedRows = rows.slice((page - 1) * pageSize, page * pageSize)
+
+  useEffect(() => { setPage(1) }, [search, urgencyFilter, showAllProducts, pageSize])
+
+  // Deliberately NOT `.report-print-container` — see Pricing Exceptions
+  // (src/app/inventory/reports/pricing-exceptions/page.tsx) for why: that
+  // shared class's `overflow: hidden` silently disables `position: sticky`
+  // on descendants, which is what broke its search bar. Scrolls normally
+  // with a sticky search bar instead of a fixed-height/internal-scroll
+  // container.
   return (
-    <div className="report-print-container flex flex-col bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 64px)' }}>
-      {/* ── Fixed top section ── */}
-      <div className="flex-shrink-0 p-4 md:p-6 pb-0">
+    <div className="bg-gray-50 dark:bg-gray-900">
+      <div className="p-4 md:p-6 pb-0">
         {/* Header */}
         <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
           <div>
+            <Link href="/admin/reports" className="inline-flex items-center gap-1 text-sm text-secondary hover:text-primary hover:underline mb-2">
+              ← Back to Reports
+            </Link>
             <div className="flex items-center gap-2 text-xs text-secondary mb-1">
               <Link href="/admin/reports" className="hover:underline">Reports</Link>
               <span>/</span>
@@ -251,7 +269,17 @@ export default function ReorderReportPage() {
             </p>
           </div>
         </div>
+      </div>
 
+      <div className="sticky top-14 sm:top-16 z-20 bg-gray-50 dark:bg-gray-900 pt-3 pb-2 px-4 md:px-6 no-print">
+        <ListSearchFilterBar
+          onSearchChange={setSearch}
+          searchLoading={loading}
+          searchPlaceholder="Search by name, SKU, category…"
+        />
+      </div>
+
+      <div className="px-4 md:px-6 pb-4">
         {/* Date range + urgency filter */}
         <div className="flex flex-wrap items-end gap-3 mb-4 no-print">
           <DateRangeSelector value={dateRange} onChange={setDateRange} />
@@ -309,27 +337,17 @@ export default function ReorderReportPage() {
             {error}
           </div>
         )}
-      </div>
 
-      {/* ── Scrollable table section ── */}
-      <div className="flex-1 overflow-hidden px-4 md:px-6 pb-4">
         {loading && <div className="text-center py-12 text-secondary">Loading…</div>}
 
         {!loading && reportData && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-border flex flex-col h-full">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-border">
             {/* Table toolbar: search + export */}
-            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border flex-shrink-0">
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border">
               <p className="text-sm text-secondary">
                 {search ? `${rows.length} of ${reportData.data.length} items` : `${reportData.data.length} items`}
               </p>
               <div className="flex items-center gap-2 no-print">
-                <input
-                  type="search"
-                  placeholder="Search by name, SKU, category…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="px-3 py-1.5 text-sm border border-border rounded-lg bg-white dark:bg-gray-700 text-primary w-52 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
                 {reportData.data.length > 0 && (
                   <button
                     onClick={() => exportCsv(rows)}
@@ -344,8 +362,7 @@ export default function ReorderReportPage() {
               </div>
             </div>
 
-            {/* Scrollable table */}
-            <div className="overflow-auto flex-1">
+            <div className="overflow-x-auto">
               {rows.length === 0 ? (
                 <div className="text-center py-12 text-secondary text-sm">
                   {search
@@ -356,7 +373,7 @@ export default function ReorderReportPage() {
                 </div>
               ) : (
                 <table className="w-full text-sm border-separate border-spacing-0">
-                  <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 text-xs text-secondary uppercase tracking-wide">
+                  <thead className="bg-gray-50 dark:bg-gray-800 text-xs text-secondary uppercase tracking-wide">
                     <tr>
                       <th className="px-3 py-2.5 text-left">Product</th>
                       <th className="px-3 py-2.5 text-left">Category</th>
@@ -374,7 +391,7 @@ export default function ReorderReportPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {rows.map((row) => (
+                    {pagedRows.map((row) => (
                       <tr
                         key={row.variantId}
                         className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
@@ -477,6 +494,20 @@ export default function ReorderReportPage() {
                   </tbody>
                 </table>
               )}
+            </div>
+            <div className="px-4 py-3 border-t border-border flex-shrink-0 no-print">
+              <Pagination
+                currentPage={page}
+                totalPages={totalPages}
+                totalItems={rows.length}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                loading={loading}
+                pageSizeOptions={PAGE_SIZE_OPTIONS}
+                onPageSizeChange={setPageSize}
+                isPageSizeOverridden={isOverridden}
+                onResetPageSize={resetToDefault}
+              />
             </div>
           </div>
         )}

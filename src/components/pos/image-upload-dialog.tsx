@@ -5,8 +5,16 @@ import { useToastContext } from '@/components/ui/toast'
 import { useClipboardImagePaste } from '@/hooks/use-clipboard-image-paste'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { SearchableSelect } from '@/components/ui/searchable-select'
+import { ProductImagePipelineModal, type ProductImagePipelineResult } from '@/components/inventory/product-image-pipeline-modal'
 
 export type QuickEditSourceTable = 'BUSINESS_PRODUCT' | 'BARCODE_ITEM'
+
+// MBM-297 Phase C — the camera/crop/background-removal pipeline is
+// temporarily disabled (see the comment at its render site below) pending
+// a screen recording to pin down why tapping "Next" on the crop step never
+// registers as a click on at least one real device. Flip back to `true`
+// once that's fixed.
+const SHOW_CROP_PIPELINE = false
 
 function toPngBlob(source: Blob): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -61,6 +69,7 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
   const [copying, setCopying] = useState(false)
   const [pasting, setPasting] = useState(false)
   const [view, setView] = useState<'main' | 'gallery'>('main')
+  const [showPipeline, setShowPipeline] = useState(false)
   const [galleryLoading, setGalleryLoading] = useState(false)
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([])
   const [galleryTier, setGalleryTier] = useState<'subcategory' | 'category' | null>(null)
@@ -148,19 +157,28 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
     }
   }
 
-  async function handleFile(file: File) {
+  async function handleFile(file: File, pipelineMeta?: Omit<ProductImagePipelineResult, 'blob'> & { thumbnailFile?: File }) {
     setUploading(true)
     try {
       let newImageUrl: string
       if (sourceTable === 'BUSINESS_PRODUCT') {
         const form = new FormData()
         form.append('files', file)
+        if (pipelineMeta) {
+          form.append('sourceType', pipelineMeta.sourceType)
+          form.append('backgroundProcessingStatus', pipelineMeta.backgroundProcessingStatus)
+          if (pipelineMeta.contentHash) form.append('contentHash', pipelineMeta.contentHash)
+          if (pipelineMeta.thumbnailFile) form.append('thumbnail', pipelineMeta.thumbnailFile)
+        }
         const uploadRes = await fetch(`/api/universal/products/${itemId}/images`, { method: 'POST', body: form })
         if (!uploadRes.ok) {
           const errBody = await uploadRes.json().catch(() => ({}))
           throw new Error(errBody.error ?? `Upload failed (${uploadRes.status})`)
         }
-        const { data } = await uploadRes.json()
+        const { data, duplicateOf } = await uploadRes.json()
+        if (duplicateOf) {
+          toast.push('Note: this looks like an exact duplicate of an image already uploaded — keeping both, in case that was intentional.', { type: 'warning' })
+        }
         // Highest sortOrder is always the image this request just created (sortOrder
         // is a strictly increasing per-product sequence) — matching by altText/file
         // name is unreliable for pasted images, which browsers usually name
@@ -174,6 +192,12 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
       } else {
         const form = new FormData()
         form.append('files', file)
+        if (pipelineMeta) {
+          form.append('sourceType', pipelineMeta.sourceType)
+          form.append('backgroundProcessingStatus', pipelineMeta.backgroundProcessingStatus)
+          if (pipelineMeta.contentHash) form.append('contentHash', pipelineMeta.contentHash)
+          if (pipelineMeta.thumbnailFile) form.append('thumbnail', pipelineMeta.thumbnailFile)
+        }
         const uploadRes = await fetch('/api/universal/images', { method: 'POST', body: form })
         if (!uploadRes.ok) {
           const errBody = await uploadRes.json().catch(() => ({}))
@@ -181,6 +205,9 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
         }
         const { data } = await uploadRes.json()
         const newImageId: string = data[0].filename
+        if (data[0].duplicateOf) {
+          toast.push('Note: this looks like an exact duplicate of an image already uploaded — keeping both, in case that was intentional.', { type: 'warning' })
+        }
         const patchRes = await fetch(`/api/grocery/inventory/${itemId}/display-image`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -209,6 +236,13 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
     } finally {
       setUploading(false)
     }
+  }
+
+  async function handlePipelineResult(result: ProductImagePipelineResult) {
+    setShowPipeline(false)
+    const file = new File([result.blob], 'product-photo.jpg', { type: 'image/jpeg' })
+    const thumbnailFile = new File([result.thumbnailBlob], 'product-photo-thumb.jpg', { type: 'image/jpeg' })
+    await handleFile(file, { ...result, thumbnailFile })
   }
 
   async function handleRemove() {
@@ -598,6 +632,30 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
           </button>
         )}
 
+        {/* MBM-297 Phase C — "Take Photo / Upload (Crop & Edit)" is disabled
+            for now: on at least one real device, tapping "Next" on the crop
+            step never registers as a click at all (confirmed — the button
+            doesn't even flip to its "Processing…" state), and the cause
+            hasn't been pinned down yet without a screen recording to see
+            the exact failure. Rather than ship a button that visibly hangs
+            and confuses users, it's turned off here until that's debugged
+            properly — the pipeline code itself (ProductImagePipelineModal,
+            ImageCropStep, BackgroundRemovalStep, product-photo-camera's
+            native-capture successor) is untouched and ready to re-enable by
+            restoring this button. See the plan doc's Phase C section for
+            the fix history already tried (memory pressure, event binding,
+            layout collapse, z-index, background-removal hangs — none of
+            which resolved it, so the remaining cause is still unknown). */}
+        {SHOW_CROP_PIPELINE && (
+          <button
+            onClick={() => setShowPipeline(true)}
+            disabled={uploading}
+            className="block w-full text-center py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium disabled:opacity-50"
+          >
+            {uploading ? 'Uploading…' : '📷 Take Photo / Upload (Crop & Edit)'}
+          </button>
+        )}
+
         <label className="block w-full text-center py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium cursor-pointer">
           {uploading ? 'Uploading…' : currentImageUrl ? 'Replace Image' : 'Upload Image'}
           <input
@@ -637,6 +695,13 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
           Cancel
         </button>
       </div>
+
+      {showPipeline && (
+        <ProductImagePipelineModal
+          onComplete={handlePipelineResult}
+          onCancel={() => setShowPipeline(false)}
+        />
+      )}
     </div>
   )
 }

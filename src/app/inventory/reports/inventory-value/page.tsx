@@ -8,6 +8,9 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getLocalDateString } from '@/lib/utils'
 import { ProductCell } from '@/components/inventory/report-product-cell'
+import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
+import { Pagination } from '@/components/ui/pagination'
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 import '@/styles/print-report.css'
 
 interface ValueRow {
@@ -60,6 +63,7 @@ export default function InventoryValueReportPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
+  const { pageSize, setPageSize, isOverridden, resetToDefault } = usePageSize()
 
   const loadReport = useCallback(async () => {
     if (!currentBusinessId) return
@@ -71,7 +75,7 @@ export default function InventoryValueReportPage() {
         startDate: getLocalDateString(dateRange.start),
         endDate: getLocalDateString(dateRange.end),
         page: String(page),
-        limit: '50',
+        limit: String(pageSize),
       })
       if (search.trim()) params.set('search', search.trim())
       const res = await fetch(`/api/universal/reports/inventory-value?${params}`)
@@ -83,9 +87,10 @@ export default function InventoryValueReportPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentBusinessId, dateRange, search, page])
+  }, [currentBusinessId, dateRange, search, page, pageSize])
 
   useEffect(() => { loadReport() }, [loadReport])
+  useEffect(() => { setPage(1) }, [search, viewMode, pageSize])
 
   const rows = reportData?.data ?? []
 
@@ -105,9 +110,18 @@ export default function InventoryValueReportPage() {
     URL.revokeObjectURL(url)
   }
 
+  // Deliberately NOT `.report-print-container` — see the Pricing Exceptions
+  // page (src/app/inventory/reports/pricing-exceptions/page.tsx) for why:
+  // that shared class's `overflow: hidden` silently disables `position:
+  // sticky` on descendants, which broke its search bar the same way this
+  // page's would be. This page now scrolls normally with a sticky search
+  // bar instead of a fixed-height/internal-scroll container.
   return (
-    <div className="report-print-container flex flex-col bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 64px)' }}>
-      <div className="flex-shrink-0 p-4 md:p-6 pb-0">
+    <div className="bg-gray-50 dark:bg-gray-900">
+      <div className="p-4 md:p-6 pb-0">
+        <Link href="/inventory/reports" className="inline-flex items-center gap-1 text-sm text-secondary hover:text-primary hover:underline mb-2">
+          ← Back to Reports
+        </Link>
         <div className="flex items-center gap-2 text-xs text-secondary mb-1">
           <Link href="/inventory" className="hover:underline">Inventory</Link>
           <span>/</span>
@@ -119,8 +133,18 @@ export default function InventoryValueReportPage() {
         <p className="text-sm text-secondary mt-0.5">
           Item- and total-level valuation. &quot;Recently stocked&quot; only reflects movements recorded since stock-movement logging was added — older receipts fall under &quot;Existing&quot; even if actually received in this window.
         </p>
+      </div>
 
-        <div className="flex flex-wrap items-end gap-3 my-4 no-print">
+      <div className="sticky top-14 sm:top-16 z-20 bg-gray-50 dark:bg-gray-900 pt-3 pb-2 px-4 md:px-6 no-print">
+        <ListSearchFilterBar
+          onSearchChange={setSearch}
+          searchLoading={loading}
+          searchPlaceholder="Search by name, SKU, or barcode…"
+        />
+      </div>
+
+      <div className="px-4 md:px-6 pb-4">
+        <div className="flex flex-wrap items-end gap-3 mb-4 no-print">
           <DateRangeSelector value={dateRange} onChange={setDateRange} />
           <div className="flex gap-1">
             {([['combined', 'Combined'], ['recentlyStocked', 'Recently Stocked'], ['existing', 'Existing']] as const).map(([mode, label]) => (
@@ -133,13 +157,6 @@ export default function InventoryValueReportPage() {
               </button>
             ))}
           </div>
-          <input
-            type="search"
-            placeholder="Search by name, SKU, barcode…"
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1) }}
-            className="px-3 py-1.5 text-sm border border-border rounded-lg bg-white dark:bg-gray-800 text-primary w-56"
-          />
         </div>
 
         {reportData && (
@@ -168,39 +185,35 @@ export default function InventoryValueReportPage() {
         )}
 
         {error && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-sm text-red-700 dark:text-red-300 mb-4">{error}</div>}
-      </div>
 
-      <div className="flex-1 overflow-hidden px-4 md:px-6 pb-4">
         {loading && <div className="text-center py-12 text-secondary">Loading…</div>}
 
         {!loading && reportData && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-border flex flex-col h-full">
-            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border flex-shrink-0">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-border">
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border">
               <p className="text-sm text-secondary">{reportData.pagination.total} items · page {reportData.pagination.page} of {Math.max(1, reportData.pagination.totalPages)}</p>
               <div className="flex items-center gap-2 no-print">
                 <button onClick={exportCsv} className="text-xs px-2 py-1 border border-border rounded hover:border-gray-400">Export CSV</button>
                 <button onClick={() => window.print()} className="text-xs px-2 py-1 border border-border rounded hover:border-gray-400">Print / Save as PDF</button>
-                <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="text-xs px-2 py-1 border border-border rounded disabled:opacity-40">← Prev</button>
-                <button disabled={page >= reportData.pagination.totalPages} onClick={() => setPage(p => p + 1)} className="text-xs px-2 py-1 border border-border rounded disabled:opacity-40">Next →</button>
               </div>
             </div>
 
-            <div className="overflow-auto flex-1">
+            <div className="overflow-x-auto">
               {rows.length === 0 ? (
                 <div className="text-center py-12 text-secondary text-sm">No items match the current filters.</div>
               ) : (
                 <table className="w-full text-sm border-separate border-spacing-0">
                   <thead>
                     <tr className="text-xs text-secondary uppercase tracking-wide">
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">Product</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">Category / Supplier</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Qty</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Unit Cost</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Unit Sell</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Cost Value</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Selling Value</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Potential Loss</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">Status</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">Product</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">Category / Supplier</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Qty</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Unit Cost</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Unit Sell</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Cost Value</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Selling Value</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Potential Loss</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -253,6 +266,20 @@ export default function InventoryValueReportPage() {
                   </tbody>
                 </table>
               )}
+            </div>
+            <div className="px-4 py-3 border-t border-border flex-shrink-0 no-print">
+              <Pagination
+                currentPage={page}
+                totalPages={Math.max(1, reportData.pagination.totalPages)}
+                totalItems={reportData.pagination.total}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                loading={loading}
+                pageSizeOptions={PAGE_SIZE_OPTIONS}
+                onPageSizeChange={setPageSize}
+                isPageSizeOverridden={isOverridden}
+                onResetPageSize={resetToDefault}
+              />
             </div>
           </div>
         )}

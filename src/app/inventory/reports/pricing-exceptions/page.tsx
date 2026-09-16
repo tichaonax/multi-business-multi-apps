@@ -8,6 +8,11 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getLocalDateString } from '@/lib/utils'
 import { ProductCell } from '@/components/inventory/report-product-cell'
+import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
+import { Pagination } from '@/components/ui/pagination'
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
+import { BulkQuantityCorrectionModal } from '@/components/inventory/bulk-quantity-correction-modal'
+import { UniversalInventoryForm } from '@/components/universal/inventory'
 import '@/styles/print-report.css'
 
 interface ExceptionFlag {
@@ -33,10 +38,12 @@ interface ExceptionRow {
   imageUrl: string | null
   editItemId: string
   sku: string | null
+  barcode: string | null
   category: string | null
   brand: string | null
   supplier: string | null
   location: string | null
+  unitOfMeasure: string | null
   quantityOnHand: number
   quantitySoldInPeriod: number
   lastStockedDate: string
@@ -45,13 +52,26 @@ interface ExceptionRow {
   sellingPrice: number | null
   previousCostPrice: number | null
   previousSellingPrice: number | null
+  unitsPerPack: number | null
+  bulkPackCost: number | null
+  hasBulkCostOnFile: boolean
   unitProfitLoss: number | null
   totalPotentialProfitLoss: number | null
+  actualLossFromSalesInPeriod: number
   grossMarginPct: number | null
   posAvailabilityStatus: 'AVAILABLE' | 'HIDDEN_NO_PRICE' | 'VISIBLE_AT_ZERO_PRICE' | 'INACTIVE'
   flags: ExceptionFlag[]
   severity: 'INFO' | 'WARNING' | 'CRITICAL' | null
   reviewStates: ReviewState[]
+  /**
+   * Client-only, not from the API: the row's cost/margin/P&L right before
+   * the last in-place "Fix" correction, so the report can show a clear
+   * before/after comparison without waiting for a reload. Lets the user
+   * judge whether the fix looks right and, if not, click Fix again
+   * immediately — a real reload is what actually re-evaluates whether the
+   * row still qualifies as an exception at all.
+   */
+  previousFixSnapshot?: { costPrice: number | null; grossMarginPct: number | null; totalPotentialProfitLoss: number | null } | null
 }
 
 interface ReportData {
@@ -169,7 +189,20 @@ export default function PricingExceptionsReportPage() {
   const [reportData, setReportData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Bulk Cost Allocation Issue "Fix" flow (MBM-297) — activeRow is whichever
+  // row's cost is being corrected; showQuickModal/showFullEditor track which
+  // of the two screens is currently on top. cameFromQuickModal records
+  // whether the full editor was reached by escalating out of the quick
+  // modal, so closing it knows whether to return there or just close.
+  const [activeRow, setActiveRow] = useState<ExceptionRow | null>(null)
+  const [showQuickModal, setShowQuickModal] = useState(false)
+  const [showFullEditor, setShowFullEditor] = useState(false)
+  const [fullEditorItem, setFullEditorItem] = useState<any | null>(null)
+  const [fullEditorLoading, setFullEditorLoading] = useState(false)
+  const [cameFromQuickModal, setCameFromQuickModal] = useState(false)
   const [page, setPage] = useState(1)
+  const { pageSize, setPageSize, isOverridden, resetToDefault } = usePageSize()
 
   const loadReport = useCallback(async () => {
     if (!currentBusinessId) return
@@ -181,7 +214,7 @@ export default function PricingExceptionsReportPage() {
         startDate: getLocalDateString(dateRange.start),
         endDate: getLocalDateString(dateRange.end),
         page: String(page),
-        limit: '50',
+        limit: String(pageSize),
       })
       if (search.trim()) params.set('search', search.trim())
       if (posStatusFilter) params.set('posAvailabilityStatus', posStatusFilter)
@@ -195,9 +228,10 @@ export default function PricingExceptionsReportPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentBusinessId, dateRange, search, posStatusFilter, profitabilityFilter, page])
+  }, [currentBusinessId, dateRange, search, posStatusFilter, profitabilityFilter, page, pageSize])
 
   useEffect(() => { loadReport() }, [loadReport])
+  useEffect(() => { setPage(1) }, [search, severityFilter, posStatusFilter, profitabilityFilter, pageSize])
 
   function handleReviewSaved(rowId: string, state: ReviewState) {
     setReportData(prev => {
@@ -212,6 +246,111 @@ export default function PricingExceptionsReportPage() {
   }
 
   const rows = (reportData?.data ?? []).filter(r => severityFilter === 'ALL' || r.severity === severityFilter)
+
+  function handleFixClick(row: ExceptionRow) {
+    // Always open the small modal first — even when there's no bulk cost on
+    // file yet, the modal itself explains that and offers "Open Full Item
+    // Editor" as the user's own next step, rather than the page deciding to
+    // skip straight to the heavier full editor on their behalf.
+    setActiveRow(row)
+    setShowQuickModal(true)
+  }
+
+  async function openFullEditor(row: ExceptionRow) {
+    setCameFromQuickModal(showQuickModal)
+    setShowQuickModal(false)
+    setFullEditorLoading(true)
+    try {
+      const res = await fetch(`/api/inventory/${currentBusinessId}/items/${row.editItemId}`)
+      const data = await res.json()
+      if (data.success) {
+        setFullEditorItem(data.data)
+        setShowFullEditor(true)
+      } else {
+        setError(data.error ?? 'Failed to load item for editing')
+      }
+    } catch {
+      setError('Failed to load item for editing')
+    } finally {
+      setFullEditorLoading(false)
+    }
+  }
+
+  function closeFullEditor() {
+    setShowFullEditor(false)
+    setFullEditorItem(null)
+    if (cameFromQuickModal) setShowQuickModal(true)
+  }
+
+  async function handleFullEditorSubmit(formData: any) {
+    if (!activeRow || !currentBusinessId) return
+    try {
+      const res = await fetch(`/api/inventory/${currentBusinessId}/items/${activeRow.editItemId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.error ?? 'Failed to save changes')
+        return
+      }
+      closeFullEditor()
+      loadReport()
+    } catch {
+      setError('Failed to save changes')
+    }
+  }
+
+  function closeQuickModal() {
+    setShowQuickModal(false)
+    setActiveRow(null)
+  }
+
+  function handleCorrectionSaved(result: { unitsPerPack: number; costPrice: number | null; bulkPackCost: number | null }) {
+    // Patch the row in place and keep it visible with a before/after
+    // comparison — deliberately NOT reloading the report here. The user
+    // needs to see what changed to judge whether the fix looks right, and
+    // Fix needs to stay clickable so a mistake can be corrected again
+    // immediately, without the row vanishing (or the flag disappearing)
+    // out from under them first. A real reload (manual, or the report's
+    // own periodic refresh) is what re-runs the exception rules for real
+    // and removes the row if it no longer qualifies.
+    const correctedId = activeRow?.id
+    if (correctedId) {
+      setReportData(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          data: prev.data.map(r => {
+            if (r.id !== correctedId) return r
+            const newCost: number | null = result.costPrice ?? r.costPrice
+            const newUnitProfitLoss = newCost !== null && r.sellingPrice !== null ? r.sellingPrice - newCost : r.unitProfitLoss
+            const divisor = Math.max(r.quantityOnHand, r.quantitySoldInPeriod)
+            const newTotalPL = newUnitProfitLoss !== null ? newUnitProfitLoss * divisor : r.totalPotentialProfitLoss
+            const newMarginPct = newCost !== null && r.sellingPrice !== null && r.sellingPrice > 0
+              ? ((r.sellingPrice - newCost) / r.sellingPrice) * 100
+              : r.grossMarginPct
+            return {
+              ...r,
+              unitsPerPack: result.unitsPerPack,
+              costPrice: newCost,
+              bulkPackCost: result.bulkPackCost ?? r.bulkPackCost,
+              hasBulkCostOnFile: result.bulkPackCost != null || r.hasBulkCostOnFile,
+              unitProfitLoss: newUnitProfitLoss,
+              totalPotentialProfitLoss: newTotalPL,
+              grossMarginPct: newMarginPct,
+              // Flags are left exactly as they were — including this
+              // one's Fix link — until a real reload re-evaluates them.
+              previousFixSnapshot: { costPrice: r.costPrice, grossMarginPct: r.grossMarginPct, totalPotentialProfitLoss: r.totalPotentialProfitLoss },
+            }
+          }),
+        }
+      })
+    }
+    setShowQuickModal(false)
+    setActiveRow(null)
+  }
 
   function exportCsv() {
     const header = 'Product,SKU,Category,Supplier,Qty on Hand,Qty Sold,Cost,Sell,Margin %,Potential P/L,POS Status,Exceptions'
@@ -230,9 +369,19 @@ export default function PricingExceptionsReportPage() {
     URL.revokeObjectURL(url)
   }
 
+  // Deliberately NOT `.report-print-container` — that shared class carries
+  // `overflow: hidden` (needed by the other, still fixed-height report
+  // pages), and `overflow` anything but `visible` on an ancestor silently
+  // disables `position: sticky` on descendants. That's what made the
+  // sticky search bar below not stick at all. This page no longer needs
+  // that class's fixed-height/print-override behavior now that it scrolls
+  // naturally.
   return (
-    <div className="report-print-container flex flex-col bg-gray-50 dark:bg-gray-900" style={{ height: 'calc(100vh - 64px)' }}>
-      <div className="flex-shrink-0 p-4 md:p-6 pb-0">
+    <div className="bg-gray-50 dark:bg-gray-900">
+      <div className="p-4 md:p-6 pb-0">
+        <Link href="/inventory/reports" className="inline-flex items-center gap-1 text-sm text-secondary hover:text-primary hover:underline mb-2">
+          ← Back to Reports
+        </Link>
         <div className="flex items-center gap-2 text-xs text-secondary mb-1">
           <Link href="/inventory" className="hover:underline">Inventory</Link>
           <span>/</span>
@@ -244,8 +393,22 @@ export default function PricingExceptionsReportPage() {
         <p className="text-sm text-secondary mt-0.5">
           Products with missing, invalid, below-cost, or suspicious pricing/cost data. Sales window below only affects &quot;qty sold&quot; and &quot;last sold&quot; columns — pricing exceptions themselves reflect current data regardless of date range.
         </p>
+      </div>
 
-        <div className="flex flex-wrap items-end gap-3 my-4 no-print">
+      {/* Sticky under the global nav while scrolling — the same proven
+          pattern as Receipt History's search bar, instead of the
+          fixed-viewport-height + internal-scroll layout this page used to
+          use (which repeatedly ended up clipped under the nav). */}
+      <div className="sticky top-14 sm:top-16 z-20 bg-gray-50 dark:bg-gray-900 pt-3 pb-2 px-4 md:px-6 no-print">
+        <ListSearchFilterBar
+          onSearchChange={setSearch}
+          searchLoading={loading}
+          searchPlaceholder="Search by name, SKU, or barcode…"
+        />
+      </div>
+
+      <div className="px-4 md:px-6 pb-4">
+        <div className="flex flex-wrap items-end gap-3 mb-4 no-print">
           <DateRangeSelector value={dateRange} onChange={setDateRange} />
           <select value={severityFilter} onChange={e => setSeverityFilter(e.target.value as any)} className="px-3 py-1.5 text-sm border border-border rounded-lg bg-white dark:bg-gray-800 text-primary">
             <option value="ALL">All severities</option>
@@ -266,13 +429,6 @@ export default function PricingExceptionsReportPage() {
             <option value="LOW_MARGIN">Low margin</option>
             <option value="HEALTHY">Healthy margin</option>
           </select>
-          <input
-            type="search"
-            placeholder="Search by name, SKU, barcode…"
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1) }}
-            className="px-3 py-1.5 text-sm border border-border rounded-lg bg-white dark:bg-gray-800 text-primary w-56"
-          />
         </div>
 
         {reportData && (
@@ -297,40 +453,36 @@ export default function PricingExceptionsReportPage() {
         )}
 
         {error && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-sm text-red-700 dark:text-red-300 mb-4">{error}</div>}
-      </div>
 
-      <div className="flex-1 overflow-hidden px-4 md:px-6 pb-4">
         {loading && <div className="text-center py-12 text-secondary">Loading…</div>}
 
         {!loading && reportData && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-border flex flex-col h-full">
-            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border flex-shrink-0">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-border">
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border">
               <p className="text-sm text-secondary">{reportData.pagination.total} exceptions · page {reportData.pagination.page} of {Math.max(1, reportData.pagination.totalPages)}</p>
               <div className="flex items-center gap-2 no-print">
                 <button onClick={exportCsv} className="text-xs px-2 py-1 border border-border rounded hover:border-gray-400">Export CSV</button>
                 <button onClick={() => window.print()} className="text-xs px-2 py-1 border border-border rounded hover:border-gray-400">Print / Save as PDF</button>
-                <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="text-xs px-2 py-1 border border-border rounded disabled:opacity-40">← Prev</button>
-                <button disabled={page >= reportData.pagination.totalPages} onClick={() => setPage(p => p + 1)} className="text-xs px-2 py-1 border border-border rounded disabled:opacity-40">Next →</button>
               </div>
             </div>
 
-            <div className="overflow-auto flex-1">
+            <div className="overflow-x-auto">
               {rows.length === 0 ? (
                 <div className="text-center py-12 text-secondary text-sm">No exceptions match the current filters.</div>
               ) : (
                 <table className="w-full text-sm border-separate border-spacing-0">
                   <thead>
                     <tr className="text-xs text-secondary uppercase tracking-wide">
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">Product</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">Category / Supplier</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Qty on Hand</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Qty Sold</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Cost</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Sell</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Margin</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Potential P/L</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">POS Status</th>
-                      <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">Exceptions</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">Product</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">Category / Supplier</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Qty on Hand</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Qty Sold</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Cost</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Sell</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Margin</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Potential P/L</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">POS Status</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">Exceptions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -348,7 +500,7 @@ export default function PricingExceptionsReportPage() {
                           />
                         </td>
                         <td className="px-3 py-2.5 text-secondary">
-                          <p>{row.category ?? '—'}</p>
+                          <p>{row.category ?? '—'}{row.unitOfMeasure && <span className="text-gray-400"> · {row.unitOfMeasure}</span>}</p>
                           {row.supplier && <p className="text-xs text-gray-400">{row.supplier}</p>}
                         </td>
                         <td className="px-3 py-2.5 text-right text-secondary">{row.quantityOnHand}</td>
@@ -356,6 +508,31 @@ export default function PricingExceptionsReportPage() {
                         <td className="px-3 py-2.5 text-right text-secondary">
                           {fmt(row.costPrice)}
                           {row.previousCostPrice != null && <p className="text-xs text-gray-400">was {fmt(row.previousCostPrice)}</p>}
+                          {row.previousFixSnapshot && (
+                            <p className="text-xs text-green-600 dark:text-green-400" title="From the correction just applied — reload the report to confirm this is now final">
+                              just fixed, was {fmt(row.previousFixSnapshot.costPrice)}
+                            </p>
+                          )}
+                          {row.hasBulkCostOnFile && (
+                            <p className="text-xs text-gray-400">Pack: {row.unitsPerPack ?? '?'} × {fmt(row.bulkPackCost)}</p>
+                          )}
+                          {!row.hasBulkCostOnFile && row.unitsPerPack != null && row.unitsPerPack > 1 && row.costPrice != null && (
+                            <p
+                              className="text-xs text-indigo-500 dark:text-indigo-400"
+                              title="Pack size recorded, but the cost shown hasn't been confirmed as the box/case cost yet — that still needs someone with inventory-edit access, via Open Full Item Editor. Shown here so the original case cost isn't lost."
+                            >
+                              {fmt(row.costPrice)} ÷ {row.unitsPerPack} = {fmt(row.costPrice / row.unitsPerPack)}/unit
+                            </p>
+                          )}
+                          {row.flags.some(f => f.type === 'BULK_COST_ALLOCATION_ISSUE') && (
+                            <button
+                              onClick={() => handleFixClick(row)}
+                              className="block text-xs text-amber-600 dark:text-amber-400 hover:underline mt-0.5 whitespace-nowrap"
+                              title="Possible bulk cost error"
+                            >
+                              ⚠ Possible bulk cost error — Fix
+                            </button>
+                          )}
                         </td>
                         <td className="px-3 py-2.5 text-right text-secondary">
                           {fmt(row.sellingPrice)}
@@ -365,11 +542,24 @@ export default function PricingExceptionsReportPage() {
                           <span className={row.grossMarginPct !== null && row.grossMarginPct < 0 ? 'text-red-600 font-semibold' : 'text-secondary'}>
                             {row.grossMarginPct !== null ? `${row.grossMarginPct.toFixed(1)}%` : '—'}
                           </span>
+                          {row.previousFixSnapshot && (
+                            <p className="text-xs text-green-600 dark:text-green-400">
+                              was {row.previousFixSnapshot.grossMarginPct !== null ? `${row.previousFixSnapshot.grossMarginPct.toFixed(1)}%` : '—'}
+                            </p>
+                          )}
                         </td>
                         <td className="px-3 py-2.5 text-right">
                           <span className={row.totalPotentialProfitLoss !== null && row.totalPotentialProfitLoss < 0 ? 'text-red-600 font-semibold' : 'text-secondary'}>
                             {fmt(row.totalPotentialProfitLoss)}
                           </span>
+                          {row.previousFixSnapshot && (
+                            <p className="text-xs text-green-600 dark:text-green-400">was {fmt(row.previousFixSnapshot.totalPotentialProfitLoss)}</p>
+                          )}
+                          {row.actualLossFromSalesInPeriod > 0 && (
+                            <p className="text-xs text-red-500" title="Actual loss from sales in the selected period (uses today's cost price, not the cost at the time of each sale)">
+                              actual: -{fmt(row.actualLossFromSalesInPeriod)}
+                            </p>
+                          )}
                         </td>
                         <td className="px-3 py-2.5">
                           <span className={`text-xs px-1.5 py-0.5 rounded ${row.posAvailabilityStatus === 'AVAILABLE' ? 'text-secondary' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'}`}>
@@ -394,9 +584,56 @@ export default function PricingExceptionsReportPage() {
                 </table>
               )}
             </div>
+            <div className="px-4 py-3 border-t border-border flex-shrink-0 no-print">
+              <Pagination
+                currentPage={page}
+                totalPages={Math.max(1, reportData.pagination.totalPages)}
+                totalItems={reportData.pagination.total}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                loading={loading}
+                pageSizeOptions={PAGE_SIZE_OPTIONS}
+                onPageSizeChange={setPageSize}
+                isPageSizeOverridden={isOverridden}
+                onResetPageSize={resetToDefault}
+              />
+            </div>
           </div>
         )}
       </div>
+
+      {showQuickModal && activeRow && currentBusinessId && (
+        <BulkQuantityCorrectionModal
+          businessId={currentBusinessId}
+          itemId={activeRow.editItemId}
+          row={{
+            name: activeRow.name,
+            sku: activeRow.sku,
+            barcode: activeRow.barcode,
+            quantityOnHand: activeRow.quantityOnHand,
+            unitsPerPack: activeRow.unitsPerPack,
+            costPrice: activeRow.costPrice,
+            bulkPackCost: activeRow.bulkPackCost,
+            sellingPrice: activeRow.sellingPrice,
+          }}
+          canEditCost={canEditInventory}
+          onClose={closeQuickModal}
+          onSaved={handleCorrectionSaved}
+          onOpenFullEditor={() => activeRow && openFullEditor(activeRow)}
+        />
+      )}
+
+      {showFullEditor && fullEditorItem && currentBusinessId && (
+        <UniversalInventoryForm
+          businessId={currentBusinessId}
+          businessType={reportData?.businessType ?? 'grocery'}
+          item={fullEditorItem}
+          mode="edit"
+          renderMode="modal"
+          onSubmit={handleFullEditorSubmit}
+          onCancel={closeFullEditor}
+        />
+      )}
     </div>
   )
 }

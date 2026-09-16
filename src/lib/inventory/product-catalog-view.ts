@@ -48,6 +48,10 @@ export interface ProductRecord {
   packSize: string | null
   costPrice: number | null
   sellingPrice: number | null
+  /** MBM-297 — on-file bulk-pack cost allocation, when recorded. Never
+   * inferred from costPrice — null means "not recorded", not "same as cost". */
+  unitsPerPack: number | null
+  bulkPackCost: number | null
   quantityOnHand: number
   reorderLevel: number
   isActive: boolean
@@ -116,6 +120,8 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
             barcode: true,
             costPrice: true,
             basePrice: true,
+            unitsPerPack: true,
+            bulkPackCost: true,
             isSoldByWeight: true,
             isActive: true,
             isAvailable: true,
@@ -132,7 +138,7 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
             product_images: {
               orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
               take: 1,
-              select: { imageId: true },
+              select: { imageId: true, images: { select: { thumbnailImageId: true } } },
             },
           },
         },
@@ -154,6 +160,8 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
         barcodeData: true,
         costPrice: true,
         sellingPrice: true,
+        unitsPerPack: true,
+        bulkPackCost: true,
         stockQuantity: true,
         reorderLevel: true,
         isActive: true,
@@ -165,6 +173,7 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
         locationId: true,
         business_location: { select: { name: true } },
         imageId: true,
+        image: { select: { thumbnailImageId: true } },
       },
     }),
   ])
@@ -200,13 +209,20 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
       packSize: (attrs?.packSize as string) ?? null,
       costPrice,
       sellingPrice,
+      unitsPerPack: bp.unitsPerPack ?? null,
+      bulkPackCost: bp.bulkPackCost ? parseFloat(bp.bulkPackCost.toString()) : null,
       quantityOnHand: v.stockQuantity ?? 0,
       reorderLevel: v.reorderLevel ?? 0,
       isActive: v.isActive && bp.isActive,
       isAvailable: v.isAvailable && bp.isAvailable,
       posAvailabilityStatus: deriveCatalogAStatus(v.isActive && bp.isActive, v.isAvailable && bp.isAvailable, sellingPrice, bp.isSoldByWeight),
       createdAt: v.createdAt,
-      imageUrl: bp.product_images[0]?.imageId ? `/api/images/${bp.product_images[0].imageId}` : null,
+      // MBM-297 Phase C — list views prefer the smaller thumbnail when one
+      // was generated for this image, falling back to the full image for
+      // every image uploaded before the pipeline existed (no thumbnail).
+      imageUrl: bp.product_images[0]?.imageId
+        ? `/api/images/${bp.product_images[0].images?.thumbnailImageId || bp.product_images[0].imageId}`
+        : null,
       editItemId: bp.id,
     })
   }
@@ -235,13 +251,15 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
       packSize: null,
       costPrice,
       sellingPrice,
+      unitsPerPack: item.unitsPerPack ?? null,
+      bulkPackCost: item.bulkPackCost ? parseFloat(item.bulkPackCost.toString()) : null,
       quantityOnHand: item.stockQuantity ?? 0,
       reorderLevel: item.reorderLevel ?? 0,
       isActive: item.isActive,
       isAvailable: item.isActive,
       posAvailabilityStatus: deriveCatalogBStatus(item.isActive, sellingPrice),
       createdAt: item.createdAt,
-      imageUrl: item.imageId ? `/api/images/${item.imageId}` : null,
+      imageUrl: item.imageId ? `/api/images/${item.image?.thumbnailImageId || item.imageId}` : null,
       editItemId: `inv_${item.id}`,
     })
   }

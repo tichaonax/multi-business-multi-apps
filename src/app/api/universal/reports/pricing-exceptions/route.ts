@@ -71,6 +71,7 @@ export async function GET(request: NextRequest) {
     const config: PricingExceptionConfig = settingsRow
       ? {
           minimumMarginPct: parseFloat(settingsRow.minimumMarginPct.toString()),
+          maximumMarginPct: parseFloat(settingsRow.maximumMarginPct.toString()),
           priceChangeAlertPct: parseFloat(settingsRow.priceChangeAlertPct.toString()),
           decimalErrorMultiples: settingsRow.decimalErrorMultiples.map(d => parseFloat(d.toString())),
           benchmarkTolerancePct: parseFloat(settingsRow.benchmarkTolerancePct.toString()),
@@ -122,16 +123,22 @@ export async function GET(request: NextRequest) {
       const previous = previousPricesMap.get(`${p.catalogSource}:${p.productRefIdForHistory}`) ?? null
 
       const benchmark = p.categoryId ? benchmarks.get(p.categoryId) ?? null : null
+      const hasBulkCostOnFile = p.bulkPackCost !== null && p.bulkPackCost > 0
       const flags = detectSuspicious(
         { sellingPrice: p.sellingPrice, costPrice: p.costPrice, quantityOnHand: p.quantityOnHand, quantitySoldInPeriod: qtySoldInPeriod, posAvailabilityStatus: p.posAvailabilityStatus },
         config,
         benchmark,
-        previous
+        previous,
+        { unitsPerPack: p.unitsPerPack, bulkPackCost: p.bulkPackCost }
       )
 
       const unitPL = p.sellingPrice !== null && p.costPrice !== null ? unitProfitLoss(p.sellingPrice, p.costPrice) : null
       const marginPct = p.sellingPrice !== null && p.costPrice !== null ? grossMarginPct(p.sellingPrice, p.costPrice) : null
       const totalPotentialPL = unitPL !== null ? unitPL * Math.max(p.quantityOnHand, qtySoldInPeriod) : null
+      // Approximation, same as the Performance report — uses today's cost
+      // price, not the cost at the time of each historical sale (no
+      // per-sale cost snapshot exists anywhere in the app).
+      const actualLossFromSalesInPeriod = unitPL !== null && unitPL < 0 ? Math.abs(unitPL) * qtySoldInPeriod : 0
 
       return {
         id: p.id,
@@ -155,8 +162,12 @@ export async function GET(request: NextRequest) {
         sellingPrice: p.sellingPrice,
         previousCostPrice: previous?.previousCostPrice ?? null,
         previousSellingPrice: previous?.previousSellingPrice ?? null,
+        unitsPerPack: p.unitsPerPack,
+        bulkPackCost: p.bulkPackCost,
+        hasBulkCostOnFile,
         unitProfitLoss: unitPL,
         totalPotentialProfitLoss: totalPotentialPL,
+        actualLossFromSalesInPeriod,
         grossMarginPct: marginPct,
         posAvailabilityStatus: p.posAvailabilityStatus,
         flags,

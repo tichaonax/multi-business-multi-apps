@@ -34,6 +34,8 @@ export async function GET(request: NextRequest) {
         supplierId: true,
         basePrice: true,
         costPrice: true,
+        unitsPerPack: true,
+        bulkPackCost: true,
         barcode: true,     // product-level barcode (fallback)
         sku: true,
         product_variants: {
@@ -72,6 +74,8 @@ export async function GET(request: NextRequest) {
       sku: string
       sellingPrice: number
       costPrice: number | null
+      unitsPerPack?: number | null
+      bulkPackCost?: number | null
       systemQuantity: number
       itemType: string
       description?: string | null
@@ -112,6 +116,8 @@ export async function GET(request: NextRequest) {
           sku: variant.sku,
           sellingPrice,
           costPrice: product.costPrice != null ? Number(product.costPrice) : null,
+          unitsPerPack: product.unitsPerPack ?? null,
+          bulkPackCost: product.bulkPackCost != null ? Number(product.bulkPackCost) : null,
           systemQuantity: variant.stockQuantity,
           itemType: 'product',
         })
@@ -128,6 +134,8 @@ export async function GET(request: NextRequest) {
         sku: true,
         sellingPrice: true,
         costPrice: true,
+        unitsPerPack: true,
+        bulkPackCost: true,
         categoryId: true,
         subcategoryId: true,
         supplierId: true,
@@ -149,6 +157,8 @@ export async function GET(request: NextRequest) {
         sku: bi.sku ?? '',
         sellingPrice: Number(bi.sellingPrice ?? 0),
         costPrice: bi.costPrice != null ? Number(bi.costPrice) : null,
+        unitsPerPack: bi.unitsPerPack ?? null,
+        bulkPackCost: bi.bulkPackCost != null ? Number(bi.bulkPackCost) : null,
         systemQuantity: bi.stockQuantity,
         itemType: 'barcode',
         description: bi.customLabel || null,

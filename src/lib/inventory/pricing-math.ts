@@ -10,6 +10,7 @@
 
 export interface PricingExceptionConfig {
   minimumMarginPct: number
+  maximumMarginPct: number
   priceChangeAlertPct: number
   decimalErrorMultiples: number[]
   benchmarkTolerancePct: number
@@ -18,6 +19,7 @@ export interface PricingExceptionConfig {
 
 export const DEFAULT_PRICING_EXCEPTION_CONFIG: PricingExceptionConfig = {
   minimumMarginPct: 10,
+  maximumMarginPct: 90,
   priceChangeAlertPct: 30,
   decimalErrorMultiples: [10, 100, 0.1, 0.01],
   benchmarkTolerancePct: 50,
@@ -58,6 +60,7 @@ export type ExceptionType =
   | 'LIKELY_DECIMAL_ERROR'
   | 'NEGATIVE_VALUE'
   | 'HIGH_FINANCIAL_IMPACT'
+  | 'BULK_COST_ALLOCATION_ISSUE'
 
 export type ExceptionSeverity = 'INFO' | 'WARNING' | 'CRITICAL'
 
@@ -81,11 +84,23 @@ export interface PreviousPrices {
   previousCostPrice: number | null
 }
 
+/** MBM-297 — the product's on-file bulk-pack cost/quantity, if any (Phase B's
+ * new fields). `null`/`undefined` on either means "not recorded" — never
+ * inferred from `costPrice`, since assuming the current cost price IS the
+ * bulk cost would be a guess the reviewing user can't verify either. */
+export interface BulkCostInfo {
+  unitsPerPack: number | null
+  bulkPackCost: number | null
+}
+
 const SUGGEST = {
   setSellingPrice: 'Set selling price',
   setCostPrice: 'Set cost price',
+  reviewPricing: 'Review pricing',
   reviewUnitOfMeasure: 'Review unit of measure',
   correctDecimalError: 'Correct possible decimal error',
+  correctBulkPackQuantity: 'Correct bulk pack quantity',
+  setUpBulkPackCost: 'Set up bulk pack cost',
   increaseSellingPrice: 'Increase selling price',
   approveBelowCost: 'Approve below-cost sale',
   reviewSupplierCostIncrease: 'Review supplier cost increase',
@@ -108,7 +123,8 @@ export function detectSuspicious(
   },
   config: PricingExceptionConfig = DEFAULT_PRICING_EXCEPTION_CONFIG,
   benchmark: CategoryBenchmark | null = null,
-  previous: PreviousPrices | null = null
+  previous: PreviousPrices | null = null,
+  bulkCost: BulkCostInfo | null = null
 ): SuspiciousFlag[] {
   const flags: SuspiciousFlag[] = []
   const { sellingPrice, costPrice } = input
@@ -152,6 +168,11 @@ export function detectSuspicious(
       const margin = grossMarginPct(sellingPrice!, costPrice!)
       if (margin !== null && margin < config.minimumMarginPct) {
         flags.push({ type: 'LOW_MARGIN', severity: 'WARNING', reason: `Gross margin (${margin.toFixed(1)}%) is below the configured minimum (${config.minimumMarginPct}%)`, suggestedAction: SUGGEST.increaseSellingPrice })
+      } else if (margin !== null && margin > config.maximumMarginPct) {
+        // An unusually high margin isn't necessarily wrong — could be a
+        // legitimately premium item — but is worth a look, same tier as
+        // LOW_MARGIN: could just as easily be a cost-side decimal error.
+        flags.push({ type: 'HIGH_MARGIN_OUTLIER', severity: 'WARNING', reason: `Gross margin (${margin.toFixed(1)}%) is above the configured maximum (${config.maximumMarginPct}%)`, suggestedAction: SUGGEST.reviewPricing })
       }
     }
 
@@ -168,6 +189,38 @@ export function detectSuspicious(
     const highImpact = Math.abs(unitProfitLoss(sellingPrice!, costPrice!)) * Math.max(input.quantityOnHand, input.quantitySoldInPeriod)
     if (isLossMaking(sellingPrice!, costPrice!) && highImpact >= config.highImpactThreshold) {
       flags.push({ type: 'HIGH_FINANCIAL_IMPACT', severity: 'CRITICAL', reason: `Potential loss of $${highImpact.toFixed(2)} across current stock/recent sales exceeds the $${config.highImpactThreshold} threshold`, suggestedAction: SUGGEST.approveBelowCost })
+    }
+
+    // Bulk Cost Allocation Issue (MBM-297) — a case/bulk-pack purchase cost
+    // saved as if it were the cost of one individual unit. Two distinct
+    // signals, deliberately never guessing the bulk cost from costPrice
+    // alone — the reviewing user may not know that number either, so only a
+    // bulk cost that was actually recorded gets the strong, direct check.
+    if (bulkCost && bulkCost.bulkPackCost !== null && bulkCost.bulkPackCost > 0) {
+      const unitsPerPack = bulkCost.unitsPerPack ?? 1
+      const closeToBulkCost = Math.abs(costPrice! - bulkCost.bulkPackCost) / bulkCost.bulkPackCost < 0.05
+      if (unitsPerPack <= 1 && closeToBulkCost) {
+        flags.push({
+          type: 'BULK_COST_ALLOCATION_ISSUE',
+          severity: 'CRITICAL',
+          reason: `Recorded unit cost ($${costPrice!.toFixed(2)}) matches the bulk-pack cost on file ($${bulkCost.bulkPackCost.toFixed(2)}) with only ${unitsPerPack} unit(s) per pack recorded — looks like the full case cost, not the per-unit cost`,
+          suggestedAction: SUGGEST.correctBulkPackQuantity,
+        })
+      }
+    } else {
+      // No bulk cost on file at all — a softer, heuristic-only signal: a
+      // low-value item selling below cost with a meaningful $ impact is the
+      // classic shape of this mistake, but confirming it needs the user to
+      // supply the real bulk cost via the full item editor, not a guess here.
+      const lowValueItem = sellingPrice! > 0 && sellingPrice! < 20
+      if (isLossMaking(sellingPrice!, costPrice!) && lowValueItem && highImpact >= config.highImpactThreshold) {
+        flags.push({
+          type: 'BULK_COST_ALLOCATION_ISSUE',
+          severity: 'WARNING',
+          reason: `Low-value item selling below cost with a significant potential impact ($${highImpact.toFixed(2)}) — a common pattern when a bulk/case purchase cost was recorded as the cost of one individual unit`,
+          suggestedAction: SUGGEST.setUpBulkPackCost,
+        })
+      }
     }
   }
 

@@ -42,6 +42,12 @@ interface UniversalInventoryItem {
   unit: string
   costPrice: number
   sellPrice: number
+  // MBM-297 — bulk-pack cost allocation, when this item was bought as a
+  // case/pack. `costPrice` above stays the real individual unit cost;
+  // these two just let it be derived correctly instead of recording the
+  // whole case cost as if it were one unit's cost.
+  unitsPerPack?: number | null
+  bulkPackCost?: number | null
   supplier?: string // Legacy - for display only
   supplierId?: string
   location?: string // Legacy - for display only
@@ -271,6 +277,8 @@ export function UniversalInventoryForm({
     unit: '',
     costPrice: 0,
     sellPrice: 0,
+    unitsPerPack: null,
+    bulkPackCost: null,
     supplier: '',
     supplierId: undefined,
     location: '',
@@ -1958,6 +1966,55 @@ export function UniversalInventoryForm({
                   placeholder="0.00"
                 />
                 {errors.costPrice && <p className="text-red-600 text-xs mt-1 font-medium">{errors.costPrice}</p>}
+              </div>
+              )}
+
+              {/* Bulk pack cost (MBM-297) — optional. When this item was bought as
+                  a case/pack, record the real case cost + units per pack here so
+                  Cost Price above can be derived correctly instead of the whole
+                  case cost being saved as if it were one unit's cost. */}
+              {!effectiveWeightMode && (
+              <div className="col-span-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3">
+                <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Bulk pack cost (optional) — bought as a case/pack?</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Units per pack</label>
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      value={formData.unitsPerPack ?? ''}
+                      onChange={(e) => handleInputChange('unitsPerPack', e.target.value === '' ? null : parseInt(e.target.value))}
+                      className="input-field"
+                      placeholder="e.g. 24"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Bulk/case cost ($)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.bulkPackCost ?? ''}
+                      onChange={(e) => handleInputChange('bulkPackCost', e.target.value === '' ? null : parseFloat(e.target.value))}
+                      className="input-field"
+                      placeholder="e.g. 6.70"
+                    />
+                  </div>
+                </div>
+                {formData.unitsPerPack != null && formData.unitsPerPack > 0 && formData.bulkPackCost != null && formData.bulkPackCost > 0 && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    → ${(formData.bulkPackCost / formData.unitsPerPack).toFixed(2)}/unit
+                    {' '}
+                    <button
+                      type="button"
+                      onClick={() => handleInputChange('costPrice', Math.round((formData.bulkPackCost! / formData.unitsPerPack!) * 100) / 100)}
+                      className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                    >
+                      Use as Cost Price
+                    </button>
+                  </p>
+                )}
               </div>
               )}
 

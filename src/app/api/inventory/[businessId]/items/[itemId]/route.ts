@@ -58,6 +58,8 @@ export async function GET(
           unit: 'units',
           costPrice: parseFloat(item.costPrice?.toString() || '0'),
           sellPrice: parseFloat(item.sellingPrice?.toString() || '0'),
+          unitsPerPack: (item as any).unitsPerPack ?? null,
+          bulkPackCost: (item as any).bulkPackCost ? parseFloat((item as any).bulkPackCost.toString()) : null,
           supplier: (item as any).business_supplier?.name || '',
           supplierId: item.supplierId || null,
           location: (item as any).business_location?.name || '',
@@ -144,6 +146,8 @@ export async function GET(
         unit: 'units',
         costPrice: parseFloat(product.costPrice?.toString() || '0'),
         sellPrice: parseFloat(product.basePrice?.toString() || '0'),
+        unitsPerPack: (product as any).unitsPerPack ?? null,
+        bulkPackCost: (product as any).bulkPackCost ? parseFloat((product as any).bulkPackCost.toString()) : null,
         supplier: product.business_suppliers?.name || '',
         supplierId: product.supplierId || null,
         location: product.business_locations?.name || '',
@@ -226,6 +230,8 @@ export async function PUT(
       if (body.sellPrice !== undefined) updateData.sellingPrice = parseFloat(body.sellPrice)
       if (body.basePrice !== undefined) updateData.sellingPrice = parseFloat(body.basePrice)
       if (body.costPrice !== undefined) updateData.costPrice = body.costPrice ? parseFloat(body.costPrice) : null
+      if (body.unitsPerPack !== undefined) updateData.unitsPerPack = body.unitsPerPack ? parseInt(body.unitsPerPack) : null
+      if (body.bulkPackCost !== undefined) updateData.bulkPackCost = body.bulkPackCost ? parseFloat(body.bulkPackCost) : null
       if (body.isActive !== undefined) updateData.isActive = body.isActive
       if (body.barcodeData !== undefined) updateData.barcodeData = body.barcodeData || null
       if (body.sku !== undefined) updateData.sku = body.sku || null
@@ -444,6 +450,8 @@ export async function PUT(
     if (body.basePrice) updateData.basePrice = parseFloat(body.basePrice)
     if (body.sellPrice) updateData.basePrice = parseFloat(body.sellPrice) // Accept sellPrice for compatibility
     if (body.costPrice !== undefined) updateData.costPrice = body.costPrice ? parseFloat(body.costPrice) : null
+    if (body.unitsPerPack !== undefined) updateData.unitsPerPack = body.unitsPerPack ? parseInt(body.unitsPerPack) : null
+    if (body.bulkPackCost !== undefined) updateData.bulkPackCost = body.bulkPackCost ? parseFloat(body.bulkPackCost) : null
     if (body.isActive !== undefined) updateData.isActive = body.isActive
     if (body.isAvailable !== undefined) updateData.isAvailable = body.isAvailable
     if (body.attributes) updateData.attributes = body.attributes

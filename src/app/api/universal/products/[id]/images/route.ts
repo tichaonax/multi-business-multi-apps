@@ -12,6 +12,9 @@ async function canEditProductImages(businessId: string): Promise<boolean> {
     hasPermission(user, 'canQuickEditPOSItems', businessId)
 }
 
+const VALID_SOURCE_TYPES = new Set(['DESKTOP_UPLOAD', 'MOBILE_UPLOAD', 'MOBILE_CAMERA'])
+const VALID_BG_STATUS = new Set(['NONE', 'PROCESSED', 'FAILED', 'KEPT_ORIGINAL'])
+
 /**
  * Menu/product image upload — stores the binary in the `images` table
  * (same pattern as `POST /api/universal/images`), not the local filesystem.
@@ -43,6 +46,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'No files uploaded' }, { status: 400 })
     }
 
+    // MBM-297 Phase C — optional pipeline metadata for the FIRST file only
+    // (this route is called either with one processed product photo, which
+    // is what ever supplies these, or a legacy multi-file upload, which
+    // never does).
+    const sourceTypeRaw = data.get('sourceType')
+    const sourceType = typeof sourceTypeRaw === 'string' && VALID_SOURCE_TYPES.has(sourceTypeRaw) ? (sourceTypeRaw as any) : undefined
+    const bgStatusRaw = data.get('backgroundProcessingStatus')
+    const backgroundProcessingStatus = typeof bgStatusRaw === 'string' && VALID_BG_STATUS.has(bgStatusRaw) ? (bgStatusRaw as any) : undefined
+    const contentHashRaw = data.get('contentHash')
+    const contentHash = typeof contentHashRaw === 'string' && contentHashRaw.trim() ? contentHashRaw.trim() : undefined
+    const thumbnailFile = data.get('thumbnail') as File | null
+
+    let duplicateOfId: string | null = null
+    if (contentHash) {
+      const existing = await prisma.images.findFirst({ where: { contentHash }, select: { id: true } })
+      if (existing) duplicateOfId = existing.id
+    }
+
     const existingCount = await prisma.productImages.count({ where: { productId } }).catch(() => 0)
     const createdImages = []
 
@@ -67,8 +88,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const bytes = await file.arrayBuffer()
       const buffer = Buffer.from(bytes)
 
+      let thumbnailImageId: string | undefined
+      if (i === 0 && thumbnailFile) {
+        const thumbBuffer = Buffer.from(await thumbnailFile.arrayBuffer())
+        const thumbImage = await prisma.images.create({
+          data: { data: thumbBuffer, mimeType: thumbnailFile.type, size: thumbnailFile.size, sourceType },
+        })
+        thumbnailImageId = thumbImage.id
+      }
+
       const image = await prisma.images.create({
-        data: { data: buffer, mimeType: file.type, size: file.size },
+        data: {
+          data: buffer,
+          mimeType: file.type,
+          size: file.size,
+          sourceType,
+          ...(i === 0 ? { backgroundProcessingStatus, contentHash } : {}),
+          ...(thumbnailImageId ? { thumbnailImageId } : {}),
+        },
       })
 
       const img = await prisma.productImages.create({
@@ -128,7 +165,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         }
       : null
 
-    return NextResponse.json({ success: true, data: normalized })
+    return NextResponse.json({ success: true, data: normalized, duplicateOf: duplicateOfId })
   } catch (error) {
     console.error('Product image upload error:', error)
     return NextResponse.json({ success: false, error: 'Failed to upload images' }, { status: 500 })

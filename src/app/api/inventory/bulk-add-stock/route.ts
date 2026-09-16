@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     for (const item of items) {
       try {
-        const { name, categoryId, supplierId, description, quantity, sellingPrice, costPrice, sku, barcode, physicalCount, expiryDate } = item
+        const { name, categoryId, supplierId, description, quantity, sellingPrice, costPrice, unitsPerPack, bulkPackCost, sku, barcode, physicalCount, expiryDate } = item
 
         if (!name?.trim()) throw new Error('Name is required')
         if (!quantity || Number(quantity) < 1) throw new Error('Quantity must be >= 1')
@@ -73,6 +73,8 @@ export async function POST(request: NextRequest) {
               quantity: newStock,
               sellingPrice: Number(sellingPrice),
               ...(costPrice !== undefined && costPrice !== '' ? { costPrice: Number(costPrice) } : {}),
+              ...(unitsPerPack !== undefined && unitsPerPack !== '' ? { unitsPerPack: Number(unitsPerPack) } : {}),
+              ...(bulkPackCost !== undefined && bulkPackCost !== '' ? { bulkPackCost: Number(bulkPackCost) } : {}),
               lastOrderQty: Number(quantity),
               maxOrderQty: Math.max(existing.maxOrderQty ?? 0, Number(quantity)),
               lastOrderedAt: new Date(),
@@ -167,6 +169,8 @@ export async function POST(request: NextRequest) {
               stockQuantity: Number(quantity),
               customLabel: description?.trim() || undefined,
               costPrice: costPrice !== undefined && costPrice !== '' ? Number(costPrice) : null,
+              unitsPerPack: unitsPerPack !== undefined && unitsPerPack !== '' ? Number(unitsPerPack) : null,
+              bulkPackCost: bulkPackCost !== undefined && bulkPackCost !== '' ? Number(bulkPackCost) : null,
               sellingPrice: Number(sellingPrice),
               categoryId: categoryId || null,
               supplierId: supplierId || null,

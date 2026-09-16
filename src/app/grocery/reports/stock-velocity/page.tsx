@@ -9,6 +9,9 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getLocalDateString } from '@/lib/utils'
 import { ProductCell } from '@/components/inventory/report-product-cell'
+import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
+import { Pagination } from '@/components/ui/pagination'
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 
 interface StockVelocityRow {
   variantId: string
@@ -70,6 +73,10 @@ export default function StockVelocityPage() {
   const [reportData, setReportData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [fastPage, setFastPage] = useState(1)
+  const [slowPage, setSlowPage] = useState(1)
+  const { pageSize, setPageSize, isOverridden, resetToDefault } = usePageSize()
 
   const loadReport = useCallback(async () => {
     if (!currentBusinessId) return
@@ -98,8 +105,18 @@ export default function StockVelocityPage() {
     loadReport()
   }, [loadReport])
 
-  const fastMovers = reportData?.data.filter((r) => r.totalUnitsSold > 0).slice(0, FAST_MOVER_LIMIT) ?? []
-  const slowMovers = reportData?.data.filter((r) => r.avgDailySales < SLOW_THRESHOLD) ?? []
+  const searchQuery = search.trim().toLowerCase()
+  const searchedData = searchQuery
+    ? (reportData?.data ?? []).filter((r) =>
+        r.productName.toLowerCase().includes(searchQuery) ||
+        r.sku.toLowerCase().includes(searchQuery) ||
+        r.category.toLowerCase().includes(searchQuery)
+      )
+    : reportData?.data ?? []
+  const fastMovers = searchedData.filter((r) => r.totalUnitsSold > 0).slice(0, FAST_MOVER_LIMIT)
+  const slowMovers = searchedData.filter((r) => r.avgDailySales < SLOW_THRESHOLD)
+
+  useEffect(() => { setFastPage(1); setSlowPage(1) }, [search, pageSize])
 
   function exportCsv(rows: StockVelocityRow[], filename: string) {
     const header = 'Product,Variant,SKU,Category,Units Sold,Avg/Day,Current Stock,Days of Stock Left'
@@ -124,10 +141,23 @@ export default function StockVelocityPage() {
     URL.revokeObjectURL(url)
   }
 
-  const VelocityTable = ({ rows, emptyMessage }: { rows: StockVelocityRow[]; emptyMessage: string }) => (
-    rows.length === 0 ? (
+  const VelocityTable = ({
+    rows: allRows,
+    emptyMessage,
+    page,
+    onPageChange,
+  }: {
+    rows: StockVelocityRow[]
+    emptyMessage: string
+    page: number
+    onPageChange: (page: number) => void
+  }) => {
+    const totalPages = Math.max(1, Math.ceil(allRows.length / pageSize))
+    const rows = allRows.slice((page - 1) * pageSize, page * pageSize)
+    return allRows.length === 0 ? (
       <p className="text-gray-500 dark:text-gray-400 text-center py-8">{emptyMessage}</p>
     ) : (
+      <>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -177,8 +207,23 @@ export default function StockVelocityPage() {
           </tbody>
         </table>
       </div>
+      <div className="mt-3 no-print">
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={allRows.length}
+          pageSize={pageSize}
+          onPageChange={onPageChange}
+          loading={loading}
+          pageSizeOptions={PAGE_SIZE_OPTIONS}
+          onPageSizeChange={setPageSize}
+          isPageSizeOverridden={isOverridden}
+          onResetPageSize={resetToDefault}
+        />
+      </div>
+      </>
     )
-  )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
@@ -209,8 +254,13 @@ export default function StockVelocityPage() {
           </p>
         </div>
 
-        {/* Date filter */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+        {/* Search + date filter */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6 no-print">
+          <ListSearchFilterBar
+            onSearchChange={setSearch}
+            searchLoading={loading}
+            searchPlaceholder="Search by name, SKU, category…"
+          />
           <DateRangeSelector value={dateRange} onChange={setDateRange} />
         </div>
 
@@ -274,7 +324,7 @@ export default function StockVelocityPage() {
                   </button>
                 )}
               </div>
-              <VelocityTable rows={fastMovers} emptyMessage="No sales recorded in this period." />
+              <VelocityTable rows={fastMovers} emptyMessage="No sales recorded in this period." page={fastPage} onPageChange={setFastPage} />
             </div>
 
             {/* Slow Movers */}
@@ -300,7 +350,7 @@ export default function StockVelocityPage() {
                   </button>
                 )}
               </div>
-              <VelocityTable rows={slowMovers} emptyMessage="All products are selling well in this period." />
+              <VelocityTable rows={slowMovers} emptyMessage="All products are selling well in this period." page={slowPage} onPageChange={setSlowPage} />
             </div>
           </>
         )}

@@ -42,7 +42,8 @@ export async function GET(request: NextRequest) {
           business_category: {
             select: { id: true, name: true, emoji: true, color: true, domain: { select: { emoji: true } } }
           },
-          inventory_subcategory: { select: { emoji: true } }
+          inventory_subcategory: { select: { emoji: true } },
+          image: { select: { thumbnailImageId: true } },
         },
         orderBy: { name: 'asc' }
       }),
@@ -144,7 +145,7 @@ export async function GET(request: NextRequest) {
           weightRequired: false,
           pluCode: item.sku ?? undefined,
           isExpiryDiscount: item.isExpiryDiscount,
-          imageUrl: item.imageId ? `/api/images/${item.imageId}` : undefined,
+          imageUrl: item.imageId ? `/api/images/${item.image?.thumbnailImageId || item.imageId}` : undefined,
         }
       })
       .filter(item => item.price > 0)

@@ -561,21 +561,22 @@
 }
 
 /* ======================
-   MBM-296: fixed-height/overflow-scroll report layouts (the new pricing/
-   inventory report pages use a `calc(100vh - 64px)` flex column with an
-   internal `overflow-auto` table region, designed for screen scrolling) —
-   without this, printing would only capture whatever happened to be
-   scrolled into view, cutting off the rest of the table. Opt in per-page
-   via the `report-print-container` class on the outer wrapper.
+   MBM-297: all 5 pricing/inventory report pages used to be a fixed-height
+   (`calc(100vh - 64px)`) flex column with an internal `overflow-auto`
+   table region (the `.report-print-container` class, with a matching
+   `@media print` override forcing `height: auto` so printing captured the
+   whole table instead of whatever happened to be scrolled into view).
+   That design repeatedly left the search bar clipped under the sticky
+   global nav — three attempts at computing the right height (`overflow:
+   hidden` alone, a hardcoded corrected constant, then a JS-measured
+   height) all failed to fully fix it. All 5 pages have since moved to
+   letting the page scroll normally with a `sticky top-14 sm:top-16`
+   wrapper for the search bar instead — the same pattern already proven to
+   work on Receipt History — so nothing in this file needs to compute a
+   container height at all. `.report-print-container` is no longer used
+   anywhere; printing these pages now needs no special handling since nothing
+   is clipped by an internal scroll region to begin with.
    ====================== */
-@media print {
-  .report-print-container,
-  .report-print-container * {
-    height: auto !important;
-    max-height: none !important;
-    overflow: visible !important;
-  }
-}
 
 /* ======================
    SCREEN STYLES (for print preview)

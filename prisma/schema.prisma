@@ -264,6 +264,13 @@ model BusinessProducts {
   condition                   ProductCondition           @default(NEW)
   basePrice                   Decimal                    @db.Decimal(10, 2)
   costPrice                   Decimal?                   @db.Decimal(10, 2)
+  // MBM-297 — bulk-pack cost allocation. `costPrice` above is always the
+  // real INDIVIDUAL unit cost; these two exist only to let the system derive
+  // it correctly (bulkPackCost ÷ unitsPerPack) when a product is bought as a
+  // case/pack, instead of the whole case cost silently being saved as if it
+  // were one unit's cost.
+  unitsPerPack                Int?
+  bulkPackCost                Decimal?                   @db.Decimal(10, 2)
   isActive                    Boolean                    @default(true)
   businessType                String
   attributes                  Json?
@@ -2221,6 +2228,21 @@ model Images {
   createdAt                 DateTime                  @default(now())
   businessId                String?
   uploadedBy                String?
+  // MBM-297 — product image pipeline. All nullable/optional so every
+  // existing row (uploaded before this pipeline existed) stays valid with
+  // no backfill: `thumbnailImageId` unset means "no thumbnail, use the
+  // full image"; `sourceType`/`backgroundProcessingStatus` unset means
+  // "uploaded before this pipeline tracked that"; `contentHash` unset
+  // means "uploaded before duplicate detection existed."
+  thumbnailImageId          String?                   @unique
+  thumbnailImage            Images?                   @relation("ImageThumbnail", fields: [thumbnailImageId], references: [id], onDelete: SetNull)
+  fullImageFor              Images?                   @relation("ImageThumbnail")
+  sourceType                ImageSourceType?
+  backgroundProcessingStatus BackgroundProcessingStatus?
+  // SHA-256 of the final uploaded bytes — exact-duplicate detection only
+  // (a re-crop or re-compression changes the hash; that's a known,
+  // documented limitation, not a bug: see plan §6.5).
+  contentHash               String?
   product_images            ProductImages[]
   warehouse_items           WarehouseItems[]
   barcode_inventory_items   BarcodeInventoryItems[]
@@ -2233,7 +2255,21 @@ model Images {
   uploader                  Users?                    @relation("ImageUploadedBy", fields: [uploadedBy], references: [id])
 
   @@index([businessId])
+  @@index([contentHash])
   @@map("images")
+}
+
+enum ImageSourceType {
+  DESKTOP_UPLOAD
+  MOBILE_UPLOAD
+  MOBILE_CAMERA
+}
+
+enum BackgroundProcessingStatus {
+  NONE
+  PROCESSED
+  FAILED
+  KEPT_ORIGINAL
 }
 
 model CategoryReferenceImages {
@@ -5047,6 +5083,11 @@ model BarcodeInventoryItems {
   quantity                 Int                      @default(1)
   costPrice                Decimal?                 @db.Decimal(10, 2)
   sellingPrice             Decimal?                 @db.Decimal(10, 2)
+  // MBM-297 — same bulk-pack cost allocation concept as BusinessProducts
+  // above: `costPrice` is always the real individual unit cost; these let
+  // the system derive it correctly when this item was bought as a case/pack.
+  unitsPerPack             Int?
+  bulkPackCost             Decimal?                 @db.Decimal(10, 2)
   isActive                 Boolean                  @default(true)
   createdById              String
   createdAt                DateTime                 @default(now())
@@ -5230,6 +5271,7 @@ model PricingExceptionSettings {
   id                     String    @id @default(uuid())
   businessId             String    @unique
   minimumMarginPct       Decimal   @default(10) @db.Decimal(5, 2)
+  maximumMarginPct       Decimal   @default(90) @db.Decimal(5, 2)
   priceChangeAlertPct    Decimal   @default(30) @db.Decimal(5, 2)
   decimalErrorMultiples  Decimal[] @default([10, 100, 0.1, 0.01])
   benchmarkTolerancePct  Decimal   @default(50) @db.Decimal(5, 2)
@@ -7087,6 +7129,11 @@ model StockTakeDraftItems {
   newQuantity            Int
   sellingPrice           Decimal   @db.Decimal(12, 2)
   costPrice              Decimal?  @db.Decimal(12, 2)
+  // MBM-297 — carries the row's explicit case/pack cost entry (if any)
+  // through the draft save/resume round-trip; `costPrice` above stays the
+  // computed per-unit cost either way.
+  unitsPerPack           Int?
+  bulkPackCost           Decimal?  @db.Decimal(10, 2)
   sku                    String?
   isExistingItem         Boolean   @default(false)
   systemQuantity         Int?

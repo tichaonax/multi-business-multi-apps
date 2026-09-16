@@ -113,11 +113,82 @@ function getCurrentNodeId(): string {
 }
 
 /**
+ * Hashes or sizes one backup record without ever running `JSON.stringify`
+ * on a `Buffer` field (an image's raw bytea bytes). `JSON.stringify` turns
+ * a Buffer into `{"type":"Buffer","data":[b,b,b,...]}` — one JSON number
+ * *per byte* — so even a single large image can overflow V8's max string
+ * length on its own, independent of how many other records exist. Walking
+ * each record's own fields and feeding Buffer values in directly (as raw
+ * bytes to the hash, or their real `.length` for size) avoids ever
+ * expanding binary data into text form at all.
+ */
+function forEachFieldOf(item: any, onString: (s: string) => void, onBuffer: (b: Buffer) => void) {
+  if (item && typeof item === 'object' && !Buffer.isBuffer(item) && !Array.isArray(item)) {
+    for (const key of Object.keys(item)) {
+      onString(key)
+      const value = item[key]
+      if (Buffer.isBuffer(value)) {
+        onBuffer(value)
+      } else if (value !== undefined) {
+        onString(JSON.stringify(value))
+      }
+    }
+  } else {
+    onString(JSON.stringify(item))
+  }
+}
+
+/**
  * Helper: Generate checksum for data
+ *
+ * Hashes incrementally, one top-level key (and one array item at a time)
+ * instead of `JSON.stringify(data)` on the whole backup object at once —
+ * see `forEachFieldOf`'s comment for why even one array item can't safely
+ * go through `JSON.stringify` either once a Buffer field is involved.
  */
 function generateChecksum(data: any): string {
-  const jsonString = JSON.stringify(data)
-  return crypto.createHash('sha256').update(jsonString).digest('hex')
+  const hash = crypto.createHash('sha256')
+  for (const key of Object.keys(data)) {
+    hash.update(key)
+    const value = data[key]
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        forEachFieldOf(item, s => hash.update(s), b => hash.update(b))
+      }
+    } else if (value !== undefined) {
+      forEachFieldOf(value, s => hash.update(s), b => hash.update(b))
+    }
+  }
+  return hash.digest('hex')
+}
+
+/**
+ * Estimates a JSON payload's serialized byte size without ever building the
+ * whole thing (or even one Buffer-containing record) as a JSON string —
+ * same reasoning as `generateChecksum` above. This is a size *estimate*
+ * used for display/logging (a few bytes short per item from the missing
+ * `,`/`[`/`]` structural characters between them, and Buffer fields are
+ * counted at their raw byte length rather than their much larger
+ * JSON-array-of-numbers form), not the actual bytes written to the backup
+ * file, which uses a more compact base64 encoding for bytea columns.
+ */
+function estimateJsonByteSize(data: any): number {
+  let total = 0
+  const onString = (s: string) => { total += Buffer.byteLength(s, 'utf8') }
+  const onBuffer = (b: Buffer) => { total += b.length }
+  for (const key of Object.keys(data)) {
+    total += Buffer.byteLength(key, 'utf8')
+    const value = data[key]
+    if (value === undefined) continue
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        forEachFieldOf(item, onString, onBuffer)
+      }
+    } else {
+      forEachFieldOf(value, onString, onBuffer)
+    }
+  }
+  return total
 }
 
 /**
@@ -1789,13 +1860,9 @@ export async function createCleanBackup(
   const businessDataChecksum = generateChecksum(businessData)
   const deviceDataChecksum = deviceData ? generateChecksum(deviceData) : undefined
 
-  // Calculate uncompressed size
-  const tempBackup = {
-    metadata: {} as any, // Temporary empty metadata
-    businessData,
-    deviceData
-  }
-  const uncompressedSize = Buffer.byteLength(JSON.stringify(tempBackup), 'utf8')
+  // Calculate uncompressed size (estimate — see estimateJsonByteSize's own
+  // comment for why this can no longer be a single JSON.stringify call)
+  const uncompressedSize = estimateJsonByteSize(businessData) + (deviceData ? estimateJsonByteSize(deviceData) : 0)
 
   // Create metadata
   const metadata: BackupMetadata = {
