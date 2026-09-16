@@ -13874,19 +13874,3 @@ This closes the same "bulk cost error" gap described in §66 at the point where 
 - Either way, once a row has a recorded case cost, it shows a small **"24×$6.70/case"** caption under the Cost field, and margin/price warnings appear right there if the price you're choosing would land outside the policy range (the same 10%–90% band §66 checks).
 
 **Existing stock is flagged automatically.** When Stock Take loads your current inventory (or you resume a saved draft), any item that already has a recorded case cost shows that same "N×$X.XX/case" caption right away — so you can see at a glance which items are already tracked as bulk purchases before you touch anything.
-
-## 68. Product Photos — Camera, Crop & Background Removal
-
-**Where:** Any product/item's image upload dialog (POS Quick-Edit's image action, §61) → **📷 Take Photo / Upload (Crop & Edit)**.
-
-A guided pipeline for adding a properly-framed product photo, sitting alongside the older plain upload button (now labeled "quick, no crop") for when you just want to drop in an image with no fuss.
-
-**The flow:**
-1. **Take Photo** (phones/tablets only — desktop never shows this option) or **Upload From Device**.
-2. **Crop** — zoom, rotate, and reset freely; square (1:1) is recommended and selected by default, with a toggle to keep the original aspect ratio instead.
-3. **Remove Background** — runs automatically on the cropped photo (the first run in a session can take a few seconds while it downloads what it needs; it's faster after that) and shows the before/after side by side. Choose **Use This** to keep the background-removed version, or **Keep Original** if it didn't come out right — nothing is saved until you make that choice.
-4. The final image is automatically resized and a smaller thumbnail is generated — list and grid views across the app use that thumbnail instead of the full photo where one exists, so pages with lots of product images load faster.
-
-**Duplicate check:** if the exact same image (byte-for-byte) has already been uploaded somewhere, you'll see a note after uploading — it's a heads-up, not a block; both copies are kept in case that was intentional (e.g. reusing a supplier's stock photo on purpose).
-
-**Not part of this flow:** bulk uploads to the shared image pool (adding many reference photos at once for a whole category) stay a plain, unattended upload — walking through crop and background removal one at a time for a batch of files would defeat the point of doing it in bulk.

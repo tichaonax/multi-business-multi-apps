@@ -25,6 +25,21 @@ const MAX_DIMENSION = 1600
 const THUMBNAIL_DIMENSION = 320
 
 /**
+ * ⚠ STATUS (2026-09-17): not currently wired up to any button —
+ * `ImageUploadDialog`'s `SHOW_CROP_PIPELINE` flag is `false`. On at least
+ * one real device, tapping "Next" on `ImageCropStep` never registers as a
+ * click at all (confirmed: the button doesn't even flip to its
+ * "Processing…" state, so the click isn't reaching React at all, not a
+ * failure inside the crop logic itself). Tried and ruled out: mobile
+ * memory pressure crashing the tab, the native-camera-return click event
+ * never firing, the crop area collapsing to zero height, a global
+ * `FloatingChat` widget (z-[9998]) intercepting the tap, and
+ * `@imgly/background-removal` hanging/crashing on a later step — none of
+ * these were it. Needs a screen recording of the actual failure to make
+ * progress; until then, leave `SHOW_CROP_PIPELINE` off rather than ship a
+ * button that visibly hangs. This component and its children (below) are
+ * otherwise complete and ready to re-enable once the real cause is found.
+ *
  * MBM-297 Phase C — the shared crop → background-removal → review pipeline,
  * used identically whether the source image came from the camera or an
  * uploaded file (plan §6.4). Nothing is saved until the final review step
