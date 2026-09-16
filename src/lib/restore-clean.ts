@@ -470,7 +470,8 @@ export const RESTORE_ORDER = [
 const SELF_REFERENTIAL_TABLES: Record<string, string[]> = {
   'employees': ['supervisorId'],
   'employeeContracts': ['supervisorId'],  // References employees.id - needs deferred insert
-  'vehicleServiceJobs': ['reworkOfJobId']  // References vehicleServiceJobs.id (MBM-262)
+  'vehicleServiceJobs': ['reworkOfJobId'],  // References vehicleServiceJobs.id (MBM-262)
+  'images': ['thumbnailImageId']  // References images.id — a full-size image's thumbnail is itself another Images row (MBM-297 Phase C)
 }
 
 /**

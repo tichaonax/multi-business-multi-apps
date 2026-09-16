@@ -154,6 +154,11 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
   const polling404Count = useRef<number>(0);
   const [backupProgressId, setBackupProgressId] = useState<string | null>(null);
   const [backupProgress, setBackupProgress] = useState<any | null>(null);
+  // True only during the window between the server finishing the write and
+  // the browser finishing fetching+saving the file — the server reporting
+  // 'completed' is not the same as the file being in the user's hands, and
+  // for a large backup this final fetch can itself take a long time.
+  const [downloadingBackupFile, setDownloadingBackupFile] = useState(false);
   const backupPollingRef = useRef<number | null>(null);
   const backupPolling404Count = useRef<number>(0);
   const [demoBusinesses, setDemoBusinesses] = useState<DemoBusiness[]>([]);
@@ -305,6 +310,7 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
       // setLoading(false) happens once the poller below sees completion/error -
       // `loading` now covers the whole streamed creation, not just the initial request.
       setBackupProgress(null);
+      setDownloadingBackupFile(false);
       setBackupProgressId(progressId as string);
     } catch (error) {
       await customAlert({ title: 'Backup Failed', description: 'The backup operation failed. Please try again.' });
@@ -342,15 +348,20 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
         backupPolling404Count.current = 0;
         if (res.ok) {
           const data = await res.json();
-          setBackupProgress(data?.progress ?? null);
-
           const model = data?.progress?.model;
+
           if (model === 'completed') {
             if (backupPollingRef.current) {
               window.clearInterval(backupPollingRef.current);
               backupPollingRef.current = null;
             }
-            // Download the completed file, then clear state.
+            // The server finishing the write is not the same as the file
+            // being in the user's hands - for a large backup, fetching and
+            // saving the blob below can itself take a long time. Don't mark
+            // backupProgress as 'completed' (which flips the UI to "Backup
+            // Completed") until that has actually finished, so the UI never
+            // shows a completed state while the file is still transferring.
+            setDownloadingBackupFile(true);
             try {
               const dlRes = await fetch(`/api/backup?download=${encodeURIComponent(backupProgressId)}`);
               const blob = await dlRes.blob();
@@ -363,6 +374,8 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
               window.URL.revokeObjectURL(url);
               document.body.removeChild(a);
             } finally {
+              setDownloadingBackupFile(false);
+              setBackupProgress(data?.progress ?? null);
               setBackupProgressId(null);
               setLoading(false);
             }
@@ -371,9 +384,12 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
               window.clearInterval(backupPollingRef.current);
               backupPollingRef.current = null;
             }
+            setBackupProgress(data?.progress ?? null);
             setBackupProgressId(null);
             setLoading(false);
             await customAlert({ title: 'Backup Failed', description: 'The backup operation encountered errors. Please check the logs.' });
+          } else {
+            setBackupProgress(data?.progress ?? null);
           }
         }
       } catch (err) {
@@ -1059,7 +1075,7 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
             ) : (
               <Download className="h-4 w-4" />
             )}
-            {loading ? 'Creating Backup...' : incrementalEnabled ? 'Create Incremental Backup' : 'Create Backup'}
+            {loading ? (downloadingBackupFile ? 'Downloading Backup...' : 'Creating Backup...') : incrementalEnabled ? 'Create Incremental Backup' : 'Create Backup'}
           </Button>
         </div>
 
@@ -1086,7 +1102,7 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
                 <div className="flex items-center gap-2 flex-wrap">
                   <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
                   <h4 className="font-medium text-green-900 dark:text-green-100">
-                    {isComplete ? 'Backup Completed' : 'Backup In Progress'}
+                    {isComplete ? 'Backup Completed' : downloadingBackupFile ? 'Downloading Backup File...' : 'Backup In Progress'}
                   </h4>
                   {activeModel && activeStats && (
                     <span className="flex items-center gap-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded-full font-mono">
