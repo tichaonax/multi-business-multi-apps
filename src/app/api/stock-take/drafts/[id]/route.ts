@@ -59,6 +59,22 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     if (!Array.isArray(items)) return NextResponse.json({ error: 'items array is required' }, { status: 400 })
 
+    // Guard against silently wiping a draft: this endpoint replaces ALL items
+    // (delete-then-insert), so an accidental empty `items` array from the
+    // client — e.g. a save firing before a resumed draft's rows finish
+    // loading into state — would otherwise destroy real data with no
+    // warning. A deliberate clear must say so explicitly.
+    if (items.length === 0 && !body.confirmClear) {
+      const existingCount = await prisma.stockTakeDraftItems.count({ where: { draftId: id } })
+      if (existingCount > 0) {
+        return NextResponse.json({
+          error: `Refusing to save an empty item list over ${existingCount} existing item(s). Pass confirmClear: true if this is intentional.`,
+          code: 'EMPTY_ITEMS_GUARD',
+          existingCount,
+        }, { status: 409 })
+      }
+    }
+
     // Replace all items — delete + bulk insert + metadata update
     // Use sequential operations (no transaction) to avoid timeout on large inventories
     await prisma.stockTakeDraftItems.deleteMany({ where: { draftId: id } })

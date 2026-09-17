@@ -5246,9 +5246,11 @@ If items from one bale are moved to another shop:
 
 ### Custom Bulk Products — Complete Guide
 
-A **Custom Bulk Product** is a container of identical items purchased in bulk and sold individually — for example, a box of 300 chocolates sold at $0.35 each, or a crate of 50 shampoo bottles sold at $1.20 each. The system tracks how many items remain in the container and automatically deactivates the product when stock runs out.
+A **Custom Bulk Product** is a container of identical items purchased in bulk and sold individually — for example, a box of 300 chocolates sold at $0.35 each, or a crate of 50 shampoo bottles sold at $1.20 each.
 
 > **Custom Bulk vs Bales:** Bales are used for used clothing where the exact item count is estimated. Custom Bulk is for packaged goods where the item count is exact and the per-item selling price is fixed.
+
+> **September 2026 update — bulk products now register directly into your Inventory.** Registering a new bulk product used to create a separate record that only the Bulk Products modal and the Custom Bulk Products sidebar page could see — invisible to the main Inventory list, Edit Item, and the Pricing/Cost/Value Exceptions report. **Register New** now creates a real Inventory item instead, so it shows up, is editable, and is price-checked everywhere immediately. **This only affects new registrations.** Anything registered before this update keeps working exactly as documented below under "Managing Existing Bulk Products" — see the callout there.
 
 #### Accessing Custom Bulk Products
 
@@ -5260,7 +5262,7 @@ Click **📦 Custom Bulk Products** in the left sidebar. This link is visible to
 **Option 2 — Via the Bulk Stocking panel**
 Open the Bulk Stocking panel (e.g. Grocery POS → **📦 Bulk Stock**), then click the **📦 Bulk Product** button in the panel header. This opens the Bulk Products modal, which has two tabs: **Register New** and **📋 Manage Existing**.
 
-The sidebar link and the modal cover the same products — use whichever suits your workflow. The sidebar page gives a full table with richer detail; the modal is useful when you are already in the stocking panel.
+The sidebar page and the modal's **Manage Existing** tab cover the same (legacy) products — use whichever suits your workflow; the sidebar page gives a full table with richer detail, while the modal is handy when you're already in the stocking panel. **Register New** is only in the modal, and its results now go straight to the main Inventory rather than this sidebar page — see the update note at the top of this section.
 
 #### Registering a New Bulk Product
 
@@ -5272,10 +5274,10 @@ The sidebar link and the modal cover the same products — use whichever suits y
 | **Business** | Yes | Shown only when you belong to more than one business. Select the business this product belongs to. |
 | **Product Name** | Yes | e.g. "Chocolates", "Hand Sanitiser 500ml". Type a name and click **✨ Suggest** to auto-fill the expense classification. |
 | **Barcode** | No | Scan an existing barcode on the container, or click **Generate** to auto-create one |
-| **Item Count** | Yes | Total number of individual units in the container |
-| **Container Cost** | No | What you paid for the whole container — shown as guidance only. The system displays the calculated cost per item beneath this field (e.g. "Cost/item: $0.33"). This does **not** auto-fill the selling price. |
-| **Selling Price** | Yes | The price charged to the customer per individual item. Must be entered manually. |
-| **Expense Domain → Category → Sub-category** | No | Three-level hierarchy for expense classification. Use **✨ Suggest** next to the product name to auto-populate these fields. |
+| **Item Count** | Yes | How many individual units the container holds — becomes the item's starting stock quantity |
+| **Bulk/Case Cost** | No | What you paid for the whole case — the system shows the calculated cost per item beneath this field (e.g. "Cost/item: $0.33") and saves that computed per-item figure as the item's real cost price, never the whole-case number. This does **not** auto-fill the selling price. |
+| **Selling Price** | Yes | The price charged to the customer per individual item. As soon as a Bulk/Case Cost is entered, a **live pricing calculator** appears below this field showing the effective per-unit cost, landed cost, and margin, plus one-click markup suggestions (10%–100% over cost) — pick one to fill the field, or type your own price and watch the calculator's warnings update as you type. |
+| **Expense Domain → Category → Sub-category** | No | Three-level hierarchy for expense classification. Use **✨ Suggest** next to the product name to auto-populate these fields. Saved on the item and editable later from its Edit Item screen. |
 | **Supplier** | No | Select from the list. Click **+ New supplier** to add one inline. |
 | **Notes** | No | Optional internal note |
 
@@ -5286,17 +5288,26 @@ The sidebar link and the modal cover the same products — use whichever suits y
 
 > **Auto-generated barcode:** If you leave the Barcode field empty, the system generates a unique 8-character hex code (e.g. `a3f2b7c9`). This becomes the barcode scanned at the POS.
 
-> **Selling below cost:** If you enter a selling price lower than the calculated cost per item, the system shows a warning modal displaying the cost/item, the new selling price, and the loss per item. You must explicitly confirm before the price is saved.
+> **Selling below cost is blocked, not just warned about.** The pricing calculator flags a below-cost price as you type, but registering is the last line of defence: if you click **Register Bulk Product** with a selling price below the calculated cost per item, a confirmation modal interrupts the save — showing the cost/item, the price you entered, and the exact loss per item — and you must explicitly click **Yes, sell at a loss** before it's saved. This is the same mistake that originally caused case costs to be recorded as if they were a single unit's cost, so it's deliberately hard to do by accident now.
 
 > **✨ Suggest:** After typing a product name, click the **✨ Suggest** button next to the name field. The system scores your name against known expense categories and pre-fills the Domain, Category, and Sub-category dropdowns with the best match. You can accept the suggestion or change it manually.
 
+#### After Registering — Where the Item Lives Now
+
+A newly-registered bulk product is a normal Inventory item, so:
+- It appears immediately in the business's main **Inventory** list, searchable and scannable exactly like anything else.
+- **Edit Item** opens the standard item editor — you can change price, stock, category, supplier, and the Expense Classification fields there at any time, not just at registration.
+- It's covered by the **Pricing, Cost & Value Exceptions** report (§66) and every other inventory report, using its real per-item cost.
+- Adding more stock later, adjusting the reorder level, and everything else works the normal Inventory way — not through the Bulk Products modal's Top Up/Edit tools, which now only apply to items registered before this update (see the callout below).
+- Unlike the old behaviour, the item does **not** auto-deactivate when it sells out — it stays visible with zero stock, like any other inventory item, until you restock or manually deactivate it.
+
 #### Printing a Barcode Label
 
-Labels for custom bulk products use the same print system as bales:
+Right after registering, click **🖨 Print Barcode Label** on the success screen to print a label immediately — this works the same way regardless of when you registered the product.
 
-1. Click **🖨 Print Barcode Label** on the success screen after registering, **or**
-2. Go to **📦 Custom Bulk Products** (sidebar), find the product row, and click **🖨 Print** in the Actions column, **or**
-3. In the Bulk Product modal, switch to the **📋 Manage Existing** tab, find the product, and click **🖨 Print**.
+To print a label again later:
+- **For a product registered before September 2026** — go to **📦 Custom Bulk Products** (sidebar) or the Bulk Products modal's **📋 Manage Existing** tab, find the row, and click **🖨 Print**.
+- **For a product registered since** — it's a normal Inventory item now, so print its label the same way you'd print a label for any other inventory item (from the Inventory list or Edit Item screen), not from the Bulk Products modal.
 
 The print modal lets you:
 - Select a **label template** (size, font, layout)
@@ -5312,7 +5323,7 @@ Stick the printed label on the container or shelf edge. Cashiers scan this label
 3. Adjust the quantity to however many units the customer is buying.
 4. Complete the sale normally.
 
-The product's **remaining count decreases** by the quantity sold. When the remaining count reaches zero, the product is automatically deactivated and will no longer appear in barcode lookups.
+The product's remaining stock decreases by the quantity sold. **For products registered before September 2026,** reaching zero automatically deactivates the product and it stops appearing in barcode lookups. **For products registered since,** it's a normal Inventory item — it stays visible with zero stock, like any other inventory item, until restocked or manually deactivated.
 
 #### Stock Badge on POS Product Cards
 
@@ -5327,6 +5338,8 @@ Custom bulk products display a **remaining stock badge** on their product card i
 The badge shows the count (e.g. **3 left**) so cashiers know at a glance whether a container is nearly empty before adding items to the cart.
 
 #### Managing Existing Bulk Products
+
+> **Legacy only, since September 2026.** Everything from here through "Searching in the Manage Tab" below applies only to bulk products registered **before** this update. A product registered since then is a normal Inventory item — manage its stock, price, and category from the main Inventory list and its Edit Item screen instead; it will not appear on this page or in the Bulk Products modal's Manage Existing tab.
 
 Go to **📦 Custom Bulk Products** in the left sidebar. The page shows all products — active, low-stock, and deactivated — in a single table:
 

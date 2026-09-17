@@ -48,6 +48,13 @@ interface UniversalInventoryItem {
   // whole case cost as if it were one unit's cost.
   unitsPerPack?: number | null
   bulkPackCost?: number | null
+  // MBM-297 follow-up — expense classification, carried over from the Bulk
+  // Products registration flow (CustomBulkProducts). Only ever set on
+  // BarcodeInventoryItems-backed items (id prefixed 'inv_') — the section
+  // below is hidden for BusinessProducts, which has no equivalent columns.
+  expenseDomainId?: string | null
+  expenseCategoryId?: string | null
+  expenseSubcategoryId?: string | null
   supplier?: string // Legacy - for display only
   supplierId?: string
   location?: string // Legacy - for display only
@@ -279,6 +286,9 @@ export function UniversalInventoryForm({
     sellPrice: 0,
     unitsPerPack: null,
     bulkPackCost: null,
+    expenseDomainId: null,
+    expenseCategoryId: null,
+    expenseSubcategoryId: null,
     supplier: '',
     supplierId: undefined,
     location: '',
@@ -340,6 +350,109 @@ export function UniversalInventoryForm({
   const [saleRules, setSaleRules] = useState<{ id: string; categoryName: string; pricePerKg: number; emoji: string }[]>([])
   const [purchaseRules, setPurchaseRules] = useState<{ id: string; categoryName: string; pricePerKg: number; emoji: string }[]>([])
   const [suggestions, setSuggestions] = useState<SuggestItem[]>([])
+
+  // ── Expense Classification (MBM-297 follow-up) ──────────────────────────
+  // Domain → Category → Subcategory expense classification, ported over
+  // from the Bulk Products registration modal (custom-bulk-modal.tsx) now
+  // that bulk-registered items are real BarcodeInventoryItems rows. This is
+  // a different hierarchy from the "inventory category" one above (that one
+  // organizes products for browsing; this one buckets a purchase for
+  // accounting/expense reporting) — only shown for BarcodeInventoryItems
+  // (id prefixed 'inv_'), the only catalog with these columns.
+  type ExpenseDomainItem = { id: string; name: string; emoji?: string }
+  type ExpenseSuggestion = {
+    domainId: string; domainName: string; domainEmoji: string | null
+    categoryId: string; categoryName: string; categoryEmoji: string | null
+    subcategoryId: string; subcategoryName: string; subcategoryEmoji: string | null
+    score: number
+  }
+  const [expenseDomains, setExpenseDomains] = useState<ExpenseDomainItem[]>([])
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseDomainItem[]>([])
+  const [expenseSubcategories, setExpenseSubcategories] = useState<ExpenseDomainItem[]>([])
+  const [loadingExpenseCategories, setLoadingExpenseCategories] = useState(false)
+  const [loadingExpenseSubcategories, setLoadingExpenseSubcategories] = useState(false)
+  const [expenseSuggestLoading, setExpenseSuggestLoading] = useState(false)
+  const [expenseSuggestions, setExpenseSuggestions] = useState<ExpenseSuggestion[]>([])
+  const [showExpenseSuggest, setShowExpenseSuggest] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/expense-categories/hierarchical')
+      .then(r => r.json())
+      .then(d => {
+        const items: ExpenseDomainItem[] = (d.domains?.[0]?.expense_categories ?? []).map((c: any) => ({
+          id: c.id, name: c.name, ...(c.emoji ? { emoji: c.emoji } : {}),
+        }))
+        setExpenseDomains(items)
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!formData.expenseDomainId) {
+      setExpenseCategories([])
+      setExpenseSubcategories([])
+      return
+    }
+    setLoadingExpenseCategories(true)
+    setExpenseCategories([])
+    setExpenseSubcategories([])
+    fetch(`/api/expense-categories/${formData.expenseDomainId}/subcategories`)
+      .then(r => r.json())
+      .then(d => {
+        const items: ExpenseDomainItem[] = (d.subcategories ?? []).map((c: any) => ({
+          id: c.id, name: c.name, ...(c.emoji ? { emoji: c.emoji } : {}),
+        }))
+        setExpenseCategories(items)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingExpenseCategories(false))
+  }, [formData.expenseDomainId])
+
+  useEffect(() => {
+    if (!formData.expenseCategoryId) {
+      setExpenseSubcategories([])
+      return
+    }
+    setLoadingExpenseSubcategories(true)
+    setExpenseSubcategories([])
+    fetch(`/api/expense-categories/${formData.expenseCategoryId}/subcategories`)
+      .then(r => r.json())
+      .then(d => {
+        const items: ExpenseDomainItem[] = (d.subcategories ?? []).map((c: any) => ({
+          id: c.id, name: c.name, ...(c.emoji ? { emoji: c.emoji } : {}),
+        }))
+        setExpenseSubcategories(items)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingExpenseSubcategories(false))
+  }, [formData.expenseCategoryId])
+
+  const handleExpenseDomainChange = (domainId: string) => {
+    setFormData(prev => ({ ...prev, expenseDomainId: domainId || null, expenseCategoryId: null, expenseSubcategoryId: null }))
+  }
+  const handleExpenseCategoryChange = (categoryId: string) => {
+    setFormData(prev => ({ ...prev, expenseCategoryId: categoryId || null, expenseSubcategoryId: null }))
+  }
+  const handleExpenseSuggest = async () => {
+    if (formData.name.trim().length < 2) return
+    setExpenseSuggestLoading(true)
+    setShowExpenseSuggest(true)
+    setExpenseSuggestions([])
+    try {
+      const res = await fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(formData.name.trim())}`)
+      const d = await res.json()
+      setExpenseSuggestions(d.suggestions ?? [])
+    } catch {
+      setExpenseSuggestions([])
+    } finally {
+      setExpenseSuggestLoading(false)
+    }
+  }
+  const applyExpenseSuggestion = (s: ExpenseSuggestion) => {
+    setFormData(prev => ({ ...prev, expenseDomainId: s.domainId, expenseCategoryId: s.categoryId, expenseSubcategoryId: s.subcategoryId }))
+    setShowExpenseSuggest(false)
+    setExpenseSuggestions([])
+  }
 
   // Effective weight mode — true when form's own toggle OR parent-managed prop says sold by weight
   const effectiveWeightMode = isSoldByWeight || soldByWeight
@@ -2014,6 +2127,92 @@ export function UniversalInventoryForm({
                       Use as Cost Price
                     </button>
                   </p>
+                )}
+              </div>
+              )}
+
+              {/* Expense Classification (MBM-297 follow-up) — only for
+                  BarcodeInventoryItems, the only catalog with these columns;
+                  ported over from the Bulk Products registration modal. */}
+              {item?.id?.startsWith('inv_') && (
+              <div className="col-span-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Expense Classification (optional)</p>
+                  <button
+                    type="button"
+                    onClick={handleExpenseSuggest}
+                    disabled={formData.name.trim().length < 2 || expenseSuggestLoading}
+                    title="Suggest expense classification based on product name"
+                    className="px-2 py-1 text-xs border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 disabled:opacity-40 whitespace-nowrap">
+                    {expenseSuggestLoading ? '…' : '✨ Suggest'}
+                  </button>
+                </div>
+
+                {showExpenseSuggest && (
+                  <div className="border border-indigo-200 dark:border-indigo-700 rounded-lg bg-white dark:bg-gray-800 shadow-lg overflow-hidden">
+                    <div className="flex items-center justify-between px-3 py-2 bg-indigo-50 dark:bg-indigo-900/30 border-b border-indigo-100 dark:border-indigo-800">
+                      <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">Classification suggestions</span>
+                      <button type="button" onClick={() => { setShowExpenseSuggest(false); setExpenseSuggestions([]) }}
+                        className="text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-200 text-sm leading-none">&times;</button>
+                    </div>
+                    {expenseSuggestLoading ? (
+                      <div className="px-3 py-3 text-xs text-gray-400">Searching…</div>
+                    ) : expenseSuggestions.length === 0 ? (
+                      <div className="px-3 py-3 text-xs text-gray-400">No suggestions found for &ldquo;{formData.name}&rdquo;</div>
+                    ) : (
+                      <div className="divide-y divide-gray-100 dark:divide-gray-700 max-h-40 overflow-y-auto">
+                        {expenseSuggestions.map((s, i) => (
+                          <button key={i} type="button" onClick={() => applyExpenseSuggestion(s)}
+                            className="w-full text-left px-3 py-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors">
+                            <div className="text-xs font-medium text-gray-800 dark:text-gray-200">
+                              {s.domainEmoji && <span className="mr-1">{s.domainEmoji}</span>}{s.domainName}
+                              <span className="text-gray-400 dark:text-gray-500 mx-1">›</span>
+                              {s.categoryEmoji && <span className="mr-1">{s.categoryEmoji}</span>}{s.categoryName}
+                              <span className="text-gray-400 dark:text-gray-500 mx-1">›</span>
+                              {s.subcategoryEmoji && <span className="mr-1">{s.subcategoryEmoji}</span>}{s.subcategoryName}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <SearchableSelect
+                  options={expenseDomains}
+                  value={formData.expenseDomainId || ''}
+                  onChange={handleExpenseDomainChange}
+                  placeholder="Select domain…"
+                  allLabel="No domain"
+                  emptyMessage="No domains found"
+                />
+                {formData.expenseDomainId && (
+                  loadingExpenseCategories ? (
+                    <div className="text-xs text-gray-400 px-1">Loading categories…</div>
+                  ) : expenseCategories.length > 0 ? (
+                    <SearchableSelect
+                      options={expenseCategories}
+                      value={formData.expenseCategoryId || ''}
+                      onChange={handleExpenseCategoryChange}
+                      placeholder="Select category…"
+                      allLabel="No category"
+                      emptyMessage="No categories found"
+                    />
+                  ) : null
+                )}
+                {formData.expenseCategoryId && (
+                  loadingExpenseSubcategories ? (
+                    <div className="text-xs text-gray-400 px-1">Loading subcategories…</div>
+                  ) : expenseSubcategories.length > 0 ? (
+                    <SearchableSelect
+                      options={expenseSubcategories}
+                      value={formData.expenseSubcategoryId || ''}
+                      onChange={(v) => setFormData(prev => ({ ...prev, expenseSubcategoryId: v || null }))}
+                      placeholder="Select subcategory…"
+                      allLabel="No subcategory"
+                      emptyMessage="No subcategories found"
+                    />
+                  ) : null
                 )}
               </div>
               )}

@@ -60,6 +60,9 @@ export async function GET(
           sellPrice: parseFloat(item.sellingPrice?.toString() || '0'),
           unitsPerPack: (item as any).unitsPerPack ?? null,
           bulkPackCost: (item as any).bulkPackCost ? parseFloat((item as any).bulkPackCost.toString()) : null,
+          expenseDomainId: (item as any).expenseDomainId ?? null,
+          expenseCategoryId: (item as any).expenseCategoryId ?? null,
+          expenseSubcategoryId: (item as any).expenseSubcategoryId ?? null,
           supplier: (item as any).business_supplier?.name || '',
           supplierId: item.supplierId || null,
           location: (item as any).business_location?.name || '',
@@ -232,6 +235,9 @@ export async function PUT(
       if (body.costPrice !== undefined) updateData.costPrice = body.costPrice ? parseFloat(body.costPrice) : null
       if (body.unitsPerPack !== undefined) updateData.unitsPerPack = body.unitsPerPack ? parseInt(body.unitsPerPack) : null
       if (body.bulkPackCost !== undefined) updateData.bulkPackCost = body.bulkPackCost ? parseFloat(body.bulkPackCost) : null
+      if (body.expenseDomainId !== undefined) updateData.expenseDomainId = body.expenseDomainId || null
+      if (body.expenseCategoryId !== undefined) updateData.expenseCategoryId = body.expenseCategoryId || null
+      if (body.expenseSubcategoryId !== undefined) updateData.expenseSubcategoryId = body.expenseSubcategoryId || null
       if (body.isActive !== undefined) updateData.isActive = body.isActive
       if (body.barcodeData !== undefined) updateData.barcodeData = body.barcodeData || null
       if (body.sku !== undefined) updateData.sku = body.sku || null

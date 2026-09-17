@@ -252,10 +252,15 @@ export async function GET(request: NextRequest) {
             const ex = cbDayMap.get(date) ?? { units: 0, revenue: 0 }
             cbDayMap.set(date, { units: ex.units + oi.quantity, revenue: ex.revenue + Number(oi.totalPrice) })
           }
+          // customBulk.costPrice is the whole container's cost (e.g. $6.70 for
+          // a case of 24), never a per-unit cost — must be divided by
+          // itemCount before use in any per-unit profit calculation, and used
+          // as-is (never multiplied again) as the batch's total cost.
           const cbCostPrice = Number(customBulk.costPrice ?? 0)
-          const cbProfit = cbRevenue - cbCostPrice * cbSold
-          const cbProfitPct = cbCostPrice > 0 ? (cbProfit / (cbCostPrice * cbSold || 1)) * 100 : 0
-          const cbTotalCost = cbCostPrice * customBulk.itemCount
+          const cbCostPerUnit = customBulk.itemCount > 0 ? cbCostPrice / customBulk.itemCount : 0
+          const cbProfit = cbRevenue - cbCostPerUnit * cbSold
+          const cbProfitPct = cbCostPerUnit > 0 ? (cbProfit / (cbCostPerUnit * cbSold || 1)) * 100 : 0
+          const cbTotalCost = cbCostPrice
           const cbCostRecoveredPct = cbTotalCost > 0 ? Math.min((cbRevenue / cbTotalCost) * 100, 100) : 0
           const cbSalesByDay = Array.from(cbDayMap.entries())
             .sort((a, b) => a[0].localeCompare(b[0]))
@@ -271,7 +276,7 @@ export async function GET(request: NextRequest) {
               category: customBulk.category?.name ?? null,
               purchasedAt: customBulk.createdAt.toISOString().slice(0, 10),
               stockedBy: customBulk.employee?.fullName ?? null,
-              costPrice: cbCostPrice,
+              costPrice: cbCostPerUnit,
               unitPrice: Number(customBulk.unitPrice),
               itemCount: customBulk.itemCount,
               remainingCount: customBulk.remainingCount,

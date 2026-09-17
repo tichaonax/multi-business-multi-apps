@@ -8,6 +8,7 @@ import { UniversalSupplierForm } from '@/components/universal/supplier'
 import { BulkPrintModal, ProductData } from '@/components/clothing/bulk-print-modal'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { BulkTopUpForm, TopUpPayload } from '@/components/inventory/bulk-top-up-form'
+import { PricingCalculator } from '@/components/inventory/pricing-calculator'
 
 interface Supplier {
   id: string
@@ -318,6 +319,36 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
     if (!form.itemCount || Number(form.itemCount) <= 0) { setError('Item count must be greater than 0'); return }
     if (!form.unitPrice || Number(form.unitPrice) <= 0) { setError('Unit price must be greater than 0'); return }
 
+    // Bulletproof against registering at a loss: if a bulk/case cost is on
+    // file, block a silent save when the selling price is below the computed
+    // per-unit cost — mirrors the same guard already used in handleSavePrice
+    // below for editing an existing item's price.
+    const count = Number(form.itemCount)
+    const containerCost = Number(form.costPrice)
+    if (containerCost > 0 && count > 0) {
+      const perUnitCost = containerCost / count
+      const price = Number(form.unitPrice)
+      if (price < perUnitCost) {
+        const ok = await confirm({
+          title: '⚠️ Selling Below Cost',
+          description: (
+            <div className="space-y-2">
+              <p>You are registering this item with a selling price that is <strong>below its cost per unit</strong>:</p>
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2 text-sm space-y-1">
+                <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Cost per unit:</span><span className="font-semibold text-red-600 dark:text-red-400">${perUnitCost.toFixed(4).replace(/\.?0+$/, '')}</span></div>
+                <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-400">Selling price:</span><span className="font-semibold text-red-600 dark:text-red-400">${price.toFixed(2)}</span></div>
+                <div className="flex justify-between border-t border-red-200 dark:border-red-800 pt-1"><span className="text-gray-600 dark:text-gray-400">Loss per unit:</span><span className="font-bold text-red-700 dark:text-red-300">-${(perUnitCost - price).toFixed(2)}</span></div>
+              </div>
+              <p className="text-gray-500 dark:text-gray-400">Do you want to continue and sell at a loss?</p>
+            </div>
+          ),
+          confirmText: 'Yes, sell at a loss',
+          cancelText: 'Go back',
+        })
+        if (!ok) return
+      }
+    }
+
     setLoading(true)
     try {
       const res = await fetch('/api/custom-bulk', {
@@ -542,7 +573,7 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
           {(['register', 'manage'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`flex-1 py-2 text-sm font-medium transition-colors ${tab === t ? 'border-b-2 border-orange-500 text-orange-600 dark:text-orange-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}>
-              {t === 'register' ? '+ Register New' : '📋 Manage Existing'}
+              {t === 'register' ? '+ Register New' : '📋 Manage Existing (legacy)'}
             </button>
           ))}
         </div>
@@ -565,6 +596,9 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
         {/* Manage tab */}
         {tab === 'manage' && (
           <div className="overflow-y-auto flex-1 px-5 py-4">
+            <p className="mb-3 text-xs text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
+              This tab shows batches registered before this update. New bulk stock is now added directly to your Inventory — search or scan it there.
+            </p>
             {/* Search */}
             {existing.length > 0 && (
               <div className="mb-3 relative">
@@ -795,8 +829,8 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Use the supplier's existing barcode so POS can scan it directly</p>
           </div>
 
-          {/* Count + Prices row */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Item Count + Bulk/Case Cost */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Item Count <span className="text-red-500">*</span></label>
               <input
@@ -807,9 +841,10 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
                 placeholder="50"
                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
+              <p className="text-xs text-gray-400 mt-0.5">how many units this case/box contains</p>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Container Cost <span className="text-gray-400 font-normal">(guidance)</span></label>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Bulk/Case Cost <span className="text-gray-400 font-normal">(whole case)</span></label>
               <input
                 type="number"
                 min="0"
@@ -820,22 +855,40 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
               <p className="text-xs text-gray-400 mt-0.5">
-                {costPerItem ? <>Cost/item: <span className="font-medium text-gray-500 dark:text-gray-300">${costPerItem}</span></> : 'whole box cost'}
+                {costPerItem ? <>Cost/item: <span className="font-medium text-gray-500 dark:text-gray-300">${costPerItem}</span></> : 'what the whole case cost'}
               </p>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Selling Price <span className="text-red-500">*</span></label>
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={form.unitPrice}
-                onChange={set('unitPrice')}
-                placeholder="e.g. 0.50"
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+          </div>
+
+          {/* Selling Price + live pricing calculator — makes it hard to
+              accidentally register an item priced below its true per-unit
+              cost (MBM-297 follow-up: this is the exact mistake that caused
+              the original bulk-cost pricing exceptions). */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Selling Price <span className="text-red-500">*</span></label>
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={form.unitPrice}
+              onChange={set('unitPrice')}
+              placeholder="e.g. 0.50"
+              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+            <p className="text-xs text-gray-400 mt-0.5">price per item sold</p>
+            {form.costPrice && (
+              <PricingCalculator
+                key={form.itemCount}
+                costPrice={Number(form.costPrice) || null}
+                sellingPrice={form.unitPrice}
+                onSelectPrice={(price) => setField('unitPrice', String(price))}
+                initialUnitsPerPack={Number(form.itemCount) || null}
+                onBulkInfoChange={() => {}}
+                transportEnabled={false}
+                transportDistanceKm={null}
+                transportCostPerKm={null}
               />
-              <p className="text-xs text-gray-400 mt-0.5">price per item sold</p>
-            </div>
+            )}
           </div>
 
           {/* Expense classification — Domain → Category → Subcategory */}
@@ -934,17 +987,18 @@ export function CustomBulkModal({ businessId, businessType, onClose, onSaved }: 
 
           {duplicateMatches.length > 0 && (
             <div className="border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-3 space-y-2">
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">A product with a similar name already exists:</p>
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">A product with a similar name already exists in Inventory:</p>
               <div className="space-y-1">
                 {duplicateMatches.map(m => (
                   <div key={m.id} className="flex items-center justify-between gap-2 text-sm">
                     <span className="text-amber-900 dark:text-amber-200 font-medium">{m.name}</span>
-                    <span className="text-amber-700 dark:text-amber-400 text-xs">{m.remainingCount} remaining</span>
+                    <span className="text-amber-700 dark:text-amber-400 text-xs">{m.remainingCount} in stock</span>
                     <button
                       type="button"
-                      onClick={() => { setManageSearch(m.name); setTab('manage'); setDuplicateMatches([]) }}
+                      onClick={onClose}
+                      title="Close this dialog and add stock to the existing item from the main Inventory list"
                       className="shrink-0 px-2 py-0.5 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded">
-                      Add stock to existing
+                      Go to Inventory
                     </button>
                   </div>
                 ))}

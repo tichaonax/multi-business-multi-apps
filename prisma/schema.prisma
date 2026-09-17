@@ -5088,6 +5088,13 @@ model BarcodeInventoryItems {
   // the system derive it correctly when this item was bought as a case/pack.
   unitsPerPack             Int?
   bulkPackCost             Decimal?                 @db.Decimal(10, 2)
+  // MBM-297 follow-up — expense classification carried over from
+  // CustomBulkProducts (absorbed into this catalog). Plain columns, no FK
+  // relation, resolved client-side via /api/expense-categories/*, same as
+  // CustomBulkProducts always did.
+  expenseDomainId          String?
+  expenseCategoryId        String?
+  expenseSubcategoryId     String?
   isActive                 Boolean                  @default(true)
   createdById              String
   createdAt                DateTime                 @default(now())

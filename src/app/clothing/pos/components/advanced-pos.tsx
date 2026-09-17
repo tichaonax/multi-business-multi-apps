@@ -374,6 +374,11 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       setAppliedCoupon(null)
       try { localStorage.removeItem(`applied-coupon-${businessId}`) } catch {}
       try { localStorage.removeItem(`pos-customer-${businessId}`) } catch {}
+      // Same fix as the in-panel "Clear All" button — clearing from the
+      // floating mini-cart never told the customer display either.
+      if (terminalId) {
+        sendToDisplay('CLEAR_CART', { subtotal: 0, tax: 0, total: 0 })
+      }
     }
     window.addEventListener('pos:cart-cleared', handler)
     return () => window.removeEventListener('pos:cart-cleared', handler)
@@ -2688,7 +2693,15 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           <h3 className="font-semibold text-primary">Cart ({cart.length})</h3>
           <button
             type="button"
-            onClick={() => { setCart([]); clearGlobalCart() }}
+            onClick={() => {
+              setCart([])
+              clearGlobalCart()
+              // Clearing the cart here never told the customer display —
+              // it kept showing the last-broadcast items indefinitely.
+              if (terminalId) {
+                sendToDisplay('CLEAR_CART', { subtotal: 0, tax: 0, total: 0 })
+              }
+            }}
             className="text-sm text-red-600 hover:text-red-700"
           >
             Clear All

@@ -576,8 +576,10 @@ function GroceryPOSContent() {
   useEffect(() => {
     if (!currentBusinessId || !cartLoaded || syncingFromPOS.current) return
     if (globalCart.length === 0 && cart.length > 0) {
-      // Mini cart cleared externally — clear POS cart too
+      // Mini cart cleared externally — clear POS cart too. This never told
+      // the customer display, which kept showing the last-broadcast items.
       setCart([])
+      sendToDisplay('CLEAR_CART', { subtotal: 0, tax: 0, total: 0 })
       return
     }
     if (globalCart.length > 0 && cart.length > 0) {
