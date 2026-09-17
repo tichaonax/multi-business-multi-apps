@@ -129,8 +129,8 @@ export function PricingCalculator({
   }
 
   return (
-    <div className="mt-2 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
-      <div className="flex items-center justify-between mb-2">
+    <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
+      <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-1.5">
           <span className="text-sm">💡</span>
           <span className="text-xs font-semibold text-blue-800 dark:text-blue-300 uppercase tracking-wide">Pricing Calculator</span>
@@ -166,12 +166,16 @@ export function PricingCalculator({
         </div>
       )}
 
-      {/* Cost breakdown */}
-      <div className="space-y-1 mb-3">
-        <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
-          <span>{hasBulkQty ? 'Cost per box' : 'Cost price'}</span>
-          <span>${(costPrice ?? 0).toFixed(2)}</span>
-        </div>
+      {/* Cost breakdown — condensed to one row when there's nothing extra to
+          show (no bulk qty, no transport), so the common case stays a single
+          line instead of always reserving space for a 2-3 line breakdown. */}
+      <div className="space-y-0.5 mb-2">
+        {(hasBulkQty || (transportEnabled && calc.transportPerUnit > 0)) && (
+          <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+            <span>{hasBulkQty ? 'Cost per box' : 'Cost price'}</span>
+            <span>${(costPrice ?? 0).toFixed(2)}</span>
+          </div>
+        )}
         {hasBulkQty && (
           <div className="flex justify-between text-xs font-medium text-blue-700 dark:text-blue-400">
             <span>Effective unit cost ({costPrice?.toFixed(2)} ÷ {bulkQty})</span>
@@ -184,42 +188,50 @@ export function PricingCalculator({
             <span>+${calc.transportPerUnit.toFixed(2)}</span>
           </div>
         )}
-        <div className="flex justify-between text-xs font-semibold text-gray-900 dark:text-gray-100 border-t border-blue-200 dark:border-blue-700 pt-1">
-          <span>Landed cost (per unit)</span>
+        <div className="flex justify-between text-xs font-semibold text-gray-900 dark:text-gray-100 border-t border-blue-200 dark:border-blue-700 pt-0.5">
+          <span>{hasBulkQty || (transportEnabled && calc.transportPerUnit > 0) ? 'Landed cost (per unit)' : 'Cost price'}</span>
           <span>${calc.landedCost.toFixed(2)}</span>
         </div>
       </div>
 
-      {/* Warnings */}
-      {calc.belowCost && (
-        <div className="mb-2 px-2 py-1 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded text-xs text-red-700 dark:text-red-300">
-          ⚠ Selling price is below cost price
-        </div>
-      )}
-      {!calc.belowCost && calc.belowLanded && (
-        <div className="mb-2 px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 rounded text-xs text-yellow-800 dark:text-yellow-300">
-          ⚠ Selling price doesn&apos;t cover transport cost
-        </div>
-      )}
-      {!calc.belowCost && calc.marginTooLow && (
-        <div className="mb-2 px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 rounded text-xs text-yellow-800 dark:text-yellow-300">
-          ⚠ Margin ({calc.currentMarginPct!.toFixed(1)}%) is below the {DEFAULT_PRICING_EXCEPTION_CONFIG.minimumMarginPct}% policy minimum — will show as a pricing exception
-        </div>
-      )}
-      {calc.marginTooHigh && (
-        <div className="mb-2 px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 rounded text-xs text-yellow-800 dark:text-yellow-300">
-          ⚠ Margin ({calc.currentMarginPct!.toFixed(1)}%) is above the {DEFAULT_PRICING_EXCEPTION_CONFIG.maximumMarginPct}% policy maximum — will show as a pricing exception
+      {/* Warnings — stacked tighter as one block instead of separately
+          margined boxes, and single-line where the message fits. */}
+      {(calc.belowCost || calc.belowLanded || calc.marginTooLow || calc.marginTooHigh) && (
+        <div className="space-y-1 mb-2">
+          {calc.belowCost && (
+            <div className="px-2 py-1 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded text-xs text-red-700 dark:text-red-300">
+              ⚠ Selling price is below cost price
+            </div>
+          )}
+          {!calc.belowCost && calc.belowLanded && (
+            <div className="px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 rounded text-xs text-yellow-800 dark:text-yellow-300">
+              ⚠ Selling price doesn&apos;t cover transport cost
+            </div>
+          )}
+          {!calc.belowCost && calc.marginTooLow && (
+            <div className="px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 rounded text-xs text-yellow-800 dark:text-yellow-300">
+              ⚠ Margin ({calc.currentMarginPct!.toFixed(1)}%) below {DEFAULT_PRICING_EXCEPTION_CONFIG.minimumMarginPct}% policy min — will show as a pricing exception
+            </div>
+          )}
+          {calc.marginTooHigh && (
+            <div className="px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 rounded text-xs text-yellow-800 dark:text-yellow-300">
+              ⚠ Margin ({calc.currentMarginPct!.toFixed(1)}%) above {DEFAULT_PRICING_EXCEPTION_CONFIG.maximumMarginPct}% policy max — will show as a pricing exception
+            </div>
+          )}
         </div>
       )}
 
-      {/* Markup buttons */}
-      <div className="grid grid-cols-4 gap-2">
+      {/* Markup buttons — stacked % / $ lines (single-line side-by-side text
+          doesn't fit this column's actual width and visibly overlaps
+          between buttons; padding is trimmed instead for a smaller, still
+          reliably non-overlapping height). */}
+      <div className="grid grid-cols-4 gap-1.5">
         {calc.suggestions.map(({ pct, price }) => (
           <button
             key={pct}
             type="button"
             onClick={() => selectPrice(price)}
-            className="flex flex-col items-center justify-center py-2 rounded bg-blue-100 dark:bg-blue-800/50 text-blue-800 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-700 border border-blue-300 dark:border-blue-600 transition-colors"
+            className="flex flex-col items-center justify-center py-1.5 rounded bg-blue-100 dark:bg-blue-800/50 text-blue-800 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-700 border border-blue-300 dark:border-blue-600 transition-colors"
           >
             <span className="text-xs font-semibold">{pct}%</span>
             <span className="text-xs opacity-75">${price.toFixed(2)}</span>
@@ -231,13 +243,13 @@ export function PricingCalculator({
           <button
             type="button"
             onClick={() => setShowCustom(true)}
-            className="flex flex-col items-center justify-center py-2 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 transition-colors"
+            className="flex items-center justify-center gap-1 py-1.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 transition-colors"
           >
             <span className="text-xs font-semibold">Custom</span>
             <span className="text-xs opacity-60">%</span>
           </button>
         ) : (
-          <div className="flex items-center gap-1">
+          <div className="col-span-2 flex items-center gap-1">
             <input
               type="number"
               min="1"

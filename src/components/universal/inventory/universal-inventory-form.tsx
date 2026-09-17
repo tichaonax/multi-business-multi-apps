@@ -341,6 +341,23 @@ export function UniversalInventoryForm({
   // (or edits Cost Price, which re-opens it to help recompute a new price).
   const [calcOpen, setCalcOpen] = useState(false)
 
+  // A reason is required whenever a real previous cost/sell price is being
+  // changed to a different value (mirrors isPriceChangeReasonRequired in
+  // src/lib/inventory/price-history.ts — duplicated here rather than
+  // imported, since that module pulls in prisma/server-only deps that can't
+  // be bundled into this client component). The PUT route enforces this
+  // server-side; this form previously had no field to satisfy it at all.
+  const [priceChangeReason, setPriceChangeReason] = useState('')
+  const isPriceChangeReasonRequired = (oldPrice: number | null | undefined, newPrice: number | null | undefined): boolean => {
+    if (oldPrice === null || oldPrice === undefined || oldPrice <= 0) return false
+    if (newPrice === null || newPrice === undefined) return false
+    return oldPrice !== newPrice
+  }
+  const priceChanging = !!item && (
+    isPriceChangeReasonRequired(item.costPrice, formData.costPrice) ||
+    isPriceChangeReasonRequired(item.sellPrice, formData.sellPrice)
+  )
+
   // Weight selling — restaurant and grocery only
   const isWeightBusiness = businessType === 'restaurant' || businessType === 'grocery'
   const [isSoldByWeight, setIsSoldByWeight] = useState(false)
@@ -680,6 +697,7 @@ export function UniversalInventoryForm({
       setAvailableSubcategories([])
     }
     setIsDirty(false)
+    setPriceChangeReason('')
   }, [item, businessId, businessType])
 
   // Set selected category, subcategories, and domain when categories are loaded and item has a category
@@ -912,6 +930,7 @@ export function UniversalInventoryForm({
       if (formData.costPrice <= 0) newErrors.costPrice = 'Cost price is required'
     }
     if (!isSoldByWeight && formData.sellPrice < 0) newErrors.sellPrice = 'Sell price cannot be negative'
+    if (priceChanging && !priceChangeReason.trim()) newErrors.priceChangeReason = 'A reason is required when changing an existing price'
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -980,6 +999,7 @@ export function UniversalInventoryForm({
         barcodes,
         skuMode: isManualSku ? 'manual' : 'auto',
         domainId: selectedDomainId || undefined,
+        priceChangeReason: priceChangeReason.trim() || undefined,
         ...(force ? { force: true } : {}),
         ...(isWeightBusiness ? {
           isSoldByWeight,
@@ -1479,7 +1499,7 @@ export function UniversalInventoryForm({
 
   // support rendering either as a modal (default) or inline panel
   const panel = (
-    <div className={`relative text-gray-900 dark:text-gray-100${renderMode === 'modal' ? ' bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-7xl w-full max-h-[90vh] overflow-auto' : ''}`}>
+    <div className={`relative text-gray-900 dark:text-gray-100${renderMode === 'modal' ? ' bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-[1600px] w-full max-h-[90vh] overflow-auto' : ''}`}>
       {/* Header — only shown in modal mode; inline mode parent provides its own header */}
       {renderMode === 'modal' && (
       <div className="p-5 border-b border-gray-200 dark:border-gray-700">
@@ -2241,6 +2261,21 @@ export function UniversalInventoryForm({
                     batchQuantity={formData.currentStock > 0 ? formData.currentStock : 1}
                     onClose={() => setCalcOpen(false)}
                   />
+                )}
+                {priceChanging && (
+                  <div className="mt-2">
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Reason for price change <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={priceChangeReason}
+                      onChange={(e) => setPriceChangeReason(e.target.value)}
+                      placeholder="e.g. supplier price increase"
+                      className={`input-field ${errors.priceChangeReason ? 'border-red-500 border-2' : ''}`}
+                    />
+                    {errors.priceChangeReason && <p className="text-red-600 text-xs mt-1 font-medium">{errors.priceChangeReason}</p>}
+                  </div>
                 )}
               </div>}
 

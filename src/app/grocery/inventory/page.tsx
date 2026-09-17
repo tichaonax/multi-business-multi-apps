@@ -958,7 +958,7 @@ function GroceryInventoryContent() {
           {showAddForm && (
             <ModalPortal>
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-              <div className="card rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="card rounded-lg max-w-[1600px] w-full max-h-[90vh] overflow-hidden flex flex-col">
                 <div className="p-4 sm:p-6 pb-0 shrink-0">
                   <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
                     <h3 className="text-lg font-semibold text-primary break-words">

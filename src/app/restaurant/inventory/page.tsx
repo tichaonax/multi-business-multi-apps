@@ -823,7 +823,7 @@ function RestaurantInventoryContent() {
               onClick={(e) => { if (e.target === e.currentTarget) closeEditForm() }}
             >
               <div className="min-h-full flex items-start justify-center p-4 sm:p-6">
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-7xl my-4">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-[1600px] my-4">
 
                   {/* Unified options bar */}
                   <div className="rounded-t-lg border-b border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-700">
