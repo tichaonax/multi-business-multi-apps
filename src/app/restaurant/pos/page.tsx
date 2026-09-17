@@ -366,7 +366,7 @@ export default function RestaurantPOS() {
   const [isMobile] = useState(() => isMobileDevice())
 
   // Customer Display Sync - broadcast cart updates to customer-facing display
-  const { send: sendToDisplay } = useCustomerDisplaySync({
+  const { send: sendToDisplay, isConnected: displaySyncConnected } = useCustomerDisplaySync({
     businessId: currentBusinessId || '',
     terminalId,
     mode: SyncMode.BROADCAST,
@@ -831,13 +831,19 @@ export default function RestaurantPOS() {
     }
   }, [globalCart, currentBusinessId, cartLoaded])
 
-  // Broadcast cart state to customer display after cart is loaded
+  // Broadcast cart state to customer display after cart is loaded, and again
+  // the moment the sync channel confirms it's actually connected — e.g. a
+  // cross-business "Add to Cart" navigation reloads this page fresh, and an
+  // item can get added before the channel finishes connecting. Sends made
+  // before that point are only best-effort queued; re-broadcasting on the
+  // confirmed-connected transition guarantees the display converges to the
+  // real cart immediately, instead of only updating on the next cart edit.
   useEffect(() => {
     if (!currentBusinessId || !cartLoaded || !terminalId) return
 
     // Broadcast the current cart state to customer display
     broadcastCartState(cart)
-  }, [cartLoaded, currentBusinessId, terminalId])
+  }, [cartLoaded, currentBusinessId, terminalId, displaySyncConnected])
 
   // Signal active business to customer display when business changes
   useEffect(() => {

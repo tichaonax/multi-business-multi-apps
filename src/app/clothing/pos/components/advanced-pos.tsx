@@ -234,13 +234,25 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   })
 
   // Customer Display Sync (only if terminalId is provided)
-  const { send: sendToDisplay } = useCustomerDisplaySync({
+  const { send: sendToDisplay, isConnected: displaySyncConnected } = useCustomerDisplaySync({
     businessId,
     terminalId: terminalId || '',
     mode: SyncMode.BROADCAST, // Force BroadcastChannel for same-origin communication
     autoConnect: !!terminalId,
     onError: (error) => console.error('[Customer Display] Sync error:', error)
   })
+
+  // Resync the moment the channel confirms it's actually ready — e.g. right
+  // after a cross-business "Add to Cart" navigation, the page reloads fresh
+  // and an item can get added to the cart before the sync channel finishes
+  // connecting. Sends made before that point are only best-effort queued;
+  // this guarantees the display converges to the real current cart the
+  // instant the connection is confirmed, instead of only updating on the
+  // next unrelated cart edit.
+  useEffect(() => {
+    if (displaySyncConnected) broadcastCartState(cartRef.current)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displaySyncConnected])
 
   // Broadcast cart state to customer display
   const broadcastCartState = (cartItems: CartItem[]) => {

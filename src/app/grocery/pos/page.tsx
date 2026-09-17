@@ -139,6 +139,8 @@ function GroceryPOSContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [cart, setCart] = useState<CartItem[]>([])
+  const cartRef = useRef<CartItem[]>([])
+  useEffect(() => { cartRef.current = cart }, [cart])
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [barcodeInput, setBarcodeInput] = useState('')
   const [pluInput, setPluInput] = useState('')
@@ -316,13 +318,25 @@ function GroceryPOSContent() {
   const [isMobile] = useState(() => isMobileDevice())
 
   // Customer Display Sync - broadcast cart updates to customer-facing display
-  const { send: sendToDisplay } = useCustomerDisplaySync({
+  const { send: sendToDisplay, isConnected: displaySyncConnected } = useCustomerDisplaySync({
     businessId: currentBusinessId || '',
     terminalId,
     mode: SyncMode.BROADCAST, // Force BroadcastChannel for same-origin communication
     autoConnect: true,
     onError: (error) => console.error('[Customer Display] Sync error:', error)
   })
+
+  // Resync the moment the channel confirms it's actually ready — e.g. right
+  // after a cross-business "Add to Cart" navigation, the page reloads fresh
+  // and an item can get added to the cart before the sync channel finishes
+  // connecting. Sends made before that point are only best-effort queued;
+  // this guarantees the display converges to the real current cart the
+  // instant the connection is confirmed, instead of only updating on the
+  // next unrelated cart edit.
+  useEffect(() => {
+    if (displaySyncConnected) broadcastCartState(cartRef.current)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displaySyncConnected])
 
   // Open Customer Display utility
   const { openDisplay } = useOpenCustomerDisplay(currentBusinessId || '', terminalId)

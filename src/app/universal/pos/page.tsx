@@ -133,7 +133,7 @@ export default function UniversalPOS() {
     localStorage.setItem('pos-terminal-id', newId)
     return newId
   })
-  const { send: sendToDisplay } = useCustomerDisplaySync({
+  const { send: sendToDisplay, isConnected: displaySyncConnected } = useCustomerDisplaySync({
     businessId: currentBusinessId || '',
     terminalId,
     mode: SyncMode.BROADCAST,
@@ -168,8 +168,13 @@ export default function UniversalPOS() {
     // restaurant/pos/page.tsx's identical broadcast effect has the same
     // omission for the same reason: including it would re-broadcast on
     // every render, not just on an actual cart/business change.
+    // displaySyncConnected IS included — a cross-business "Add to Cart"
+    // navigation reloads this page fresh, and an item can get added before
+    // the sync channel finishes connecting; re-broadcasting the moment it's
+    // confirmed connected guarantees the display converges to the real cart
+    // immediately, rather than only on the next unrelated cart edit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cart, totals, currentBusinessId])
+  }, [cart, totals, currentBusinessId, displaySyncConnected])
 
   // Load products for current business
   const {
