@@ -93,6 +93,12 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
   const [showSkipRentConfirm, setShowSkipRentConfirm] = useState(false)
   const [rentTransfer, setRentTransfer] = useState<EodRentTransferPreview | null>(null)
   const [payrollContribution, setPayrollContribution] = useState<EodPayrollContributionPreview | null>(null)
+  // Real available cash (CashBucketEntry balance + today's counted cash) — what
+  // processRentTransfer/processAutoDeposits actually gate on. depositAccountBalance
+  // above is the sales-revenue ledger and can look comfortable while this is not.
+  const [availableCash, setAvailableCash] = useState(0)
+  const [cashInsufficient, setCashInsufficient] = useState(false)
+  const [daysOfRunway, setDaysOfRunway] = useState<number | null>(null)
 
   // ── Fetch preview on mount ─────────────────────────────────────────────────
 
@@ -112,6 +118,9 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
         setConfigs(data.configs)
         setRentTransfer(data.rentTransfer ?? null)
         setPayrollContribution(data.payrollContribution ?? null)
+        setAvailableCash(data.availableCash ?? 0)
+        setCashInsufficient(data.cashInsufficient ?? false)
+        setDaysOfRunway(data.daysOfRunway ?? null)
 
         // If nothing to do, skip immediately
         const actionable = (data.configs as EodPreviewConfig[]).filter(
@@ -150,7 +159,14 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
   const overSales = netSales > 0 && runningTotal > netSales
   const allSkipped = runningTotal === 0
 
-  const confirmDisabled = (insufficientFunds && runningTotal > 0) || hasAmountError
+  // Real-cash check, live against whatever the user currently has selected —
+  // this is the one that actually matters (matches what
+  // processRentTransfer/processAutoDeposits will enforce at save time), unlike
+  // insufficientFunds above which only compares against the revenue balance.
+  const rentDueNow = rentTransfer && !rentTransfer.alreadyProcessedToday ? rentTransfer.dailyAmount : 0
+  const realCashInsufficient = (runningTotal + rentDueNow) > availableCash
+
+  const confirmDisabled = (insufficientFunds && runningTotal > 0) || hasAmountError || realCashInsufficient
 
   // ── Entry mutators ─────────────────────────────────────────────────────────
 
@@ -269,10 +285,24 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
           {netSales > 0 && (
             <> &nbsp;|&nbsp; Today&apos;s sales: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(netSales)}</span></>
           )}
+          <> &nbsp;|&nbsp; Real cash available: <span className={`font-semibold ${cashInsufficient ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{formatCurrency(availableCash)}</span></>
         </p>
       </div>
 
-      {/* Guardrail banners */}
+      {/* Guardrail banners — real-cash check first: this is what actually
+          decides whether today's obligations get paid, and can fail even
+          when the business balance above looks comfortable. */}
+      {realCashInsufficient && (
+        <div className="rounded-lg border-2 border-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-800 dark:text-red-200 font-medium">
+          ⛔ Not enough real cash — {formatCurrency(availableCash)} actually available but {formatCurrency(runningTotal + rentDueNow)} would be paid out today (rent + selected deposits).
+          The amounts that don&apos;t fit will be blocked and recorded as a backlog to catch up later. Uncheck entries or reduce amounts to proceed.
+        </div>
+      )}
+      {!realCashInsufficient && daysOfRunway !== null && daysOfRunway < 3 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+          ⚠ Real cash on hand covers roughly {daysOfRunway.toFixed(1)} more day{daysOfRunway < 2 ? '' : 's'} of rent + deposits at the current rate — this will run out soon if daily cash collected doesn&apos;t improve.
+        </div>
+      )}
       {insufficientFunds && (
         <div className="rounded-lg border border-red-300 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-800 dark:text-red-200">
           ⛔ Insufficient balance — {formatCurrency(depositAccountBalance)} available but {formatCurrency(runningTotal)} selected.

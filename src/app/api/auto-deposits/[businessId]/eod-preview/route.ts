@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
+import { getAvailableCashForAllocation } from '@/lib/eod-utils'
 
 type Params = { params: Promise<{ businessId: string }> }
 
@@ -44,6 +45,25 @@ export interface EodPreviewResponse {
   canProcess: boolean            // depositAccountBalance >= totalConfiguredAmount
   rentTransfer: EodRentTransferPreview | null  // rent is a separate process — shown read-only
   payrollContribution: EodPayrollContributionPreview | null
+  /**
+   * Real available cash (CashBucketEntry balance + today's counted cash) — the
+   * exact figure processRentTransfer/processAutoDeposits actually gate on.
+   * `depositAccountBalance` above is the sales-revenue ledger and can look
+   * comfortable (e.g. thousands of dollars) while real cash on hand is
+   * nowhere near enough to cover today's obligations — this is the number
+   * that matters for "can we actually pay these out today."
+   */
+  availableCash: number
+  /** Rent (if not already done) + all non-skipped auto-deposit configs — the full real obligation for today, not just the auto-deposit portion. */
+  totalDailyObligation: number
+  /** availableCash < totalDailyObligation right now. */
+  cashInsufficient: boolean
+  /**
+   * Rough runway at today's obligation rate (availableCash / totalDailyObligation,
+   * in days). Null when there's no obligation to divide by. Meant to surface a
+   * decline BEFORE it hits zero, not just block once it does.
+   */
+  daysOfRunway: number | null
 }
 
 /**
@@ -268,6 +288,17 @@ export async function GET(request: NextRequest, { params }: Params) {
 
     const canProcess = depositAccountBalance >= totalConfiguredAmount
 
+    // Real available cash — the same figure processRentTransfer/processAutoDeposits
+    // actually gate on (CashBucketEntry balance + today's counted cash), not the
+    // sales-revenue businessAccounts.balance above. This is what determines whether
+    // today's obligations can genuinely be paid, and is surfaced here so the preview
+    // screen can warn BEFORE the guard silently skips something at save time.
+    const availableCash = await getAvailableCashForAllocation(businessId, date)
+    const totalDailyObligation =
+      totalConfiguredAmount + (rentTransfer && !rentTransfer.alreadyProcessedToday ? rentTransfer.dailyAmount : 0)
+    const cashInsufficient = availableCash < totalDailyObligation
+    const daysOfRunway = totalDailyObligation > 0 ? availableCash / totalDailyObligation : null
+
     // ── Payroll contribution preview (same formula as close-books auto-contribution) ──
     let payrollContribution: EodPayrollContributionPreview | null = null
     try {
@@ -364,6 +395,10 @@ export async function GET(request: NextRequest, { params }: Params) {
       canProcess,
       rentTransfer,
       payrollContribution,
+      availableCash,
+      totalDailyObligation,
+      cashInsufficient,
+      daysOfRunway,
     }
 
     return NextResponse.json({ success: true, data: response })

@@ -136,7 +136,14 @@ export async function POST(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'startDate must be before or equal to endDate' }, { status: 400 })
     }
 
-    // Verify expense account exists and is active (can belong to any business)
+    // Verify expense account exists and is active. Shared accounts (businessId
+    // null — loan/general-expense accounts an employee can be reimbursed
+    // through from any business they work at) are intentionally allowed
+    // cross-business. A business-SPECIFIC account (e.g. a rent account, which
+    // always has a real owning businessId) must never be targeted by a
+    // different business's auto-deposit — that's a genuine misconfiguration
+    // (one business silently funding another's rent), not a legitimate shared
+    // account, and has to be rejected here rather than merely being unusual.
     const expenseAccount = await prisma.expenseAccounts.findFirst({
       where: { id: expenseAccountId, isActive: true },
       select: { id: true, accountName: true, accountNumber: true, businessId: true },
@@ -145,6 +152,12 @@ export async function POST(request: NextRequest, { params }: Params) {
       return NextResponse.json(
         { error: 'Expense account not found or is inactive' },
         { status: 404 }
+      )
+    }
+    if (expenseAccount.businessId != null && expenseAccount.businessId !== businessId) {
+      return NextResponse.json(
+        { error: `"${expenseAccount.accountName}" belongs to a different business and cannot be targeted by this business's auto-deposits` },
+        { status: 400 }
       )
     }
 

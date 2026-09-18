@@ -38,6 +38,7 @@ export async function POST(
         recipientBusiness: { select: { name: true } },
         recipientEmployee: { select: { fullName: true } },
         payrollAccount: { select: { id: true, businessId: true } },
+        expenseAccount: { select: { businessId: true } },
       },
     })
 
@@ -101,6 +102,28 @@ export async function POST(
           where: { id: loan.expenseAccountId! },
           data: { balance: { increment: repayAmount } },
         })
+
+        // Real cash/EcoCash physically received from the borrower — this is the
+        // first time this money enters the business's till, so it needs its own
+        // pool inflow (unlike envelope funding, a loan repayment isn't already
+        // counted anywhere else).
+        const loanBusinessId = loan.expenseAccount?.businessId ?? null
+        if (loanBusinessId && (paymentMethod === 'CASH' || paymentMethod === 'ECOCASH')) {
+          await tx.cashBucketEntry.create({
+            data: {
+              businessId: loanBusinessId,
+              entryType: 'LOAN_REPAYMENT',
+              direction: 'INFLOW',
+              amount: repayAmount,
+              paymentChannel: paymentMethod,
+              referenceType: 'LOAN_REPAYMENT',
+              referenceId: depositId!,
+              notes: `Loan repayment received from ${recipientName} — ${loan.loanNumber}`,
+              entryDate: new Date(paymentDate),
+              createdBy: user.id,
+            },
+          })
+        }
 
         // For BUSINESS loans: also debit the borrower's primary expense account
         if (loan.loanType === 'BUSINESS' && loan.recipientBusinessId) {

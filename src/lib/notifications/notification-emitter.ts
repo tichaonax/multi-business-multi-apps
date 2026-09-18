@@ -45,6 +45,7 @@ export type NotificationType =
   | 'RECEIPT_REMINDER'
   | 'RECEIPT_ESCALATION'
   | 'PRICE_CHANGED'
+  | 'ALLOCATION_SKIPPED'
 
 export interface NotificationPayload {
   userIds: string[]

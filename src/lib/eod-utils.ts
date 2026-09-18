@@ -6,6 +6,7 @@
 
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { notifyManagersOfAllocationSkip } from '@/lib/allocation-skip-notifier'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -85,15 +86,19 @@ export async function recordAllocationSkip(params: {
 }): Promise<void> {
   try {
     const eodDateObj = new Date(params.eodDate + 'T00:00:00Z')
-    await prisma.eodAllocationSkips.upsert({
-      where: {
-        businessId_allocationType_configKey_eodDate: {
-          businessId: params.businessId,
-          allocationType: params.allocationType,
-          configKey: params.configKey,
-          eodDate: eodDateObj,
-        },
+    const key = {
+      businessId_allocationType_configKey_eodDate: {
+        businessId: params.businessId,
+        allocationType: params.allocationType,
+        configKey: params.configKey,
+        eodDate: eodDateObj,
       },
+    }
+    // Check existence first so we only notify managers once per skip, not on
+    // every idempotent re-check of the same day (e.g. EOD reprocessed).
+    const existedBefore = await prisma.eodAllocationSkips.findUnique({ where: key, select: { id: true } })
+    await prisma.eodAllocationSkips.upsert({
+      where: key,
       update: {}, // already recorded for this day — leave any catch-up progress untouched
       create: {
         businessId: params.businessId,
@@ -106,6 +111,19 @@ export async function recordAllocationSkip(params: {
         createdBy: params.userId,
       },
     })
+
+    if (!existedBefore) {
+      const business = await prisma.businesses.findUnique({ where: { id: params.businessId }, select: { name: true } })
+      await notifyManagersOfAllocationSkip({
+        businessId: params.businessId,
+        businessName: business?.name ?? 'Business',
+        allocationType: params.allocationType,
+        accountName: params.accountName,
+        eodDate: params.eodDate,
+        amountSkipped: params.amountSkipped,
+        reason: params.reason,
+      })
+    }
   } catch (err) {
     console.error('[recordAllocationSkip] failed (non-fatal):', err)
   }
@@ -167,7 +185,8 @@ export async function getAvailableCashForAllocation(
     if ((eodSaved as any)?.confirmedEcocashAmount != null) depositNow += Number((eodSaved as any).confirmedEcocashAmount)
   }
 
-  return bucketBalance + depositNow
+  const availableCash = bucketBalance + depositNow
+  return availableCash
 }
 
 // ─── autoGenerateCashAllocationReport ────────────────────────────────────────

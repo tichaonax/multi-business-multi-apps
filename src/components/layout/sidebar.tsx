@@ -2516,6 +2516,16 @@ export function Sidebar() {
               </Link>
             )}
 
+            {hasPermission('canAccessFinancialData') && (
+              <Link
+                href="/business/manage/allocation-backlog"
+                className="sidebar-link flex items-center space-x-3"
+              >
+                <span className="text-lg">⏳</span>
+                <span>Allocation Backlog</span>
+              </Link>
+            )}
+
             {hasPermission('canManageBusinessLoans') && (
               <Link
                 href="/admin/loans"

@@ -155,6 +155,41 @@ export async function POST(request: NextRequest) {
         data: { balance: newBalance, updatedAt: new Date() },
       });
 
+      // WiFi sales never flow through the regular POS/businessOrders path, so this
+      // revenue is otherwise invisible to the day's cash count and the EOD cash-pool
+      // guard. Mirrors the deposits/route.ts "physical cash arriving from outside"
+      // pattern: an INFLOW plus an immediate earmark OUTFLOW to the account credited.
+      if (paymentMethod === 'CASH' || paymentMethod === 'ECOCASH') {
+        await tx.cashBucketEntry.create({
+          data: {
+            businessId: wifiToken.businessId,
+            entryType: 'DIRECT_DEPOSIT',
+            direction: 'INFLOW',
+            amount: saleAmount,
+            paymentChannel: paymentMethod,
+            referenceType: 'WIFI_TOKEN_SALE',
+            referenceId: sale.id,
+            notes: `WiFi Token Sale: ${wifiToken.token}`,
+            entryDate: new Date(),
+            createdBy: user.id,
+          },
+        });
+        await tx.cashBucketEntry.create({
+          data: {
+            businessId: wifiToken.businessId,
+            entryType: 'CASH_ALLOCATION',
+            direction: 'OUTFLOW',
+            amount: saleAmount,
+            paymentChannel: paymentMethod,
+            referenceType: 'WIFI_TOKEN_SALE',
+            referenceId: sale.id,
+            notes: `WiFi expense account`,
+            entryDate: new Date(),
+            createdBy: user.id,
+          },
+        });
+      }
+
       return { sale, deposit };
     });
 

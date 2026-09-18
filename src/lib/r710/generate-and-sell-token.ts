@@ -260,6 +260,41 @@ async function recordR710TokenSale(
       where: { id: expenseAccountId },
       data: { balance: newBalance, updatedAt: new Date() },
     })
+
+    // WiFi/R710 sales never flow through the regular POS/businessOrders path, so this
+    // revenue is otherwise invisible to the day's cash count and the EOD cash-pool guard.
+    // Mirrors the deposits/route.ts "physical cash arriving from outside" pattern: an
+    // INFLOW plus an immediate earmark OUTFLOW to the account it was deposited into.
+    if ((paymentMethod === 'CASH' || paymentMethod === 'ECOCASH')) {
+      await db.cashBucketEntry.create({
+        data: {
+          businessId,
+          entryType: 'DIRECT_DEPOSIT',
+          direction: 'INFLOW',
+          amount: depositAmount,
+          paymentChannel: paymentMethod,
+          referenceType: 'R710_TOKEN_SALE',
+          referenceId: sale.id,
+          notes: `R710 WiFi Token Sale — ${tokenLabel}`,
+          entryDate: new Date(),
+          createdBy: soldBy,
+        },
+      })
+      await db.cashBucketEntry.create({
+        data: {
+          businessId,
+          entryType: 'CASH_ALLOCATION',
+          direction: 'OUTFLOW',
+          amount: depositAmount,
+          paymentChannel: paymentMethod,
+          referenceType: 'R710_TOKEN_SALE',
+          referenceId: sale.id,
+          notes: `WiFi/R710 expense account`,
+          entryDate: new Date(),
+          createdBy: soldBy,
+        },
+      })
+    }
   }
 
   return {
