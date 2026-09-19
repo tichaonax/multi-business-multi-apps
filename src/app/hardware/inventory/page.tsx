@@ -535,7 +535,7 @@ function HardwareInventoryContent() {
                     {/* Filters (Browse by Department) — collapsed by default,
                         independently of the Actions section above. */}
                     {stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && !selectedDepartment && (
-                      <CollapsibleSection title="Filters" icon="🔎">
+                      <CollapsibleSection title="Department Filter" icon="🏬">
                       <div className="card p-4 sm:p-6">
                         <div className="flex items-center justify-between mb-4">
                           <h3 className="text-lg font-semibold">Browse by Department</h3>

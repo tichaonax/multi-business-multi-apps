@@ -1325,7 +1325,7 @@ function ClothingInventoryContent() {
                     {/* Filters (Condition + Browse by Department) — collapsed by
                         default, independently of the Actions section above, so
                         neither has to be opened to see the other. */}
-                    <CollapsibleSection title="Filters" icon="🔎">
+                    <CollapsibleSection title="Condition & Department" icon="🏷️">
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-secondary">Condition:</span>
                       <div className="inline-flex rounded-md border border-gray-200 dark:border-gray-700">

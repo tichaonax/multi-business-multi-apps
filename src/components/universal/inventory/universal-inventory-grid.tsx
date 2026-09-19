@@ -743,7 +743,7 @@ export function UniversalInventoryGrid({
               powering all of them: the search bar stays immediately usable,
               the rest only appears once the user actually asks for it. */}
           <CollapsibleSection
-            title="Filters"
+            title="Sort & Filter"
             icon="🔎"
             open={filtersOpen}
             onOpenChange={setFiltersOpen}

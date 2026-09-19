@@ -594,7 +594,7 @@ function RestaurantInventoryContent() {
                   {/* Filters (Categories, Menu/Price toggles, Browse by Department)
                       — collapsed by default, independently of the Actions
                       section above. */}
-                  <CollapsibleSection title="Filters" icon="🔎">
+                  <CollapsibleSection title="Category & Menu Filters" icon="🍽️">
                   {/* Ingredient Categories - Click to filter — built from real data */}
                   {Object.keys(categoryCounts).length > 0 && (() => {
                     const KNOWN: Record<string, { icon: string; color: string }> = {
