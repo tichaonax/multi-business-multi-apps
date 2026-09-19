@@ -1910,7 +1910,7 @@ export function UniversalInventoryForm({
                     tooltip — stacked, this block ended up taller than the SKU
                     column beside it, leaving a visible empty gap there. */}
                 {item?.id && (
-                  <div className="flex items-center gap-3 mt-4 w-full">
+                  <div className="flex items-center gap-3 mt-4 w-full min-w-0">
                     <div className="w-16 h-16 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center relative">
                       {formData.imageUrl ? (
                         <>
@@ -1934,7 +1934,7 @@ export function UniversalInventoryForm({
                     <button
                       type="button"
                       onClick={() => setShowImageDialog(true)}
-                      className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 whitespace-nowrap"
+                      className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 flex-1 min-w-0"
                     >
                       📷 {formData.imageUrl ? 'Change Image' : 'Add Image'}
                     </button>
@@ -1945,7 +1945,7 @@ export function UniversalInventoryForm({
                     upload it automatically the instant the item is created
                     (see the effect watching item?.id above). */}
                 {!item?.id && (
-                  <div className="flex items-center gap-3 mt-4 w-full">
+                  <div className="flex items-center gap-3 mt-4 w-full min-w-0">
                     <div className="w-16 h-16 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center">
                       {pendingImagePreview ? (
                         <img src={pendingImagePreview} alt="" className="w-full h-full object-cover" />
@@ -1953,11 +1953,11 @@ export function UniversalInventoryForm({
                         <span className="text-2xl">📦</span>
                       )}
                     </div>
-                    <div className="relative">
+                    <div className="relative flex-1 min-w-0">
                       <button
                         type="button"
                         onClick={() => setShowImageSourceMenu(v => !v)}
-                        className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700 whitespace-nowrap"
+                        className="w-full text-sm px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-secondary hover:bg-gray-50 dark:hover:bg-gray-700"
                       >
                         📷 {pendingImagePreview ? 'Change Image' : 'Add Image'}
                       </button>

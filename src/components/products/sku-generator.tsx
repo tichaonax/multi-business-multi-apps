@@ -165,7 +165,11 @@ export default function SKUGenerator({
           </button>
         </div>
 
-        <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+        {/* Hidden on mobile — this hint has no room next to the item photo
+            block in the same grid row there and just overlaps it; it isn't
+            needed to use the field anyway (the ⓘ tooltip still explains it
+            on desktop where there's space and hover works). */}
+        <p className="hidden sm:flex mt-1.5 text-xs text-gray-500 dark:text-gray-400 items-center gap-1">
           {isManual ? (
             <>
               Enter a custom SKU. Must be unique within this business.
