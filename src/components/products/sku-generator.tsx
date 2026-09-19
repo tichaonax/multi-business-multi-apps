@@ -116,7 +116,7 @@ export default function SKUGenerator({
     <div className="space-y-3">
       {/* SKU Input Field */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
           SKU (Stock Keeping Unit) *
         </label>
 
@@ -129,7 +129,7 @@ export default function SKUGenerator({
               disabled={disabled || (!isManual && loading)}
               readOnly={!isManual}
               placeholder={isManual ? 'Enter custom SKU' : 'Auto-generating...'}
-              className={`block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2.5 px-3 pr-10 font-mono ${
+              className={`block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2 px-3 pr-10 font-mono ${
                 !isManual ? 'bg-gray-50 dark:bg-gray-800' : ''
               }`}
             />
