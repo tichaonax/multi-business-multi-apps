@@ -30,6 +30,8 @@ import { InventoryActivityReportModal } from '@/components/inventory/inventory-a
 import { MergeInventoryModal } from '@/components/inventory/merge-inventory-modal'
 import { ModalPortal } from '@/components/ui/modal-portal'
 import { CollapsibleSection } from '@/components/ui/collapsible-section'
+import { Pagination } from '@/components/ui/pagination'
+import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 
 // ── Transfer History Panel ──────────────────────────────────────────────────
 
@@ -149,6 +151,8 @@ function ClothingInventoryContent() {
   const [printHistory, setPrintHistory] = useState<any[]>([])
   const [printHistoryLoading, setPrintHistoryLoading] = useState(false)
   const [baleSearchTerm, setBaleSearchTerm] = useState('')
+  const [balePage, setBalePage] = useState(1)
+  const { pageSize: balePageSize, setPageSize: setBalePageSize, isOverridden: balePageSizeOverridden, resetToDefault: resetBalePageSize } = usePageSize()
   const [insightsTarget, setInsightsTarget] = useState<{ type: 'bale' | 'inventory'; id: string } | null>(null)
   const searchParams = useSearchParams()
   const customAlert = useAlert()
@@ -1420,6 +1424,7 @@ function ClothingInventoryContent() {
                   <div className="space-y-4">
                     <div className="space-y-3">
                       <h3 className="text-lg font-semibold">Used Clothing Bales</h3>
+                      <CollapsibleSection title="Actions" icon="🛠️" className="w-full sm:w-auto">
                       <div className="flex gap-2 flex-wrap">
                         <button
                           onClick={() => setShowCategoryForm(true)}
@@ -1466,6 +1471,7 @@ function ClothingInventoryContent() {
                           End of Sale
                         </button>
                       </div>
+                      </CollapsibleSection>
                     </div>
 
                     {/* Add Category Inline Form */}
@@ -1652,21 +1658,35 @@ function ClothingInventoryContent() {
                     )}
 
                     {/* Bale Search */}
-                    <div className="flex items-center gap-2">
+                    <div className="sticky top-14 sm:top-16 z-10 bg-background pt-2 pb-2 flex items-center gap-2">
                       <input
                         type="text"
                         value={baleSearchTerm}
-                        onChange={(e) => setBaleSearchTerm(e.target.value)}
+                        onChange={(e) => { setBaleSearchTerm(e.target.value); setBalePage(1) }}
                         placeholder="Search batch, category, SKU or barcode…"
                         className="input-field max-w-sm"
                       />
                       {baleSearchTerm && (
-                        <button onClick={() => setBaleSearchTerm('')} className="text-sm text-secondary hover:text-primary">Clear</button>
+                        <button onClick={() => { setBaleSearchTerm(''); setBalePage(1) }} className="text-sm text-secondary hover:text-primary">Clear</button>
                       )}
                     </div>
 
                     {/* Bales List */}
-                    {balesLoading ? (
+                    {(() => {
+                      const filteredBales = bales.filter((bale: any) => {
+                        if (!baleSearchTerm) return true
+                        const q = baleSearchTerm.toLowerCase()
+                        return (
+                          bale.batchNumber?.toLowerCase().includes(q) ||
+                          bale.category?.name?.toLowerCase().includes(q) ||
+                          bale.sku?.toLowerCase().includes(q) ||
+                          bale.barcode?.toLowerCase().includes(q)
+                        )
+                      })
+                      const baleTotalPages = Math.max(1, Math.ceil(filteredBales.length / balePageSize))
+                      const clampedBalePage = Math.min(balePage, baleTotalPages)
+                      const paginatedBales = filteredBales.slice((clampedBalePage - 1) * balePageSize, clampedBalePage * balePageSize)
+                      return balesLoading ? (
                       <div className="text-center py-8">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
                       </div>
@@ -1675,7 +1695,12 @@ function ClothingInventoryContent() {
                         <p className="text-lg mb-2">No bales registered yet</p>
                         <p className="text-sm">Click "Register Bale" to stock used clothing bales.</p>
                       </div>
+                    ) : filteredBales.length === 0 ? (
+                      <div className="text-center py-12 text-secondary">
+                        <p className="text-sm">No bales match "{baleSearchTerm}"</p>
+                      </div>
                     ) : (
+                      <>
                       <div className="overflow-x-auto w-full max-w-full">
                         <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
                           <thead className="bg-gray-50 dark:bg-gray-800">
@@ -1704,16 +1729,7 @@ function ClothingInventoryContent() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                            {bales.filter((bale: any) => {
-                              if (!baleSearchTerm) return true
-                              const q = baleSearchTerm.toLowerCase()
-                              return (
-                                bale.batchNumber?.toLowerCase().includes(q) ||
-                                bale.category?.name?.toLowerCase().includes(q) ||
-                                bale.sku?.toLowerCase().includes(q) ||
-                                bale.barcode?.toLowerCase().includes(q)
-                              )
-                            }).map((bale: any) => (
+                            {paginatedBales.map((bale: any) => (
                               <tr key={bale.id} className={`${bale.remainingCount === 0 ? 'opacity-50' : ''}`}>
                                 {session?.user?.role === 'admin' && (
                                   <td className="px-2 py-2 sm:py-3 w-8">
@@ -1860,7 +1876,20 @@ function ClothingInventoryContent() {
                           </tbody>
                         </table>
                       </div>
-                    )}
+                      <Pagination
+                        currentPage={clampedBalePage}
+                        totalPages={baleTotalPages}
+                        totalItems={filteredBales.length}
+                        pageSize={balePageSize}
+                        onPageChange={setBalePage}
+                        pageSizeOptions={PAGE_SIZE_OPTIONS}
+                        onPageSizeChange={setBalePageSize}
+                        isPageSizeOverridden={balePageSizeOverridden}
+                        onResetPageSize={resetBalePageSize}
+                      />
+                      </>
+                    )
+                    })()}
                   </div>
                 )}
 

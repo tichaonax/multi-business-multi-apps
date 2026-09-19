@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs } from '@/components/ui/tabs'
 import { Modal } from '@/components/ui/modal'
 import { useToastContext } from '@/components/ui/toast'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import type { NetworkPrinter } from '@/types/printing'
 
 export function PrinterManagement() {
@@ -33,7 +34,17 @@ export function PrinterManagement() {
   })
   const [discoveredPrinters, setDiscoveredPrinters] = useState<any[]>([])
   const [showDiscoveryModal, setShowDiscoveryModal] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const toast = useToastContext()
+
+  const filteredPrinters = (() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return printers
+    return printers.filter(p =>
+      p.printerName?.toLowerCase().includes(q) ||
+      p.businessName?.toLowerCase().includes(q)
+    )
+  })()
 
   // Fetch printers on mount
   useEffect(() => {
@@ -199,7 +210,8 @@ export function PrinterManagement() {
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <CollapsibleSection title="Actions" icon="🛠️" className="w-full sm:w-auto">
+        <div className="flex gap-2 flex-wrap">
           <Button
             variant="outline"
             onClick={handleRefresh}
@@ -222,10 +234,12 @@ export function PrinterManagement() {
             Add Printer
           </Button>
         </div>
+        </CollapsibleSection>
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-5 gap-4">
+      <CollapsibleSection title="Statistics" icon="📊">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         <Card className="p-4">
           <div className="text-sm text-gray-600">Total Printers</div>
           <div className="text-2xl font-bold mt-1">{statistics.total}</div>
@@ -257,6 +271,7 @@ export function PrinterManagement() {
           <div className="text-2xl font-bold mt-1">{statistics.remote}</div>
         </Card>
       </div>
+      </CollapsibleSection>
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -290,13 +305,40 @@ export function PrinterManagement() {
 
         <div className="mt-6">
           {activeTab === 'printers' && (
-            <PrinterList
-              printers={printers}
-              loading={loading}
-              onEdit={handleEditPrinter}
-              onDelete={handleDeletePrinter}
-              onRefresh={fetchPrinters}
-            />
+            <div className="space-y-4">
+              <div className="sticky top-14 sm:top-16 z-10 bg-background pt-2 pb-1">
+                <div className="relative max-w-md">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="🔍 Search printers by name or business…"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-sm"
+                      title="Clear"
+                    >✕</button>
+                  )}
+                </div>
+              </div>
+
+              {!loading && searchQuery && filteredPrinters.length === 0 ? (
+                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                  No printers match &quot;{searchQuery}&quot;
+                </div>
+              ) : (
+                <PrinterList
+                  printers={filteredPrinters}
+                  loading={loading}
+                  onEdit={handleEditPrinter}
+                  onDelete={handleDeletePrinter}
+                  onRefresh={fetchPrinters}
+                />
+              )}
+            </div>
           )}
 
           {activeTab === 'queue' && (

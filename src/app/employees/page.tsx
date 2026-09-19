@@ -14,6 +14,7 @@ import { EmployeeIdCardModal } from '@/components/clock-in/employee-id-card'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { formatDate } from '@/lib/utils'
 import { useElementHeight } from '@/hooks/use-element-height'
+import { RowActionsMenu, type RowAction } from '@/components/ui/row-actions-menu'
 
 interface Employee {
   id: string
@@ -934,10 +935,62 @@ export default function EmployeesPage() {
                       const pendingContract = contracts.find((c: any) => c.status === 'pending_signature' || c.status === 'pending_approval' || c.status === 'draft')
                       const currentContract = activeContract || pendingContract || contracts[0]
 
+                      const rowActions: RowAction[] = []
+                      if (leaveStatusMap.has(employee.id)) {
+                        rowActions.push({
+                          key: 'return',
+                          label: 'Return to Work',
+                          icon: '✓',
+                          onClick: () => {
+                            setReturnDate(new Date().toISOString().split('T')[0])
+                            setReturnToWorkModal({ isOpen: true, employee, leaveRequestId: leaveStatusMap.get(employee.id)!.leaveRequestId })
+                          },
+                        })
+                      }
+                      rowActions.push({
+                        key: 'view',
+                        label: 'View',
+                        icon: '👁️',
+                        onClick: () => { window.location.href = `/employees/${employee.id}` },
+                      })
+                      if (canEditEmployees) {
+                        rowActions.push({
+                          key: 'edit',
+                          label: 'Edit',
+                          icon: '✏️',
+                          onClick: () => { window.location.href = `/employees/${employee.id}/edit` },
+                        })
+                      }
+                      if (canApproveSalaryIncreases) {
+                        rowActions.push({
+                          key: 'salary',
+                          label: 'Salary Increase',
+                          icon: '💰',
+                          onClick: () => handleSalaryIncrease(employee),
+                        })
+                      }
+                      rowActions.push({
+                        key: 'id-card',
+                        label: 'Print ID Card',
+                        icon: '🪪',
+                        onClick: () => setPrintCardEmployee(employee),
+                      })
+                      rowActions.push({
+                        key: 'export-pdf',
+                        label: 'Export to PDF',
+                        icon: '📄',
+                        onClick: () => handleExportEmployeePdf(employee),
+                      })
+
                       return (
-                        <tr key={employee.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                        <tr
+                          key={employee.id}
+                          className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                          onClick={() => { window.location.href = `/employees/${employee.id}` }}
+                        >
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
+                            <div className="flex items-center gap-2">
+                              <RowActionsMenu actions={rowActions} align="start" />
                               <div className="w-10 h-10 rounded-full flex-shrink-0 overflow-hidden">
                                 {employee.profilePhotoUrl ? (
                                   <img
@@ -1063,7 +1116,7 @@ export default function EmployeesPage() {
                                 <>
                                   {!currentContract.employeeSignedAt && !currentContract.managerSignedAt && (
                                     <button
-                                      onClick={() => window.location.href = `/employees/${employee.id}?highlightContract=${currentContract.id}&tab=contracts`}
+                                      onClick={(e) => { e.stopPropagation(); window.location.href = `/employees/${employee.id}?highlightContract=${currentContract.id}&tab=contracts` }}
                                       className="inline-flex items-center px-2 py-1 text-xs font-medium bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200 rounded border-2 border-red-400 animate-pulse hover:bg-red-200 dark:hover:bg-red-700 cursor-pointer"
                                       title="Click to view and sign this contract"
                                     >
@@ -1072,7 +1125,7 @@ export default function EmployeesPage() {
                                   )}
                                   {currentContract.employeeSignedAt && !currentContract.managerSignedAt && (
                                     <button
-                                      onClick={() => window.location.href = `/employees/${employee.id}?highlightContract=${currentContract.id}&tab=contracts`}
+                                      onClick={(e) => { e.stopPropagation(); window.location.href = `/employees/${employee.id}?highlightContract=${currentContract.id}&tab=contracts` }}
                                       className="inline-flex items-center px-2 py-1 text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-800 dark:text-orange-200 rounded border-2 border-orange-400 hover:bg-orange-200 dark:hover:bg-orange-700 cursor-pointer"
                                       title="Click to approve this contract"
                                     >
@@ -1106,56 +1159,8 @@ export default function EmployeesPage() {
                           </td>
 
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <div className="flex items-center justify-end space-x-2">
-                              {leaveStatusMap.has(employee.id) && (
-                                <button
-                                  className="text-teal-600 hover:text-teal-900 dark:text-teal-400 dark:hover:text-teal-200 font-medium"
-                                  onClick={() => {
-                                    setReturnDate(new Date().toISOString().split('T')[0])
-                                    setReturnToWorkModal({ isOpen: true, employee, leaveRequestId: leaveStatusMap.get(employee.id)!.leaveRequestId })
-                                  }}
-                                  title="Return to Work"
-                                >
-                                  ✓ Return
-                                </button>
-                              )}
-                              <button
-                                className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                                onClick={() => window.location.href = `/employees/${employee.id}`}
-                              >
-                                View
-                              </button>
-                              {canEditEmployees && (
-                                <button
-                                  className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
-                                  onClick={() => window.location.href = `/employees/${employee.id}/edit`}
-                                >
-                                  Edit
-                                </button>
-                              )}
-                              {canApproveSalaryIncreases && (
-                                <button
-                                  className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                                  onClick={() => handleSalaryIncrease(employee)}
-                                  title="Salary Increase"
-                                >
-                                  💰
-                                </button>
-                              )}
-                              <button
-                                className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
-                                onClick={() => setPrintCardEmployee(employee)}
-                                title="Print ID Card"
-                              >
-                                🪪
-                              </button>
-                              <button
-                                className="text-red-500 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200"
-                                onClick={() => handleExportEmployeePdf(employee)}
-                                title="Export employee details to PDF"
-                              >
-                                📄
-                              </button>
+                            <div className="flex items-center justify-end">
+                              <RowActionsMenu actions={rowActions} />
                             </div>
                           </td>
                         </tr>

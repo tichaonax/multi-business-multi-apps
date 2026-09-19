@@ -6,6 +6,7 @@ import { useClipboardImagePaste } from '@/hooks/use-clipboard-image-paste'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { ProductImagePipelineModal, type ProductImagePipelineResult } from '@/components/inventory/product-image-pipeline-modal'
+import { useIsMobileDevice } from '@/hooks/use-is-mobile-device'
 
 export type QuickEditSourceTable = 'BUSINESS_PRODUCT' | 'BARCODE_ITEM'
 
@@ -64,6 +65,7 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
   const toast = useToastContext()
   const { hasPermission } = useBusinessPermissionsContext()
   const canUploadToPool = hasPermission('canManageInventory')
+  const isMobile = useIsMobileDevice()
   const [uploading, setUploading] = useState(false)
   const [copying, setCopying] = useState(false)
   const [pasting, setPasting] = useState(false)
@@ -637,7 +639,7 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
             disabled={uploading}
             className="block w-full text-center py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium disabled:opacity-50"
           >
-            {uploading ? 'Uploading…' : '📷 Take Photo / Upload (Crop & Edit)'}
+            {uploading ? 'Uploading…' : isMobile ? '📷 Take Photo / Upload (Crop & Edit)' : '📷 Upload Photo (Crop & Edit)'}
           </button>
         )}
 
