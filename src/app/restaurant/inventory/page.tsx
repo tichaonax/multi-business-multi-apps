@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation'
 import { SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useToastContext } from '@/components/ui/toast'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 import { StockTakeReportsList } from '@/components/inventory/stock-take-reports-list'
@@ -543,8 +544,9 @@ function RestaurantInventoryContent() {
                 <div className="space-y-6">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <h3 className="text-lg font-semibold text-primary">Ingredient Inventory</h3>
+                    <CollapsibleSection title="Actions" icon="🛠️" className="w-full sm:w-auto">
                     <div className="flex flex-wrap gap-2">
-                      <button 
+                      <button
                         onClick={() => router.push('/restaurant/inventory/receive')}
                         className="btn-secondary text-sm"
                       >
@@ -557,8 +559,42 @@ function RestaurantInventoryContent() {
                         ➕ Add Item
                       </button>
                     </div>
+                    </CollapsibleSection>
                   </div>
 
+                  {/* Selected Category Indicator — stays visible regardless of
+                      the Filters section below being collapsed. */}
+                  {selectedCategory && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                      <span>Showing:</span>
+                      <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full font-medium">
+                        {selectedCategory}
+                      </span>
+                      <button
+                        onClick={() => setSelectedCategory(null)}
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        Clear filter
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Active Department Filter Badge — stays visible regardless
+                      of the Filters section below being collapsed. */}
+                  {selectedDepartment && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm text-secondary">Department filter:</span>
+                      <span className="inline-flex items-center gap-2 rounded-md bg-orange-100 dark:bg-orange-900 px-3 py-1 text-sm font-medium text-orange-800 dark:text-orange-200">
+                        {stats?.byDepartment?.[selectedDepartment]?.emoji} {stats?.byDepartment?.[selectedDepartment]?.name}
+                        <button type="button" onClick={() => setSelectedDepartment('')} className="hover:text-orange-600 dark:hover:text-orange-400" title="Clear">×</button>
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Filters (Categories, Menu/Price toggles, Browse by Department)
+                      — collapsed by default, independently of the Actions
+                      section above. */}
+                  <CollapsibleSection title="Filters" icon="🔎">
                   {/* Ingredient Categories - Click to filter — built from real data */}
                   {Object.keys(categoryCounts).length > 0 && (() => {
                     const KNOWN: Record<string, { icon: string; color: string }> = {
@@ -617,22 +653,6 @@ function RestaurantInventoryContent() {
                       </div>
                     )
                   })()}
-
-                  {/* Selected Category Indicator */}
-                  {selectedCategory && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <span>Showing:</span>
-                      <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full font-medium">
-                        {selectedCategory}
-                      </span>
-                      <button
-                        onClick={() => setSelectedCategory(null)}
-                        className="text-blue-600 dark:text-blue-400 hover:underline"
-                      >
-                        Clear filter
-                      </button>
-                    </div>
-                  )}
 
                   {/* Menu & Price Filters */}
                   <div className="flex flex-wrap items-center gap-3">
@@ -696,17 +716,6 @@ function RestaurantInventoryContent() {
                     )}
                   </div>
 
-                  {/* Active Department Filter Badge */}
-                  {selectedDepartment && (
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm text-secondary">Department filter:</span>
-                      <span className="inline-flex items-center gap-2 rounded-md bg-orange-100 dark:bg-orange-900 px-3 py-1 text-sm font-medium text-orange-800 dark:text-orange-200">
-                        {stats?.byDepartment?.[selectedDepartment]?.emoji} {stats?.byDepartment?.[selectedDepartment]?.name}
-                        <button type="button" onClick={() => setSelectedDepartment('')} className="hover:text-orange-600 dark:hover:text-orange-400" title="Clear">×</button>
-                      </span>
-                    </div>
-                  )}
-
                   {/* Department Quick Navigation */}
                   {stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && !selectedDepartment && (
                     <div className="card p-4">
@@ -731,6 +740,7 @@ function RestaurantInventoryContent() {
                       </div>
                     </div>
                   )}
+                  </CollapsibleSection>
 
                   {/* Universal Inventory Grid */}
                   <UniversalInventoryGrid

@@ -14,6 +14,7 @@ import { RowActionsMenu, type RowAction } from '@/components/ui/row-actions-menu
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { useElementHeight } from '@/hooks/use-element-height'
 import { useToastContext } from '@/components/ui/toast'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import type { LabelData, NetworkPrinter } from '@/types/printing'
 
 interface UniversalInventoryItem {
@@ -97,6 +98,14 @@ interface UniversalInventoryGridProps {
   showBusinessSpecificFields?: boolean
   hideZeroStock?: boolean
   onHideZeroStockChange?: (value: boolean) => void
+  // MBM-299 — controls the collapsed-by-default filter row (everything below
+  // the search bar: Show Zero Stock/Templates, Categories/Suppliers/Locations/
+  // Sort). Uncontrolled (own internal state, collapsed by default) unless both
+  // props are passed — a parent page with its own extra filters (e.g.
+  // clothing's Condition toggle) can pass these to keep one shared "Filters"
+  // toggle in sync instead of having two separate ones.
+  filtersOpen?: boolean
+  onFiltersOpenChange?: (open: boolean) => void
   // CSS max-height for the scrollable table body, e.g. 'calc(100vh-460px)'.
   // Callers with more chrome above the grid (multiple toolbars, filter bars)
   // should pass a larger subtraction so the pagination footer stays on-screen
@@ -145,9 +154,18 @@ export function UniversalInventoryGrid({
   showBusinessSpecificFields = true,
   hideZeroStock = false,
   onHideZeroStockChange,
+  filtersOpen: filtersOpenProp,
+  onFiltersOpenChange,
   tableMaxHeight = 'calc(100vh - 280px)',
 }: UniversalInventoryGridProps) {
   const { push: showToast } = useToastContext()
+  const [filtersOpenInternal, setFiltersOpenInternal] = useState(false)
+  const filtersOpenControlled = filtersOpenProp !== undefined
+  const filtersOpen = filtersOpenControlled ? filtersOpenProp : filtersOpenInternal
+  function setFiltersOpen(next: boolean) {
+    if (!filtersOpenControlled) setFiltersOpenInternal(next)
+    onFiltersOpenChange?.(next)
+  }
   const {
     pageSize,
     setPageSize: setLocalPageSize,
@@ -717,122 +735,139 @@ export function UniversalInventoryGrid({
                 </div>
               </div>
             )}
-
-            {/* Hide Zero Stock Toggle — rendered here when parent passes onHideZeroStockChange */}
-            {onHideZeroStockChange && (
-              <button
-                onClick={() => onHideZeroStockChange(!hideZeroStock)}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${hideZeroStock ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-              >
-                {hideZeroStock ? '👁 Show Zero Stock' : '🚫 Hide Zero Stock'}
-              </button>
-            )}
-
-            {/* Show Templates Toggle */}
-            <button
-              onClick={() => setShowTemplates(prev => !prev)}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                showTemplates
-                  ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700'
-                  : 'text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-              title={showTemplates ? 'Currently showing template products — click to hide' : 'Show template/catalogue products'}
-            >
-              {showTemplates ? '📋 Hide Templates' : '📋 Show Templates'}
-            </button>
-
-            {/* Hide Converted Toggle (MBM-133 follow-up) — only relevant once
-                something has actually been converted this session */}
-            {convertedIds.size > 0 && (
-              <button
-                onClick={() => setHideConverted(prev => !prev)}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                  hideConverted
-                    ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border border-green-300 dark:border-green-700'
-                    : 'text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-                title={hideConverted ? 'Currently hiding converted items — click to show' : 'Hide items converted to regular inventory this session'}
-              >
-                {hideConverted ? '🙈 Hiding Converted' : `🙈 Hide Converted (${convertedIds.size})`}
-              </button>
-            )}
-
-            {/* Reset Filters Button */}
-            {hasActiveFilters && (
-              <button
-                onClick={handleResetAllFilters}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors whitespace-nowrap"
-                title="Reset all filters"
-              >
-                🔄 Reset Filters
-              </button>
-            )}
           </div>
 
-          {allowFiltering && (
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1">
-                <SearchableSelect
-                  required
-                  value={selectedCategory}
-                  onChange={setSelectedCategory}
-                  options={[
-                    { value: 'all', label: 'All Categories' },
-                    ...categories.map((category) => ({ value: category, label: category })),
-                  ]}
-                />
-              </div>
+          {/* MBM-299 — everything past the search bar (toggle buttons + the
+              Categories/Suppliers/Locations/Sort row) is collapsed by
+              default on every business type, since it's the shared grid
+              powering all of them: the search bar stays immediately usable,
+              the rest only appears once the user actually asks for it. */}
+          <CollapsibleSection
+            title="Filters"
+            icon="🔎"
+            open={filtersOpen}
+            onOpenChange={setFiltersOpen}
+            badge={hasActiveFilters ? (
+              <span className="px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-xs font-semibold">Active</span>
+            ) : undefined}
+          >
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center flex-wrap">
+              {/* Hide Zero Stock Toggle — rendered here when parent passes onHideZeroStockChange */}
+              {onHideZeroStockChange && (
+                <button
+                  onClick={() => onHideZeroStockChange(!hideZeroStock)}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${hideZeroStock ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/50' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                >
+                  {hideZeroStock ? '👁 Show Zero Stock' : '🚫 Hide Zero Stock'}
+                </button>
+              )}
 
-              <div className="flex-1">
-                <SearchableSelect
-                  required
-                  value={selectedSupplier}
-                  onChange={(v) => { setSelectedSupplier(v); setCurrentPage(1) }}
-                  options={[
-                    { value: 'all', label: 'All Suppliers' },
-                    ...suppliers.map((supplier) => ({ value: supplier, label: supplier })),
-                  ]}
-                />
-              </div>
+              {/* Show Templates Toggle */}
+              <button
+                onClick={() => setShowTemplates(prev => !prev)}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
+                  showTemplates
+                    ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700'
+                    : 'text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+                title={showTemplates ? 'Currently showing template products — click to hide' : 'Show template/catalogue products'}
+              >
+                {showTemplates ? '📋 Hide Templates' : '📋 Show Templates'}
+              </button>
 
-              <div className="flex-1">
-                <SearchableSelect
-                  required
-                  value={selectedLocation}
-                  onChange={(v) => { setSelectedLocation(v); setCurrentPage(1) }}
-                  options={[
-                    { value: 'all', label: 'All Locations' },
-                    ...locations.map((location) => ({ value: location, label: location })),
-                  ]}
-                />
-              </div>
+              {/* Hide Converted Toggle (MBM-133 follow-up) — only relevant once
+                  something has actually been converted this session */}
+              {convertedIds.size > 0 && (
+                <button
+                  onClick={() => setHideConverted(prev => !prev)}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
+                    hideConverted
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border border-green-300 dark:border-green-700'
+                      : 'text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                  title={hideConverted ? 'Currently hiding converted items — click to show' : 'Hide items converted to regular inventory this session'}
+                >
+                  {hideConverted ? '🙈 Hiding Converted' : `🙈 Hide Converted (${convertedIds.size})`}
+                </button>
+              )}
 
-              <div className="flex-1">
-                <SearchableSelect
-                  required
-                  value={`${sortField}:${sortDirection}`}
-                  onChange={(v) => {
-                    const [field, direction] = v.split(':')
-                    setSortField(field)
-                    setSortDirection(direction as 'asc' | 'desc')
-                    setCurrentPage(1)
-                  }}
-                  options={[
-                    { value: 'updatedAt:desc', label: 'Sort by Recently Updated' },
-                    { value: 'name:asc', label: 'Sort by Name (A-Z)' },
-                    { value: 'name:desc', label: 'Sort by Name (Z-A)' },
-                    { value: 'category:asc', label: 'Sort by Category' },
-                    { value: 'currentStock:asc', label: 'Sort by Stock (Low-High)' },
-                    { value: 'currentStock:desc', label: 'Sort by Stock (High-Low)' },
-                    { value: 'costPrice:asc', label: 'Sort by Cost (Low-High)' },
-                    { value: 'costPrice:desc', label: 'Sort by Cost (High-Low)' },
-                    { value: 'sellPrice:asc', label: 'Sort by Sell Price (Low-High)' },
-                    { value: 'sellPrice:desc', label: 'Sort by Sell Price (High-Low)' },
-                  ]}
-                />
-              </div>
+              {/* Reset Filters Button */}
+              {hasActiveFilters && (
+                <button
+                  onClick={handleResetAllFilters}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors whitespace-nowrap"
+                  title="Reset all filters"
+                >
+                  🔄 Reset Filters
+                </button>
+              )}
             </div>
-          )}
+
+            {allowFiltering && (
+              <div className="flex flex-col sm:flex-row gap-3 mt-3">
+                <div className="flex-1">
+                  <SearchableSelect
+                    required
+                    value={selectedCategory}
+                    onChange={setSelectedCategory}
+                    options={[
+                      { value: 'all', label: 'All Categories' },
+                      ...categories.map((category) => ({ value: category, label: category })),
+                    ]}
+                  />
+                </div>
+
+                <div className="flex-1">
+                  <SearchableSelect
+                    required
+                    value={selectedSupplier}
+                    onChange={(v) => { setSelectedSupplier(v); setCurrentPage(1) }}
+                    options={[
+                      { value: 'all', label: 'All Suppliers' },
+                      ...suppliers.map((supplier) => ({ value: supplier, label: supplier })),
+                    ]}
+                  />
+                </div>
+
+                <div className="flex-1">
+                  <SearchableSelect
+                    required
+                    value={selectedLocation}
+                    onChange={(v) => { setSelectedLocation(v); setCurrentPage(1) }}
+                    options={[
+                      { value: 'all', label: 'All Locations' },
+                      ...locations.map((location) => ({ value: location, label: location })),
+                    ]}
+                  />
+                </div>
+
+                <div className="flex-1">
+                  <SearchableSelect
+                    required
+                    value={`${sortField}:${sortDirection}`}
+                    onChange={(v) => {
+                      const [field, direction] = v.split(':')
+                      setSortField(field)
+                      setSortDirection(direction as 'asc' | 'desc')
+                      setCurrentPage(1)
+                    }}
+                    options={[
+                      { value: 'updatedAt:desc', label: 'Sort by Recently Updated' },
+                      { value: 'name:asc', label: 'Sort by Name (A-Z)' },
+                      { value: 'name:desc', label: 'Sort by Name (Z-A)' },
+                      { value: 'category:asc', label: 'Sort by Category' },
+                      { value: 'currentStock:asc', label: 'Sort by Stock (Low-High)' },
+                      { value: 'currentStock:desc', label: 'Sort by Stock (High-Low)' },
+                      { value: 'costPrice:asc', label: 'Sort by Cost (Low-High)' },
+                      { value: 'costPrice:desc', label: 'Sort by Cost (High-Low)' },
+                      { value: 'sellPrice:asc', label: 'Sort by Sell Price (Low-High)' },
+                      { value: 'sellPrice:desc', label: 'Sort by Sell Price (High-Low)' },
+                    ]}
+                  />
+                </div>
+              </div>
+            )}
+          </CollapsibleSection>
         </div>
       )}
 

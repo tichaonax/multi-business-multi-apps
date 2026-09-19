@@ -29,6 +29,7 @@ import { ItemInsightsPanel } from '@/components/inventory/item-insights-panel'
 import { InventoryActivityReportModal } from '@/components/inventory/inventory-activity-report-modal'
 import { MergeInventoryModal } from '@/components/inventory/merge-inventory-modal'
 import { ModalPortal } from '@/components/ui/modal-portal'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 
 // ── Transfer History Panel ──────────────────────────────────────────────────
 
@@ -1210,6 +1211,7 @@ function ClothingInventoryContent() {
                   <div className="space-y-4">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                       <h3 className="text-lg font-semibold">Clothing Inventory</h3>
+                      <CollapsibleSection title="Actions" icon="🛠️" className="w-full sm:w-auto">
                       <div className="flex gap-2 flex-wrap">
                         <button
                           onClick={handleSeedProducts}
@@ -1294,29 +1296,12 @@ function ClothingInventoryContent() {
                           </button>
                         )}
                       </div>
+                      </CollapsibleSection>
                     </div>
 
-                    {/* Condition Filter (New / Used / All) */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-secondary">Condition:</span>
-                      <div className="inline-flex rounded-md border border-gray-200 dark:border-gray-700">
-                        {(['all', 'NEW', 'USED'] as const).map((cond) => (
-                          <button
-                            key={cond}
-                            onClick={() => setSelectedCondition(cond)}
-                            className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-                              selectedCondition === cond
-                                ? 'bg-purple-600 text-white'
-                                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                            } ${cond === 'all' ? 'rounded-l-md' : ''} ${cond === 'USED' ? 'rounded-r-md' : ''}`}
-                          >
-                            {cond === 'all' ? 'All' : cond === 'NEW' ? 'New' : 'Used'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Active Department Filter Badge */}
+                    {/* Active Department Filter Badge — stays visible regardless of
+                        the Filters section below being collapsed, so an active
+                        filter is never silently invisible. */}
                     {selectedDepartment && (
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm text-secondary">Active filter:</span>
@@ -1337,9 +1322,32 @@ function ClothingInventoryContent() {
                       </div>
                     )}
 
+                    {/* Filters (Condition + Browse by Department) — collapsed by
+                        default, independently of the Actions section above, so
+                        neither has to be opened to see the other. */}
+                    <CollapsibleSection title="Filters" icon="🔎">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-secondary">Condition:</span>
+                      <div className="inline-flex rounded-md border border-gray-200 dark:border-gray-700">
+                        {(['all', 'NEW', 'USED'] as const).map((cond) => (
+                          <button
+                            key={cond}
+                            onClick={() => setSelectedCondition(cond)}
+                            className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                              selectedCondition === cond
+                                ? 'bg-purple-600 text-white'
+                                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                            } ${cond === 'all' ? 'rounded-l-md' : ''} ${cond === 'USED' ? 'rounded-r-md' : ''}`}
+                          >
+                            {cond === 'all' ? 'All' : cond === 'NEW' ? 'New' : 'Used'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     {/* Department Quick Navigation */}
                     {stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && !selectedDepartment && (
-                      <div className="card p-4 sm:p-6">
+                      <div className="card p-4 sm:p-6 mt-3">
                         <button
                           type="button"
                           onClick={() => setShowDepartments(v => !v)}
@@ -1370,6 +1378,7 @@ function ClothingInventoryContent() {
                         </div>}
                       </div>
                     )}
+                    </CollapsibleSection>
 
                     <UniversalInventoryGrid
                       businessId={businessId}

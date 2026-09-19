@@ -22,6 +22,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { useToastContext } from '@/components/ui/toast'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 import { StockTakeReportsList } from '@/components/inventory/stock-take-reports-list'
 import { ItemInsightsPanel } from '@/components/inventory/item-insights-panel'
@@ -466,6 +467,7 @@ function HardwareInventoryContent() {
                   <div className="space-y-4">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                       <h3 className="text-lg font-semibold">Inventory Items</h3>
+                      <CollapsibleSection title="Actions" icon="🛠️" className="w-full sm:w-auto">
                       <div className="flex gap-2">
 
                         {canMerge && (
@@ -512,9 +514,11 @@ function HardwareInventoryContent() {
                           </button>
                         )}
                       </div>
+                      </CollapsibleSection>
                     </div>
 
-                    {/* Active Department Filter Badge */}
+                    {/* Active Department Filter Badge — stays visible regardless
+                        of the Filters section below being collapsed. */}
                     {selectedDepartment && (
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm text-secondary">Active filter:</span>
@@ -528,8 +532,10 @@ function HardwareInventoryContent() {
                       </div>
                     )}
 
-                    {/* Department Quick Navigation */}
+                    {/* Filters (Browse by Department) — collapsed by default,
+                        independently of the Actions section above. */}
                     {stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && !selectedDepartment && (
+                      <CollapsibleSection title="Filters" icon="🔎">
                       <div className="card p-4 sm:p-6">
                         <div className="flex items-center justify-between mb-4">
                           <h3 className="text-lg font-semibold">Browse by Department</h3>
@@ -551,6 +557,7 @@ function HardwareInventoryContent() {
                             ))}
                         </div>
                       </div>
+                      </CollapsibleSection>
                     )}
 
                     <UniversalInventoryGrid

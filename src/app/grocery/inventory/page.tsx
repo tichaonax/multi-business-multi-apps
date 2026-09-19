@@ -28,6 +28,7 @@ import { InventoryActivityReportModal } from '@/components/inventory/inventory-a
 import { MergeInventoryModal } from '@/components/inventory/merge-inventory-modal'
 import { WeightSellingBar } from '@/components/inventory/weight-selling-bar'
 import { ModalPortal } from '@/components/ui/modal-portal'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 
 function GroceryTransferHistoryPanel({ businessId }: { businessId: string }) {
   const [transfers, setTransfers] = useState<any[]>([])
@@ -663,7 +664,8 @@ function GroceryInventoryContent() {
                         return next
                       })}
                       headerActions={(
-                        <div className="flex items-center gap-2">
+                        <CollapsibleSection title="Actions" icon="🛠️">
+                        <div className="flex items-center gap-2 flex-wrap">
                           {canMerge && (
                             <button
                               onClick={() => { setMergeMode(m => !m); setSelectedMergeItems(new Map()) }}
@@ -725,6 +727,7 @@ function GroceryInventoryContent() {
                             {hideZeroStock ? '👁 Show Zero Stock' : '🚫 Hide Zero Stock'}
                           </button>
                         </div>
+                        </CollapsibleSection>
                       )}
                       showActions={true}
                       layout="table"
