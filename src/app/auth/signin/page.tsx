@@ -6,6 +6,7 @@ import { signIn } from 'next-auth/react'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { CardScanOverlay } from '@/components/clock-in/card-scan-overlay'
+import { useIsMobileDevice } from '@/hooks/use-is-mobile-device'
 
 export default function SignIn() {
   const [identifier, setIdentifier] = useState('')
@@ -15,6 +16,7 @@ export default function SignIn() {
   const [logoImageId, setLogoImageId] = useState<string | null>(null)
   const [isElectron, setIsElectron] = useState(false)
   const router = useRouter()
+  const isMobile = useIsMobileDevice()
 
   useEffect(() => {
     fetch('/api/public/branding')
@@ -91,9 +93,11 @@ export default function SignIn() {
           <p className="text-secondary">
             Sign in to access your business management platform
           </p>
-          <p className="text-xs text-gray-400 mt-1">
-            Employees — scan your ID card to clock in
-          </p>
+          {!isMobile && (
+            <p className="text-xs text-gray-400 mt-1">
+              Employees — scan your ID card to clock in
+            </p>
+          )}
         </div>
 
         <div className="card p-8">
