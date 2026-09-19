@@ -9,12 +9,11 @@ import { ProductImagePipelineModal, type ProductImagePipelineResult } from '@/co
 
 export type QuickEditSourceTable = 'BUSINESS_PRODUCT' | 'BARCODE_ITEM'
 
-// MBM-297 Phase C — the camera/crop/background-removal pipeline is
-// temporarily disabled (see the comment at its render site below) pending
-// a screen recording to pin down why tapping "Next" on the crop step never
-// registers as a click on at least one real device. Flip back to `true`
-// once that's fixed.
-const SHOW_CROP_PIPELINE = false
+// MBM-298 (resuming MBM-297 Phase C) — re-enabled. The "Next" bug is fixed
+// (see ProductImagePipelineModal's status note); confirmed working
+// end-to-end on a real device, including the graceful fallback when
+// background removal itself times out.
+const SHOW_CROP_PIPELINE = true
 
 function toPngBlob(source: Blob): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -632,20 +631,6 @@ export function ImageUploadDialog({ businessId, itemId, itemName, sourceTable, c
           </button>
         )}
 
-        {/* MBM-297 Phase C — "Take Photo / Upload (Crop & Edit)" is disabled
-            for now: on at least one real device, tapping "Next" on the crop
-            step never registers as a click at all (confirmed — the button
-            doesn't even flip to its "Processing…" state), and the cause
-            hasn't been pinned down yet without a screen recording to see
-            the exact failure. Rather than ship a button that visibly hangs
-            and confuses users, it's turned off here until that's debugged
-            properly — the pipeline code itself (ProductImagePipelineModal,
-            ImageCropStep, BackgroundRemovalStep, product-photo-camera's
-            native-capture successor) is untouched and ready to re-enable by
-            restoring this button. See the plan doc's Phase C section for
-            the fix history already tried (memory pressure, event binding,
-            layout collapse, z-index, background-removal hangs — none of
-            which resolved it, so the remaining cause is still unknown). */}
         {SHOW_CROP_PIPELINE && (
           <button
             onClick={() => setShowPipeline(true)}

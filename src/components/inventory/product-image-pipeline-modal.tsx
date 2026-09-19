@@ -25,20 +25,17 @@ const MAX_DIMENSION = 1600
 const THUMBNAIL_DIMENSION = 320
 
 /**
- * ⚠ STATUS (2026-09-17): not currently wired up to any button —
- * `ImageUploadDialog`'s `SHOW_CROP_PIPELINE` flag is `false`. On at least
- * one real device, tapping "Next" on `ImageCropStep` never registers as a
- * click at all (confirmed: the button doesn't even flip to its
- * "Processing…" state, so the click isn't reaching React at all, not a
- * failure inside the crop logic itself). Tried and ruled out: mobile
- * memory pressure crashing the tab, the native-camera-return click event
- * never firing, the crop area collapsing to zero height, a global
- * `FloatingChat` widget (z-[9998]) intercepting the tap, and
- * `@imgly/background-removal` hanging/crashing on a later step — none of
- * these were it. Needs a screen recording of the actual failure to make
- * progress; until then, leave `SHOW_CROP_PIPELINE` off rather than ship a
- * button that visibly hangs. This component and its children (below) are
- * otherwise complete and ready to re-enable once the real cause is found.
+ * MBM-298 (2026-09-19): the long-standing "Next never registers a click" bug
+ * is fixed — root cause was this component rendering as a sibling of
+ * `ImageUploadDialog`'s propagation-stopping `.card` wrapper rather than
+ * inside it, so any click here (including "Next") bubbled up to the
+ * dialog's own backdrop `onClick={onClose}` and silently closed the whole
+ * dialog mid-async-step. Fixed with the `stopPropagation` wrapper below.
+ * `@imgly/background-removal` itself still routinely times out on real
+ * mobile devices even with crossOriginIsolated headers enabled (falls back
+ * to single-threaded WASM, or is just slow) — shelved for a follow-up
+ * ticket; the graceful "Keep Cropped Original" fallback (`BackgroundRemovalStep`)
+ * covers this today.
  *
  * MBM-297 Phase C — the shared crop → background-removal → review pipeline,
  * used identically whether the source image came from the camera or an
@@ -111,7 +108,15 @@ export function ProductImagePipelineModal({ onComplete, onCancel }: Props) {
   }
 
   return (
-    <>
+    // Stops every click inside this pipeline (including the crop step's
+    // "Next" button) from bubbling up to ImageUploadDialog's own backdrop
+    // div, which closes the whole dialog on any click reaching it
+    // (`onClick={onClose}`) — this component renders as a sibling of that
+    // backdrop's own click-stopping `.card` wrapper, not inside it, so
+    // without this it silently closes the entire dialog out from under an
+    // in-progress async step (MBM-298, the root cause of "Next" appearing
+    // to do nothing).
+    <div onClick={e => e.stopPropagation()}>
       {step === 'source' && (
         <div className="fixed inset-0 z-[99999] bg-black/70 flex items-center justify-center p-4" onClick={onCancel}>
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
@@ -173,6 +178,6 @@ export function ProductImagePipelineModal({ onComplete, onCancel }: Props) {
           <div className="text-white text-sm">Preparing image…</div>
         </div>
       )}
-    </>
+    </div>
   )
 }

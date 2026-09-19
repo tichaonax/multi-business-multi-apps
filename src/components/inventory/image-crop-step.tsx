@@ -11,13 +11,6 @@ interface Props {
 }
 
 /**
- * ⚠ STATUS (2026-09-17): this is the step where the still-unresolved "Next"
- * button bug lives — see the status note atop `ProductImagePipelineModal`
- * for the full history of what's been tried. The whole pipeline is
- * currently disabled at the entry point (`ImageUploadDialog`'s
- * `SHOW_CROP_PIPELINE = false`) until that's debugged with a screen
- * recording.
- *
  * MBM-297 Phase C — crop/zoom/rotate step of the shared product-image
  * pipeline. 1:1 is the recommended default (product tiles are square
  * everywhere in this app), with a toggle to switch to the image's original

@@ -62,6 +62,51 @@ const nextConfig = {
           },
         ],
       },
+      // MBM-298 — enables crossOriginIsolated mode (multi-threaded WASM) for
+      // @imgly/background-removal's ONNX model, used by the product-photo
+      // camera/crop pipeline. Without this it silently falls back to
+      // single-threaded WASM and routinely exceeds the pipeline's own
+      // timeout on real mobile devices. Scoped to only the pages that
+      // actually render that pipeline (inventory item editors + POS "quick
+      // edit" image upload) rather than site-wide, since
+      // Cross-Origin-Embedder-Policy: require-corp can block cross-origin
+      // images/scripts/embeds elsewhere in the app (device-integration and
+      // Electron code paths) that aren't safe to test exhaustively here.
+      {
+        source: '/:business(restaurant|grocery|hardware|clothing)/inventory/:path*',
+        headers: [
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+        ],
+      },
+      {
+        source: '/:business(restaurant|grocery|hardware|clothing|universal)/pos/:path*',
+        headers: [
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+        ],
+      },
+      {
+        source: '/hardware/tools',
+        headers: [
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+        ],
+      },
+      {
+        source: '/inventory/:path*',
+        headers: [
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+        ],
+      },
+      {
+        source: '/vehicle-service/parts/:path*',
+        headers: [
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+        ],
+      },
     ]
   },
 }

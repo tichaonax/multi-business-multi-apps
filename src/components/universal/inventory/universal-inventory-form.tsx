@@ -317,6 +317,10 @@ export function UniversalInventoryForm({
   const [isNavigatingToPOS, setIsNavigatingToPOS] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showImageDialog, setShowImageDialog] = useState(false)
+  // Tracks which imageUrl has actually finished loading in the <img> below,
+  // so a newly-saved image (MBM-298) shows a spinner instead of a blank box
+  // while it loads, rather than looking like the save silently did nothing.
+  const [loadedImageUrl, setLoadedImageUrl] = useState<string | null>(null)
   const [showSubcategoryEditor, setShowSubcategoryEditor] = useState(false)
   const [printOnSave, setPrintOnSave] = useState(false)
   const [showLabelPreview, setShowLabelPreview] = useState(false)
@@ -1893,9 +1897,22 @@ export function UniversalInventoryForm({
                     this narrow column). */}
                 {item?.id && (
                   <div className="flex flex-col items-start gap-2 mt-4 w-full">
-                    <div className="w-full max-w-36 aspect-square rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center">
+                    <div className="w-full max-w-36 aspect-square rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center relative">
                       {formData.imageUrl ? (
-                        <img src={formData.imageUrl} alt={formData.name} className="w-full h-full object-cover" />
+                        <>
+                          <img
+                            src={formData.imageUrl}
+                            alt={formData.name}
+                            className="w-full h-full object-cover"
+                            onLoad={() => setLoadedImageUrl(formData.imageUrl!)}
+                            onError={() => setLoadedImageUrl(formData.imageUrl!)}
+                          />
+                          {loadedImageUrl !== formData.imageUrl && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+                              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400" />
+                            </div>
+                          )}
+                        </>
                       ) : (
                         <span className="text-4xl">📦</span>
                       )}

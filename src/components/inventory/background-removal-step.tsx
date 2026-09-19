@@ -26,13 +26,16 @@ const MAX_INPUT_DIMENSION = 1200
 const TIMEOUT_MS = 20_000
 
 /**
- * ⚠ STATUS (2026-09-17): reached via a pipeline that's currently disabled
- * (`ImageUploadDialog`'s `SHOW_CROP_PIPELINE = false`) — the actual bug
- * turned out to be one step earlier, in `ImageCropStep`'s "Next" button
- * never registering a click at all. This step's own hardening (timeout,
- * pre-shrink, always-visible Skip) is still worth keeping regardless, once
- * the crop step is fixed and the pipeline is re-enabled. See the status
- * note atop `ProductImagePipelineModal` for the full history.
+ * ⚠ STATUS (2026-09-19, MBM-298): the crop pipeline's actual bug (this step
+ * was never even reached — see `ProductImagePipelineModal`'s status note) is
+ * fixed. This step itself still routinely times out on real mobile devices:
+ * `@imgly/background-removal`'s ONNX model wants `crossOriginIsolated` mode
+ * for multi-threaded WASM (enabled site-wide for the pages that use this
+ * pipeline, via `next.config.js`), but at least one real device still fell
+ * back to single-threaded execution and blew past `TIMEOUT_MS` anyway.
+ * Shelved as a follow-up rather than blocking the crop fix — the "Keep
+ * Cropped Original" fallback below covers this today with no data loss,
+ * just without the AI background removal.
  *
  * MBM-297 Phase C — runs `@imgly/background-removal` (client-side WASM, no
  * server upload) on the cropped image and shows the result for review
