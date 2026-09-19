@@ -12,6 +12,7 @@ import {
   UniversalPOS
 } from '@/components/universal'
 import { DailySalesWidget } from '@/components/pos/daily-sales-widget'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -342,9 +343,10 @@ export default function HardwarePOSPage() {
                 </p>
               </div>
 
-              {/* Sticky so Update Images/Adjust Prices stay reachable while
-                  scrolling the product grid, matching the Restaurant POS pattern. */}
-              <div className="sticky top-14 sm:top-16 z-20 bg-white dark:bg-gray-900 flex gap-2 py-2">
+              {/* MBM-299 — collapsed by default (mobile + desktop), matching
+                  the same treatment applied to grocery/restaurant/clothing POS. */}
+              <CollapsibleSection title="POS Tools" icon="🛠️">
+              <div className="flex gap-2 py-2 flex-wrap">
                 {!isMobile && (
                   <button
                     onClick={async () => {
@@ -378,6 +380,7 @@ export default function HardwarePOSPage() {
                   />
                 )}
               </div>
+              </CollapsibleSection>
             </div>
 
             {/* Salesperson selector */}
@@ -451,12 +454,14 @@ export default function HardwarePOSPage() {
               </Link>
             </div>
 
-            {/* Daily Sales Widget */}
+            {/* Daily Sales Widget — MBM-299: collapsed by default. */}
+            <CollapsibleSection title="Today's Sales" icon="📊">
             <DailySalesWidget
               dailySales={dailySales}
               businessType="hardware"
               onRefresh={loadDailySales}
             />
+            </CollapsibleSection>
 
             {/* Hardware-Specific Features */}
             <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-6">

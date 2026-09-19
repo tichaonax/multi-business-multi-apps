@@ -12,6 +12,7 @@ import { BarcodeScanner } from '@/components/universal/barcode-scanner'
 import { UniversalProduct } from '@/components/universal/product-card'
 import { useState, useEffect, useRef } from 'react'
 import { useToastContext } from '@/components/ui/toast'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import { useSession } from 'next-auth/react'
 
 import { useRouter } from 'next/navigation'
@@ -3316,6 +3317,9 @@ export default function RestaurantPOS() {
           <div className="lg:col-span-2 space-y-4">
             <div className="space-y-2">
               <h1 className="text-lg sm:text-2xl font-bold text-primary">Point of Sale</h1>
+              {/* MBM-299 — collapsed by default (mobile + desktop), matching
+                  the same treatment applied to grocery POS. */}
+              <CollapsibleSection title="Quick Actions" icon="🔗">
               <div className="flex gap-1.5 sm:gap-2 flex-wrap">
                 {/* No second screen to put this on a phone/tablet — see
                     the isMobile comment above. */}
@@ -3374,10 +3378,13 @@ export default function RestaurantPOS() {
                   </>
                 )}
               </div>
+              </CollapsibleSection>
             </div>
 
-            {/* Live / Manual Entry Mode Toggle + Scale Toggle */}
+            {/* Live / Manual Entry Mode Toggle + Scale Toggle — MBM-299:
+                collapsed by default, matching grocery POS's toolbar. */}
             {(isAdmin || hasPermission('canEnterManualOrders')) && (
+              <CollapsibleSection title="POS Mode & Tools" icon="🛠️">
               <div className="flex items-center gap-2 flex-wrap">
               <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">
                 <button
@@ -3425,6 +3432,7 @@ export default function RestaurantPOS() {
                 </button>
               )}
               </div>
+              </CollapsibleSection>
             )}
 
             {/* Scale panel */}

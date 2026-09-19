@@ -32,6 +32,7 @@ import { AddCustomerModal } from '@/components/customers/add-customer-modal'
 import { DailySalesWidget } from '@/components/pos/daily-sales-widget'
 import { TodayExpensesWidget } from '@/components/pos/TodayExpensesWidget'
 import { useToastContext } from '@/components/ui/toast'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import { formatDuration, formatDataAmount } from '@/lib/printing/format-utils'
 import { useCustomerDisplaySync, useOpenCustomerDisplay } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
@@ -3048,8 +3049,10 @@ function GroceryPOSContent() {
         </div>
       )}
 
-      {/* Quick Actions */}
-      <div className="mb-2 flex gap-3">
+      {/* Quick Actions — MBM-299: collapsed by default (mobile + desktop) so
+          the POS grid isn't pushed down by occasional-use links. */}
+      <CollapsibleSection title="Quick Actions" icon="🔗" className="mb-2">
+      <div className="flex gap-3 flex-wrap">
         {!isMobile && (
           <button
             onClick={async () => {
@@ -3074,6 +3077,7 @@ function GroceryPOSContent() {
           </a>
         )}
       </div>
+      </CollapsibleSection>
 
     </ContentLayout>
 
@@ -3084,8 +3088,12 @@ function GroceryPOSContent() {
 
       {/* Toolbar — mode toggle | view toggles. Sticky so Update Images/Adjust
           Prices stay reachable while scrolling the product grid, matching the
-          Restaurant POS pattern, regardless of Desk Mode/Scan Mode. */}
-      <div className="sticky top-14 sm:top-16 z-20 bg-white dark:bg-gray-900 flex flex-wrap items-center gap-2 py-2 mb-2 px-2 sm:px-0">
+          Restaurant POS pattern, regardless of Desk Mode/Scan Mode.
+          MBM-299: collapsed by default (mobile + desktop) — still sticky
+          either way, so it's one tap away without needing to scroll back up. */}
+      <div className="sticky top-14 sm:top-16 z-20 bg-white dark:bg-gray-900 py-2 mb-2 px-2 sm:px-0">
+      <CollapsibleSection title="POS Mode & Tools" icon="🛠️">
+      <div className="flex flex-wrap items-center gap-2">
         {/* POS mode toggle (Live / Manual) */}
         {(isAdmin || hasPermission('canEnterManualOrders')) && (
           <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">
@@ -3154,6 +3162,8 @@ function GroceryPOSContent() {
           />
         )}
       </div>
+      </CollapsibleSection>
+      </div>
 
       {/* Manual Entry Mode */}
       {posMode === 'manual' && currentBusinessId && (
@@ -3184,8 +3194,11 @@ function GroceryPOSContent() {
         {/* Main POS Area */}
         <div className="lg:col-span-2 space-y-4">
 
-          {/* Financial Summary — shown here so sidebar starts at same height */}
+          {/* Financial Summary — shown here so sidebar starts at same height.
+              MBM-299: collapsed by default (mobile + desktop) so the POS
+              grid is immediately visible without scrolling past stats. */}
           {(isAdmin || hasPermission('canAccessFinancialData')) && (
+            <CollapsibleSection title="Today's Sales" icon="📊">
             <div className="space-y-3">
               <DailySalesWidget
                 dailySales={dailySales}
@@ -3222,6 +3235,7 @@ function GroceryPOSContent() {
                 <TodayExpensesWidget businessId={currentBusinessId} refreshKey={financialRefreshKey} />
               )}
             </div>
+            </CollapsibleSection>
           )}
 
           {/* Recent Orders — for non-financial users */}

@@ -5,6 +5,7 @@
 export const dynamic = 'force-dynamic';
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { POSFinancialPanel } from '@/components/pos/POSFinancialPanel'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
@@ -801,12 +802,16 @@ export default function UniversalPOS() {
           </div>
         )}
 
-        {/* Financial summary panel — only for users with canAccessFinancialData */}
+        {/* Financial summary panel — only for users with canAccessFinancialData.
+            MBM-299: collapsed by default (mobile + desktop), matching the
+            same treatment applied to grocery/restaurant/clothing/hardware POS. */}
         {currentBusinessId && hasPermission('canAccessFinancialData') && (
+          <CollapsibleSection title="Today's Sales" icon="📊">
           <POSFinancialPanel
             businessId={currentBusinessId}
             refreshKey={financialRefreshKey}
           />
+          </CollapsibleSection>
         )}
 
         <UniversalPOSLayout

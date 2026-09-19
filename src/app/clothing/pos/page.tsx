@@ -15,6 +15,7 @@ import {
 import { ClothingAdvancedPOS } from './components/advanced-pos'
 import { DailySalesWidget } from '@/components/pos/daily-sales-widget'
 import { TodayExpensesWidget } from '@/components/pos/TodayExpensesWidget'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -513,6 +514,9 @@ export default function ClothingPOSPage() {
             {/* Compact header bar */}
             <div className="flex items-center justify-between gap-2 px-3 sm:px-4 lg:px-6 py-2 border-b border-gray-200 dark:border-gray-700">
               <h1 className="text-base font-bold text-primary">Advanced POS — {currentBusiness?.businessName}</h1>
+              {/* MBM-299 — collapsed by default (mobile + desktop), matching
+                  the same treatment applied to grocery/restaurant POS. */}
+              <CollapsibleSection title="POS Mode & Tools" icon="🛠️">
               <div className="flex items-center gap-2">
                 {hasPermission('canEnterManualOrders') && (
                   <button
@@ -541,10 +545,14 @@ export default function ClothingPOSPage() {
                   Switch to Basic
                 </button>
               </div>
+              </CollapsibleSection>
             </div>
-            {/* Financial Summary — only for users with canAccessFinancialData */}
+            {/* Financial Summary — only for users with canAccessFinancialData.
+                MBM-299: collapsed by default. */}
             {(isAdmin || hasPermission('canAccessFinancialData')) && (
-              <div className="px-3 sm:px-4 lg:px-6 py-2 border-b border-gray-200 dark:border-gray-700 space-y-2">
+              <div className="px-3 sm:px-4 lg:px-6 py-2 border-b border-gray-200 dark:border-gray-700">
+              <CollapsibleSection title="Today's Sales" icon="📊">
+              <div className="space-y-2">
                 <DailySalesWidget
                   dailySales={dailySales}
                   recentTransactions={recentTransactions}
@@ -559,6 +567,8 @@ export default function ClothingPOSPage() {
                   businessId={businessId}
                   refreshKey={financialRefreshKey}
                 />
+              </div>
+              </CollapsibleSection>
               </div>
             )}
 
@@ -600,8 +610,11 @@ export default function ClothingPOSPage() {
                   }
                 </p>
               </div>
+            </div>
 
-              <div className="flex gap-2">
+            {/* Quick Actions — MBM-299: collapsed by default (mobile + desktop). */}
+            <CollapsibleSection title="Quick Actions" icon="🔗">
+              <div className="flex gap-2 flex-wrap">
                 {!isMobile && (
                   <button
                     onClick={async () => {
@@ -635,10 +648,12 @@ export default function ClothingPOSPage() {
                   </button>
                 )}
               </div>
-            </div>
+            </CollapsibleSection>
 
-            {/* Financial Summary — only for users with canAccessFinancialData */}
+            {/* Financial Summary — only for users with canAccessFinancialData.
+                MBM-299: collapsed by default. */}
             {(isAdmin || hasPermission('canAccessFinancialData')) && currentBusinessId && (
+              <CollapsibleSection title="Today's Sales" icon="📊">
               <div className="space-y-3">
                 <DailySalesWidget
                   dailySales={dailySales}
@@ -655,10 +670,12 @@ export default function ClothingPOSPage() {
                   refreshKey={financialRefreshKey}
                 />
               </div>
+              </CollapsibleSection>
             )}
 
-            {/* Live / Manual Entry Mode Toggle */}
+            {/* Live / Manual Entry Mode Toggle — MBM-299: collapsed by default. */}
             {hasPermission('canEnterManualOrders') && (
+              <CollapsibleSection title="POS Mode & Tools" icon="🛠️">
               <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">
                 <button
                   onClick={() => setPosMode('live')}
@@ -681,6 +698,7 @@ export default function ClothingPOSPage() {
                   Manual Entry
                 </button>
               </div>
+              </CollapsibleSection>
             )}
 
             {/* Manual Entry Mode */}
