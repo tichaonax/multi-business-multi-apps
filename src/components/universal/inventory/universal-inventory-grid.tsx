@@ -1229,7 +1229,28 @@ export function UniversalInventoryGrid({
               >
                 <div className="flex flex-col space-y-3">
                   {/* Header */}
-                  <div className="flex justify-between items-start">
+                  <div className="flex justify-between items-start gap-3">
+                    {/* MBM-299 — the mobile card view never rendered the item's
+                        own photo (only the desktop table row did, above), so a
+                        real uploaded image silently never showed up here. Same
+                        image/placeholder pattern as the desktop row. */}
+                    <div className="flex-shrink-0">
+                      {item.imageId ? (
+                        <img
+                          src={`/api/images/${item.imageId}`}
+                          alt={item.name}
+                          className="w-12 h-12 object-cover rounded border border-gray-200 dark:border-gray-600"
+                          onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                        />
+                      ) : (
+                        <div
+                          className="w-12 h-12 rounded border border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center text-gray-300 dark:text-gray-600 text-lg"
+                          title="No image"
+                        >
+                          🖼️
+                        </div>
+                      )}
+                    </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <h3 className="font-medium text-primary truncate">{item.name}</h3>
