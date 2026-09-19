@@ -17,6 +17,7 @@ interface AvailableUser {
       type: string
     }
     role: string
+    isActive: boolean
   }>
 }
 
@@ -49,8 +50,16 @@ export function ManageUserAccountModal({
 
   useEffect(() => {
     if (mode === 'link') {
+      // Pre-fill the search with the employee's own first name so a likely
+      // match (the common case — the same person's login just never got
+      // linked) shows up immediately with nothing typed, instead of an
+      // empty list the admin has to know to search for themselves. Just
+      // the first name (not the full name) so a minor spelling difference
+      // elsewhere in the name doesn't hide a real match — still editable.
+      setSearchTerm(employee.firstName)
       fetchAvailableUsers()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode])
 
   const fetchAvailableUsers = async () => {
@@ -59,7 +68,15 @@ export function ManageUserAccountModal({
       const response = await fetch('/api/admin/users?availableForLinking=true')
       if (response.ok) {
         const users = await response.json()
-        setAvailableUsers(users.filter((u: any) => !u.employee))
+        // Only real, active system users — excludes accounts that only exist
+        // for an unrelated purpose (e.g. a vehicle service contractor's own
+        // portal login) with no actual business access, same "real system
+        // user" bar used for the petty-cash-permissions grant list.
+        setAvailableUsers(users.filter((u: any) =>
+          !u.employee &&
+          u.isActive &&
+          (u.role === 'admin' || (u.businessMemberships || []).some((m: any) => m.isActive))
+        ))
       }
     } catch (error) {
       console.error('Error fetching available users:', error)

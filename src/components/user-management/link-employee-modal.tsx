@@ -33,7 +33,10 @@ interface LinkEmployeeModalProps {
 export function LinkEmployeeModal({ userId, userName, isOpen, onClose, onSuccess, onError }: LinkEmployeeModalProps) {
   const [loading, setLoading] = useState(false)
   const [linking, setLinking] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
+  // Pre-fill with the user's own first name so a likely match — the common
+  // case, the same person's employee record just never got linked — shows
+  // up immediately with nothing typed. Still editable.
+  const [searchTerm, setSearchTerm] = useState(() => userName.split(' ')[0] || '')
   const [employees, setEmployees] = useState<AvailableEmployee[]>([])
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('')
 

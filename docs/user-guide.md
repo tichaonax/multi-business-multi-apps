@@ -7,6 +7,7 @@
 ## Table of Contents
 
 1. [Getting Started — All Users](#1-getting-started--all-users)
+    - [Collapsible Sections & Action Menus (System-Wide)](#collapsible-sections--action-menus-system-wide)
 2. [POS Cashier — Making Sales](#2-pos-cashier--making-sales)
     - [Re-ordering from Recent Orders](#re-ordering-from-recent-orders)
 3. [Cash Office — Cash Handling & End of Day](#3-cash-office--cash-handling--end-of-day)
@@ -17,6 +18,7 @@
     - [Adjusting a Business's Payroll Contribution (Admin Only)](#adjusting-a-businesss-payroll-contribution-admin-only)
 4. [Manager — Approvals, Payroll & Reports](#4-manager--approvals-payroll--reports)
 5. [HR & Employee Management](#5-hr--employee-management)
+    - [Why an Employee and a User Account Can Get Disconnected](#why-an-employee-and-a-user-account-can-get-disconnected)
     - [Leave Management — HR Direct Actions](#leave-management--hr-direct-actions)
     - [Employee Scan Cards (ID / Clock-In Cards)](#employee-scan-cards-id--clock-in-cards)
     - [Printer Troubleshooting — Clearing Stuck Jobs](#printer-troubleshooting--clearing-stuck-jobs)
@@ -211,6 +213,7 @@
 61. [POS Quick-Edit Mode — Update Images & Adjust Prices](#61-pos-quick-edit-mode--update-images--adjust-prices)
     - [Turning a Mode On](#turning-a-mode-on)
     - [Updating an Item's Image](#updating-an-items-image)
+    - [Take Photo / Upload with Crop & Background Removal](#take-photo--upload-with-crop--background-removal)
     - [Adjusting an Item's Price](#adjusting-an-items-price)
     - [Where This Works Today](#where-this-works-today)
     - [Permissions](#permissions-15)
@@ -260,6 +263,15 @@
   - **Profile Settings** — change your name, photo, password
   - **Printer Setup** — configure your local QZ Tray receipt printer (available to all users)
   - **Sign Out**
+
+### Collapsible Sections & Action Menus (System-Wide)
+
+Two interface conventions now apply consistently across almost every list screen in the app — inventory, POS toolbars, employee and user management, reports, and more:
+
+- **Collapsed-by-default sections.** Secondary controls that aren't needed on every visit — extra filters, a row of action buttons, a financial summary panel — are tucked behind a **▼ Show / ▲ Hide** toggle instead of always taking up screen space. The primary thing you actually came for (the search box, the item list, the Sale/Return/Exchange switch) always stays visible; everything else is one tap away. This is especially useful on mobile, where these panels used to push the actual content below the fold.
+- **The ⋮ actions menu.** Where a table row used to show a cluttered strip of individual buttons ("View | Edit | Delete | Print…"), it's now a single **⋮** button — tap it to open a small menu listing every action available for that row. On some tables the same **⋮** menu also appears at the front of the row (near the name/photo), not just at the end, so it's reachable without scrolling all the way across a wide table on a small screen. Tapping anywhere else on the row (where noted) opens that item directly, the same as clicking "View" used to.
+
+Both are just a different way to reach the exact same actions as before — nothing has been removed, only tidied up.
 
 ### The Dashboard
 
@@ -2026,8 +2038,26 @@ Employees who need to log into the system (e.g. a cashier who processes sales, o
 #### Step 1 — Check if a User Account Already Exists
 
 1. Open the employee's profile.
-2. Look for a **System Access** or **User Account** section.
-3. If it shows "No system account", you can create one.
+2. Look for a **System Account** section.
+3. If it shows "No Account", you have two options: create a brand-new one (Step 2 below), or — if this person already has a system user account that was set up separately (a common situation if their login was created before their employee record, or the two were entered by different people) — click **🔗 Link Existing User** instead to search for and connect their existing account, rather than creating a second, disconnected one for the same person.
+
+> The same check works the other way round too: on **Admin → Users**, a user with no linked employee shows both **Create Employee Record** and **🔗 Link Existing Employee** in their **⋮** actions menu — use "Link Existing Employee" if you know an employee record for this same person already exists, instead of creating a duplicate.
+
+#### Why an Employee and a User Account Can Get Disconnected
+
+An **Employees** record (their HR/payroll profile — job title, salary, contracts) and a **Users** record (their actual login) are two separate things in the system, connected by a single link. Normally that link is created automatically the moment you create one from the other — but if the two were ever created independently (the login was set up first and an employee record added later, or vice versa, or by two different people), nothing connects them, even though they're the same real person. When that happens:
+- The employee's **System Account** panel shows **"No Account"**, even though a working login for them exists elsewhere in the system.
+- On **Admin → Users**, that same login shows **"Create Employee Record"** instead of recognizing the employee record that already exists.
+
+Neither screen can see across to the other on its own — each only knows about its own side of that one link field. **Link Existing User** / **Link Existing Employee** exists specifically to fix this: it connects the two existing records instead of creating a duplicate.
+
+#### Step 1a — Linking to an Existing Account
+
+1. Click **🔗 Link Existing User** (from the employee side) or **🔗 Link Existing Employee** (from the Admin → Users side).
+2. The search box is pre-filled with the person's first name, so a likely match usually shows up immediately with nothing typed — you can still edit the search if you need to narrow it down (e.g. by email) or the name doesn't match exactly.
+3. Select the correct match from the list and confirm. This only connects the two records — it does **not** create a new login, and does **not** change any business access the account already has. If the employee's own record lists a business they're not yet a member of, that access is added; anything they already have is left alone.
+
+> **Why some accounts don't appear in this list:** the search only shows real, active system users — people who are either a system admin or an active member of at least one business. Accounts that exist for an unrelated reason (for example, an outside contractor's own portal login, which has no business membership of its own) are deliberately left out, since linking one of those to an employee record wouldn't be correct.
 
 #### Step 2 — Create the User Account
 
@@ -4820,7 +4850,7 @@ The **Add Item** form only shows the image upload option once the item has been 
 
 1. Fill in the item details as normal and click **Create Item** — the button appears both at the top and bottom of the form, so you don't have to scroll down on a long form just to save.
 2. Instead of closing, the form switches into **edit mode for the item you just created** and a **📷 Add Image** button appears.
-3. Click it to upload a photo, paste one, or choose from your business's image gallery.
+3. Click it for the full set of options: upload a photo, paste one, choose from your business's image gallery — or use **📷 Take Photo / Upload (Crop & Edit)** to crop it square and remove the background before saving. See [Take Photo / Upload with Crop & Background Removal](#take-photo--upload-with-crop--background-removal) for the full walkthrough of that option.
 4. Close the form (×) when done — your photo and item details are already saved.
 
 > If you close the form immediately after creating without adding a photo, that's fine too — you can always add one later from the inventory list's ✏️ edit button.
@@ -13520,14 +13550,36 @@ Authorized users can update a menu item's photo or price directly from the POS s
 
 1. Turn on **Update Images**.
 2. Tap the 📷 button on the item's card.
-3. The dialog shows the current image (or "No image"). Tap **Upload Image** (or **Replace Image**) and pick a file — or copy an image (e.g. from a product page on the web) and paste it (Ctrl+V) straight into the dialog, no need to save it to disk first.
+3. The dialog shows the current image (or "No image"). From here you can either take a fresh photo and clean it up (below), do a plain quick upload, paste, or pick from your gallery.
 4. The new photo appears on the card immediately — no page reload.
 
-A few more actions are available in this dialog:
+The dialog offers several ways in, top to bottom:
 
-- **📋 Paste Image from Clipboard** — pulls an image already on your clipboard straight in, no need to save it to disk first. This is the button form of the Ctrl+V shortcut mentioned above — use whichever is more convenient; both do exactly the same thing.
 - **📋 Copy Image to Clipboard** (only when the item already has a photo) — copies the current photo to your system clipboard so you can paste it (Ctrl+V) somewhere else: another app, an email, or another item's own image dialog. Works the same whether the original photo is a JPEG, PNG, or anything else — it's converted automatically so pasting works reliably wherever you paste it. **Ctrl+C** while this dialog is open does the same thing, so copy and paste are both available either as a button or a keyboard shortcut.
+- **📷 Take Photo / Upload (Crop & Edit)** on a phone or tablet, **📷 Upload Photo (Crop & Edit)** on a desktop/laptop (no camera to offer there) — see [Take Photo / Upload with Crop & Background Removal](#take-photo--upload-with-crop--background-removal) below. This is the recommended option for a clean, consistent product photo.
+- **Upload Image** / **Replace Image** — a plain quick upload with no crop or background removal step. Pick a file and it's saved exactly as-is. Use this when the photo is already cropped and clean (e.g. an official product shot from a supplier).
+- **📋 Paste Image from Clipboard** — pulls an image already on your clipboard straight in, no need to save it to disk first. This is the button form of the Ctrl+V shortcut — use whichever is more convenient; both do exactly the same thing (or just press **Ctrl+V** anywhere in the dialog).
+- **🖼 Choose from Gallery** — attach a photo already stored in the business's [Image Gallery / Reference Pool](#65-business-image-gallery--category-reference-pool) instead of uploading a new one — useful when several similar items (e.g. size/color variants) should share one photo.
 - **🗑 Remove Image** (only when the item already has a photo) — clears the photo entirely; the card falls back to showing its category emoji instead.
+
+---
+
+### Take Photo / Upload with Crop & Background Removal
+
+The camera/photo pipeline lets you go from a raw phone photo (or an uploaded file) to a clean, square, background-free product image without leaving the app or needing separate photo-editing software. It opens from the 📷 button described above, and from the same **Add Image** / **Change Image** button on an existing item's edit screen ([Section 14](#14-inventory--barcode-labels)).
+
+1. **Choose a source.**
+   - On a phone or tablet: **📷 Take Photo** opens your device's own camera app directly (not an in-app camera preview), or **⬆️ Upload From Device** to pick an existing photo from your gallery.
+   - On a desktop/laptop, only **⬆️ Upload From Device** is offered — there's no camera to take a photo with, so that option doesn't appear there.
+2. **Crop.** Drag to reposition, use the **Zoom** and **Rotate** sliders to fine-tune, and leave **Square (1:1)** checked (recommended — every product tile in the app is square) or untick it to keep the photo's original proportions instead. **Reset** clears zoom/rotation/position back to the start. Tap **Next** when it looks right.
+3. **Remove Background (optional).** The app automatically tries to remove the background, entirely on your device — nothing is uploaded anywhere for this step. The first time you do this in a session it can take several seconds while the AI model downloads; after that it's faster. Once it finishes, you'll see the original crop side by side with the background-removed version:
+   - **Use This** — keep the background-removed version.
+   - **Keep Original** — keep the plain cropped photo instead (background left in).
+   - **Skip — use the cropped photo as-is** — available immediately while it's still processing, if you don't want to wait.
+   - If background removal doesn't work on a particular photo (this can happen on slower devices, or if it takes too long), you'll see **Keep Cropped Original** instead — nothing is lost, you just continue with the plain cropped photo.
+4. The finished photo is saved automatically — no separate "Save" step once you've made your choice in step 3.
+
+**Note:** When creating a brand-new item that hasn't been saved yet, the image button only offers a plain **Upload from device** or **Choose from image pool** — the crop/background-removal pipeline isn't available until the item exists. Once the item is created, use **Change Image** to go back and clean up the photo with the full pipeline if you want to.
 
 ---
 
