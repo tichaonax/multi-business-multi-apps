@@ -17,6 +17,8 @@ interface DateRangeSelectorProps {
   selectedMonth?: number | null
   selectedYear?: number
   onMonthYearChange?: (month: number | null, year: number) => void
+  /** Start collapsed — user expands when needed. Defaults to true. */
+  defaultCollapsed?: boolean
 }
 
 const presets = [
@@ -49,8 +51,11 @@ function toPickerValue(d: Date): string {
 export function DateRangeSelector({
   value, onChange, showAllTime, allTime, onAllTimeChange,
   selectedMonth: controlledMonth, selectedYear: controlledYear, onMonthYearChange,
+  defaultCollapsed = true,
 }: DateRangeSelectorProps) {
   const isControlled = onMonthYearChange !== undefined
+
+  const [isOpen, setIsOpen] = useState(!defaultCollapsed)
 
   // Local state used only when uncontrolled
   const [localMonth, setLocalMonth] = useState<number | null>(null)
@@ -160,9 +165,35 @@ export function DateRangeSelector({
     onChange({ start, end })
   }
 
+  // Human-readable summary of the active selection for the collapsed header
+  function rangeSummary(): string {
+    if (allTime) return 'All time'
+    if (selectedMonth !== null) return `${MONTHS[selectedMonth]} ${selectedYear}`
+    const match = presets.find(p => p.key === selectedPreset)
+    if (match) return match.label
+    const fmt = (d: Date) => d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+    return `${fmt(value.start)} – ${fmt(value.end)}`
+  }
+
   return (
-    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-4">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg mb-4">
+      {/* Collapsed / always-visible header row */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
+      >
+        <span className="flex items-center gap-2">
+          <span className="text-gray-400">📅</span>
+          <span>Date Range:</span>
+          <span className="text-blue-600 dark:text-blue-400">{rangeSummary()}</span>
+        </span>
+        <span className="text-gray-400 text-xs">{isOpen ? '▲ collapse' : '▼ change'}</span>
+      </button>
+
+      {isOpen && (
+      <div className="px-4 pb-4 pt-1 border-t border-gray-100 dark:border-gray-700">
+      <div className="flex flex-wrap items-center gap-3 pt-3">
         <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Date Range:</label>
 
         <div className="flex flex-wrap gap-2">
@@ -234,6 +265,8 @@ export function DateRangeSelector({
           </div>
           <button onClick={handleCustomSearch} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">Search</button>
         </div>
+      )}
+      </div>
       )}
     </div>
   )
