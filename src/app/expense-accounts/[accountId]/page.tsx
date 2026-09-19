@@ -28,6 +28,7 @@ import { PaymentBatchModal } from '@/components/expense-account/payment-batch-mo
 import { ExpensePaymentVoucherModal, PaymentSummary } from '@/components/expense-account/expense-payment-voucher-modal'
 import { ComboRequestsTab } from '@/components/expense-account/combo-requests-tab'
 import { ExpenseAccountAccessPanel } from '@/components/expense-account/expense-account-access-panel'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import { PayeeSelector } from '@/components/expense-account/payee-selector'
 import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
 import { useToastContext } from '@/components/ui/toast'
@@ -1642,7 +1643,8 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
           {/* Action buttons — compact */}
           {/* RENT accounts only show Deposit, Payment and Reports — Daily/Vehicle are not applicable */}
           {/* Restricted (PERSONAL grant) users have no action buttons here */}
-          {!isRestrictedUser && <div className="flex flex-wrap gap-1.5 items-center">
+          {!isRestrictedUser && <CollapsibleSection title="Actions" icon="🛠️" className="w-full sm:w-auto">
+          <div className="flex flex-wrap gap-1.5 items-center">
             {!account?.businessId && account?.accountType !== 'RENT' && (
               <button
                 onClick={() => setShowTransferModal(true)}
@@ -1735,7 +1737,8 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                 Reports
               </Link>
             )}
-          </div>}
+          </div>
+          </CollapsibleSection>}
         </div>
 
         {/* Balance Card */}
@@ -1981,6 +1984,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                   <div className="flex-1 hidden sm:block" />
 
                   {/* Quick action buttons inline */}
+                  <CollapsibleSection title="Quick Actions" icon="🔗" className="w-full sm:w-auto">
                   <div className="flex flex-wrap gap-2 items-center">
                     {canMakeExpenseDeposits && (
                       <button
@@ -2025,6 +2029,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                       )
                     })()}
                   </div>
+                  </CollapsibleSection>
                 </div>
 
                 <MyQueuePanel

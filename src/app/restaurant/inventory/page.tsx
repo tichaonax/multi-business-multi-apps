@@ -447,7 +447,8 @@ function RestaurantInventoryContent() {
           { label: 'Inventory', isActive: true }
         ]}
         headerActions={
-          <div className="flex gap-3">
+          <CollapsibleSection title="Actions" icon="🛠️" className="w-full sm:w-auto">
+          <div className="flex flex-wrap gap-3">
             {isSystemAdmin && (
               <button
                 onClick={handleSeedCategories}
@@ -507,6 +508,7 @@ function RestaurantInventoryContent() {
               </>
             )}
           </div>
+          </CollapsibleSection>
         }
       >
         <div className="space-y-6">

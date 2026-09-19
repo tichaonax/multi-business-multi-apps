@@ -437,11 +437,16 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
       return
     }
 
-    // Fetch expense categories (flat list from domains)
+    // Fetch expense categories (flat list from domains) — keep requiresSubcategory
+    // and each category's own subcategories so we can satisfy the payments API's
+    // "category requires a subcategory" validation instead of tripping over it.
     const catRes  = await fetch('/api/expense-categories')
     const catData = await catRes.json()
-    const categories: { id: string; name: string }[] = (catData.domains || [])
+    const allCategories: { id: string; name: string; requiresSubcategory?: boolean; expense_subcategories?: { id: string; name: string }[] }[] = (catData.domains || [])
       .flatMap((d: any) => d.expense_categories || [])
+    // Skip categories that require a subcategory but have none configured —
+    // there's nothing valid we could send for them.
+    const categories = allCategories.filter(c => !c.requiresSubcategory || (c.expense_subcategories?.length ?? 0) > 0)
 
     if (categories.length === 0) {
       updateExpRun(cfg.businessId, { status: 'skipped', note: 'No expense categories found' })
@@ -503,6 +508,9 @@ export function QuickActivityModal({ businesses, onClose }: Props) {
         status:     'SUBMITTED',
         notes:      'Quick-sim expense',
         payeeType:  payee.payeeType,
+      }
+      if (category.requiresSubcategory && category.expense_subcategories?.length) {
+        paymentBody.subcategoryId = pick(category.expense_subcategories).id
       }
       if (payee.payeeType === 'USER')     paymentBody.payeeUserId     = payee.id
       if (payee.payeeType === 'EMPLOYEE') paymentBody.payeeEmployeeId = payee.id

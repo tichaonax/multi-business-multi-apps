@@ -482,7 +482,6 @@ export default function PricingExceptionsReportPage() {
                       <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Margin</th>
                       <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Potential P/L</th>
                       <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">POS Status</th>
-                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">Exceptions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -498,6 +497,25 @@ export default function PricingExceptionsReportPage() {
                             canEdit={canEditInventory}
                             returnTo="/inventory/reports/pricing-exceptions"
                           />
+                          {/* MBM-299 — exceptions moved here from their own
+                              column (each with its own OPEN status badge
+                              stacked vertically, which made rows enormously
+                              tall) and condensed into a single wrapped line
+                              right under the product, with a small label so
+                              it's still clear what these badges are. */}
+                          {row.flags.length > 0 && (
+                            <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                              <span className="text-xs text-secondary shrink-0">Exceptions:</span>
+                              {row.flags.map(flag => (
+                                <div key={flag.type} className="flex items-center gap-1">
+                                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${SEVERITY_STYLE[flag.severity]}`} title={flag.reason}>
+                                    {flag.type.replace(/_/g, ' ')}
+                                  </span>
+                                  <ReviewAction businessId={currentBusinessId!} row={row} flag={flag} onSaved={s => handleReviewSaved(row.id, s)} />
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </td>
                         <td className="px-3 py-2.5 text-secondary">
                           <p>{row.category ?? '—'}{row.unitOfMeasure && <span className="text-gray-400"> · {row.unitOfMeasure}</span>}</p>
@@ -565,18 +583,6 @@ export default function PricingExceptionsReportPage() {
                           <span className={`text-xs px-1.5 py-0.5 rounded ${row.posAvailabilityStatus === 'AVAILABLE' ? 'text-secondary' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'}`}>
                             {POS_STATUS_LABEL[row.posAvailabilityStatus]}
                           </span>
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <div className="flex flex-col gap-1.5 max-w-xs">
-                            {row.flags.map(flag => (
-                              <div key={flag.type} className="flex items-center gap-1.5 flex-wrap">
-                                <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${SEVERITY_STYLE[flag.severity]}`} title={flag.reason}>
-                                  {flag.type.replace(/_/g, ' ')}
-                                </span>
-                                <ReviewAction businessId={currentBusinessId!} row={row} flag={flag} onSaved={s => handleReviewSaved(row.id, s)} />
-                              </div>
-                            ))}
-                          </div>
                         </td>
                       </tr>
                     ))}

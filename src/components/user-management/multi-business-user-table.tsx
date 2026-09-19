@@ -56,6 +56,7 @@ export function MultiBusinessUserTable({
 }: MultiBusinessUserTableProps) {
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set())
   const [viewMode, setViewMode] = useState<'current' | 'all'>('current')
+  const [searchQuery, setSearchQuery] = useState('')
 
   const toggleUserExpansion = (userId: string) => {
     const newExpanded = new Set(expandedUsers)
@@ -68,14 +69,45 @@ export function MultiBusinessUserTable({
   }
 
   // Filter users based on view mode
-  const filteredUsers = viewMode === 'current' 
+  const viewFilteredUsers = viewMode === 'current'
     ? users.filter(user => user.businessMemberships?.some(m => m.isActive) || false)
     : users
+
+  // Then narrow by search query (name, email, employee number, or business name)
+  const q = searchQuery.trim().toLowerCase()
+  const filteredUsers = !q ? viewFilteredUsers : viewFilteredUsers.filter(user => {
+    if (user.name?.toLowerCase().includes(q)) return true
+    if (user.email?.toLowerCase().includes(q)) return true
+    if (user.employee?.fullName?.toLowerCase().includes(q)) return true
+    if (user.employee?.employeeNumber?.toLowerCase().includes(q)) return true
+    if (user.businessMemberships?.some(m => m.business?.name?.toLowerCase().includes(q))) return true
+    return false
+  })
 
   const currentUserBusinessIds = currentUser.businessMemberships?.map(m => m.businessId) || []
 
   return (
     <div className="space-y-4">
+      {/* Search bar */}
+      <div className="sticky top-14 sm:top-16 z-10 bg-background pt-2 pb-1">
+        <div className="relative">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="🔍 Search users by name, email, employee #, or business…"
+            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-sm"
+              title="Clear"
+            >✕</button>
+          )}
+        </div>
+      </div>
+
       {/* View Mode Toggle */}
       <div className="flex justify-between items-center">
         <div className="flex space-x-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
@@ -131,7 +163,7 @@ export function MultiBusinessUserTable({
               {filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="text-center py-8 text-gray-500 dark:text-gray-400">
-                    No users found
+                    {q ? `No users match "${searchQuery.trim()}"` : 'No users found'}
                   </td>
                 </tr>
               ) : (

@@ -2542,8 +2542,9 @@ export function UniversalInventoryForm({
             here — see ProductTags' schema scope). */}
         {businessType === 'clothing' && item?.id && !item.id.startsWith('inv_') && (
           <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tags</label>
-            <ProductTagsEditor businessId={businessId} productId={item.id} />
+            <CollapsibleSection title="Tags" icon="🏷️">
+              <ProductTagsEditor businessId={businessId} productId={item.id} />
+            </CollapsibleSection>
           </div>
         )}
 
@@ -2552,11 +2553,18 @@ export function UniversalInventoryForm({
             created (see the effect watching item?.id above). */}
         {businessType === 'clothing' && !item?.id && (
           <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tags</label>
-            <ProductTagPicker businessId={businessId} value={pendingTagNames} onChange={setPendingTagNames} />
-            {pendingTagNames.length > 0 && (
-              <p className="text-xs text-secondary mt-1">Tags apply once you create the item.</p>
-            )}
+            <CollapsibleSection
+              title="Tags"
+              icon="🏷️"
+              badge={pendingTagNames.length > 0 ? (
+                <span className="px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-xs font-semibold">{pendingTagNames.length} selected</span>
+              ) : undefined}
+            >
+              <ProductTagPicker businessId={businessId} value={pendingTagNames} onChange={setPendingTagNames} />
+              {pendingTagNames.length > 0 && (
+                <p className="text-xs text-secondary mt-1">Tags apply once you create the item.</p>
+              )}
+            </CollapsibleSection>
           </div>
         )}
 

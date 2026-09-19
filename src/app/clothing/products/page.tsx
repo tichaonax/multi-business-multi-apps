@@ -9,6 +9,7 @@ import { ClothingProductList } from './components/product-list'
 import { ClothingVariantManager } from './components/variant-manager'
 import { ClothingSeasonalManager } from './components/seasonal-manager'
 import { ClothingBulkImport } from './components/bulk-import'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
@@ -146,16 +147,11 @@ function ClothingProductsContent() {
           ]}
         >
           <div className="space-y-6">
-            {/* Quick Actions */}
+            {/* Quick Actions — MBM-299: collapsed by default; "Add New
+                Product" moved inline with the product list's own search bar
+                below, since it's specific to the Products tab. */}
+            <CollapsibleSection title="Quick Actions" icon="🔗">
             <div className="flex flex-wrap gap-4">
-              <button
-                onClick={handleProductCreate}
-                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2"
-              >
-                <span>➕</span>
-                Add New Product
-              </button>
-
               <button
                 onClick={() => setActiveTab('import')}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
@@ -166,6 +162,7 @@ function ClothingProductsContent() {
 
               {/* Seasonal collections button removed - was mock data only */}
             </div>
+            </CollapsibleSection>
 
             {/* Tab Navigation */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
@@ -200,6 +197,7 @@ function ClothingProductsContent() {
                     onProductView={handleProductView}
                     onProductEdit={handleProductEdit}
                     onVariantManage={handleVariantManage}
+                    onProductCreate={handleProductCreate}
                   />
                 )}
 
@@ -219,12 +217,10 @@ function ClothingProductsContent() {
               </div>
             </div>
 
-            {/* Clothing-specific Product Features */}
+            {/* Clothing-specific Product Features — MBM-299: collapsed by
+                default, it's purely informational. */}
+            <CollapsibleSection title="Advanced Clothing Product Management" icon="👔">
             <div className="bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-orange-900 dark:text-orange-100 mb-4">
-                👔 Advanced Clothing Product Management
-              </h2>
-
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
                   <h3 className="font-semibold text-orange-900 dark:text-orange-100 mb-2">📐 Smart Variants</h3>
@@ -283,6 +279,7 @@ function ClothingProductsContent() {
                 </div>
               </div>
             </div>
+            </CollapsibleSection>
           </div>
 
           {/* Product Edit Modal */}

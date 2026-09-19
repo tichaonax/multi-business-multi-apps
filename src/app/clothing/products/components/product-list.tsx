@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useBusinessContext } from '@/components/universal'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 
 interface ClothingProduct {
   id: string
@@ -45,13 +46,15 @@ interface ClothingProductListProps {
   onProductView: (productId: string) => void
   onProductEdit: (productId: string) => void
   onVariantManage: (productId: string) => void
+  onProductCreate: () => void
 }
 
 export function ClothingProductList({
   businessId,
   onProductView,
   onProductEdit,
-  onVariantManage
+  onVariantManage,
+  onProductCreate
 }: ClothingProductListProps) {
   const { formatCurrency } = useBusinessContext()
   const [products, setProducts] = useState<ClothingProduct[]>([])
@@ -225,56 +228,75 @@ export function ClothingProductList({
 
   return (
     <div className="space-y-6">
-      {/* Filters and Search */}
-      <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      {/* Filters and Search — MBM-299: floating (sticky) like other report/
+          list pages, search + Add New Product always visible on one line,
+          the rest collapsed by default behind "Sort & Filter". */}
+      <div className="sticky top-14 sm:top-16 z-10 bg-background pt-2 pb-3 space-y-3 border-b border-border">
+        <div className="flex flex-col sm:flex-row gap-3">
           <input
             type="text"
             placeholder="🔍 Search products, SKU, brand..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
           />
-
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          <button
+            onClick={onProductCreate}
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
           >
-            <option value="">All Categories</option>
-            <option value="cat1">Tops</option>
-            <option value="cat2">Dresses</option>
-            <option value="cat3">Jackets</option>
-            <option value="cat4">Outerwear</option>
-            <option value="cat5">Sweaters</option>
-          </select>
-
-          <select
-            value={filterCondition}
-            onChange={(e) => setFilterCondition(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-          >
-            <option value="">All Conditions</option>
-            <option value="NEW">New</option>
-            <option value="USED">Used</option>
-            <option value="REFURBISHED">Refurbished</option>
-          </select>
-
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-          >
-            <option value="updated">Recently Updated</option>
-            <option value="name">Name A-Z</option>
-            <option value="price">Price Low-High</option>
-            <option value="stock">Stock High-Low</option>
-          </select>
-
-          <div className="text-sm text-gray-600 dark:text-gray-400 flex items-center">
-            {filteredProducts.length} of {products.length} products
-          </div>
+            <span>➕</span>
+            Add New Product
+          </button>
         </div>
+
+        <CollapsibleSection
+          title="Sort & Filter"
+          icon="🔎"
+          badge={(filterCategory || filterCondition) ? (
+            <span className="px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-xs font-semibold">Active</span>
+          ) : undefined}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            >
+              <option value="">All Categories</option>
+              <option value="cat1">Tops</option>
+              <option value="cat2">Dresses</option>
+              <option value="cat3">Jackets</option>
+              <option value="cat4">Outerwear</option>
+              <option value="cat5">Sweaters</option>
+            </select>
+
+            <select
+              value={filterCondition}
+              onChange={(e) => setFilterCondition(e.target.value)}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            >
+              <option value="">All Conditions</option>
+              <option value="NEW">New</option>
+              <option value="USED">Used</option>
+              <option value="REFURBISHED">Refurbished</option>
+            </select>
+
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            >
+              <option value="updated">Recently Updated</option>
+              <option value="name">Name A-Z</option>
+              <option value="price">Price Low-High</option>
+              <option value="stock">Stock High-Low</option>
+            </select>
+
+            <div className="text-sm text-gray-600 dark:text-gray-400 flex items-center">
+              {filteredProducts.length} of {products.length} products
+            </div>
+          </div>
+        </CollapsibleSection>
       </div>
 
       {/* Product Grid */}

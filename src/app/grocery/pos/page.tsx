@@ -33,6 +33,7 @@ import { DailySalesWidget } from '@/components/pos/daily-sales-widget'
 import { TodayExpensesWidget } from '@/components/pos/TodayExpensesWidget'
 import { useToastContext } from '@/components/ui/toast'
 import { CollapsibleSection } from '@/components/ui/collapsible-section'
+import { useElementHeight } from '@/hooks/use-element-height'
 import { formatDuration, formatDataAmount } from '@/lib/printing/format-utils'
 import { useCustomerDisplaySync, useOpenCustomerDisplay } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
@@ -157,6 +158,12 @@ function GroceryPOSContent() {
   const [scalePricingRules, setScalePricingRules] = useState<any[]>([])
   const [weighingItem, setWeighingItem] = useState<POSItem | null>(null)
   const [deskMode, setDeskMode] = useState(true)
+  // MBM-299 — the "POS Mode & Tools" toolbar's height now varies (collapsed
+  // vs expanded), so the search+categories bar sticking directly below it
+  // needs a live-measured offset instead of a hardcoded pixel value —
+  // otherwise a shorter-than-assumed toolbar leaves a gap the product grid
+  // scrolls up through, visible as ghosted content between the two bars.
+  const { ref: toolbarRef, height: toolbarHeight } = useElementHeight<HTMLDivElement>()
   // EOD gate state (Phase 4 / Phase 8)
   const [eodGate, setEodGate] = useState<{
     hasPending: boolean
@@ -3091,7 +3098,7 @@ function GroceryPOSContent() {
           Restaurant POS pattern, regardless of Desk Mode/Scan Mode.
           MBM-299: collapsed by default (mobile + desktop) — still sticky
           either way, so it's one tap away without needing to scroll back up. */}
-      <div className="sticky top-14 sm:top-16 z-20 bg-white dark:bg-gray-900 py-2 mb-2 px-2 sm:px-0">
+      <div ref={toolbarRef} className="sticky top-14 sm:top-16 z-20 bg-white dark:bg-gray-900 py-2 mb-2 px-2 sm:px-0">
       <CollapsibleSection title="POS Mode & Tools" icon="🛠️">
       <div className="flex flex-wrap items-center gap-2">
         {/* POS mode toggle (Live / Manual) */}
@@ -3566,8 +3573,17 @@ function GroceryPOSContent() {
               ]
               const activeTab = selectedCategory ?? '__all__'
 
+              // MBM-299 — top offset is the fixed header height plus the
+              // live-measured toolbar height above (see toolbarRef), so this
+              // bar always sticks flush under the toolbar regardless of
+              // whether it's collapsed or expanded, instead of a hardcoded
+              // guess that leaves a gap when the toolbar is shorter than
+              // assumed.
               return (
-                <div className="sticky top-[136px] sm:top-[144px] z-20 bg-white dark:bg-gray-800 pt-3 pb-3 border-b border-gray-200 dark:border-gray-700 mb-3">
+                <div
+                  className="sticky top-[calc(3.5rem+var(--toolbar-h))] sm:top-[calc(4rem+var(--toolbar-h))] z-20 bg-white dark:bg-gray-800 pt-3 pb-3 border-b border-gray-200 dark:border-gray-700 mb-3"
+                  style={{ '--toolbar-h': `${toolbarHeight}px` } as React.CSSProperties}
+                >
                   {/* Category tabs + More button */}
                   <div className="flex flex-wrap gap-2 mb-2">
                     {visibleTabs.map(tab => (

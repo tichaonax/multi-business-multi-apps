@@ -178,50 +178,52 @@ export default function EligibleItemsPage() {
             <div className="text-center py-16 text-secondary">Loading…</div>
           ) : (
             <>
-              {/* Search + Category filters */}
-              <div className="mb-4 flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
-                  <input
-                    type="text"
-                    placeholder="Search menu items…"
-                    value={productSearch}
-                    onChange={(e) => setProductSearch(e.target.value)}
-                    className="w-full pl-8 pr-8 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  />
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
-                  {productSearch && (
-                    <button
-                      onClick={() => setProductSearch('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
-                    >✕</button>
-                  )}
+              {/* Search + Category filters (sticky) */}
+              <div className="sticky top-14 sm:top-16 z-20 bg-white dark:bg-gray-900 py-2 mb-3">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      placeholder="Search menu items…"
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      className="w-full pl-8 pr-8 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+                    {productSearch && (
+                      <button
+                        onClick={() => setProductSearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
+                      >✕</button>
+                    )}
+                  </div>
+                  <label className="flex items-center gap-2 text-sm text-secondary whitespace-nowrap self-center">
+                    <input
+                      type="checkbox"
+                      checked={includeInactive}
+                      onChange={(e) => setIncludeInactive(e.target.checked)}
+                      className="rounded"
+                    />
+                    Show inactive
+                  </label>
                 </div>
-                <label className="flex items-center gap-2 text-sm text-secondary whitespace-nowrap self-center">
-                  <input
-                    type="checkbox"
-                    checked={includeInactive}
-                    onChange={(e) => setIncludeInactive(e.target.checked)}
-                    className="rounded"
-                  />
-                  Show inactive
-                </label>
-              </div>
 
-              {/* Category tabs */}
-              <div className="flex flex-wrap gap-2 mb-5">
-                {categories.map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setSelectedCategory(cat)}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                      selectedCategory === cat
-                        ? 'bg-amber-500 text-white'
-                        : 'bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-amber-400'
-                    }`}
-                  >
-                    {cat === 'all' ? 'All' : cat}
-                  </button>
-                ))}
+                {/* Category tabs */}
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {categories.map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setSelectedCategory(cat)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                        selectedCategory === cat
+                          ? 'bg-amber-500 text-white'
+                          : 'bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-amber-400'
+                      }`}
+                    >
+                      {cat === 'all' ? 'All' : cat}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Summary strip */}

@@ -11,6 +11,7 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { useToastContext } from '@/components/ui/toast'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { NationalIdInput } from '@/components/ui/national-id-input'
+import { useElementHeight } from '@/hooks/use-element-height'
 
 type Participant = {
   participantRecordId: string | null
@@ -37,6 +38,7 @@ export default function ParticipantsPage() {
 
   const [tab, setTab] = useState<'EXTERNAL' | 'EMPLOYEE'>('EXTERNAL')
   const [search, setSearch] = useState('')
+  const { ref: toolbarRef, height: toolbarHeight } = useElementHeight<HTMLDivElement>()
   const [participants, setParticipants] = useState<Participant[]>([])
   const [loading, setLoading] = useState(false)
   const [showRegisterForm, setShowRegisterForm] = useState(false)
@@ -156,7 +158,10 @@ export default function ParticipantsPage() {
           ]}
         >
           {/* Tab bar + actions */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div
+            ref={toolbarRef}
+            className="sticky top-14 sm:top-16 z-20 bg-white dark:bg-gray-900 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4"
+          >
             <div className="flex gap-2">
               {(['EXTERNAL', 'EMPLOYEE'] as const).map((t) => (
                 <button
@@ -270,9 +275,12 @@ export default function ParticipantsPage() {
             </div>
           ) : (
             <div className="card overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+              <table className="w-full text-sm border-separate border-spacing-0">
+                <thead
+                  className="sticky top-[calc(3.5rem+var(--toolbar-h))] sm:top-[calc(4rem+var(--toolbar-h))] z-10"
+                  style={{ '--toolbar-h': `${toolbarHeight}px` } as React.CSSProperties}
+                >
+                  <tr className="border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
                     <th className="text-left px-4 py-3 font-medium text-secondary">Name</th>
                     {tab === 'EMPLOYEE' && (
                       <th className="text-left px-4 py-3 font-medium text-secondary">Emp #</th>

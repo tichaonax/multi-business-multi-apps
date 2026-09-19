@@ -13,6 +13,7 @@ import { useToastContext } from '@/components/ui/toast'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { PricingCalculator } from '@/components/inventory/pricing-calculator'
 import { BulkCostEntryPopover } from '@/components/inventory/bulk-cost-entry-popover'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 
 interface BulkStockRow {
   rowId: string
@@ -1315,28 +1316,36 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
           {draftUnsaved && (
             <span className="text-xs text-amber-600 dark:text-amber-400 animate-pulse">● Unsaved changes</span>
           )}
-          {draftId && (
-            <button onClick={handleSync} disabled={syncing}
-              title="Re-fetch live stock quantities for existing items"
-              className="px-2.5 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50">
-              {syncing ? 'Syncing…' : '↻ Sync Stock'}
-            </button>
-          )}
-          <button onClick={handleSwitchDraft} disabled={draftLoading || draftCheckLoading}
-            className="px-2.5 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50">
-            ⇄ Switch Draft
-          </button>
-          {draftId && (
-            <button onClick={handleDeleteCurrentDraft} disabled={draftLoading}
-              className="px-2.5 py-1 text-xs border border-red-300 dark:border-red-700 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50">
-              🗑 Delete Draft
-            </button>
-          )}
           <button onClick={saveDraft} disabled={draftLoading || rows.length === 0}
             className="px-2.5 py-1 text-xs border border-indigo-300 dark:border-indigo-700 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 disabled:opacity-50">
             {draftLoading ? 'Saving…' : '💾 Save Draft'}
           </button>
         </div>
+      </div>
+
+      {/* Draft actions (secondary, occasional use) */}
+      <div className="px-4 pt-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shrink-0">
+        <CollapsibleSection title="Draft Actions" icon="🗂️" className="pb-2">
+          <div className="flex gap-2 flex-wrap">
+            {draftId && (
+              <button onClick={handleSync} disabled={syncing}
+                title="Re-fetch live stock quantities for existing items"
+                className="px-2.5 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50">
+                {syncing ? 'Syncing…' : '↻ Sync Stock'}
+              </button>
+            )}
+            <button onClick={handleSwitchDraft} disabled={draftLoading || draftCheckLoading}
+              className="px-2.5 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50">
+              ⇄ Switch Draft
+            </button>
+            {draftId && (
+              <button onClick={handleDeleteCurrentDraft} disabled={draftLoading}
+                className="px-2.5 py-1 text-xs border border-red-300 dark:border-red-700 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50">
+                🗑 Delete Draft
+              </button>
+            )}
+          </div>
+        </CollapsibleSection>
       </div>
 
       {/* Scan bar */}
@@ -1378,14 +1387,8 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
             Looking up barcode…
           </span>
         )}
-        <div className="flex gap-2 ml-auto flex-wrap">
-          {/* Register Custom Bulk Product */}
-          <button
-            onClick={() => setShowCustomBulkModal(true)}
-            className="px-3 py-1.5 text-sm border border-orange-400 dark:border-orange-600 rounded-lg text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 font-medium">
-            📦 Bulk Product
-          </button>
-          {/* Stock Take Mode toggle */}
+        <div className="flex items-center gap-2 ml-auto flex-wrap">
+          {/* Stock Take Mode toggle — primary mode switch, stays visible */}
           {!isStockTakeMode ? (
             <button
               onClick={() => rows.length > 0 ? setShowStockTakeModeConfirm(true) : activateStockTakeMode()}
@@ -1397,52 +1400,6 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
             <span className="px-3 py-1.5 text-sm rounded-lg bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 font-medium border border-teal-300 dark:border-teal-700 cursor-default">
               📋 Stock Take — Active
             </span>
-          )}
-          {!isStockTakeMode && (
-            <button onClick={addBlankRow} className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-              + Add Row
-            </button>
-          )}
-          {isStockTakeMode && canMatchAllCounts && (
-            <button
-              onClick={() => {
-                setRows(prev => prev.map(r => ({
-                  ...r,
-                  physicalCount: r.currentStock != null ? String(r.currentStock) : r.physicalCount,
-                })))
-                setDraftUnsaved(true)
-              }}
-              className="px-3 py-1.5 text-xs border border-amber-400 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 font-medium"
-              title="Set all physical counts to match system stock"
-            >
-              🧪 Match All Counts
-            </button>
-          )}
-          {isStockTakeMode && canMatchAllCounts && (
-            <button
-              onClick={() => {
-                const editableRows = rows.filter(r => r.isExistingItem && r.itemType !== 'bale' && r.itemType !== 'bulk' && r.itemType !== 'product')
-                const anyUnlocked = editableRows.some(r => r.isEditing)
-                setRows(prev => prev.map(r => {
-                  if (!r.isExistingItem || r.itemType === 'bale' || r.itemType === 'bulk' || r.itemType === 'product') return r
-                  return { ...r, isEditing: !anyUnlocked }
-                }))
-                setDraftUnsaved(true)
-              }}
-              className="px-3 py-1.5 text-xs border border-indigo-400 text-indigo-700 dark:text-indigo-400 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 font-medium"
-              title="Toggle editing on all rows — click to unlock all, click again to lock all"
-            >
-              ✏️ Mark All Editable
-            </button>
-          )}
-          {isStockTakeMode && rows.length > 0 && (
-            <button
-              onClick={() => { setPrintModalTitle(draftTitle || ''); setPrintModalRows(rows) }}
-              className="px-3 py-1.5 text-xs border border-gray-400 dark:border-gray-500 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 font-medium"
-              title="Print or save stock take report as PDF"
-            >
-              🖨 Print Report
-            </button>
           )}
           <button
             onClick={async () => {
@@ -1460,6 +1417,65 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
             Review & Submit ({pendingCount} item{pendingCount !== 1 ? 's' : ''})
           </button>
         </div>
+      </div>
+
+      {/* Quick actions (secondary, occasional use) */}
+      <div className="px-4 pt-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 shrink-0">
+        <CollapsibleSection title="Quick Actions" icon="🔗" className="pb-2">
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => setShowCustomBulkModal(true)}
+              className="px-3 py-1.5 text-sm border border-orange-400 dark:border-orange-600 rounded-lg text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 font-medium">
+              📦 Bulk Product
+            </button>
+            {!isStockTakeMode && (
+              <button onClick={addBlankRow} className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                + Add Row
+              </button>
+            )}
+            {isStockTakeMode && canMatchAllCounts && (
+              <button
+                onClick={() => {
+                  setRows(prev => prev.map(r => ({
+                    ...r,
+                    physicalCount: r.currentStock != null ? String(r.currentStock) : r.physicalCount,
+                  })))
+                  setDraftUnsaved(true)
+                }}
+                className="px-3 py-1.5 text-xs border border-amber-400 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 font-medium"
+                title="Set all physical counts to match system stock"
+              >
+                🧪 Match All Counts
+              </button>
+            )}
+            {isStockTakeMode && canMatchAllCounts && (
+              <button
+                onClick={() => {
+                  const editableRows = rows.filter(r => r.isExistingItem && r.itemType !== 'bale' && r.itemType !== 'bulk' && r.itemType !== 'product')
+                  const anyUnlocked = editableRows.some(r => r.isEditing)
+                  setRows(prev => prev.map(r => {
+                    if (!r.isExistingItem || r.itemType === 'bale' || r.itemType === 'bulk' || r.itemType === 'product') return r
+                    return { ...r, isEditing: !anyUnlocked }
+                  }))
+                  setDraftUnsaved(true)
+                }}
+                className="px-3 py-1.5 text-xs border border-indigo-400 text-indigo-700 dark:text-indigo-400 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 font-medium"
+                title="Toggle editing on all rows — click to unlock all, click again to lock all"
+              >
+                ✏️ Mark All Editable
+              </button>
+            )}
+            {isStockTakeMode && rows.length > 0 && (
+              <button
+                onClick={() => { setPrintModalTitle(draftTitle || ''); setPrintModalRows(rows) }}
+                className="px-3 py-1.5 text-xs border border-gray-400 dark:border-gray-500 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 font-medium"
+                title="Print or save stock take report as PDF"
+              >
+                🖨 Print Report
+              </button>
+            )}
+          </div>
+        </CollapsibleSection>
       </div>
 
       {/* Search / filter bar */}
@@ -1585,7 +1601,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
           </div>
         ) : (
           <table className="min-w-max w-full text-sm border-separate border-spacing-0">
-            <thead className="sticky top-0 z-10">
+            <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800">
               <tr className="bg-gray-50 dark:bg-gray-800 text-xs text-gray-500 dark:text-gray-400">
                 <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-center w-8">#</th>
                 <th className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800 px-2 py-2 text-left min-w-[110px]">Barcode</th>
