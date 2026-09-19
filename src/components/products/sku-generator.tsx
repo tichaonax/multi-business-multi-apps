@@ -165,61 +165,34 @@ export default function SKUGenerator({
           </button>
         </div>
 
-        <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+        <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
           {isManual ? (
-            'Enter a custom SKU. Must be unique within this business.'
+            <>
+              Enter a custom SKU. Must be unique within this business.
+              <span
+                className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 text-[10px] font-bold cursor-help shrink-0"
+                title={'Manual SKU Entry — you are entering a custom SKU. Make sure it is unique within your business to avoid conflicts. Click "Auto" to switch back to auto-generated SKUs.'}
+              >
+                i
+              </span>
+            </>
           ) : loading ? (
             'Loading next SKU...'
           ) : previewSku ? (
             <>
               Next available SKU based on format: <span className="font-medium">{format}</span>
+              <span
+                className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 text-[10px] font-bold cursor-help shrink-0"
+                title="Auto-Generated SKU — this SKU is automatically generated based on your business configuration. The sequence will increment with each new product."
+              >
+                i
+              </span>
             </>
           ) : (
             'SKU will be auto-generated when you create the product'
           )}
         </p>
       </div>
-
-      {/* Auto-Generation Info Panel */}
-      {!isManual && previewSku && (
-        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
-          <div className="flex items-start gap-3">
-            <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                Auto-Generated SKU
-              </p>
-              <p className="mt-1 text-xs text-blue-800 dark:text-blue-200">
-                This SKU is automatically generated based on your business configuration.
-                The sequence will increment with each new product.
-              </p>
-              <div className="mt-2 flex items-center gap-2">
-                <code className="px-2 py-1 text-sm font-mono bg-blue-100 dark:bg-blue-800 text-blue-900 dark:text-blue-100 rounded">
-                  Format: {format}
-                </code>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Manual Entry Info Panel */}
-      {isManual && (
-        <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
-          <div className="flex items-start gap-3">
-            <Edit2 className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100">
-                Manual SKU Entry
-              </p>
-              <p className="mt-1 text-xs text-yellow-800 dark:text-yellow-200">
-                You are entering a custom SKU. Make sure it is unique within your business to avoid conflicts.
-                Click "Auto" to switch back to auto-generated SKUs.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
