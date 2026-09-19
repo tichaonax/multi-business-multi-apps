@@ -6,6 +6,7 @@ import { LocationSelector } from '@/components/locations/location-selector'
 import { InventorySubcategoryEditor } from '@/components/inventory/inventory-subcategory-editor'
 import { BarcodeManager, ProductBarcode } from '@/components/universal/barcode-manager'
 import { SearchableSelect } from '@/components/ui/searchable-select'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import { ProductTagPicker, ProductTagsEditor } from '@/components/universal/product-tag-picker'
 import { AttributeOptionsPicker } from '@/components/universal/attribute-options-picker'
 import { useToastContext } from '@/components/ui/toast'
@@ -1402,50 +1403,48 @@ export function UniversalInventoryForm({
                 Brand/Season 2-column grid), same width as Sizes/Colors below
                 so its chips get just as many per row instead of needing to
                 scroll a narrow, half-width list. */}
-            <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                Material
-              </label>
-              <AttributeOptionsPicker
-                businessId={businessId}
-                attributeKey="materials"
-                // Legacy data stored this as a single freeform string — normalize
-                // it into the array shape the picker (and new data) uses, without
-                // needing to touch existing records.
-                value={
-                  Array.isArray(formData.attributes?.material)
-                    ? formData.attributes.material
-                    : formData.attributes?.material
-                      ? [formData.attributes.material]
-                      : []
-                }
-                onChange={(materials) => handleAttributeChange('material', materials)}
-              />
-            </div>
+            {(() => {
+              const materialValue = Array.isArray(formData.attributes?.material)
+                ? formData.attributes.material
+                : formData.attributes?.material
+                  ? [formData.attributes.material]
+                  : []
+              const sizesValue = formData.attributes?.sizes || []
+              const colorsValue = formData.attributes?.colors || []
+              const countBadge = (n: number) => n > 0 ? (
+                <span className="px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-xs font-semibold">{n} selected</span>
+              ) : undefined
+              return (
+                <>
+                  <CollapsibleSection title="Material" icon="🧵" badge={countBadge(materialValue.length)}>
+                    <AttributeOptionsPicker
+                      businessId={businessId}
+                      attributeKey="materials"
+                      value={materialValue}
+                      onChange={(materials) => handleAttributeChange('material', materials)}
+                    />
+                  </CollapsibleSection>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                Available Sizes
-              </label>
-              <AttributeOptionsPicker
-                businessId={businessId}
-                attributeKey="sizes"
-                value={formData.attributes?.sizes || []}
-                onChange={(sizes) => handleAttributeChange('sizes', sizes)}
-              />
-            </div>
+                  <CollapsibleSection title="Available Sizes" icon="📏" badge={countBadge(sizesValue.length)}>
+                    <AttributeOptionsPicker
+                      businessId={businessId}
+                      attributeKey="sizes"
+                      value={sizesValue}
+                      onChange={(sizes) => handleAttributeChange('sizes', sizes)}
+                    />
+                  </CollapsibleSection>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
-                Available Colors
-              </label>
-              <AttributeOptionsPicker
-                businessId={businessId}
-                attributeKey="colors"
-                value={formData.attributes?.colors || []}
-                onChange={(colors) => handleAttributeChange('colors', colors)}
-              />
-            </div>
+                  <CollapsibleSection title="Available Colors" icon="🎨" badge={countBadge(colorsValue.length)}>
+                    <AttributeOptionsPicker
+                      businessId={businessId}
+                      attributeKey="colors"
+                      value={colorsValue}
+                      onChange={(colors) => handleAttributeChange('colors', colors)}
+                    />
+                  </CollapsibleSection>
+                </>
+              )
+            })()}
           </div>
         )
 
@@ -1501,13 +1500,92 @@ export function UniversalInventoryForm({
     }
   }
 
+  // MBM-299 — Cancel / Add to Cart / Update Item, shared by both the modal
+  // header (so saving/cancelling doesn't require scrolling to the bottom of
+  // a long form) and the form's own footer, so they're guaranteed pixel-
+  // identical instead of two hand-maintained copies quietly drifting apart.
+  function renderFormActionButtons() {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={async () => {
+            if (isDirty) {
+              const confirmed = await confirmDialog({
+                title: 'Unsaved changes',
+                description: 'You have unsaved changes on this item. Close without saving?',
+                confirmText: 'Close without saving',
+                cancelText: 'Keep editing',
+              })
+              if (!confirmed) return
+            }
+            onCancel()
+          }}
+          disabled={isNavigatingToPOS}
+          className="flex-1 sm:flex-none px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Cancel
+        </button>
+        {mode === 'edit' && item?.id && (
+          <button
+            type="button"
+            onClick={() => {
+              // Set loading state immediately
+              setIsNavigatingToPOS(true)
+
+              // BarcodeInventoryItems have ids prefixed with 'inv_' by the list API
+              const isInvItem = item.id?.startsWith('inv_')
+              const rawId = isInvItem ? item.id.slice(4) : item.id
+
+              if (isInvItem) {
+                // Inventory items: use addInventoryItem param (dedicated handler in POS)
+                const url = `/${businessType}/pos?businessId=${businessId}&addInventoryItem=${rawId}`
+                window.location.href = url
+              } else {
+                // Always pass autoAdd=true — POS decides whether to add directly or open weigh modal
+                const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${rawId}&autoAdd=true`
+                window.location.href = url
+              }
+            }}
+            disabled={isNavigatingToPOS || !categoriesLoaded}
+            className="flex-1 sm:flex-none px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isNavigatingToPOS ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>Loading...</span>
+              </>
+            ) : (
+              <>
+                <span>🛒</span> Add to Cart
+              </>
+            )}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => handleSubmit()}
+          disabled={loading || !categoriesLoaded}
+          className="flex-1 sm:flex-none px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+        >
+          {!categoriesLoaded ? 'Loading...' : loading ? 'Saving...' : (mode === 'edit' ? 'Update Item' : 'Create Item')}
+        </button>
+      </>
+    )
+  }
+
   // support rendering either as a modal (default) or inline panel
   const panel = (
     <div className={`relative text-gray-900 dark:text-gray-100${renderMode === 'modal' ? ' bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-[1600px] w-full max-h-[90vh] overflow-auto' : ''}`}>
       {/* Header — only shown in modal mode; inline mode parent provides its own header */}
       {renderMode === 'modal' && (
       <div className="p-5 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-start justify-between gap-4">
+        {/* MBM-299 — flex-col on mobile so the button row sits below the
+            title instead of squeezing it; the buttons themselves shrink and
+            wrap their own text (no flex-shrink-0/whitespace-nowrap) exactly
+            like the matching Cancel/Add to Cart/Update Item row at the
+            bottom of this form, instead of overflowing off-screen. */}
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div className="flex-1">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
               {mode === 'edit' ? 'Edit Inventory Item' : 'Add New Inventory Item'}
@@ -1516,82 +1594,11 @@ export function UniversalInventoryForm({
               {businessType.charAt(0).toUpperCase() + businessType.slice(1)} inventory management
             </p>
           </div>
-          {mode === 'edit' && item?.id && (
-            <button
-              type="button"
-              onClick={() => {
-                // Set loading state immediately
-                setIsNavigatingToPOS(true)
-
-                // BarcodeInventoryItems have ids prefixed with 'inv_' by the list API
-                const isInvItem = item.id?.startsWith('inv_')
-                const rawId = isInvItem ? item.id.slice(4) : item.id
-
-                // Check if unit is "each" or similar single-unit types
-                const isSingleUnit = ['each', 'ea', 'piece', 'pieces', 'pc', 'pcs', 'unit', 'units', 'item', 'items'].includes(
-                  (formData.unit || item.unit || '').toLowerCase().trim()
-                )
-
-                if (isInvItem) {
-                  // Inventory items: use addInventoryItem param (dedicated handler in POS)
-                  const url = `/${businessType}/pos?businessId=${businessId}&addInventoryItem=${rawId}`
-                  window.location.href = url
-                } else {
-                  // Always pass autoAdd=true — POS decides whether to add directly or open weigh modal
-                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${rawId}&autoAdd=true`
-                  window.location.href = url
-                }
-              }}
-              disabled={isNavigatingToPOS || !categoriesLoaded}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2 whitespace-nowrap flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isNavigatingToPOS ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Loading...</span>
-                </>
-              ) : (
-                <>
-                  <span>🛒</span> Sell this Item
-                </>
-              )}
-            </button>
-          )}
-
-          {/* Update button, duplicated here so it doesn't require scrolling
-              to the bottom of a long form to save. */}
-          <button
-            type="button"
-            onClick={() => handleSubmit()}
-            disabled={loading || !categoriesLoaded}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap flex-shrink-0"
-          >
-            {!categoriesLoaded ? 'Loading...' : loading ? 'Saving...' : (mode === 'edit' ? 'Update Item' : 'Create Item')}
-          </button>
-
-          {/* Close button — clearly separated from Sell/Update buttons to
-              prevent mis-clicks */}
-          <div className="pl-4 ml-3 border-l border-gray-200 dark:border-gray-600 flex-shrink-0">
-            <button
-              type="button"
-              onClick={async () => {
-                if (isDirty) {
-                  const confirmed = await confirmDialog({
-                    title: 'Unsaved changes',
-                    description: 'You have unsaved changes on this item. Close without saving?',
-                    confirmText: 'Close without saving',
-                    cancelText: 'Keep editing',
-                  })
-                  if (!confirmed) return
-                }
-                onCancel()
-              }}
-              disabled={isNavigatingToPOS}
-              aria-label="Close"
-              className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xl leading-none"
-            >
-              ×
-            </button>
+          <div className="flex items-stretch gap-3 justify-end w-full sm:w-auto">
+            {/* MBM-299 — same shared buttons as the form's own footer, so the
+                two are guaranteed pixel-identical (order, icons, wrap
+                behavior) instead of two hand-maintained copies. */}
+            {renderFormActionButtons()}
           </div>
         </div>
       </div>
@@ -2541,63 +2548,9 @@ export function UniversalInventoryForm({
           </div>
         )}
 
-        <div className="flex justify-end gap-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isNavigatingToPOS}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Cancel
-          </button>
-          {mode === 'edit' && item?.id && (
-            <button
-              type="button"
-              onClick={() => {
-                // Set loading state immediately
-                setIsNavigatingToPOS(true)
-
-                // BarcodeInventoryItems have ids prefixed with 'inv_' by the list API
-                const isInvItem = item.id?.startsWith('inv_')
-                const rawId = isInvItem ? item.id.slice(4) : item.id
-
-                // Check if unit is "each" or similar single-unit types
-                const isSingleUnit = ['each', 'ea', 'piece', 'pieces', 'pc', 'pcs', 'unit', 'units', 'item', 'items'].includes(
-                  (formData.unit || item.unit || '').toLowerCase().trim()
-                )
-
-                if (isInvItem) {
-                  // Inventory items: use addInventoryItem param (dedicated handler in POS)
-                  const url = `/${businessType}/pos?businessId=${businessId}&addInventoryItem=${rawId}`
-                  window.location.href = url
-                } else {
-                  // Always pass autoAdd=true — POS decides whether to add directly or open weigh modal
-                  const url = `/${businessType}/pos?businessId=${businessId}&addProduct=${rawId}&autoAdd=true`
-                  window.location.href = url
-                }
-              }}
-              disabled={isNavigatingToPOS || !categoriesLoaded}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isNavigatingToPOS ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Loading...</span>
-                </>
-              ) : (
-                <>
-                  <span>🛒</span> Sell this Item
-                </>
-              )}
-            </button>
-          )}
-          <button
-            type="submit"
-            disabled={loading || !categoriesLoaded}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-          >
-            {!categoriesLoaded ? 'Loading...' : loading ? 'Saving...' : (mode === 'edit' ? 'Update Item' : 'Create Item')}
-          </button>
+        <div className="flex items-stretch gap-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
+          {/* MBM-299 — same shared buttons as the header above. */}
+          {renderFormActionButtons()}
         </div>
       </form>
 
