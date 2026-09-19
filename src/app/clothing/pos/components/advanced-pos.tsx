@@ -2050,8 +2050,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         <div className="card p-4">
           {/* Tab selector — sticky so Update Images/Adjust Prices stay reachable
               while scrolling the product list, matching the Restaurant POS pattern. */}
-          <div className="sticky top-[136px] sm:top-[144px] z-20 bg-white dark:bg-gray-800 flex items-center gap-3 mb-4 py-2 -mt-4 px-4 -mx-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+          <div className="sticky top-[136px] sm:top-[144px] z-20 bg-white dark:bg-gray-800 flex flex-wrap items-center gap-2 mb-4 py-2 -mt-4 px-4 -mx-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => setBrowseTab('quickadd')}
