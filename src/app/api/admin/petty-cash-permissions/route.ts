@@ -24,8 +24,20 @@ export async function GET(request: NextRequest) {
     const permMap: Record<string, string> = {}
     permissions.forEach((p: any) => { permMap[p.name] = p.id })
 
-    // Get all users
+    // Get all real system users — active, and either a system admin or an
+    // active member of at least one business. Excludes deactivated accounts
+    // and users who only exist for an unrelated purpose (e.g. a vehicle
+    // service contractor's own portal login via VehicleServiceContractors.userId)
+    // with no actual business access, who have no business being grantable
+    // petty cash permissions here.
     const users = await prisma.users.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { role: 'admin' },
+          { business_memberships: { some: { isActive: true } } },
+        ],
+      },
       select: { id: true, name: true, email: true },
       orderBy: { name: 'asc' },
     })

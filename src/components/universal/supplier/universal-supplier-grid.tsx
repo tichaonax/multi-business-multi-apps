@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { UniversalSupplier, UniversalSupplierGridProps, BusinessType } from '@/types/supplier'
+import { RowActionsMenu, type RowAction } from '@/components/ui/row-actions-menu'
 
 // Sample data generator for demo purposes
 function generateSampleSuppliers(businessType: BusinessType, businessId: string): UniversalSupplier[] {
@@ -357,7 +358,21 @@ export function UniversalSupplierGrid({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {filteredSuppliers.map((supplier) => (
+                {filteredSuppliers.map((supplier) => {
+                  const rowActions: RowAction[] = []
+                  if (onSupplierView) {
+                    rowActions.push({ key: 'view', label: 'View', icon: '👁️', onClick: () => onSupplierView(supplier) })
+                  }
+                  if (onSupplierEdit) {
+                    rowActions.push({ key: 'edit', label: 'Edit', icon: '✏️', onClick: () => onSupplierEdit(supplier) })
+                  }
+                  if (onCreateOrder) {
+                    rowActions.push({ key: 'order', label: 'Create Order', icon: '🛒', onClick: () => onCreateOrder(supplier) })
+                  }
+                  if (onSupplierDelete) {
+                    rowActions.push({ key: 'delete', label: 'Delete', icon: '🗑️', onClick: () => onSupplierDelete(supplier), destructive: true })
+                  }
+                  return (
                   <tr key={supplier.id} className="hover:bg-gray-50">
                     <td className="p-3">
                       <div>
@@ -413,44 +428,12 @@ export function UniversalSupplierGrid({
                     </td>
                     {showActions && (
                       <td className="p-3">
-                        <div className="flex gap-1">
-                          {onSupplierView && (
-                            <button
-                              onClick={() => onSupplierView(supplier)}
-                              className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1"
-                            >
-                              View
-                            </button>
-                          )}
-                          {onSupplierEdit && (
-                            <button
-                              onClick={() => onSupplierEdit(supplier)}
-                              className="text-green-600 hover:text-green-800 text-xs px-2 py-1"
-                            >
-                              Edit
-                            </button>
-                          )}
-                          {onCreateOrder && (
-                            <button
-                              onClick={() => onCreateOrder(supplier)}
-                              className="text-purple-600 hover:text-purple-800 text-xs px-2 py-1"
-                            >
-                              Order
-                            </button>
-                          )}
-                          {onSupplierDelete && (
-                            <button
-                              onClick={() => onSupplierDelete(supplier)}
-                              className="text-red-600 hover:text-red-800 text-xs px-2 py-1"
-                            >
-                              Delete
-                            </button>
-                          )}
-                        </div>
+                        <RowActionsMenu actions={rowActions} />
                       </td>
                     )}
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

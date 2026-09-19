@@ -1,6 +1,6 @@
 'use client'
 
-import { Pencil, Trash2, ToggleLeft, ToggleRight } from 'lucide-react'
+import { RowActionsMenu, type RowAction } from '@/components/ui/row-actions-menu'
 
 interface Campaign {
   id: string
@@ -49,7 +49,13 @@ export function CampaignList({ campaigns, onEdit, onToggle, onDelete }: Campaign
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-          {campaigns.map(c => (
+          {campaigns.map(c => {
+            const rowActions: RowAction[] = [
+              { key: 'edit', label: 'Edit', icon: '✏️', onClick: () => onEdit(c) },
+              { key: 'toggle', label: c.isActive ? 'Deactivate' : 'Activate', icon: c.isActive ? '⏸️' : '▶️', onClick: () => onToggle(c) },
+              { key: 'delete', label: 'Delete', icon: '🗑️', onClick: () => onDelete(c), destructive: true },
+            ]
+            return (
             <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
               <td className="py-3 pr-4">
                 <div className="font-medium text-primary">{c.name}</div>
@@ -89,32 +95,11 @@ export function CampaignList({ campaigns, onEdit, onToggle, onDelete }: Campaign
                 </span>
               </td>
               <td className="py-3">
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => onEdit(c)}
-                    title="Edit"
-                    className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => onToggle(c)}
-                    title={c.isActive ? 'Deactivate' : 'Activate'}
-                    className="p-1.5 text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 rounded"
-                  >
-                    {c.isActive ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
-                  </button>
-                  <button
-                    onClick={() => onDelete(c)}
-                    title="Delete"
-                    className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                <RowActionsMenu actions={rowActions} />
               </td>
             </tr>
-          ))}
+            )
+          })}
         </tbody>
       </table>
     </div>

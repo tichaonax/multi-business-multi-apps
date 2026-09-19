@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { SessionUser, isSystemAdmin } from '@/lib/permission-utils'
+import { RowActionsMenu, type RowAction } from '@/components/ui/row-actions-menu'
 
 interface User {
   id: string
@@ -44,6 +45,7 @@ interface MultiBusinessUserTableProps {
   onManagePermissions?: (user: User, businessId: string) => void
   onDeactivateUser?: (user: User) => void
   onCreateEmployee?: (userId: string) => void
+  onLinkEmployee?: (userId: string, userName: string) => void
 }
 
 export function MultiBusinessUserTable({
@@ -52,7 +54,8 @@ export function MultiBusinessUserTable({
   onEditUser,
   onManagePermissions,
   onDeactivateUser,
-  onCreateEmployee
+  onCreateEmployee,
+  onLinkEmployee
 }: MultiBusinessUserTableProps) {
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set())
   const [viewMode, setViewMode] = useState<'current' | 'all'>('current')
@@ -178,6 +181,7 @@ export function MultiBusinessUserTable({
                     onManagePermissions={onManagePermissions}
                     onDeactivateUser={onDeactivateUser}
                     onCreateEmployee={onCreateEmployee}
+                    onLinkEmployee={onLinkEmployee}
                     currentUserBusinessIds={currentUserBusinessIds}
                   />
                 ))
@@ -199,6 +203,7 @@ interface UserRowProps {
   onManagePermissions?: (user: User, businessId: string) => void
   onDeactivateUser?: (user: User) => void
   onCreateEmployee?: (userId: string) => void
+  onLinkEmployee?: (userId: string, userName: string) => void
   currentUserBusinessIds: string[]
 }
 
@@ -211,6 +216,7 @@ function UserRow({
   onManagePermissions,
   onDeactivateUser,
   onCreateEmployee,
+  onLinkEmployee,
   currentUserBusinessIds
 }: UserRowProps) {
   const activeMemberships = user.businessMemberships?.filter(m => m.isActive) || []
@@ -245,21 +251,67 @@ function UserRow({
   // }
   
   // Check if current user can manage this user in any shared business
-  const canManageInAnyBusiness = currentUserBusinessIds.some(businessId => 
+  const canManageInAnyBusiness = currentUserBusinessIds.some(businessId =>
     userBusinessIds.includes(businessId)
   ) || isSystemAdmin(currentUser)
+
+  const rowActions: RowAction[] = []
+  if (canManageInAnyBusiness && onEdit) {
+    rowActions.push({ key: 'edit', label: 'Edit', icon: '✏️', onClick: () => onEdit(user) })
+  }
+  if (canManageInAnyBusiness && onDeactivateUser) {
+    rowActions.push({
+      key: 'deactivate',
+      label: user.isActive ? 'Deactivate' : 'Reactivate',
+      icon: user.isActive ? '🚫' : '✅',
+      onClick: () => onDeactivateUser(user),
+      destructive: user.isActive,
+    })
+  }
+  if (activeMemberships.length > 0) {
+    rowActions.push({
+      key: 'details',
+      label: expanded ? 'Collapse Details' : 'View Details',
+      icon: '📋',
+      onClick: onToggleExpand,
+    })
+  }
+  if (!user.employee) {
+    if (onCreateEmployee) {
+      rowActions.push({
+        key: 'create-employee',
+        label: 'Create Employee Record',
+        icon: '➕',
+        onClick: () => onCreateEmployee(user.id),
+      })
+    }
+    if (onLinkEmployee) {
+      rowActions.push({
+        key: 'link-employee',
+        label: 'Link Existing Employee',
+        icon: '🔗',
+        onClick: () => onLinkEmployee(user.id, user.name),
+      })
+    }
+  }
+
+  const initials = user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
 
   return (
     <>
       <tr className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
         <td className="py-3 px-4">
           <div className="flex items-center space-x-3">
-            <button 
+            <button
               onClick={onToggleExpand}
               className={`transform transition-transform ${expanded ? 'rotate-90' : ''}`}
             >
               {activeMemberships.length > 1 ? '▶' : ''}
             </button>
+            <RowActionsMenu actions={rowActions} align="start" />
+            <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-800 flex items-center justify-center shrink-0">
+              <span className="text-blue-600 dark:text-blue-300 font-semibold text-xs">{initials}</span>
+            </div>
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <div className="font-medium text-gray-900 dark:text-white">{user.name}</div>
@@ -270,15 +322,10 @@ function UserRow({
                       Employee
                     </span>
                   </Link>
-                ) : onCreateEmployee && (
-                  <button
-                    onClick={() => onCreateEmployee(user.id)}
-                    className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300 rounded border border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors"
-                    title="Create employee record for this user"
-                  >
-                    <span className="mr-1">➕</span>
-                    Create Employee
-                  </button>
+                ) : (
+                  <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 rounded border border-gray-300 dark:border-gray-600">
+                    Not Linked
+                  </span>
                 )}
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-400">{user.email}</div>
@@ -349,35 +396,8 @@ function UserRow({
         </td>
         
         <td className="py-3 px-4">
-          <div className="flex space-x-2">
-            {canManageInAnyBusiness && onEdit && (
-              <button 
-                onClick={() => onEdit(user)}
-                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm"
-              >
-                Edit
-              </button>
-            )}
-            {canManageInAnyBusiness && onDeactivateUser && (
-              <button 
-                onClick={() => onDeactivateUser(user)}
-                className={`text-sm ${
-                  user.isActive 
-                    ? 'text-red-600 hover:text-red-800' 
-                    : 'text-green-600 hover:text-green-800'
-                }`}
-              >
-                {user.isActive ? 'Deactivate' : 'Reactivate'}
-              </button>
-            )}
-            {activeMemberships.length > 0 && (
-              <button 
-                onClick={onToggleExpand}
-                className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 text-sm"
-              >
-                {expanded ? 'Collapse' : 'Details'}
-              </button>
-            )}
+          <div className="flex justify-start">
+            <RowActionsMenu actions={rowActions} />
           </div>
         </td>
       </tr>

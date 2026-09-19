@@ -904,6 +904,15 @@ export default function EmployeeDetailPage() {
                       >
                         {canCreateUserAccount ? 'Create User Account' : 'Contract Required'}
                       </button>
+                      {canManageUserAccounts && (
+                        <button
+                          onClick={() => setShowManageUserModal(true)}
+                          className="w-full btn-secondary text-sm mt-2"
+                          title="Link this employee to an existing system user account instead of creating a new one"
+                        >
+                          🔗 Link Existing User
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

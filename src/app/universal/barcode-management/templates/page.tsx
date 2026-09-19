@@ -11,6 +11,7 @@ import { useAlert, useConfirm } from '@/components/ui/confirm-modal';
 import { globalBarcodeService } from '@/lib/services/global-barcode-service';
 import { Pagination } from '@/components/ui/pagination';
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference';
+import { RowActionsMenu, type RowAction } from '@/components/ui/row-actions-menu';
 
 interface Template {
   id: string;
@@ -430,7 +431,35 @@ export default function TemplatesPage() {
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {templates.map((template) => (
+                {templates.map((template) => {
+                  const rowActions: RowAction[] = [
+                    {
+                      key: 'preview',
+                      label: 'Preview',
+                      icon: '👁️',
+                      onClick: () => router.push(`/universal/barcode-management/templates/${template.id}?preview=true`),
+                    },
+                    {
+                      key: 'print',
+                      label: 'Create Print Job',
+                      icon: '🖨️',
+                      onClick: () => router.push(`/universal/barcode-management/print-jobs/new?templateId=${template.id}`),
+                    },
+                    {
+                      key: 'edit',
+                      label: 'Edit',
+                      icon: '✏️',
+                      onClick: () => router.push(`/universal/barcode-management/templates/${template.id}`),
+                    },
+                    {
+                      key: 'delete',
+                      label: 'Delete',
+                      icon: '🗑️',
+                      onClick: () => handleDelete(template.id),
+                      destructive: true,
+                    },
+                  ]
+                  return (
                   <tr key={template.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900 dark:text-white">
@@ -466,37 +495,13 @@ export default function TemplatesPage() {
                       {template._count.printJobs}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end space-x-3">
-                        <Link
-                          href={`/universal/barcode-management/templates/${template.id}?preview=true`}
-                          className="inline-flex items-center px-3 py-1.5 bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900 dark:text-green-300 dark:hover:bg-green-800 rounded-md transition-colors"
-                          title="Preview barcode"
-                        >
-                          👁️ Preview
-                        </Link>
-                        <Link
-                          href={`/universal/barcode-management/print-jobs/new?templateId=${template.id}`}
-                          className="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:hover:bg-blue-800 rounded-md transition-colors"
-                          title="Create print job"
-                        >
-                          🖨️ Print
-                        </Link>
-                        <Link
-                          href={`/universal/barcode-management/templates/${template.id}`}
-                          className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
-                        >
-                          ✏️ Edit
-                        </Link>
-                        <button
-                          onClick={() => handleDelete(template.id)}
-                          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                        >
-                          🗑️ Delete
-                        </button>
+                      <div className="flex items-center justify-end">
+                        <RowActionsMenu actions={rowActions} />
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

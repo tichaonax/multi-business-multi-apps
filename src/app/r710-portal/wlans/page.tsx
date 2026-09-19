@@ -13,6 +13,7 @@ import { useConfirm } from '@/components/ui/confirm-modal'
 import { useAlert } from '@/hooks/use-alert'
 import { WLANDiscoveryModal } from '@/components/r710/wlan-discovery-modal'
 import Link from 'next/link'
+import { RowActionsMenu, type RowAction } from '@/components/ui/row-actions-menu'
 
 interface WLAN {
   id: string
@@ -276,7 +277,31 @@ function R710WLANsContent() {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {wlans.map((wlan) => (
+              {wlans.map((wlan) => {
+                const rowActions: RowAction[] = [
+                  {
+                    key: 'toggle',
+                    label: wlan.isActive ? 'Disable' : 'Enable',
+                    icon: wlan.isActive ? '⏸️' : '▶️',
+                    onClick: () => toggleWLANStatus(wlan.id, wlan.isActive),
+                  },
+                  {
+                    key: 'edit',
+                    label: 'Edit',
+                    icon: '✏️',
+                    onClick: () => { window.location.href = `/r710-portal/wlans/${wlan.id}` },
+                  },
+                ]
+                if (isSystemAdmin(user)) {
+                  rowActions.push({
+                    key: 'delete',
+                    label: 'Delete',
+                    icon: '🗑️',
+                    onClick: () => handleDeleteWLAN(wlan.id, wlan.ssid),
+                    destructive: true,
+                  })
+                }
+                return (
                 <tr key={wlan.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                   <td className="px-6 py-4">
                     <div className="flex items-start">
@@ -317,36 +342,12 @@ function R710WLANsContent() {
                   <td className="px-6 py-4">
                     {getStatusBadge(wlan.isActive)}
                   </td>
-                  <td className="px-6 py-4 text-right space-x-2">
-                    <button
-                      onClick={() => toggleWLANStatus(wlan.id, wlan.isActive)}
-                      className="inline-flex items-center px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
-                    >
-                      {wlan.isActive ? 'Disable' : 'Enable'}
-                    </button>
-                    <Link
-                      href={`/r710-portal/wlans/${wlan.id}`}
-                      className="inline-flex items-center px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
-                    >
-                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                      </svg>
-                      Edit
-                    </Link>
-                    {isSystemAdmin(user) && (
-                      <button
-                        onClick={() => handleDeleteWLAN(wlan.id, wlan.ssid)}
-                        className="inline-flex items-center px-3 py-1 border border-red-300 dark:border-red-600 rounded-md text-xs font-medium text-red-700 dark:text-red-400 bg-white dark:bg-gray-700 hover:bg-red-50 dark:hover:bg-red-900/20"
-                      >
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                        Delete
-                      </button>
-                    )}
+                  <td className="px-6 py-4 text-right">
+                    <RowActionsMenu actions={rowActions} />
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>

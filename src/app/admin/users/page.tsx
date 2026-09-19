@@ -14,6 +14,7 @@ import { UserDeactivationModal } from '@/components/user-management/user-deactiv
 import { BusinessCreationModal } from '@/components/user-management/business-creation-modal'
 import { BusinessPermissionModal } from '@/components/user-management/business-permission-modal'
 import { AddEmployeeModal } from '@/components/employees/add-employee-modal'
+import { LinkEmployeeModal } from '@/components/user-management/link-employee-modal'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { SessionUser } from '@/lib/permission-utils'
 
@@ -59,6 +60,7 @@ export default function AdminUsersPage() {
   const [deactivatingUser, setDeactivatingUser] = useState<User | null>(null)
   const [managingPermissions, setManagingPermissions] = useState<{ user: User; businessId: string } | null>(null)
   const [creatingEmployeeForUser, setCreatingEmployeeForUser] = useState<string | null>(null)
+  const [linkingEmployeeForUser, setLinkingEmployeeForUser] = useState<{ userId: string; userName: string } | null>(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -136,6 +138,20 @@ export default function AdminUsersPage() {
   }
 
   const handleEmployeeCreationError = (errorMessage: string) => {
+    setError(errorMessage)
+  }
+
+  const handleLinkEmployee = (userId: string, userName: string) => {
+    setLinkingEmployeeForUser({ userId, userName })
+  }
+
+  const handleLinkEmployeeSuccess = (message: string) => {
+    setSuccess(message)
+    setLinkingEmployeeForUser(null)
+    loadUsers()
+  }
+
+  const handleLinkEmployeeError = (errorMessage: string) => {
     setError(errorMessage)
   }
 
@@ -286,6 +302,7 @@ export default function AdminUsersPage() {
             onManagePermissions={handleManagePermissions}
             onDeactivateUser={handleDeactivateUser}
             onCreateEmployee={handleCreateEmployee}
+            onLinkEmployee={handleLinkEmployee}
           />
         ) : null}
 
@@ -297,6 +314,18 @@ export default function AdminUsersPage() {
             onClose={() => setCreatingEmployeeForUser(null)}
             onSuccess={handleEmployeeCreationSuccess}
             onError={handleEmployeeCreationError}
+          />
+        )}
+
+        {/* Link Existing Employee Modal */}
+        {linkingEmployeeForUser && (
+          <LinkEmployeeModal
+            userId={linkingEmployeeForUser.userId}
+            userName={linkingEmployeeForUser.userName}
+            isOpen={true}
+            onClose={() => setLinkingEmployeeForUser(null)}
+            onSuccess={handleLinkEmployeeSuccess}
+            onError={handleLinkEmployeeError}
           />
         )}
       </ContentLayout>

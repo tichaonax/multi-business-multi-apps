@@ -8,6 +8,7 @@ import { SystemAdminRoute } from '@/components/auth/system-admin-route'
 import { BUSINESS_PERMISSION_PRESETS } from '@/types/permissions'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { COUNTRY_CODES } from '@/lib/country-codes'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 
 interface SystemSettings {
   allowSelfRegistration: boolean
@@ -377,7 +378,7 @@ export default function AdminSettingsPage() {
 
           {/* Permission Customization */}
           <div className="card p-6">
-            <h2 className="text-lg font-semibold mb-4 text-primary">Default Permissions for New Users</h2>
+            <CollapsibleSection title="Default Permissions for New Users" icon="🔐">
             <p className="text-sm text-secondary mb-4">
               Customize the permissions that will be assigned to new users with the "{settings?.defaultRegistrationRole?.replace('-', ' ')}" role.
               Click on any permission to toggle it on/off:
@@ -423,6 +424,7 @@ export default function AdminSettingsPage() {
                 Changes are applied to all new users going forward. Existing users are not affected.
               </p>
             </div>
+            </CollapsibleSection>
           </div>
 
           <div className="flex justify-end space-x-3">

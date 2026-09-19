@@ -12,6 +12,7 @@ import Link from 'next/link'
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
 import { useGlobalCart } from '@/contexts/global-cart-context'
 import { toast } from 'sonner'
+import { RowActionsMenu, type RowAction } from '@/components/ui/row-actions-menu'
 
 interface ServiceProduct {
   id: string
@@ -288,6 +289,13 @@ export default function ServicesListPage() {
                         ? ((margin / service.cost) * 100).toFixed(1)
                         : '0'
                       
+                      const rowActions: RowAction[] = []
+                      if (service.isActive && service.sellingPrice > 0) {
+                        rowActions.push({ key: 'add-to-cart', label: 'Add to Cart', icon: '🛒', onClick: () => handleAddToCart(service) })
+                      }
+                      rowActions.push({ key: 'edit', label: 'Edit', icon: '✏️', onClick: () => { window.location.href = `/services/edit/${service.id}` } })
+                      rowActions.push({ key: 'delete', label: 'Delete', icon: '🗑️', onClick: () => handleDelete(service.id, service.name), destructive: true })
+
                       return (
                         <tr key={service.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
                           <td className="py-3 px-4">
@@ -326,30 +334,8 @@ export default function ServicesListPage() {
                             </button>
                           </td>
                           <td className="py-3 px-4">
-                            <div className="flex justify-center gap-2">
-                              {service.isActive && service.sellingPrice > 0 && (
-                                <button
-                                  onClick={() => handleAddToCart(service)}
-                                  className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
-                                  title="Add to Cart"
-                                >
-                                  🛒
-                                </button>
-                              )}
-                              <Link
-                                href={`/services/edit/${service.id}`}
-                                className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                                title="Edit"
-                              >
-                                ✏️
-                              </Link>
-                              <button
-                                onClick={() => handleDelete(service.id, service.name)}
-                                className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                                title="Delete"
-                              >
-                                🗑️
-                              </button>
+                            <div className="flex justify-center">
+                              <RowActionsMenu actions={rowActions} />
                             </div>
                           </td>
                         </tr>
