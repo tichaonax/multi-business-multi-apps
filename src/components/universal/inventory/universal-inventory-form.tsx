@@ -1702,7 +1702,13 @@ export function UniversalInventoryForm({
         )}
 
         {/* Two-panel layout: basic info left, business-specific + barcode right */}
-        <div className="flex flex-col lg:flex-row lg:gap-5">
+        {/* MBM-299 — lg:items-start stops the shorter right sidebar (whose
+            height varies a lot now that Material/Sizes/Colors are collapsed
+            by default) from being stretched by default flex behavior to
+            match the taller left column, which is what made its empty
+            bottom area look like a wasted, bounded-off block instead of
+            just where its own content ends. */}
+        <div className="flex flex-col lg:flex-row lg:gap-5 lg:items-start">
 
           {/* LEFT PANEL — Basic Information */}
           <div className="flex-1 min-w-0">
@@ -1897,14 +1903,15 @@ export function UniversalInventoryForm({
                 />
                 {errors.unit && <p className="text-red-600 text-xs mt-1 font-medium">{errors.unit}</p>}
 
-                {/* Image (MBM-296) — sits below Unit, to the left of the
-                    Auto-Generated SKU box, using the same vertical space
-                    that box already takes up. Image on top, button directly
-                    below it (not side-by-side, which wrapped awkwardly in
-                    this narrow column). */}
+                {/* Image (MBM-296) — sits below Unit, beside the SKU column.
+                    MBM-299: laid out horizontally (thumbnail + button side by
+                    side) rather than stacked, now that the Auto-Generated SKU
+                    box it used to be sized to match has been shrunk to a
+                    tooltip — stacked, this block ended up taller than the SKU
+                    column beside it, leaving a visible empty gap there. */}
                 {item?.id && (
-                  <div className="flex flex-col items-start gap-2 mt-4 w-full">
-                    <div className="w-full max-w-36 aspect-square rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center relative">
+                  <div className="flex items-center gap-3 mt-4 w-full">
+                    <div className="w-16 h-16 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center relative">
                       {formData.imageUrl ? (
                         <>
                           <img
@@ -1916,12 +1923,12 @@ export function UniversalInventoryForm({
                           />
                           {loadedImageUrl !== formData.imageUrl && (
                             <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
-                              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400" />
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-400" />
                             </div>
                           )}
                         </>
                       ) : (
-                        <span className="text-4xl">📦</span>
+                        <span className="text-2xl">📦</span>
                       )}
                     </div>
                     <button
@@ -1938,12 +1945,12 @@ export function UniversalInventoryForm({
                     upload it automatically the instant the item is created
                     (see the effect watching item?.id above). */}
                 {!item?.id && (
-                  <div className="flex flex-col items-start gap-2 mt-4 w-full">
-                    <div className="w-full max-w-36 aspect-square rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center">
+                  <div className="flex items-center gap-3 mt-4 w-full">
+                    <div className="w-16 h-16 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden flex items-center justify-center">
                       {pendingImagePreview ? (
                         <img src={pendingImagePreview} alt="" className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-4xl">📦</span>
+                        <span className="text-2xl">📦</span>
                       )}
                     </div>
                     <div className="relative">
@@ -2131,7 +2138,7 @@ export function UniversalInventoryForm({
                   Cost Price above can be derived correctly instead of the whole
                   case cost being saved as if it were one unit's cost. */}
               {!effectiveWeightMode && (
-              <div className="col-span-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3">
+              <div className="col-span-2 xl:col-span-3 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3">
                 <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Bulk pack cost (optional) — bought as a case/pack?</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -2175,11 +2182,58 @@ export function UniversalInventoryForm({
               </div>
               )}
 
+              {/* Sell Price — hidden for weight-based items. MBM-299:
+                  positioned right above Expense Classification (rather than
+                  trailing after it) since that box previously only spanned
+                  2 of the 3 xl columns, leaving Sell Price to auto-flow into
+                  the stray empty 3rd-column cell far to the right, visually
+                  disconnected from anything nearby. */}
+              {!effectiveWeightMode && <div className="col-span-2 sm:col-span-1">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Sell Price</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.sellPrice === 0 ? '' : formData.sellPrice}
+                  onChange={(e) => handleInputChange('sellPrice', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                  onFocus={() => setCalcOpen(true)}
+                  className={`input-field ${errors.sellPrice ? 'border-red-500 border-2' : ''}`}
+                  placeholder="0.00"
+                />
+                {errors.sellPrice && <p className="text-red-600 text-xs mt-1 font-medium">{errors.sellPrice}</p>}
+                {calcOpen && !effectiveWeightMode && (
+                  <PricingCalculator
+                    costPrice={formData.costPrice > 0 ? formData.costPrice : null}
+                    sellingPrice={formData.sellPrice > 0 ? String(formData.sellPrice) : ''}
+                    onSelectPrice={(price) => { handleInputChange('sellPrice', price); setCalcOpen(false) }}
+                    transportEnabled={transportConfig.enabled}
+                    transportDistanceKm={transportConfig.distanceKm}
+                    transportCostPerKm={transportConfig.ratePerKm}
+                    batchQuantity={formData.currentStock > 0 ? formData.currentStock : 1}
+                    onClose={() => setCalcOpen(false)}
+                  />
+                )}
+                {priceChanging && (
+                  <div className="mt-2">
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Reason for price change <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={priceChangeReason}
+                      onChange={(e) => setPriceChangeReason(e.target.value)}
+                      placeholder="e.g. supplier price increase"
+                      className={`input-field ${errors.priceChangeReason ? 'border-red-500 border-2' : ''}`}
+                    />
+                    {errors.priceChangeReason && <p className="text-red-600 text-xs mt-1 font-medium">{errors.priceChangeReason}</p>}
+                  </div>
+                )}
+              </div>}
+
               {/* Expense Classification (MBM-297 follow-up) — only for
                   BarcodeInventoryItems, the only catalog with these columns;
                   ported over from the Bulk Products registration modal. */}
               {item?.id?.startsWith('inv_') && (
-              <div className="col-span-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3 space-y-2">
+              <div className="col-span-2 xl:col-span-3 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Expense Classification (optional)</p>
                   <button
@@ -2260,48 +2314,6 @@ export function UniversalInventoryForm({
                 )}
               </div>
               )}
-
-              {/* Sell Price — hidden for weight-based items */}
-              {!effectiveWeightMode && <div className="col-span-2 sm:col-span-1">
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Sell Price</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.sellPrice === 0 ? '' : formData.sellPrice}
-                  onChange={(e) => handleInputChange('sellPrice', e.target.value === '' ? 0 : parseFloat(e.target.value))}
-                  onFocus={() => setCalcOpen(true)}
-                  className={`input-field ${errors.sellPrice ? 'border-red-500 border-2' : ''}`}
-                  placeholder="0.00"
-                />
-                {errors.sellPrice && <p className="text-red-600 text-xs mt-1 font-medium">{errors.sellPrice}</p>}
-                {calcOpen && !effectiveWeightMode && (
-                  <PricingCalculator
-                    costPrice={formData.costPrice > 0 ? formData.costPrice : null}
-                    sellingPrice={formData.sellPrice > 0 ? String(formData.sellPrice) : ''}
-                    onSelectPrice={(price) => { handleInputChange('sellPrice', price); setCalcOpen(false) }}
-                    transportEnabled={transportConfig.enabled}
-                    transportDistanceKm={transportConfig.distanceKm}
-                    transportCostPerKm={transportConfig.ratePerKm}
-                    batchQuantity={formData.currentStock > 0 ? formData.currentStock : 1}
-                    onClose={() => setCalcOpen(false)}
-                  />
-                )}
-                {priceChanging && (
-                  <div className="mt-2">
-                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Reason for price change <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={priceChangeReason}
-                      onChange={(e) => setPriceChangeReason(e.target.value)}
-                      placeholder="e.g. supplier price increase"
-                      className={`input-field ${errors.priceChangeReason ? 'border-red-500 border-2' : ''}`}
-                    />
-                    {errors.priceChangeReason && <p className="text-red-600 text-xs mt-1 font-medium">{errors.priceChangeReason}</p>}
-                  </div>
-                )}
-              </div>}
 
               {/* Weight Selling — restaurant and grocery only; hidden when parent page provides its own bar */}
               {isWeightBusiness && !hideWeightBar && (
