@@ -11,7 +11,8 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { CustomerQuickRegister } from '@/components/pos/customer-quick-register'
 import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
 import { SearchableSelect } from '@/components/ui/searchable-select'
-import { getPresetDateRange, type DatePreset } from '@/lib/date-presets'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
+import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { NationalIdInput } from '@/components/ui/national-id-input'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
@@ -34,6 +35,17 @@ interface JobListItem {
   completedTaskCount: number
   totalCustomerPrice?: number
   paymentStatus: string | null
+}
+
+function toISODate(d: Date) {
+  return d.toISOString().split('T')[0]
+}
+
+function defaultDateRange(): DateRange {
+  const end = new Date()
+  const start = new Date()
+  start.setDate(start.getDate() - 30)
+  return { start, end }
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -78,9 +90,10 @@ function VehicleServiceJobsPageContent() {
   const [awaitingPaymentOnly, setAwaitingPaymentOnly] = useState(false)
   const [search, setSearch] = useState(() => searchParams.get('search') || '')
   const [contractorFilter, setContractorFilter] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
-  const [datePreset, setDatePreset] = useState<DatePreset>('')
+  const [dateFrom, setDateFrom] = useState('')       // ISO yyyy-mm-dd for API — '' while allTime
+  const [dateTo, setDateTo] = useState('')         // ISO yyyy-mm-dd for API — '' while allTime
+  const [allTime, setAllTime] = useState(true)
+  const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange())
   const [filterContractors, setFilterContractors] = useState<Array<{ id: string; fullName: string }>>([])
 
   const fetchJobs = useCallback(async () => {
@@ -120,29 +133,21 @@ function VehicleServiceJobsPageContent() {
       .catch(() => setFilterContractors([]))
   }, [currentBusinessId])
 
-  function applyDatePreset(preset: 'today' | 'yesterday' | 'week' | 'month') {
-    const { from, to } = getPresetDateRange(preset)
-    setDateFrom(from)
-    setDateTo(to)
-    setDatePreset(preset)
+  function handleDateRangeChange(range: DateRange) {
+    setDateRange(range)
+    setDateFrom(toISODate(range.start))
+    setDateTo(toISODate(range.end))
   }
 
-  function handleDateFromChange(iso: string) {
-    setDateFrom(iso)
-    const newTo = (!dateTo || iso > dateTo) ? iso : dateTo
-    setDateTo(newTo)
-    setDatePreset('custom')
-  }
-
-  function handleDateToChange(iso: string) {
-    setDateTo(iso)
-    setDatePreset('custom')
-  }
-
-  function clearDateFilters() {
-    setDateFrom('')
-    setDateTo('')
-    setDatePreset('')
+  function handleAllTimeChange(next: boolean) {
+    setAllTime(next)
+    if (next) {
+      setDateFrom('')
+      setDateTo('')
+    } else {
+      setDateFrom(toISODate(dateRange.start))
+      setDateTo(toISODate(dateRange.end))
+    }
   }
 
   const formatCurrency = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
@@ -163,27 +168,42 @@ function VehicleServiceJobsPageContent() {
           searchLoading={loading}
           searchPlaceholder="Search by customer, contractor, vehicle, or service (e.g. oil change)..."
           initialValue={search}
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-          datePreset={datePreset}
-          onPresetClick={applyDatePreset}
-          onFromChange={handleDateFromChange}
-          onToChange={handleDateToChange}
-          onClearDates={clearDateFilters}
-          extraFilters={
-            <div className="w-48">
-              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Contractor</label>
-              <SearchableSelect
-                options={filterContractors.map(c => ({ value: c.id, name: c.fullName }))}
-                value={contractorFilter}
-                onChange={setContractorFilter}
-                placeholder="All contractors"
-                searchPlaceholder="Search contractors..."
-                allLabel="All contractors"
-              />
-            </div>
-          }
         />
+
+        {/* Date range — the standard collapsed-by-default selector used
+            throughout the app. */}
+        <DateRangeSelector
+          value={dateRange}
+          onChange={handleDateRangeChange}
+          showAllTime
+          allTime={allTime}
+          onAllTimeChange={handleAllTimeChange}
+        />
+
+        {/* Secondary filters — collapsed by default (MBM-299), badge shows
+            the active contractor when the section is collapsed. */}
+        <CollapsibleSection
+          title="Filters"
+          icon="🔎"
+          className="mb-6"
+          badge={contractorFilter ? (
+            <span className="px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-xs font-semibold">
+              {filterContractors.find(c => c.id === contractorFilter)?.fullName ?? 'Active'}
+            </span>
+          ) : undefined}
+        >
+          <div className="w-full sm:w-64">
+            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Contractor</label>
+            <SearchableSelect
+              options={filterContractors.map(c => ({ value: c.id, name: c.fullName }))}
+              value={contractorFilter}
+              onChange={setContractorFilter}
+              placeholder="All contractors"
+              searchPlaceholder="Search contractors..."
+              allLabel="All contractors"
+            />
+          </div>
+        </CollapsibleSection>
 
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -256,7 +276,78 @@ function VehicleServiceJobsPageContent() {
         )}
 
         {!loading && jobs.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden overflow-x-auto">
+          <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
+            {/* Mobile card list (MBM-299 responsive-reports template — see
+                src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+            <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
+              {jobs.map(j => (
+                <div
+                  key={j.id}
+                  onClick={() => router.push(`/vehicle-service/jobs/${j.id}`)}
+                  className="p-3 space-y-2 cursor-pointer active:bg-gray-50 dark:active:bg-gray-700"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {[j.vehicleMake, j.vehicleModel].filter(Boolean).join(' ') || '—'}
+                        {j.vehiclePlate && <span className="ml-1 text-xs text-gray-400">({j.vehiclePlate})</span>}
+                      </p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {j.jobCardPrintedAt && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full">
+                            🖨️ Printed
+                          </span>
+                        )}
+                        {j.jobCardReturnedAt && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-medium bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 rounded-full">
+                            ↩️ Returned
+                          </span>
+                        )}
+                        {j.vehicleReleasedAt && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full">
+                            ✓ Released
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${STATUS_STYLES[j.status] || ''}`}>
+                        {j.status.replace('_', ' ')}
+                      </span>
+                      {j.status === 'billed' && j.paymentStatus === 'PENDING' && (
+                        <span className="block mt-1 px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full">
+                          💰 Awaiting Payment
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Customer</p>
+                      <p className="text-gray-600 dark:text-gray-300">{j.customerName || 'Walk-in'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Contractor</p>
+                      <p className="text-gray-600 dark:text-gray-300">{j.primaryContractorName || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Tasks</p>
+                      <p className="text-gray-600 dark:text-gray-300">{j.completedTaskCount}/{j.taskCount} completed</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Created</p>
+                      <p className="text-gray-500 dark:text-gray-400">{new Date(j.createdAt).toLocaleDateString()}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Total</p>
+                      <p className="font-medium text-gray-900 dark:text-white">{j.totalCustomerPrice !== undefined ? formatCurrency(j.totalCustomerPrice) : '—'}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden sm:block overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
@@ -320,6 +411,7 @@ function VehicleServiceJobsPageContent() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>
