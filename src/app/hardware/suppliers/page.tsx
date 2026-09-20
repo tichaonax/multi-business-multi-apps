@@ -295,13 +295,13 @@ export default function HardwareSuppliersPage() {
 
             {/* Tab Navigation */}
             <div className="card">
-              <div className="border-b border-gray-200">
+              <div className="border-b border-gray-200 overflow-x-auto">
                 <nav className="flex space-x-8 px-6" aria-label="Tabs">
                   {tabs.map((tab) => (
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id as any)}
-                      className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
+                      className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 shrink-0 whitespace-nowrap ${
                         activeTab === tab.id
                           ? 'border-orange-500 text-orange-600'
                           : 'border-transparent text-secondary hover:text-primary hover:border-gray-300 dark:hover:border-gray-600'

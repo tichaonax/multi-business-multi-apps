@@ -10,6 +10,7 @@ import { useDateFormat } from '@/contexts/settings-context'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ContentLayout } from '@/components/layout/content-layout'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { VehicleForm } from '@/components/vehicles/vehicle-form'
@@ -386,63 +387,75 @@ export default function VehiclesPage() {
               <div className="px-4 py-2 bg-black text-white rounded shadow">{toastMessage}</div>
             </div>
           )}
-          {/* Fleet Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="card p-4 h-full">
-              <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-secondary">Total Vehicles</p>
-                    {loadingSummary ? (
-                      <div className="h-8 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                    ) : (
-                      <p className="text-2xl font-bold text-blue-600">{fleetSummary?.totalVehicles ?? 0}</p>
-                    )}
+          {/* Fleet Summary — vehicle/driver counts are secondary info, collapsed
+              by default (MBM-299); service/license alerts stay always-visible
+              but only when there's actually something to flag. */}
+          <CollapsibleSection title="Fleet Summary" icon="📊">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="card p-4 h-full">
+                <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-secondary">Total Vehicles</p>
+                      {loadingSummary ? (
+                        <div className="h-8 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                      ) : (
+                        <p className="text-2xl font-bold text-blue-600">{fleetSummary?.totalVehicles ?? 0}</p>
+                      )}
+                    </div>
+                    <div className="text-2xl">🚗</div>
                   </div>
-                  <div className="text-2xl">🚗</div>
-                </div>
-            </div>
+              </div>
 
-            <div className="card p-4 h-full">
-              <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-secondary">Active Drivers</p>
-                    {loadingSummary ? (
-                      <div className="h-8 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                    ) : (
-                      // Prefer activeDrivers from API, fallback to activeVehicles for backward compatibility
-                      <p className="text-2xl font-bold text-green-600">{fleetSummary?.activeDrivers ?? fleetSummary?.activeVehicles ?? 0}</p>
-                    )}
+              <div className="card p-4 h-full">
+                <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-secondary">Active Drivers</p>
+                      {loadingSummary ? (
+                        <div className="h-8 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                      ) : (
+                        // Prefer activeDrivers from API, fallback to activeVehicles for backward compatibility
+                        <p className="text-2xl font-bold text-green-600">{fleetSummary?.activeDrivers ?? fleetSummary?.activeVehicles ?? 0}</p>
+                      )}
+                    </div>
+                    <div className="text-2xl">👤</div>
                   </div>
-                  <div className="text-2xl">👤</div>
-                </div>
+              </div>
             </div>
+          </CollapsibleSection>
 
-            <div className="card p-4 h-full">
-              <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-secondary">Due for Service</p>
-                    <p className="text-2xl font-bold text-orange-600">{fleetSummary?.maintenanceDue ?? 3}</p>
-                  </div>
-                  <div className="text-2xl">🔧</div>
+          {/* Alert cards — only shown when there's actually something due/expiring;
+              no card at all means no alerts, rather than a card reading "0". */}
+          {!loadingSummary && ((fleetSummary?.maintenanceDue ?? 0) > 0 || (fleetSummary?.expiringLicenses ?? 0) > 0) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {(fleetSummary?.maintenanceDue ?? 0) > 0 && (
+                <div className="card p-4 h-full">
+                  <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-secondary">Due for Service</p>
+                        <p className="text-2xl font-bold text-orange-600">{fleetSummary?.maintenanceDue}</p>
+                      </div>
+                      <div className="text-2xl">🔧</div>
+                    </div>
                 </div>
-            </div>
+              )}
 
-            <div className="card p-4 h-full">
-              <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-secondary">Expiring Licenses</p>
-                    <p className="text-2xl font-bold text-red-600">{fleetSummary?.expiringLicenses ?? 2}</p>
-                  </div>
-                  <div className="text-2xl">⚠️</div>
+              {(fleetSummary?.expiringLicenses ?? 0) > 0 && (
+                <div className="card p-4 h-full">
+                  <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-secondary">Expiring Licenses</p>
+                        <p className="text-2xl font-bold text-red-600">{fleetSummary?.expiringLicenses}</p>
+                      </div>
+                      <div className="text-2xl">⚠️</div>
+                    </div>
                 </div>
+              )}
             </div>
-          </div>
+          )}
 
-          {/* Vehicle Management Features Banner */}
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-3">
-              🚗 Vehicle Fleet Management Features
-            </h3>
+          {/* Vehicle Management Features Banner — purely informational, collapsed
+              by default (MBM-299). */}
+          <CollapsibleSection title="Vehicle Fleet Management Features" icon="🚗">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <button onClick={() => setActiveTab('trips')} className="card p-3 border border-blue-200 dark:border-blue-800 h-full text-left hover:bg-blue-100 dark:hover:bg-blue-800/40 hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer">
                 <div className="text-blue-700 dark:text-blue-300 font-medium text-sm break-words">🛣️ Trip Tracking</div>
@@ -461,7 +474,7 @@ export default function VehiclesPage() {
                 <div className="text-xs text-blue-600 dark:text-blue-400 break-words">Fuel, tolls & business reimbursement</div>
               </button>
             </div>
-          </div>
+          </CollapsibleSection>
 
           {/* Tab Navigation */}
           <div className="card">

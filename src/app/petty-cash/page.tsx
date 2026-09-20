@@ -147,7 +147,60 @@ export default function PettyCashListPage() {
           </div>
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <table className="w-full text-sm">
+            {/* Mobile card list (MBM-299 responsive-reports template — see
+                src/app/inventory/reports/pricing-exceptions/page.tsx). The
+                plain table below was clipping every column but Purpose and
+                Requester on narrow screens (overflow-hidden on this wrapper,
+                no scroll) — cards surface every field up front instead. */}
+            <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
+              {requests.map(r => (
+                <div
+                  key={r.id}
+                  onClick={() => router.push(`/petty-cash/${r.id}`)}
+                  className="p-3 space-y-2 active:bg-gray-50 dark:active:bg-gray-700 cursor-pointer"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                      {r.priority === 'URGENT' && <span className="text-xs font-bold text-red-600 dark:text-red-400 shrink-0">🚨 URGENT</span>}
+                      <span className="font-medium text-gray-900 dark:text-gray-100">{r.purpose}</span>
+                      <span className="text-xs text-gray-400 shrink-0">{r.paymentChannel === 'ECOCASH' ? '📱' : '💵'}</span>
+                    </div>
+                    <span className={`shrink-0 inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[r.status] || 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>
+                      {r.status}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Requester</p>
+                      <p className="text-gray-600 dark:text-gray-400">{r.requester?.name || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Date</p>
+                      <p className="text-gray-600 dark:text-gray-400">{fmtDate(r.requestedAt)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Requested</p>
+                      <p className="tabular-nums text-gray-900 dark:text-gray-100">{fmt(r.requestedAmount)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Approved</p>
+                      <p className="tabular-nums text-gray-600 dark:text-gray-400">{r.approvedAmount != null ? fmt(r.approvedAmount) : '—'}</p>
+                    </div>
+                  </div>
+                  {canRequest && (
+                    <button
+                      onClick={e => { e.stopPropagation(); router.push(`/petty-cash/new?repeat=${r.id}`) }}
+                      className="w-full px-2.5 py-1.5 text-xs font-medium border border-gray-300 dark:border-gray-600 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      title="Create a new request pre-filled from this one"
+                    >
+                      Repeat
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <table className="hidden sm:table w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                 <tr>
                   <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Purpose</th>

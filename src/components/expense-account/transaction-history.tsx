@@ -299,6 +299,9 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   const [activeQuickFilter, setActiveQuickFilter] = useState<string>(
     initialStartDate ? 'Custom' : '30 Days'
   )
+  // Collapsed by default (MBM-299) — the date/type/source/sort/amount pills
+  // are secondary controls; search stays always visible above them.
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   // Debounce search input
   useEffect(() => {
@@ -503,6 +506,9 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
     { label: 'All Time', action: () => applyAllTime() },
   ]
 
+  const hasActiveFilters = activeQuickFilter !== '30 Days' || typeFilter !== defaultType ||
+    sourceTypeFilter !== '' || sortOrder !== defaultSortOrder || minAmount !== '' || maxAmount !== ''
+
   return (
     <>
     <div className="space-y-4">
@@ -543,6 +549,21 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
             )}
           </div>
           <button
+            type="button"
+            onClick={() => setFiltersOpen(v => !v)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md border whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+              hasActiveFilters
+                ? 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700'
+                : 'text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }`}
+          >
+            🔎 Filters
+            {hasActiveFilters && (
+              <span className="px-1.5 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-semibold">{activeQuickFilter || 'Custom'}</span>
+            )}
+            <span className="text-[10px]">{filtersOpen ? '▲' : '▼'}</span>
+          </button>
+          <button
             onClick={handleReset}
             className="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 whitespace-nowrap"
           >
@@ -550,8 +571,12 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
           </button>
         </div>
 
-        {/* Row 2: Pills + date range + dropdowns — all inline */}
-        <div className="flex flex-wrap items-end gap-x-2 gap-y-1.5">
+        {/* Row 2: Pills + date range + dropdowns — all inline. Collapsed by
+            default (MBM-299); the toggle above shows the active quick
+            filter so the user can tell at a glance what's applied without
+            expanding. */}
+        {filtersOpen && (
+        <div className="flex flex-wrap items-end gap-x-2 gap-y-1.5 pt-2">
 
           {/* Quick pills */}
           <div className="flex gap-1 flex-wrap">
@@ -680,6 +705,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
           </div>
 
         </div>
+        )}
       </div>
 
       {/* Transactions Table */}

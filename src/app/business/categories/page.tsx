@@ -289,27 +289,27 @@ export default function BusinessCategoriesPage() {
             {filteredHierarchy.domains.map((domain) => (
               <div key={domain.id} className="card overflow-hidden">
                 {/* Domain Header */}
-                <div className="w-full px-6 py-4 flex items-center justify-between bg-gray-50 dark:bg-gray-800">
+                <div className="w-full px-3 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-2 bg-gray-50 dark:bg-gray-800">
                   <button
                     onClick={() => toggleDomain(domain.id)}
-                    className="flex items-center gap-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded p-2 -m-2"
+                    className="flex items-center gap-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded p-2 -m-2 min-w-0"
                   >
-                    <span className="text-2xl">{domain.emoji}</span>
-                    <div className="text-left">
+                    <span className="text-2xl shrink-0">{domain.emoji}</span>
+                    <div className="text-left min-w-0">
                       <h2 className="text-lg font-semibold text-primary">{domain.name}</h2>
                       <p className="text-sm text-secondary">{domain.description}</p>
                     </div>
                   </button>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 shrink-0">
                     {canCreateCategories && (
                       <button
                         onClick={() => handleAddCategory(domain.id)}
-                        className="px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-300 rounded hover:bg-blue-50"
+                        className="px-3 py-1 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-300 rounded hover:bg-blue-50 whitespace-nowrap"
                       >
                         + Add Category
                       </button>
                     )}
-                    <div className="text-sm text-secondary">
+                    <div className="text-sm text-secondary whitespace-nowrap">
                       {domain.expense_categories?.length || 0} categories
                     </div>
                     <svg
@@ -331,22 +331,22 @@ export default function BusinessCategoriesPage() {
                     {domain.expense_categories?.map((category) => (
                       <div key={category.id}>
                         {/* Category Header */}
-                        <div className="px-6 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800">
+                        <div className="px-3 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-2 hover:bg-gray-50 dark:hover:bg-gray-800">
                           <button
                             onClick={() => toggleCategory(category.id)}
-                            className="flex-1 flex items-center gap-3 text-left"
+                            className="flex-1 flex items-center gap-3 text-left min-w-0"
                           >
-                            <span className="text-xl">{category.emoji}</span>
-                            <div className="flex-1">
+                            <span className="text-xl shrink-0">{category.emoji}</span>
+                            <div className="flex-1 min-w-0">
                               <div className="font-medium text-primary">{category.name}</div>
                               {category.description && (
                                 <div className="text-xs text-secondary">{category.description}</div>
                               )}
                             </div>
-                            <div className="flex items-center gap-2 text-sm text-secondary">
-                              <span>{category.expense_subcategories?.length || 0} subcategories</span>
+                            <div className="flex items-center gap-2 text-sm text-secondary shrink-0">
+                              <span className="whitespace-nowrap">{category.expense_subcategories?.length || 0} subcategories</span>
                               <svg
-                                className={`h-4 w-4 transform transition-transform ${
+                                className={`h-4 w-4 transform transition-transform shrink-0 ${
                                   expandedCategories.has(category.id) ? 'rotate-180' : ''
                                 }`}
                                 fill="none"
@@ -359,7 +359,7 @@ export default function BusinessCategoriesPage() {
                           </button>
 
                           {/* Category Actions */}
-                          <div className="flex items-center gap-2 ml-4">
+                          <div className="flex items-center gap-2 shrink-0">
                             {canCreateSubcategories && (
                               <button
                                 onClick={() => handleAddSubcategory(category)}

@@ -60,6 +60,27 @@ interface InsightsData {
   allPayees: PayeeRow[]
 }
 
+interface PayeePayment {
+  id: string
+  amount: number
+  paymentDate: string
+  category: { id: string; name: string; emoji: string } | null
+  receiptNumber: string | null
+  notes: string | null
+  status: string
+  expenseAccount: { id: string; accountName: string; accountNumber: string }
+  createdBy: { id: string; name: string } | null
+}
+
+interface PayeeDetail {
+  payee: { id: string; type: string; name: string }
+  totalPaid: number
+  paymentCount: number
+  accountsCount: number
+  payments: PayeePayment[]
+  pagination: { total: number; limit: number; offset: number; hasMore: boolean }
+}
+
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const TABS: { label: string; value: Group; activeCard: string; activeTab: string; textColor: string }[] = [
@@ -90,10 +111,14 @@ const CATEGORY_COLORS = ['#6366f1', '#ec4899', '#f97316', '#14b8a6', '#8b5cf6', 
 
 const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n)
 const fmtFull = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+const fmtDateTime = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+function payeeApiType(group: Group) {
+  return group === 'SUPPLIER' ? 'SUPPLIER' : 'PERSON'
+}
 
 function payeeHistoryUrl(payeeId: string, group: Group) {
-  const type = group === 'SUPPLIER' ? 'SUPPLIER' : 'PERSON'
-  return `/expense-accounts/reports/payee-history?payeeType=${type}&payeeId=${payeeId}`
+  return `/expense-accounts/reports/payee-history?payeeType=${payeeApiType(group)}&payeeId=${payeeId}`
 }
 
 function defaultDateRange(): DateRange {
@@ -121,6 +146,38 @@ export default function PayeeInsightsPage() {
   const [editEmoji, setEditEmoji] = useState('')
   const [editServiceType, setEditServiceType] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // Payee payment-history popup — clicking a payee name (or a bar in the
+  // "Top Payees" chart) opens this instead of navigating away, matching the
+  // same MBM-299 pattern used on the Payee Analysis report.
+  const [viewPayee, setViewPayee] = useState<{ payeeId: string; payeeName: string; group: Group } | null>(null)
+  const [viewDetail, setViewDetail] = useState<PayeeDetail | null>(null)
+  const [viewLoading, setViewLoading] = useState(false)
+  const [viewError, setViewError] = useState<string | null>(null)
+
+  function openPayeePayments(p: { payeeId: string; payeeName: string }, group: Group = activeGroup) {
+    setViewPayee({ payeeId: p.payeeId, payeeName: p.payeeName, group })
+    setViewDetail(null)
+    setViewError(null)
+    setViewLoading(true)
+    const params = new URLSearchParams({ limit: '50' })
+    if (!allTime) {
+      params.set('startDate', dateRange.start.toISOString().split('T')[0])
+      params.set('endDate', dateRange.end.toISOString().split('T')[0])
+    }
+    fetch(`/api/expense-account/payees/${payeeApiType(group)}/${p.payeeId}/payments?${params}`, { credentials: 'include' })
+      .then(async (res) => {
+        if (res.ok) {
+          const json = await res.json()
+          setViewDetail(json.data)
+        } else {
+          const err = await res.json().catch(() => ({}))
+          setViewError(err?.error || `Failed to load payments (HTTP ${res.status})`)
+        }
+      })
+      .catch(() => setViewError('Network error — could not load payments'))
+      .finally(() => setViewLoading(false))
+  }
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/auth/signin')
@@ -321,7 +378,7 @@ export default function PayeeInsightsPage() {
           {/* Top payees bar chart */}
           <div className="bg-card border border-border rounded-lg p-4">
             <h2 className="text-sm font-semibold text-secondary mb-3">
-              Top {activeTab.label} by Amount
+              Top {activeTab.label} by Amount <span className="text-xs font-normal text-secondary">(click a bar for details)</span>
             </h2>
             {loading ? (
               <div className="h-56 animate-pulse bg-gray-100 dark:bg-gray-800 rounded" />
@@ -330,7 +387,7 @@ export default function PayeeInsightsPage() {
             ) : (
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart
-                  data={data.topPayees.map((p) => ({ name: p.payeeName.split(' ').slice(0, 2).join(' '), amount: p.totalPaid }))}
+                  data={data.topPayees.map((p) => ({ name: p.payeeName.split(' ').slice(0, 2).join(' '), amount: p.totalPaid, payeeId: p.payeeId, fullName: p.payeeName }))}
                   layout="vertical"
                   barSize={16}
                   margin={{ left: 0, right: 16 }}
@@ -339,7 +396,16 @@ export default function PayeeInsightsPage() {
                   <XAxis type="number" tickFormatter={(v) => fmt(v)} tick={{ fontSize: 10 }} />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={90} />
                   <Tooltip formatter={(v: number) => [fmtFull(v), 'Total Paid']} />
-                  <Bar dataKey="amount" fill={GROUP_COLORS[activeGroup]} radius={[0, 4, 4, 0]} />
+                  <Bar
+                    dataKey="amount"
+                    fill={GROUP_COLORS[activeGroup]}
+                    radius={[0, 4, 4, 0]}
+                    cursor="pointer"
+                    onClick={(entry: any) => {
+                      const d = entry?.payload ?? entry
+                      openPayeePayments({ payeeId: d.payeeId, payeeName: d.fullName })
+                    }}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -438,7 +504,13 @@ export default function PayeeInsightsPage() {
                   <div key={p.payeeId} className="p-3 space-y-2">
                     <div className="flex items-center gap-2">
                       <span className="text-base leading-none shrink-0">{p.payeeEmoji || (activeGroup === 'CONTRACTOR' ? '🤝' : '🚚')}</span>
-                      <span className="font-medium text-primary">{p.payeeName}</span>
+                      <button
+                        type="button"
+                        onClick={() => openPayeePayments(p)}
+                        className="font-medium text-blue-600 dark:text-blue-400 hover:underline text-left"
+                      >
+                        {p.payeeName}
+                      </button>
                       <button
                         onClick={() => openEdit(p)}
                         className="text-gray-300 hover:text-gray-500 dark:hover:text-gray-400 text-xs shrink-0"
@@ -463,14 +535,6 @@ export default function PayeeInsightsPage() {
                         <p className="text-[10px] uppercase tracking-wide text-secondary">Last Payment</p>
                         <p className="text-secondary">{p.lastPayment ? new Date(p.lastPayment).toLocaleDateString() : '—'}</p>
                       </div>
-                      <div>
-                        <Link
-                          href={payeeHistoryUrl(p.payeeId, activeGroup)}
-                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                        >
-                          View history →
-                        </Link>
-                      </div>
                     </div>
                   </div>
                 ))}
@@ -485,7 +549,6 @@ export default function PayeeInsightsPage() {
                       <th className="text-right px-4 py-3 font-medium text-secondary">Total Paid</th>
                       <th className="text-right px-4 py-3 font-medium text-secondary">Payments</th>
                       <th className="text-right px-4 py-3 font-medium text-secondary hidden sm:table-cell">Last Payment</th>
-                      <th className="px-4 py-3" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -494,7 +557,13 @@ export default function PayeeInsightsPage() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <span className="text-base leading-none shrink-0">{p.payeeEmoji || (activeGroup === 'CONTRACTOR' ? '🤝' : '🚚')}</span>
-                            <span className="font-medium text-primary">{p.payeeName}</span>
+                            <button
+                              type="button"
+                              onClick={() => openPayeePayments(p)}
+                              className="font-medium text-blue-600 dark:text-blue-400 hover:underline text-left"
+                            >
+                              {p.payeeName}
+                            </button>
                             <button
                               onClick={() => openEdit(p)}
                               className="text-gray-300 hover:text-gray-500 dark:hover:text-gray-400 text-xs shrink-0"
@@ -512,14 +581,6 @@ export default function PayeeInsightsPage() {
                         <td className="px-4 py-3 text-right text-secondary hidden sm:table-cell">
                           {p.lastPayment ? new Date(p.lastPayment).toLocaleDateString() : '—'}
                         </td>
-                        <td className="px-4 py-3 text-right">
-                          <Link
-                            href={payeeHistoryUrl(p.payeeId, activeGroup)}
-                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                          >
-                            View history →
-                          </Link>
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -530,6 +591,82 @@ export default function PayeeInsightsPage() {
         </div>
 
       </div>
+
+      {/* Payee payment-history popup — keeps the user on this report instead
+          of navigating away; "View Full History" is the only escape hatch. */}
+      {viewPayee && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setViewPayee(null)}>
+          <div
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{viewPayee.payeeName}</h3>
+                {viewDetail && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {fmtFull(viewDetail.totalPaid)} · {viewDetail.paymentCount} payment{viewDetail.paymentCount === 1 ? '' : 's'} · {viewDetail.accountsCount} account{viewDetail.accountsCount === 1 ? '' : 's'}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewPayee(null)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none shrink-0"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-5 py-3">
+              {viewLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                </div>
+              ) : viewError ? (
+                <div className="text-center py-8 text-sm text-red-500">{viewError}</div>
+              ) : !viewDetail || viewDetail.payments.length === 0 ? (
+                <div className="text-center py-8 text-sm text-gray-400">No payments found for this payee{!allTime ? ' in the selected date range' : ''}</div>
+              ) : (
+                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {viewDetail.payments.map(pmt => (
+                    <div key={pmt.id} className="py-3 space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {pmt.category ? `${pmt.category.emoji} ${pmt.category.name}` : 'Uncategorized'}
+                        </span>
+                        <span className="text-sm font-medium text-red-600 dark:text-red-400 shrink-0">{fmtFull(pmt.amount)}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
+                        <span>{fmtDateTime(pmt.paymentDate)} · {pmt.expenseAccount.accountName}</span>
+                        <span className="capitalize">{pmt.status.toLowerCase()}</span>
+                      </div>
+                      {pmt.notes && (
+                        <p className="text-xs text-gray-600 dark:text-gray-300">{pmt.notes}</p>
+                      )}
+                      {pmt.receiptNumber && (
+                        <p className="text-xs text-gray-400">Receipt #{pmt.receiptNumber}</p>
+                      )}
+                    </div>
+                  ))}
+                  {viewDetail.pagination.hasMore && (
+                    <p className="text-xs text-gray-400 text-center pt-3">Showing first {viewDetail.pagination.limit} payments — use "View Full History" for more.</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-700 shrink-0">
+              <Link
+                href={`${payeeHistoryUrl(viewPayee.payeeId, viewPayee.group)}&payeeName=${encodeURIComponent(viewPayee.payeeName)}${allTime ? '&allTime=true' : ''}`}
+                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                View Full History →
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit payee classification modal */}
       {editingPayee && (

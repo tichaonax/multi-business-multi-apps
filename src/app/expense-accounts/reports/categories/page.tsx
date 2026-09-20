@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -60,6 +60,7 @@ export default function CategoryAnalysisReportPage() {
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange())
   const [allTime, setAllTime] = useState(true)
   const [accountId, setAccountId] = useState('')
+  const [nameSearch, setNameSearch] = useState('')
 
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
@@ -124,6 +125,13 @@ export default function CategoryAnalysisReportPage() {
     value: c.totalAmount,
   }))
 
+  // Search is applied client-side against the already loaded rows.
+  const visibleCategories = useMemo(() => {
+    if (!nameSearch.trim()) return byCategory
+    const q = nameSearch.trim().toLowerCase()
+    return byCategory.filter(c => c.categoryName.toLowerCase().includes(q))
+  }, [byCategory, nameSearch])
+
   return (
     <ContentLayout title="Category Analysis" subtitle="Spending breakdown by category across all expense accounts">
       <div className="space-y-6">
@@ -131,6 +139,29 @@ export default function CategoryAnalysisReportPage() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           Back to Reports Hub
         </Link>
+
+        {/* Always-visible search — not tucked inside the collapsed filters,
+            since it's the control people reach for most on this report. */}
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+          </svg>
+          <input
+            type="text"
+            value={nameSearch}
+            onChange={e => setNameSearch(e.target.value)}
+            placeholder="Search by category…"
+            className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <DateRangeSelector
+          value={dateRange}
+          onChange={setDateRange}
+          showAllTime
+          allTime={allTime}
+          onAllTimeChange={setAllTime}
+        />
 
         {/* Filters */}
         <CollapsibleSection
@@ -165,14 +196,6 @@ export default function CategoryAnalysisReportPage() {
           </div>
         </CollapsibleSection>
 
-        <DateRangeSelector
-          value={dateRange}
-          onChange={setDateRange}
-          showAllTime
-          allTime={allTime}
-          onAllTimeChange={setAllTime}
-        />
-
         {/* Summary cards */}
         {totals && (
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
@@ -197,6 +220,8 @@ export default function CategoryAnalysisReportPage() {
           </div>
         ) : byCategory.length === 0 ? (
           <div className="text-center py-16 text-gray-500 dark:text-gray-400">No categorized payments found</div>
+        ) : visibleCategories.length === 0 ? (
+          <div className="text-center py-16 text-gray-500 dark:text-gray-400">No categories match "{nameSearch}"</div>
         ) : (
           <>
             {/* Pie chart */}
@@ -225,7 +250,7 @@ export default function CategoryAnalysisReportPage() {
               {/* Mobile card list (MBM-299 responsive-reports template — see
                   src/app/inventory/reports/pricing-exceptions/page.tsx) */}
               <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
-                {byCategory.map((cat) => (
+                {visibleCategories.map((cat) => (
                   <div key={cat.categoryId} className="p-3 space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium text-gray-900 dark:text-gray-100">
@@ -258,7 +283,7 @@ export default function CategoryAnalysisReportPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {byCategory.map((cat) => (
+                    {visibleCategories.map((cat) => (
                       <tr key={cat.categoryId} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                         <td className="px-4 py-3">
                           <span className="font-medium text-gray-900 dark:text-gray-100">

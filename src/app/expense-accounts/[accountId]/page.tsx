@@ -1775,7 +1775,10 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
             horizontal scrolling on mobile, which is unaffected. */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
           <div className="border-b border-gray-200 dark:border-gray-700 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            <nav className="flex -mb-px min-w-0">
+            {/* w-max (not min-w-0) — a block-level flex nav otherwise stretches
+                to its overflow-x-auto parent's width and shrinks its buttons
+                to fit, clipping the last tab's label instead of scrolling. */}
+            <nav className="flex w-max -mb-px">
               <button
                 onClick={() => setActiveTab('overview')}
                 className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${

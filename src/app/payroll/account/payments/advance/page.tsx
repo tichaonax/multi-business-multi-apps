@@ -10,6 +10,7 @@ import { ProtectedRoute } from '@/components/auth/protected-route'
 import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 
 interface Employee {
   id: string
@@ -322,29 +323,21 @@ function SalaryAdvanceContent() {
                       {loading ? (
                         <div className="animate-pulse h-10 bg-gray-200 dark:bg-gray-600 rounded"></div>
                       ) : (
-                        <select
+                        <SearchableSelect
+                          options={employees.map((employee) => ({
+                            value: employee.id,
+                            label: `${employee.fullName || `${employee.firstName} ${employee.lastName}`} - ${employee.employeeNumber}`,
+                          }))}
                           value={formData.employeeId}
-                          onChange={(e) => {
-                            setFormData({ ...formData, employeeId: e.target.value })
+                          onChange={(v) => {
+                            setFormData({ ...formData, employeeId: v })
                             setErrors({ ...errors, employeeId: '' })
                           }}
-                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                            errors.employeeId ? 'border-red-500' : 'border-gray-300'
-                          }`}
-                        >
-                          <option value="">Select an employee...</option>
-                          {employees.map((employee) => {
-                            const name = employee.fullName || `${employee.firstName} ${employee.lastName}`
-                            return (
-                              <option key={employee.id} value={employee.id}>
-                                {name} - {employee.employeeNumber}
-                              </option>
-                            )
-                          })}
-                        </select>
-                      )}
-                      {errors.employeeId && (
-                        <p className="mt-1 text-sm text-red-500">{errors.employeeId}</p>
+                          placeholder="Select an employee…"
+                          searchPlaceholder="Search employees…"
+                          required
+                          error={errors.employeeId || undefined}
+                        />
                       )}
                       {selectedEmployee && (
                         <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">

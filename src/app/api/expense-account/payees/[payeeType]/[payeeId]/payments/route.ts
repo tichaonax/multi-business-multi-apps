@@ -24,9 +24,12 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user permissions
+    // Get user permissions — either full account access OR report-viewing
+    // access is enough to look up a payee's payment history (this endpoint
+    // backs both the account drill-down UI and the expense reports' payee
+    // popups/pages, which are gated on canViewExpenseReports, not this).
     const permissions = getEffectivePermissions(user)
-    if (!permissions.canAccessExpenseAccount) {
+    if (!permissions.canAccessExpenseAccount && !permissions.canViewExpenseReports && user.role !== 'admin') {
       return NextResponse.json(
         { error: 'You do not have permission to access expense accounts' },
         { status: 403 }

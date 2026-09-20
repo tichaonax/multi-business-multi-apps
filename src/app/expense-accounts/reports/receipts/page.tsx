@@ -102,13 +102,22 @@ export default function ReceiptsReportPage() {
     }
   }
 
-  // Supplier/person name filter is applied client-side against the already
-  // loaded rows — the dataset behind a report view is small enough that a
-  // second search round-trip isn't worth the extra complexity.
+  // Search is applied client-side against the already loaded rows — the
+  // dataset behind a report view is small enough that a second round-trip
+  // isn't worth the extra complexity. Matches payee/supplier name plus the
+  // description-like fields (combo request title, expense type, business,
+  // requester, receipt #) so "search by payee or description" both work.
   const visibleRows = useMemo(() => {
     if (!nameSearch.trim()) return rows
     const q = nameSearch.trim().toLowerCase()
-    return rows.filter(r => (r.supplierOrPersonName ?? '').toLowerCase().includes(q))
+    return rows.filter(r => [
+      r.supplierOrPersonName,
+      r.comboRequestTitle,
+      r.expenseType,
+      r.business,
+      r.requestingEmployee,
+      r.receiptNumber,
+    ].some(v => (v ?? '').toLowerCase().includes(q)))
   }, [rows, nameSearch])
 
   const statusBadge = (s: ReconciliationStatus | null) => {
@@ -130,11 +139,34 @@ export default function ReceiptsReportPage() {
           Back to Reports Hub
         </Link>
 
+        {/* Always-visible search — not tucked inside the collapsed filters,
+            since it's the control people reach for most on this report. */}
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+          </svg>
+          <input
+            type="text"
+            value={nameSearch}
+            onChange={e => setNameSearch(e.target.value)}
+            placeholder="Search by payee, description, receipt #…"
+            className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+        </div>
+
+        <DateRangeSelector
+          value={dateRange}
+          onChange={setDateRange}
+          showAllTime
+          allTime={allTime}
+          onAllTimeChange={setAllTime}
+        />
+
         {/* Filters */}
         <CollapsibleSection
           title="Filters"
           icon="🔎"
-          badge={(statusTab !== 'ALL' || nameSearch.trim()) ? (
+          badge={statusTab !== 'ALL' ? (
             <span className="px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-xs font-semibold">Active</span>
           ) : undefined}
         >
@@ -154,36 +186,14 @@ export default function ReceiptsReportPage() {
                 </button>
               ))}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Supplier / Person</label>
-                <input
-                  type="text"
-                  value={nameSearch}
-                  onChange={e => setNameSearch(e.target.value)}
-                  placeholder="Filter by name…"
-                  className="input w-full px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="flex items-end">
-                <button
-                  onClick={() => { setStatusTab('ALL'); setNameSearch(''); setAllTime(true); setDateRange(defaultDateRange()) }}
-                  className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
-                >
-                  Reset
-                </button>
-              </div>
-            </div>
+            <button
+              onClick={() => { setStatusTab('ALL'); setNameSearch(''); setAllTime(true); setDateRange(defaultDateRange()) }}
+              className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
+            >
+              Reset
+            </button>
           </div>
         </CollapsibleSection>
-
-        <DateRangeSelector
-          value={dateRange}
-          onChange={setDateRange}
-          showAllTime
-          allTime={allTime}
-          onAllTimeChange={setAllTime}
-        />
 
         {/* Summary cards */}
         {summary && (

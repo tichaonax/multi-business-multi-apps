@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -63,9 +63,17 @@ export default function AccountsOverviewReportPage() {
   const [allTime, setAllTime] = useState(!hasUrlDates)
   // Optional: scope to a single business when arriving from a drill-down link
   const filterBusinessId = searchParams.get('businessId') ?? ''
+  const [nameSearch, setNameSearch] = useState('')
 
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+
+  // Search is applied client-side against the already loaded rows.
+  const visibleAccounts = useMemo(() => {
+    if (!nameSearch.trim()) return accounts
+    const q = nameSearch.trim().toLowerCase()
+    return accounts.filter(a => a.accountName.toLowerCase().includes(q) || a.accountNumber.toLowerCase().includes(q))
+  }, [accounts, nameSearch])
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/auth/signin')
@@ -114,6 +122,21 @@ export default function AccountsOverviewReportPage() {
           Back to Reports Hub
         </Link>
 
+        {/* Always-visible search — not tucked inside a collapsed panel,
+            since it's the control people reach for most on this report. */}
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+          </svg>
+          <input
+            type="text"
+            value={nameSearch}
+            onChange={e => setNameSearch(e.target.value)}
+            placeholder="Search by account name or number…"
+            className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
         {/* Filters */}
         <DateRangeSelector
           value={dateRange}
@@ -159,11 +182,13 @@ export default function AccountsOverviewReportPage() {
             </div>
           ) : accounts.length === 0 ? (
             <div className="text-center py-12 text-gray-500 dark:text-gray-400">No accounts found</div>
+          ) : visibleAccounts.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">No accounts match "{nameSearch}"</div>
           ) : (
             <>
               {/* Mobile card list (MBM-299 responsive-reports template) */}
               <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
-                {accounts.map((a) => (
+                {visibleAccounts.map((a) => (
                   <div key={a.id} className="p-3 space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <div>
@@ -223,7 +248,7 @@ export default function AccountsOverviewReportPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {accounts.map((a) => (
+                    {visibleAccounts.map((a) => (
                       <tr key={a.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                         <td className="px-4 py-3">
                           <Link href={`/expense-accounts/${a.id}`} className="font-medium text-blue-600 dark:text-blue-400 hover:underline">

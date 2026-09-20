@@ -447,46 +447,54 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         <div className="flex justify-between items-center h-14 sm:h-16">
           {/* Left side - Logo and Navigation */}
           <div className="flex items-center space-x-2 sm:space-x-8 min-w-0 shrink">
-            {/* Mobile menu trigger — lives in the persistent header row so it
-                never overlaps page content (see MobileSidebar's open-event
-                listener for why it moved here from a fixed-position button). */}
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent('mobile-menu:open'))}
-              className="lg:hidden shrink-0 p-2 -ml-2 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-              aria-label="Open menu"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-            {/* Mobile Team Chat toggle — sits right after the hamburger, same
-                footprint (w-9 h-9), so it never overlaps page content the way
-                FloatingChat's own bottom-right bubble did on small screens
-                (see floating-chat.tsx, hidden below lg for the same reason). */}
-            {session?.user && (
+            {/* Hamburger + mobile chat toggle are grouped tightly in their own
+                flex (gap-0.5) rather than riding the outer space-x-2/8 rule,
+                so the pair hugs the left edge instead of spreading out and
+                crowding the business dropdown that sits in the right-side
+                cluster on narrow phones (justify-between leaves little room
+                between the two clusters otherwise). */}
+            <div className="flex items-center gap-0.5 shrink-0">
+              {/* Mobile menu trigger — lives in the persistent header row so it
+                  never overlaps page content (see MobileSidebar's open-event
+                  listener for why it moved here from a fixed-position button). */}
               <button
-                type="button"
-                onClick={() => window.dispatchEvent(new CustomEvent('chat:open'))}
-                className={`lg:hidden relative shrink-0 w-9 h-9 flex items-center justify-center rounded-full text-white transition-colors ${
-                  chatBadge.unreadDirect > 0
-                    ? 'bg-rose-600 hover:bg-rose-700'
-                    : chatBadge.unread > 0
-                      ? 'bg-amber-500 hover:bg-amber-600'
-                      : 'bg-indigo-600 hover:bg-indigo-700'
-                }`}
-                aria-label="Open team chat"
+                onClick={() => window.dispatchEvent(new CustomEvent('mobile-menu:open'))}
+                className="lg:hidden shrink-0 p-2 -ml-2 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                aria-label="Open menu"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
-                {(chatBadge.unreadDirect > 0 || chatBadge.unread > 0) && (
-                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-white text-red-600 text-[9px] font-bold rounded-full flex items-center justify-center leading-none px-0.5 border border-red-600">
-                    {(chatBadge.unreadDirect + chatBadge.unread) > 9 ? '9+' : chatBadge.unreadDirect + chatBadge.unread}
-                  </span>
-                )}
               </button>
-            )}
+              {/* Mobile Team Chat toggle — sits right after the hamburger, same
+                  footprint (w-9 h-9), so it never overlaps page content the way
+                  FloatingChat's own bottom-right bubble did on small screens
+                  (see floating-chat.tsx, hidden below lg for the same reason). */}
+              {session?.user && (
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('chat:open'))}
+                  className={`lg:hidden relative shrink-0 w-9 h-9 flex items-center justify-center rounded-full text-white transition-colors ${
+                    chatBadge.unreadDirect > 0
+                      ? 'bg-rose-600 hover:bg-rose-700'
+                      : chatBadge.unread > 0
+                        ? 'bg-amber-500 hover:bg-amber-600'
+                        : 'bg-indigo-600 hover:bg-indigo-700'
+                  }`}
+                  aria-label="Open team chat"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                  {(chatBadge.unreadDirect > 0 || chatBadge.unread > 0) && (
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-white text-red-600 text-[9px] font-bold rounded-full flex items-center justify-center leading-none px-0.5 border border-red-600">
+                      {(chatBadge.unreadDirect + chatBadge.unread) > 9 ? '9+' : chatBadge.unreadDirect + chatBadge.unread}
+                    </span>
+                  )}
+                </button>
+              )}
+            </div>
             <Link href="/dashboard" className="hidden sm:flex items-center space-x-2 shrink-0">
               {brandLogoId ? (
                 <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0">

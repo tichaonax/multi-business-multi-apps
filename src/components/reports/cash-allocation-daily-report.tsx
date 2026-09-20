@@ -105,6 +105,9 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
 
   // 7-day overview state
   const [weekSummary, setWeekSummary] = useState<DaySummary[]>([])
+  // Days with no actual amount posted yet are just noise on a quick overview
+  // — default to hiding them, with an explicit toggle to see everything.
+  const [showAllDays, setShowAllDays] = useState(false)
   const [weekLoading, setWeekLoading] = useState(false)
 
   const isLocked = report?.status === 'LOCKED'
@@ -422,6 +425,9 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
     return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${map[s]}`}>{label[s]}</span>
   }
 
+  const visibleWeekSummary = showAllDays ? weekSummary : weekSummary.filter(row => row.totalActual > 0)
+  const hiddenDayCount = weekSummary.length - weekSummary.filter(row => row.totalActual > 0).length
+
   return (
     <div className="space-y-6">
 
@@ -439,17 +445,35 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
         </div>
       )}
       <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Last 7 Days</h3>
+        <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Last 7 Days</h3>
+            <button
+              type="button"
+              onClick={() => setShowAllDays(v => !v)}
+              className={`px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${
+                showAllDays
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+              }`}
+            >
+              {showAllDays ? 'Showing all days' : `Actual > $0 only${hiddenDayCount > 0 ? ` (${hiddenDayCount} hidden)` : ''}`}
+            </button>
+          </div>
           <span className="text-xs text-gray-400 dark:text-gray-500">Click a row to view · use date picker for older reports</span>
         </div>
         {weekLoading ? (
           <div className="px-4 py-4 text-sm text-gray-400 dark:text-gray-500">Loading overview…</div>
+        ) : visibleWeekSummary.length === 0 ? (
+          <div className="px-4 py-4 text-sm text-gray-400 dark:text-gray-500">
+            No days with an actual amount posted in the last 7 days.{' '}
+            <button type="button" onClick={() => setShowAllDays(true)} className="text-blue-600 dark:text-blue-400 hover:underline">Show all days</button>
+          </div>
         ) : (
           <>
             {/* Mobile card list */}
             <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-900">
-              {weekSummary.map(row => (
+              {visibleWeekSummary.map(row => (
                 <div
                   key={row.date}
                   onClick={lockedDate ? undefined : () => { setDate(row.date); setReport(null); setLineItems([]); setError(null); loadReport(row.date) }}
@@ -479,7 +503,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-700">
-                {weekSummary.map(row => (
+                {visibleWeekSummary.map(row => (
                   <tr
                     key={row.date}
                     onClick={lockedDate ? undefined : () => { setDate(row.date); setReport(null); setLineItems([]); setError(null); loadReport(row.date) }}
@@ -753,7 +777,145 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
       )}
 
       {(lineItems.length > 0 || rentConfig) && (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+          {/* Mobile card list (MBM-299 responsive-reports template — see
+              src/app/inventory/reports/pricing-exceptions/page.tsx). Same
+              handlers/values as the desktop table below, just laid out as
+              cards instead of table cells. */}
+          <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
+            {actualRentItem && rentConfig && (
+              <div className="p-3 space-y-1 bg-orange-50 dark:bg-orange-900/10">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{rentConfig.accountName}</span>
+                  <span className="text-sm font-mono font-semibold text-orange-700 dark:text-orange-300">${rentAmount.toFixed(2)}</span>
+                </div>
+                <p className="text-xs text-orange-600 dark:text-orange-400">🏠 move to rent cash box</p>
+                <p className="text-xs text-orange-600 dark:text-orange-400">Fixed — put in rent cash box</p>
+              </div>
+            )}
+            {rentSkipped && (
+              <div className="p-3 space-y-1 bg-red-50 dark:bg-red-900/20">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{rentConfig!.accountName}</span>
+                  <span className="text-sm font-mono font-semibold text-red-700 dark:text-red-300">$0.00</span>
+                </div>
+                <p className="text-xs text-red-600 dark:text-red-400">⚠ not transferred</p>
+                <p className="text-xs text-gray-400 line-through">was ${Number(rentConfig!.dailyTransferAmount).toFixed(2)}</p>
+                <p className="text-xs text-red-600 dark:text-red-400">Skipped — insufficient cash available that day</p>
+              </div>
+            )}
+            {payrollContrib && payrollContrib.amount > 0 && (
+              <div className="p-3 space-y-1 bg-blue-50 dark:bg-blue-900/10">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Payroll Account</span>
+                  <span className="text-sm font-mono font-semibold text-blue-700 dark:text-blue-300">${payrollContrib.amount.toFixed(2)}</span>
+                </div>
+                <p className="text-xs text-blue-600 dark:text-blue-400">💼 transferred during EOD</p>
+                <p className="text-xs text-blue-600 dark:text-blue-400">Auto — transferred to payroll</p>
+              </div>
+            )}
+            {lineItems.filter(item => item.sourceType !== 'EOD_RENT_TRANSFER').map(item => {
+              const isRent = item.sourceType === 'EOD_RENT_TRANSFER'
+              const localAmt = localAmounts[item.id] ?? (item.actualAmount !== null ? String(item.actualAmount) : '')
+              const parsedActual = localAmt !== '' ? parseFloat(localAmt) : null
+              const reported = toNum(item.reportedAmount)
+              const matches = parsedActual !== null && Math.abs(parsedActual - reported) <= 0.009
+              const mismatch = parsedActual !== null && !matches
+
+              return (
+                <div key={item.id} className={`p-3 space-y-2 ${isRent ? 'bg-orange-50 dark:bg-orange-900/10' : item.isChecked ? 'bg-green-50 dark:bg-green-900/10' : ''}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {item.accountName}
+                      {isRent && <span className="ml-2 text-xs text-orange-600 dark:text-orange-400 font-normal">🏠 cash box</span>}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">{sourceLabel(item.sourceType)}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Reported $</p>
+                      <p className="text-sm font-mono text-gray-900 dark:text-gray-100">${reported.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Actual $</p>
+                      {isRent ? (
+                        <span className="text-sm font-mono text-orange-700 dark:text-orange-300 font-semibold">
+                          ${reported.toFixed(2)}
+                        </span>
+                      ) : isLocked || !canEdit ? (
+                        <span className={`text-sm font-mono ${matches ? 'text-green-600 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                          {parsedActual !== null ? `$${parsedActual.toFixed(2)}` : `$${reported.toFixed(2)}`}
+                        </span>
+                      ) : (
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={localAmt}
+                          onChange={e => setLocalAmounts(prev => ({ ...prev, [item.id]: e.target.value }))}
+                          onBlur={() => {
+                            if (localAmt !== (item.actualAmount !== null ? String(item.actualAmount) : '')) {
+                              updateItem(item.id, item.isChecked, localAmt || null)
+                            }
+                          }}
+                          placeholder={reported.toFixed(2)}
+                          className={`w-full border rounded px-2 py-1 text-sm font-mono text-right focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100
+                            ${mismatch ? 'border-red-400 bg-red-50 dark:bg-red-900/20 text-red-600' : ''}
+                            ${matches ? 'border-green-400 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : ''}
+                            ${!mismatch && !matches ? 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700' : ''}
+                          `}
+                        />
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                      {isRent ? (
+                        <span title="Rent is pre-confirmed" className="text-orange-500 text-sm">🏠</span>
+                      ) : (
+                        <input
+                          type="checkbox"
+                          checked={item.isChecked}
+                          disabled={isLocked || !canEdit}
+                          onChange={e => {
+                            if (!canEdit) return
+                            const checked = e.target.checked
+                            updateItem(item.id, checked, localAmt || null)
+                          }}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        />
+                      )}
+                      <span>Done</span>
+                    </label>
+                  </div>
+                  {(isRent || item.notes) && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {isRent ? <span className="text-orange-600 dark:text-orange-400">Fixed — put in rent cash box</span> : item.notes}
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+            <div className="p-3 flex items-center justify-between bg-gray-50 dark:bg-gray-800">
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Total Withdrawn</span>
+              <span className="text-sm font-semibold font-mono text-gray-900 dark:text-gray-100">Rep ${totalReported.toFixed(2)} · Act ${totalActual.toFixed(2)}</span>
+            </div>
+            {businessKeeps !== null && (
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border-t-2 border-blue-300 dark:border-blue-700">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-bold text-blue-800 dark:text-blue-200">🏦 Remaining Cash Bucket Balance</span>
+                  <span className="text-sm font-bold font-mono text-blue-800 dark:text-blue-200 shrink-0">${businessKeeps.toFixed(2)}</span>
+                </div>
+                {carryOverBalance > 0.009 && (
+                  <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">
+                    Includes ${carryOverBalance.toFixed(2)} carried over from previous days
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="hidden sm:block overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-800">
               <tr>
@@ -940,6 +1102,7 @@ export function CashAllocationDailyReport({ businessId: propBusinessId, business
               )}
             </tfoot>
           </table>
+          </div>
         </div>
       )}
 

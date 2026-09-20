@@ -312,14 +312,14 @@ export function RestaurantExpirationAlerts() {
 
       {/* Alert Tabs */}
       <div className="card">
-        <div className="border-b border-gray-200 dark:border-gray-700">
+        <div className="border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
           <nav className="flex space-x-8 px-6" aria-label="Tabs">
             {alertTabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveAlertTab(tab.id as any)}
                 className={`
-                  py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors
+                  py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors shrink-0 whitespace-nowrap
                   ${activeAlertTab === tab.id
                     ? 'border-orange-500 text-orange-600'
                     : 'border-transparent text-secondary hover:text-primary hover:border-gray-300'

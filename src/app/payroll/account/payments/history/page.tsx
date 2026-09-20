@@ -11,6 +11,8 @@ import { MainLayout } from '@/components/layout/main-layout'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { PaymentStatusBadge } from '@/components/payroll/payment-status-badge'
 import { useAlert, useConfirm } from '@/components/ui/confirm-modal'
+import { SearchableSelect } from '@/components/ui/searchable-select'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 
 interface Payment {
   id: string
@@ -463,6 +465,30 @@ function PaymentHistoryContent() {
 
   const activeFilterCount = Object.values(filters).filter((v) => v !== '').length
 
+  const employeeOptions = employees.map((emp) => ({
+    value: emp.id,
+    label: `${emp.fullName || `${emp.firstName} ${emp.lastName}`} (${emp.employeeNumber})`,
+  }))
+
+  const statusLabels: Record<string, string> = {
+    PENDING: 'Pending',
+    VOUCHER_ISSUED: 'Voucher Issued',
+    SIGNED: 'Signed',
+    COMPLETED: 'Completed',
+  }
+
+  // Summary of the collapsed "More Filters" section's active selections —
+  // shown next to the toggle so the user can see what's applied without
+  // expanding it (MBM-299).
+  const moreFiltersSummary = [
+    filters.status && statusLabels[filters.status],
+    filters.paymentType && getPaymentTypeLabel(filters.paymentType),
+    filters.startDate && `From ${filters.startDate}`,
+    filters.endDate && `To ${filters.endDate}`,
+    filters.isAdvance === 'true' && 'Advances Only',
+    filters.isAdvance === 'false' && 'Regular Only',
+  ].filter(Boolean).join(' · ')
+
   return (
     <ProtectedRoute>
         <ContentLayout
@@ -517,26 +543,32 @@ function PaymentHistoryContent() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Employee Filter */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Employee
-                  </label>
-                  <select
-                    value={filters.employeeId}
-                    onChange={(e) => handleFilterChange('employeeId', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">All Employees</option>
-                    {employees.map((emp) => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.fullName || `${emp.firstName} ${emp.lastName}`} ({emp.employeeNumber})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {/* Employee — always visible and searchable; the control
+                  people reach for most on this report (MBM-299). */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Employee
+                </label>
+                <SearchableSelect
+                  options={employeeOptions}
+                  value={filters.employeeId}
+                  onChange={(v) => handleFilterChange('employeeId', v)}
+                  placeholder="All Employees"
+                  searchPlaceholder="Search employees…"
+                  allLabel="All Employees"
+                />
+              </div>
 
+              <CollapsibleSection
+                title="More Filters"
+                icon="🔎"
+                badge={moreFiltersSummary ? (
+                  <span className="px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-xs font-semibold">
+                    {moreFiltersSummary}
+                  </span>
+                ) : undefined}
+              >
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* Status Filter */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -618,6 +650,7 @@ function PaymentHistoryContent() {
                   </select>
                 </div>
               </div>
+              </CollapsibleSection>
             </div>
 
             {/* Payment History Table */}

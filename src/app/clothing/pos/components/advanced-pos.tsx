@@ -30,6 +30,7 @@ import { QuickEditModeButtons } from '@/components/pos/quick-edit-mode-buttons'
 import { QuickEditCardButton } from '@/components/pos/quick-edit-card-button'
 import { ImageUploadDialog } from '@/components/pos/image-upload-dialog'
 import { PriceEditDialog } from '@/components/pos/price-edit-dialog'
+import { useElementHeight } from '@/hooks/use-element-height'
 
 interface CartItem {
   id: string
@@ -116,6 +117,12 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [supervisorOverride, setSupervisorOverride] = useState<SupervisorOverride | null>(null)
   const [loading, setLoading] = useState(false)
+  // Live-measured height of the mode/search bar above the Quick Add tab
+  // selector, so the tab selector's sticky offset always sits flush below
+  // it instead of a hardcoded pixel guess — a shorter-than-assumed bar left
+  // a gap the product list scrolled up through, visible as ghosted content
+  // between the two sticky bars.
+  const { ref: modeBarRef, height: modeBarHeight } = useElementHeight<HTMLDivElement>()
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed' | 'none'>('none')
   const [discountValue, setDiscountValue] = useState(0)
   const [customerInfo, setCustomerInfo] = useState<{
@@ -1896,7 +1903,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       <div className="lg:col-span-2 space-y-6">
         {/* Compact mode bar + search — single row. Sticky so search stays
             reachable while scrolling the product list, matching Restaurant POS. */}
-        <div className={`sticky top-14 sm:top-16 z-20 p-2 rounded-lg border ${getModeColor()}`}>
+        <div ref={modeBarRef} className={`sticky top-14 sm:top-16 z-20 p-2 rounded-lg border ${getModeColor()}`}>
           <div className="flex items-center gap-2">
             {/* Sale / Return / Exchange */}
             <div className="flex gap-1 flex-shrink-0">
@@ -2049,8 +2056,13 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         {/* Quick Add / Bale Items tabbed panel */}
         <div className="card p-4">
           {/* Tab selector — sticky so Update Images/Adjust Prices stay reachable
-              while scrolling the product list, matching the Restaurant POS pattern. */}
-          <div className="sticky top-[136px] sm:top-[144px] z-20 bg-white dark:bg-gray-800 flex flex-wrap items-center gap-2 mb-4 py-2 -mt-4 px-4 -mx-4 border-b border-gray-200 dark:border-gray-700">
+              while scrolling the product list, matching the Restaurant POS pattern.
+              Top offset is the fixed header height plus the live-measured mode/search
+              bar height above (see modeBarRef) — see MBM-299 opaque-overlay fix. */}
+          <div
+            className="sticky top-[calc(3.5rem+var(--mode-bar-h))] sm:top-[calc(4rem+var(--mode-bar-h))] z-20 bg-white dark:bg-gray-800 flex flex-wrap items-center gap-2 mb-4 py-2 -mt-4 px-4 -mx-4 border-b border-gray-200 dark:border-gray-700"
+            style={{ '--mode-bar-h': `${modeBarHeight}px` } as React.CSSProperties}
+          >
             <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-full sm:w-auto">
               <button
                 type="button"

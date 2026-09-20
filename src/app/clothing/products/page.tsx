@@ -166,14 +166,14 @@ function ClothingProductsContent() {
 
             {/* Tab Navigation */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-              <div className="border-b border-gray-200 dark:border-gray-700">
+              <div className="border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
                 <nav className="flex space-x-8 px-6" aria-label="Tabs">
                   {tabs.map((tab) => (
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id as any)}
                       className={`
-                        py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors
+                        py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors shrink-0 whitespace-nowrap
                         ${activeTab === tab.id
                           ? 'border-primary text-primary dark:text-primary'
                           : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'

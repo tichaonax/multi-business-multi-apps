@@ -702,7 +702,7 @@ export default function PettyCashDetailPage() {
     <ContentLayout title="Petty Cash Request">
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-start justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
             <button onClick={() => router.push(returnUrl ?? '/petty-cash')} className="text-sm text-blue-600 dark:text-blue-400 hover:underline mb-2 flex items-center gap-1">
               &larr; Back to list
@@ -710,7 +710,7 @@ export default function PettyCashDetailPage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{req.purpose}</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{req.business?.name}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center flex-wrap gap-2">
             {canRequest && (
               <button
                 onClick={() => router.push(`/petty-cash/new?repeat=${req.id}`)}

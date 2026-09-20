@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -52,6 +52,27 @@ interface SystemTotals {
   topPayee: string | null
 }
 
+interface PayeePayment {
+  id: string
+  amount: number
+  paymentDate: string
+  category: { id: string; name: string; emoji: string } | null
+  receiptNumber: string | null
+  notes: string | null
+  status: string
+  expenseAccount: { id: string; accountName: string; accountNumber: string }
+  createdBy: { id: string; name: string } | null
+}
+
+interface PayeeDetail {
+  payee: { id: string; type: string; name: string }
+  totalPaid: number
+  paymentCount: number
+  accountsCount: number
+  payments: PayeePayment[]
+  pagination: { total: number; limit: number; offset: number; hasMore: boolean }
+}
+
 function payeeTypeBadge(type: string) {
   const styles: Record<string, string> = {
     EMPLOYEE: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
@@ -79,9 +100,46 @@ export default function PayeeAnalysisReportPage() {
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange())
   const [allTime, setAllTime] = useState(true)
   const [payeeType, setPayeeType] = useState('ALL')
+  const [nameSearch, setNameSearch] = useState('')
+
+  // Payee payment-history popup — clicking a payee name opens this instead of
+  // navigating away, so the user never loses their place in this report.
+  const [viewPayee, setViewPayee] = useState<PayeeRow | null>(null)
+  const [viewDetail, setViewDetail] = useState<PayeeDetail | null>(null)
+  const [viewLoading, setViewLoading] = useState(false)
+  const [viewError, setViewError] = useState<string | null>(null)
 
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+
+  const formatDateTime = (iso: string) =>
+    new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+  const openPayeePayments = async (p: PayeeRow) => {
+    setViewPayee(p)
+    setViewDetail(null)
+    setViewError(null)
+    setViewLoading(true)
+    try {
+      const params = new URLSearchParams({ limit: '50' })
+      if (!allTime) {
+        params.append('startDate', toISODate(dateRange.start))
+        params.append('endDate', toISODate(dateRange.end))
+      }
+      const res = await fetch(`/api/expense-account/payees/${p.payeeType}/${p.payeeId}/payments?${params}`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        setViewDetail(data.data)
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setViewError(err?.error || `Failed to load payments (HTTP ${res.status})`)
+      }
+    } catch {
+      setViewError('Network error — could not load payments')
+    } finally {
+      setViewLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/auth/signin')
@@ -120,7 +178,21 @@ export default function PayeeAnalysisReportPage() {
   const chartData = byPayee.slice(0, 10).map((p) => ({
     name: p.payeeName.length > 14 ? p.payeeName.slice(0, 14) + '…' : p.payeeName,
     amount: p.totalAmount,
+    payeeType: p.payeeType,
+    payeeId: p.payeeId,
+    fullName: p.payeeName,
+    paymentCount: p.paymentCount,
   }))
+
+  // Search is applied client-side against the already loaded rows. Rank is
+  // captured before filtering so a search doesn't renumber the "Top Payees"
+  // ranking (e.g. #3 stays #3 even if #1 and #2 are filtered out).
+  const rankedPayee = useMemo(() => byPayee.map((p, i) => ({ ...p, rank: i + 1 })), [byPayee])
+  const visiblePayees = useMemo(() => {
+    if (!nameSearch.trim()) return rankedPayee
+    const q = nameSearch.trim().toLowerCase()
+    return rankedPayee.filter(p => p.payeeName.toLowerCase().includes(q))
+  }, [rankedPayee, nameSearch])
 
   return (
     <ContentLayout title="Payee Analysis" subtitle="Top payees across all expense accounts">
@@ -129,6 +201,29 @@ export default function PayeeAnalysisReportPage() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           Back to Reports Hub
         </Link>
+
+        {/* Always-visible search — not tucked inside the collapsed filters,
+            since it's the control people reach for most on this report. */}
+        <div className="relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+          </svg>
+          <input
+            type="text"
+            value={nameSearch}
+            onChange={e => setNameSearch(e.target.value)}
+            placeholder="Search by payee…"
+            className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+        </div>
+
+        <DateRangeSelector
+          value={dateRange}
+          onChange={setDateRange}
+          showAllTime
+          allTime={allTime}
+          onAllTimeChange={setAllTime}
+        />
 
         {/* Filters */}
         <CollapsibleSection
@@ -163,14 +258,6 @@ export default function PayeeAnalysisReportPage() {
           </div>
         </CollapsibleSection>
 
-        <DateRangeSelector
-          value={dateRange}
-          onChange={setDateRange}
-          showAllTime
-          allTime={allTime}
-          onAllTimeChange={setAllTime}
-        />
-
         {/* Summary cards */}
         {totals && (
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
@@ -200,14 +287,23 @@ export default function PayeeAnalysisReportPage() {
             {/* Bar chart: top 10 */}
             {chartData.length > 0 && (
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-                <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm mb-4">Top 10 Payees by Amount</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm mb-4">Top 10 Payees by Amount <span className="text-xs font-normal text-gray-400">(click a bar for details)</span></h3>
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={chartData} margin={{ left: 10, right: 10 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-25} textAnchor="end" height={50} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
                     <Tooltip formatter={(v: any) => formatCurrency(v)} />
-                    <Bar dataKey="amount" fill="#87B5A5" radius={[4, 4, 0, 0]} />
+                    <Bar
+                      dataKey="amount"
+                      fill="#87B5A5"
+                      radius={[4, 4, 0, 0]}
+                      cursor="pointer"
+                      onClick={(entry: any) => {
+                        const d = entry?.payload ?? entry
+                        openPayeePayments({ payeeType: d.payeeType, payeeId: d.payeeId, payeeName: d.fullName, totalAmount: d.amount, paymentCount: d.paymentCount })
+                      }}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -218,16 +314,23 @@ export default function PayeeAnalysisReportPage() {
               <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                 <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm">All Payees</h3>
               </div>
+              {visiblePayees.length === 0 && (
+                <div className="text-center py-8 text-sm text-gray-400">No payees match "{nameSearch}"</div>
+              )}
               {/* Mobile card list (MBM-299 responsive-reports template — see
                   src/app/inventory/reports/pricing-exceptions/page.tsx) */}
               <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
-                {byPayee.map((p, i) => (
+                {visiblePayees.map((p) => (
                   <div key={`${p.payeeType}-${p.payeeId}`} className="p-3 space-y-2">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-gray-900 dark:text-gray-100">
-                        <span className="text-xs text-gray-400 mr-1">#{i + 1}</span>
+                      <button
+                        type="button"
+                        onClick={() => openPayeePayments(p)}
+                        className="font-medium text-blue-600 dark:text-blue-400 hover:underline text-left"
+                      >
+                        <span className="text-xs text-gray-400 mr-1">#{p.rank}</span>
                         {p.payeeName}
-                      </span>
+                      </button>
                       <span className="font-medium text-red-600 dark:text-red-400 shrink-0">{formatCurrency(p.totalAmount)}</span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -250,10 +353,18 @@ export default function PayeeAnalysisReportPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {byPayee.map((p, i) => (
+                    {visiblePayees.map((p) => (
                       <tr key={`${p.payeeType}-${p.payeeId}`} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                        <td className="px-4 py-3 text-center text-xs text-gray-400">#{i + 1}</td>
-                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{p.payeeName}</td>
+                        <td className="px-4 py-3 text-center text-xs text-gray-400">#{p.rank}</td>
+                        <td className="px-4 py-3 font-medium">
+                          <button
+                            type="button"
+                            onClick={() => openPayeePayments(p)}
+                            className="text-blue-600 dark:text-blue-400 hover:underline text-left"
+                          >
+                            {p.payeeName}
+                          </button>
+                        </td>
                         <td className="px-4 py-3 text-center">{payeeTypeBadge(p.payeeType)}</td>
                         <td className="px-4 py-3 text-right font-medium text-red-600 dark:text-red-400">{formatCurrency(p.totalAmount)}</td>
                         <td className="px-4 py-3 text-center text-gray-500 dark:text-gray-400">{p.paymentCount}</td>
@@ -295,6 +406,85 @@ export default function PayeeAnalysisReportPage() {
           </>
         )}
       </div>
+
+      {/* Payee payment-history popup — keeps the user on this report instead
+          of navigating away; "View Full History" is the only escape hatch. */}
+      {viewPayee && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setViewPayee(null)}>
+          <div
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{viewPayee.payeeName}</h3>
+                  {payeeTypeBadge(viewPayee.payeeType)}
+                </div>
+                {viewDetail && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {formatCurrency(viewDetail.totalPaid)} · {viewDetail.paymentCount} payment{viewDetail.paymentCount === 1 ? '' : 's'} · {viewDetail.accountsCount} account{viewDetail.accountsCount === 1 ? '' : 's'}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewPayee(null)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none shrink-0"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-5 py-3">
+              {viewLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></div>
+                </div>
+              ) : viewError ? (
+                <div className="text-center py-8 text-sm text-red-500">{viewError}</div>
+              ) : !viewDetail || viewDetail.payments.length === 0 ? (
+                <div className="text-center py-8 text-sm text-gray-400">No payments found for this payee{!allTime ? ' in the selected date range' : ''}</div>
+              ) : (
+                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {viewDetail.payments.map(pmt => (
+                    <div key={pmt.id} className="py-3 space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {pmt.category ? `${pmt.category.emoji} ${pmt.category.name}` : 'Uncategorized'}
+                        </span>
+                        <span className="text-sm font-medium text-red-600 dark:text-red-400 shrink-0">{formatCurrency(pmt.amount)}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
+                        <span>{formatDateTime(pmt.paymentDate)} · {pmt.expenseAccount.accountName}</span>
+                        <span className="capitalize">{pmt.status.toLowerCase()}</span>
+                      </div>
+                      {pmt.notes && (
+                        <p className="text-xs text-gray-600 dark:text-gray-300">{pmt.notes}</p>
+                      )}
+                      {pmt.receiptNumber && (
+                        <p className="text-xs text-gray-400">Receipt #{pmt.receiptNumber}</p>
+                      )}
+                    </div>
+                  ))}
+                  {viewDetail.pagination.hasMore && (
+                    <p className="text-xs text-gray-400 text-center pt-3">Showing first {viewDetail.pagination.limit} payments — use "View Full History" for more.</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-700 shrink-0">
+              <Link
+                href={`/expense-accounts/reports/payee-history?payeeType=${viewPayee.payeeType}&payeeId=${viewPayee.payeeId}&payeeName=${encodeURIComponent(viewPayee.payeeName)}${allTime ? '&allTime=true' : ''}`}
+                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                View Full History →
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </ContentLayout>
   )
 }
