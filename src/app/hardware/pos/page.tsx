@@ -455,7 +455,15 @@ export default function HardwarePOSPage() {
             </div>
 
             {/* Daily Sales Widget — MBM-299: collapsed by default. */}
-            <CollapsibleSection title="Today's Sales" icon="📊">
+            <CollapsibleSection
+              title="Today's Sales"
+              icon="📊"
+              badge={dailySales && (
+                <span className="text-green-600 dark:text-green-400 font-bold text-sm">
+                  ${dailySales.summary.totalSales.toFixed(2)}
+                </span>
+              )}
+            >
             <DailySalesWidget
               dailySales={dailySales}
               businessType="hardware"

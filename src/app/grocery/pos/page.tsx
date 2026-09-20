@@ -3205,7 +3205,15 @@ function GroceryPOSContent() {
               MBM-299: collapsed by default (mobile + desktop) so the POS
               grid is immediately visible without scrolling past stats. */}
           {(isAdmin || hasPermission('canAccessFinancialData')) && (
-            <CollapsibleSection title="Today's Sales" icon="📊">
+            <CollapsibleSection
+              title="Today's Sales"
+              icon="📊"
+              badge={dailySales && (
+                <span className="text-green-600 dark:text-green-400 font-bold text-sm">
+                  ${dailySales.summary.totalSales.toFixed(2)}
+                </span>
+              )}
+            >
             <div className="space-y-3">
               <DailySalesWidget
                 dailySales={dailySales}

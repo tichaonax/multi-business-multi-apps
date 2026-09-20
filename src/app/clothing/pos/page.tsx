@@ -551,7 +551,15 @@ export default function ClothingPOSPage() {
                 MBM-299: collapsed by default. */}
             {(isAdmin || hasPermission('canAccessFinancialData')) && (
               <div className="px-3 sm:px-4 lg:px-6 py-2 border-b border-gray-200 dark:border-gray-700">
-              <CollapsibleSection title="Today's Sales" icon="📊">
+              <CollapsibleSection
+                title="Today's Sales"
+                icon="📊"
+                badge={dailySales && (
+                  <span className="text-green-600 dark:text-green-400 font-bold text-sm">
+                    ${dailySales.summary.totalSales.toFixed(2)}
+                  </span>
+                )}
+              >
               <div className="space-y-2">
                 <DailySalesWidget
                   dailySales={dailySales}
@@ -653,7 +661,15 @@ export default function ClothingPOSPage() {
             {/* Financial Summary — only for users with canAccessFinancialData.
                 MBM-299: collapsed by default. */}
             {(isAdmin || hasPermission('canAccessFinancialData')) && currentBusinessId && (
-              <CollapsibleSection title="Today's Sales" icon="📊">
+              <CollapsibleSection
+                title="Today's Sales"
+                icon="📊"
+                badge={dailySales && (
+                  <span className="text-green-600 dark:text-green-400 font-bold text-sm">
+                    ${dailySales.summary.totalSales.toFixed(2)}
+                  </span>
+                )}
+              >
               <div className="space-y-3">
                 <DailySalesWidget
                   dailySales={dailySales}

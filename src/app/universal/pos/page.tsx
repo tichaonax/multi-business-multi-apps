@@ -44,6 +44,10 @@ export default function UniversalPOS() {
   const { currentBusiness, currentBusinessId, hasPermission } = useBusinessPermissionsContext()
   const [selectedSalesperson, setSelectedSalesperson] = useState<SelectedSalesperson | null>(null)
   const [financialRefreshKey, setFinancialRefreshKey] = useState(0)
+  // Lifted from POSFinancialPanel (which fetches it internally) so the
+  // "Today's Sales" section can show the total on its collapsed header,
+  // matching restaurant/grocery/clothing/hardware POS.
+  const [financialSummary, setFinancialSummary] = useState<{ sales: { totalRevenue: number; totalOrders: number } } | null>(null)
   const searchParams = useSearchParams()
   const globalCart = useGlobalCart()
   const hasImportedGlobalCart = useRef(false)
@@ -806,10 +810,19 @@ export default function UniversalPOS() {
             MBM-299: collapsed by default (mobile + desktop), matching the
             same treatment applied to grocery/restaurant/clothing/hardware POS. */}
         {currentBusinessId && hasPermission('canAccessFinancialData') && (
-          <CollapsibleSection title="Today's Sales" icon="📊">
+          <CollapsibleSection
+            title="Today's Sales"
+            icon="📊"
+            badge={financialSummary && (
+              <span className="text-green-600 dark:text-green-400 font-bold text-sm">
+                ${financialSummary.sales.totalRevenue.toFixed(2)}
+              </span>
+            )}
+          >
           <POSFinancialPanel
             businessId={currentBusinessId}
             refreshKey={financialRefreshKey}
+            onSummaryChange={setFinancialSummary}
           />
           </CollapsibleSection>
         )}

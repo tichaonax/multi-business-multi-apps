@@ -30,9 +30,12 @@ interface POSFinancialPanelProps {
   businessId: string
   /** Re-fetch when this changes (e.g. after checkout) */
   refreshKey?: number
+  /** Reports the fetched summary back up (e.g. so a parent's collapsed
+   *  section header can show the total without expanding this panel). */
+  onSummaryChange?: (summary: FinancialSummary | null) => void
 }
 
-export function POSFinancialPanel({ businessId, refreshKey }: POSFinancialPanelProps) {
+export function POSFinancialPanel({ businessId, refreshKey, onSummaryChange }: POSFinancialPanelProps) {
   const [summary, setSummary] = useState<FinancialSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [showExpensesModal, setShowExpensesModal] = useState(false)
@@ -44,10 +47,11 @@ export function POSFinancialPanel({ businessId, refreshKey }: POSFinancialPanelP
     fetch(`/api/universal/pos-daily-summary?businessId=${businessId}&timezone=${encodeURIComponent(timezone)}`)
       .then((r) => r.json())
       .then((d) => {
-        if (d.success) setSummary(d.data)
+        if (d.success) { setSummary(d.data); onSummaryChange?.(d.data) }
       })
       .catch(() => {/* non-critical */})
       .finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId, refreshKey])
 
   if (loading || !summary) return null
