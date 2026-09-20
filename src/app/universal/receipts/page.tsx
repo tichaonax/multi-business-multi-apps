@@ -497,6 +497,132 @@ function ReceiptHistoryPageContent() {
         {/* Receipts List */}
         {!loading && receipts.length > 0 && (
           <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg">
+            {/* Mobile card list (MBM-299 responsive-reports template — see
+                src/app/inventory/reports/pricing-exceptions/page.tsx). No
+                sticky column-header row here — that's what was cutting off
+                and letting rows scroll behind it on narrow screens; a card
+                list doesn't need one. */}
+            <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
+              {receipts.map((receipt) => (
+                <div
+                  key={receipt.id}
+                  onClick={() => handleReceiptClick(receipt.id)}
+                  className={`p-3 space-y-2 cursor-pointer transition-colors ${
+                    receipt.cancellationOutcome === 'CANCELLED'
+                      ? 'bg-red-50 dark:bg-red-900/10'
+                      : receipt.cancellationOutcome === 'DENIED'
+                      ? 'bg-orange-50 dark:bg-orange-900/10'
+                      : ''
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2 min-w-0">
+                      {canReassign && (
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(receipt.id)}
+                          onChange={() => toggleSelected(receipt.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-1 rounded border-gray-300 dark:border-gray-600 shrink-0"
+                        />
+                      )}
+                      <span className="font-medium text-gray-900 dark:text-white">{receipt.orderNumber}</span>
+                    </div>
+                    <span
+                      className={`shrink-0 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        receipt.status === 'COMPLETED'
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                          : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                      }`}
+                    >
+                      {receipt.status}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Customer</p>
+                      <p className="text-gray-600 dark:text-gray-300">{receipt.customerName}</p>
+                      {receipt.customerPhone && receipt.customerName !== 'Walk-in Customer' && (
+                        <p className="text-xs text-gray-400 dark:text-gray-500">{receipt.customerPhone}</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Salesperson</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-gray-600 dark:text-gray-300">{receipt.salespersonName || '-'}</span>
+                        <ReassignmentHistoryBadge history={receipt.reassignmentHistory} />
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Payment</p>
+                      <p className="text-gray-600 dark:text-gray-300">
+                        {receipt.paymentMethod
+                          ? receipt.paymentMethod.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
+                          : '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Date</p>
+                      <p className="text-gray-600 dark:text-gray-300">{formatDate(receipt.createdAt)}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Amount</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">{formatCurrency(receipt.totalAmount)}</p>
+                      {receipt.cancellationOutcome === 'CANCELLED' && receipt.refundAmount != null && (
+                        <p className="text-xs text-red-600 dark:text-red-400 font-normal">Refunded: {formatCurrency(receipt.refundAmount)}</p>
+                      )}
+                      {receipt.mealProgram && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 font-normal">🍱 Meal Program</p>
+                      )}
+                      {!receipt.mealProgram && receipt.rewardCouponCode && (
+                        <p className="text-xs text-green-600 dark:text-green-400 font-normal">🎁 {receipt.rewardCouponCode}</p>
+                      )}
+                      {!receipt.mealProgram && !receipt.rewardCouponCode && receipt.discountAmount > 0 && (
+                        <p className="text-xs text-green-600 dark:text-green-400 font-normal">-{formatCurrency(receipt.discountAmount)} discount</p>
+                      )}
+                      {receipt.hasCombo && (
+                        <span className="inline-flex items-center gap-0.5 mt-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded text-xs font-semibold">
+                          ✦ Combo
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {(receipt.cancellationOutcome || (receipt.status === 'COMPLETED' && isSameDayOrder(receipt.createdAt)) || canReassign) && (
+                    <div className="flex items-center gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
+                      {receipt.cancellationOutcome === 'CANCELLED' ? (
+                        <span className="px-2 py-1 text-xs font-medium text-red-700 bg-red-100 dark:bg-red-900/30 dark:text-red-400 rounded-lg">
+                          Refunded
+                        </span>
+                      ) : receipt.cancellationOutcome === 'DENIED' ? (
+                        <span className="px-2 py-1 text-xs font-medium text-orange-700 bg-orange-100 dark:bg-orange-900/30 dark:text-orange-400 rounded-lg">
+                          Denied
+                        </span>
+                      ) : receipt.status === 'COMPLETED' && isSameDayOrder(receipt.createdAt) ? (
+                        <button
+                          onClick={() => handleCancelClick(receipt.id)}
+                          disabled={cancelLoading === receipt.id}
+                          className="px-3 py-1 text-xs font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                        >
+                          {cancelLoading === receipt.id ? '…' : 'Cancel / Refund'}
+                        </button>
+                      ) : null}
+                      {canReassign && (
+                        <button
+                          onClick={() => setReassignTarget({ orderIds: [receipt.id], count: 1 })}
+                          className="px-3 py-1 text-xs font-medium text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                        >
+                          Reassign
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden sm:block overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead
                 className="bg-gray-50 dark:bg-gray-900 sticky z-10 top-[calc(3.5rem+var(--filters-h,0px))] sm:top-[calc(4rem+var(--filters-h,0px))]"
@@ -659,6 +785,7 @@ function ReceiptHistoryPageContent() {
                 />
               </tbody>
             </table>
+            </div>
 
             {/* Pagination */}
             {pagination && (
