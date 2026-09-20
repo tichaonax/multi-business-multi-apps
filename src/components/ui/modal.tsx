@@ -91,8 +91,17 @@ export function Modal({ isOpen, onClose, title, children, size = 'md', noPadding
         </div>
 
         {/* Content */}
+        {/* noPadding consumers (currently just the receipt preview modal)
+            manage their own two-panel independent scrolling on desktop, but
+            that layout relies on vh-based max-heights that mobile browsers
+            can get wrong when the address bar is showing/hiding (the classic
+            100vh-taller-than-the-actually-visible-viewport quirk) — sections
+            below the fold become genuinely unreachable there, not just
+            visually cramped. Below md, fall back to one plain top-to-bottom
+            scroll for the whole modal body instead of nested scroll regions,
+            which can't have that failure mode. */}
         <div className={`bg-white dark:bg-gray-900 flex-1 rounded-b-lg ${
-          noPadding ? 'overflow-hidden flex flex-col' : 'p-6 overflow-y-auto'
+          noPadding ? 'overflow-y-auto md:overflow-hidden flex flex-col' : 'p-6 overflow-y-auto'
         }`}>{children}</div>
       </div>
     </div>,

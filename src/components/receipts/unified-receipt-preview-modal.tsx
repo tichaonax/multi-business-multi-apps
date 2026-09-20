@@ -544,8 +544,13 @@ export function UnifiedReceiptPreviewModal({
       size="xl"
       noPadding
     >
-      {/* Two-panel layout: receipt preview left, settings right */}
-      <div className="flex flex-col md:flex-row flex-1 min-h-0">
+      {/* Two-panel layout: receipt preview left, settings right. Below md,
+          Modal's own content box is the single scroll container (see
+          modal.tsx) — these panels just flow naturally, full height, one
+          after another; no nested vh-based scroll regions that mobile
+          browsers can size wrong. At md+, each panel scrolls independently
+          side by side as before. */}
+      <div className="flex flex-col md:flex-row md:flex-1 md:min-h-0">
 
         {/* Left panel — receipt preview */}
         <div className="md:w-[42%] border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700 flex flex-col bg-gray-50 dark:bg-gray-800/50">
@@ -554,7 +559,7 @@ export function UnifiedReceiptPreviewModal({
               <span>🧾</span> {title.replace('Print ', '')} Preview
             </h3>
           </div>
-          <div className="flex-1 overflow-y-auto p-3 max-h-[55vh] md:max-h-[70vh]">
+          <div className="p-3 md:flex-1 md:overflow-y-auto md:max-h-[70vh]">
             {receiptData ? (
               <div className="bg-white dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700 shadow-sm">
                 <ReceiptTemplate
@@ -572,18 +577,10 @@ export function UnifiedReceiptPreviewModal({
           </div>
         </div>
 
-        {/* Right panel — settings + actions. flex-1 + min-h-0 must apply
-            unconditionally, not just md:flex-1 — on mobile (where the panels
-            above stack via flex-col instead of sitting side by side), a
-            bare "md:flex-1" gives this panel no height constraint at all
-            below the md breakpoint, so it grows to its natural content
-            height. Combined with the preview panel above it, that can
-            exceed the Modal's 90vh cap — and since Modal clips overflow
-            instead of scrolling it (noPadding mode), the "always visible,
-            stuck to bottom" action buttons below were silently cut off
-            entirely on narrow screens, with no way to scroll to them. */}
-        <div className="flex-1 min-h-0 flex flex-col">
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        {/* Right panel — settings + actions. flex-1/min-h-0/overflow-y-auto
+            only apply at md+, matching the single-scroll mobile layout above. */}
+        <div className="flex flex-col md:flex-1 md:min-h-0">
+          <div className="px-5 py-4 space-y-4 md:flex-1 md:overflow-y-auto">
 
             {/* Printer Selection */}
             <div>
