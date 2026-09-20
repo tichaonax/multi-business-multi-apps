@@ -205,8 +205,19 @@ function VehicleServiceJobsPageContent() {
           </div>
         </CollapsibleSection>
 
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+        {/* Status filter — collapsed by default (MBM-299) with "All" selected;
+            the badge shows whichever status is currently active. */}
+        <CollapsibleSection
+          title="Status"
+          icon="🏷️"
+          className="mb-4"
+          badge={
+            <span className="px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-semibold">
+              {awaitingPaymentOnly ? 'Awaiting Payment' : statusFilter === '' ? 'All' : statusFilter.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+            </span>
+          }
+        >
+          <div className="flex flex-wrap items-center gap-2">
             {(['', 'open', 'in_progress', 'completed', 'billed', 'cancelled'] as const).map(s => (
               <button
                 key={s || 'all'}
@@ -233,28 +244,29 @@ function VehicleServiceJobsPageContent() {
               </button>
             )}
           </div>
-          <div className="flex items-center gap-2">
+        </CollapsibleSection>
+
+        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+          <Link
+            href="/vehicle-service/customers"
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg text-sm font-medium"
+          >
+            🧑‍🤝‍🧑 Customers
+          </Link>
+          {canSeeMoney && (
             <Link
-              href="/vehicle-service/customers"
+              href="/vehicle-service/labour-rates"
               className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg text-sm font-medium"
             >
-              🧑‍🤝‍🧑 Customers
+              💵 Labour Rates
             </Link>
-            {canSeeMoney && (
-              <Link
-                href="/vehicle-service/labour-rates"
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg text-sm font-medium"
-              >
-                💵 Labour Rates
-              </Link>
-            )}
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
-            >
-              + New Job
-            </button>
-          </div>
+          )}
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+          >
+            + New Job
+          </button>
         </div>
 
         {error && (
