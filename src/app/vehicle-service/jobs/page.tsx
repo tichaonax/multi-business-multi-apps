@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -96,18 +96,15 @@ function VehicleServiceJobsPageContent() {
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange())
   const [filterContractors, setFilterContractors] = useState<Array<{ id: string; fullName: string }>>([])
 
+  // Status/"awaiting payment" filtering happens client-side (see visibleJobs
+  // below) rather than as a query param — fetching every status at once is
+  // what lets each status button show how many jobs match it.
   const fetchJobs = useCallback(async () => {
     if (!currentBusinessId) return
     setLoading(true)
     setError(null)
     try {
       const params = new URLSearchParams({ businessId: currentBusinessId })
-      if (awaitingPaymentOnly) {
-        params.append('status', 'billed')
-        params.append('paymentStatus', 'PENDING')
-      } else if (statusFilter) {
-        params.append('status', statusFilter)
-      }
       if (search) params.append('search', search)
       if (contractorFilter) params.append('contractorId', contractorFilter)
       if (dateFrom) params.append('dateFrom', dateFrom)
@@ -121,7 +118,7 @@ function VehicleServiceJobsPageContent() {
     } finally {
       setLoading(false)
     }
-  }, [currentBusinessId, statusFilter, awaitingPaymentOnly, search, contractorFilter, dateFrom, dateTo])
+  }, [currentBusinessId, search, contractorFilter, dateFrom, dateTo])
 
   useEffect(() => { fetchJobs() }, [fetchJobs])
 
@@ -151,6 +148,25 @@ function VehicleServiceJobsPageContent() {
   }
 
   const formatCurrency = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+
+  // Per-status counts (within the current search/contractor/date filters),
+  // shown on each status button so the user knows how many jobs match
+  // before clicking it.
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const j of jobs) counts[j.status] = (counts[j.status] ?? 0) + 1
+    return counts
+  }, [jobs])
+  const awaitingPaymentCount = useMemo(
+    () => jobs.filter(j => j.status === 'billed' && j.paymentStatus === 'PENDING').length,
+    [jobs]
+  )
+
+  const visibleJobs = useMemo(() => {
+    if (awaitingPaymentOnly) return jobs.filter(j => j.status === 'billed' && j.paymentStatus === 'PENDING')
+    if (statusFilter) return jobs.filter(j => j.status === statusFilter)
+    return jobs
+  }, [jobs, statusFilter, awaitingPaymentOnly])
 
   if (status === 'loading') {
     return <div className="flex items-center justify-center min-h-screen text-gray-600">Loading...</div>
@@ -214,6 +230,7 @@ function VehicleServiceJobsPageContent() {
           badge={
             <span className="px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-semibold">
               {awaitingPaymentOnly ? 'Awaiting Payment' : statusFilter === '' ? 'All' : statusFilter.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+              {' '}({visibleJobs.length})
             </span>
           }
         >
@@ -229,6 +246,7 @@ function VehicleServiceJobsPageContent() {
                 }`}
               >
                 {s === '' ? 'All' : s.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                {' '}({s === '' ? jobs.length : statusCounts[s] ?? 0})
               </button>
             ))}
             {canSeeMoney && (
@@ -240,7 +258,7 @@ function VehicleServiceJobsPageContent() {
                     : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
                 }`}
               >
-                💰 Awaiting Payment
+                💰 Awaiting Payment ({awaitingPaymentCount})
               </button>
             )}
           </div>
@@ -287,12 +305,18 @@ function VehicleServiceJobsPageContent() {
           </div>
         )}
 
-        {!loading && jobs.length > 0 && (
+        {!loading && jobs.length > 0 && visibleJobs.length === 0 && !error && (
+          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow text-gray-500 dark:text-gray-400">
+            No jobs match this status filter.
+          </div>
+        )}
+
+        {!loading && visibleJobs.length > 0 && (
           <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
             {/* Mobile card list (MBM-299 responsive-reports template — see
                 src/app/inventory/reports/pricing-exceptions/page.tsx) */}
             <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
-              {jobs.map(j => (
+              {visibleJobs.map(j => (
                 <div
                   key={j.id}
                   onClick={() => router.push(`/vehicle-service/jobs/${j.id}`)}
@@ -369,7 +393,7 @@ function VehicleServiceJobsPageContent() {
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {jobs.map(j => (
+                {visibleJobs.map(j => (
                   <tr
                     key={j.id}
                     onClick={() => router.push(`/vehicle-service/jobs/${j.id}`)}
