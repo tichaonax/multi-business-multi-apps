@@ -397,7 +397,7 @@ export default function PayeeInsightsPage() {
         </div>
 
         {/* Payee table with search */}
-        <div className="bg-card border border-border rounded-lg overflow-hidden">
+        <div className="bg-card border border-border rounded-lg">
           <div className="p-4 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-primary">{activeTab.label} — All Payees</h2>
@@ -431,52 +431,101 @@ export default function PayeeInsightsPage() {
               )}
             </div>
           ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-muted border-b border-border">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium text-secondary">Payee</th>
-                  <th className="text-right px-4 py-3 font-medium text-secondary">Total Paid</th>
-                  <th className="text-right px-4 py-3 font-medium text-secondary">Payments</th>
-                  <th className="text-right px-4 py-3 font-medium text-secondary hidden sm:table-cell">Last Payment</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
+            <>
+              {/* Mobile card list (MBM-299 responsive-reports template) */}
+              <div className="sm:hidden divide-y divide-border">
                 {filteredPayees.map((p) => (
-                  <tr key={p.payeeId} className="hover:bg-muted/50 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-base leading-none shrink-0">{p.payeeEmoji || (activeGroup === 'CONTRACTOR' ? '🤝' : '🚚')}</span>
-                        <span className="font-medium text-primary">{p.payeeName}</span>
-                        <button
-                          onClick={() => openEdit(p)}
-                          className="text-gray-300 hover:text-gray-500 dark:hover:text-gray-400 text-xs shrink-0"
-                          title="Edit classification"
-                        >
-                          ✏️
-                        </button>
-                      </div>
-                      {p.serviceType && (
-                        <div className="text-xs text-secondary mt-0.5 pl-7">{p.serviceType}</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold text-primary">{fmtFull(p.totalPaid)}</td>
-                    <td className="px-4 py-3 text-right text-secondary">{p.paymentCount}</td>
-                    <td className="px-4 py-3 text-right text-secondary hidden sm:table-cell">
-                      {p.lastPayment ? new Date(p.lastPayment).toLocaleDateString() : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <Link
-                        href={payeeHistoryUrl(p.payeeId, activeGroup)}
-                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  <div key={p.payeeId} className="p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base leading-none shrink-0">{p.payeeEmoji || (activeGroup === 'CONTRACTOR' ? '🤝' : '🚚')}</span>
+                      <span className="font-medium text-primary">{p.payeeName}</span>
+                      <button
+                        onClick={() => openEdit(p)}
+                        className="text-gray-300 hover:text-gray-500 dark:hover:text-gray-400 text-xs shrink-0"
+                        title="Edit classification"
                       >
-                        View history →
-                      </Link>
-                    </td>
-                  </tr>
+                        ✏️
+                      </button>
+                    </div>
+                    {p.serviceType && (
+                      <div className="text-xs text-secondary pl-7">{p.serviceType}</div>
+                    )}
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Total Paid</p>
+                        <p className="font-semibold text-primary">{fmtFull(p.totalPaid)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Payments</p>
+                        <p className="text-secondary">{p.paymentCount}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Last Payment</p>
+                        <p className="text-secondary">{p.lastPayment ? new Date(p.lastPayment).toLocaleDateString() : '—'}</p>
+                      </div>
+                      <div>
+                        <Link
+                          href={payeeHistoryUrl(p.payeeId, activeGroup)}
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          View history →
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+              </div>
+
+              {/* Desktop/tablet table */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted border-b border-border">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-medium text-secondary">Payee</th>
+                      <th className="text-right px-4 py-3 font-medium text-secondary">Total Paid</th>
+                      <th className="text-right px-4 py-3 font-medium text-secondary">Payments</th>
+                      <th className="text-right px-4 py-3 font-medium text-secondary hidden sm:table-cell">Last Payment</th>
+                      <th className="px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {filteredPayees.map((p) => (
+                      <tr key={p.payeeId} className="hover:bg-muted/50 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base leading-none shrink-0">{p.payeeEmoji || (activeGroup === 'CONTRACTOR' ? '🤝' : '🚚')}</span>
+                            <span className="font-medium text-primary">{p.payeeName}</span>
+                            <button
+                              onClick={() => openEdit(p)}
+                              className="text-gray-300 hover:text-gray-500 dark:hover:text-gray-400 text-xs shrink-0"
+                              title="Edit classification"
+                            >
+                              ✏️
+                            </button>
+                          </div>
+                          {p.serviceType && (
+                            <div className="text-xs text-secondary mt-0.5 pl-7">{p.serviceType}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold text-primary">{fmtFull(p.totalPaid)}</td>
+                        <td className="px-4 py-3 text-right text-secondary">{p.paymentCount}</td>
+                        <td className="px-4 py-3 text-right text-secondary hidden sm:table-cell">
+                          {p.lastPayment ? new Date(p.lastPayment).toLocaleDateString() : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Link
+                            href={payeeHistoryUrl(p.payeeId, activeGroup)}
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            View history →
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
 

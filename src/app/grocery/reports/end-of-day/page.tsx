@@ -605,6 +605,7 @@ export default function EndOfDayReport() {
             <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
               💰 PAYMENT METHODS
             </h3>
+            <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-100 dark:bg-gray-700 print:bg-gray-100">
                 <tr>
@@ -644,6 +645,7 @@ export default function EndOfDayReport() {
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
 
           {/* EcoCash Breakdown */}
@@ -679,14 +681,15 @@ export default function EndOfDayReport() {
               <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
                 👥 SALES BY EMPLOYEE
               </h3>
+              <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-100 dark:bg-gray-700 print:bg-gray-100">
                   <tr>
-                    <th className="text-center p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900 w-12">#</th>
+                    <th className="hidden sm:table-cell text-center p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900 w-12">#</th>
                     <th className="text-left p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Employee</th>
                     <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Orders</th>
                     <th className="text-left p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Sales Performance</th>
-                    <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Avg/Order</th>
+                    <th className="hidden sm:table-cell text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Avg/Order</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -702,7 +705,7 @@ export default function EndOfDayReport() {
                             isTopThree ? 'bg-green-50 dark:bg-green-900/20 print:bg-green-50' : ''
                           }`}
                         >
-                          <td className="p-3 text-center">
+                          <td className="hidden sm:table-cell p-3 text-center">
                             <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${
                               index === 0 ? 'bg-yellow-400 text-yellow-900' :
                               index === 1 ? 'bg-gray-300 text-gray-900' :
@@ -729,7 +732,7 @@ export default function EndOfDayReport() {
                               </span>
                             </div>
                           </td>
-                          <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">
+                          <td className="hidden sm:table-cell p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">
                             {formatCurrency(emp.sales / emp.orders)}
                           </td>
                         </tr>
@@ -737,6 +740,7 @@ export default function EndOfDayReport() {
                     })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
@@ -751,6 +755,7 @@ export default function EndOfDayReport() {
                   Total Income: <span className="text-2xl ml-2">{formatCurrency(dailySales.summary.totalSales)}</span>
                 </div>
               </div>
+              <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-100 dark:bg-gray-700 print:bg-gray-100">
                   <tr>
@@ -814,6 +819,7 @@ export default function EndOfDayReport() {
                   </tr>
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
@@ -823,6 +829,7 @@ export default function EndOfDayReport() {
               <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
                 📶 WIFI TOKEN SALES
               </h3>
+              <div className="overflow-x-auto">
               <table className="w-full mb-4">
                 <thead className="bg-gray-100 dark:bg-gray-700 print:bg-gray-100">
                   <tr>
@@ -860,6 +867,7 @@ export default function EndOfDayReport() {
                   </tr>
                 </tbody>
               </table>
+              </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 print:text-gray-500">
                 ⚠️ WiFi token sales are non-refundable. These orders cannot be cancelled or reversed.
               </p>

@@ -388,7 +388,104 @@ export default function ReorderSuggestionsPage() {
                     : `No products need reordering — all stock levels are above the ${reorderThresholdDays}-day threshold.`}
                 </p>
               ) : (
-                <table className="w-full text-sm">
+                <>
+                {/* Mobile card list (MBM-299 responsive-reports template) */}
+                <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
+                  {filteredRows.map((row) => (
+                    <div key={row.variantId} className="p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <Link
+                            href={`/${businessType}/inventory`}
+                            className="font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            {row.productName}
+                          </Link>
+                          {row.variantName !== 'Default' && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{row.variantName}</div>
+                          )}
+                          <div className="text-xs text-gray-400 dark:text-gray-500">{row.category}</div>
+                          {row.sku && <div className="text-xs text-gray-400 dark:text-gray-500">{row.sku}</div>}
+                        </div>
+                        {row.urgency === 'critical' ? (
+                          <span className="shrink-0 inline-block px-2 py-0.5 text-xs font-bold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full">
+                            🔴 Critical
+                          </span>
+                        ) : (
+                          <span className="shrink-0 inline-block px-2 py-0.5 text-xs font-bold bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded-full">
+                            🟡 Low
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Stock</p>
+                          <p className="font-medium text-gray-700 dark:text-gray-300">{row.currentStock.toLocaleString()}</p>
+                          {currentBusinessId && (
+                            <MinLevelCell row={row} businessId={currentBusinessId} onUpdated={handleMinLevelUpdated} />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Days Left</p>
+                          <p className={`font-semibold ${
+                            row.daysOfStockLeft < 3 ? 'text-red-600' : row.daysOfStockLeft < 7 ? 'text-orange-500' : 'text-gray-700 dark:text-gray-300'
+                          }`}>
+                            {row.daysOfStockLeft > 0 ? `${row.daysOfStockLeft}d` : '—'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">90d Avg/Day</p>
+                          <p className="font-medium text-gray-700 dark:text-gray-300">
+                            {row.historicalAvgDailySales > 0 ? row.historicalAvgDailySales.toFixed(2) : '—'}
+                          </p>
+                          {row.historicalAvgDailySales === 0 && row.avgDailySales > 0 && (
+                            <p className="text-xs text-orange-500">{row.avgDailySales.toFixed(2)} recent</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">90d Sold</p>
+                          <p className="text-gray-600 dark:text-gray-400">
+                            {row.historicalUnitsSold > 0 ? row.historicalUnitsSold.toLocaleString() : '—'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Order Qty</p>
+                          <p className="font-bold text-blue-700 dark:text-blue-400 text-base">{row.suggestedReorderQty.toLocaleString()}</p>
+                          <p className="text-xs text-gray-400">
+                            {row.suggestionBasis === 'historical' ? '90d history' : row.suggestionBasis === 'recent' ? 'recent sales' : 'reorder level'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Est. Cost</p>
+                          <p className="text-gray-700 dark:text-gray-300">{formatCurrency(row.estimatedCost)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Last Order</p>
+                          {row.lastOrderQty > 0 ? (
+                            <>
+                              <p className="text-gray-600 dark:text-gray-400">{row.lastOrderQty.toLocaleString()}</p>
+                              {row.lastOrderedAt && (
+                                <p className="text-xs text-gray-400">{new Date(row.lastOrderedAt).toLocaleDateString()}</p>
+                              )}
+                            </>
+                          ) : <p className="text-gray-600 dark:text-gray-400">—</p>}
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Max Order</p>
+                          <p className="text-gray-600 dark:text-gray-400">{row.maxOrderQty > 0 ? row.maxOrderQty.toLocaleString() : '—'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="p-3 flex justify-between items-center font-semibold bg-gray-100 dark:bg-gray-700">
+                    <span className="text-gray-700 dark:text-gray-200">Total Estimated Cost</span>
+                    <span className="text-gray-900 dark:text-gray-100">{formatCurrency(reportData.summary.estimatedReorderCost)}</span>
+                  </div>
+                </div>
+
+                {/* Desktop/tablet table */}
+                <table className="hidden sm:table w-full text-sm">
                   <thead className="sticky top-0 z-10">
                     <tr className="bg-gray-100 dark:bg-gray-700 text-left">
                       <th className="px-4 py-2 font-semibold text-gray-700 dark:text-gray-200">Product</th>
@@ -503,6 +600,7 @@ export default function ReorderSuggestionsPage() {
                     </tr>
                   </tfoot>
                 </table>
+                </>
               )}
             </div>
           </div>

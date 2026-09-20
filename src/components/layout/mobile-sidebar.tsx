@@ -84,6 +84,19 @@ export function MobileSidebar() {
     checkWiFiIntegrations()
   }, [currentBusinessId])
 
+  // Opened from the hamburger button living in GlobalHeader's own top bar now
+  // (MBM-299 follow-up) — a fixed button floating over page content kept
+  // landing on top of whatever nav button (e.g. "Back") a given page happened
+  // to render at that same spot, since pages have wildly different layouts
+  // and not all of them route through ContentLayout's shared header block.
+  // Placing the trigger inside the persistent header row instead means it
+  // never overlaps page content at all, regardless of that page's layout.
+  useEffect(() => {
+    const openHandler = () => setIsOpen(true)
+    window.addEventListener('mobile-menu:open', openHandler)
+    return () => window.removeEventListener('mobile-menu:open', openHandler)
+  }, [])
+
   if (!session?.user) return null
 
   const user = session.user as SessionUser
@@ -314,16 +327,6 @@ export function MobileSidebar() {
 
   return (
     <>
-      <button
-        onClick={() => setIsOpen(true)}
-        className="lg:hidden fixed top-20 left-3 z-30 p-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-md shadow-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-        aria-label="Open menu"
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-      </button>
-
       {isOpen && (
         <div className="lg:hidden fixed inset-0 z-40 flex">
           <div className="fixed inset-0 bg-black bg-opacity-50" onClick={close} />

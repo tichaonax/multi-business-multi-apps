@@ -268,7 +268,73 @@ export default function StockAdditionsPage() {
               </div>
             ) : (
               <>
-                <div className="overflow-x-auto">
+                {/* Mobile card list (MBM-299 responsive-reports template —
+                    see src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+                <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
+                  {reportData.data
+                    .filter(row =>
+                      !searchTerm.trim() ||
+                      row.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      row.sku.toLowerCase().includes(searchTerm.toLowerCase())
+                    )
+                    .map((row) => (
+                    <div key={row.movementId} className="p-3 space-y-2">
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-gray-100">{row.itemName}</div>
+                        {row.sku && <div className="text-xs text-gray-400 dark:text-gray-500 font-mono">{row.sku}</div>}
+                        {row.reference && <div className="text-xs text-blue-500 dark:text-blue-400">Ref: {row.reference}</div>}
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Category</p>
+                          <p className="text-gray-600 dark:text-gray-400 text-xs">{row.category}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Supplier</p>
+                          <p className="text-gray-600 dark:text-gray-400 text-xs">{row.supplier}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Qty</p>
+                          <p className="font-semibold text-gray-900 dark:text-gray-100">{row.qtyAdded.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Unit Cost</p>
+                          <p className="text-gray-700 dark:text-gray-300">
+                            {row.costSource === 'cost' ? (
+                              formatCurrency(row.unitCost)
+                            ) : row.costSource === 'selling' ? (
+                              <span className="text-amber-600 dark:text-amber-400">
+                                {formatCurrency(row.sellingPrice)}<span className="ml-1 text-xs opacity-70">sell</span>
+                              </span>
+                            ) : '—'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Cost</p>
+                          <p className="font-semibold text-emerald-700 dark:text-emerald-400">
+                            {row.costSource === 'cost' ? (
+                              formatCurrency(row.totalCost)
+                            ) : row.costSource === 'selling' ? (
+                              <span className="text-amber-600 dark:text-amber-400">
+                                {formatCurrency(row.totalCost)}<span className="ml-1 text-xs opacity-70">sell</span>
+                              </span>
+                            ) : '—'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Date</p>
+                          <p className="text-gray-500 dark:text-gray-400 text-xs">{formatDate(row.addedAt)}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Added By</p>
+                          <p className="text-gray-600 dark:text-gray-400 text-xs">{row.addedBy}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-gray-100 dark:bg-gray-700 text-left">

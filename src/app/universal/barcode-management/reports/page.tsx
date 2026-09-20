@@ -231,7 +231,7 @@ export default function ReportsPage() {
 
             {/* Print History Report */}
             {activeReport === 'print-history' && reportData.jobs && (
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                   <thead className="bg-gray-50 dark:bg-gray-900">
                     <tr>
@@ -271,7 +271,7 @@ export default function ReportsPage() {
 
             {/* Template Usage Report */}
             {activeReport === 'template-usage' && reportData.templates && (
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                   <thead className="bg-gray-50 dark:bg-gray-900">
                     <tr>
@@ -311,7 +311,7 @@ export default function ReportsPage() {
 
             {/* Inventory Linkage Report */}
             {activeReport === 'inventory-linkage' && reportData.linkages && (
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                   <thead className="bg-gray-50 dark:bg-gray-900">
                     <tr>

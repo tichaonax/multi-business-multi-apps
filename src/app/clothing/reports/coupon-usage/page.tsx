@@ -107,7 +107,7 @@ export default function CouponUsageReportPage() {
 
             {/* By Coupon Table */}
             {report.byCoupon.length > 0 && (
-              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden mb-6">
+              <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-x-auto mb-6">
                 <h3 className="text-lg font-semibold p-4 border-b border-gray-200 dark:border-gray-700">Usage by Coupon</h3>
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-700/50">
@@ -136,7 +136,39 @@ export default function CouponUsageReportPage() {
             {report.details.length > 0 && (
               <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
                 <h3 className="text-lg font-semibold p-4 border-b border-gray-200 dark:border-gray-700">Redemption Details</h3>
-                <div className="overflow-x-auto">
+
+                {/* Mobile card list (MBM-299 responsive-reports template) */}
+                <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
+                  {report.details.map((d: any, i: number) => (
+                    <div key={i} className="p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{d.couponCode}</span>
+                        <span className="text-xs text-gray-500">{new Date(d.date).toLocaleDateString()}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Order #</p>
+                          <p className="text-secondary">{d.orderNumber}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Approved By</p>
+                          <p className="text-secondary">{d.approvedBy || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Discount</p>
+                          <p className="text-green-600">-${d.appliedAmount.toFixed(2)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Order Total</p>
+                          <p className="text-secondary">${d.orderTotal.toFixed(2)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop/tablet table */}
+                <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 dark:bg-gray-700/50">
                       <tr>

@@ -254,7 +254,49 @@ export default function PaymentRegisterPage() {
             <div className="p-8 text-center text-gray-500 dark:text-gray-400">No payments found</div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              {/* Mobile card list (MBM-299 responsive-reports template) */}
+              <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
+                {payments.map(p => (
+                  <div key={p.id} className="p-3 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-gray-100">{p.employeeName}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{p.employeeNumber}</p>
+                      </div>
+                      <span className={typeBadge(p.paymentType)}>{typeLabel(p.paymentType)}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Gross</p>
+                        <p className="font-medium text-gray-900 dark:text-gray-100">{fmt(p.amount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Net Pay</p>
+                        <p className="font-medium text-green-600 dark:text-green-400">
+                          {p.netAmount != null ? fmt(p.netAmount) : <span className="text-gray-400 text-xs">—</span>}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Date</p>
+                        <p className="text-gray-600 dark:text-gray-400">
+                          {new Date(p.paymentDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Status</p>
+                        <span className={statusBadge(p.status)}>{p.status}</span>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Processed By</p>
+                        <p className="text-gray-600 dark:text-gray-400 text-xs">{p.createdBy}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop/tablet table */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
                     <tr>

@@ -268,7 +268,64 @@ export default function EodDiscrepancyPage() {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+              {/* Mobile card list (MBM-299 responsive-reports template — see
+                  src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+              <div className="sm:hidden rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-600">
+                {rows.map(r => (
+                  <div
+                    key={r.date}
+                    className="p-3 space-y-2 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                    onClick={() => router.push(`/${currentBusiness?.businessType}/reports/saved/${r.savedReportId}`)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium text-gray-900 dark:text-gray-100">
+                        {new Date(r.date + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        <span className="ml-1 text-blue-400 text-xs">↗</span>
+                      </p>
+                      <p className="text-gray-700 dark:text-gray-300 text-sm">{r.managerName}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Mgr Cash</p>
+                        <p className="text-gray-900 dark:text-gray-100">{r.managerCash !== null ? formatCurrency(r.managerCash) : '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">SP Cash</p>
+                        <p className="text-gray-900 dark:text-gray-100">{r.spCash !== null ? formatCurrency(r.spCash) : '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Cash Variance</p>
+                        <p className={`font-semibold ${varianceColor(r.cashVariance)}`}>{formatVariance(r.cashVariance)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">EcoCash Variance</p>
+                        <p className={`font-semibold ${varianceColor(r.ecocashVariance)}`}>{formatVariance(r.ecocashVariance)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Mgr EcoCash</p>
+                        <p className="text-gray-900 dark:text-gray-100">{r.managerEcocash !== null ? formatCurrency(r.managerEcocash) : '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">SP EcoCash</p>
+                        <p className="text-gray-900 dark:text-gray-100">{r.spEcocash !== null ? formatCurrency(r.spEcocash) : '—'}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">SP Reports</p>
+                        <p className="text-gray-700 dark:text-gray-300">
+                          {r.spSubmittedCount} submitted
+                          {r.spPendingCount > 0 && (
+                            <span className="ml-1 px-1.5 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 rounded text-xs font-semibold">
+                              {r.spPendingCount} pending
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden sm:block overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-100 dark:bg-gray-700">
                     <tr>

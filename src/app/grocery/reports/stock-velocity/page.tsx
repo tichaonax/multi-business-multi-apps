@@ -158,7 +158,47 @@ export default function StockVelocityPage() {
       <p className="text-gray-500 dark:text-gray-400 text-center py-8">{emptyMessage}</p>
     ) : (
       <>
-      <div className="overflow-x-auto">
+      {/* Mobile card list (MBM-299 responsive-reports template — see
+          src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+      <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
+        {rows.map((row) => (
+          <div key={row.variantId} className="p-3 space-y-2">
+            <ProductCell
+              imageUrl={row.imageUrl}
+              name={row.productName}
+              subtitle={row.variantName !== 'Default' ? row.variantName : row.category}
+              businessType={businessType}
+              editItemId={row.editItemId}
+              canEdit={canEditInventory}
+              returnTo={`/${businessType}/reports/stock-velocity`}
+            />
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">SKU</p>
+                <p className="text-gray-600 dark:text-gray-400 font-mono text-xs">{row.sku || '—'}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Units Sold</p>
+                <p className="font-semibold text-gray-900 dark:text-gray-100">{row.totalUnitsSold.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Avg / Day</p>
+                <p className="text-gray-700 dark:text-gray-300">{row.avgDailySales.toFixed(1)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Current Stock</p>
+                <p className="text-gray-700 dark:text-gray-300">{row.currentStock.toLocaleString()}</p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Days of Stock Left</p>
+                <p className={daysColor(row.daysOfStockLeft)}>{formatDays(row.daysOfStockLeft)}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden sm:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-100 dark:bg-gray-700 text-left">

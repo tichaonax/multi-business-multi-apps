@@ -141,7 +141,60 @@ function CancellationsTable({ rows, from, to }: { rows: CancellationRow[]; from:
       {rows.length === 0 ? (
         <p className="text-center text-gray-500 dark:text-gray-400 py-10">No approved cancellations in this period.</p>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        {/* Mobile card list (MBM-299 responsive-reports template — see
+            src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+        <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
+          {rows.map((r) => (
+            <div key={r.id} className="py-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-xs">{r.orderNumber}</span>
+                <span className="text-xs text-gray-500">{new Date(r.createdAt).toLocaleString()}</span>
+              </div>
+              <div>
+                <div className="text-sm">{r.customerName ?? <span className="text-gray-400">Walk-in</span>}</div>
+                {r.customerNumber && <div className="text-xs text-gray-400">{r.customerNumber}</div>}
+                {r.customerPhone && <div className="text-xs text-gray-400">{r.customerPhone}</div>}
+              </div>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400">Payment</p>
+                  <p className="capitalize">{r.paymentMethod.toLowerCase()}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400">Gross</p>
+                  <p>${fmt(r.grossAmount)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400">Fee</p>
+                  <p className="text-red-600 dark:text-red-400">{r.feeDeducted > 0 ? `-$${fmt(r.feeDeducted)}` : '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400">Net Refund</p>
+                  <p className="font-semibold text-green-700 dark:text-green-400">${fmt(r.refundAmount)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400">Items</p>
+                  <ItemsTooltip items={r.items} />
+                </div>
+                <div className="col-span-2">
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400">Reason</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">{r.staffReason}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400">Requested By</p>
+                  <p className="text-xs">{r.requestedBy?.name ?? '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400">Approved By</p>
+                  <p className="text-xs">{r.approvedBy?.name ?? '—'}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-gray-50 dark:bg-gray-800 text-xs uppercase text-gray-500 dark:text-gray-400">
               <tr>
@@ -185,6 +238,7 @@ function CancellationsTable({ rows, from, to }: { rows: CancellationRow[]; from:
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   )
@@ -222,7 +276,59 @@ function OverrideLogTable({ rows, from, to }: { rows: LogRow[]; from: string; to
       {rows.length === 0 ? (
         <p className="text-center text-gray-500 dark:text-gray-400 py-10">No override log entries in this period.</p>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        {/* Mobile card list (MBM-299 responsive-reports template — see
+            src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+        <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
+          {rows.map((r) => (
+            <div key={r.id} className="py-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-xs">{r.orderNumber}</span>
+                <span className="text-xs text-gray-500">{new Date(r.createdAt).toLocaleString()}</span>
+              </div>
+              <div>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${OUTCOME_STYLES[r.outcome] ?? ''}`}>
+                  {r.outcome.replace('_', ' ')}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400">Gross</p>
+                  <p>{r.grossAmount != null ? `$${fmt(r.grossAmount)}` : '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400">Payment</p>
+                  <p className="capitalize">{r.paymentMethod?.toLowerCase() ?? '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400">Manager</p>
+                  <p className="text-xs">{r.manager?.name ?? <span className="text-gray-400">—</span>}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400">Staff</p>
+                  <p className="text-xs">{r.requestedBy?.name ?? '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400">Items</p>
+                  <ItemsTooltip items={r.items} />
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400">Customer</p>
+                  <p className="text-xs">{r.customerName ?? <span className="text-gray-400">—</span>}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400">Reason</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">{r.staffReason}</p>
+                  {r.denialReason && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">Denied: {r.denialReason}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-gray-50 dark:bg-gray-800 text-xs uppercase text-gray-500 dark:text-gray-400">
               <tr>
@@ -265,6 +371,7 @@ function OverrideLogTable({ rows, from, to }: { rows: LogRow[]; from: string; to
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   )

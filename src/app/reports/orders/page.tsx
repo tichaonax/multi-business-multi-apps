@@ -290,7 +290,58 @@ function OrdersPageInner() {
             <p className="text-sm mt-1">Try adjusting the date range or search term.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+          <>
+          {/* Mobile card list (MBM-299 responsive-reports template — see
+              src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+          <div className="sm:hidden rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-600">
+            {filtered.map(o => (
+              <div
+                key={o.id}
+                className="p-3 space-y-2 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                onClick={() => setSelectedOrder(o)}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs text-gray-700 dark:text-gray-300">{o.orderNumber}</span>
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">{formatCurrency(Number(o.totalAmount))}</span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {paymentBadge(o.paymentMethod)}
+                  {statusBadge(o.status)}
+                  <button
+                    onClick={e => { e.stopPropagation(); setReceiptOrderId(o.id) }}
+                    className="ml-auto text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                    title="View receipt"
+                  >
+                    🧾
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Date / Time</p>
+                    <p className="text-gray-900 dark:text-gray-100">{formatTime(o.createdAt)} <span className="text-xs text-gray-500 dark:text-gray-400">{formatDate(o.createdAt)}</span></p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Customer</p>
+                    <p className="text-gray-700 dark:text-gray-300">
+                      {o.business_customers ? (
+                        <>{o.business_customers.name}<span className="text-xs text-gray-400 ml-1">#{o.business_customers.customerNumber}</span></>
+                      ) : <span className="text-gray-400 text-xs">Walk-in</span>}
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Employee</p>
+                    <p className="text-gray-700 dark:text-gray-300">{o.employees?.fullName ?? <span className="text-gray-400 text-xs">—</span>}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <div className="p-3 flex items-center justify-between bg-gray-50 dark:bg-gray-800">
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Grand Total (completed):</span>
+              <span className="font-bold text-gray-900 dark:text-gray-100">{formatCurrency(grandTotal)}</span>
+            </div>
+          </div>
+
+          <div className="hidden sm:block overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
             <table className="w-full text-sm">
               <thead className="bg-gray-100 dark:bg-gray-700">
                 <tr>
@@ -347,6 +398,7 @@ function OrdersPageInner() {
               </tfoot>
             </table>
           </div>
+          </>
         )}
       </div>
 

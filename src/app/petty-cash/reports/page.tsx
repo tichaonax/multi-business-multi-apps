@@ -173,36 +173,38 @@ export default function PettyCashReportsPage() {
             <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
               <h2 className="font-semibold text-gray-800 dark:text-gray-200">Request Detail ({reportData?.pagination?.total || requests.length} total)</h2>
             </div>
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-100 dark:border-gray-700">
                 <tr>
                   <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Purpose</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Requester</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Approved</th>
+                  <th className="hidden sm:table-cell px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Requester</th>
+                  <th className="hidden sm:table-cell px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Approved</th>
                   <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Net Spend</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Returned</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Channel</th>
+                  <th className="hidden sm:table-cell px-4 py-3 text-right font-medium text-gray-600 dark:text-gray-400">Returned</th>
+                  <th className="hidden sm:table-cell px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Channel</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Status</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Date</th>
+                  <th className="hidden sm:table-cell px-4 py-3 text-left font-medium text-gray-600 dark:text-gray-400">Date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
                 {requests.map((r: any) => (
                   <tr key={r.id} onClick={() => router.push(`/petty-cash/${r.id}`)} className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100 max-w-xs truncate">{r.purpose}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{r.requester?.name || '—'}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-gray-900 dark:text-gray-100">{r.approvedAmount != null ? fmt(r.approvedAmount) : '—'}</td>
+                    <td className="hidden sm:table-cell px-4 py-3 text-gray-600 dark:text-gray-400">{r.requester?.name || '—'}</td>
+                    <td className="hidden sm:table-cell px-4 py-3 text-right tabular-nums text-gray-900 dark:text-gray-100">{r.approvedAmount != null ? fmt(r.approvedAmount) : '—'}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-red-600 dark:text-red-400">{r.netSpend != null ? fmt(r.netSpend) : '—'}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-green-600 dark:text-green-400">{r.returnAmount != null ? fmt(r.returnAmount) : '—'}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{r.paymentChannel === 'ECOCASH' ? '📱' : '💵'}</td>
+                    <td className="hidden sm:table-cell px-4 py-3 text-right tabular-nums text-green-600 dark:text-green-400">{r.returnAmount != null ? fmt(r.returnAmount) : '—'}</td>
+                    <td className="hidden sm:table-cell px-4 py-3 text-gray-600 dark:text-gray-400">{r.paymentChannel === 'ECOCASH' ? '📱' : '💵'}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[r.status] || ''}`}>{r.status}</span>
                     </td>
-                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{new Date(r.requestedAt).toLocaleDateString()}</td>
+                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 hidden sm:table-cell">{new Date(r.requestedAt).toLocaleDateString()}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
           </div>
         )}
       </div>

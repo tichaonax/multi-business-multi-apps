@@ -206,7 +206,75 @@ export default function ReportsHistory() {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              {/* Mobile card list (MBM-299 responsive-reports template) */}
+              <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
+                {reports.map((report) => (
+                  <div key={report.id} className="p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">
+                        {report.reportType === 'END_OF_DAY' ? '📅' : '📊'}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {report.reportType === 'END_OF_DAY' ? 'End of Day' : 'End of Week'}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {formatDateTime(new Date(report.signedAt))}
+                        </div>
+                      </div>
+                      <div className="ml-auto shrink-0">
+                        {report.isLocked ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100">
+                            🔒 Locked
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100">
+                            Unlocked
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Date</p>
+                        <p className="text-sm text-gray-900 dark:text-gray-100">{formatDateFull(new Date(report.reportDate))}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Manager</p>
+                        <p className="text-sm text-gray-900 dark:text-gray-100">{report.managerName}</p>
+                        {report.user && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{report.user.email}</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Total Sales</p>
+                        <p className="text-sm font-semibold text-green-600 dark:text-green-400">{formatCurrency(report.totalSales)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Cash Counted</p>
+                        {report.cashCounted != null ? (
+                          <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">{formatCurrency(report.cashCounted)}</p>
+                        ) : (
+                          <p className="text-sm text-gray-400 dark:text-gray-500">—</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Orders</p>
+                        <p className="text-sm text-gray-900 dark:text-gray-100">{report.totalOrders}</p>
+                      </div>
+                    </div>
+                    <Link
+                      href={`/clothing/reports/saved/${report.id}`}
+                      className="block text-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      View Report →
+                    </Link>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop/tablet table */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
                     <tr>

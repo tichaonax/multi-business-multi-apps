@@ -33,6 +33,7 @@ interface ReportData {
 function InventoryTable({ entries, showCost }: { entries: InventoryEntry[]; showCost: boolean }) {
   if (entries.length === 0) return <p className="text-sm text-gray-400 dark:text-gray-500">No entries.</p>
   return (
+    <div className="overflow-x-auto">
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-gray-200 dark:border-gray-600">
@@ -57,6 +58,7 @@ function InventoryTable({ entries, showCost }: { entries: InventoryEntry[]; show
         ))}
       </tbody>
     </table>
+    </div>
   )
 }
 

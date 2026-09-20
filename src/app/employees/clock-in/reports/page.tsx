@@ -179,16 +179,80 @@ export default function AttendanceReportsPage() {
             </div>
           </div>
 
-          {/* Per-employee table */}
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+          {/* Mobile card list (MBM-299 responsive-reports template) */}
+          <div className="sm:hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl divide-y divide-gray-100 dark:divide-gray-700/50">
+            {filteredData.map((emp) => (
+              <div key={emp.employee.id}>
+                <div className="p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-medium text-gray-900 dark:text-white truncate">{emp.employee.fullName}</div>
+                      <div className="text-xs text-gray-400">#{emp.employee.employeeNumber}</div>
+                    </div>
+                    <span className={`shrink-0 px-2 py-1 rounded-full text-xs font-medium ${
+                      emp.punctualityScore >= 90 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
+                      emp.punctualityScore >= 70 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300' :
+                      'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                    }`}>
+                      {emp.punctualityScore}%
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-400">Days</p>
+                      <p className="text-gray-700 dark:text-gray-300">{emp.totalDays}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-400">Late</p>
+                      <p className={emp.lateDays > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-400'}>{emp.lateDays}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-400">Avg Late</p>
+                      <p className="text-gray-600 dark:text-gray-400">{emp.avgLateMinutes > 0 ? `${emp.avgLateMinutes}m` : '--'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-400">Total Hrs</p>
+                      <p className="text-gray-700 dark:text-gray-300">{emp.totalHours.toFixed(1)}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setExpandedEmployee(expandedEmployee === emp.employee.id ? null : emp.employee.id)}
+                    className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
+                  >
+                    {expandedEmployee === emp.employee.id ? 'Hide detail' : 'View detail'}
+                  </button>
+                </div>
+                {expandedEmployee === emp.employee.id && (
+                  <div className="px-3 pb-3 bg-gray-50 dark:bg-gray-700/20 space-y-1.5">
+                    {emp.records.map((rec) => (
+                      <div key={rec.id} className="bg-white dark:bg-gray-800 rounded-lg px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">{formatDate(rec.date)}</span>
+                          <span>{emp.records.find(r => r.id === rec.id)?.hoursWorked ? `${Number(rec.hoursWorked).toFixed(2)}h` : '--'}</span>
+                        </div>
+                        <div className="text-gray-500 dark:text-gray-400 mt-0.5">
+                          {formatTime(rec.checkIn)} → {formatTime(rec.checkOut)}
+                          {rec.isAutoClockOut && <span className="ml-1 text-orange-500" title="Auto">🤖</span>}
+                        </div>
+                        {rec.isAutoClockOut && !rec.isApproved && <div className="text-orange-500 mt-0.5">Pending approval</div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop/tablet table */}
+          <div className="hidden sm:block bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
                   <th className="text-left px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Employee</th>
-                  <th className="text-center px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Days</th>
+                  <th className="hidden sm:table-cell text-center px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Days</th>
                   <th className="text-center px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Late</th>
-                  <th className="text-center px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Avg Late</th>
-                  <th className="text-center px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Total Hrs</th>
+                  <th className="hidden sm:table-cell text-center px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Avg Late</th>
+                  <th className="hidden sm:table-cell text-center px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Total Hrs</th>
                   <th className="text-center px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Punctuality</th>
                   <th className="text-center px-4 py-3 text-gray-600 dark:text-gray-400 font-medium">Detail</th>
                 </tr>
@@ -201,16 +265,16 @@ export default function AttendanceReportsPage() {
                         <div className="font-medium text-gray-900 dark:text-white">{emp.employee.fullName}</div>
                         <div className="text-xs text-gray-400">#{emp.employee.employeeNumber}</div>
                       </td>
-                      <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300">{emp.totalDays}</td>
+                      <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 hidden sm:table-cell">{emp.totalDays}</td>
                       <td className="px-4 py-3 text-center">
                         <span className={emp.lateDays > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-400'}>
                           {emp.lateDays}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-400">
+                      <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-400 hidden sm:table-cell">
                         {emp.avgLateMinutes > 0 ? `${emp.avgLateMinutes}m` : '--'}
                       </td>
-                      <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300">{emp.totalHours.toFixed(1)}</td>
+                      <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 hidden sm:table-cell">{emp.totalHours.toFixed(1)}</td>
                       <td className="px-4 py-3 text-center">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           emp.punctualityScore >= 90 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :

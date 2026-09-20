@@ -366,7 +366,7 @@ export default function CashBucketReportPage() {
         {setAsideBreakdown.length > 0 && (
           <div ref={setAsideRef} className="print:break-inside-avoid">
             <h2 className="text-sm font-semibold text-primary mb-2">Set Aside by Purpose</h2>
-            <div className="rounded-lg border border-border overflow-hidden">
+            <div className="rounded-lg border border-border overflow-hidden overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-700/50 text-xs text-secondary uppercase">
                   <tr>
@@ -414,7 +414,7 @@ export default function CashBucketReportPage() {
         {/* Per-business breakdown */}
         <div className="print:break-inside-avoid">
           <h2 className="text-sm font-semibold text-primary mb-2">Per-Business Balance</h2>
-          <div className="rounded-lg border border-border overflow-hidden">
+          <div className="rounded-lg border border-border overflow-hidden overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-700/50 text-xs text-secondary uppercase">
                 <tr>
@@ -529,7 +529,76 @@ export default function CashBucketReportPage() {
             </div>
           ) : (
             <>
-              <div className="rounded-lg border border-border overflow-hidden">
+              {/* Mobile card list (MBM-299 responsive-reports template — see
+                  src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+              <div className="sm:hidden rounded-lg border border-border overflow-hidden divide-y divide-border">
+                {displayedEntries.map(e => {
+                  const isDeleted = !!e.deletedAt
+                  const isEdited = !!e.editedAt && !isDeleted
+                  return (
+                    <div key={e.id} onClick={async () => {
+                      setSelectedEntry(e)
+                      setEntryDetail(null)
+                      setDetailLoading(true)
+                      try {
+                        const res = await fetch(`/api/cash-bucket/${e.id}`, { credentials: 'include' })
+                        if (res.ok) setEntryDetail((await res.json()).data)
+                      } finally {
+                        setDetailLoading(false)
+                      }
+                    }} className={`p-3 space-y-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/30 ${isDeleted ? 'opacity-50' : ''}`}>
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium text-primary">{e.business?.name ?? '—'}</p>
+                        <p className="text-xs text-secondary">{new Date(e.entryDate).toLocaleDateString()}</p>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="text-secondary text-sm">
+                          {ENTRY_TYPE_LABEL[e.entryType] ?? e.entryType}
+                          {e.paymentChannel === 'ECOCASH' ? (
+                            <span className="ml-1 text-xs font-medium text-teal-600 dark:text-teal-400">📱 EcoCash</span>
+                          ) : (
+                            <span className="ml-1 text-xs text-gray-400 dark:text-gray-500">💵 Cash</span>
+                          )}
+                        </div>
+                        <div>
+                          {e.direction === 'INFLOW' && (
+                            <span className={`font-semibold ${isDeleted ? 'line-through text-secondary' : e.paymentChannel === 'ECOCASH' ? 'text-teal-600 dark:text-teal-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                              +{fmt(e.amount)}
+                            </span>
+                          )}
+                          {e.direction === 'OUTFLOW' && (
+                            <span className={`font-semibold text-red-600 dark:text-red-400 ${isDeleted ? 'line-through' : ''}`}>
+                              -{fmt(e.amount)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {e.notes && <p className="text-xs text-secondary truncate">{e.notes}</p>}
+                      {isEdited && (
+                        <span className="inline-block px-1.5 py-0.5 rounded text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                          ✏️ {e.editedBy?.name ?? '?'}
+                        </span>
+                      )}
+                      {isDeleted && (
+                        <span className="inline-block px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                          🗑️ {e.deletedBy?.name ?? '?'} · {e.deletionReason ?? 'no reason'}
+                        </span>
+                      )}
+                      <p className="text-xs text-secondary">By {e.createdBy?.name ?? '—'}</p>
+                    </div>
+                  )
+                })}
+                <div className="p-3 flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 text-xs font-semibold">
+                  <span className="text-secondary uppercase tracking-wide">Page Total</span>
+                  <span>
+                    <span className="text-emerald-600 dark:text-emerald-400">{fmt(displayedEntries.filter(e => e.direction === 'INFLOW').reduce((s, e) => s + e.amount, 0))}</span>
+                    {' / '}
+                    <span className="text-red-600 dark:text-red-400">{fmt(displayedEntries.filter(e => e.direction === 'OUTFLOW').reduce((s, e) => s + e.amount, 0))}</span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="hidden sm:block rounded-lg border border-border overflow-hidden overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-700/50 text-xs text-secondary uppercase">
                     <tr>

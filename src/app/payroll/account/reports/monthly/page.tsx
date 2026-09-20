@@ -161,7 +161,60 @@ export default function MonthlyTrendsPage() {
 
             {/* Table — newest first */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-              <div className="overflow-x-auto">
+              {/* Mobile card list (MBM-299 responsive-reports template) */}
+              <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
+                {tableRows.map(row => (
+                  <div key={row.key} className="p-3 space-y-2">
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{row.label}</p>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Payments</p>
+                        <p className="text-gray-600 dark:text-gray-400">{row.count}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Total</p>
+                        <p className="font-bold text-gray-900 dark:text-gray-100">{fmt(row.totalAmount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Salary</p>
+                        <p className="text-blue-700 dark:text-blue-400">{row.salaryAmount > 0 ? fmt(row.salaryAmount) : '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Loans</p>
+                        <p className="text-red-700 dark:text-red-400">{row.loanAmount > 0 ? fmt(row.loanAmount) : '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Advances</p>
+                        <p className="text-orange-700 dark:text-orange-400">{row.advanceAmount > 0 ? fmt(row.advanceAmount) : '—'}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <div className="p-3 bg-gray-50 dark:bg-gray-700 border-t-2 border-gray-300 dark:border-gray-500">
+                  <p className="font-bold text-gray-900 dark:text-gray-100 mb-2">Year Total</p>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Total</p>
+                      <p className="font-bold text-gray-900 dark:text-gray-100">{fmt(grandTotal)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Salary</p>
+                      <p className="font-bold text-blue-700 dark:text-blue-400">{fmt(rows.reduce((s, r) => s + r.salaryAmount, 0))}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Loans</p>
+                      <p className="font-bold text-red-700 dark:text-red-400">{fmt(rows.reduce((s, r) => s + r.loanAmount, 0))}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Advances</p>
+                      <p className="font-bold text-orange-700 dark:text-orange-400">{fmt(rows.reduce((s, r) => s + r.advanceAmount, 0))}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Desktop/tablet table */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
                     <tr>

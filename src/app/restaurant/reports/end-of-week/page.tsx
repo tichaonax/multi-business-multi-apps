@@ -423,7 +423,7 @@ export default function EndOfWeekReport() {
 
           {/* Daily Breakdown */}
           {weeklySales.dailyBreakdown && weeklySales.dailyBreakdown.length > 0 && (
-            <div className="mb-8">
+              <div className="mb-8 overflow-x-auto">
               <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600">
                 📅 DAILY BREAKDOWN
               </h3>
@@ -464,7 +464,7 @@ export default function EndOfWeekReport() {
 
           {/* Payment Methods */}
           {Object.keys(weeklySales.paymentMethods).length > 0 && (
-            <div className="mb-8">
+              <div className="mb-8 overflow-x-auto">
               <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600">
                 💰 PAYMENT METHODS
               </h3>
@@ -507,7 +507,7 @@ export default function EndOfWeekReport() {
 
           {/* Employee Performance */}
           {weeklySales.employeeSales && weeklySales.employeeSales.length > 0 && (
-            <div className="mb-8">
+              <div className="mb-8 overflow-x-auto">
               <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600">
                 👥 EMPLOYEE PERFORMANCE
               </h3>
@@ -555,7 +555,7 @@ export default function EndOfWeekReport() {
 
           {/* Category Performance */}
           {weeklySales.categoryBreakdown && weeklySales.categoryBreakdown.length > 0 && (
-            <div className="mb-8">
+              <div className="mb-8 overflow-x-auto">
               <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600">
                 📊 TOP INCOME SOURCES
               </h3>

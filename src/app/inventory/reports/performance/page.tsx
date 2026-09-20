@@ -204,7 +204,65 @@ export default function ProductPerformanceReportPage() {
 
         {!loading && reportData && (
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-border">
-            <div className="overflow-x-auto">
+            {/* Mobile card list (MBM-299 responsive-reports template — see
+                src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+            <div className="sm:hidden divide-y divide-border">
+              {pagedRows.length === 0 ? (
+                <div className="text-center py-12 text-secondary text-sm">No products match the current filters.</div>
+              ) : (
+                pagedRows.map(row => (
+                  <div key={row.id} className={`p-3 space-y-2 ${!row.pricingDataReliable ? 'bg-amber-50/40 dark:bg-amber-900/10' : ''}`}>
+                    <ProductCell
+                      imageUrl={row.imageUrl}
+                      name={row.productName}
+                      subtitle={row.variantName !== 'Default' ? row.variantName : undefined}
+                      sku={`${row.sku} · ${row.category}`}
+                      businessType={reportData.businessType}
+                      editItemId={row.editItemId}
+                      canEdit={canEditInventory}
+                      returnTo="/inventory/reports/performance"
+                    />
+                    {!row.pricingDataReliable && <p className="text-xs text-amber-600">⚠ missing cost/sell price — profitability unreliable</p>}
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Units Sold</p>
+                        <p className="text-secondary">{row.totalUnitsSold}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Revenue</p>
+                        <p className="text-secondary">{money(row.revenue)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">COGS</p>
+                        <p className="text-secondary">{money(row.costOfGoodsSold)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Gross Profit</p>
+                        <p className={row.grossProfit !== null && row.grossProfit < 0 ? 'text-red-600 font-semibold' : 'text-secondary'}>{money(row.grossProfit)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Margin</p>
+                        <p className="text-secondary">{row.grossMarginPct !== null ? `${row.grossMarginPct.toFixed(1)}%` : '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Transactions</p>
+                        <p className="text-secondary">{row.transactionCount}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Stock</p>
+                        <p className="text-secondary">{row.currentStock}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Days Since Sale</p>
+                        <p className="text-secondary">{row.daysSinceLastSale ?? '—'}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="hidden sm:block overflow-x-auto">
               {pagedRows.length === 0 ? (
                 <div className="text-center py-12 text-secondary text-sm">No products match the current filters.</div>
               ) : (

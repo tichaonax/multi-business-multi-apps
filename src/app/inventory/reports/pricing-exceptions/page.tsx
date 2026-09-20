@@ -466,22 +466,150 @@ export default function PricingExceptionsReportPage() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Mobile card list (MBM-299 responsive-reports template) — a
+                table forces a fixed column layout that either overflows a
+                phone width or hides so many columns the row stops being
+                useful; a stacked card can show every field at full width
+                instead. Same data as the table below, just laid out
+                differently per breakpoint — this is the pattern to reuse
+                for the other Sales Reports tables. */}
+            <div className="sm:hidden divide-y divide-border">
+              {rows.length === 0 ? (
+                <div className="text-center py-12 text-secondary text-sm">No exceptions match the current filters.</div>
+              ) : (
+                rows.map(row => (
+                  <div key={row.id} className={`p-3 space-y-2 ${row.severity === 'CRITICAL' ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}>
+                    <ProductCell
+                      imageUrl={row.imageUrl}
+                      name={row.name}
+                      sku={row.sku}
+                      businessType={reportData.businessType}
+                      editItemId={row.editItemId}
+                      canEdit={canEditInventory}
+                      returnTo="/inventory/reports/pricing-exceptions"
+                    />
+                    {row.flags.length > 0 && (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs text-secondary shrink-0">Exceptions:</span>
+                        {row.flags.map(flag => (
+                          <div key={flag.type} className="flex items-center gap-1">
+                            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${SEVERITY_STYLE[flag.severity]}`} title={flag.reason}>
+                              {flag.type.replace(/_/g, ' ')}
+                            </span>
+                            <ReviewAction businessId={currentBusinessId!} row={row} flag={flag} onSaved={s => handleReviewSaved(row.id, s)} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="text-xs text-secondary">
+                      {row.category ?? '—'}{row.unitOfMeasure && <span className="text-gray-400"> · {row.unitOfMeasure}</span>}
+                      {row.supplier && <span> · {row.supplier}</span>}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Qty on Hand</p>
+                        <p className="text-secondary">{row.quantityOnHand}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Qty Sold</p>
+                        <p className="text-secondary">{row.quantitySoldInPeriod}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Cost</p>
+                        <p className="text-secondary">
+                          {fmt(row.costPrice)}
+                          {row.previousCostPrice != null && <span className="block text-xs text-gray-400">was {fmt(row.previousCostPrice)}</span>}
+                          {row.previousFixSnapshot && (
+                            <span className="block text-xs text-green-600 dark:text-green-400" title="From the correction just applied — reload the report to confirm this is now final">
+                              just fixed, was {fmt(row.previousFixSnapshot.costPrice)}
+                            </span>
+                          )}
+                          {row.hasBulkCostOnFile && (
+                            <span className="block text-xs text-gray-400">Pack: {row.unitsPerPack ?? '?'} × {fmt(row.bulkPackCost)}</span>
+                          )}
+                          {!row.hasBulkCostOnFile && row.unitsPerPack != null && row.unitsPerPack > 1 && row.costPrice != null && (
+                            <span
+                              className="block text-xs text-indigo-500 dark:text-indigo-400"
+                              title="Pack size recorded, but the cost shown hasn't been confirmed as the box/case cost yet — that still needs someone with inventory-edit access, via Open Full Item Editor. Shown here so the original case cost isn't lost."
+                            >
+                              {fmt(row.costPrice)} ÷ {row.unitsPerPack} = {fmt(row.costPrice / row.unitsPerPack)}/unit
+                            </span>
+                          )}
+                          {row.flags.some(f => f.type === 'BULK_COST_ALLOCATION_ISSUE') && (
+                            <button
+                              onClick={() => handleFixClick(row)}
+                              className="block text-xs text-amber-600 dark:text-amber-400 hover:underline mt-0.5"
+                              title="Possible bulk cost error"
+                            >
+                              ⚠ Possible bulk cost error — Fix
+                            </button>
+                          )}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Sell</p>
+                        <p className="text-secondary">
+                          {fmt(row.sellingPrice)}
+                          {row.previousSellingPrice != null && <span className="block text-xs text-gray-400">was {fmt(row.previousSellingPrice)}</span>}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Margin</p>
+                        <p className={row.grossMarginPct !== null && row.grossMarginPct < 0 ? 'text-red-600 font-semibold' : 'text-secondary'}>
+                          {row.grossMarginPct !== null ? `${row.grossMarginPct.toFixed(1)}%` : '—'}
+                        </p>
+                        {row.previousFixSnapshot && (
+                          <p className="text-xs text-green-600 dark:text-green-400">
+                            was {row.previousFixSnapshot.grossMarginPct !== null ? `${row.previousFixSnapshot.grossMarginPct.toFixed(1)}%` : '—'}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Potential P/L</p>
+                        <p className={row.totalPotentialProfitLoss !== null && row.totalPotentialProfitLoss < 0 ? 'text-red-600 font-semibold' : 'text-secondary'}>
+                          {fmt(row.totalPotentialProfitLoss)}
+                        </p>
+                        {row.previousFixSnapshot && (
+                          <p className="text-xs text-green-600 dark:text-green-400">was {fmt(row.previousFixSnapshot.totalPotentialProfitLoss)}</p>
+                        )}
+                        {row.actualLossFromSalesInPeriod > 0 && (
+                          <p className="text-xs text-red-500" title="Actual loss from sales in the selected period (uses today's cost price, not the cost at the time of each sale)">
+                            actual: -{fmt(row.actualLossFromSalesInPeriod)}
+                          </p>
+                        )}
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">POS Status</p>
+                        <span className={`inline-block text-xs px-1.5 py-0.5 rounded ${row.posAvailabilityStatus === 'AVAILABLE' ? 'text-secondary' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'}`}>
+                          {POS_STATUS_LABEL[row.posAvailabilityStatus]}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Desktop/tablet table — unchanged layout, just now sm:block
+                instead of always-on since mobile gets the card list above. */}
+            <div className="hidden sm:block overflow-x-auto">
               {rows.length === 0 ? (
                 <div className="text-center py-12 text-secondary text-sm">No exceptions match the current filters.</div>
               ) : (
                 <table className="w-full text-sm border-separate border-spacing-0">
                   <thead>
                     <tr className="text-xs text-secondary uppercase tracking-wide">
-                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">Product</th>
-                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">Category / Supplier</th>
-                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Qty on Hand</th>
-                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Qty Sold</th>
-                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Cost</th>
-                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Sell</th>
-                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Margin</th>
-                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Potential P/L</th>
-                      <th className="bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">POS Status</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-2 sm:px-3 py-2 sm:py-2.5 text-left">Product</th>
+                      <th className="hidden sm:table-cell bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">Category / Supplier</th>
+                      <th className="hidden sm:table-cell bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Qty on Hand</th>
+                      <th className="hidden sm:table-cell bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Qty Sold</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-2 sm:px-3 py-2 sm:py-2.5 text-right">Cost</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-2 sm:px-3 py-2 sm:py-2.5 text-right">Sell</th>
+                      <th className="bg-gray-50 dark:bg-gray-800 px-2 sm:px-3 py-2 sm:py-2.5 text-right">Margin</th>
+                      <th className="hidden sm:table-cell bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-right">Potential P/L</th>
+                      <th className="hidden sm:table-cell bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left">POS Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -517,12 +645,12 @@ export default function PricingExceptionsReportPage() {
                             </div>
                           )}
                         </td>
-                        <td className="px-3 py-2.5 text-secondary">
+                        <td className="hidden sm:table-cell px-3 py-2.5 text-secondary">
                           <p>{row.category ?? '—'}{row.unitOfMeasure && <span className="text-gray-400"> · {row.unitOfMeasure}</span>}</p>
                           {row.supplier && <p className="text-xs text-gray-400">{row.supplier}</p>}
                         </td>
-                        <td className="px-3 py-2.5 text-right text-secondary">{row.quantityOnHand}</td>
-                        <td className="px-3 py-2.5 text-right text-secondary">{row.quantitySoldInPeriod}</td>
+                        <td className="hidden sm:table-cell px-3 py-2.5 text-right text-secondary">{row.quantityOnHand}</td>
+                        <td className="hidden sm:table-cell px-3 py-2.5 text-right text-secondary">{row.quantitySoldInPeriod}</td>
                         <td className="px-3 py-2.5 text-right text-secondary">
                           {fmt(row.costPrice)}
                           {row.previousCostPrice != null && <p className="text-xs text-gray-400">was {fmt(row.previousCostPrice)}</p>}
@@ -552,11 +680,11 @@ export default function PricingExceptionsReportPage() {
                             </button>
                           )}
                         </td>
-                        <td className="px-3 py-2.5 text-right text-secondary">
+                        <td className="px-2 sm:px-3 py-2 sm:py-2.5 text-right text-secondary">
                           {fmt(row.sellingPrice)}
                           {row.previousSellingPrice != null && <p className="text-xs text-gray-400">was {fmt(row.previousSellingPrice)}</p>}
                         </td>
-                        <td className="px-3 py-2.5 text-right">
+                        <td className="px-2 sm:px-3 py-2 sm:py-2.5 text-right">
                           <span className={row.grossMarginPct !== null && row.grossMarginPct < 0 ? 'text-red-600 font-semibold' : 'text-secondary'}>
                             {row.grossMarginPct !== null ? `${row.grossMarginPct.toFixed(1)}%` : '—'}
                           </span>
@@ -566,7 +694,7 @@ export default function PricingExceptionsReportPage() {
                             </p>
                           )}
                         </td>
-                        <td className="px-3 py-2.5 text-right">
+                        <td className="hidden sm:table-cell px-3 py-2.5 text-right">
                           <span className={row.totalPotentialProfitLoss !== null && row.totalPotentialProfitLoss < 0 ? 'text-red-600 font-semibold' : 'text-secondary'}>
                             {fmt(row.totalPotentialProfitLoss)}
                           </span>
@@ -579,7 +707,7 @@ export default function PricingExceptionsReportPage() {
                             </p>
                           )}
                         </td>
-                        <td className="px-3 py-2.5">
+                        <td className="hidden sm:table-cell px-3 py-2.5">
                           <span className={`text-xs px-1.5 py-0.5 rounded ${row.posAvailabilityStatus === 'AVAILABLE' ? 'text-secondary' : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'}`}>
                             {POS_STATUS_LABEL[row.posAvailabilityStatus]}
                           </span>

@@ -330,7 +330,7 @@ export default function MealProgramReportPage() {
 
               {/* Daily Trend */}
               {summaryData.dailyTrend.length > 0 && (
-                <div className="card overflow-hidden">
+                <div className="card overflow-x-auto">
                   <div className="px-4 py-3 border-b dark:border-gray-700 font-medium text-sm text-primary">
                     Daily Activity
                   </div>
@@ -368,7 +368,7 @@ export default function MealProgramReportPage() {
 
           {/* ---- SALESPERSON TAB ---- */}
           {!loading && tab === 'salesperson' && (
-            <div className="card overflow-hidden">
+            <div className="card overflow-x-auto">
               {salespersonData.length === 0 ? (
                 <div className="text-center py-10 text-secondary">No data for this period</div>
               ) : (

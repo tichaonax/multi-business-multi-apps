@@ -205,7 +205,66 @@ export default function PoorPerformersReportPage() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Mobile card list (MBM-299 responsive-reports template — see
+                src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+            <div className="sm:hidden divide-y divide-border">
+              {rows.length === 0 ? (
+                <div className="text-center py-12 text-secondary text-sm">No poor-performing stock matches the current filters.</div>
+              ) : (
+                rows.map(row => (
+                  <div key={row.id} className={`p-3 space-y-2 ${row.severity === 'CRITICAL' ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}>
+                    <ProductCell
+                      imageUrl={row.imageUrl}
+                      name={row.name}
+                      sku={row.sku ? `${row.sku} · ${row.category ?? 'Uncategorised'}` : undefined}
+                      businessType={reportData.businessType}
+                      editItemId={row.editItemId}
+                      canEdit={canEditInventory}
+                      returnTo="/inventory/reports/poor-performers"
+                    />
+                    {row.criteria.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {row.criteria.map(c => (
+                          <span key={c} className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">{CRITERION_LABEL[c] ?? c}</span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Qty on Hand</p>
+                        <p className="text-secondary">{row.quantityOnHand}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Cost Value</p>
+                        <p className="text-secondary">{row.unvaluedQty > 0 ? <span className="text-amber-600">unvalued</span> : money(row.totalCostValue)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Qty Sold</p>
+                        <p className="text-secondary">{row.qtySoldInPeriod}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Stock Age</p>
+                        <p className="text-secondary">{row.stockAgeDays}d</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Potential Loss</p>
+                        <p className={row.potentialLossOnHand > 0 ? 'text-red-600 font-semibold' : 'text-secondary'}>{row.potentialLossOnHand > 0 ? money(row.potentialLossOnHand) : '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Actual Loss</p>
+                        <p className={row.actualLossInPeriod > 0 ? 'text-red-600 font-semibold' : 'text-secondary'}>{row.actualLossInPeriod > 0 ? money(row.actualLossInPeriod) : '—'}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Suggested Action</p>
+                        <p className="text-secondary">{row.suggestedAction}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="hidden sm:block overflow-x-auto">
               {rows.length === 0 ? (
                 <div className="text-center py-12 text-secondary text-sm">No poor-performing stock matches the current filters.</div>
               ) : (

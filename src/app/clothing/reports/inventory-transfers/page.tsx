@@ -139,13 +139,14 @@ export default function InventoryTransferReportPage() {
                     </button>
 
                     {expandedTransfer === t.id && (
+                      <div className="overflow-x-auto">
                       <table className="w-full text-sm border-t border-gray-200 dark:border-gray-700">
                         <thead className="bg-gray-50 dark:bg-gray-700/50">
                           <tr>
                             <th className="px-4 py-2 text-left">Item</th>
                             <th className="px-4 py-2 text-left">Bale / Batch</th>
                             <th className="px-4 py-2 text-right">Qty</th>
-                            <th className="px-4 py-2 text-right">Source Price</th>
+                            <th className="hidden sm:table-cell px-4 py-2 text-right">Source Price</th>
                             <th className="px-4 py-2 text-right">Target Price</th>
                           </tr>
                         </thead>
@@ -167,12 +168,13 @@ export default function InventoryTransferReportPage() {
                                 )}
                               </td>
                               <td className="px-4 py-2 text-right">{item.quantity}</td>
-                              <td className="px-4 py-2 text-right">${item.sourcePrice.toFixed(2)}</td>
+                              <td className="hidden sm:table-cell px-4 py-2 text-right">${item.sourcePrice.toFixed(2)}</td>
                               <td className="px-4 py-2 text-right">${item.targetPrice.toFixed(2)}</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
+                      </div>
                     )}
                   </div>
                 ))}

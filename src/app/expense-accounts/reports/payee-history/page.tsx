@@ -451,7 +451,51 @@ export default function PayeePaymentHistoryPage() {
                   <button onClick={() => setPaymentSearch('')} className="text-xs text-blue-500 hover:underline">Clear search</button>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <>
+                {/* Mobile card list (MBM-299 responsive-reports template —
+                    see src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+                <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
+                  {filteredPayments.map(p => (
+                    <div key={p.id} className="p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-700 dark:text-gray-300 text-sm">{fmtDate(p.paymentDate)}</span>
+                        <span className="font-medium text-red-600 dark:text-red-400">{fmt(p.amount)}</span>
+                      </div>
+                      <div>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          p.status === 'APPROVED' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                          : p.status === 'SUBMITTED' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                          : p.status === 'REJECTED' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                          : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                        }`}>
+                          {p.status}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Category</p>
+                          <p className="text-gray-600 dark:text-gray-400">{p.category?.name || <span className="text-gray-300 dark:text-gray-600">—</span>}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Receipt #</p>
+                          <p className="text-gray-500 dark:text-gray-400 font-mono text-xs">{p.receiptNumber || <span className="text-gray-300 dark:text-gray-600">—</span>}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Account</p>
+                          <p className="text-gray-600 dark:text-gray-400 text-xs">{p.expenseAccount?.accountName || '—'}</p>
+                        </div>
+                        {p.notes && (
+                          <div className="col-span-2">
+                            <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Notes</p>
+                            <p className="text-gray-500 dark:text-gray-400 text-xs">{p.notes}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 dark:bg-gray-700">
                       <tr>
@@ -488,6 +532,7 @@ export default function PayeePaymentHistoryPage() {
                     </tbody>
                   </table>
                 </div>
+                </>
               )}
             </div>
           </>

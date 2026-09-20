@@ -151,41 +151,99 @@ export default function ByEmployeeReportPage() {
           ) : rows.length === 0 ? (
             <div className="p-8 text-center text-gray-500 dark:text-gray-400">No payments found</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-                  <tr>
-                    {['Employee', 'Payments', 'Salary Paid', 'Loans', 'Advances', 'Total'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {rows.map(row => (
-                    <tr key={row.name} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-gray-900 dark:text-gray-100">{row.name}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{row.employeeNumber}</p>
-                      </td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{row.count}</td>
-                      <td className="px-4 py-3 text-blue-700 dark:text-blue-400">{row.salaryAmount > 0 ? fmt(row.salaryAmount) : '—'}</td>
-                      <td className="px-4 py-3 text-red-700 dark:text-red-400">{row.loanAmount > 0 ? fmt(row.loanAmount) : '—'}</td>
-                      <td className="px-4 py-3 text-orange-700 dark:text-orange-400">{row.advanceAmount > 0 ? fmt(row.advanceAmount) : '—'}</td>
-                      <td className="px-4 py-3 font-bold text-gray-900 dark:text-gray-100">{fmt(row.totalAmount)}</td>
+            <>
+              {/* Mobile card list (MBM-299 responsive-reports template) */}
+              <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
+                {rows.map(row => (
+                  <div key={row.name} className="p-3 space-y-2">
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-gray-100">{row.name}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{row.employeeNumber}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Payments</p>
+                        <p className="text-gray-700 dark:text-gray-300">{row.count}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Total</p>
+                        <p className="font-bold text-gray-900 dark:text-gray-100">{fmt(row.totalAmount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Salary Paid</p>
+                        <p className="text-blue-700 dark:text-blue-400">{row.salaryAmount > 0 ? fmt(row.salaryAmount) : '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Loans</p>
+                        <p className="text-red-700 dark:text-red-400">{row.loanAmount > 0 ? fmt(row.loanAmount) : '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Advances</p>
+                        <p className="text-orange-700 dark:text-orange-400">{row.advanceAmount > 0 ? fmt(row.advanceAmount) : '—'}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <div className="p-3 bg-gray-50 dark:bg-gray-700 border-t-2 border-gray-300 dark:border-gray-500">
+                  <p className="font-bold text-gray-900 dark:text-gray-100 mb-2">Grand Total</p>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Total</p>
+                      <p className="font-bold text-gray-900 dark:text-gray-100">{fmt(totalAmount)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Salary Paid</p>
+                      <p className="font-bold text-blue-700 dark:text-blue-400">{fmt(rows.reduce((s, r) => s + r.salaryAmount, 0))}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Loans</p>
+                      <p className="font-bold text-red-700 dark:text-red-400">{fmt(rows.reduce((s, r) => s + r.loanAmount, 0))}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Advances</p>
+                      <p className="font-bold text-orange-700 dark:text-orange-400">{fmt(rows.reduce((s, r) => s + r.advanceAmount, 0))}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Desktop/tablet table */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                    <tr>
+                      {['Employee', 'Payments', 'Salary Paid', 'Loans', 'Advances', 'Total'].map(h => (
+                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot className="bg-gray-50 dark:bg-gray-700 border-t-2 border-gray-300 dark:border-gray-500">
-                  <tr>
-                    <td className="px-4 py-3 font-bold text-gray-900 dark:text-gray-100" colSpan={2}>Grand Total</td>
-                    <td className="px-4 py-3 font-bold text-blue-700 dark:text-blue-400">{fmt(rows.reduce((s, r) => s + r.salaryAmount, 0))}</td>
-                    <td className="px-4 py-3 font-bold text-red-700 dark:text-red-400">{fmt(rows.reduce((s, r) => s + r.loanAmount, 0))}</td>
-                    <td className="px-4 py-3 font-bold text-orange-700 dark:text-orange-400">{fmt(rows.reduce((s, r) => s + r.advanceAmount, 0))}</td>
-                    <td className="px-4 py-3 font-bold text-gray-900 dark:text-gray-100">{fmt(totalAmount)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {rows.map(row => (
+                      <tr key={row.name} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-gray-900 dark:text-gray-100">{row.name}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{row.employeeNumber}</p>
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{row.count}</td>
+                        <td className="px-4 py-3 text-blue-700 dark:text-blue-400">{row.salaryAmount > 0 ? fmt(row.salaryAmount) : '—'}</td>
+                        <td className="px-4 py-3 text-red-700 dark:text-red-400">{row.loanAmount > 0 ? fmt(row.loanAmount) : '—'}</td>
+                        <td className="px-4 py-3 text-orange-700 dark:text-orange-400">{row.advanceAmount > 0 ? fmt(row.advanceAmount) : '—'}</td>
+                        <td className="px-4 py-3 font-bold text-gray-900 dark:text-gray-100">{fmt(row.totalAmount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-50 dark:bg-gray-700 border-t-2 border-gray-300 dark:border-gray-500">
+                    <tr>
+                      <td className="px-4 py-3 font-bold text-gray-900 dark:text-gray-100" colSpan={2}>Grand Total</td>
+                      <td className="px-4 py-3 font-bold text-blue-700 dark:text-blue-400">{fmt(rows.reduce((s, r) => s + r.salaryAmount, 0))}</td>
+                      <td className="px-4 py-3 font-bold text-red-700 dark:text-red-400">{fmt(rows.reduce((s, r) => s + r.loanAmount, 0))}</td>
+                      <td className="px-4 py-3 font-bold text-orange-700 dark:text-orange-400">{fmt(rows.reduce((s, r) => s + r.advanceAmount, 0))}</td>
+                      <td className="px-4 py-3 font-bold text-gray-900 dark:text-gray-100">{fmt(totalAmount)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>

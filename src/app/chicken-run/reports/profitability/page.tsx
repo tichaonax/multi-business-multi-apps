@@ -123,6 +123,7 @@ export default function ProfitabilityReportPage() {
               {report.batches.length === 0 ? (
                 <p className="text-sm text-gray-400 dark:text-gray-500">No completed batches with culling data yet.</p>
               ) : (
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-gray-600">
@@ -161,6 +162,7 @@ export default function ProfitabilityReportPage() {
                     </tfoot>
                   )}
                 </table>
+                </div>
               )}
             </div>
           </>

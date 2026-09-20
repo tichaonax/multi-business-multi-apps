@@ -176,7 +176,43 @@ export default function VehiclePartsReportsPage() {
                 </div>
               ))}
             </div>
-            <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden overflow-x-auto">
+            {/* Mobile card list (responsive-reports template — see
+                src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+            <div className="sm:hidden bg-white dark:bg-gray-800 shadow-md rounded-lg divide-y divide-gray-100 dark:divide-gray-700">
+              {stockData.parts.length === 0 ? (
+                <div className="px-3 py-6 text-center text-gray-400 text-sm">No parts found.</div>
+              ) : (
+                stockData.parts.map((p: any) => (
+                  <div key={p.id} className="p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium text-gray-900 dark:text-white">{p.name}</p>
+                      <p className="text-gray-900 dark:text-white">{p.stockQuantity}</p>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">{p.sku || '—'}</p>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1 text-sm">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Category</p>
+                        <p className="text-gray-500 dark:text-gray-400">{p.category || '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Location</p>
+                        <p className="text-gray-500 dark:text-gray-400">{p.location || '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Reorder Level</p>
+                        <p className="text-gray-500 dark:text-gray-400">{p.reorderLevel}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Status</p>
+                        <p className="text-gray-500 dark:text-gray-400">{p.status.replace('_', ' ')}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="hidden sm:block bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-900">
                   <tr>
@@ -218,7 +254,41 @@ export default function VehiclePartsReportsPage() {
                 </div>
               ))}
             </div>
-            <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden overflow-x-auto">
+            {/* Mobile card list (responsive-reports template) */}
+            <div className="sm:hidden bg-white dark:bg-gray-800 shadow-md rounded-lg divide-y divide-gray-100 dark:divide-gray-700">
+              {salesData.parts.length === 0 ? (
+                <div className="px-3 py-6 text-center text-gray-400 text-sm">No parts sold or used in this period.</div>
+              ) : (
+                salesData.parts.map((p: any, i: number) => (
+                  <div key={i} className="p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium text-gray-900 dark:text-white">{p.name}</p>
+                      <p className="font-medium text-green-600 dark:text-green-400">{formatCurrency(p.revenue - p.cost)}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1 text-sm">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Sold Direct</p>
+                        <p className="text-gray-500 dark:text-gray-400">{p.quantitySold}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Used in Service</p>
+                        <p className="text-gray-500 dark:text-gray-400">{p.quantityUsed}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Cost</p>
+                        <p className="text-gray-500 dark:text-gray-400">{formatCurrency(p.cost)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Revenue</p>
+                        <p className="text-gray-900 dark:text-white">{formatCurrency(p.revenue)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="hidden sm:block bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-900">
                   <tr>

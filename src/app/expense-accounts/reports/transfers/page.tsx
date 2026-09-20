@@ -137,7 +137,68 @@ export default function TransferImbalanceReportPage() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* Mobile card list (MBM-299 responsive-reports template — see
+                src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+            <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
+              {transfers.map((t) => {
+                const isReceiver = isSystemAdmin || (!!currentBusinessId && t.toBusinessId === currentBusinessId)
+                const canReturn = canReturnTransfer && isReceiver && t.status !== 'RETURNED'
+                return (
+                  <div key={t.id} className="p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-gray-900 dark:text-gray-100">{t.fromBusinessName}</span>
+                      {statusBadge(t.status)}
+                    </div>
+                    <div>
+                      <Link href={`/expense-accounts/${t.toAccount.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                        {t.toAccount.accountName}
+                      </Link>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{t.toAccount.accountNumber}</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Original</p>
+                        <p className="text-gray-700 dark:text-gray-300">{formatCurrency(t.originalAmount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Returned</p>
+                        <p className="text-green-600 dark:text-green-400">{formatCurrency(t.returnedAmount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Outstanding</p>
+                        <p className={`font-medium ${t.outstandingAmount > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                          {formatCurrency(t.outstandingAmount)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Date</p>
+                        <p className="text-gray-500 dark:text-gray-400">
+                          {new Date(t.transferDate).toLocaleDateString()}
+                          {t.createdBy?.name && <span className="block text-xs text-gray-400 dark:text-gray-500">by {t.createdBy.name}</span>}
+                        </p>
+                      </div>
+                    </div>
+                    {canReturnTransfer && (
+                      canReturn ? (
+                        <button
+                          onClick={() => setReturnModal({ accountId: t.toAccount.id, transferId: t.id })}
+                          className="w-full px-3 py-1.5 text-xs font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors"
+                        >
+                          🔄 Return
+                        </button>
+                      ) : null
+                    )}
+                  </div>
+                )
+              })}
+              <div className="p-3 bg-gray-50 dark:bg-gray-700 flex items-center justify-between text-sm">
+                <span className="font-medium text-gray-700 dark:text-gray-300">Total Outstanding ({transfers.length})</span>
+                <span className="font-bold text-red-600 dark:text-red-400">{formatCurrency(totalOutstanding)}</span>
+              </div>
+            </div>
+
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
@@ -217,6 +278,7 @@ export default function TransferImbalanceReportPage() {
                 </tfoot>
               </table>
             </div>
+            </>
           )}
         </div>
       </div>

@@ -190,7 +190,102 @@ export default function ContractorPaymentsReportPage() {
               </div>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden overflow-x-auto">
+            {/* Mobile card list (responsive-reports template — see
+                src/app/inventory/reports/pricing-exceptions/page.tsx) — this
+                table has 6-7 columns depending on tab and is the page's
+                primary content, so it gets a stacked-card layout on phones
+                instead of horizontal scroll. */}
+            <div className="sm:hidden bg-white dark:bg-gray-800 shadow-md rounded-lg divide-y divide-gray-100 dark:divide-gray-700">
+              {items.length === 0 ? (
+                <div className="px-3 py-6 text-center text-gray-400 text-sm">Nothing to show.</div>
+              ) : (
+                items.map((i, idx) => (
+                  <div key={idx} className={`p-3 space-y-2 ${i.isOverdue ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
+                    {tab === 'pending-payments' && (
+                      <>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-medium text-gray-900 dark:text-white">{i.contractorName}</p>
+                          <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(i.amount)}</p>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">{i.voucherNumber}</p>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1 text-sm">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-gray-400">Jobs</p>
+                            <p className="text-gray-500 dark:text-gray-400">{i.taskCount}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-gray-400">Created</p>
+                            <p className="text-gray-500 dark:text-gray-400">{formatDate(i.createdAt)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-gray-400">Due Date</p>
+                            <p className="text-gray-500 dark:text-gray-400">{formatDate(i.dueDate)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-gray-400">Status</p>
+                            {i.isOverdue ? (
+                              <span className="text-red-600 dark:text-red-400 font-medium">{i.daysOverdue}d overdue</span>
+                            ) : (
+                              <span className="text-gray-500 dark:text-gray-400">{i.paymentStatus}</span>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                    {tab === 'pending-submissions' && (
+                      <>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-medium text-gray-900 dark:text-white">{i.contractorName}</p>
+                          <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(i.amount)}</p>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">{i.orderNumber} · {i.serviceName}</p>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1 text-sm">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-gray-400">Vehicle</p>
+                            <p className="text-gray-500 dark:text-gray-400">{i.vehicle || '—'}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-gray-400">Completed</p>
+                            <p className="text-gray-500 dark:text-gray-400">{formatDate(i.completedAt)}</p>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-[10px] uppercase tracking-wide text-gray-400">Due Date</p>
+                            {i.isOverdue ? (
+                              <span className="text-red-600 dark:text-red-400 font-medium">{formatDate(i.dueDate)}</span>
+                            ) : (
+                              <span className="text-gray-500 dark:text-gray-400">{formatDate(i.dueDate)}</span>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                    {tab === 'overdue' && (
+                      <>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-medium text-gray-900 dark:text-white">{i.contractorName}</p>
+                          <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(i.amount)}</p>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {i.type === 'payment' ? 'Payment' : 'Submission'} · {i.type === 'payment' ? i.voucherNumber : `${i.orderNumber} — ${i.serviceName}`}
+                        </p>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1 text-sm">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-gray-400">Due Date</p>
+                            <p className="text-gray-500 dark:text-gray-400">{formatDate(i.dueDate)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-gray-400">Overdue</p>
+                            <span className="text-red-600 dark:text-red-400 font-medium">{i.daysOverdue}d</span>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="hidden sm:block bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-900">
                   <tr>

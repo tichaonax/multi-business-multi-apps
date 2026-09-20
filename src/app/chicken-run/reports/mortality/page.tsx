@@ -120,7 +120,31 @@ export default function MortalityReportPage() {
               {report.byBatch.length === 0 ? (
                 <p className="text-sm text-gray-400 dark:text-gray-500">No batches found.</p>
               ) : (
-                <div className="overflow-x-auto">
+                <>
+                {/* Mobile card list (MBM-299 responsive-reports template — see
+                    src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+                <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700 -mx-5">
+                  {report.byBatch.map(b => (
+                    <div key={b.batchId} className="p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{b.batchNumber}</p>
+                        <p className="text-sm font-semibold text-red-600 dark:text-red-400">{b.totalDeaths} deaths ({b.mortalityRate}%)</p>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Initial: {b.initialCount}</p>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                        {REASONS.map(r => (
+                          <div key={r}>
+                            <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">{r}</p>
+                            <p className="text-sm text-gray-900 dark:text-gray-100">{b.byReason[r] ?? 0}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop/tablet table */}
+                <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full text-sm min-w-[700px]">
                     <thead>
                       <tr className="border-b border-gray-200 dark:border-gray-600">
@@ -146,6 +170,7 @@ export default function MortalityReportPage() {
                     </tbody>
                   </table>
                 </div>
+                </>
               )}
             </div>
           </>

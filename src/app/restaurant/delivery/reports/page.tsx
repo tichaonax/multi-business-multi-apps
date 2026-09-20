@@ -244,7 +244,7 @@ export default function DeliveryReportsPage() {
                   {report.orders.length === 0 ? (
                     <p className="text-center text-gray-400 py-8">No delivery orders in this period.</p>
                   ) : (
-                    <div className="bg-white dark:bg-gray-900 rounded-lg shadow overflow-hidden">
+                      <div className="bg-white dark:bg-gray-900 rounded-lg shadow overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-xs uppercase">
                           <tr>

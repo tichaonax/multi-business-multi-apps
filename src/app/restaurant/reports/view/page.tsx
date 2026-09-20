@@ -189,6 +189,7 @@ function HistoricalReportViewContent() {
             <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
               PAYMENT METHODS
             </h3>
+            <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-100 dark:bg-gray-700 print:bg-gray-100">
                 <tr>
@@ -222,6 +223,7 @@ function HistoricalReportViewContent() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
 
           {/* Sales by Employee */}
@@ -230,6 +232,7 @@ function HistoricalReportViewContent() {
               <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
                 SALES BY EMPLOYEE
               </h3>
+              <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-100 dark:bg-gray-700 print:bg-gray-100">
                   <tr>
@@ -266,9 +269,10 @@ function HistoricalReportViewContent() {
                         {formatCurrency(emp.sales / emp.orders)}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                ))}  
+              </tbody>
+            </table>
+              </div>
             </div>
           )}
 

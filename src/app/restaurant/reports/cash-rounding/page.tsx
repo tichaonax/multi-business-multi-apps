@@ -142,7 +142,47 @@ export default function CashRoundingReportPage() {
                 No rounding events in this period.
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+              <>
+              {/* Mobile card list */}
+              <div className="sm:hidden rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-700">
+                {logs.map((log) => (
+                  <div key={log.id} className="p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600 dark:text-gray-400">
+                        {new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                        log.direction === 'UP'
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                          : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                      }`}>
+                        {log.direction === 'UP' ? '↑ Up' : '↓ Down'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-x-3 gap-y-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Original</p>
+                        <p className="text-gray-700 dark:text-gray-300">${log.originalAmount.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Rounded</p>
+                        <p className="font-medium text-gray-900 dark:text-white">${log.roundedAmount.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Adjustment</p>
+                        <p className={`font-medium ${log.direction === 'UP' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {log.direction === 'UP' ? '+' : '-'}${Math.abs(log.adjustment).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                    {log.staffNote && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{log.staffNote}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden sm:block overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-800">
                     <tr>
@@ -184,6 +224,7 @@ export default function CashRoundingReportPage() {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </>
         )}

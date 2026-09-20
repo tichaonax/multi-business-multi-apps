@@ -653,6 +653,7 @@ export default function EndOfDayReport() {
             <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
               💰 PAYMENT METHODS
             </h3>
+            <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-100 dark:bg-gray-700 print:bg-gray-100">
                 <tr>
@@ -692,6 +693,7 @@ export default function EndOfDayReport() {
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
 
           {/* EcoCash Breakdown — only shown when there were EcoCash transactions */}
@@ -727,14 +729,59 @@ export default function EndOfDayReport() {
               <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
                 👥 SALES BY EMPLOYEE
               </h3>
+              {/* Mobile card list (MBM-299 responsive-reports template) —
+                  shows rank + avg/order too, which the table hides below sm. */}
+              <div className="sm:hidden print:hidden divide-y divide-gray-200 dark:divide-gray-600">
+                {dailySales.employeeSales
+                  .sort((a: any, b: any) => b.sales - a.sales)
+                  .map((emp: any, index: number) => {
+                    const percentage = (emp.sales / dailySales.summary.totalSales) * 100
+                    const isTopThree = index < 3
+                    return (
+                      <div
+                        key={emp.name}
+                        className={`p-3 space-y-2 ${isTopThree ? 'bg-green-50 dark:bg-green-900/20' : ''}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm shrink-0 ${
+                            index === 0 ? 'bg-yellow-400 text-yellow-900' :
+                            index === 1 ? 'bg-gray-300 text-gray-900' :
+                            index === 2 ? 'bg-orange-400 text-orange-900' :
+                            'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                          }`}>
+                            {index + 1}
+                          </span>
+                          <span className="font-medium text-gray-900 dark:text-gray-100">{emp.name}</span>
+                        </div>
+                        <PercentageBar percentage={percentage} color="purple" />
+                        <div className="grid grid-cols-3 gap-x-3 gap-y-2">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Orders</p>
+                            <p className="text-gray-900 dark:text-gray-100">{emp.orders}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Sales</p>
+                            <p className="text-gray-900 dark:text-gray-100 font-semibold">{formatCurrency(emp.sales)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Avg/Order</p>
+                            <p className="text-gray-900 dark:text-gray-100">{formatCurrency(emp.sales / emp.orders)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+              </div>
+
+              <div className="hidden sm:block print:block overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-100 dark:bg-gray-700 print:bg-gray-100">
                   <tr>
-                    <th className="text-center p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900 w-12">#</th>
+                    <th className="hidden sm:table-cell text-center p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900 w-12">#</th>
                     <th className="text-left p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Employee</th>
                     <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Orders</th>
                     <th className="text-left p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Sales Performance</th>
-                    <th className="text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Avg/Order</th>
+                    <th className="hidden sm:table-cell text-right p-3 font-semibold text-gray-900 dark:text-gray-100 print:text-gray-900">Avg/Order</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -750,7 +797,7 @@ export default function EndOfDayReport() {
                             isTopThree ? 'bg-green-50 dark:bg-green-900/20 print:bg-green-50' : ''
                           }`}
                         >
-                          <td className="p-3 text-center">
+                          <td className="hidden sm:table-cell p-3 text-center">
                             <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${
                               index === 0 ? 'bg-yellow-400 text-yellow-900' :
                               index === 1 ? 'bg-gray-300 text-gray-900' :
@@ -777,7 +824,7 @@ export default function EndOfDayReport() {
                               </span>
                             </div>
                           </td>
-                          <td className="p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">
+                          <td className="hidden sm:table-cell p-3 text-right text-gray-900 dark:text-gray-100 print:text-gray-900">
                             {formatCurrency(emp.sales / emp.orders)}
                           </td>
                         </tr>
@@ -785,6 +832,7 @@ export default function EndOfDayReport() {
                     })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
@@ -799,6 +847,7 @@ export default function EndOfDayReport() {
                   Total Income: <span className="text-2xl ml-2">{formatCurrency(dailySales.summary.totalSales)}</span>
                 </div>
               </div>
+              <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-100 dark:bg-gray-700 print:bg-gray-100">
                   <tr>
@@ -862,6 +911,7 @@ export default function EndOfDayReport() {
                   </tr>
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
@@ -877,6 +927,7 @@ export default function EndOfDayReport() {
                   The expected cash total below has been adjusted accordingly.
                 </p>
               </div>
+              <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-100 dark:bg-gray-700 print:bg-gray-100">
                   <tr>
@@ -915,6 +966,7 @@ export default function EndOfDayReport() {
                   </tr>
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
@@ -924,6 +976,7 @@ export default function EndOfDayReport() {
               <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 pb-2 border-b border-gray-300 dark:border-gray-600 print:text-gray-900 print:border-gray-300">
                 📶 WIFI TOKEN SALES
               </h3>
+              <div className="overflow-x-auto">
               <table className="w-full mb-4">
                 <thead className="bg-gray-100 dark:bg-gray-700 print:bg-gray-100">
                   <tr>
@@ -961,6 +1014,7 @@ export default function EndOfDayReport() {
                   </tr>
                 </tbody>
               </table>
+              </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 print:text-gray-500">
                 ⚠️ WiFi token sales are non-refundable. These orders cannot be cancelled or reversed.
               </p>

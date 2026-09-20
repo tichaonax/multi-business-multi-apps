@@ -171,51 +171,101 @@ export default function AccountsOverviewReportPage() {
           ) : accounts.length === 0 ? (
             <div className="text-center py-12 text-gray-500 dark:text-gray-400">No accounts found</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-gray-700">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Account</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Balance</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Deposits</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Payments</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Net Change</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Txns</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {accounts.map((a) => (
-                    <tr key={a.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                      <td className="px-4 py-3">
+            <>
+              {/* Mobile card list (MBM-299 responsive-reports template) */}
+              <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
+                {accounts.map((a) => (
+                  <div key={a.id} className="p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
                         <Link href={`/expense-accounts/${a.id}`} className="font-medium text-blue-600 dark:text-blue-400 hover:underline">
                           {a.accountName}
                         </Link>
                         <div className="text-xs text-gray-400">{a.accountNumber}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                          a.accountType === 'PERSONAL'
-                            ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
-                            : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
-                        }`}>
-                          {a.accountType === 'PERSONAL' ? '👤 Personal' : '🏢 General'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-gray-100">{formatCurrency(a.balance)}</td>
-                      <td className="px-4 py-3 text-right text-green-600 dark:text-green-400">{formatCurrency(a.totalDeposits)}</td>
-                      <td className="px-4 py-3 text-right text-red-600 dark:text-red-400">{formatCurrency(a.totalPayments)}</td>
-                      <td className={`px-4 py-3 text-right font-medium ${a.netChange >= 0 ? 'text-teal-600 dark:text-teal-400' : 'text-orange-600 dark:text-orange-400'}`}>
-                        {a.netChange >= 0 ? '+' : ''}{formatCurrency(a.netChange)}
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-500 dark:text-gray-400 text-xs">
-                        {a.depositCount + a.paymentCount}
-                      </td>
+                      </div>
+                      <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${
+                        a.accountType === 'PERSONAL'
+                          ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
+                          : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                      }`}>
+                        {a.accountType === 'PERSONAL' ? '👤 Personal' : '🏢 General'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Balance</p>
+                        <p className="font-medium text-gray-900 dark:text-gray-100">{formatCurrency(a.balance)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Txns</p>
+                        <p className="text-gray-500 dark:text-gray-400">{a.depositCount + a.paymentCount}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Deposits</p>
+                        <p className="text-green-600 dark:text-green-400">{formatCurrency(a.totalDeposits)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Payments</p>
+                        <p className="text-red-600 dark:text-red-400">{formatCurrency(a.totalPayments)}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Net Change</p>
+                        <p className={`font-medium ${a.netChange >= 0 ? 'text-teal-600 dark:text-teal-400' : 'text-orange-600 dark:text-orange-400'}`}>
+                          {a.netChange >= 0 ? '+' : ''}{formatCurrency(a.netChange)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop/tablet table */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Account</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Balance</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Deposits</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Payments</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Net Change</th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Txns</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {accounts.map((a) => (
+                      <tr key={a.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <td className="px-4 py-3">
+                          <Link href={`/expense-accounts/${a.id}`} className="font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                            {a.accountName}
+                          </Link>
+                          <div className="text-xs text-gray-400">{a.accountNumber}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            a.accountType === 'PERSONAL'
+                              ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
+                              : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                          }`}>
+                            {a.accountType === 'PERSONAL' ? '👤 Personal' : '🏢 General'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-gray-100">{formatCurrency(a.balance)}</td>
+                        <td className="px-4 py-3 text-right text-green-600 dark:text-green-400">{formatCurrency(a.totalDeposits)}</td>
+                        <td className="px-4 py-3 text-right text-red-600 dark:text-red-400">{formatCurrency(a.totalPayments)}</td>
+                        <td className={`px-4 py-3 text-right font-medium ${a.netChange >= 0 ? 'text-teal-600 dark:text-teal-400' : 'text-orange-600 dark:text-orange-400'}`}>
+                          {a.netChange >= 0 ? '+' : ''}{formatCurrency(a.netChange)}
+                        </td>
+                        <td className="px-4 py-3 text-center text-gray-500 dark:text-gray-400 text-xs">
+                          {a.depositCount + a.paymentCount}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>

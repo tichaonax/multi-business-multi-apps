@@ -425,7 +425,65 @@ export default function SalespersonShortfallPage() {
                 </div>
               ) : (
                 <>
-                  <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                  {/* Mobile card list (MBM-299 responsive-reports template —
+                      see src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+                  <div className="sm:hidden rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-600">
+                    {filteredRows.map(r => (
+                      <div
+                        key={`${r.date}-${r.salespersonId}`}
+                        className={`p-3 space-y-2 ${rowBg(r.status)} ${r.savedReportId ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20' : ''}`}
+                        onClick={() => r.savedReportId && router.push(`/${currentBusiness?.businessType}/reports/saved/${r.savedReportId}`)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium text-gray-900 dark:text-gray-100">
+                            {formatDate(r.date)}
+                            {r.savedReportId && <span className="ml-1 text-blue-400 text-xs">↗</span>}
+                          </p>
+                          {statusBadge(r.status)}
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Cash Submitted</p>
+                            <p className="text-gray-900 dark:text-gray-100">{r.status === 'MISSING' ? '—' : formatCurrency(r.cashAmount)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">EcoCash Submitted</p>
+                            <p className="text-gray-900 dark:text-gray-100">{r.status === 'MISSING' ? '—' : formatCurrency(r.ecocashAmount)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Submitted</p>
+                            <p className="font-semibold text-gray-900 dark:text-gray-100">{r.status === 'MISSING' ? '—' : formatCurrency(r.total)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Expected Cash (POS)</p>
+                            <div className="inline-flex items-center gap-1.5">
+                              <span className="text-gray-500 dark:text-gray-400">{r.expectedShare !== null ? formatCurrency(r.expectedShare) : '—'}</span>
+                              {r.cashCountedAmended && r.amendmentDetails && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setAmendmentModal({ ...r.amendmentDetails!, date: r.date }) }}
+                                  className="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 dark:bg-amber-900/40 dark:hover:bg-amber-800/50 dark:text-amber-300 px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-600 transition-colors"
+                                >
+                                  ✏️
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Variance</p>
+                            <p className={`font-semibold ${varianceColor(r.variance)}`}>{formatVariance(r.variance)}</p>
+                          </div>
+                          {(r.overrideReason || r.notes) && (
+                            <div className="col-span-2">
+                              <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Note / Reason</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">{r.overrideReason || r.notes}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="hidden sm:block overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
                     <table className="w-full text-sm">
                       <thead className="bg-gray-100 dark:bg-gray-700">
                         <tr>
@@ -491,7 +549,52 @@ export default function SalespersonShortfallPage() {
                 <p className="text-sm font-medium">No salespersons match your search or filter.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+              <>
+              {/* Mobile card list (MBM-299 responsive-reports template — see
+                  src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+              <div className="sm:hidden rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-600">
+                {filteredByPerson.map(p => (
+                  <div
+                    key={p.salespersonId}
+                    className={`p-3 space-y-2 ${p.daysMissing > 0 ? 'bg-red-50 dark:bg-red-900/20' : p.daysOverridden > 0 ? 'bg-amber-50 dark:bg-amber-900/10' : ''}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium text-gray-900 dark:text-gray-100">{p.salespersonName}</p>
+                      <button onClick={() => selectSalesperson(p.salespersonId)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold">
+                        View →
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Days Present</p>
+                        <p className="text-gray-700 dark:text-gray-300">{p.daysPresent}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Missing / Overridden</p>
+                        <p>
+                          {p.daysMissing > 0 ? <span className="font-bold text-red-600 dark:text-red-400">{p.daysMissing} missing</span> : <span className="text-gray-400">0 missing</span>}
+                          {' · '}
+                          {p.daysOverridden > 0 ? <span className="font-bold text-amber-600 dark:text-amber-400">{p.daysOverridden} overridden</span> : <span className="text-gray-400">0 overridden</span>}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Cash</p>
+                        <p className="text-gray-900 dark:text-gray-100">{formatCurrency(p.totalCash)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Total EcoCash</p>
+                        <p className="text-gray-900 dark:text-gray-100">{formatCurrency(p.totalEcocash)}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Total</p>
+                        <p className="font-semibold text-gray-900 dark:text-gray-100">{formatCurrency(p.totalAmount)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden sm:block overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-100 dark:bg-gray-700">
                     <tr>
@@ -525,6 +628,7 @@ export default function SalespersonShortfallPage() {
                   </tbody>
                 </table>
               </div>
+              </>
             )
           )}
       </div>

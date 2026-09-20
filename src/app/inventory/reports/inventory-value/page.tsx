@@ -198,7 +198,78 @@ export default function InventoryValueReportPage() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Mobile card list (MBM-299 responsive-reports template — see
+                src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+            <div className="sm:hidden divide-y divide-border">
+              {rows.length === 0 ? (
+                <div className="text-center py-12 text-secondary text-sm">No items match the current filters.</div>
+              ) : (
+                rows.map(row => {
+                  const view = row[viewMode]
+                  return (
+                    <div key={row.id} className={`p-3 space-y-2 ${row.potentialLossOnHand > 0 ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}>
+                      <ProductCell
+                        imageUrl={row.imageUrl}
+                        name={row.name}
+                        sku={row.sku}
+                        businessType={reportData.businessType}
+                        editItemId={row.editItemId}
+                        canEdit={canEditInventory}
+                        returnTo="/inventory/reports/inventory-value"
+                      />
+                      <div className="text-xs text-secondary">
+                        {row.category ?? '—'}{row.supplier && <span> · {row.supplier}</span>}
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Qty</p>
+                          <p className="text-secondary">{view.quantity}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Unit Cost</p>
+                          <p className="text-secondary">{row.costPrice != null ? money(row.costPrice) : <span className="text-amber-600">unvalued</span>}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Unit Sell</p>
+                          <p className="text-secondary">{row.sellingPrice != null ? money(row.sellingPrice) : '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Cost Value</p>
+                          <p className="text-secondary">{money(view.value)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Selling Value</p>
+                          <p className="text-secondary">{viewMode === 'combined' ? money(row.totalSellingValue) : '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Potential Loss</p>
+                          <p className={row.potentialLossOnHand > 0 ? 'text-red-600 font-semibold' : 'text-secondary'}>
+                            {row.potentialLossOnHand > 0 ? money(row.potentialLossOnHand) : '—'}
+                          </p>
+                        </div>
+                        {(row.isUnsellable || row.unvaluedQty > 0) && (
+                          <div className="col-span-2">
+                            <p className="text-[10px] uppercase tracking-wide text-secondary">Status</p>
+                            <div className="flex flex-wrap gap-1 mt-0.5">
+                              {row.isUnsellable && (
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                                  {row.posAvailabilityStatus === 'HIDDEN_NO_PRICE' ? 'Unsellable (hidden)' : row.posAvailabilityStatus === 'VISIBLE_AT_ZERO_PRICE' ? 'Sellable at $0' : 'Inactive'}
+                                </span>
+                              )}
+                              {row.unvaluedQty > 0 && (
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">Unvalued</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+
+            <div className="hidden sm:block overflow-x-auto">
               {rows.length === 0 ? (
                 <div className="text-center py-12 text-secondary text-sm">No items match the current filters.</div>
               ) : (

@@ -113,7 +113,7 @@ export default function BogoSalesReportPage() {
             {report.byBale && report.byBale.length > 0 && (
               <div className="mb-6">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">BOGO by Bale</h2>
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 dark:bg-gray-700/50">
                       <tr>
@@ -155,6 +155,7 @@ export default function BogoSalesReportPage() {
                         <span className="text-sm text-green-600 ml-3">{t.freeItemCount} free item(s)</span>
                       </div>
                     </div>
+                    <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                         {t.items.map((item: any, j: number) => (
@@ -170,6 +171,7 @@ export default function BogoSalesReportPage() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
                   </div>
                 ))}
               </div>

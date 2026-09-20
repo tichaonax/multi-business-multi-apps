@@ -313,7 +313,79 @@ export default function CustomerReportsPage() {
               No customer purchases found for this period.
             </div>
           ) : (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+            <>
+            {/* Mobile card list (MBM-299 responsive-reports template) */}
+            <div className="sm:hidden bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm divide-y divide-gray-100 dark:divide-gray-700">
+              {customers.map((c, i) => (
+                <div key={c.id}>
+                  <div
+                    onClick={() => setExpandedRow(expandedRow === c.id ? null : c.id)}
+                    className="p-3 space-y-2 cursor-pointer active:bg-gray-50 dark:active:bg-gray-700/50"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-xs text-gray-400 dark:text-gray-500">#{i + 1}</div>
+                        <div className="font-medium text-gray-900 dark:text-white truncate">{c.name}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">{c.customerNumber}{c.phone ? ` · ${c.phone}` : ''}</div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <StatusBadge status={c.status} />
+                        {expandedRow === c.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500">Orders</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{c.orderCount}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500">Total Spend</p>
+                        <p className="font-semibold text-gray-900 dark:text-white">{fmt(c.totalSpend)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500">Avg Order</p>
+                        <p className="text-gray-600 dark:text-gray-300">{fmt(c.avgOrderValue)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500">Last Visit</p>
+                        <p className="text-gray-600 dark:text-gray-300">{new Date(c.lastVisit).toLocaleDateString()} <span className="text-gray-400">({c.daysSinceLastVisit}d ago)</span></p>
+                      </div>
+                    </div>
+                  </div>
+                  {expandedRow === c.id && (
+                    <div className="bg-gray-50 dark:bg-gray-900/30 px-3 py-3">
+                      <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Recent Orders</div>
+                      {c.recentOrders.length === 0 ? (
+                        <p className="text-xs text-gray-400">No orders found.</p>
+                      ) : (
+                        <div className="space-y-1">
+                          {c.recentOrders.map(o => (
+                            <div key={o.orderNumber} className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-lg px-3 py-2 border border-gray-200 dark:border-gray-700">
+                              <div>
+                                <span className="font-mono text-xs text-gray-700 dark:text-gray-300">{o.orderNumber}</span>
+                                <span className="text-xs text-gray-400 ml-2">{new Date(o.date).toLocaleDateString()}</span>
+                              </div>
+                              <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                                <span>{o.itemCount} item{o.itemCount !== 1 ? 's' : ''}</span>
+                                <span className="font-semibold text-gray-900 dark:text-white">{fmt(o.amount)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {c.avgDaysBetweenVisits !== null && (
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+                          Avg {c.avgDaysBetweenVisits} days between visits
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop/tablet table */}
+            <div className="hidden sm:block bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
@@ -391,6 +463,7 @@ export default function CustomerReportsPage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
       )}

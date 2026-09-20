@@ -174,7 +174,63 @@ export default function LendingPortfolioPage() {
               <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">No outgoing loans match the current filters.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* Mobile card list (MBM-299 responsive-reports template — see
+                src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+            <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
+              {filteredLoans.map(loan => (
+                <div key={loan.id} className="p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span>{TYPE_ICON[loan.loanType] ?? '🤝'}</span>
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-gray-100">{loan.recipientName}</p>
+                      {loan.purpose && <p className="text-xs text-gray-400">{loan.purpose}</p>}
+                    </div>
+                    <div className="ml-auto">{statusBadge(loan.status)}</div>
+                  </div>
+                  <div>
+                    <Link href={`/expense-accounts/${loan.expenseAccountId}`} className="text-blue-600 dark:text-blue-400 hover:underline text-sm">
+                      {loan.accountName}
+                    </Link>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{loan.accountNumber}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Principal</p>
+                      <p className="text-gray-700 dark:text-gray-300">{formatCurrency(loan.principalAmount)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Repaid</p>
+                      <p className="text-green-600 dark:text-green-400">{formatCurrency(loan.totalRepaid)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Outstanding</p>
+                      <p className={`font-medium ${loan.remainingBalance > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
+                        {formatCurrency(loan.remainingBalance)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Monthly</p>
+                      <p className="text-gray-500 dark:text-gray-400 text-xs">{loan.monthlyInstallment ? formatCurrency(loan.monthlyInstallment) : '—'}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Date</p>
+                      <p className="text-gray-500 dark:text-gray-400 text-xs">{new Date(loan.disbursementDate).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <div className="p-3 bg-gray-50 dark:bg-gray-700 text-sm">
+                <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">Total ({filteredLoans.length} loans)</p>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <span className="font-bold text-gray-700 dark:text-gray-300">{formatCurrency(filteredLoans.reduce((s, l) => s + l.principalAmount, 0))}</span>
+                  <span className="font-bold text-green-600 dark:text-green-400">{formatCurrency(filteredLoans.reduce((s, l) => s + l.totalRepaid, 0))}</span>
+                  <span className="font-bold text-amber-600 dark:text-amber-400">{formatCurrency(filteredLoans.reduce((s, l) => s + l.remainingBalance, 0))}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
@@ -242,6 +298,7 @@ export default function LendingPortfolioPage() {
                 </tfoot>
               </table>
             </div>
+            </>
           )}
         </div>
       </div>

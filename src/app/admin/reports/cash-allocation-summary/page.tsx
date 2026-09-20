@@ -163,8 +163,73 @@ export default function CashAllocationSummaryPage() {
               ))}
             </div>
 
+            {/* Mobile card list (MBM-299 responsive-reports template — see
+                src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+            <div className="sm:hidden rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-700">
+              {rows.map(row => (
+                <div key={row.businessId + row.date} className="p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-gray-900 dark:text-gray-100">
+                      {row.businessName}
+                      <span className="ml-2 text-xs text-gray-400 capitalize">{row.businessType}</span>
+                    </p>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_CLASS[row.status]}`}>
+                      {row.status}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 font-mono">{row.date}</p>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Progress</p>
+                      <p className="text-gray-600 dark:text-gray-400">{row.status === 'NONE' ? '—' : `${row.checkedCount} / ${row.itemCount}`}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Reported / Actual</p>
+                      <p className="font-mono text-gray-900 dark:text-gray-100">
+                        {row.status === 'NONE' ? '—' : `${fmt(row.totalReported)} / ${fmt(row.totalActual)}`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {row.status !== 'NONE' && row.lineItems.length > 0 && (
+                      <button
+                        onClick={() => setExpandedId(id => id === row.reportId ? null : row.reportId)}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        {expandedId === row.reportId ? 'Hide details' : 'Show details'}
+                      </button>
+                    )}
+                    {row.status !== 'NONE' && (
+                      <Link
+                        href={`/${row.businessType}/reports/cash-allocation?date=${row.date}&businessId=${row.businessId}`}
+                        className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                      >
+                        Open
+                      </Link>
+                    )}
+                  </div>
+                  {expandedId === row.reportId && row.lineItems.length > 0 && (
+                    <div className="pt-2 space-y-1.5 border-t border-gray-200 dark:border-gray-700">
+                      {row.lineItems.map(li => (
+                        <div key={li.id} className="flex items-center justify-between text-xs">
+                          <div>
+                            <span className="text-gray-800 dark:text-gray-200">{li.accountName}</span>
+                            <span className="ml-1 text-gray-500 dark:text-gray-400">({li.sourceType === 'EOD_RENT_TRANSFER' ? 'Rent' : 'Auto'})</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono">{fmt(li.reportedAmount)} / {fmt(li.actualAmount)}</span>
+                            <span>{li.isChecked ? '✅' : '⬜'}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
             {/* Table */}
-            <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="hidden sm:block overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead className="bg-gray-50 dark:bg-gray-800">
                   <tr>

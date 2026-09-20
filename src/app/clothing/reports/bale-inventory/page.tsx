@@ -98,7 +98,98 @@ export default function BaleInventoryReportPage() {
               <p className="text-gray-500 text-center py-8">No bales found.</p>
             ) : (
               <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                <div className="overflow-x-auto">
+                {/* Mobile card list (MBM-299 responsive-reports template) */}
+                <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
+                  {report.bales.map((bale: any) => (
+                    <div key={bale.id} className={`p-3 space-y-2 ${!bale.isActive ? 'opacity-50' : ''}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{bale.batchNumber}</div>
+                          <div className="text-xs text-gray-400">{bale.sku}</div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          {bale.isActive ? (
+                            <span className="inline-block px-2 py-0.5 text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
+                              Active
+                            </span>
+                          ) : (
+                            <span className="inline-block px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 rounded">
+                              Inactive
+                            </span>
+                          )}
+                          {bale.bogoActive && (
+                            <span className="inline-block px-2 py-0.5 text-xs bg-pink-100 dark:bg-pink-900 text-pink-700 dark:text-pink-300 rounded ml-1">
+                              BOGO
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-sm text-gray-700 dark:text-gray-300">{bale.category}</div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Stock</p>
+                          <p>
+                            <span className={bale.remainingCount === 0 ? 'text-red-500' : 'text-gray-900 dark:text-gray-100'}>
+                              {bale.remainingCount}
+                            </span>
+                            <span className="text-gray-400">/{bale.itemCount}</span>
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Unit $</p>
+                          <p className="text-gray-900 dark:text-gray-100">${bale.unitPrice.toFixed(2)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Bale Cost</p>
+                          <p className="text-gray-500">
+                            {bale.costPrice != null ? `$${bale.costPrice.toFixed(2)}` : <span className="text-gray-300 dark:text-gray-600">—</span>}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Cost Rec.</p>
+                          <p>
+                            {bale.costPrice != null ? (
+                              <span className={`font-medium ${bale.costRecoveredPct >= 100 ? 'text-green-600' : bale.costRecoveredPct >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
+                                {bale.costRecoveredPct}%
+                              </span>
+                            ) : <span className="text-gray-300 dark:text-gray-600">—</span>}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Sold</p>
+                          <p className="text-green-600">{bale.sold}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Revenue</p>
+                          <p className="text-green-600">${bale.revenue.toFixed(2)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">BOGO Free</p>
+                          <p className="text-amber-600">{bale.bogoFreeGiven}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Transferred</p>
+                          <p className="text-purple-600">{bale.transferred}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Utilization</p>
+                          <div className="flex items-center gap-2">
+                            <div className="w-16 bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                              <div
+                                className={`h-2 rounded-full ${bale.utilizationPct >= 80 ? 'bg-green-500' : bale.utilizationPct >= 50 ? 'bg-amber-500' : 'bg-blue-500'}`}
+                                style={{ width: `${bale.utilizationPct}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-gray-500">{bale.utilizationPct}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop/tablet table */}
+                <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 dark:bg-gray-700/50">
                       <tr>

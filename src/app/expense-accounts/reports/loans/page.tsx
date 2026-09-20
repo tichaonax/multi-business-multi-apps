@@ -150,7 +150,52 @@ export default function LoanPortfolioReportPage() {
           ) : loans.length === 0 ? (
             <div className="text-center py-12 text-gray-500 dark:text-gray-400">No loans found</div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* Mobile card list (MBM-299 responsive-reports template — see
+                src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+            <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
+              {loans.map((loan) => (
+                <div key={loan.id} className="p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-gray-900 dark:text-gray-100 text-xs">{loan.loanNumber}</span>
+                    {statusBadge(loan.status)}
+                  </div>
+                  <div>
+                    <Link href={`/expense-accounts/${loan.accountId}`} className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                      {loan.accountName}
+                    </Link>
+                    <div className="text-xs text-gray-400">{loan.accountNumber}</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Lender</p>
+                      <p className="text-gray-700 dark:text-gray-300">{loan.lenderName}</p>
+                      <p className="text-xs text-gray-400">{loan.lenderType}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Due</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{loan.dueDate ? formatDate(new Date(loan.dueDate)) : '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Principal</p>
+                      <p className="text-gray-700 dark:text-gray-300">{formatCurrency(loan.principalAmount)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Remaining</p>
+                      <p className={loan.remainingBalance > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-green-600 dark:text-green-400'}>
+                        {formatCurrency(loan.remainingBalance)}
+                      </p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Interest Paid</p>
+                      <p className="text-orange-600 dark:text-orange-400">{loan.totalInterestPaid > 0 ? formatCurrency(loan.totalInterestPaid) : '—'}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
@@ -196,6 +241,7 @@ export default function LoanPortfolioReportPage() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
 

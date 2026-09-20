@@ -124,7 +124,72 @@ export default function BaleCostRecoveryPage() {
 
             {/* Table */}
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-              <div className="overflow-x-auto">
+              {/* Mobile card list (MBM-299 responsive-reports template) */}
+              <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
+                {filteredBales.map((bale: any) => {
+                  const cfg = STATUS_CONFIG[bale.status as keyof typeof STATUS_CONFIG]
+                  return (
+                    <div key={bale.id} className={`p-3 space-y-2 ${!bale.isActive ? 'opacity-50' : ''}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{bale.batchNumber}</div>
+                          <div className="text-xs text-gray-400">{bale.sku}</div>
+                        </div>
+                        <span className={`inline-block px-2 py-0.5 text-xs rounded font-medium shrink-0 ${cfg.badge}`}>
+                          {cfg.icon} {cfg.label}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-700 dark:text-gray-300">{bale.category}</div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Stock</p>
+                          <p>
+                            <span className={bale.remainingCount === 0 ? 'text-red-500' : 'text-gray-900 dark:text-gray-100'}>
+                              {bale.remainingCount}
+                            </span>
+                            <span className="text-gray-400">/{bale.itemCount}</span>
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Recovery</p>
+                          <div className="flex items-center gap-2">
+                            <div className="w-16 bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                              <div
+                                className={`h-2 rounded-full ${bale.recoveryPct >= 100 ? 'bg-green-500' : bale.recoveryPct >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                style={{ width: `${Math.min(100, bale.recoveryPct)}%` }}
+                              />
+                            </div>
+                            <span className="text-xs">{bale.recoveryPct}%</span>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Cost Paid</p>
+                          <p className="text-red-600 font-medium">${bale.costPrice.toFixed(2)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Revenue</p>
+                          <p className="text-green-600">${bale.revenue.toFixed(2)}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Profit / Loss</p>
+                          <p className={`font-semibold ${bale.profit >= 0 ? 'text-teal-600' : 'text-red-500'}`}>
+                            {bale.profit >= 0 ? '+' : ''}${bale.profit.toFixed(2)}
+                          </p>
+                        </div>
+                        {bale.recommendation && (
+                          <div className="col-span-2">
+                            <p className="text-[10px] uppercase tracking-wide text-secondary">Recommendation</p>
+                            <p className="text-gray-600 dark:text-gray-400 text-xs">{bale.recommendation}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Desktop/tablet table */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-700/50">
                     <tr>

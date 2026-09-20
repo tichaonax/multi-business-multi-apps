@@ -132,7 +132,49 @@ export default function VehicleServiceUnpaidJobsReport() {
               No unpaid billed jobs in this range — everything's collected. 🎉
             </p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* Mobile card list (responsive-reports template — see
+                src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+            <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
+              {jobs.map(job => (
+                <div key={job.jobId} className="p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium text-gray-900 dark:text-white">{job.orderNumber}</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(job.totalAmount)}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1 text-sm">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-400">Customer</p>
+                      <p className="text-gray-900 dark:text-white">{job.customerName || '—'}</p>
+                      {job.customerPhone && <p className="text-xs text-gray-400">{job.customerPhone}</p>}
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-400">Vehicle</p>
+                      <p className="text-gray-500 dark:text-gray-400">{job.vehicle || '—'}</p>
+                      {job.vehiclePlate && <p className="text-xs text-gray-400">{job.vehiclePlate}</p>}
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-400">Billed</p>
+                      <p className="text-gray-500 dark:text-gray-400">{formatDateFull(new Date(job.billedAt))}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-400">Days Outstanding</p>
+                      <span className={`font-medium ${job.daysOutstanding >= 7 ? 'text-red-600 dark:text-red-400' : job.daysOutstanding >= 3 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                        {job.daysOutstanding}d
+                      </span>
+                    </div>
+                  </div>
+                  <Link
+                    href={`/vehicle-service/jobs?search=${encodeURIComponent(job.customerName || job.vehiclePlate || job.vehicle || '')}`}
+                    className="inline-block text-blue-600 dark:text-blue-400 hover:underline text-xs font-medium pt-1"
+                  >
+                    Find in Jobs →
+                  </Link>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden sm:block overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-900">
                   <tr>
@@ -181,6 +223,7 @@ export default function VehicleServiceUnpaidJobsReport() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
       </div>

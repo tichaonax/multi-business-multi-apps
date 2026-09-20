@@ -156,6 +156,40 @@ export default function KitchenUsageReportPage() {
           ) : movements.length === 0 ? (
             <p className="text-sm text-gray-400 dark:text-gray-500">No movements found in this date range.</p>
           ) : (
+            <>
+            {/* Mobile card list (MBM-299 responsive-reports template — see
+                src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+            <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700 -mx-5">
+              {movements.map(m => (
+                <div key={m.id} className="p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{formatDate(m.movementDate)}</p>
+                    <p className="text-sm text-gray-900 dark:text-gray-100">{m.quantity} birds{m.weightKg ? ` · ${Number(m.weightKg).toFixed(2)} kg` : ''}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Type</p>
+                      <p className="text-sm text-gray-900 dark:text-gray-100">{m.movementType.replace('_', ' ')}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Source</p>
+                      <p className="text-sm text-gray-900 dark:text-gray-100">{m.source}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Purpose</p>
+                      <p className="text-sm text-gray-900 dark:text-gray-100">{m.purpose || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Destination</p>
+                      <p className="text-sm text-gray-900 dark:text-gray-100">{m.destinationBusinessId || '—'}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop/tablet table */}
+            <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-600">
@@ -182,6 +216,8 @@ export default function KitchenUsageReportPage() {
                 ))}
               </tbody>
             </table>
+            </div>
+            </>
           )}
         </div>
       </div>

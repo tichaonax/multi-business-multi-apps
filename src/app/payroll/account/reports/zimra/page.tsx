@@ -180,7 +180,100 @@ export default function ZimraRemittancesPage() {
                 : 'No periods match the selected filter.'}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              {/* Mobile card list (MBM-299 responsive-reports template) */}
+              <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
+                {filtered.map(row => (
+                  <div key={row.id} className="p-3 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-gray-900 dark:text-gray-100">{periodLabel(row.year, row.month)}</p>
+                        {row.businessName && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{row.businessName}</p>
+                        )}
+                        {row.manualOverride && (
+                          <span className="text-[10px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded">manual override</span>
+                        )}
+                      </div>
+                      <Link
+                        href={`/payroll/${row.periodId}`}
+                        className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap shrink-0"
+                      >
+                        Open →
+                      </Link>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Employees</p>
+                        <p className="text-gray-700 dark:text-gray-300">{row.employeeCount}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Remuneration</p>
+                        <p className="text-gray-700 dark:text-gray-300">{fmt(row.totalRemuneration)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Gross PAYE</p>
+                        <p className="text-red-700 dark:text-red-400 font-medium">{fmt(row.grossPaye)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">AIDS Levy</p>
+                        <p className="text-orange-700 dark:text-orange-400">
+                          {fmt(row.aidsLevy)}
+                          <span className="ml-1 text-xs text-gray-400">({(row.levyRate * 100).toFixed(0)}%)</span>
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Tax Due</p>
+                        <p className="font-bold text-gray-900 dark:text-gray-100">{fmt(row.totalTaxDue)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Status</p>
+                        <StatusBadge status={row.status} />
+                        {row.submittedAt && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {new Date(row.submittedAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </p>
+                        )}
+                        {row.levyProcessedAt && row.status === 'LEVY_PROCESSED' && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {new Date(row.levyProcessedAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
+                          </p>
+                        )}
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Reference</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{row.paymentReference || '—'}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {filtered.length > 1 && (
+                  <div className="p-3 bg-gray-50 dark:bg-gray-700 border-t-2 border-gray-300 dark:border-gray-500">
+                    <p className="font-bold text-gray-900 dark:text-gray-100 mb-2">Totals ({filtered.length} periods)</p>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Remuneration</p>
+                        <p className="font-bold text-gray-700 dark:text-gray-300">{fmt(filtered.reduce((s, r) => s + r.totalRemuneration, 0))}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Gross PAYE</p>
+                        <p className="font-bold text-red-700 dark:text-red-400">{fmt(filtered.reduce((s, r) => s + r.grossPaye, 0))}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">AIDS Levy</p>
+                        <p className="font-bold text-orange-700 dark:text-orange-400">{fmt(filtered.reduce((s, r) => s + r.aidsLevy, 0))}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Tax Due</p>
+                        <p className="font-bold text-gray-900 dark:text-gray-100">{fmt(filtered.reduce((s, r) => s + r.totalTaxDue, 0))}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Desktop/tablet table */}
+              <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
                   <tr>
@@ -251,7 +344,8 @@ export default function ZimraRemittancesPage() {
                   </tfoot>
                 )}
               </table>
-            </div>
+              </div>
+            </>
           )}
         </div>
 

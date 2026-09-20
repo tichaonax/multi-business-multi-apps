@@ -362,7 +362,106 @@ export default function ReorderReportPage() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Mobile card list (MBM-299 responsive-reports template — see
+                src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+            <div className="sm:hidden divide-y divide-border">
+              {rows.length === 0 ? (
+                <div className="text-center py-12 text-secondary text-sm">
+                  {search
+                    ? `No items match "${search}".`
+                    : urgencyFilter === 'all'
+                    ? 'No items need reordering for this date range.'
+                    : `No ${urgencyFilter} items found.`}
+                </div>
+              ) : (
+                pagedRows.map((row) => (
+                  <div key={row.variantId} className={`p-3 space-y-2 ${row.urgency === 'critical' ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}>
+                    <ProductCell
+                      imageUrl={row.imageUrl}
+                      name={row.productName}
+                      subtitle={row.variantName !== 'Default' ? row.variantName : undefined}
+                      sku={row.sku}
+                      businessType={reportData.businessType}
+                      editItemId={row.editItemId}
+                      canEdit={canEditInventory}
+                      returnTo="/admin/reports/reorder"
+                    />
+                    <div className="flex items-center gap-2">
+                      {row.urgency === 'critical' ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">Critical</span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Low</span>
+                      )}
+                      {showAllProducts && (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          row.stockStatus === 'BELOW_MINIMUM' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                          : row.stockStatus === 'AT_MINIMUM' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                          : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                        }`}>
+                          {row.stockStatus === 'BELOW_MINIMUM' ? 'Below min' : row.stockStatus === 'AT_MINIMUM' ? 'At min' : 'Above min'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Category</p>
+                        <p className="text-secondary">{row.category}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Stock</p>
+                        <p className={row.currentStock === 0 ? 'text-red-600 font-bold' : 'text-primary'}>{row.currentStock}</p>
+                        {currentBusinessId && <MinLevelCell row={row} businessId={currentBusinessId} onUpdated={handleMinLevelUpdated} />}
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Order Qty</p>
+                        <p className="font-semibold text-primary">{row.suggestedReorderQty}</p>
+                        <p className="text-xs text-gray-400">
+                          {row.suggestionBasis === 'historical' ? '90d history' : row.suggestionBasis === 'recent' ? 'recent sales' : 'reorder level'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Days Left</p>
+                        <p className={
+                          row.daysOfStockLeft === 0 ? 'text-red-600 font-bold'
+                          : row.daysOfStockLeft < 3 ? 'text-red-500 font-semibold'
+                          : row.daysOfStockLeft < 7 ? 'text-amber-500 font-semibold'
+                          : 'text-secondary'
+                        }>
+                          {row.currentStock === 0 ? 'Out' : row.daysOfStockLeft > 0 ? `${row.daysOfStockLeft}d` : '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">90d Avg/Day · Sold</p>
+                        <p className="text-secondary">
+                          {row.historicalAvgDailySales > 0 ? row.historicalAvgDailySales.toFixed(2) : '—'} · {row.historicalUnitsSold > 0 ? row.historicalUnitsSold : '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Last / Max Order</p>
+                        <p className="text-secondary">
+                          {row.lastOrderQty > 0 ? row.lastOrderQty : '—'} / {row.maxOrderQty > 0 ? row.maxOrderQty : '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-secondary">Est. Cost</p>
+                        <p className="text-secondary">{row.estimatedCost != null ? `$${row.estimatedCost.toFixed(2)}` : '—'}</p>
+                      </div>
+                      {showAllProducts && (
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-secondary">Recommended Min</p>
+                          <p className="text-secondary" title={row.basisUsed}>
+                            {row.recommendedMinimumStock}
+                            {row.dataQualityWarning && <span className="ml-1 text-amber-500" title={row.dataQualityWarning}>⚠</span>}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="hidden sm:block overflow-x-auto">
               {rows.length === 0 ? (
                 <div className="text-center py-12 text-secondary text-sm">
                   {search

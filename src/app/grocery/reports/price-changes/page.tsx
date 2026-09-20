@@ -191,7 +191,55 @@ export default function PriceChangesReportPage() {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              {/* Mobile card list (MBM-299 responsive-reports template) */}
+              <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
+                {reports.map((r) => {
+                  const increased = (r.newPrice ?? 0) > (r.oldPrice ?? 0)
+                  return (
+                    <div key={r.id} className="p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{r.productName || '—'}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 shrink-0">{formatDateTime(new Date(r.date))}</p>
+                      </div>
+                      {r.reason ? (
+                        <p className="text-xs text-gray-600 dark:text-gray-300 italic">"{r.reason}"</p>
+                      ) : (
+                        <p className="text-xs text-gray-400 dark:text-gray-500">no reason captured</p>
+                      )}
+                      {r.viaPOSQuickEdit && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">via POS Quick-Edit</p>
+                      )}
+                      {r.viaBulkStockReceiving && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">via Bulk Stock Receiving</p>
+                      )}
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-1">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Original Price</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 line-through">
+                            {r.oldPrice != null ? formatCurrency(r.oldPrice) : '—'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">New Price</p>
+                          <p className={`text-sm font-semibold ${increased ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                            {r.newPrice != null ? formatCurrency(r.newPrice) : '—'}
+                          </p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Changed By</p>
+                          <p className="text-sm text-gray-900 dark:text-gray-100">{r.changedByName || '—'}</p>
+                          {r.changedByEmail && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{r.changedByEmail}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Desktop/tablet table */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
                     <tr>

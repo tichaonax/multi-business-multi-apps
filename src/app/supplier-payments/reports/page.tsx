@@ -530,45 +530,86 @@ export default function SupplierPaymentReportsPage() {
             overdue.length === 0 ? (
               <div className="px-5 py-6 text-sm text-gray-400 text-center">No overdue requests</div>
             ) : (
-              <div className="overflow-x-auto border-t border-gray-100">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Supplier</th>
-                      <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Submitted By</th>
-                      <th className="text-right px-4 py-2 text-xs font-medium text-gray-500">Amount</th>
-                      <th className="text-right px-4 py-2 text-xs font-medium text-gray-500">Remaining</th>
-                      <th className="text-center px-4 py-2 text-xs font-medium text-gray-500">Due</th>
-                      <th className="text-center px-4 py-2 text-xs font-medium text-gray-500">Days Over</th>
-                      <th className="text-center px-4 py-2 text-xs font-medium text-gray-500">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {overdue.map(r => (
-                      <tr key={r.id} className="bg-red-50/40 hover:bg-red-50">
-                        <td className="px-4 py-2 font-medium">
+              <>
+                {/* Mobile card list (MBM-299 responsive-reports template — see
+                    src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+                <div className="sm:hidden divide-y divide-gray-100 border-t border-gray-100">
+                  {overdue.map(r => (
+                    <div key={r.id} className="p-3 space-y-2 bg-red-50/40">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium text-sm">
                           {r.supplier.emoji ? `${r.supplier.emoji} ` : ''}{r.supplier.name}
-                        </td>
-                        <td className="px-4 py-2 text-gray-500">{r.submitter.name}</td>
-                        <td className="px-4 py-2 text-right">{fmt(r.amount)}</td>
-                        <td className="px-4 py-2 text-right text-orange-700 font-medium">{fmt(r.remainingAmount)}</td>
-                        <td className="px-4 py-2 text-center text-xs text-gray-600">{fmtDate(r.dueDate)}</td>
-                        <td className="px-4 py-2 text-center">
-                          <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs">{r.daysOverdue}d</span>
-                        </td>
-                        <td className="px-4 py-2 text-center">
-                          {(r.status === 'APPROVED' || r.status === 'PARTIAL') && (
-                            <button onClick={() => openPay(r)}
-                              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700">
-                              Pay Now
-                            </button>
-                          )}
-                        </td>
+                        </p>
+                        <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs">{r.daysOverdue}d overdue</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500">Submitted By</p>
+                          <p className="text-gray-600">{r.submitter.name}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500">Due</p>
+                          <p className="text-gray-600">{fmtDate(r.dueDate)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500">Amount</p>
+                          <p className="text-gray-600">{fmt(r.amount)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-500">Remaining</p>
+                          <p className="text-orange-700 font-medium">{fmt(r.remainingAmount)}</p>
+                        </div>
+                      </div>
+                      {(r.status === 'APPROVED' || r.status === 'PARTIAL') && (
+                        <button onClick={() => openPay(r)}
+                          className="w-full px-2 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700">
+                          Pay Now
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden sm:block overflow-x-auto border-t border-gray-100">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Supplier</th>
+                        <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Submitted By</th>
+                        <th className="text-right px-4 py-2 text-xs font-medium text-gray-500">Amount</th>
+                        <th className="text-right px-4 py-2 text-xs font-medium text-gray-500">Remaining</th>
+                        <th className="text-center px-4 py-2 text-xs font-medium text-gray-500">Due</th>
+                        <th className="text-center px-4 py-2 text-xs font-medium text-gray-500">Days Over</th>
+                        <th className="text-center px-4 py-2 text-xs font-medium text-gray-500">Action</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {overdue.map(r => (
+                        <tr key={r.id} className="bg-red-50/40 hover:bg-red-50">
+                          <td className="px-4 py-2 font-medium">
+                            {r.supplier.emoji ? `${r.supplier.emoji} ` : ''}{r.supplier.name}
+                          </td>
+                          <td className="px-4 py-2 text-gray-500">{r.submitter.name}</td>
+                          <td className="px-4 py-2 text-right">{fmt(r.amount)}</td>
+                          <td className="px-4 py-2 text-right text-orange-700 font-medium">{fmt(r.remainingAmount)}</td>
+                          <td className="px-4 py-2 text-center text-xs text-gray-600">{fmtDate(r.dueDate)}</td>
+                          <td className="px-4 py-2 text-center">
+                            <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs">{r.daysOverdue}d</span>
+                          </td>
+                          <td className="px-4 py-2 text-center">
+                            {(r.status === 'APPROVED' || r.status === 'PARTIAL') && (
+                              <button onClick={() => openPay(r)}
+                                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700">
+                                Pay Now
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )
           )}
         </div>
@@ -590,7 +631,51 @@ export default function SupplierPaymentReportsPage() {
             <div className="flex items-center justify-center py-12 text-gray-400 text-sm">No transactions found</div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              {/* Mobile card list (MBM-299 responsive-reports template — see
+                  src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+              <div className="sm:hidden divide-y divide-gray-100">
+                {txPageData.map(r => (
+                  <div key={r.id} className="p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium text-sm">
+                        {r.supplier.emoji ? `${r.supplier.emoji} ` : ''}{r.supplier.name}
+                      </p>
+                      <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium"
+                        style={{ backgroundColor: STATUS_COLORS[r.status] + '22', color: STATUS_COLORS[r.status] }}>
+                        {r.status}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500">Submitted</p>
+                        <p className="text-gray-500">{fmtDate(r.submittedAt)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500">By</p>
+                        <p className="text-gray-500">{r.submitter.name}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500">Due</p>
+                        <p className="text-gray-500">{fmtDate(r.dueDate)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500">Amount</p>
+                        <p className="text-gray-600">{fmt(r.amount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500">Paid</p>
+                        <p className="text-green-700">{fmt(r.paidAmount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-500">Remaining</p>
+                        <p className="text-orange-700">{fmt(r.remainingAmount)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 border-b border-gray-100">
                     <tr>

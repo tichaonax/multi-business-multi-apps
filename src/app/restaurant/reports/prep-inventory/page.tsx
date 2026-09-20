@@ -125,7 +125,46 @@ export default function PrepInventoryReportPage() {
         ) : rows.length === 0 ? (
           <div className="text-center py-12 text-gray-500">No data for the selected date range.</div>
         ) : (
-          <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+          <>
+          {/* Mobile card list */}
+          <div className="sm:hidden border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-200 dark:divide-gray-700">
+            {rows.map(row => (
+              <div key={row.productId} className="p-3 space-y-2 bg-white dark:bg-gray-900">
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-gray-100">{row.name}</p>
+                  {row.category && <p className="text-xs text-gray-500">{row.category}</p>}
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Initialized</p>
+                    <p className="text-gray-700 dark:text-gray-300">{row.unitsInitialized}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Sold</p>
+                    <p className="text-gray-700 dark:text-gray-300">{row.unitsSold}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Revenue</p>
+                    <p className="text-gray-700 dark:text-gray-300">${fmt(row.revenue)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Cost</p>
+                    <p className="text-gray-700 dark:text-gray-300">${fmt(row.totalCost)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Profit</p>
+                    <p className={`font-medium ${row.profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>${fmt(row.profit)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Margin</p>
+                    <p className="text-gray-700 dark:text-gray-300">{row.margin}%</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden sm:block overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
@@ -158,6 +197,7 @@ export default function PrepInventoryReportPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>
