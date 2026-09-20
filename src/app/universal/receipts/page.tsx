@@ -407,7 +407,7 @@ function ReceiptHistoryPageContent() {
           key={filterResetKey}
           onSearchChange={handleSearch}
           searchLoading={loading}
-          searchPlaceholder="Search by receipt #, customer, salesperson, or notes..."
+          searchPlaceholder="Search by receipt #, customer, salesperson, item, or notes..."
           searchHint={(rawQuery) =>
             rawQuery.length < 4 ? (
               <p>Type at least 4 characters to search</p>

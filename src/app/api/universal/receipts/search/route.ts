@@ -42,9 +42,18 @@ export async function GET(request: NextRequest) {
     }
 
     // Add query filter if provided — searches receipt #, customer name,
-    // salesperson name, and order notes/description; a bare customerId
-    // text-contains (the previous behavior) can never match anything a user
-    // would actually type, since that's an opaque UUID.
+    // salesperson name, order notes, and purchased item names.
+    //
+    // Customer/salesperson names are NOT reliably on the linked relations:
+    // orders made by an admin/owner with no Employees record fall back to
+    // attributes.employeeName/soldByName (see /api/universal/orders — it
+    // always persists one of these when employeeId can't be resolved), and
+    // meal-program orders with no real customer store attributes.participantName
+    // instead. Searching only the relations misses most real-world rows, so
+    // both the relation AND its JSON-attribute fallback are matched here.
+    // Item "description" search walks business_order_items -> the product's
+    // name (via its variant), with the same attributes.productName fallback
+    // used when an item isn't linked to a real product/variant.
     if (query) {
       const asNumber = parseFloat(query)
       whereClause.OR = [
@@ -52,6 +61,20 @@ export async function GET(request: NextRequest) {
         { notes: { contains: query, mode: 'insensitive' } },
         { business_customers: { name: { contains: query, mode: 'insensitive' } } },
         { employees: { fullName: { contains: query, mode: 'insensitive' } } },
+        { attributes: { path: ['employeeName'], string_contains: query } },
+        { attributes: { path: ['soldByName'], string_contains: query } },
+        { attributes: { path: ['participantName'], string_contains: query } },
+        {
+          business_order_items: {
+            some: {
+              OR: [
+                { product_variants: { name: { contains: query, mode: 'insensitive' } } },
+                { product_variants: { business_products: { name: { contains: query, mode: 'insensitive' } } } },
+                { attributes: { path: ['productName'], string_contains: query } },
+              ],
+            },
+          },
+        },
         ...(isNaN(asNumber) ? [] : [{ totalAmount: { equals: asNumber } }]),
       ]
     }
