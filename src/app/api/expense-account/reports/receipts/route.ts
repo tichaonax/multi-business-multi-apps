@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const permissions = getEffectivePermissions(user)
-    if (!permissions.canAccessExpenseAccount && user.role !== 'admin') {
+    if (!permissions.canViewExpenseReports && user.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
             amount: true,
             createdBy: true,
             creator: { select: { name: true } },
-            expenseAccount: { select: { id: true, accountName: true, businesses: { select: { id: true, name: true } } } },
+            expenseAccount: { select: { id: true, accountName: true, business: { select: { id: true, name: true } } } },
             receipt_review: { select: { status: true, expectedAmount: true } },
             combo_request: { select: { id: true, title: true, createdAt: true, requestedAmount: true, approvedAmount: true } },
           },
@@ -134,7 +134,7 @@ export async function GET(request: NextRequest) {
         receiptNumber: r.receiptNumber,
         expenseType: r.category ? `${r.category.emoji} ${r.category.name}` : null,
         expenseSubtype: r.subcategory?.name ?? null,
-        business: r.expensePayment.expenseAccount.businesses?.name ?? null,
+        business: r.expensePayment.expenseAccount.business?.name ?? null,
         requestingEmployee: r.expensePayment.creator.name,
         receiptEntryEmployee: r.creator.name,
         reconciliationStatus: status,

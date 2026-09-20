@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { usePathname } from 'next/navigation'
 import { io, Socket } from 'socket.io-client'
+import { setChatBadge } from '@/lib/chat-badge'
 
 interface Recipient { id: string; name: string }
 
@@ -109,6 +110,13 @@ export function FloatingChat() {
 
   // Cancel auto-close on unmount
   useEffect(() => () => cancelAutoClose(), [])
+
+  // Broadcast badge counts so GlobalHeader's mobile chat toggle (right after
+  // the hamburger — see MBM-299 responsive follow-up) can mirror them
+  // without duplicating the socket/unread-tracking logic.
+  useEffect(() => {
+    setChatBadge({ unread, unreadDirect, onlineCount: allUsers.filter(u => u.online).length })
+  }, [unread, unreadDirect, allUsers])
 
 
   const scrollToBottom = useCallback(() => {
@@ -523,7 +531,7 @@ export function FloatingChat() {
     const onlineNow = allUsers.filter(u => u.online)
     const onlineCount = onlineNow.length
     return (
-      <div className="fixed bottom-28 right-2 z-[9998]">
+      <div className="hidden lg:block fixed bottom-28 right-2 z-[9998]">
         {/* Hover tooltip: who's online */}
         {showOnlineTooltip && onlineCount > 0 && (
           <div className="absolute bottom-full right-0 mb-2 bg-white dark:bg-gray-800 border border-border rounded-xl shadow-lg p-3 w-48 pointer-events-none">

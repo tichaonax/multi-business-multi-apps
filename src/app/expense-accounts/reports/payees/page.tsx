@@ -6,10 +6,22 @@ import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { DateInput } from '@/components/ui/date-input'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
+import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import Link from 'next/link'
+
+function toISODate(d: Date) {
+  return d.toISOString().split('T')[0]
+}
+
+function defaultDateRange(): DateRange {
+  const end = new Date()
+  const start = new Date()
+  start.setDate(start.getDate() - 30)
+  return { start, end }
+}
 
 const PAYEE_TYPE_TABS = [
   { label: 'All', value: 'ALL' },
@@ -64,27 +76,12 @@ export default function PayeeAnalysisReportPage() {
   const [byPayeeType, setByPayeeType] = useState<PayeeTypeRow[]>([])
   const [totals, setTotals] = useState<SystemTotals | null>(null)
   const [loading, setLoading] = useState(true)
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange())
+  const [allTime, setAllTime] = useState(true)
   const [payeeType, setPayeeType] = useState('ALL')
 
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
-
-  const toDateStr = (d: Date) => d.toISOString().split('T')[0]
-  const applyQuickFilter = (days: number | 'today' | 'yesterday') => {
-    const today = new Date(); today.setHours(0, 0, 0, 0)
-    if (days === 'today') { setStartDate(toDateStr(today)); setEndDate(toDateStr(today)) }
-    else if (days === 'yesterday') { const y = new Date(today); y.setDate(y.getDate() - 1); setStartDate(toDateStr(y)); setEndDate(toDateStr(y)) }
-    else { const f = new Date(today); f.setDate(f.getDate() - days + 1); setStartDate(toDateStr(f)); setEndDate(toDateStr(today)) }
-  }
-  const QUICK_FILTERS = [
-    { label: 'Today', action: () => applyQuickFilter('today') },
-    { label: 'Yesterday', action: () => applyQuickFilter('yesterday') },
-    { label: '7 Days', action: () => applyQuickFilter(7) },
-    { label: '30 Days', action: () => applyQuickFilter(30) },
-    { label: '90 Days', action: () => applyQuickFilter(90) },
-  ]
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/auth/signin')
@@ -95,14 +92,16 @@ export default function PayeeAnalysisReportPage() {
     const permissions = getEffectivePermissions(session?.user)
     if (!permissions.canViewExpenseReports) { router.push('/expense-accounts'); return }
     loadReport()
-  }, [status, session, payeeType, startDate, endDate])
+  }, [status, session, payeeType, dateRange, allTime])
 
   const loadReport = async () => {
     try {
       setLoading(true)
       const params = new URLSearchParams()
-      if (startDate) params.append('startDate', startDate)
-      if (endDate) params.append('endDate', endDate)
+      if (!allTime) {
+        params.append('startDate', toISODate(dateRange.start))
+        params.append('endDate', toISODate(dateRange.end))
+      }
       if (payeeType !== 'ALL') params.append('payeeType', payeeType)
       const res = await fetch(`/api/expense-account/reports/payees?${params}`, { credentials: 'include' })
       if (res.ok) {
@@ -132,46 +131,45 @@ export default function PayeeAnalysisReportPage() {
         </Link>
 
         {/* Filters */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 space-y-3">
-          <div className="flex gap-2 flex-wrap">
-            {PAYEE_TYPE_TABS.map((tab) => (
-              <button
-                key={tab.value}
-                onClick={() => setPayeeType(tab.value)}
-                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                  payeeType === tab.value
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-1.5 flex-wrap">
-            {QUICK_FILTERS.map((f) => (
-              <button key={f.label} onClick={f.action} className="px-3 py-1 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">{f.label}</button>
-            ))}
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
-              <DateInput value={startDate} onChange={setStartDate} />
+        <CollapsibleSection
+          title="Filters"
+          icon="🔎"
+          badge={payeeType !== 'ALL' ? (
+            <span className="px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-xs font-semibold">Active</span>
+          ) : undefined}
+        >
+          <div className="space-y-3">
+            <div className="flex gap-2 flex-wrap">
+              {PAYEE_TYPE_TABS.map((tab) => (
+                <button
+                  key={tab.value}
+                  onClick={() => setPayeeType(tab.value)}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    payeeType === tab.value
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date</label>
-              <DateInput value={endDate} onChange={setEndDate} />
-            </div>
-            <div className="flex items-end">
-              <button
-                onClick={() => { setStartDate(''); setEndDate(''); setPayeeType('ALL') }}
-                className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
-              >
-                Reset
-              </button>
-            </div>
+            <button
+              onClick={() => { setPayeeType('ALL'); setAllTime(true); setDateRange(defaultDateRange()) }}
+              className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
+            >
+              Reset
+            </button>
           </div>
-        </div>
+        </CollapsibleSection>
+
+        <DateRangeSelector
+          value={dateRange}
+          onChange={setDateRange}
+          showAllTime
+          allTime={allTime}
+          onAllTimeChange={setAllTime}
+        />
 
         {/* Summary cards */}
         {totals && (
@@ -220,7 +218,27 @@ export default function PayeeAnalysisReportPage() {
               <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                 <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm">All Payees</h3>
               </div>
-              <div className="overflow-x-auto">
+              {/* Mobile card list (MBM-299 responsive-reports template — see
+                  src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+              <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
+                {byPayee.map((p, i) => (
+                  <div key={`${p.payeeType}-${p.payeeId}`} className="p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-gray-900 dark:text-gray-100">
+                        <span className="text-xs text-gray-400 mr-1">#{i + 1}</span>
+                        {p.payeeName}
+                      </span>
+                      <span className="font-medium text-red-600 dark:text-red-400 shrink-0">{formatCurrency(p.totalAmount)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      {payeeTypeBadge(p.payeeType)}
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{p.paymentCount} payment{p.paymentCount === 1 ? '' : 's'}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-700">
                     <tr>

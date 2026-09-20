@@ -20,6 +20,7 @@ import HealthIndicator from '@/components/ui/health-indicator'
 import { usePolicyOverdue } from '@/hooks/use-policy-overdue'
 import { useActiveServerLabel } from '@/hooks/use-active-server-label'
 import { getDefaultPagePath } from '@/lib/business-default-pages'
+import { subscribeChatBadge, ChatBadgeState } from '@/lib/chat-badge'
 
 interface GlobalHeaderProps {
   title?: string
@@ -94,6 +95,10 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const [canPettyCashRequest, setCanPettyCashRequest] = useState(false)
   const [bellSearch, setBellSearch] = useState('')
   const [notifSearch, setNotifSearch] = useState('')
+  const [chatBadge, setChatBadgeState] = useState<ChatBadgeState>({ unread: 0, unreadDirect: 0, onlineCount: 0 })
+
+  // Mirror FloatingChat's unread counts for the mobile header toggle (see below)
+  useEffect(() => subscribeChatBadge(setChatBadgeState), [])
 
   // Fetch petty cash permission once on mount (system-level, not covered by hasPermission)
   useEffect(() => {
@@ -454,6 +459,34 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
+            {/* Mobile Team Chat toggle — sits right after the hamburger, same
+                footprint (w-9 h-9), so it never overlaps page content the way
+                FloatingChat's own bottom-right bubble did on small screens
+                (see floating-chat.tsx, hidden below lg for the same reason). */}
+            {session?.user && (
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('chat:open'))}
+                className={`lg:hidden relative shrink-0 w-9 h-9 flex items-center justify-center rounded-full text-white transition-colors ${
+                  chatBadge.unreadDirect > 0
+                    ? 'bg-rose-600 hover:bg-rose-700'
+                    : chatBadge.unread > 0
+                      ? 'bg-amber-500 hover:bg-amber-600'
+                      : 'bg-indigo-600 hover:bg-indigo-700'
+                }`}
+                aria-label="Open team chat"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                {(chatBadge.unreadDirect > 0 || chatBadge.unread > 0) && (
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-white text-red-600 text-[9px] font-bold rounded-full flex items-center justify-center leading-none px-0.5 border border-red-600">
+                    {(chatBadge.unreadDirect + chatBadge.unread) > 9 ? '9+' : chatBadge.unreadDirect + chatBadge.unread}
+                  </span>
+                )}
+              </button>
+            )}
             <Link href="/dashboard" className="hidden sm:flex items-center space-x-2 shrink-0">
               {brandLogoId ? (
                 <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0">

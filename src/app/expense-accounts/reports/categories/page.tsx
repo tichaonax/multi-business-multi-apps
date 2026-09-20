@@ -6,10 +6,22 @@ import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { DateInput } from '@/components/ui/date-input'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
+import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 import Link from 'next/link'
+
+function toISODate(d: Date) {
+  return d.toISOString().split('T')[0]
+}
+
+function defaultDateRange(): DateRange {
+  const end = new Date()
+  const start = new Date()
+  start.setDate(start.getDate() - 30)
+  return { start, end }
+}
 
 const CHART_COLORS = [
   '#87B5A5', '#E8D5C4', '#C9A5B8', '#A8C5D6',
@@ -45,27 +57,12 @@ export default function CategoryAnalysisReportPage() {
   const [totals, setTotals] = useState<SystemTotals | null>(null)
   const [accounts, setAccounts] = useState<AccountOption[]>([])
   const [loading, setLoading] = useState(true)
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange())
+  const [allTime, setAllTime] = useState(true)
   const [accountId, setAccountId] = useState('')
 
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
-
-  const toDateStr = (d: Date) => d.toISOString().split('T')[0]
-  const applyQuickFilter = (days: number | 'today' | 'yesterday') => {
-    const today = new Date(); today.setHours(0, 0, 0, 0)
-    if (days === 'today') { setStartDate(toDateStr(today)); setEndDate(toDateStr(today)) }
-    else if (days === 'yesterday') { const y = new Date(today); y.setDate(y.getDate() - 1); setStartDate(toDateStr(y)); setEndDate(toDateStr(y)) }
-    else { const f = new Date(today); f.setDate(f.getDate() - days + 1); setStartDate(toDateStr(f)); setEndDate(toDateStr(today)) }
-  }
-  const QUICK_FILTERS = [
-    { label: 'Today', action: () => applyQuickFilter('today') },
-    { label: 'Yesterday', action: () => applyQuickFilter('yesterday') },
-    { label: '7 Days', action: () => applyQuickFilter(7) },
-    { label: '30 Days', action: () => applyQuickFilter(30) },
-    { label: '90 Days', action: () => applyQuickFilter(90) },
-  ]
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/auth/signin')
@@ -82,7 +79,7 @@ export default function CategoryAnalysisReportPage() {
   useEffect(() => {
     if (status !== 'authenticated') return
     loadReport()
-  }, [startDate, endDate, accountId])
+  }, [dateRange, allTime, accountId])
 
   const loadAccounts = async () => {
     try {
@@ -104,8 +101,10 @@ export default function CategoryAnalysisReportPage() {
     try {
       setLoading(true)
       const params = new URLSearchParams()
-      if (startDate) params.append('startDate', startDate)
-      if (endDate) params.append('endDate', endDate)
+      if (!allTime) {
+        params.append('startDate', toISODate(dateRange.start))
+        params.append('endDate', toISODate(dateRange.end))
+      }
       if (accountId) params.append('accountId', accountId)
       const res = await fetch(`/api/expense-account/reports/categories?${params}`, { credentials: 'include' })
       if (res.ok) {
@@ -134,21 +133,14 @@ export default function CategoryAnalysisReportPage() {
         </Link>
 
         {/* Filters */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="flex gap-1.5 flex-wrap mb-3">
-            {QUICK_FILTERS.map((f) => (
-              <button key={f.label} onClick={f.action} className="px-3 py-1 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">{f.label}</button>
-            ))}
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
-              <DateInput value={startDate} onChange={setStartDate} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date</label>
-              <DateInput value={endDate} onChange={setEndDate} />
-            </div>
+        <CollapsibleSection
+          title="Filters"
+          icon="🔎"
+          badge={accountId ? (
+            <span className="px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-xs font-semibold">Active</span>
+          ) : undefined}
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account</label>
               <select
@@ -164,14 +156,22 @@ export default function CategoryAnalysisReportPage() {
             </div>
             <div className="flex items-end">
               <button
-                onClick={() => { setStartDate(''); setEndDate(''); setAccountId('') }}
+                onClick={() => { setAccountId(''); setAllTime(true); setDateRange(defaultDateRange()) }}
                 className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
               >
                 Reset
               </button>
             </div>
           </div>
-        </div>
+        </CollapsibleSection>
+
+        <DateRangeSelector
+          value={dateRange}
+          onChange={setDateRange}
+          showAllTime
+          allTime={allTime}
+          onAllTimeChange={setAllTime}
+        />
 
         {/* Summary cards */}
         {totals && (
@@ -222,7 +222,32 @@ export default function CategoryAnalysisReportPage() {
               <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                 <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-sm">Category Breakdown</h3>
               </div>
-              <div className="overflow-x-auto">
+              {/* Mobile card list (MBM-299 responsive-reports template — see
+                  src/app/inventory/reports/pricing-exceptions/page.tsx) */}
+              <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
+                {byCategory.map((cat) => (
+                  <div key={cat.categoryId} className="p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-gray-900 dark:text-gray-100">
+                        {cat.emoji && <span className="mr-1">{cat.emoji}</span>}
+                        {cat.categoryName}
+                      </span>
+                      <span className="font-medium text-red-600 dark:text-red-400 shrink-0">{formatCurrency(cat.totalAmount)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{cat.paymentCount} payment{cat.paymentCount === 1 ? '' : 's'}</span>
+                      <div className="flex items-center gap-2 flex-1 max-w-[60%]">
+                        <div className="flex-1 bg-gray-200 dark:bg-gray-600 rounded-full h-1.5">
+                          <div className="bg-purple-500 h-1.5 rounded-full" style={{ width: `${Math.min(cat.percentage, 100)}%` }}></div>
+                        </div>
+                        <span className="text-xs text-gray-600 dark:text-gray-400 w-10 text-right shrink-0">{cat.percentage.toFixed(1)}%</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 dark:bg-gray-700">
                     <tr>

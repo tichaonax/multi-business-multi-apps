@@ -6,10 +6,21 @@ import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { DateInput } from '@/components/ui/date-input'
+import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { formatDate } from '@/lib/date-format'
 import Link from 'next/link'
+
+function toISODate(d: Date) {
+  return d.toISOString().split('T')[0]
+}
+
+function defaultDateRange(): DateRange {
+  const end = new Date()
+  const start = new Date()
+  start.setDate(start.getDate() - 30)
+  return { start, end }
+}
 
 interface AccountRow {
   id: string
@@ -39,28 +50,22 @@ export default function AccountsOverviewReportPage() {
   const [totals, setTotals] = useState<SystemTotals | null>(null)
   const [loading, setLoading] = useState(true)
   const searchParams = useSearchParams()
-  const [startDate, setStartDate] = useState(() => searchParams.get('startDate') ?? '')
-  const [endDate, setEndDate] = useState(() => searchParams.get('endDate') ?? '')
+  const hasUrlDates = searchParams.get('startDate') || searchParams.get('endDate')
+  const [dateRange, setDateRange] = useState<DateRange>(() => {
+    if (hasUrlDates) {
+      const s = searchParams.get('startDate')
+      const e = searchParams.get('endDate')
+      const range = defaultDateRange()
+      return { start: s ? new Date(s + 'T00:00:00') : range.start, end: e ? new Date(e + 'T00:00:00') : range.end }
+    }
+    return defaultDateRange()
+  })
+  const [allTime, setAllTime] = useState(!hasUrlDates)
   // Optional: scope to a single business when arriving from a drill-down link
   const filterBusinessId = searchParams.get('businessId') ?? ''
 
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
-
-  const toDateStr = (d: Date) => d.toISOString().split('T')[0]
-  const applyQuickFilter = (days: number | 'today' | 'yesterday') => {
-    const today = new Date(); today.setHours(0, 0, 0, 0)
-    if (days === 'today') { setStartDate(toDateStr(today)); setEndDate(toDateStr(today)) }
-    else if (days === 'yesterday') { const y = new Date(today); y.setDate(y.getDate() - 1); setStartDate(toDateStr(y)); setEndDate(toDateStr(y)) }
-    else { const f = new Date(today); f.setDate(f.getDate() - days + 1); setStartDate(toDateStr(f)); setEndDate(toDateStr(today)) }
-  }
-  const QUICK_FILTERS = [
-    { label: 'Today', action: () => applyQuickFilter('today') },
-    { label: 'Yesterday', action: () => applyQuickFilter('yesterday') },
-    { label: '7 Days', action: () => applyQuickFilter(7) },
-    { label: '30 Days', action: () => applyQuickFilter(30) },
-    { label: '90 Days', action: () => applyQuickFilter(90) },
-  ]
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/auth/signin')
@@ -71,14 +76,16 @@ export default function AccountsOverviewReportPage() {
     const permissions = getEffectivePermissions(session?.user)
     if (!permissions.canViewExpenseReports) { router.push('/expense-accounts'); return }
     loadReport()
-  }, [status, session, startDate, endDate])
+  }, [status, session, dateRange, allTime])
 
   const loadReport = async () => {
     try {
       setLoading(true)
       const params = new URLSearchParams()
-      if (startDate) params.append('startDate', startDate)
-      if (endDate) params.append('endDate', endDate)
+      if (!allTime) {
+        params.append('startDate', toISODate(dateRange.start))
+        params.append('endDate', toISODate(dateRange.end))
+      }
       if (filterBusinessId) params.append('businessId', filterBusinessId)
       const res = await fetch(`/api/expense-account/reports/accounts-overview?${params}`, { credentials: 'include' })
       if (res.ok) {
@@ -108,31 +115,13 @@ export default function AccountsOverviewReportPage() {
         </Link>
 
         {/* Filters */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="flex gap-1.5 flex-wrap mb-3">
-            {QUICK_FILTERS.map((f) => (
-              <button key={f.label} onClick={f.action} className="px-3 py-1 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">{f.label}</button>
-            ))}
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
-              <DateInput value={startDate} onChange={setStartDate} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date</label>
-              <DateInput value={endDate} onChange={setEndDate} />
-            </div>
-            <div className="flex items-end">
-              <button
-                onClick={() => { setStartDate(''); setEndDate('') }}
-                className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
-              >
-                Reset
-              </button>
-            </div>
-          </div>
-        </div>
+        <DateRangeSelector
+          value={dateRange}
+          onChange={setDateRange}
+          showAllTime
+          allTime={allTime}
+          onAllTimeChange={setAllTime}
+        />
 
         {/* System Totals */}
         {totals && (
@@ -145,12 +134,12 @@ export default function AccountsOverviewReportPage() {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-l-4 border-green-500">
               <p className="text-xs text-gray-500 dark:text-gray-400">Total Deposits</p>
               <p className="text-xl font-bold text-green-600 dark:text-green-400 mt-1">{formatCurrency(totals.totalDeposits)}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{startDate || endDate ? 'for selected period' : 'all time'}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{!allTime ? 'for selected period' : 'all time'}</p>
             </div>
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-l-4 border-red-500">
               <p className="text-xs text-gray-500 dark:text-gray-400">Total Payments</p>
               <p className="text-xl font-bold text-red-600 dark:text-red-400 mt-1">{formatCurrency(totals.totalPayments)}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{startDate || endDate ? 'for selected period' : 'all time'}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{!allTime ? 'for selected period' : 'all time'}</p>
             </div>
             <div className={`bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-l-4 ${totals.netChange >= 0 ? 'border-teal-500' : 'border-orange-500'}`}>
               <p className="text-xs text-gray-500 dark:text-gray-400">Net Change</p>

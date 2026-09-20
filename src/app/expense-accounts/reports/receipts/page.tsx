@@ -6,9 +6,21 @@ import { useState, useEffect, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { DateInput } from '@/components/ui/date-input'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
+import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import Link from 'next/link'
+
+function toISODate(d: Date) {
+  return d.toISOString().split('T')[0]
+}
+
+function defaultDateRange(): DateRange {
+  const end = new Date()
+  const start = new Date()
+  start.setDate(start.getDate() - 30)
+  return { start, end }
+}
 
 type ReconciliationStatus = 'NOT_STARTED' | 'PARTIALLY_RECEIPTED' | 'PENDING_REVIEW' | 'FULLY_RECEIPTED' | 'OVER_LIMIT'
 
@@ -49,8 +61,8 @@ export default function ReceiptsReportPage() {
   const [rows, setRows] = useState<ReceiptRow[]>([])
   const [summary, setSummary] = useState<{ totalSpend: number; count: number; byType: { type: string; amount: number }[] } | null>(null)
   const [loading, setLoading] = useState(true)
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange())
+  const [allTime, setAllTime] = useState(true)
   const [statusTab, setStatusTab] = useState<ReconciliationStatus | 'ALL'>('ALL')
   const [nameSearch, setNameSearch] = useState('')
 
@@ -66,14 +78,16 @@ export default function ReceiptsReportPage() {
     const permissions = getEffectivePermissions(session?.user)
     if (!permissions.canViewExpenseReports) { router.push('/expense-accounts'); return }
     loadReport()
-  }, [status, session, dateFrom, dateTo, statusTab])
+  }, [status, session, dateRange, allTime, statusTab])
 
   async function loadReport() {
     try {
       setLoading(true)
       const params = new URLSearchParams()
-      if (dateFrom) params.append('dateFrom', dateFrom)
-      if (dateTo) params.append('dateTo', dateTo)
+      if (!allTime) {
+        params.append('dateFrom', toISODate(dateRange.start))
+        params.append('dateTo', toISODate(dateRange.end))
+      }
       if (statusTab !== 'ALL') params.append('status', statusTab)
       const res = await fetch(`/api/expense-account/reports/receipts?${params}`, { credentials: 'include' })
       if (res.ok) {
@@ -117,51 +131,59 @@ export default function ReceiptsReportPage() {
         </Link>
 
         {/* Filters */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 space-y-3">
-          <div className="flex gap-2 flex-wrap">
-            {STATUS_TABS.map(tab => (
-              <button
-                key={tab.value}
-                onClick={() => setStatusTab(tab.value)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                  statusTab === tab.value
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+        <CollapsibleSection
+          title="Filters"
+          icon="🔎"
+          badge={(statusTab !== 'ALL' || nameSearch.trim()) ? (
+            <span className="px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-xs font-semibold">Active</span>
+          ) : undefined}
+        >
+          <div className="space-y-3">
+            <div className="flex gap-2 flex-wrap">
+              {STATUS_TABS.map(tab => (
+                <button
+                  key={tab.value}
+                  onClick={() => setStatusTab(tab.value)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    statusTab === tab.value
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Supplier / Person</label>
+                <input
+                  type="text"
+                  value={nameSearch}
+                  onChange={e => setNameSearch(e.target.value)}
+                  placeholder="Filter by name…"
+                  className="input w-full px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={() => { setStatusTab('ALL'); setNameSearch(''); setAllTime(true); setDateRange(defaultDateRange()) }}
+                  className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Supplier / Person</label>
-              <input
-                type="text"
-                value={nameSearch}
-                onChange={e => setNameSearch(e.target.value)}
-                placeholder="Filter by name…"
-                className="input w-full px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From</label>
-              <DateInput value={dateFrom} onChange={setDateFrom} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">To</label>
-              <DateInput value={dateTo} onChange={setDateTo} />
-            </div>
-            <div className="flex items-end">
-              <button
-                onClick={() => { setDateFrom(''); setDateTo(''); setStatusTab('ALL'); setNameSearch('') }}
-                className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
-              >
-                Reset
-              </button>
-            </div>
-          </div>
-        </div>
+        </CollapsibleSection>
+
+        <DateRangeSelector
+          value={dateRange}
+          onChange={setDateRange}
+          showAllTime
+          allTime={allTime}
+          onAllTimeChange={setAllTime}
+        />
 
         {/* Summary cards */}
         {summary && (
