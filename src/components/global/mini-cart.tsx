@@ -258,7 +258,11 @@ export function MiniCart() {
   const handleGoToPOS = () => {
     handleClose()
     // If already on a POS page, just close the mini-cart so the user can
-    // complete the purchase using the POS's own checkout flow.
+    // complete the purchase using the POS's own checkout flow. On mobile the
+    // cart/checkout panel usually sits well below the fold (products render
+    // first), so closing the modal alone leaves the user staring at the
+    // product grid with no clue anything happened — scroll them straight to
+    // it instead. Every POS page's cart/checkout panel carries this same id.
     if (!isOnPOSPage) {
       // Route to the business-type-specific POS when one exists
       const type = currentBusiness?.businessType
@@ -269,6 +273,10 @@ export function MiniCart() {
         hardware: '/hardware/pos',
       }
       router.push(posRoutes[type ?? ''] ?? '/universal/pos')
+    } else {
+      setTimeout(() => {
+        document.getElementById('pos-cart-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 50)
     }
   }
 

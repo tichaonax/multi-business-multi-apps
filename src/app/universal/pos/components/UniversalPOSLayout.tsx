@@ -142,7 +142,7 @@ export function UniversalPOSLayout({
       </div>
 
       {/* Right Column - Customer + Cart + Payment — sticky so it floats as products scroll */}
-      <div className="lg:col-span-5 flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start">
+      <div id="pos-cart-panel" className="lg:col-span-5 flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start">
 
         {/* Customer Section */}
         {showCustomerSection && (

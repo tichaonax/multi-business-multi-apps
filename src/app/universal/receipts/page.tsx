@@ -15,7 +15,7 @@ import { useTimeDisplay } from '@/hooks/use-time-display'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
-import { getPresetDateRange, type DatePreset } from '@/lib/date-presets'
+import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { Pagination } from '@/components/ui/pagination'
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 import { useElementHeight } from '@/hooks/use-element-height'
@@ -49,6 +49,17 @@ interface PaginationInfo {
   hasMore: boolean
 }
 
+function toISODate(d: Date) {
+  return d.toISOString().split('T')[0]
+}
+
+function defaultDateRange(): DateRange {
+  const end = new Date()
+  const start = new Date()
+  start.setDate(start.getDate() - 30)
+  return { start, end }
+}
+
 export default function ReceiptHistoryPage() {
   return (
     <Suspense fallback={<div className="flex justify-center items-center min-h-screen"><div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div></div>}>
@@ -76,9 +87,11 @@ function ReceiptHistoryPageContent() {
   const [cancelBusinessId, setCancelBusinessId] = useState<string>('')
   const [cancelError, setCancelError] = useState<string | null>(null)
   const [cancelLoading, setCancelLoading] = useState<string | null>(null) // receiptId being loaded
-  const [dateFrom, setDateFrom] = useState('')       // ISO yyyy-mm-dd for API
-  const [dateTo, setDateTo] = useState('')         // ISO yyyy-mm-dd for API
-  const [datePreset, setDatePreset] = useState<DatePreset>('')
+  const [dateFrom, setDateFrom] = useState('')       // ISO yyyy-mm-dd for API — '' while allTime
+  const [dateTo, setDateTo] = useState('')         // ISO yyyy-mm-dd for API — '' while allTime
+  const [allTime, setAllTime] = useState(true)
+  const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange())
+  const [filterResetKey, setFilterResetKey] = useState(0)
   const { useServerTime } = useTimeDisplay()
   const { hasPermissionInBusiness, isSystemAdmin } = useBusinessPermissionsContext()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -199,39 +212,44 @@ function ReceiptHistoryPageContent() {
     fetchReceipts(query, 0)
   }, [fetchReceipts])
 
-  // Apply a date preset
-  function applyPreset(preset: 'today' | 'yesterday' | 'week' | 'month') {
-    const { from, to } = getPresetDateRange(preset)
+  // Date range changed via the shared DateRangeSelector (preset, custom, or specific date)
+  function handleDateRangeChange(range: DateRange) {
+    setDateRange(range)
+    const from = toISODate(range.start)
+    const to = toISODate(range.end)
     setDateFrom(from)
     setDateTo(to)
-    setDatePreset(preset)
     setCurrentPage(1)
     fetchReceipts(searchQuery, 0, from, to)
   }
 
-  function clearDates() {
+  function handleAllTimeChange(next: boolean) {
+    setAllTime(next)
+    setCurrentPage(1)
+    if (next) {
+      setDateFrom('')
+      setDateTo('')
+      fetchReceipts(searchQuery, 0, '', '')
+    } else {
+      const from = toISODate(dateRange.start)
+      const to = toISODate(dateRange.end)
+      setDateFrom(from)
+      setDateTo(to)
+      fetchReceipts(searchQuery, 0, from, to)
+    }
+  }
+
+  // Resets search text (via remount — ListSearchFilterBar owns its own input
+  // state) and the date range back to "all time".
+  function clearAllFilters() {
+    setSearchQuery('')
+    setFilterResetKey(k => k + 1)
+    setAllTime(true)
     setDateFrom('')
     setDateTo('')
-    setDatePreset('')
+    setDateRange(defaultDateRange())
     setCurrentPage(1)
-    fetchReceipts(searchQuery, 0, '', '')
-  }
-
-  function handleFromChange(iso: string) {
-    setDateFrom(iso)
-    // If no end date yet, or end is before new start, sync end to start
-    const newTo = (!dateTo || iso > dateTo) ? iso : dateTo
-    setDateTo(newTo)
-    setDatePreset('custom')
-    setCurrentPage(1)
-    fetchReceipts(searchQuery, 0, iso, newTo)
-  }
-
-  function handleToChange(iso: string) {
-    setDateTo(iso)
-    setDatePreset('custom')
-    setCurrentPage(1)
-    fetchReceipts(searchQuery, 0, dateFrom, iso)
+    fetchReceipts('', 0, '', '')
   }
 
   // Jump to a specific page (1-indexed)
@@ -384,11 +402,12 @@ function ReceiptHistoryPageContent() {
             page scroll, and any overflow-x-auto ancestor silently traps the
             sticky computation inside itself per the CSS overflow-axis-
             coupling rule). */}
-        <div ref={filtersRef} className="sticky top-14 sm:top-16 z-20 bg-background pt-3 pb-2">
+        <div ref={filtersRef} className="sticky top-14 sm:top-16 z-20 bg-background pt-3 pb-2 space-y-3">
         <ListSearchFilterBar
+          key={filterResetKey}
           onSearchChange={handleSearch}
           searchLoading={loading}
-          searchPlaceholder="Search by receipt #, customer, or amount..."
+          searchPlaceholder="Search by receipt #, customer, salesperson, or notes..."
           searchHint={(rawQuery) =>
             rawQuery.length < 4 ? (
               <p>Type at least 4 characters to search</p>
@@ -399,13 +418,25 @@ function ReceiptHistoryPageContent() {
               </p>
             )
           }
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-          datePreset={datePreset}
-          onPresetClick={applyPreset}
-          onFromChange={handleFromChange}
-          onToChange={handleToChange}
-          onClearDates={clearDates}
+          extraFilters={
+            (searchQuery || !allTime) && (
+              <button
+                onClick={clearAllFilters}
+                className="px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-lg whitespace-nowrap"
+              >
+                ↺ Clear Filters
+              </button>
+            )
+          }
+        />
+        {/* Date range — the standard collapsed-by-default selector used
+            throughout the app, replacing this page's old bespoke preset row. */}
+        <DateRangeSelector
+          value={dateRange}
+          onChange={handleDateRangeChange}
+          showAllTime
+          allTime={allTime}
+          onAllTimeChange={handleAllTimeChange}
         />
         </div>
 

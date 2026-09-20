@@ -448,8 +448,8 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
           </div>
 
           {/* Footer */}
-          <div className="bg-gray-50 dark:bg-gray-900 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <div className="flex-1 flex items-center gap-2">
+          <div className="bg-gray-50 dark:bg-gray-900 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex-1 flex flex-wrap items-center gap-2">
               {order?.status === 'COMPLETED' && order?.paymentStatus === 'PAID' && isSameDayOrder && (
                 <button
                   onClick={handleOpenCancel}
@@ -472,7 +472,7 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
                 <p className="text-sm text-red-600 mt-1">{cancelError}</p>
               )}
             </div>
-            <div className="flex space-x-3">
+            <div className="flex flex-wrap gap-3">
             <button
               onClick={onClose}
               className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"

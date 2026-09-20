@@ -5064,7 +5064,7 @@ export default function RestaurantPOS() {
 
           {/* Live Order Summary (right panel) */}
           {posMode === 'live' && (
-          <div className="card bg-white dark:bg-gray-900 p-4 rounded-lg shadow sticky top-14 sm:top-16 self-start flex flex-col max-h-[calc(100vh-5.5rem)] overflow-hidden">
+          <div id="pos-cart-panel" className="card bg-white dark:bg-gray-900 p-4 rounded-lg shadow sticky top-14 sm:top-16 self-start flex flex-col max-h-[calc(100vh-5.5rem)] overflow-hidden">
             <div className="flex items-center justify-between mb-3 flex-shrink-0">
               <h2 className="text-xl font-bold text-primary">Order Summary</h2>
               {dailySales && (isAdmin || hasPermission('canAccessFinancialData') || hasPermission('canViewWifiReports')) && (

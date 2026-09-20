@@ -4156,7 +4156,7 @@ function GroceryPOSContent() {
             content could grow taller than the screen, pushing the "Process Payment"
             button below the fold with no reliable way to scroll to it on short
             viewports (reported on 1280x768 displays). */}
-        <div className="space-y-4 mt-4 lg:mt-0 lg:sticky lg:top-40 lg:self-start lg:max-h-[calc(100vh-11rem)] lg:overflow-y-auto lg:pr-1">
+        <div id="pos-cart-panel" className="space-y-4 mt-4 lg:mt-0 lg:sticky lg:top-40 lg:self-start lg:max-h-[calc(100vh-11rem)] lg:overflow-y-auto lg:pr-1">
           {/* Customer Info */}
           <div className="card p-4 sm:p-6">
             <CustomerLookup

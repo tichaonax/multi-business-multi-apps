@@ -41,12 +41,18 @@ export async function GET(request: NextRequest) {
       businessId: businessId,
     }
 
-    // Add query filter if provided
+    // Add query filter if provided — searches receipt #, customer name,
+    // salesperson name, and order notes/description; a bare customerId
+    // text-contains (the previous behavior) can never match anything a user
+    // would actually type, since that's an opaque UUID.
     if (query) {
+      const asNumber = parseFloat(query)
       whereClause.OR = [
         { orderNumber: { contains: query, mode: 'insensitive' } },
-        { customerId: { contains: query, mode: 'insensitive' } },
-        { totalAmount: { equals: parseFloat(query) || undefined } },
+        { notes: { contains: query, mode: 'insensitive' } },
+        { business_customers: { name: { contains: query, mode: 'insensitive' } } },
+        { employees: { fullName: { contains: query, mode: 'insensitive' } } },
+        ...(isNaN(asNumber) ? [] : [{ totalAmount: { equals: asNumber } }]),
       ]
     }
 

@@ -2680,7 +2680,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       </div>
 
       {/* Cart and Checkout — single sticky card matching restaurant POS pattern */}
-      <div className="card p-4 sticky top-14 sm:top-16 self-start">
+      <div id="pos-cart-panel" className="card p-4 sticky top-14 sm:top-16 self-start">
         {/* Customer lookup */}
         <div className="mb-4">
           <CustomerLookup
