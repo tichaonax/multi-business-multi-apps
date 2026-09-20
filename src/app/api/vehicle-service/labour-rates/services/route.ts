@@ -3,7 +3,6 @@ import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
-import { canViewFinancials } from '@/lib/vehicle-service/permissions'
 
 // POST /api/vehicle-service/labour-rates/services
 // Body: { businessId, categoryId, name, emoji?, customerRate? }
@@ -27,7 +26,10 @@ export async function POST(request: NextRequest) {
     if (!categoryId) return NextResponse.json({ error: 'categoryId is required' }, { status: 400 })
     if (!name?.trim()) return NextResponse.json({ error: 'name is required' }, { status: 400 })
 
-    if (!isSystemAdmin(user) && !canViewFinancials(user, businessId)) {
+    // Adding to this catalog affects every vehicle-service business (it's
+    // global, not per-business), so it's gated tighter than per-business
+    // rate-setting — system admins only.
+    if (!isSystemAdmin(user)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -99,7 +101,9 @@ export async function PATCH(request: NextRequest) {
     if (!subcategoryId) return NextResponse.json({ error: 'subcategoryId is required' }, { status: 400 })
     if (!name?.trim()) return NextResponse.json({ error: 'name is required' }, { status: 400 })
 
-    if (!isSystemAdmin(user) && !canViewFinancials(user, businessId)) {
+    // Same reasoning as POST above — renaming a shared/global definition is
+    // admin-only, not just financial access on one business.
+    if (!isSystemAdmin(user)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

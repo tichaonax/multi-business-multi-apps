@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 
 interface LabourService { id: string; name: string; emoji: string | null; customerRate: number | null }
 interface LabourCategory { id: string; name: string; emoji: string | null; services: LabourService[] }
@@ -21,6 +22,14 @@ export default function VehicleServiceLabourRatesPage() {
   const { currentBusinessId, hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
 
   const canManage = isSystemAdmin || hasPermission('canAccessFinancialData')
+  // Adding/renaming definitions edits a GLOBAL catalog shared by every
+  // vehicle-service business (categories have businessId: null), so it's
+  // gated tighter than per-business rate-setting — system admins only.
+  const canManageDefinitions = isSystemAdmin
+  // Hidden by default even for admins — revealed only after the explicit
+  // "Manage Definitions" action below, so the controls never show up
+  // as visual clutter for the common "just look up/set a rate" case.
+  const [showManageControls, setShowManageControls] = useState(false)
 
   const [categories, setCategories] = useState<LabourCategory[]>([])
   const [loading, setLoading] = useState(true)
@@ -31,7 +40,10 @@ export default function VehicleServiceLabourRatesPage() {
   const [search, setSearch] = useState('')
 
   // Renaming an existing definition (name/emoji) — separate from rate editing
-  // above so the two controls never collide on the same row.
+  // above so the two controls never collide on the same row. The rename
+  // pencil only shows at all while editMode is on, so the list stays clean
+  // for the common case of just looking up/setting a rate.
+  const [editMode, setEditMode] = useState(false)
   const [editingName, setEditingName] = useState<Record<string, { name: string; emoji: string }>>({})
   const [savingNameId, setSavingNameId] = useState<string | null>(null)
   const [nameError, setNameError] = useState<string | null>(null)
@@ -179,7 +191,7 @@ export default function VehicleServiceLabourRatesPage() {
 
             {!loading && !error && (
               <>
-                <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                <div className="flex flex-col sm:flex-row gap-2 mb-2">
                   <div className="relative flex-1">
                     <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
@@ -192,13 +204,48 @@ export default function VehicleServiceLabourRatesPage() {
                       className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                  <button
-                    onClick={() => { setShowAddModal(true); setAddError(null) }}
-                    className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium whitespace-nowrap"
-                  >
-                    + Add Service
-                  </button>
+                  {/* Hidden by default, even for admins — an explicit click
+                      is required before Edit/Add Service ever appear. */}
+                  {canManageDefinitions && !showManageControls && (
+                    <button
+                      onClick={() => setShowManageControls(true)}
+                      className="px-4 py-2.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 whitespace-nowrap"
+                    >
+                      ⚙ Manage Definitions
+                    </button>
+                  )}
                 </div>
+
+                {canManageDefinitions && showManageControls && (
+                  <div className="flex flex-wrap items-center gap-2 mb-4 p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg">
+                    <button
+                      onClick={() => {
+                        setEditMode(v => !v)
+                        setEditingName({})
+                        setNameError(null)
+                      }}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap border transition-colors ${
+                        editMode
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      {editMode ? '✓ Done Editing' : '✏️ Rename Services'}
+                    </button>
+                    <button
+                      onClick={() => { setShowAddModal(true); setAddError(null) }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium whitespace-nowrap"
+                    >
+                      + Add Service
+                    </button>
+                    <button
+                      onClick={() => { setShowManageControls(false); setEditMode(false); setEditingName({}); setNameError(null) }}
+                      className="ml-auto px-3 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                    >
+                      Hide
+                    </button>
+                  </div>
+                )}
 
                 {filteredCategories.length === 0 ? (
                   <div className="text-center py-12 text-gray-500 dark:text-gray-400">No services match "{search}"</div>
@@ -234,13 +281,15 @@ export default function VehicleServiceLabourRatesPage() {
                                 ) : (
                                   <span className="text-sm text-gray-700 dark:text-gray-300 flex items-center gap-1.5 min-w-0">
                                     <span className="truncate">{svc.emoji} {svc.name}</span>
-                                    <button
-                                      onClick={() => setEditingName({ ...editingName, [svc.id]: { name: svc.name, emoji: svc.emoji ?? '' } })}
-                                      className="text-gray-300 hover:text-gray-500 dark:hover:text-gray-400 text-xs shrink-0"
-                                      title="Rename this service"
-                                    >
-                                      ✏️
-                                    </button>
+                                    {editMode && (
+                                      <button
+                                        onClick={() => setEditingName({ ...editingName, [svc.id]: { name: svc.name, emoji: svc.emoji ?? '' } })}
+                                        className="text-gray-300 hover:text-gray-500 dark:hover:text-gray-400 text-xs shrink-0"
+                                        title="Rename this service"
+                                      >
+                                        ✏️
+                                      </button>
+                                    )}
                                   </span>
                                 )}
 
@@ -322,16 +371,14 @@ export default function VehicleServiceLabourRatesPage() {
             <div className="px-5 py-4 space-y-3">
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Category *</label>
-                <select
+                <SearchableSelect
+                  options={categories.map(c => ({ value: c.id, name: c.name, emoji: c.emoji ?? undefined }))}
                   value={addForm.categoryId}
-                  onChange={e => setAddForm({ ...addForm, categoryId: e.target.value })}
-                  className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  <option value="">Select a category...</option>
-                  {categories.map(c => (
-                    <option key={c.id} value={c.id}>{c.emoji} {c.name}</option>
-                  ))}
-                </select>
+                  onChange={v => setAddForm({ ...addForm, categoryId: v })}
+                  placeholder="Select a category..."
+                  searchPlaceholder="Search categories..."
+                  required
+                />
               </div>
               <div className="flex items-end gap-2">
                 <div className="w-16">
