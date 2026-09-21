@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
 
-type FilterTab = 'all' | 'sales' | 'expenses'
+type FilterTab = 'all' | 'sales' | 'expenses' | 'setaside'
 
 interface SaleRow {
   id: string
@@ -17,6 +17,7 @@ interface SaleRow {
   amount: number
   paymentMethod: string
   servedBy: string | null
+  businessName: string | null
   items: { label: string; qty: number; unitPrice: number }[]
 }
 
@@ -31,6 +32,17 @@ interface ExpenseRow {
   subcategory: string | null
   status: string | null
   createdBy: string | null
+  businessName: string | null
+}
+
+interface SetAsideRow {
+  id: string
+  time: string
+  amount: number
+  purpose: string
+  entryType: string
+  createdBy: string | null
+  businessName: string | null
 }
 
 interface DailyDetail {
@@ -38,11 +50,14 @@ interface DailyDetail {
   summary: {
     totalSales: number
     totalExpenses: number
+    totalSetAside: number
     orderCount: number
     expenseCount: number
+    setAsideCount: number
   }
   sales: SaleRow[]
   expenses: ExpenseRow[]
+  setAside: SetAsideRow[]
 }
 
 function StatusBadge({ status }: { status: string | null }) {
@@ -114,11 +129,13 @@ export default function DailyDetailPage() {
   const businessId = searchParams.get('businessId') ?? ''
   const businessType = searchParams.get('businessType') ?? ''
   const date = searchParams.get('date') ?? ''
+  const initialFilter = (searchParams.get('filter') as FilterTab | null)
+  const returnTo = searchParams.get('returnTo')
 
   const [data, setData] = useState<DailyDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<FilterTab>('all')
+  const [filter, setFilter] = useState<FilterTab>(initialFilter && ['all', 'sales', 'expenses', 'setaside'].includes(initialFilter) ? initialFilter : 'all')
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
 
@@ -127,7 +144,7 @@ export default function DailyDetailPage() {
     setLoading(true)
     setError(null)
     setSearch('')
-    setFilter('all')
+    setFilter(initialFilter && ['all', 'sales', 'expenses', 'setaside'].includes(initialFilter) ? initialFilter : 'all')
     setExpandedOrders(new Set())
     const tz = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
     fetch(`/api/business/${businessId}/daily-detail?date=${date}&timezone=${tz}`, { credentials: 'include' })
@@ -140,9 +157,8 @@ export default function DailyDetailPage() {
       .finally(() => setLoading(false))
   }, [businessId, date])
 
-  const backHref = businessType
-    ? `/${businessType}/reports/sales-analytics`
-    : '/reports'
+  const backHref = returnTo || (businessType ? `/${businessType}/reports/sales-analytics` : '/reports')
+  const backLabel = returnTo ? '← Back' : '← Back to Sales Analytics'
 
   const displayDate = date ? formatDateByFormat(date, dateFormat.format) : date
 
@@ -154,6 +170,8 @@ export default function DailyDetailPage() {
   }
   function buildDayHref(newDate: string) {
     const p = new URLSearchParams({ businessId, businessType, date: newDate })
+    if (filter !== 'all') p.set('filter', filter)
+    if (returnTo) p.set('returnTo', returnTo)
     return `/reports/daily-detail?${p.toString()}`
   }
   const prevDate = date ? shiftDate(date, -1) : null
@@ -191,7 +209,7 @@ export default function DailyDetailPage() {
     )
   }
 
-  const { summary, sales, expenses } = data
+  const { summary, sales, expenses, setAside } = data
   const recorderColors = buildRecorderColorMap(expenses)
   const margin = summary.totalSales > 0
     ? (((summary.totalSales - summary.totalExpenses) / summary.totalSales) * 100).toFixed(1)
@@ -203,6 +221,7 @@ export default function DailyDetailPage() {
     ? sales.filter(o =>
         (o.orderNumber ?? '').toLowerCase().includes(q) ||
         (o.servedBy ?? '').toLowerCase().includes(q) ||
+        (o.businessName ?? '').toLowerCase().includes(q) ||
         o.paymentMethod.toLowerCase().includes(q) ||
         o.items.some(i => i.label.toLowerCase().includes(q))
       )
@@ -215,12 +234,23 @@ export default function DailyDetailPage() {
         (e.category ?? '').toLowerCase().includes(q) ||
         (e.subcategory ?? '').toLowerCase().includes(q) ||
         (e.createdBy ?? '').toLowerCase().includes(q) ||
+        (e.businessName ?? '').toLowerCase().includes(q) ||
         e.amount.toFixed(2).includes(q)
       )
     : expenses
 
+  const filteredSetAside = q
+    ? setAside.filter(e =>
+        e.purpose.toLowerCase().includes(q) ||
+        (e.createdBy ?? '').toLowerCase().includes(q) ||
+        (e.businessName ?? '').toLowerCase().includes(q) ||
+        e.amount.toFixed(2).includes(q)
+      )
+    : setAside
+
   const filteredSalesTotal = filteredSales.reduce((s, o) => s + o.amount, 0)
   const filteredExpensesTotal = filteredExpenses.reduce((s, e) => s + e.amount, 0)
+  const filteredSetAsideTotal = filteredSetAside.reduce((s, e) => s + e.amount, 0)
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900 overflow-hidden">
@@ -232,7 +262,7 @@ export default function DailyDetailPage() {
           {/* Back + title + day navigation */}
           <div className="mb-4">
             <Link href={backHref} className="text-sm text-blue-600 dark:text-blue-400 hover:underline mb-1 inline-block">
-              ← Back to Sales Analytics
+              {backLabel}
             </Link>
             <div className="flex items-center gap-3 mt-1">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex-1">
@@ -262,7 +292,7 @@ export default function DailyDetailPage() {
           </div>
 
           {/* Summary cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
             <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Sales</p>
               <p className="text-lg font-bold text-purple-600 dark:text-purple-400">{formatCurrency(summary.totalSales)}</p>
@@ -272,6 +302,11 @@ export default function DailyDetailPage() {
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Expenses</p>
               <p className="text-lg font-bold text-red-500 dark:text-red-400">{formatCurrency(summary.totalExpenses)}</p>
               <p className="text-xs text-gray-400">{summary.expenseCount} payments</p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Set Aside</p>
+              <p className="text-lg font-bold text-amber-500 dark:text-amber-400">{formatCurrency(summary.totalSetAside)}</p>
+              <p className="text-xs text-gray-400">{summary.setAsideCount} allocations</p>
             </div>
             <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Net</p>
@@ -289,7 +324,7 @@ export default function DailyDetailPage() {
 
           {/* Filter tabs + search */}
           <div className="flex flex-wrap items-center gap-2">
-            {(['all', 'sales', 'expenses'] as FilterTab[]).map(tab => (
+            {(['all', 'sales', 'expenses', 'setaside'] as FilterTab[]).map(tab => (
               <button
                 key={tab}
                 onClick={() => setFilter(tab)}
@@ -299,7 +334,7 @@ export default function DailyDetailPage() {
                     : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600'
                 }`}
               >
-                {tab === 'all' ? 'All' : tab === 'sales' ? `Sales (${summary.orderCount})` : `Expenses (${summary.expenseCount})`}
+                {tab === 'all' ? 'All' : tab === 'sales' ? `Sales (${summary.orderCount})` : tab === 'expenses' ? `Expenses (${summary.expenseCount})` : `Set Aside (${summary.setAsideCount})`}
               </button>
             ))}
 
@@ -367,6 +402,9 @@ export default function DailyDetailPage() {
                           <PaymentBadge method={order.paymentMethod} />
                           {order.servedBy && (
                             <span className="text-xs text-gray-500 dark:text-gray-400">{order.servedBy}</span>
+                          )}
+                          {order.businessName && (
+                            <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded">{order.businessName}</span>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
@@ -444,6 +482,9 @@ export default function DailyDetailPage() {
                               <PaymentBadge method={exp.paymentChannel} />
                             )}
                             <StatusBadge status={exp.status} />
+                            {exp.businessName && (
+                              <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded">{exp.businessName}</span>
+                            )}
                           </div>
                           {exp.payee && (
                             <p className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">{exp.payee}</p>
@@ -462,6 +503,63 @@ export default function DailyDetailPage() {
                         </div>
                         <span className="font-semibold text-red-500 dark:text-red-400 shrink-0">
                           {formatCurrency(exp.amount)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Set Aside section */}
+          {(filter === 'all' || filter === 'setaside') && (
+            <div>
+              {filter === 'all' && (
+                <h2 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                  Set Aside
+                </h2>
+              )}
+              {q && filteredSetAside.length > 0 && (
+                <div className="flex items-center justify-between bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-4 py-2 mb-3 text-sm">
+                  <span className="text-amber-700 dark:text-amber-300">
+                    {filteredSetAside.length} of {setAside.length} allocations match
+                  </span>
+                  <span className="font-bold text-amber-700 dark:text-amber-300">
+                    {formatCurrency(filteredSetAsideTotal)}
+                  </span>
+                </div>
+              )}
+              {filteredSetAside.length === 0 ? (
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-6 text-center text-gray-400 shadow-sm">
+                  {q ? 'No set-aside entries match your search' : 'Nothing was set aside on this day'}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredSetAside.map(row => (
+                    <div key={row.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm px-4 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <span className="text-xs text-gray-400 font-mono">{formatTime(row.time)}</span>
+                            <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded">
+                              🔒 {row.purpose}
+                            </span>
+                            {row.businessName && (
+                              <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded">{row.businessName}</span>
+                            )}
+                          </div>
+                          {row.createdBy && (
+                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                              Recorded by{' '}
+                              <span className={`font-semibold ${recorderColors.get(row.createdBy) ?? 'text-gray-500 dark:text-gray-400'}`}>
+                                {row.createdBy}
+                              </span>
+                            </p>
+                          )}
+                        </div>
+                        <span className="font-semibold text-amber-500 dark:text-amber-400 shrink-0">
+                          {formatCurrency(row.amount)}
                         </span>
                       </div>
                     </div>

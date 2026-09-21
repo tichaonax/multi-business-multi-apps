@@ -36,6 +36,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { usePendingActionsCount } from '@/hooks/use-pending-actions-count'
 import { SalesExpenseSnapshot } from '@/components/reports/sales-expense-snapshot'
 import { ModalPortal } from '@/components/ui/modal-portal'
+import { DailySummaryDetail } from '@/components/dashboard/daily-summary-detail'
 
 export default function Dashboard() {
   return (
@@ -73,6 +74,7 @@ function DashboardContent() {
   const [pendingTasks, setPendingTasks] = useState<any[]>([])
   const [showRevenueBreakdown, setShowRevenueBreakdown] = useState<boolean>(false)
   const [revenueBreakdown, setRevenueBreakdown] = useState<any>(null)
+  const [dailySummary, setDailySummary] = useState<any>(null)
   const [revenueBreakdownFilter, setRevenueBreakdownFilter] = useState<string | null>(null)
   const [recentActivity, setRecentActivity] = useState<any[]>([])
   const [activityLoading, setActivityLoading] = useState<boolean>(true)
@@ -182,9 +184,22 @@ function DashboardContent() {
       }
     }
 
+    const fetchDailySummary = async () => {
+      try {
+        const response = await fetch('/api/dashboard/daily-business-summary')
+        if (response.ok) {
+          const data = await response.json()
+          setDailySummary(data)
+        }
+      } catch (error) {
+        console.error('Failed to fetch daily business summary:', error)
+      }
+    }
+
     if (currentUser) {
       fetchStats()
       fetchRevenueBreakdown()
+      fetchDailySummary()
       fetchRecentActivity()
       fetchAvailableUsers()
       fetchAvailableBusinesses()
@@ -714,12 +729,15 @@ function DashboardContent() {
                   </span>
                 </div>
                 {(revenueBreakdown.summary.totalEarmarked ?? 0) > 0 && (
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-secondary flex items-center gap-1" title="Cash still in the box but reserved for allocation or payroll funding (last 7 days)">🔒 Earmarked</span>
+                  <Link
+                    href={`/reports/earmarked-breakdown?returnTo=${encodeURIComponent('/dashboard')}`}
+                    className="flex items-center justify-between text-xs hover:underline"
+                  >
+                    <span className="text-secondary flex items-center gap-1" title="Cash still in the box but reserved for allocation or payroll funding, not yet disbursed">🔒 Earmarked</span>
                     <span className="font-semibold text-amber-600 dark:text-amber-400">
                       ${(revenueBreakdown.summary.totalEarmarked ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
-                  </div>
+                  </Link>
                 )}
                 {(revenueBreakdown.summary.totalExpenseAccountBalance ?? 0) > 0 && (
                   <div className="flex items-center justify-between text-xs">
@@ -770,6 +788,14 @@ function DashboardContent() {
                     </div>
                   )
                 })()}
+                {dailySummary?.all && (
+                  <DailySummaryDetail
+                    today={dailySummary.all.today}
+                    yesterday={dailySummary.all.yesterday}
+                    businessIds={dailySummary.all.businessIds}
+                    businessType={null}
+                  />
+                )}
               </div>
             </div>
           )}
@@ -843,12 +869,16 @@ function DashboardContent() {
                       </span>
                     </div>
                     {(typeData.totalEarmarked ?? 0) > 0 && (
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-secondary flex items-center gap-1" title="Cash still in the box but reserved for allocation or payroll funding (last 7 days)">🔒 Earmarked</span>
+                      <Link
+                        href={`/reports/earmarked-breakdown?businessType=${encodeURIComponent(businessType)}&returnTo=${encodeURIComponent('/dashboard')}`}
+                        className="flex items-center justify-between text-xs hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <span className="text-secondary flex items-center gap-1" title="Cash still in the box but reserved for allocation or payroll funding, not yet disbursed">🔒 Earmarked</span>
                         <span className="font-semibold text-amber-600 dark:text-amber-400">
                           ${(typeData.totalEarmarked ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
-                      </div>
+                      </Link>
                     )}
                     {(typeData.totalExpenseAccountBalance ?? 0) > 0 && (
                       <div className="flex items-center justify-between text-xs">
@@ -894,6 +924,14 @@ function DashboardContent() {
                           <div className={`${rentBarColor} h-1 rounded-full transition-all`} style={{ width: `${rentPct}%` }} />
                         </div>
                       </div>
+                    )}
+                    {dailySummary?.byType?.[businessType] && (
+                      <DailySummaryDetail
+                        today={dailySummary.byType[businessType].today}
+                        yesterday={dailySummary.byType[businessType].yesterday}
+                        businessIds={dailySummary.byType[businessType].businessIds}
+                        businessType={businessType}
+                      />
                     )}
                   </div>
                 </div>
