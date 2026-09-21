@@ -799,7 +799,6 @@ function DashboardContent() {
                     today={dailySummary.all.today}
                     yesterday={dailySummary.all.yesterday}
                     businessIds={dailySummary.all.businessIds}
-                    businessType={null}
                   />
                 )}
               </div>
@@ -936,7 +935,6 @@ function DashboardContent() {
                         today={dailySummary.byType[businessType].today}
                         yesterday={dailySummary.byType[businessType].yesterday}
                         businessIds={dailySummary.byType[businessType].businessIds}
-                        businessType={businessType}
                       />
                     )}
                   </div>

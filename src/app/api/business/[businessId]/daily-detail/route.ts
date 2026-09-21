@@ -145,6 +145,7 @@ export async function GET(
 
       return {
         id: e.id,
+        expenseAccountId: e.expenseAccountId,
         time: e.paymentDate.toISOString(),
         amount: Number(e.amount),
         payee: payeeName,
