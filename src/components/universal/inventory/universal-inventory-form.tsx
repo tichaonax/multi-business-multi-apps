@@ -255,11 +255,6 @@ interface UniversalInventoryFormProps {
   hideWeightBar?: boolean
   // When parent manages isSoldByWeight, pass the value here so the form hides irrelevant fields
   soldByWeight?: boolean
-  // Extra action rendered next to Cancel/Update in the header (both render
-  // modes) — e.g. grocery's "Sell this Item" POS shortcut. Lets a parent add
-  // a business-type-specific action without needing its own duplicate
-  // header (see MBM-299 standard: one header per modal, everywhere).
-  extraHeaderAction?: React.ReactNode
 }
 
 export function UniversalInventoryForm({
@@ -277,7 +272,6 @@ export function UniversalInventoryForm({
   onCategoriesLoaded,
   hideWeightBar = false,
   soldByWeight = false,
-  extraHeaderAction,
 }: UniversalInventoryFormProps) {
   const [formData, setFormData] = useState<UniversalInventoryItem>({
     businessId,
@@ -1583,9 +1577,11 @@ export function UniversalInventoryForm({
   // support rendering either as a modal (default) or inline panel
   const panel = (
     <div className={`relative text-gray-900 dark:text-gray-100${renderMode === 'modal' ? ' bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-[1600px] w-full max-h-[90vh] overflow-auto' : ''}`}>
-      {/* Header — only shown in modal mode; inline mode parent provides its own header */}
+      {/* Header — only shown in modal mode; inline mode parent provides its own header.
+          Sticky so Cancel/Add to Cart/Update stay reachable without scrolling back up
+          on a long form — matches the inline-mode header's own sticky behavior below. */}
       {renderMode === 'modal' && (
-      <div className="p-5 border-b border-gray-200 dark:border-gray-700">
+      <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 p-5 border-b border-gray-200 dark:border-gray-700">
         {/* MBM-299 — flex-col on mobile so the button row sits below the
             title instead of squeezing it; the buttons themselves shrink and
             wrap their own text (no flex-shrink-0/whitespace-nowrap) exactly
@@ -1601,7 +1597,6 @@ export function UniversalInventoryForm({
             </p>
           </div>
           <div className="flex items-stretch gap-3 justify-end w-full sm:w-auto">
-            {extraHeaderAction}
             {/* MBM-299 — same shared buttons as the form's own footer, so the
                 two are guaranteed pixel-identical (order, icons, wrap
                 behavior) instead of two hand-maintained copies. */}
@@ -1616,38 +1611,15 @@ export function UniversalInventoryForm({
           the same "don't make me scroll to save" reason as the modal header
           button above. */}
       {renderMode === 'inline' && (
-        <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-2 flex items-center justify-between gap-4">
+        <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
             {mode === 'edit' ? 'Edit Inventory Item' : 'Add New Inventory Item'}
           </h2>
-          <div className="flex items-center gap-2">
-            {extraHeaderAction}
-            <button
-              type="button"
-              onClick={async () => {
-                if (isDirty) {
-                  const confirmed = await confirmDialog({
-                    title: 'Unsaved changes',
-                    description: 'You have unsaved changes on this item. Leave without saving?',
-                    confirmText: 'Leave without saving',
-                    cancelText: 'Keep editing',
-                  })
-                  if (!confirmed) return
-                }
-                onCancel()
-              }}
-              className="px-3 py-2 text-secondary hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSubmit()}
-              disabled={loading || !categoriesLoaded}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-            >
-              {!categoriesLoaded ? 'Loading...' : loading ? 'Saving...' : (mode === 'edit' ? 'Update Item' : 'Create Item')}
-            </button>
+          {/* MBM-299 — same shared Cancel/Add to Cart/Update Item buttons as
+              modal mode and the form's own footer, so every entry point into
+              this form looks and behaves identically. */}
+          <div className="flex items-stretch gap-2 justify-end w-full sm:w-auto">
+            {renderFormActionButtons()}
           </div>
         </div>
       )}

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ProductCell } from '@/components/inventory/report-product-cell'
 import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
@@ -33,6 +33,8 @@ interface ReportData {
 
 const money = (n: number | null) => (n == null ? '—' : `$${n.toFixed(2)}`)
 
+const cacheKey = (status: 'out' | 'low', businessId: string) => `stock-status-report:${status}:${businessId}`
+
 /**
  * Shared UI for both the "Out of Stock" and "Low Stock" reports linked from
  * InventoryDashboardWidget — same MBM-299 responsive template and
@@ -50,6 +52,8 @@ export function StockStatusReport({ status, title, description, reportPath }: {
   const { currentBusinessId, hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
   const canEditInventory = isSystemAdmin || hasPermission('canManageInventory')
   const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
   // Whoever linked into this report (e.g. the homepage's Inventory Overview
   // widget) can say where "back" should really go — falls back to the
   // Reports index when opened some other way (e.g. the reports hub itself).
@@ -60,6 +64,10 @@ export function StockStatusReport({ status, title, description, reportPath }: {
   // item and coming back to *this* report, its own "back" link still points
   // wherever the user originally came from, not just to /inventory/reports.
   const selfPath = returnTo ? `${reportPath}?returnTo=${encodeURIComponent(returnTo)}` : reportPath
+  // Each row's edit link carries its own id back through the round trip
+  // (see the restore effect below) so the report knows, on return, which
+  // item to patch with fresh numbers instead of dropping/refetching everything.
+  const rowReturnTo = (itemId: string) => `${selfPath}${selfPath.includes('?') ? '&' : '?'}editedItemId=${encodeURIComponent(itemId)}`
   const [search, setSearch] = useState('')
   const [reportData, setReportData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -81,8 +89,17 @@ export function StockStatusReport({ status, title, description, reportPath }: {
       })
       const res = await fetch(`/api/universal/reports/stock-status?${params}`)
       const json = await res.json()
-      if (json.success) setReportData(json)
-      else setError(json.error ?? 'Failed to load report')
+      if (json.success) {
+        setReportData(json)
+        // Snapshot the default (page 1, no search) view so that returning
+        // from editing an item can restore it without a real refetch — see
+        // the restore effect below for why that matters.
+        if (page === 1 && !search.trim()) {
+          try { sessionStorage.setItem(cacheKey(status, currentBusinessId), JSON.stringify(json)) } catch {}
+        }
+      } else {
+        setError(json.error ?? 'Failed to load report')
+      }
     } catch {
       setError('Failed to load report')
     } finally {
@@ -90,7 +107,69 @@ export function StockStatusReport({ status, title, description, reportPath }: {
     }
   }, [currentBusinessId, status, page, pageSize, search])
 
-  useEffect(() => { loadReport() }, [loadReport])
+  // Suppresses the very next automatic loadReport() call triggered by the
+  // restore effect just below — set synchronously (ref writes aren't
+  // batched) before that effect's state updates, and consumed by the
+  // loadReport effect declared after it, in the same commit.
+  const suppressNextLoadRef = useRef(false)
+
+  // Coming back from editing an item (ProductCell embeds `editedItemId` in
+  // the returnTo URL it sends the business's inventory page) should show
+  // that item's fresh numbers immediately, without making the whole report
+  // disappear-then-reappear — and, critically, without the freshly-restocked
+  // item vanishing from the list right away. It should only actually drop
+  // off once the user does a real reload. So: restore the last snapshot
+  // (taken before navigating away to edit) from sessionStorage instead of
+  // re-fetching, then patch in just the edited item's current numbers.
+  // Declared (and thus runs) before the loadReport effect below, so it can
+  // set suppressNextLoadRef in time.
+  const restoreAttemptedRef = useRef(false)
+  useEffect(() => {
+    if (!currentBusinessId || restoreAttemptedRef.current) return
+    restoreAttemptedRef.current = true
+
+    const editedItemId = searchParams.get('editedItemId')
+    if (!editedItemId) return
+
+    let cached: ReportData | null = null
+    try {
+      const raw = sessionStorage.getItem(cacheKey(status, currentBusinessId))
+      if (raw) cached = JSON.parse(raw)
+    } catch { /* ignore */ }
+    if (!cached) return
+
+    suppressNextLoadRef.current = true
+    setReportData(cached)
+
+    fetch(`/api/inventory/${currentBusinessId}/items/${editedItemId}`)
+      .then(r => r.json())
+      .then(d => {
+        if (!d.success || !d.data) return
+        setReportData(prev => prev ? {
+          ...prev,
+          data: prev.data.map(row => row.editItemId === editedItemId ? {
+            ...row,
+            name: d.data.name ?? row.name,
+            quantityOnHand: d.data.currentStock ?? row.quantityOnHand,
+            costPrice: d.data.costPrice ?? row.costPrice,
+            sellingPrice: d.data.sellPrice ?? row.sellingPrice,
+          } : row),
+        } : prev)
+      })
+      .catch(() => { /* keep showing the cached snapshot */ })
+
+    // Drop just editedItemId from the URL (keeping returnTo and anything
+    // else intact) so a manual refresh doesn't replay this restore.
+    const cleanedParams = new URLSearchParams(searchParams.toString())
+    cleanedParams.delete('editedItemId')
+    const cleanedQuery = cleanedParams.toString()
+    router.replace(cleanedQuery ? `${pathname}?${cleanedQuery}` : pathname, { scroll: false })
+  }, [currentBusinessId, status, searchParams, router, pathname])
+
+  useEffect(() => {
+    if (suppressNextLoadRef.current) { suppressNextLoadRef.current = false; return }
+    loadReport()
+  }, [loadReport])
   useEffect(() => { setPage(1) }, [search, pageSize])
 
   const rows = reportData?.data ?? []
@@ -156,7 +235,7 @@ export function StockStatusReport({ status, title, description, reportPath }: {
                       businessType={reportData.businessType}
                       editItemId={row.editItemId}
                       canEdit={canEditInventory}
-                      returnTo={selfPath}
+                      returnTo={rowReturnTo(row.editItemId)}
                     />
                     <div className="grid grid-cols-3 gap-x-3 gap-y-2 pt-1">
                       <div>
@@ -208,7 +287,7 @@ export function StockStatusReport({ status, title, description, reportPath }: {
                             businessType={reportData.businessType}
                             editItemId={row.editItemId}
                             canEdit={canEditInventory}
-                            returnTo={selfPath}
+                            returnTo={rowReturnTo(row.editItemId)}
                           />
                         </td>
                         <td className={`px-3 py-2.5 text-right font-semibold ${stockColor}`}>{row.quantityOnHand}</td>

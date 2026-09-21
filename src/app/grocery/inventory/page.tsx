@@ -102,7 +102,6 @@ function GroceryInventoryContent() {
   // Set when a report page's edit link included `?returnTo=` — see the
   // productId effect below and closeEditForm().
   const [editReturnTo, setEditReturnTo] = useState<string | null>(null)
-  const [formReady, setFormReady] = useState(false)
   const [showViewModal, setShowViewModal] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [isLoadingProduct, setIsLoadingProduct] = useState(false)
@@ -376,7 +375,6 @@ function GroceryInventoryContent() {
   }
 
   const handleItemEdit = async (item: any) => {
-    setFormReady(false)
     setShowAddForm(true)
     // Fetch full detail so weight fields are included
     try {
@@ -710,7 +708,6 @@ function GroceryInventoryContent() {
                             <button
                               onClick={() => {
                                 setSelectedItem(null)
-                                setFormReady(false)
                                 setIsSoldByWeight(false)
                                 setPricePerKg('')
                                 setShowAddForm(true)
@@ -990,19 +987,8 @@ function GroceryInventoryContent() {
                     soldByWeight={isSoldByWeight}
                     onCancel={closeEditForm}
                     onSilentUpdate={() => setRefreshKey(prev => prev + 1)}
-                    onCategoriesLoaded={() => setFormReady(true)}
                     renderMode="inline"
                     mode={selectedItem ? 'edit' : 'create'}
-                    extraHeaderAction={selectedItem?.id ? (
-                      <a
-                        href={formReady ? `/grocery/pos?businessId=${businessId}&addProduct=${selectedItem.id}&autoAdd=true` : '#'}
-                        onClick={(e) => { if (!formReady) e.preventDefault() }}
-                        aria-disabled={!formReady}
-                        className={`px-3 py-2 text-white text-sm rounded-md flex items-center gap-1.5 whitespace-nowrap ${formReady ? 'bg-green-600 hover:bg-green-700' : 'bg-green-300 cursor-not-allowed'}`}
-                      >
-                        🛒 Sell this Item
-                      </a>
-                    ) : undefined}
                     customFields={[
                       {
                         name: 'pluCode',
