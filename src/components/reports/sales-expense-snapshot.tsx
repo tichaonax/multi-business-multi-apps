@@ -91,6 +91,9 @@ export function SalesExpenseSnapshot({ businessId, businessType, initialPeriod }
   const minus30   = getLocalDateString(new Date(Date.now() - 29 * 86400000))
 
   const [period,           setPeriod]           = useState<Period>(initialPeriod ?? '30d')
+  // Collapsed by default, showing the current selection — matches the
+  // DateRangeSelector convention used throughout the rest of the app.
+  const [showPeriodPicker, setShowPeriodPicker] = useState(false)
   const [customStart,      setCustomStart]      = useState(minus30)
   const [customEnd,        setCustomEnd]        = useState(today)
   const [chartData,        setChartData]        = useState<DayData[]>([])
@@ -189,59 +192,78 @@ export function SalesExpenseSnapshot({ businessId, businessType, initialPeriod }
         </div>
       </div>
 
-      {/* Period toggle */}
-      <div className="flex flex-wrap items-center gap-2 mb-3">
-        {([
-          { key: 'today',     label: 'Today' },
-          { key: 'yesterday', label: 'Yesterday' },
-          { key: '7d',        label: '7 Days' },
-          { key: '30d',       label: '30 Days' },
-          { key: 'single',    label: 'Specific Date' },
-          { key: 'custom',    label: 'Custom' },
-        ] as { key: Period; label: string }[]).map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setPeriod(key)}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-              period === key
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+      {/* Period toggle — collapsed by default, showing the current
+          selection (matches the DateRangeSelector convention used
+          throughout the rest of the app). */}
+      <div className="mb-3">
+        <button
+          type="button"
+          onClick={() => setShowPeriodPicker((v) => !v)}
+          className="w-full flex items-center justify-between px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/40 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
+        >
+          <span className="flex items-center gap-2">
+            <span className="text-gray-400">📅</span>
+            <span>Period:</span>
+            <span className="text-purple-600 dark:text-purple-400">{periodLabel}</span>
+          </span>
+          <span className="text-gray-400 text-xs">{showPeriodPicker ? '▲ collapse' : '▼ change'}</span>
+        </button>
 
-        {period === 'single' && (
-          <div className="flex items-center gap-2 ml-1">
-            <input
-              type="date"
-              value={customStart}
-              max={today}
-              onChange={(e) => { setCustomStart(e.target.value); setCustomEnd(e.target.value) }}
-              className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-            />
-          </div>
-        )}
+        {showPeriodPicker && (
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            {([
+              { key: 'today',     label: 'Today' },
+              { key: 'yesterday', label: 'Yesterday' },
+              { key: '7d',        label: '7 Days' },
+              { key: '30d',       label: '30 Days' },
+              { key: 'single',    label: 'Specific Date' },
+              { key: 'custom',    label: 'Custom' },
+            ] as { key: Period; label: string }[]).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setPeriod(key)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  period === key
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
 
-        {period === 'custom' && (
-          <div className="flex items-center gap-2 ml-1">
-            <input
-              type="date"
-              value={customStart}
-              max={customEnd}
-              onChange={(e) => setCustomStart(e.target.value)}
-              className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-            />
-            <span className="text-xs text-gray-400">to</span>
-            <input
-              type="date"
-              value={customEnd}
-              min={customStart}
-              max={today}
-              onChange={(e) => setCustomEnd(e.target.value)}
-              className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-            />
+            {period === 'single' && (
+              <div className="flex items-center gap-2 ml-1">
+                <input
+                  type="date"
+                  value={customStart}
+                  max={today}
+                  onChange={(e) => { setCustomStart(e.target.value); setCustomEnd(e.target.value) }}
+                  className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                />
+              </div>
+            )}
+
+            {period === 'custom' && (
+              <div className="flex items-center gap-2 ml-1">
+                <input
+                  type="date"
+                  value={customStart}
+                  max={customEnd}
+                  onChange={(e) => setCustomStart(e.target.value)}
+                  className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                />
+                <span className="text-xs text-gray-400">to</span>
+                <input
+                  type="date"
+                  value={customEnd}
+                  min={customStart}
+                  max={today}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                  className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
