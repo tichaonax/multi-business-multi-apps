@@ -80,7 +80,12 @@ async function summarizeExpensesByBusiness(businessIds: string[], start: Date, e
     where: {
       expenseAccountId: { in: accounts.map(a => a.id) },
       paymentDate: { gte: start, lt: end },
-      status: 'PAID',
+      // Count anything genuinely recorded today, not just fully disbursed
+      // (PAID) payments — a payment sits as SUBMITTED/PENDING_APPROVAL/
+      // APPROVED/QUEUED before that, often for days, and a user who entered
+      // an expense today reasonably expects it to show up today. Only
+      // exclude statuses that mean the expense didn't actually happen.
+      status: { notIn: ['CANCELLED', 'REJECTED', 'REVERSED'] },
     },
     _sum: { amount: true },
   })

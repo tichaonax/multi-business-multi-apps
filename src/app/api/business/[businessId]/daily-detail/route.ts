@@ -109,7 +109,11 @@ export async function GET(
           where: {
             expenseAccountId: { in: accountIds },
             paymentDate: { gte: fetchStart, lte: fetchEnd },
-            status: 'PAID',
+            // Any genuinely-recorded expense, not just fully disbursed (PAID)
+            // ones — matches /api/dashboard/daily-business-summary so the
+            // dashboard badge and this drill-down never disagree. Excludes
+            // only statuses meaning the expense didn't actually happen.
+            status: { notIn: ['CANCELLED', 'REJECTED', 'REVERSED'] },
           },
           include: {
             category: { select: { name: true, emoji: true } },

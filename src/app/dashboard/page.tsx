@@ -186,7 +186,13 @@ function DashboardContent() {
 
     const fetchDailySummary = async () => {
       try {
-        const response = await fetch('/api/dashboard/daily-business-summary')
+        // Same fix as sales-period-comparison below: the server process's
+        // own OS timezone doesn't necessarily match the browser's (dev runs
+        // the server under Africa/Harare to mirror prod), so "today"/
+        // "yesterday" must be computed against the browser's timezone, sent
+        // explicitly, not the server's default.
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+        const response = await fetch(`/api/dashboard/daily-business-summary?timezone=${encodeURIComponent(timezone)}`)
         if (response.ok) {
           const data = await response.json()
           setDailySummary(data)
