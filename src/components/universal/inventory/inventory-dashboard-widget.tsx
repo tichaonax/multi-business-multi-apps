@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
+import { CollapsibleSection } from '@/components/ui/collapsible-section'
 
 interface InventoryDashboardWidgetProps {
   businessId: string
@@ -242,8 +243,32 @@ export function InventoryDashboardWidget({
         </Link>
       </div>
 
-      {/* Quick Stats */}
+      {/* Details — collapsed by default (MBM-299 pattern) so the widget stays
+          compact, but Out of Stock / Low Stock counts still surface on the
+          collapsed header badge since they're the numbers that need action. */}
       <div className="p-6">
+        <CollapsibleSection
+          title="Stock Summary"
+          icon="📦"
+          defaultOpen={false}
+          badge={
+            <span className="flex items-center gap-1.5 ml-1">
+              {stats.outOfStockCount > 0 && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 font-semibold">
+                  {stats.outOfStockCount} Out of Stock
+                </span>
+              )}
+              {stats.lowStockCount > 0 && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 font-semibold">
+                  {stats.lowStockCount} Low Stock
+                </span>
+              )}
+              {stats.outOfStockCount === 0 && stats.lowStockCount === 0 && (
+                <span className="text-xs text-green-600 dark:text-green-400 font-medium">✓ All stocked</span>
+              )}
+            </span>
+          }
+        >
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="text-center">
             <div className="text-2xl font-bold text-primary">{stats.totalItems}</div>
@@ -253,11 +278,11 @@ export function InventoryDashboardWidget({
             <div className="text-2xl font-bold text-primary">{formatCurrency(stats.totalValue)}</div>
             <div className="text-sm text-secondary">Total Value</div>
           </div>
-          <Link href={`${resolvedViewAllHref}?tab=inventory&stockStatus=low`} className="text-center hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-2 transition-colors block">
+          <Link href="/inventory/reports/low-stock" className="text-center hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-2 transition-colors block">
             <div className="text-2xl font-bold text-orange-600">{stats.lowStockCount}</div>
             <div className="text-sm text-secondary">Low Stock</div>
           </Link>
-          <Link href={`${resolvedViewAllHref}?tab=inventory&stockStatus=out`} className="text-center hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-2 transition-colors block">
+          <Link href="/inventory/reports/out-of-stock" className="text-center hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-2 transition-colors block">
             <div className="text-2xl font-bold text-red-600">{stats.outOfStockCount}</div>
             <div className="text-sm text-secondary">Out of Stock</div>
           </Link>
@@ -346,6 +371,7 @@ export function InventoryDashboardWidget({
             Last updated: {lastUpdated.toLocaleTimeString()}
           </div>
         )}
+        </CollapsibleSection>
       </div>
     </div>
   )

@@ -17,6 +17,18 @@ export default function InventoryReportsIndexPage() {
 
   const reportOptions = [
     {
+      title: '🚫 Out of Stock',
+      description: 'Tracked items with zero stock on hand — click through to restock and come straight back',
+      href: '/inventory/reports/out-of-stock',
+      color: 'bg-red-700 hover:bg-red-800',
+    },
+    {
+      title: '📉 Low Stock',
+      description: 'Tracked items at or below the low-stock threshold — click through to restock and come straight back',
+      href: '/inventory/reports/low-stock',
+      color: 'bg-orange-700 hover:bg-orange-800',
+    },
+    {
       title: '⚠️ Pricing & Value Exceptions',
       description: 'Missing/zero prices, below-cost sales, suspicious values, and price-change anomalies — with a review/approval workflow',
       href: '/inventory/reports/pricing-exceptions',

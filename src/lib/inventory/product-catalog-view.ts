@@ -61,6 +61,11 @@ export interface ProductRecord {
   imageUrl: string | null
   /** Deep-link to this item's edit/view screen — see buildInventoryItemLink(). */
   editItemId: string
+  /** Whether this item's stock quantity is meaningfully tracked — mirrors
+   * InventoryDashboardWidget's own gate, so a restaurant/grocery menu item
+   * that opted out of live stock tracking doesn't falsely appear "out of
+   * stock" just because its variant's stockQuantity happens to be 0. */
+  isInventoryTracked: boolean
 }
 
 function deriveCatalogAStatus(isActive: boolean, isAvailable: boolean, basePrice: number | null, isSoldByWeight: boolean): PosAvailabilityStatus {
@@ -135,6 +140,7 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
             locationId: true,
             business_locations: { select: { name: true } },
             attributes: true,
+            isInventoryTracked: true,
             product_images: {
               orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
               take: 1,
@@ -224,6 +230,7 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
         ? `/api/images/${bp.product_images[0].images?.thumbnailImageId || bp.product_images[0].imageId}`
         : null,
       editItemId: bp.id,
+      isInventoryTracked: (bp as any).isInventoryTracked ?? false,
     })
   }
 
@@ -261,6 +268,7 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
       createdAt: item.createdAt,
       imageUrl: item.imageId ? `/api/images/${item.image?.thumbnailImageId || item.imageId}` : null,
       editItemId: `inv_${item.id}`,
+      isInventoryTracked: true,
     })
   }
 
