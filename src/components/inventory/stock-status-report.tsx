@@ -21,6 +21,14 @@ interface StockStatusRow {
   quantityOnHand: number
   costPrice: number | null
   sellingPrice: number | null
+  /** Client-only — populated for the just-edited row on return from the edit
+   * modal (see the restore effect), so the user can see exactly what changed
+   * instead of the row silently showing new numbers with no visual cue. */
+  changedFrom?: {
+    quantityOnHand?: number
+    costPrice?: number | null
+    sellingPrice?: number | null
+  }
 }
 
 interface ReportData {
@@ -34,6 +42,24 @@ interface ReportData {
 const money = (n: number | null) => (n == null ? '—' : `$${n.toFixed(2)}`)
 
 const cacheKey = (status: 'out' | 'low', businessId: string) => `stock-status-report:${status}:${businessId}`
+
+/** Shows "old value → new value" (old struck through, new highlighted) when
+ * `oldValue` is given; otherwise just the plain current value — same idea as
+ * the price-change visibility in the Pricing Exceptions report. */
+function ChangedValue({ oldValue, newValue, format, highlightClass }: {
+  oldValue: string | number | null | undefined
+  newValue: string | number | null
+  format: (v: string | number | null) => string
+  highlightClass: string
+}) {
+  if (oldValue === undefined) return <>{format(newValue)}</>
+  return (
+    <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
+      <span className="line-through text-gray-400 dark:text-gray-500 text-xs">{format(oldValue)}</span>
+      <span className={`font-bold ${highlightClass}`}>{format(newValue)}</span>
+    </span>
+  )
+}
 
 /**
  * Shared UI for both the "Out of Stock" and "Low Stock" reports linked from
@@ -147,13 +173,24 @@ export function StockStatusReport({ status, title, description, reportPath }: {
         if (!d.success || !d.data) return
         setReportData(prev => prev ? {
           ...prev,
-          data: prev.data.map(row => row.editItemId === editedItemId ? {
-            ...row,
-            name: d.data.name ?? row.name,
-            quantityOnHand: d.data.currentStock ?? row.quantityOnHand,
-            costPrice: d.data.costPrice ?? row.costPrice,
-            sellingPrice: d.data.sellPrice ?? row.sellingPrice,
-          } : row),
+          data: prev.data.map(row => {
+            if (row.editItemId !== editedItemId) return row
+            const newStock = d.data.currentStock ?? row.quantityOnHand
+            const newCost = d.data.costPrice ?? row.costPrice
+            const newSelling = d.data.sellPrice ?? row.sellingPrice
+            const changedFrom: StockStatusRow['changedFrom'] = {}
+            if (newStock !== row.quantityOnHand) changedFrom.quantityOnHand = row.quantityOnHand
+            if (newCost !== row.costPrice) changedFrom.costPrice = row.costPrice
+            if (newSelling !== row.sellingPrice) changedFrom.sellingPrice = row.sellingPrice
+            return {
+              ...row,
+              name: d.data.name ?? row.name,
+              quantityOnHand: newStock,
+              costPrice: newCost,
+              sellingPrice: newSelling,
+              ...(Object.keys(changedFrom).length > 0 ? { changedFrom } : {}),
+            }
+          }),
         } : prev)
       })
       .catch(() => { /* keep showing the cached snapshot */ })
@@ -240,15 +277,36 @@ export function StockStatusReport({ status, title, description, reportPath }: {
                     <div className="grid grid-cols-3 gap-x-3 gap-y-2 pt-1">
                       <div>
                         <p className="text-[10px] uppercase tracking-wide text-secondary">Stock</p>
-                        <p className={`font-semibold ${stockColor}`}>{row.quantityOnHand}</p>
+                        <p className={row.changedFrom?.quantityOnHand !== undefined ? '' : `font-semibold ${stockColor}`}>
+                          <ChangedValue
+                            oldValue={row.changedFrom?.quantityOnHand}
+                            newValue={row.quantityOnHand}
+                            format={v => String(v)}
+                            highlightClass="text-emerald-600 dark:text-emerald-400"
+                          />
+                        </p>
                       </div>
                       <div>
                         <p className="text-[10px] uppercase tracking-wide text-secondary">Cost Price</p>
-                        <p className="text-secondary">{money(row.costPrice)}</p>
+                        <p className="text-secondary">
+                          <ChangedValue
+                            oldValue={row.changedFrom?.costPrice}
+                            newValue={row.costPrice}
+                            format={v => money(v as number | null)}
+                            highlightClass="text-emerald-600 dark:text-emerald-400"
+                          />
+                        </p>
                       </div>
                       <div>
                         <p className="text-[10px] uppercase tracking-wide text-secondary">Selling Price</p>
-                        <p className="text-secondary">{money(row.sellingPrice)}</p>
+                        <p className="text-secondary">
+                          <ChangedValue
+                            oldValue={row.changedFrom?.sellingPrice}
+                            newValue={row.sellingPrice}
+                            format={v => money(v as number | null)}
+                            highlightClass="text-emerald-600 dark:text-emerald-400"
+                          />
+                        </p>
                       </div>
                       {row.supplier && (
                         <div className="col-span-3">
@@ -290,9 +348,30 @@ export function StockStatusReport({ status, title, description, reportPath }: {
                             returnTo={rowReturnTo(row.editItemId)}
                           />
                         </td>
-                        <td className={`px-3 py-2.5 text-right font-semibold ${stockColor}`}>{row.quantityOnHand}</td>
-                        <td className="px-3 py-2.5 text-right text-secondary">{money(row.costPrice)}</td>
-                        <td className="px-3 py-2.5 text-right text-secondary">{money(row.sellingPrice)}</td>
+                        <td className={`px-3 py-2.5 text-right ${row.changedFrom?.quantityOnHand !== undefined ? '' : `font-semibold ${stockColor}`}`}>
+                          <ChangedValue
+                            oldValue={row.changedFrom?.quantityOnHand}
+                            newValue={row.quantityOnHand}
+                            format={v => String(v)}
+                            highlightClass="text-emerald-600 dark:text-emerald-400"
+                          />
+                        </td>
+                        <td className="px-3 py-2.5 text-right text-secondary">
+                          <ChangedValue
+                            oldValue={row.changedFrom?.costPrice}
+                            newValue={row.costPrice}
+                            format={v => money(v as number | null)}
+                            highlightClass="text-emerald-600 dark:text-emerald-400"
+                          />
+                        </td>
+                        <td className="px-3 py-2.5 text-right text-secondary">
+                          <ChangedValue
+                            oldValue={row.changedFrom?.sellingPrice}
+                            newValue={row.sellingPrice}
+                            format={v => money(v as number | null)}
+                            highlightClass="text-emerald-600 dark:text-emerald-400"
+                          />
+                        </td>
                         <td className="px-3 py-2.5 text-secondary">{row.supplier || '—'}</td>
                       </tr>
                     ))}
