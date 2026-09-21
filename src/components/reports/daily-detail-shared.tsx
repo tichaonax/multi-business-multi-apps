@@ -89,6 +89,31 @@ export function PaymentBadge({ method }: { method: string }) {
   )
 }
 
+/** Adds `days` to a YYYY-MM-DD date string, staying entirely in local-time
+ * arithmetic — mixing this with `.toISOString()` (UTC) to extract the
+ * result breaks for any timezone with a non-zero offset (e.g. a server/
+ * browser running under Africa/Harare, UTC+2: local midnight of "tomorrow"
+ * still falls on UTC "today", so `next` silently no-ops and `prev` skips 2
+ * days instead of 1). Local getters in, local getters out avoids that. */
+export function shiftDateString(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  d.setDate(d.getDate() + days)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+/** Today's date as YYYY-MM-DD in local time — same local-getters approach,
+ * not `.toISOString()`, for the same reason as shiftDateString above. */
+export function todayDateString(): string {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 export function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }

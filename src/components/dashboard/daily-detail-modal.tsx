@@ -7,6 +7,7 @@ import { PaymentDetailModal } from '@/components/expense-account/payment-detail-
 import {
   type FilterTab, type DailyDetail,
   StatusBadge, PaymentBadge, formatTime, formatCurrency, buildRecorderColorMap,
+  shiftDateString, todayDateString,
 } from '@/components/reports/daily-detail-shared'
 
 /**
@@ -72,13 +73,7 @@ export function DailyDetailModal({
 
   if (!isOpen) return null
 
-  function shiftDate(dateStr: string, days: number): string {
-    const d = new Date(dateStr + 'T00:00:00')
-    d.setDate(d.getDate() + days)
-    return d.toISOString().slice(0, 10)
-  }
-  const todayStr = new Date().toISOString().slice(0, 10)
-  const nextDisabled = shiftDate(date, 1) > todayStr
+  const nextDisabled = shiftDateString(date, 1) > todayDateString()
 
   const q = search.toLowerCase().trim()
   const sales = data?.sales ?? []
@@ -128,13 +123,13 @@ export function DailyDetailModal({
               <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Daily Detail — {date}</h2>
               <div className="flex items-center gap-2 shrink-0">
                 <button
-                  onClick={() => setDate(d => shiftDate(d, -1))}
+                  onClick={() => setDate(d => shiftDateString(d, -1))}
                   className="px-2.5 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
                 >
                   ← Prev
                 </button>
                 <button
-                  onClick={() => !nextDisabled && setDate(d => shiftDate(d, 1))}
+                  onClick={() => !nextDisabled && setDate(d => shiftDateString(d, 1))}
                   disabled={nextDisabled}
                   className="px-2.5 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
                 >

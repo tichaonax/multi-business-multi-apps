@@ -10,6 +10,7 @@ import { useDateFormat } from '@/contexts/settings-context'
 import {
   type FilterTab, type DailyDetail,
   StatusBadge, PaymentBadge, formatTime, formatCurrency, buildRecorderColorMap,
+  shiftDateString, todayDateString,
 } from '@/components/reports/daily-detail-shared'
 
 export default function DailyDetailPage() {
@@ -54,21 +55,15 @@ export default function DailyDetailPage() {
   const displayDate = date ? formatDateByFormat(date, dateFormat.format) : date
 
   // Day navigation helpers
-  function shiftDate(dateStr: string, days: number): string {
-    const d = new Date(dateStr + 'T00:00:00')
-    d.setDate(d.getDate() + days)
-    return d.toISOString().slice(0, 10)
-  }
   function buildDayHref(newDate: string) {
     const p = new URLSearchParams({ businessId, businessType, date: newDate })
     if (filter !== 'all') p.set('filter', filter)
     if (returnTo) p.set('returnTo', returnTo)
     return `/reports/daily-detail?${p.toString()}`
   }
-  const prevDate = date ? shiftDate(date, -1) : null
-  const nextDate = date ? shiftDate(date, 1) : null
-  const todayStr = new Date().toISOString().slice(0, 10)
-  const nextDisabled = !nextDate || nextDate > todayStr
+  const prevDate = date ? shiftDateString(date, -1) : null
+  const nextDate = date ? shiftDateString(date, 1) : null
+  const nextDisabled = !nextDate || nextDate > todayDateString()
 
   const toggleOrder = (id: string) => {
     setExpandedOrders(prev => {
