@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { CollapsibleSection } from '@/components/ui/collapsible-section'
 
 interface InventoryDashboardWidgetProps {
@@ -50,6 +51,11 @@ export function InventoryDashboardWidget({
   const resolvedViewAllHref = viewAllHref ?? `/${businessType}/inventory`
   const resolvedAddItemHref = addItemHref ?? `/${businessType}/inventory/add`
   const resolvedReceiveStockHref = receiveStockHref === undefined ? `/${businessType}/inventory/receive` : receiveStockHref
+  // So the report's own "Back" link returns to wherever this widget is
+  // shown (dashboard, a business type's own page, etc.) instead of always
+  // landing on the generic Reports index.
+  const pathname = usePathname()
+  const returnToParam = `returnTo=${encodeURIComponent(pathname || `/${businessType}`)}`
   const { data: session, status } = useSession()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -278,11 +284,11 @@ export function InventoryDashboardWidget({
             <div className="text-2xl font-bold text-primary">{formatCurrency(stats.totalValue)}</div>
             <div className="text-sm text-secondary">Total Value</div>
           </div>
-          <Link href="/inventory/reports/low-stock" className="text-center hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-2 transition-colors block">
+          <Link href={`/inventory/reports/low-stock?${returnToParam}`} className="text-center hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-2 transition-colors block">
             <div className="text-2xl font-bold text-orange-600">{stats.lowStockCount}</div>
             <div className="text-sm text-secondary">Low Stock</div>
           </Link>
-          <Link href="/inventory/reports/out-of-stock" className="text-center hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-2 transition-colors block">
+          <Link href={`/inventory/reports/out-of-stock?${returnToParam}`} className="text-center hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-2 transition-colors block">
             <div className="text-2xl font-bold text-red-600">{stats.outOfStockCount}</div>
             <div className="text-sm text-secondary">Out of Stock</div>
           </Link>

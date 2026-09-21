@@ -962,35 +962,7 @@ function GroceryInventoryContent() {
             <ModalPortal>
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
               <div className="card rounded-lg max-w-[1600px] w-full max-h-[90vh] overflow-hidden flex flex-col">
-                <div className="p-4 sm:p-6 pb-0 shrink-0">
-                  <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-                    <h3 className="text-lg font-semibold text-primary break-words">
-                      {selectedItem ? 'Edit' : 'Add'} Grocery Item
-                    </h3>
-                    <div className="flex items-center gap-3 flex-shrink-0 ml-4">
-                      {selectedItem?.id && (
-                        <a
-                          href={formReady ? `/grocery/pos?businessId=${businessId}&addProduct=${selectedItem.id}&autoAdd=true` : '#'}
-                          onClick={(e) => { if (!formReady) e.preventDefault() }}
-                          aria-disabled={!formReady}
-                          className={`px-3 py-1.5 text-white text-sm rounded-md flex items-center gap-1.5 whitespace-nowrap ${formReady ? 'bg-green-600 hover:bg-green-700' : 'bg-green-300 cursor-not-allowed'}`}
-                        >
-                          🛒 Sell this Item
-                        </a>
-                      )}
-                      <div className="pl-3 ml-2 border-l border-gray-200 dark:border-gray-600">
-                        <button
-                          onClick={closeEditForm}
-                          className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors text-xl leading-none"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-4 sm:p-6 pt-0 overflow-y-auto flex-1 min-h-0">
+                <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0">
                   {/* Weight selling bar */}
                   <WeightSellingBar
                     businessId={businessId}
@@ -1021,6 +993,16 @@ function GroceryInventoryContent() {
                     onCategoriesLoaded={() => setFormReady(true)}
                     renderMode="inline"
                     mode={selectedItem ? 'edit' : 'create'}
+                    extraHeaderAction={selectedItem?.id ? (
+                      <a
+                        href={formReady ? `/grocery/pos?businessId=${businessId}&addProduct=${selectedItem.id}&autoAdd=true` : '#'}
+                        onClick={(e) => { if (!formReady) e.preventDefault() }}
+                        aria-disabled={!formReady}
+                        className={`px-3 py-2 text-white text-sm rounded-md flex items-center gap-1.5 whitespace-nowrap ${formReady ? 'bg-green-600 hover:bg-green-700' : 'bg-green-300 cursor-not-allowed'}`}
+                      >
+                        🛒 Sell this Item
+                      </a>
+                    ) : undefined}
                     customFields={[
                       {
                         name: 'pluCode',

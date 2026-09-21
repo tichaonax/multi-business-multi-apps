@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ProductCell } from '@/components/inventory/report-product-cell'
 import { ListSearchFilterBar } from '@/components/ui/list-search-filter-bar'
@@ -48,6 +49,17 @@ export function StockStatusReport({ status, title, description, reportPath }: {
 }) {
   const { currentBusinessId, hasPermission, isSystemAdmin } = useBusinessPermissionsContext()
   const canEditInventory = isSystemAdmin || hasPermission('canManageInventory')
+  const searchParams = useSearchParams()
+  // Whoever linked into this report (e.g. the homepage's Inventory Overview
+  // widget) can say where "back" should really go — falls back to the
+  // Reports index when opened some other way (e.g. the reports hub itself).
+  const returnTo = searchParams.get('returnTo')
+  const backHref = returnTo || '/inventory/reports'
+  const backLabel = returnTo ? '← Back' : '← Back to Reports'
+  // Carried through to the item edit round-trip so that after editing an
+  // item and coming back to *this* report, its own "back" link still points
+  // wherever the user originally came from, not just to /inventory/reports.
+  const selfPath = returnTo ? `${reportPath}?returnTo=${encodeURIComponent(returnTo)}` : reportPath
   const [search, setSearch] = useState('')
   const [reportData, setReportData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -88,8 +100,8 @@ export function StockStatusReport({ status, title, description, reportPath }: {
   return (
     <div className="bg-gray-50 dark:bg-gray-900">
       <div className="p-4 md:p-6 pb-0">
-        <Link href="/inventory/reports" className="inline-flex items-center gap-1 text-sm text-secondary hover:text-primary hover:underline mb-2">
-          ← Back to Reports
+        <Link href={backHref} className="inline-flex items-center gap-1 text-sm text-secondary hover:text-primary hover:underline mb-2">
+          {backLabel}
         </Link>
         <div className="flex items-center gap-2 text-xs text-secondary mb-1">
           <Link href="/inventory" className="hover:underline">Inventory</Link>
@@ -144,7 +156,7 @@ export function StockStatusReport({ status, title, description, reportPath }: {
                       businessType={reportData.businessType}
                       editItemId={row.editItemId}
                       canEdit={canEditInventory}
-                      returnTo={reportPath}
+                      returnTo={selfPath}
                     />
                     <div className="grid grid-cols-3 gap-x-3 gap-y-2 pt-1">
                       <div>
@@ -196,7 +208,7 @@ export function StockStatusReport({ status, title, description, reportPath }: {
                             businessType={reportData.businessType}
                             editItemId={row.editItemId}
                             canEdit={canEditInventory}
-                            returnTo={reportPath}
+                            returnTo={selfPath}
                           />
                         </td>
                         <td className={`px-3 py-2.5 text-right font-semibold ${stockColor}`}>{row.quantityOnHand}</td>

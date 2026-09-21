@@ -255,6 +255,11 @@ interface UniversalInventoryFormProps {
   hideWeightBar?: boolean
   // When parent manages isSoldByWeight, pass the value here so the form hides irrelevant fields
   soldByWeight?: boolean
+  // Extra action rendered next to Cancel/Update in the header (both render
+  // modes) — e.g. grocery's "Sell this Item" POS shortcut. Lets a parent add
+  // a business-type-specific action without needing its own duplicate
+  // header (see MBM-299 standard: one header per modal, everywhere).
+  extraHeaderAction?: React.ReactNode
 }
 
 export function UniversalInventoryForm({
@@ -272,6 +277,7 @@ export function UniversalInventoryForm({
   onCategoriesLoaded,
   hideWeightBar = false,
   soldByWeight = false,
+  extraHeaderAction,
 }: UniversalInventoryFormProps) {
   const [formData, setFormData] = useState<UniversalInventoryItem>({
     businessId,
@@ -1595,6 +1601,7 @@ export function UniversalInventoryForm({
             </p>
           </div>
           <div className="flex items-stretch gap-3 justify-end w-full sm:w-auto">
+            {extraHeaderAction}
             {/* MBM-299 — same shared buttons as the form's own footer, so the
                 two are guaranteed pixel-identical (order, icons, wrap
                 behavior) instead of two hand-maintained copies. */}
@@ -1614,6 +1621,7 @@ export function UniversalInventoryForm({
             {mode === 'edit' ? 'Edit Inventory Item' : 'Add New Inventory Item'}
           </h2>
           <div className="flex items-center gap-2">
+            {extraHeaderAction}
             <button
               type="button"
               onClick={async () => {
