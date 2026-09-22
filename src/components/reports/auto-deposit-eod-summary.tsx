@@ -91,6 +91,7 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
   const [configs, setConfigs] = useState<EodPreviewConfig[]>([])
   const [entries, setEntries] = useState<EntryState[]>([])
   const [showSkipRentConfirm, setShowSkipRentConfirm] = useState(false)
+  const [rentSkippedToday, setRentSkippedToday] = useState(false)
   const [rentTransfer, setRentTransfer] = useState<EodRentTransferPreview | null>(null)
   const [payrollContribution, setPayrollContribution] = useState<EodPayrollContributionPreview | null>(null)
   // Real available cash (CashBucketEntry balance + today's counted cash) — what
@@ -151,22 +152,34 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
     return sum + e.overrideAmount
   }, 0)
 
+  // A rent obligation worth offering to skip can show up two different ways:
+  // as a regular entry (isRent, for configs modeled that way) or — as with
+  // HXI Fashions — as the separate always-on rentTransfer preview. Only
+  // checking `entries` here meant "Skip All Deposits" silently had no effect
+  // on businesses using the latter shape, since it never triggered the
+  // skip-rent-too confirmation below.
   const hasRentEntry = entries.some(e => e.isRent && !e.alreadyDoneToday)
+    || (!!rentTransfer && !rentTransfer.alreadyProcessedToday)
 
   const hasAmountError = entries.some(e => e.amountError !== null)
 
   const insufficientFunds = runningTotal > depositAccountBalance && runningTotal > 0
   const overSales = netSales > 0 && runningTotal > netSales
-  const allSkipped = runningTotal === 0
 
-  // Real-cash check, live against whatever the user currently has selected —
-  // this is the one that actually matters (matches what
-  // processRentTransfer/processAutoDeposits will enforce at save time), unlike
-  // insufficientFunds above which only compares against the revenue balance.
-  const rentDueNow = rentTransfer && !rentTransfer.alreadyProcessedToday ? rentTransfer.dailyAmount : 0
+  // Real-cash figure, live against whatever the user currently has selected —
+  // shown in the warning banners below so the user always knows what today's
+  // save will actually do. It used to also hard-block Continue to Save, but
+  // that contradicted the banner's own promise: processAutoDeposits and
+  // processRentTransfer both already skip whatever doesn't fit and record it
+  // as backlog (EodAllocationSkips) instead of failing, and /api/reports/save
+  // treats a rent-transfer shortfall as non-fatal to the overall EOD save. So
+  // there's nothing unsafe about proceeding — blocking here just stranded the
+  // user with no way forward. See allocation-backlog-panel.tsx for catch-up.
+  const rentDueNow = rentTransfer && !rentTransfer.alreadyProcessedToday && !rentSkippedToday ? rentTransfer.dailyAmount : 0
   const realCashInsufficient = (runningTotal + rentDueNow) > availableCash
+  const allSkipped = runningTotal === 0 && rentDueNow === 0
 
-  const confirmDisabled = (insufficientFunds && runningTotal > 0) || hasAmountError || realCashInsufficient
+  const confirmDisabled = hasAmountError
 
   // ── Entry mutators ─────────────────────────────────────────────────────────
 
@@ -203,6 +216,7 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
       if (e.isRent && !includeRent) return e
       return { ...e, isIncluded: false, amountError: null }
     }))
+    if (includeRent) setRentSkippedToday(true)
   }, [])
 
   // ── Confirm handler ────────────────────────────────────────────────────────
@@ -295,7 +309,7 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
       {realCashInsufficient && (
         <div className="rounded-lg border-2 border-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-800 dark:text-red-200 font-medium">
           ⛔ Not enough real cash — {formatCurrency(availableCash)} actually available but {formatCurrency(runningTotal + rentDueNow)} would be paid out today (rent + selected deposits).
-          The amounts that don&apos;t fit will be blocked and recorded as a backlog to catch up later. Uncheck entries or reduce amounts to proceed.
+          You can still continue: whatever doesn&apos;t fit will be skipped today and recorded as backlog to catch up later. Or uncheck entries, reduce amounts, or skip rent for today first.
         </div>
       )}
       {!realCashInsufficient && daysOfRunway !== null && daysOfRunway < 3 && (
@@ -306,7 +320,7 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
       {insufficientFunds && (
         <div className="rounded-lg border border-red-300 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-800 dark:text-red-200">
           ⛔ Insufficient balance — {formatCurrency(depositAccountBalance)} available but {formatCurrency(runningTotal)} selected.
-          Uncheck entries or the deposits will be blocked.
+          Whatever doesn&apos;t fit will be skipped and recorded as backlog to catch up later.
         </div>
       )}
       {!insufficientFunds && overSales && (
@@ -380,28 +394,39 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
               </tr>
             )}
 
-            {/* Rent transfer — separate process, read-only info row */}
+            {/* Rent transfer — separate process, normally always-on, but
+                skippable for today via "Skip All Deposits" → "skip rent too" */}
             {rentTransfer && (
-              <tr className={rentTransfer.alreadyProcessedToday ? 'bg-gray-50 dark:bg-gray-800/40 opacity-60' : 'bg-orange-50 dark:bg-orange-900/20'}>
+              <tr className={rentTransfer.alreadyProcessedToday || rentSkippedToday ? 'bg-gray-50 dark:bg-gray-800/40 opacity-60' : 'bg-orange-50 dark:bg-orange-900/20'}>
                 <td className="px-3 py-2">
                   <div className="flex items-center gap-1.5">
                     <span>🏠</span>
-                    <span className={`font-medium ${rentTransfer.alreadyProcessedToday ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>
+                    <span className={`font-medium ${rentTransfer.alreadyProcessedToday || rentSkippedToday ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>
                       {rentTransfer.accountName}
                     </span>
                   </div>
-                  {rentTransfer.alreadyProcessedToday
-                    ? <span className="text-xs text-green-600 dark:text-green-400 font-medium">✓ Done today</span>
-                    : <span className="text-xs text-orange-600 dark:text-orange-400">Separate rent process — runs automatically</span>
-                  }
+                  {rentTransfer.alreadyProcessedToday ? (
+                    <span className="text-xs text-green-600 dark:text-green-400 font-medium">✓ Done today</span>
+                  ) : rentSkippedToday ? (
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Skipped for today — will be recorded as backlog to catch up later.{' '}
+                      <button type="button" onClick={() => setRentSkippedToday(false)} className="underline hover:text-gray-700 dark:hover:text-gray-200">
+                        Include it after all
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="text-xs text-orange-600 dark:text-orange-400">Separate rent process — runs automatically</span>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-right">
-                  <span className={`font-medium text-sm ${rentTransfer.alreadyProcessedToday ? 'text-gray-400 dark:text-gray-500' : 'text-orange-700 dark:text-orange-300'}`}>
+                  <span className={`font-medium text-sm ${rentTransfer.alreadyProcessedToday || rentSkippedToday ? 'text-gray-400 dark:text-gray-500' : 'text-orange-700 dark:text-orange-300'}`}>
                     {formatCurrency(rentTransfer.dailyAmount)}
                   </span>
                 </td>
                 <td className="px-3 py-2 text-center">
-                  <span className="text-xs text-orange-600 dark:text-orange-400 font-medium whitespace-nowrap">🔒 auto</span>
+                  <span className={`text-xs font-medium whitespace-nowrap ${rentTransfer.alreadyProcessedToday || rentSkippedToday ? 'text-gray-400 dark:text-gray-500' : 'text-orange-600 dark:text-orange-400'}`}>
+                    {rentSkippedToday && !rentTransfer.alreadyProcessedToday ? '⏭ skipped' : '🔒 auto'}
+                  </span>
                 </td>
               </tr>
             )}
@@ -504,22 +529,22 @@ export function AutoDepositEodSummary({ businessId, eodDate, todayNetSales: prop
                 <td />
               </tr>
             )}
-            {rentTransfer && !rentTransfer.alreadyProcessedToday && (
+            {rentDueNow > 0 && (
               <tr className="bg-orange-50 dark:bg-orange-900/20 border-t border-orange-200 dark:border-orange-800">
                 <td className="px-3 py-1.5 text-xs text-orange-700 dark:text-orange-300">🏠 + Rent transfer (separate)</td>
                 <td className="px-3 py-1.5 text-right text-xs font-medium text-orange-700 dark:text-orange-300">
-                  {formatCurrency(rentTransfer.dailyAmount)}
+                  {formatCurrency(rentDueNow)}
                 </td>
                 <td />
               </tr>
             )}
-            {(rentTransfer && !rentTransfer.alreadyProcessedToday || payrollContribution && !payrollContribution.skipped) && (
+            {(rentDueNow > 0 || payrollContribution && !payrollContribution.skipped) && (
               <tr className="bg-orange-100 dark:bg-orange-900/30 border-t border-orange-300 dark:border-orange-700">
                 <td className="px-3 py-2 text-sm font-bold text-orange-900 dark:text-orange-200">Total withdrawn from business</td>
                 <td className="px-3 py-2 text-right text-sm font-bold text-orange-900 dark:text-orange-200">
                   {formatCurrency(
                     runningTotal +
-                    (rentTransfer && !rentTransfer.alreadyProcessedToday ? rentTransfer.dailyAmount : 0) +
+                    rentDueNow +
                     (payrollContribution && !payrollContribution.skipped ? payrollContribution.amount : 0)
                   )}
                 </td>
