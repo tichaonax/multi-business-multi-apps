@@ -596,6 +596,11 @@ export default function BatchDetailPage() {
   const toast = useToastContext()
   const [batch, setBatch] = useState<BatchDetail | null>(null)
   const [items, setItems] = useState<WarehouseItem[]>([])
+  // Accumulates every item ever seen across pages (keyed by id) so a
+  // selection made on page 1 stays valid/usable after paginating to page 2 —
+  // `items` alone only ever holds the CURRENT page's rows, which silently
+  // dropped cross-page selections from every bulk action.
+  const [itemCache, setItemCache] = useState<Map<string, WarehouseItem>>(new Map())
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<FilterTab>('ALL')
@@ -634,6 +639,29 @@ export default function BatchDetailPage() {
 
   useEffect(() => { setPage(1) }, [tab, search])
   useEffect(() => { setManifestFilter('ALL') }, [tab])
+
+  useEffect(() => {
+    if (items.length === 0) return
+    setItemCache(prev => {
+      const next = new Map(prev)
+      for (const it of items) next.set(it.id, it)
+      return next
+    })
+  }, [items])
+
+  // Persist the cross-page selection so navigating away from this page
+  // entirely (not just changing pagination pages) and coming back doesn't
+  // lose it either.
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(`wh-batch-selected-${batchId}`)
+      if (saved) setSelected(new Set(JSON.parse(saved)))
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [batchId])
+  useEffect(() => {
+    try { sessionStorage.setItem(`wh-batch-selected-${batchId}`, JSON.stringify(Array.from(selected))) } catch {}
+  }, [selected, batchId])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -720,7 +748,7 @@ export default function BatchDetailPage() {
 
   async function moveSelectedToPersonal() {
     const ids = Array.from(selected).filter(id => {
-      const item = items.find(i => i.id === id)
+      const item = itemCache.get(id)
       return item?.status === 'IN_WAREHOUSE'
     })
     if (ids.length === 0) { toast.error('No IN_WAREHOUSE items selected'); return }
@@ -746,7 +774,7 @@ export default function BatchDetailPage() {
 
     const targetIds = selected.size > 0
       ? Array.from(selected).filter(id => {
-          const item = items.find(i => i.id === id)
+          const item = itemCache.get(id)
           return item?.status === 'IN_WAREHOUSE' && item[field] == null
         })
       : items.filter(i => i.status === 'IN_WAREHOUSE' && i[field] == null).map(i => i.id)
@@ -788,7 +816,7 @@ export default function BatchDetailPage() {
     if (isNaN(markupPct) || markupPct < 0) { toast.error('Enter a valid markup %'); return }
 
     const targetIds = selected.size > 0
-      ? Array.from(selected).filter(id => items.find(i => i.id === id)?.status === 'IN_WAREHOUSE')
+      ? Array.from(selected).filter(id => itemCache.get(id)?.status === 'IN_WAREHOUSE')
       : undefined // undefined = whole batch, server-side
     const scopeLabel = targetIds ? `${targetIds.length} selected item(s)` : 'all eligible items in this batch'
     if (targetIds && targetIds.length === 0) { toast.error('No eligible IN_WAREHOUSE items selected'); return }
@@ -816,7 +844,7 @@ export default function BatchDetailPage() {
   // Bulk flag: mark selected IN_WAREHOUSE items as personal/business
   async function bulkFlagPersonal(isPersonal: boolean) {
     const ids = Array.from(selected).filter(id => {
-      const item = items.find(i => i.id === id)
+      const item = itemCache.get(id)
       return item?.status === 'IN_WAREHOUSE' && item.isPersonal !== isPersonal
     })
     if (ids.length === 0) { toast.error('No eligible items in selection'); return }
@@ -1034,6 +1062,17 @@ export default function BatchDetailPage() {
 
           {/* Toolbar — sticky so "Move to Business" stays reachable on a long item list */}
           <div className="sticky top-14 sm:top-16 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm px-4 py-3 flex items-center gap-3 flex-wrap">
+            {selected.size > 0 && (
+              <div className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+                <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                  {selected.size} selected across all pages
+                </span>
+                <button
+                  onClick={() => setSelected(new Set())}
+                  className="text-xs text-blue-500 dark:text-blue-400 hover:underline"
+                >Clear</button>
+              </div>
+            )}
             <div className="relative flex-1 min-w-[200px]">
               <input
                 type="text"
@@ -1071,7 +1110,9 @@ export default function BatchDetailPage() {
               </select>
             )}
             {batch && (() => {
-              const eligibleSelected = items.filter(i => selected.has(i.id) && !i.isPersonal && i.status === 'IN_WAREHOUSE')
+              const eligibleSelected = Array.from(selected)
+                .map(id => itemCache.get(id))
+                .filter((i): i is WarehouseItem => !!i && !i.isPersonal && i.status === 'IN_WAREHOUSE')
               const missingCost = eligibleSelected.some(i => i.costUsd == null)
               const missingManifest = eligibleSelected.some(i => i.manifestQty == null || i.manifestQty === 0)
               const disabled = eligibleSelected.length === 0 || missingCost || missingManifest
@@ -1360,6 +1401,16 @@ export default function BatchDetailPage() {
               <div className="p-8 text-center text-gray-500">No items match the current filter.</div>
             ) : (
               <>
+                {totalPages > 1 && (
+                  <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between text-xs text-gray-500">
+                    <span>Showing {displayItems.length} of {totalItems}{tab === 'ALL' && !showMoved && movedCount > 0 ? ` (${movedCount} moved hidden)` : ''}</span>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-2 py-1 rounded border border-gray-200 dark:border-gray-700 disabled:opacity-40">Prev</button>
+                      <span>{page} / {totalPages}</span>
+                      <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="px-2 py-1 rounded border border-gray-200 dark:border-gray-700 disabled:opacity-40">Next</button>
+                    </div>
+                  </div>
+                )}
                 <div className="overflow-x-auto overflow-y-auto" style={{ maxHeight: 'calc(100vh - 28rem)', minHeight: '16rem' }}>
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 z-10">
