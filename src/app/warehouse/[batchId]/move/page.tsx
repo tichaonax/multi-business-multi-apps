@@ -7,8 +7,9 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
-import { useParams, useSearchParams } from 'next/navigation'
+import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { useToastContext } from '@/components/ui/toast'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { PricingCalculator } from '@/components/inventory/pricing-calculator'
 import { CategoryOptionGroups } from '@/lib/category-grouping'
 
@@ -313,7 +314,9 @@ const SESSION_MARKUP_KEY = 'wh-move-markupPct'
 export default function MoveWizardPage() {
   const { batchId } = useParams() as { batchId: string }
   const searchParams = useSearchParams()
+  const router = useRouter()
   const toast = useToastContext()
+  const { currentBusinessId, switchBusiness } = useBusinessPermissionsContext()
 
   const scanItemId = searchParams.get('itemId')
   const scanBarcode = searchParams.get('barcode')
@@ -355,6 +358,7 @@ export default function MoveWizardPage() {
   const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0, listMaxHeight: 300 })
   const popoverRef = useRef<HTMLDivElement>(null)
   const openSuggestBtnRef = useRef<Element | null>(null)
+  const rowRefs = useRef<Record<number, HTMLDivElement | null>>({})
 
   // ── Calc expansion ────────────────────────────────────────────────────────────
   const [openCalcIdx, setOpenCalcIdx] = useState<number | null>(null)
@@ -908,6 +912,14 @@ export default function MoveWizardPage() {
   const pendingSelected = rows.filter(r => r.selected && r.status === 'pending')
   const batchBtnDisabled = batchMoving || pendingSelected.length === 0 ||
     pendingSelected.some(r => (!r.itemBusinessId && !selectedBusinessId) || (!r.subCategoryId && !r.categoryId) || !r.sellingPrice || parseFloat(r.sellingPrice) <= 0)
+  const needsClassificationCount = pendingSelected.filter(r => !r.categoryId && !r.subCategoryId).length
+  const firstNeedsClassificationIdx = rows.findIndex(r => r.selected && r.status === 'pending' && !r.categoryId && !r.subCategoryId)
+
+  function jumpToFirstMissingClassification() {
+    if (firstNeedsClassificationIdx === -1) return
+    const el = rowRefs.current[firstNeedsClassificationIdx]
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
@@ -956,6 +968,15 @@ export default function MoveWizardPage() {
                 </button>
               )}
             </div>
+            {needsClassificationCount > 0 && (
+              <button
+                onClick={jumpToFirstMissingClassification}
+                className="shrink-0 px-3 py-2 rounded-lg text-sm font-medium bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-700 dark:hover:bg-amber-900/50 transition-colors"
+                title="Jump to the first selected item still missing a category"
+              >
+                ⚠ {needsClassificationCount} need category
+              </button>
+            )}
             <Link href={`/warehouse/${batchId}`} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors shrink-0">
               Cancel
             </Link>
@@ -1093,17 +1114,26 @@ export default function MoveWizardPage() {
                     ? rows.filter((r, i) => i !== idx && r.status !== 'moved' && r.item.productName === row.item.productName && !r.categoryId && !r.subCategoryId).length
                     : 0
 
+                  // Selected but still missing a category — exactly what
+                  // blocks "Move selected" from being enabled; highlight it
+                  // so it doesn't take scanning every row's dropdowns to find.
+                  const needsClassification = !isMoved && row.selected && !row.categoryId && !row.subCategoryId
+
                   const cardBg = isMoved
                     ? 'bg-emerald-50 dark:bg-emerald-900/10'
                     : isError ? 'bg-red-50 dark:bg-red-900/10'
                     : isMoving ? 'opacity-60'
                     : !row.selected ? 'opacity-50'
+                    : needsClassification ? 'bg-amber-50 dark:bg-amber-900/10 ring-1 ring-inset ring-amber-300 dark:ring-amber-700'
                     : ''
 
                   const selectCls = 'flex-1 min-w-0 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 disabled:opacity-50'
+                  const classificationSelectCls = needsClassification
+                    ? 'flex-1 min-w-0 px-2 py-1.5 border-2 border-amber-400 dark:border-amber-600 rounded-lg text-xs bg-amber-50 dark:bg-amber-900/20 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 disabled:opacity-50'
+                    : selectCls
 
                   return (
-                    <div key={row.item.id} className={`flex transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30 ${cardBg}`}>
+                    <div key={row.item.id} ref={el => { rowRefs.current[idx] = el }} className={`flex transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/30 ${cardBg}`}>
 
                       {/* Checkbox */}
                       <div className="flex items-center pl-3 pr-2 shrink-0">
@@ -1127,14 +1157,25 @@ export default function MoveWizardPage() {
                         {/* Row 1: product name + price + calc/cat + action — all in one line */}
                         <div className="flex items-center gap-2">
                           {isMoved && row.item.businessProductId && row.item.linkedProductBusinessType ? (
-                            <Link
-                              href={`/${row.item.linkedProductBusinessType}/inventory?productId=${encodeURIComponent(row.item.businessProductId)}&returnTo=${encodeURIComponent(returnToUrl)}`}
-                              onClick={() => { try { sessionStorage.setItem(`wh-move-scroll-${batchId}`, String(window.scrollY)) } catch {} }}
-                              className="flex-1 min-w-0 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline leading-snug line-clamp-2"
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try { sessionStorage.setItem(`wh-move-scroll-${batchId}`, String(window.scrollY)) } catch {}
+                                const href = `/${row.item.linkedProductBusinessType}/inventory?productId=${encodeURIComponent(row.item.businessProductId!)}&returnTo=${encodeURIComponent(returnToUrl)}`
+                                // The product only exists under the business it was
+                                // actually moved into — if that's not the currently
+                                // active business, editing 404s. Switch first so this
+                                // always works regardless of what's active.
+                                if (row.item.linkedProductBusinessId && row.item.linkedProductBusinessId !== currentBusinessId) {
+                                  try { await switchBusiness(row.item.linkedProductBusinessId) } catch { toast.error('Could not switch to that business'); return }
+                                }
+                                router.push(href)
+                              }}
+                              className="flex-1 min-w-0 text-left text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline leading-snug line-clamp-2"
                               title="Open in Edit Item"
                             >
                               {row.item.productName}
-                            </Link>
+                            </button>
                           ) : (
                             <p className="flex-1 min-w-0 text-sm font-medium text-gray-900 dark:text-white leading-snug line-clamp-2" title={row.item.productName}>
                               {row.item.productName}
@@ -1323,7 +1364,7 @@ export default function MoveWizardPage() {
                                 value={row.domainId}
                                 disabled={isMoving}
                                 onChange={e => updateRow(idx, { domainId: e.target.value, categoryId: '', subCategoryId: '' })}
-                                className={selectCls}
+                                className={classificationSelectCls}
                               >
                                 <option value="">Domain…</option>
                                 {extraDomain && <option value={extraDomain.id}>{extraDomain.emoji ? `${extraDomain.emoji} ` : ''}{extraDomain.name}</option>}
@@ -1341,7 +1382,7 @@ export default function MoveWizardPage() {
                               value={row.categoryId}
                               disabled={(hasDomains && !row.domainId) || (categories.length === 0 && !extraCat) || isMoving}
                               onChange={e => updateRow(idx, { categoryId: e.target.value, subCategoryId: '' })}
-                              className={selectCls}
+                              className={classificationSelectCls}
                             >
                               <option value="">Category…</option>
                               {extraCat && <option value={extraCat.id}>{extraCat.emoji ? `${extraCat.emoji} ` : ''}{extraCat.name}</option>}

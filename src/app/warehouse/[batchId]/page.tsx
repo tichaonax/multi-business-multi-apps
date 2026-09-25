@@ -72,6 +72,7 @@ interface WarehouseItem {
   // particular can be assigned well after the move, via the product editor.
   linkedProductSku: string | null
   linkedProductBarcode: string | null
+  linkedProductBusinessId: string | null
 }
 
 interface LockInfo {
@@ -632,6 +633,39 @@ export default function BatchDetailPage() {
   const [recalcMarkup, setRecalcMarkup] = useState('30')
   const [recalculating, setRecalculating] = useState(false)
 
+  // Scan-and-assign barcode directly from this page for moved items — same
+  // action already on the Move page, so the user doesn't have to go back
+  // there just to fix or set a barcode.
+  const [barcodeAssignItemId, setBarcodeAssignItemId] = useState<string | null>(null)
+  const [barcodeAssignValue, setBarcodeAssignValue] = useState('')
+  const [assigningBarcode, setAssigningBarcode] = useState(false)
+
+  async function submitAssignBarcode(item: WarehouseItem) {
+    const code = barcodeAssignValue.trim()
+    if (!code) { toast.error('Enter or scan a barcode'); return }
+    if (!item.linkedProductBusinessId || !item.businessProductId) return
+
+    setAssigningBarcode(true)
+    try {
+      const res = await fetch(`/api/inventory/${item.linkedProductBusinessId}/items/${item.businessProductId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ barcode: code }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error || 'Failed to assign barcode'); return }
+      setItems(prev => prev.map(i => i.id === item.id ? { ...i, linkedProductBarcode: code } : i))
+      toast.push('Barcode assigned')
+      setBarcodeAssignItemId(null)
+      setBarcodeAssignValue('')
+    } catch {
+      toast.error('Failed to assign barcode')
+    } finally {
+      setAssigningBarcode(false)
+    }
+  }
+
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput), 300)
     return () => clearTimeout(t)
@@ -891,9 +925,16 @@ export default function BatchDetailPage() {
   }
 
   function toggleSelectAll() {
+    // Only ever un/select THIS page's ids, merged into (not replacing) the
+    // existing cross-page selection — otherwise using "select all" on page 2
+    // silently wiped out everything already selected on page 1.
     const ids = items.filter(i => i.status === 'IN_WAREHOUSE').map(i => i.id)
     const allSelected = ids.length > 0 && ids.every(id => selected.has(id))
-    setSelected(allSelected ? new Set() : new Set(ids))
+    setSelected(prev => {
+      const next = new Set(prev)
+      for (const id of ids) { if (allSelected) next.delete(id); else next.add(id) }
+      return next
+    })
   }
 
   function toggleSelect(id: string) {
@@ -1623,17 +1664,53 @@ export default function BatchDetailPage() {
                                     : 'Personal'}
                                 </span>
                               </div>
-                              {item.status === 'MOVED_TO_BUSINESS' && (item.linkedProductSku || item.linkedProductBarcode) && (
-                                <div className="flex flex-col gap-0.5 mt-1">
+                              {item.status === 'MOVED_TO_BUSINESS' && (
+                                <div className="flex flex-col gap-0.5 mt-1 items-start">
                                   {item.linkedProductSku && (
                                     <span className="text-sm font-mono px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 w-fit" title="Assigned SKU">
                                       SKU {item.linkedProductSku}
                                     </span>
                                   )}
-                                  {item.linkedProductBarcode && (
-                                    <span className="text-sm font-mono px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 w-fit" title="Assigned barcode">
-                                      🏷 {item.linkedProductBarcode}
-                                    </span>
+                                  {item.linkedProductBarcode ? (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-sm font-mono px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 w-fit" title="Assigned barcode">
+                                        🏷 {item.linkedProductBarcode}
+                                      </span>
+                                      <button
+                                        onClick={() => { setBarcodeAssignItemId(item.id); setBarcodeAssignValue(item.linkedProductBarcode || '') }}
+                                        title="Not scanning at POS? Re-save it to fix the registry"
+                                        className="text-xs text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400"
+                                      >🔄</button>
+                                    </div>
+                                  ) : barcodeAssignItemId === item.id ? (
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        autoFocus
+                                        type="text"
+                                        value={barcodeAssignValue}
+                                        onChange={e => setBarcodeAssignValue(e.target.value)}
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter') submitAssignBarcode(item)
+                                          if (e.key === 'Escape') { setBarcodeAssignItemId(null); setBarcodeAssignValue('') }
+                                        }}
+                                        placeholder="Scan or type barcode"
+                                        className="w-28 px-1.5 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                                      />
+                                      <button
+                                        onClick={() => submitAssignBarcode(item)}
+                                        disabled={assigningBarcode}
+                                        className="text-xs px-1.5 py-0.5 rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                                      >✓</button>
+                                      <button
+                                        onClick={() => { setBarcodeAssignItemId(null); setBarcodeAssignValue('') }}
+                                        className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                      >✕</button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => { setBarcodeAssignItemId(item.id); setBarcodeAssignValue('') }}
+                                      className="text-xs px-1.5 py-0.5 rounded border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400"
+                                    >📷 Scan Barcode</button>
                                   )}
                                 </div>
                               )}

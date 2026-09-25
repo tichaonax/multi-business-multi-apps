@@ -621,6 +621,38 @@ export async function PUT(
       }
     }
 
+    // Single-barcode shorthand (e.g. the Warehouse "scan & assign barcode"
+    // quick action) — `updateData.barcode` above only touches the display
+    // field on BusinessProducts; POS scanning (lookupBarcode) exclusively
+    // queries the product_barcodes table, so without this a barcode "saved"
+    // through this field was never actually scannable. Skipped when the full
+    // `body.barcodes` array is present — that path already handles it below.
+    if (body.barcode && !(body.barcodes && Array.isArray(body.barcodes))) {
+      const existingPrimary = await prisma.productBarcodes.findFirst({
+        where: { productId: itemId, isPrimary: true },
+      })
+      if (existingPrimary) {
+        if (existingPrimary.code !== body.barcode) {
+          await prisma.productBarcodes.update({
+            where: { id: existingPrimary.id },
+            data: { code: body.barcode },
+          })
+        }
+      } else {
+        await prisma.productBarcodes.create({
+          data: {
+            productId: itemId,
+            businessId,
+            code: body.barcode,
+            type: 'CODE128',
+            label: 'Product Barcode',
+            isPrimary: true,
+            isActive: true,
+          },
+        })
+      }
+    }
+
     // Handle barcodes if provided in the new multi-barcode format
     if (body.barcodes && Array.isArray(body.barcodes)) {
       // Delete existing barcodes for this product
