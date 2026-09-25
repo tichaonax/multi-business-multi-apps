@@ -71,14 +71,42 @@ export async function GET(req: NextRequest) {
     const statMap: Record<string, number> = {}
     for (const s of stats) statMap[s.status] = s._count.id
 
+    // Potential selling value of everything moved into a business — quantity
+    // actually moved × that product's CURRENT listed price (not the estimate
+    // from move time, since the price may have been edited since). Computed
+    // per batch (each row depends only on ITS OWN moved inventory) as well as
+    // the grand total for the summary card.
+    const movedItems = await (prisma as any).warehouseItems.findMany({
+      where: { status: 'MOVED_TO_BUSINESS', businessProductId: { not: null } },
+      select: { batchId: true, businessProductId: true, manifestQty: true, quantity: true },
+    })
+    const movedProductIds = [...new Set(movedItems.map((i: any) => i.businessProductId))] as string[]
+    const movedProducts = movedProductIds.length > 0
+      ? await (prisma as any).businessProducts.findMany({
+          where: { id: { in: movedProductIds } },
+          select: { id: true, basePrice: true },
+        })
+      : []
+    const priceByProductId = new Map(movedProducts.map((p: any) => [p.id, Number(p.basePrice) || 0]))
+    const potentialValueByBatch: Record<string, number> = {}
+    let movedToBusinessPotentialValue = 0
+    for (const i of movedItems) {
+      const price = (priceByProductId.get(i.businessProductId) as number) ?? 0
+      const qty = i.manifestQty ?? i.quantity ?? 1
+      const value = price * qty
+      potentialValueByBatch[i.batchId] = (potentialValueByBatch[i.batchId] || 0) + value
+      movedToBusinessPotentialValue += value
+    }
+
     return NextResponse.json({
-      batches: result,
+      batches: result.map((b: any) => ({ ...b, movedPotentialValue: potentialValueByBatch[b.id] || 0 })),
       pagination: { page, limit, total, pages: Math.ceil(total / limit) },
       stats: {
         totalBatches: total,
         inWarehouse: statMap['IN_WAREHOUSE'] || 0,
         movedToBusiness: statMap['MOVED_TO_BUSINESS'] || 0,
         movedToPersonal: statMap['MOVED_TO_PERSONAL'] || 0,
+        movedToBusinessPotentialValue,
       },
     })
   } catch (error: any) {

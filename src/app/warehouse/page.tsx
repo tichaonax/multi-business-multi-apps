@@ -24,6 +24,7 @@ interface BatchSummary {
   pickedUpFromHarare: boolean
   notes: string | null
   originalFileName: string
+  movedPotentialValue: number
 }
 
 interface Stats {
@@ -31,6 +32,7 @@ interface Stats {
   inWarehouse: number
   movedToBusiness: number
   movedToPersonal: number
+  movedToBusinessPotentialValue: number
 }
 
 interface ItemSearchResult {
@@ -162,14 +164,20 @@ export default function WarehousePage() {
 
           {/* Stats bar */}
           {stats && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               {[
                 { label: 'Total Batches', value: stats.totalBatches, color: 'text-gray-900 dark:text-white' },
                 { label: 'In Warehouse', value: stats.inWarehouse, color: 'text-blue-600 dark:text-blue-400' },
                 { label: 'In Business', value: stats.movedToBusiness, color: 'text-green-600 dark:text-green-400' },
                 { label: 'Personal', value: stats.movedToPersonal, color: 'text-purple-600 dark:text-purple-400' },
+                {
+                  label: 'Potential Value (Moved)',
+                  value: formatUsd(stats.movedToBusinessPotentialValue),
+                  color: 'text-emerald-600 dark:text-emerald-400',
+                  title: 'Total selling value of everything moved into a business, at current listed prices — what could potentially be realized if it all sells',
+                },
               ].map(s => (
-                <div key={s.label} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                <div key={s.label} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4" title={s.title}>
                   <p className="text-xs text-gray-500 dark:text-gray-400">{s.label}</p>
                   <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
                 </div>
@@ -256,7 +264,7 @@ export default function WarehousePage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-                      {['Batch Name', 'Imported', 'Items', 'Progress', 'USD Total', 'Transport', 'Status', 'Actions'].map(h => (
+                      {['Batch Name', 'Imported', 'Items', 'Progress', 'USD Total', 'Potential Value (Moved)', 'Transport', 'Status', 'Actions'].map(h => (
                         <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">
                           {h}
                         </th>
@@ -293,6 +301,13 @@ export default function WarehousePage() {
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">
                             {formatUsd(batch.totalUsdCost)}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap" title="Selling value of this batch's own moved inventory, at current listed prices">
+                            {batch.movedPotentialValue > 0 ? (
+                              <span className="font-medium text-emerald-600 dark:text-emerald-400">{formatUsd(batch.movedPotentialValue)}</span>
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">
                             {batch.pickedUpFromHarare ? formatUsd(batch.transportCostHarare) : '—'}

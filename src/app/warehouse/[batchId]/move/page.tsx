@@ -41,6 +41,22 @@ interface WarehouseItem {
   imageId: string | null
   isPersonal: boolean
   status: string
+  // Set once this item has been moved — live values from the linked
+  // BusinessProducts row, so a barcode assigned well after the move still
+  // shows up here.
+  businessProductId: string | null
+  linkedProductSku: string | null
+  linkedProductBarcode: string | null
+  linkedProductBusinessId: string | null
+  linkedProductBusinessType: string | null
+  // Live current price + the price it was actually moved at (captured
+  // automatically the first time it's ever edited afterward — null means
+  // never changed since the move) — plus the reason for that change,
+  // already required/captured by the standard Edit Item price flow.
+  linkedProductCurrentPrice: number | null
+  linkedProductOriginalPrice: number | null
+  linkedProductPriceChangeReason: string | null
+  linkedProductPriceChangedAt: string | null
 }
 
 interface Business {
@@ -349,6 +365,11 @@ export default function MoveWizardPage() {
   // ── Item search (large batches) ────────────────────────────────────────────
   const [itemSearch, setItemSearch] = useState('')
 
+  // ── Scan-and-assign barcode (moved items) ───────────────────────────────────
+  const [barcodeAssignIdx, setBarcodeAssignIdx] = useState<number | null>(null)
+  const [barcodeAssignValue, setBarcodeAssignValue] = useState('')
+  const [assigningBarcode, setAssigningBarcode] = useState(false)
+
   // ── Close suggest popover on outside click / Escape ───────────────────────────
   useEffect(() => {
     if (suggestRowIdx === null) return
@@ -371,11 +392,14 @@ export default function MoveWizardPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/warehouse/${batchId}?limit=200&status=IN_WAREHOUSE`, { credentials: 'include' })
+      // status=ALL (not just IN_WAREHOUSE) so an already-moved item stays
+      // visible with its live SKU/barcode across a real page reload, not
+      // just for the remainder of the current in-memory session.
+      const res = await fetch(`/api/warehouse/${batchId}?limit=200&status=ALL`, { credentials: 'include' })
       const data = await res.json()
       if (!res.ok) { toast.error(data.error || 'Failed to load batch'); return }
       setBatch(data.batch)
-      let eligible: WarehouseItem[] = (data.items || []).filter((i: WarehouseItem) => !i.isPersonal)
+      let eligible: WarehouseItem[] = (data.items || []).filter((i: WarehouseItem) => !i.isPersonal && i.status !== 'MOVED_TO_PERSONAL')
       if (preselectedIdsRaw) {
         const idSet = new Set(decodeURIComponent(preselectedIdsRaw).split(',').filter(Boolean))
         eligible = eligible.filter((i: WarehouseItem) => idSet.has(i.id))
@@ -409,6 +433,23 @@ export default function MoveWizardPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // Restore scroll position after returning from Edit Item (see the
+  // "Open in Edit Item" Link's onClick, which saves it before navigating).
+  // Waits for rows to actually be rendered, not just for the fetch to
+  // finish, so there's enough page height to scroll to.
+  const scrollRestoredRef = useRef(false)
+  useEffect(() => {
+    if (scrollRestoredRef.current || loading || rows.length === 0) return
+    scrollRestoredRef.current = true
+    try {
+      const saved = sessionStorage.getItem(`wh-move-scroll-${batchId}`)
+      if (saved) {
+        sessionStorage.removeItem(`wh-move-scroll-${batchId}`)
+        requestAnimationFrame(() => window.scrollTo(0, parseInt(saved, 10)))
+      }
+    } catch {}
+  }, [loading, rows.length, batchId])
 
   // ── Load ALL domains + categories + subcategories once on mount for suggestions ─
   useEffect(() => {
@@ -509,7 +550,26 @@ export default function MoveWizardPage() {
     setRows(prev => allItems.map(item => {
       const existing = prev.find(r => r.item.id === item.id)
       const saved = savedState[item.id] || {}
-      if (existing?.status === 'moved') return existing
+      if (existing?.status === 'moved') return { ...existing, item }
+      // Already moved (from an earlier session, or before this page's most
+      // recent reload) — render as 'moved' immediately using live data from
+      // the linked BusinessProducts row, rather than requiring the user to
+      // have just performed the move in this same in-memory session.
+      if (item.status === 'MOVED_TO_BUSINESS') {
+        return {
+          item,
+          selected: false,
+          domainId: '', categoryId: '', subCategoryId: '',
+          sellingPrice: item.linkedProductCurrentPrice != null
+            ? item.linkedProductCurrentPrice.toFixed(2)
+            : (item.estSellingPrice != null ? Number(item.estSellingPrice).toFixed(2) : ''),
+          barcode: '',
+          transportOverride: '',
+          itemBusinessId: saved.itemBusinessId || '',
+          status: 'moved',
+          movedSku: item.linkedProductSku ?? undefined,
+        }
+      }
       const costUsd = item.costUsd != null ? Number(item.costUsd) : 0
       const qty = item.manifestQty ?? item.quantity ?? 1
       const costUsdPerUnit = costUsd / qty
@@ -581,6 +641,38 @@ export default function MoveWizardPage() {
     updateRow(idx, { domainId: above.domainId, categoryId: above.categoryId, subCategoryId: above.subCategoryId })
   }
 
+  // Quick "scan and assign" — reuses the exact same PUT the standard Edit
+  // Item screen already uses to save a barcode, so behavior stays consistent
+  // regardless of which screen the barcode was assigned from.
+  async function submitAssignBarcode(idx: number) {
+    const row = rows[idx]
+    const code = barcodeAssignValue.trim()
+    if (!code) { toast.error('Enter or scan a barcode'); return }
+    const bizId = row.item.linkedProductBusinessId
+    const productId = row.item.businessProductId
+    if (!bizId || !productId) return
+
+    setAssigningBarcode(true)
+    try {
+      const res = await fetch(`/api/inventory/${bizId}/items/${productId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ barcode: code }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error || 'Failed to assign barcode'); return }
+      setRows(prev => prev.map((r, i) => i === idx ? { ...r, item: { ...r.item, linkedProductBarcode: code } } : r))
+      toast.push('Barcode assigned')
+      setBarcodeAssignIdx(null)
+      setBarcodeAssignValue('')
+    } catch {
+      toast.error('Failed to assign barcode')
+    } finally {
+      setAssigningBarcode(false)
+    }
+  }
+
   // Apply this row's classification to every OTHER not-yet-classified row
   // that shares the exact same product name — one click instead of clicking
   // "Suggest" (or "same as above") once per duplicate row.
@@ -621,10 +713,11 @@ export default function MoveWizardPage() {
   }
 
   function handleSuggest(idx: number, e: React.MouseEvent<HTMLButtonElement>) {
+    const row = rows[idx]
+    if (!(row.itemBusinessId || selectedBusinessId)) { toast.error('Select a target business first'); return }
     if (suggestRowIdx === idx) { setSuggestRowIdx(null); return }
     openSuggestBtnRef.current = e.currentTarget
     const rect = e.currentTarget.getBoundingClientRect()
-    const row = rows[idx]
     const name = row.item.productName || row.item.shortName
     const suggestions = suggestClassification(
       name,
@@ -684,7 +777,24 @@ export default function MoveWizardPage() {
       })
       const data = await res.json()
       if (!res.ok) { updateRow(idx, { status: 'error', errorMessage: data.error || 'Move failed' }); return }
-      updateRow(idx, { status: 'moved', movedSku: data.items?.[0]?.sku })
+      const productId = data.items?.[0]?.productId
+      const finalSellingPrice = data.items?.[0]?.sellingPrice
+      setRows(prev => prev.map((r, i) => i === idx ? {
+        ...r,
+        status: 'moved',
+        movedSku: data.items?.[0]?.sku,
+        // The server rounds the final selling price up to the nearest
+        // $0.50 — reflect that immediately instead of showing the
+        // pre-rounded value until the next reload.
+        sellingPrice: finalSellingPrice != null ? Number(finalSellingPrice).toFixed(2) : r.sellingPrice,
+        item: {
+          ...r.item,
+          businessProductId: productId ?? r.item.businessProductId,
+          linkedProductBusinessId: effBizId,
+          linkedProductBusinessType: effBiz.businessType,
+          linkedProductBarcode: row.barcode || r.item.linkedProductBarcode,
+        },
+      } : r))
       toast.push(`${(row.item.shortName || row.item.productName).slice(0, 30)} moved to inventory`)
     } catch {
       updateRow(idx, { status: 'error', errorMessage: 'Move failed' })
@@ -718,7 +828,7 @@ export default function MoveWizardPage() {
 
       const useDomainCat = departments.length > 0
       const allMovedIds = new Set<string>()
-      const skuByItemId = new Map<string, string>()
+      const moveResultByItemId = new Map<string, { sku: string; productId: string; businessId: string; businessType: string; barcode?: string; sellingPrice?: number }>()
       let anyError = false
 
       for (const [, group] of groups) {
@@ -741,14 +851,38 @@ export default function MoveWizardPage() {
           setRows(prev => prev.map(r => failedIds.has(r.item.id) && r.status === 'moving' ? { ...r, status: 'error', errorMessage: data.error || 'Move failed' } : r))
           toast.error(`Failed for ${group.businessType}: ${data.error || 'Move failed'}`)
         } else {
-          ;(data.items || []).forEach((i: any) => { allMovedIds.add(i.itemId); if (i.sku) skuByItemId.set(i.itemId, i.sku) })
+          ;(data.items || []).forEach((i: any) => {
+            allMovedIds.add(i.itemId)
+            const sourceRow = group.rows.find(r => r.item.id === i.itemId)
+            moveResultByItemId.set(i.itemId, {
+              sku: i.sku,
+              productId: i.productId,
+              businessId: group.businessId,
+              businessType: group.businessType,
+              barcode: sourceRow?.barcode || undefined,
+              sellingPrice: i.sellingPrice,
+            })
+          })
         }
       }
 
       setRows(prev => prev.map(r => {
         if (r.status !== 'moving') return r
-        return allMovedIds.has(r.item.id)
-          ? { ...r, status: 'moved', movedSku: skuByItemId.get(r.item.id) }
+        const result = moveResultByItemId.get(r.item.id)
+        return result
+          ? {
+              ...r,
+              status: 'moved',
+              movedSku: result.sku,
+              sellingPrice: result.sellingPrice != null ? Number(result.sellingPrice).toFixed(2) : r.sellingPrice,
+              item: {
+                ...r.item,
+                businessProductId: result.productId ?? r.item.businessProductId,
+                linkedProductBusinessId: result.businessId,
+                linkedProductBusinessType: result.businessType,
+                linkedProductBarcode: result.barcode || r.item.linkedProductBarcode,
+              },
+            }
           : { ...r, status: anyError ? r.status : 'error', errorMessage: 'Not moved' }
       }))
       if (allMovedIds.size > 0) toast.push(`${allMovedIds.size} item(s) moved to inventory`)
@@ -761,6 +895,11 @@ export default function MoveWizardPage() {
   }
 
   // ── Computed ──────────────────────────────────────────────────────────────────
+
+  // Preserve the exact working set (e.g. ?ids=... from "Move selected") when
+  // returning from Edit Item — otherwise the user loses their filtered view
+  // and sees the whole batch again instead of just the items they came from.
+  const returnToUrl = `/warehouse/${batchId}/move${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
 
   const perItemTransport = batch?.perItemTransport || 0
   const transactionFeePct = batch?.transactionFeePct ?? null
@@ -879,7 +1018,10 @@ export default function MoveWizardPage() {
 
           {/* Items table */}
           {loading ? (
-            <div className="p-8 text-center text-gray-500">Loading items…</div>
+            <div className="p-8 flex flex-col items-center justify-center gap-3 text-gray-500">
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-300 border-t-blue-600" />
+              <span>Loading items…</span>
+            </div>
           ) : allItems.length === 0 ? (
             <div className="p-8 text-center text-gray-500">No eligible IN_WAREHOUSE items found.</div>
           ) : (
@@ -945,6 +1087,7 @@ export default function MoveWizardPage() {
                   const extraSub = row.subCategoryId && !filteredSubs.find(s => s.id === row.subCategoryId)
                     ? suggestAllSubs.find(s => s.id === row.subCategoryId) : null
 
+                  const effBizId = row.itemBusinessId || selectedBusinessId
                   const canCopyFromAbove = idx > 0 && !isMoved && (rows[idx - 1].categoryId || rows[idx - 1].subCategoryId)
                   const matchingUnclassifiedCount = (!isMoved && (row.categoryId || row.subCategoryId))
                     ? rows.filter((r, i) => i !== idx && r.status !== 'moved' && r.item.productName === row.item.productName && !r.categoryId && !r.subCategoryId).length
@@ -983,19 +1126,80 @@ export default function MoveWizardPage() {
 
                         {/* Row 1: product name + price + calc/cat + action — all in one line */}
                         <div className="flex items-center gap-2">
-                          <p className="flex-1 min-w-0 text-sm font-medium text-gray-900 dark:text-white leading-snug line-clamp-2" title={row.item.productName}>
-                            {row.item.productName}
-                          </p>
+                          {isMoved && row.item.businessProductId && row.item.linkedProductBusinessType ? (
+                            <Link
+                              href={`/${row.item.linkedProductBusinessType}/inventory?productId=${encodeURIComponent(row.item.businessProductId)}&returnTo=${encodeURIComponent(returnToUrl)}`}
+                              onClick={() => { try { sessionStorage.setItem(`wh-move-scroll-${batchId}`, String(window.scrollY)) } catch {} }}
+                              className="flex-1 min-w-0 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline leading-snug line-clamp-2"
+                              title="Open in Edit Item"
+                            >
+                              {row.item.productName}
+                            </Link>
+                          ) : (
+                            <p className="flex-1 min-w-0 text-sm font-medium text-gray-900 dark:text-white leading-snug line-clamp-2" title={row.item.productName}>
+                              {row.item.productName}
+                            </p>
+                          )}
                           <div className="shrink-0 flex items-center gap-1.5">
                             {isMoved ? (
                               <div className="flex flex-col items-end gap-0.5">
+                                {row.item.linkedProductOriginalPrice != null &&
+                                 row.item.linkedProductCurrentPrice != null &&
+                                 Math.abs(row.item.linkedProductOriginalPrice - row.item.linkedProductCurrentPrice) > 0.001 && (
+                                  <span
+                                    className="text-xs text-amber-600 dark:text-amber-400 line-through cursor-help"
+                                    title={[
+                                      `Price at move time: $${row.item.linkedProductOriginalPrice.toFixed(2)}`,
+                                      row.item.linkedProductPriceChangedAt ? `Changed on ${new Date(row.item.linkedProductPriceChangedAt).toLocaleString()}` : null,
+                                      row.item.linkedProductPriceChangeReason ? `Reason: ${row.item.linkedProductPriceChangeReason}` : 'No reason recorded',
+                                    ].filter(Boolean).join(' — ')}
+                                  >
+                                    was ${row.item.linkedProductOriginalPrice.toFixed(2)}
+                                  </span>
+                                )}
                                 <span className="text-sm font-bold text-gray-900 dark:text-white">
                                   ${parseFloat(row.sellingPrice || '0').toFixed(2)}
                                 </span>
                                 {row.movedSku && (
-                                  <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300" title="Assigned SKU">
+                                  <span className="text-sm font-mono font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300" title="Assigned SKU">
                                     SKU {row.movedSku}
                                   </span>
+                                )}
+                                {row.item.linkedProductBarcode ? (
+                                  <span className="text-sm font-mono px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300" title="Assigned barcode">
+                                    🏷 {row.item.linkedProductBarcode}
+                                  </span>
+                                ) : row.item.businessProductId && (
+                                  barcodeAssignIdx === idx ? (
+                                    <div className="flex items-center gap-1">
+                                      <input
+                                        autoFocus
+                                        type="text"
+                                        value={barcodeAssignValue}
+                                        onChange={e => setBarcodeAssignValue(e.target.value)}
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter') submitAssignBarcode(idx)
+                                          if (e.key === 'Escape') { setBarcodeAssignIdx(null); setBarcodeAssignValue('') }
+                                        }}
+                                        placeholder="Scan or type barcode"
+                                        className="w-32 px-1.5 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                                      />
+                                      <button
+                                        onClick={() => submitAssignBarcode(idx)}
+                                        disabled={assigningBarcode}
+                                        className="text-xs px-1.5 py-0.5 rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                                      >✓</button>
+                                      <button
+                                        onClick={() => { setBarcodeAssignIdx(null); setBarcodeAssignValue('') }}
+                                        className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                      >✕</button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => { setBarcodeAssignIdx(idx); setBarcodeAssignValue('') }}
+                                      className="text-xs px-1.5 py-0.5 rounded border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400"
+                                    >📷 Scan Barcode</button>
+                                  )
                                 )}
                               </div>
                             ) : (
@@ -1169,11 +1373,12 @@ export default function MoveWizardPage() {
                             <button
                               type="button"
                               onClick={e => handleSuggest(idx, e)}
-                              title="Suggest category from product name"
-                              className={`shrink-0 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                              disabled={!effBizId}
+                              title={!effBizId ? 'Select a target business first' : 'Suggest category from product name'}
+                              className={`shrink-0 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors border disabled:opacity-40 disabled:cursor-not-allowed ${
                                 suggestRowIdx === idx
                                   ? 'bg-amber-100 border-amber-400 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                                  : 'bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-700'
+                                  : 'bg-amber-50 border-amber-200 text-amber-600 hover:enabled:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-700'
                               }`}
                             >🏷 Suggest</button>
                           )}

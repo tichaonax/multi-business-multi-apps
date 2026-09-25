@@ -94,7 +94,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
     }
 
     const movedAt = new Date()
-    const results: Array<{ itemId: string; productId: string; sku: string }> = []
+    const results: Array<{ itemId: string; productId: string; sku: string; sellingPrice: number }> = []
 
     for (const warehouseItem of warehouseItems) {
       const move = itemMoves.find((m: any) => m.itemId === warehouseItem.id)
@@ -117,7 +117,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
         const txFeePerUnit = batch.transactionFeePct ? costUsdPerUnit * (Number(batch.transactionFeePct) / 100) : 0
         costPrice = costUsdPerUnit + transportPerUnit + txFeePerUnit
       }
-      const sellingPrice = Number(move.sellingPrice) || Number(warehouseItem.estSellingPrice) || costPrice
+      const rawSellingPrice = Number(move.sellingPrice) || Number(warehouseItem.estSellingPrice) || costPrice
+      // Round UP to the nearest $0.50 at the moment a price becomes real
+      // (i.e. right as the SKU is assigned) — e.g. 55.19 -> 55.50, 55.70 -> 56.00.
+      const sellingPrice = Math.ceil(rawSellingPrice / 0.5) * 0.5
 
       // SKU: unique short code derived from item id
       const sku = `WH-${warehouseItem.id.slice(0, 10).toUpperCase()}`
@@ -228,7 +231,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
           }
         })
 
-        results.push({ itemId: warehouseItem.id, productId: product.id, sku })
+        results.push({ itemId: warehouseItem.id, productId: product.id, sku, sellingPrice })
       })
     }
 

@@ -622,7 +622,13 @@ function ReceiptHistoryPageContent() {
               ))}
             </div>
 
-            <div className="hidden sm:block overflow-x-auto">
+            {/* overflow-y-visible is required, not decorative: overflow-x-auto
+                alone forces the CSS "axis-coupling" rule to compute overflow-y
+                as auto too, which silently makes THIS div the sticky
+                containing block for the <thead> below instead of the window —
+                the thead then sticks at the wrong point and visually lands on
+                top of whatever row happens to be there. */}
+            <div className="hidden sm:block overflow-x-auto overflow-y-visible">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead
                 className="bg-gray-50 dark:bg-gray-900 sticky z-10 top-[calc(3.5rem+var(--filters-h,0px))] sm:top-[calc(4rem+var(--filters-h,0px))]"

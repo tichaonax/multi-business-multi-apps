@@ -1032,8 +1032,8 @@ export default function BatchDetailPage() {
             )}
           </div>
 
-          {/* Toolbar */}
-          <div className="flex items-center gap-3 flex-wrap">
+          {/* Toolbar — sticky so "Move to Business" stays reachable on a long item list */}
+          <div className="sticky top-14 sm:top-16 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm px-4 py-3 flex items-center gap-3 flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
               <input
                 type="text"
@@ -1575,12 +1575,12 @@ export default function BatchDetailPage() {
                               {item.status === 'MOVED_TO_BUSINESS' && (item.linkedProductSku || item.linkedProductBarcode) && (
                                 <div className="flex flex-col gap-0.5 mt-1">
                                   {item.linkedProductSku && (
-                                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 w-fit" title="Assigned SKU">
+                                    <span className="text-sm font-mono px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 w-fit" title="Assigned SKU">
                                       SKU {item.linkedProductSku}
                                     </span>
                                   )}
                                   {item.linkedProductBarcode && (
-                                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 w-fit" title="Assigned barcode">
+                                    <span className="text-sm font-mono px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 w-fit" title="Assigned barcode">
                                       🏷 {item.linkedProductBarcode}
                                     </span>
                                   )}

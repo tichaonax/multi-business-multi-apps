@@ -181,6 +181,31 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   const [detailComboRequestId, setDetailComboRequestId] = useState<string | null>(null)
   const [editVersion, setEditVersion] = useState(0)
   const [search, setSearch] = useState('')
+  const [reversingId, setReversingId] = useState<string | null>(null)
+
+  async function handleReversePayment(paymentId: string) {
+    const reason = window.prompt('Reason for reversing this payment (e.g. "duplicate payment"):')
+    if (!reason?.trim()) return
+    if (!window.confirm('This will fully reverse the payment and credit the amount back to the account. Continue?')) return
+
+    setReversingId(paymentId)
+    try {
+      const res = await fetch(`/api/expense-account/payments/${paymentId}/reverse`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ reason: reason.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) { alert(data.error || 'Failed to reverse payment'); return }
+      setEditVersion(v => v + 1)
+      onDataChanged?.()
+    } catch {
+      alert('Failed to reverse payment')
+    } finally {
+      setReversingId(null)
+    }
+  }
 
   async function openVoucherModal(transaction: Transaction) {
     if (!businessId) return
@@ -953,6 +978,16 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                             title="Create a new payment pre-filled from this one"
                           >
                             Repeat
+                          </button>
+                        )}
+                        {isAdmin && !isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO' && transaction.status !== 'REVERSED' && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleReversePayment(transaction.id) }}
+                            disabled={reversingId === transaction.id}
+                            className="text-xs text-red-600 dark:text-red-400 hover:underline px-1 py-0.5 disabled:opacity-50"
+                            title="Fully reverse this payment — use for a payment that should never have happened (e.g. a duplicate), not for correcting the amount of a real one"
+                          >
+                            {reversingId === transaction.id ? '…' : 'Reverse'}
                           </button>
                         )}
                         {canEditPayments && isDeposit && !transaction.isAutoTransfer && transaction.sourceType !== 'ACCOUNT_TRANSFER' && transaction.sourceType !== 'PAYMENT_ADJUSTMENT' && (transaction.sourceType !== 'COMBO_SETTLE' || isAdmin) && (isAdmin || isWithin7Days(transaction.createdAt)) && (

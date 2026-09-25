@@ -92,17 +92,48 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
     const linkedProducts = movedProductIds.length > 0
       ? await (prisma as any).businessProducts.findMany({
           where: { id: { in: movedProductIds } },
-          select: { id: true, sku: true, barcode: true },
+          select: { id: true, sku: true, barcode: true, businessId: true, businessType: true, basePrice: true },
         })
       : []
     const linkedProductMap = new Map(linkedProducts.map((p: any) => [p.id, p]))
 
-    const items = prismaItems.map((i: any) => ({
-      ...i,
-      ...(itemExtras[i.id] ?? { originalQty: null, originalPriceYuan: null, qtyChangeReason: null, manifestQty: null, orderedQty: null }),
-      linkedProductSku: i.businessProductId ? (linkedProductMap.get(i.businessProductId) as any)?.sku ?? null : null,
-      linkedProductBarcode: i.businessProductId ? (linkedProductMap.get(i.businessProductId) as any)?.barcode ?? null : null,
-    }))
+    // The price the item was actually moved at is never overwritten in place
+    // — the FIRST (oldest) SELLING history row's oldPrice is exactly that
+    // baseline, captured automatically the first time the price is ever
+    // edited afterward. One query for every linked product, grouped in JS,
+    // rather than an N+1 per item.
+    const priceHistoryRows = movedProductIds.length > 0
+      ? await (prisma as any).productPriceHistory.findMany({
+          where: { catalogSource: 'BUSINESS_PRODUCT', productRefId: { in: movedProductIds }, priceType: 'SELLING' },
+          orderBy: { createdAt: 'asc' },
+          select: { productRefId: true, oldPrice: true, newPrice: true, reason: true, changeReason: true, createdAt: true },
+        })
+      : []
+    const priceHistoryByProduct = new Map<string, { original: any; latest: any }>()
+    for (const row of priceHistoryRows) {
+      const entry = priceHistoryByProduct.get(row.productRefId)
+      if (!entry) priceHistoryByProduct.set(row.productRefId, { original: row, latest: row })
+      else entry.latest = row // rows arrive oldest-first, so the last one seen per product is the most recent
+    }
+
+    const items = prismaItems.map((i: any) => {
+      const linked: any = i.businessProductId ? linkedProductMap.get(i.businessProductId) : null
+      const priceHistory = i.businessProductId ? priceHistoryByProduct.get(i.businessProductId) : null
+      return {
+        ...i,
+        ...(itemExtras[i.id] ?? { originalQty: null, originalPriceYuan: null, qtyChangeReason: null, manifestQty: null, orderedQty: null }),
+        linkedProductSku: linked?.sku ?? null,
+        linkedProductBarcode: linked?.barcode ?? null,
+        linkedProductBusinessId: linked?.businessId ?? null,
+        linkedProductBusinessType: linked?.businessType ?? null,
+        linkedProductCurrentPrice: linked?.basePrice != null ? Number(linked.basePrice) : null,
+        // null unless the price has actually been edited since the move —
+        // no history row exists yet for a product whose price never changed.
+        linkedProductOriginalPrice: priceHistory ? Number(priceHistory.original.oldPrice) : null,
+        linkedProductPriceChangeReason: priceHistory ? (priceHistory.latest.reason || priceHistory.latest.changeReason) : null,
+        linkedProductPriceChangedAt: priceHistory ? priceHistory.latest.createdAt : null,
+      }
+    })
 
     // Status counts for filter tabs (always count from the full batch)
     const [statusCounts, personalCount, movedCostAgg] = await Promise.all([
