@@ -32,6 +32,11 @@ interface WarehouseItem {
   manifestQty: number | null    // received qty — used for stock
   costUsd: number | null
   clearanceCostUsd: number | null
+  // MBM-300 — set when this item was reconciled against a Container Batch
+  // import; landedCost is the exact fully-loaded per-unit cost (preferred
+  // over the costUsd/clearanceCostUsd pro-rata estimate below when present).
+  landedCost: number | null
+  estSellingPrice: number | null
   trackingNumber: string | null
   imageId: string | null
   isPersonal: boolean
@@ -78,6 +83,7 @@ interface MoveRow {
   itemBusinessId: string   // per-item override; empty = use global
   status: 'pending' | 'moving' | 'moved' | 'error'
   errorMessage?: string
+  movedSku?: string        // assigned by the server at move time — shown once status is 'moved'
 }
 
 // ── Suggestion algorithm (ported from bulk-stock-panel) ───────────────────────
@@ -340,6 +346,9 @@ export default function MoveWizardPage() {
   // ── Batch move ────────────────────────────────────────────────────────────────
   const [batchMoving, setBatchMoving] = useState(false)
 
+  // ── Item search (large batches) ────────────────────────────────────────────
+  const [itemSearch, setItemSearch] = useState('')
+
   // ── Close suggest popover on outside click / Escape ───────────────────────────
   useEffect(() => {
     if (suggestRowIdx === null) return
@@ -507,8 +516,11 @@ export default function MoveWizardPage() {
       const txFee = item.costUsd != null ? costUsdPerUnit * (feePct / 100) : 0
       const transportPerUnit = (batch?.perItemTransport || 0) / qty
       const clearancePerUnit = Number(item.clearanceCostUsd ?? 0) / qty
-      const cost = item.costUsd != null ? costUsdPerUnit + txFee + transportPerUnit + clearancePerUnit : 0
-      const sell = cost > 0 ? (cost * (1 + markup)).toFixed(2) : ''
+      const cost = item.landedCost != null ? Number(item.landedCost) : (item.costUsd != null ? costUsdPerUnit + txFee + transportPerUnit + clearancePerUnit : 0)
+      // MBM-300 — a Container Batch reconciliation already suggests a
+      // selling price straight from the source file; prefer it as the
+      // default over the markup-derived estimate (still fully editable).
+      const sell = item.estSellingPrice != null ? Number(item.estSellingPrice).toFixed(2) : (cost > 0 ? (cost * (1 + markup)).toFixed(2) : '')
       return {
         item,
         selected: existing?.selected ?? saved.selected ?? (scanItemId ? item.id === scanItemId : true),
@@ -560,19 +572,49 @@ export default function MoveWizardPage() {
     setRows(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r))
   }
 
+  // Copy classification from the row immediately above — for a run of
+  // near-identical items (same product, split across many order/tracking
+  // numbers), this avoids re-running "Suggest" for every single row.
+  function copyClassificationFromAbove(idx: number) {
+    if (idx === 0) return
+    const above = rows[idx - 1]
+    updateRow(idx, { domainId: above.domainId, categoryId: above.categoryId, subCategoryId: above.subCategoryId })
+  }
+
+  // Apply this row's classification to every OTHER not-yet-classified row
+  // that shares the exact same product name — one click instead of clicking
+  // "Suggest" (or "same as above") once per duplicate row.
+  function applyClassificationToMatching(idx: number) {
+    const source = rows[idx]
+    if (!source.categoryId && !source.subCategoryId) return
+    setRows(prev => prev.map((r, i) => {
+      if (i === idx || r.status === 'moved') return r
+      if (r.item.productName !== source.item.productName) return r
+      if (r.categoryId || r.subCategoryId) return r // never overwrite an already-classified row
+      return { ...r, domainId: source.domainId, categoryId: source.categoryId, subCategoryId: source.subCategoryId }
+    }))
+  }
+
   function recalcAll() {
     const markup = parseFloat(markupPct) / 100 || 0.3
     const feePct = batch?.transactionFeePct ?? 0
     sessionStorage.setItem(SESSION_MARKUP_KEY, markupPct)
     setRows(prev => prev.map(r => {
       if (r.status === 'moved') return r
+      // MBM-300 — a Container Batch reconciliation already has an exact,
+      // fully-loaded landed cost + suggested selling price straight from
+      // the source file; prefer those over the pro-rata estimate below
+      // (still fully editable either way).
+      if (r.item.estSellingPrice != null) {
+        return { ...r, sellingPrice: Number(r.item.estSellingPrice).toFixed(2) }
+      }
       const costUsd = r.item.costUsd != null ? Number(r.item.costUsd) : 0
       const qty = r.item.manifestQty ?? r.item.quantity ?? 1
       const costUsdPerUnit = costUsd / qty
       const txFee = r.item.costUsd != null ? costUsdPerUnit * (feePct / 100) : 0
       const itemTransportPerUnit = (r.transportOverride !== '' ? parseFloat(r.transportOverride) || 0 : (batch?.perItemTransport || 0)) / qty
       const clearancePerUnit = Number(r.item.clearanceCostUsd ?? 0) / qty
-      const cost = r.item.costUsd != null ? costUsdPerUnit + txFee + itemTransportPerUnit + clearancePerUnit : 0
+      const cost = r.item.landedCost != null ? Number(r.item.landedCost) : (r.item.costUsd != null ? costUsdPerUnit + txFee + itemTransportPerUnit + clearancePerUnit : 0)
       const sell = cost > 0 ? (cost * (1 + markup)).toFixed(2) : r.sellingPrice
       return { ...r, sellingPrice: sell }
     }))
@@ -642,7 +684,7 @@ export default function MoveWizardPage() {
       })
       const data = await res.json()
       if (!res.ok) { updateRow(idx, { status: 'error', errorMessage: data.error || 'Move failed' }); return }
-      updateRow(idx, { status: 'moved' })
+      updateRow(idx, { status: 'moved', movedSku: data.items?.[0]?.sku })
       toast.push(`${(row.item.shortName || row.item.productName).slice(0, 30)} moved to inventory`)
     } catch {
       updateRow(idx, { status: 'error', errorMessage: 'Move failed' })
@@ -676,6 +718,7 @@ export default function MoveWizardPage() {
 
       const useDomainCat = departments.length > 0
       const allMovedIds = new Set<string>()
+      const skuByItemId = new Map<string, string>()
       let anyError = false
 
       for (const [, group] of groups) {
@@ -698,13 +741,15 @@ export default function MoveWizardPage() {
           setRows(prev => prev.map(r => failedIds.has(r.item.id) && r.status === 'moving' ? { ...r, status: 'error', errorMessage: data.error || 'Move failed' } : r))
           toast.error(`Failed for ${group.businessType}: ${data.error || 'Move failed'}`)
         } else {
-          ;(data.items || []).forEach((i: any) => allMovedIds.add(i.itemId))
+          ;(data.items || []).forEach((i: any) => { allMovedIds.add(i.itemId); if (i.sku) skuByItemId.set(i.itemId, i.sku) })
         }
       }
 
       setRows(prev => prev.map(r => {
         if (r.status !== 'moving') return r
-        return allMovedIds.has(r.item.id) ? { ...r, status: 'moved' } : { ...r, status: anyError ? r.status : 'error', errorMessage: 'Not moved' }
+        return allMovedIds.has(r.item.id)
+          ? { ...r, status: 'moved', movedSku: skuByItemId.get(r.item.id) }
+          : { ...r, status: anyError ? r.status : 'error', errorMessage: 'Not moved' }
       }))
       if (allMovedIds.size > 0) toast.push(`${allMovedIds.size} item(s) moved to inventory`)
     } catch {
@@ -745,6 +790,44 @@ export default function MoveWizardPage() {
                 ✓ {movedCount} item{movedCount !== 1 ? 's' : ''} moved
               </span>
             )}
+          </div>
+
+          {/* Floating search + primary actions — sticky so a large batch never
+              hides "Move selected" below a long scroll. */}
+          <div className="sticky top-14 sm:top-16 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm px-4 py-3 flex items-center gap-3 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                autoComplete="off"
+                value={itemSearch}
+                onChange={e => setItemSearch(e.target.value)}
+                placeholder="Search by product, order #, tracking #…"
+                className="block w-full pl-9 pr-9 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+              {itemSearch && (
+                <button onClick={() => setItemSearch('')} className="absolute inset-y-0 right-0 pr-3 flex items-center" title="Clear search">
+                  <svg className="h-4 w-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              )}
+            </div>
+            <Link href={`/warehouse/${batchId}`} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors shrink-0">
+              Cancel
+            </Link>
+            <button
+              onClick={handleMoveSelected}
+              disabled={batchBtnDisabled}
+              title={batchBtnDisabled ? 'Select items, set category and selling price for all selected' : undefined}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+            >
+              {batchMoving ? 'Moving…' : `Move selected (${pendingSelected.length})`}
+            </button>
           </div>
 
           {/* Settings panel */}
@@ -801,11 +884,18 @@ export default function MoveWizardPage() {
             <div className="p-8 text-center text-gray-500">No eligible IN_WAREHOUSE items found.</div>
           ) : (
             <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  {pendingSelected.length} of {rows.filter(r => r.status !== 'moved').length} pending selected
-                </span>
-                <div className="flex items-center gap-2">
+              <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center gap-3">
+                <div className="flex items-center pl-3 pr-2 shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={pendingSelected.length > 0 && pendingSelected.length === rows.filter(r => r.status !== 'moved').length}
+                    ref={el => { if (el) el.indeterminate = pendingSelected.length > 0 && pendingSelected.length < rows.filter(r => r.status !== 'moved').length }}
+                    onChange={e => setRows(prev => prev.map(r => r.status === 'moved' ? r : { ...r, selected: e.target.checked }))}
+                    className="rounded"
+                    title={pendingSelected.length > 0 ? 'Deselect all' : 'Select all'}
+                  />
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => setRows(prev => prev.map(r => r.status === 'moved' ? r : { ...r, selected: true }))}
                     className="text-xs text-blue-600 hover:underline"
@@ -816,9 +906,17 @@ export default function MoveWizardPage() {
                     className="text-xs text-blue-600 hover:underline"
                   >Deselect all</button>
                 </div>
+                <span className="text-sm font-medium text-gray-900 dark:text-white ml-auto">
+                  {pendingSelected.length} of {rows.filter(r => r.status !== 'moved').length} pending selected
+                </span>
               </div>
               <div className="divide-y divide-gray-100 dark:divide-gray-700">
                 {rows.map((row, idx) => {
+                  if (itemSearch.trim()) {
+                    const q = itemSearch.trim().toLowerCase()
+                    const haystack = `${row.item.productName} ${row.item.shortName ?? ''} ${row.item.orderNumber} ${row.item.trackingNumber ?? ''}`.toLowerCase()
+                    if (!haystack.includes(q)) return null
+                  }
                   const costUsd = row.item.costUsd != null ? Number(row.item.costUsd) : 0
                   const qty = row.item.manifestQty ?? row.item.quantity ?? 1
                   const costUsdPerUnit = costUsd / qty
@@ -846,6 +944,11 @@ export default function MoveWizardPage() {
                     ? suggestAllCats.find(c => c.id === row.categoryId) : null
                   const extraSub = row.subCategoryId && !filteredSubs.find(s => s.id === row.subCategoryId)
                     ? suggestAllSubs.find(s => s.id === row.subCategoryId) : null
+
+                  const canCopyFromAbove = idx > 0 && !isMoved && (rows[idx - 1].categoryId || rows[idx - 1].subCategoryId)
+                  const matchingUnclassifiedCount = (!isMoved && (row.categoryId || row.subCategoryId))
+                    ? rows.filter((r, i) => i !== idx && r.status !== 'moved' && r.item.productName === row.item.productName && !r.categoryId && !r.subCategoryId).length
+                    : 0
 
                   const cardBg = isMoved
                     ? 'bg-emerald-50 dark:bg-emerald-900/10'
@@ -885,9 +988,16 @@ export default function MoveWizardPage() {
                           </p>
                           <div className="shrink-0 flex items-center gap-1.5">
                             {isMoved ? (
-                              <span className="text-sm font-bold text-gray-900 dark:text-white">
-                                ${parseFloat(row.sellingPrice || '0').toFixed(2)}
-                              </span>
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="text-sm font-bold text-gray-900 dark:text-white">
+                                  ${parseFloat(row.sellingPrice || '0').toFixed(2)}
+                                </span>
+                                {row.movedSku && (
+                                  <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300" title="Assigned SKU">
+                                    SKU {row.movedSku}
+                                  </span>
+                                )}
+                              </div>
                             ) : (
                               <>
                                 <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap shrink-0">Sell $</span>
@@ -1068,6 +1178,24 @@ export default function MoveWizardPage() {
                             >🏷 Suggest</button>
                           )}
 
+                          {canCopyFromAbove && (
+                            <button
+                              type="button"
+                              onClick={() => copyClassificationFromAbove(idx)}
+                              title="Copy category from the item above"
+                              className="shrink-0 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors border bg-gray-50 border-gray-200 text-gray-500 hover:bg-blue-50 hover:text-blue-600 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-400"
+                            >↑ Same as above</button>
+                          )}
+
+                          {matchingUnclassifiedCount > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => applyClassificationToMatching(idx)}
+                              title={`Apply this category to ${matchingUnclassifiedCount} other unclassified item(s) with the same product name`}
+                              className="shrink-0 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors border bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-700"
+                            >⇊ Apply to {matchingUnclassifiedCount} matching</button>
+                          )}
+
                           {isMoved ? (
                             <span className="text-xs text-gray-400">{row.barcode || ''}</span>
                           ) : (
@@ -1124,21 +1252,6 @@ export default function MoveWizardPage() {
               </div>
             </div>
           )}
-
-          {/* Action bar */}
-          <div className="flex items-center justify-end gap-4">
-            <Link href={`/warehouse/${batchId}`} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
-              Cancel
-            </Link>
-            <button
-              onClick={handleMoveSelected}
-              disabled={batchBtnDisabled}
-              title={batchBtnDisabled ? 'Select items, set category and selling price for all selected' : undefined}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {batchMoving ? 'Moving…' : `Move selected (${pendingSelected.length})`}
-            </button>
-          </div>
 
         </div>
 

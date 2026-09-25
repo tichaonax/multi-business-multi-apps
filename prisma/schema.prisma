@@ -8031,6 +8031,15 @@ model WarehouseBatches {
   fileHash            String           @unique
   originalFileName    String
   notes               String?
+  // MBM-300 — Container Batch header block (exchange rate + batch-wide
+  // summary totals), parsed straight from that file's own header rows.
+  // Nullable/additive — batches from the earlier Yuan-stage import simply
+  // don't have these set.
+  exchangeRate          Decimal?       @db.Decimal(10, 4)
+  totalLandedCost       Decimal?       @db.Decimal(14, 2)
+  totalProjectedSelling Decimal?       @db.Decimal(14, 2)
+  totalProjectedProfit  Decimal?       @db.Decimal(14, 2)
+  profitMarginPct       String?
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @default(now()) @updatedAt
   users               Users            @relation(fields: [importedBy], references: [id])
@@ -8074,6 +8083,18 @@ model WarehouseItems {
   sourceBatchName           String?
   sourceBatchStatus         String?
   clearanceCostUsd          Decimal?         @db.Decimal(10, 4)
+  // MBM-300 — Container Batch reconciliation (post-clearance economics from
+  // the "Container Batch" xlsx export, matched onto items already tracked
+  // here by tracking#/order# from the earlier Yuan-stage import). All
+  // nullable/additive — items imported before this feature existed, or
+  // never reconciled against a container batch, simply have none of these set.
+  shippingPerUnit           Decimal?         @db.Decimal(10, 2)
+  landedCost                Decimal?         @db.Decimal(10, 2)
+  estSellingPrice           Decimal?         @db.Decimal(10, 2)
+  estMarginPct              String?
+  batchQty                  Int?
+  diffQty                   Int?
+  matchStatus               String?
   status                    String           @default("IN_WAREHOUSE")
   businessProductId         String?
   personalExpenseId         String?
@@ -8089,6 +8110,7 @@ model WarehouseItems {
   @@index([batchId])
   @@index([orderNumber])
   @@index([status])
+  @@index([trackingNumber, orderNumber])
   @@map("warehouse_items")
 }
 

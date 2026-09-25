@@ -33,6 +33,21 @@ interface Stats {
   movedToPersonal: number
 }
 
+interface ItemSearchResult {
+  id: string
+  batchId: string
+  batchName: string | null
+  orderNumber: string
+  trackingNumber: string | null
+  productName: string
+  status: string
+  manifestQty: number | null
+  landedCost: number | null
+  estSellingPrice: number | null
+  sourceBatchName: string | null
+  imageId: string | null
+}
+
 function formatUsd(v: number | null | undefined) {
   if (v == null) return '—'
   return `$${Number(v).toFixed(2)}`
@@ -53,6 +68,9 @@ export default function WarehousePage() {
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [searchInput, setSearchInput] = useState('')
+  const [itemQuery, setItemQuery] = useState('')
+  const [itemResults, setItemResults] = useState<ItemSearchResult[] | null>(null)
+  const [itemSearchLoading, setItemSearchLoading] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -73,6 +91,23 @@ export default function WarehousePage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // Item-level search (tracking #/order #/product) — separate from the
+  // batch-name filter above, since the batch list itself has no way to find
+  // "which batch did tracking X end up in."
+  useEffect(() => {
+    const q = itemQuery.trim()
+    if (q.length < 3) { setItemResults(null); return }
+    setItemSearchLoading(true)
+    const t = setTimeout(() => {
+      fetch(`/api/warehouse/items/search?q=${encodeURIComponent(q)}`, { credentials: 'include' })
+        .then(r => r.json())
+        .then(d => setItemResults(d.items || []))
+        .catch(() => setItemResults([]))
+        .finally(() => setItemSearchLoading(false))
+    }, 350)
+    return () => clearTimeout(t)
+  }, [itemQuery])
 
   async function handleDelete(batch: BatchSummary) {
     if (!confirm(`Delete batch "${batch.batchName}"?\n\nThis will permanently delete all ${batch.itemCount} items and images. This cannot be undone.`)) return
@@ -105,15 +140,24 @@ export default function WarehousePage() {
                 Staging area for imported merchandise
               </p>
             </div>
-            <Link
-              href="/warehouse/import"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-              </svg>
-              Import Batch
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/warehouse/container-import"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
+                title="Import the post-clearance Container Batch report — reconciles landed cost, est. selling price, and quantity onto items already tracked here"
+              >
+                📦 Container Batch Import
+              </Link>
+              <Link
+                href="/warehouse/import"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Import Batch
+              </Link>
+            </div>
           </div>
 
           {/* Stats bar */}
@@ -134,18 +178,67 @@ export default function WarehousePage() {
           )}
 
           {/* Search */}
-          <div className="relative max-w-sm">
-            <input
-              type="text"
-              placeholder="Search batches by name or file…"
-              value={searchInput}
-              onChange={e => setSearchInput(e.target.value)}
-              className="w-full px-3 py-2 pl-9 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-            />
-            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative max-w-sm w-full">
+              <input
+                type="text"
+                placeholder="Search batches by name or file…"
+                value={searchInput}
+                onChange={e => setSearchInput(e.target.value)}
+                className="w-full px-3 py-2 pl-9 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+              />
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <div className="relative max-w-sm w-full">
+              <input
+                type="text"
+                placeholder="Search items by tracking # or order #…"
+                value={itemQuery}
+                onChange={e => setItemQuery(e.target.value)}
+                className="w-full px-3 py-2 pl-9 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+              />
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
           </div>
+
+          {/* Item search results — separate from the batch list below */}
+          {itemQuery.trim().length >= 3 && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              {itemSearchLoading ? (
+                <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">Searching…</div>
+              ) : !itemResults || itemResults.length === 0 ? (
+                <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">No items match &quot;{itemQuery}&quot;</div>
+              ) : (
+                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {itemResults.map(item => (
+                    <Link
+                      key={item.id}
+                      href={`/warehouse/${item.batchId}`}
+                      className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.productName}</p>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                          <span className="text-[10px] text-gray-400 font-mono">ORD {item.orderNumber}</span>
+                          {item.trackingNumber && <span className="text-[10px] text-gray-400 font-mono">TRK {item.trackingNumber}</span>}
+                          <StatusBadge status={item.status} />
+                          {item.batchName && <span className="text-[10px] text-gray-400">in &quot;{item.batchName}&quot;</span>}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{item.landedCost != null ? `$${item.landedCost.toFixed(2)}` : '—'}</p>
+                        <p className="text-[10px] text-gray-400">{item.manifestQty ?? '—'} units</p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Batches table */}
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">

@@ -103,15 +103,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
       const itemCategoryId = move.categoryId || globalCategoryId
       // Use manifestQty (received qty) for stock — this is what physically arrived
       const qty = manifestMap[warehouseItem.id] ?? warehouseItem.quantity ?? 1
-      const costUsdPerUnit = Number(warehouseItem.costUsd || 0) / qty
-      const transportPerUnit = perItemTransport / qty
-      const txFeePerUnit = batch.transactionFeePct ? costUsdPerUnit * (Number(batch.transactionFeePct) / 100) : 0
-      const costPrice = costUsdPerUnit + transportPerUnit + txFeePerUnit
-      const sellingPrice = Number(move.sellingPrice) || costPrice
+      // MBM-300 — a Container Batch reconciliation already gives an exact,
+      // fully-loaded per-unit landed cost (unit + clearance + shipping),
+      // which is strictly more accurate than this pro-rata estimate. Prefer
+      // it when present; fall back to the original estimate for items that
+      // only ever went through the early Yuan-stage import.
+      let costPrice: number
+      if (warehouseItem.landedCost != null) {
+        costPrice = Number(warehouseItem.landedCost)
+      } else {
+        const costUsdPerUnit = Number(warehouseItem.costUsd || 0) / qty
+        const transportPerUnit = perItemTransport / qty
+        const txFeePerUnit = batch.transactionFeePct ? costUsdPerUnit * (Number(batch.transactionFeePct) / 100) : 0
+        costPrice = costUsdPerUnit + transportPerUnit + txFeePerUnit
+      }
+      const sellingPrice = Number(move.sellingPrice) || Number(warehouseItem.estSellingPrice) || costPrice
 
       // SKU: unique short code derived from item id
       const sku = `WH-${warehouseItem.id.slice(0, 10).toUpperCase()}`
       const productName = warehouseItem.shortName || warehouseItem.productName.slice(0, 100)
+      // Traceability back to the source shipment — the ONLY place order #/
+      // tracking # end up on the resulting product, so they must be
+      // searchable text, not just a display field. Also carries the full,
+      // untruncated original product name for when `name` above was shortened.
+      const descriptionParts = [
+        warehouseItem.productName,
+        `Order #${warehouseItem.orderNumber}`,
+        warehouseItem.trackingNumber ? `Tracking ${warehouseItem.trackingNumber}` : null,
+      ].filter(Boolean)
+      const description = descriptionParts.join(' · ')
 
       await (prisma as any).$transaction(async (tx: any) => {
         // Create product
@@ -121,6 +141,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
             businessType,
             categoryId: itemCategoryId,
             name: productName,
+            description,
             sku,
             barcode: move.barcode || null,
             basePrice: sellingPrice,

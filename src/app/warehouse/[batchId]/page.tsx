@@ -60,6 +60,18 @@ interface WarehouseItem {
   sourceBatchName: string | null
   sourceBatchStatus: string | null
   clearanceCostUsd: number | null
+  // MBM-300 — set once this item has gone through a Container Batch
+  // reconciliation (or, for the original-import workflow, once economics
+  // were computed via "Recalculate Economics"). When landedCost is present,
+  // costUsd is a PER-UNIT figure already — do not divide it by quantity.
+  shippingPerUnit: number | null
+  landedCost: number | null
+  estSellingPrice: number | null
+  estMarginPct: string | null
+  // Live values from the linked BusinessProducts row once moved — barcode in
+  // particular can be assigned well after the move, via the product editor.
+  linkedProductSku: string | null
+  linkedProductBarcode: string | null
 }
 
 interface LockInfo {
@@ -611,6 +623,10 @@ export default function BatchDetailPage() {
   const [bulkCost, setBulkCost] = useState('')
   const [applyingBulk, setApplyingBulk] = useState(false)
 
+  // MBM-300 — Recalculate Economics (original workflow parity)
+  const [recalcMarkup, setRecalcMarkup] = useState('30')
+  const [recalculating, setRecalculating] = useState(false)
+
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput), 300)
     return () => clearTimeout(t)
@@ -760,6 +776,41 @@ export default function BatchDetailPage() {
     }
     setApplyingBulk(false)
     toast.push(`Applied ${field === 'costUsd' ? `$${val}` : val} to ${successCount} item(s)`)
+  }
+
+  // MBM-300 — Recalculate Economics: persists landedCost/shippingPerUnit/
+  // estSellingPrice/estMarginPct (and normalizes costUsd/clearanceCostUsd to
+  // per-unit) using whatever cost/rate/clearance/transport is already known,
+  // plus a markup % — bringing this batch to the same stored columns a
+  // Container Batch reconciliation already produces.
+  async function recalculateEconomics() {
+    const markupPct = parseFloat(recalcMarkup)
+    if (isNaN(markupPct) || markupPct < 0) { toast.error('Enter a valid markup %'); return }
+
+    const targetIds = selected.size > 0
+      ? Array.from(selected).filter(id => items.find(i => i.id === id)?.status === 'IN_WAREHOUSE')
+      : undefined // undefined = whole batch, server-side
+    const scopeLabel = targetIds ? `${targetIds.length} selected item(s)` : 'all eligible items in this batch'
+    if (targetIds && targetIds.length === 0) { toast.error('No eligible IN_WAREHOUSE items selected'); return }
+    if (!confirm(`Recalculate landed cost & selling price (at +${markupPct}% markup) for ${scopeLabel}?`)) return
+
+    setRecalculating(true)
+    try {
+      const res = await fetch(`/api/warehouse/${batchId}/recalculate-economics`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ markupPct, itemIds: targetIds }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error || 'Recalculation failed'); return }
+      toast.push(`Recalculated ${data.recalculatedCount} item(s)${data.skippedNoCost > 0 ? ` — ${data.skippedNoCost} skipped (no Cost $ set)` : ''}`)
+      load()
+    } catch {
+      toast.error('Recalculation failed')
+    } finally {
+      setRecalculating(false)
+    }
   }
 
   // Bulk flag: mark selected IN_WAREHOUSE items as personal/business
@@ -1089,6 +1140,27 @@ export default function BatchDetailPage() {
                 </button>
               </div>
 
+              {/* Recalculate Economics */}
+              <div className="flex items-center gap-2 border-l border-blue-200 dark:border-blue-700 pl-4">
+                <span className="text-blue-700 dark:text-blue-400 text-xs">Markup %:</span>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={recalcMarkup}
+                  onChange={e => setRecalcMarkup(e.target.value)}
+                  className="w-16 px-2 py-1 border border-blue-300 dark:border-blue-700 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <button
+                  onClick={recalculateEconomics}
+                  disabled={recalculating}
+                  title="Compute Landed Cost & Est. Selling Price from Cost $, Rate, clearance and transport already entered"
+                  className="px-2 py-1 bg-indigo-600 text-white rounded text-xs font-medium hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {recalculating ? 'Recalculating…' : 'Recalculate Economics'}
+                </button>
+              </div>
+
               {/* Bulk flag */}
               <div className="flex items-center gap-2 border-l border-blue-200 dark:border-blue-700 pl-4">
                 <button
@@ -1161,6 +1233,25 @@ export default function BatchDetailPage() {
                   className="px-2 py-0.5 bg-gray-600 text-white rounded text-xs hover:bg-gray-700 disabled:opacity-50"
                 >
                   Apply
+                </button>
+              </div>
+              <div className="flex items-center gap-2 border-l border-gray-300 dark:border-gray-600 pl-4">
+                <span>Markup %:</span>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={recalcMarkup}
+                  onChange={e => setRecalcMarkup(e.target.value)}
+                  className="w-14 px-2 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+                <button
+                  onClick={recalculateEconomics}
+                  disabled={recalculating}
+                  title="Compute Landed Cost & Est. Selling Price for the whole batch from Cost $, Rate, clearance and transport already entered"
+                  className="px-2 py-0.5 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {recalculating ? 'Recalculating…' : 'Recalculate Economics (whole batch)'}
                 </button>
               </div>
             </div>
@@ -1289,9 +1380,10 @@ export default function BatchDetailPage() {
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">¥ Price</th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Cost $</th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Rate</th>
-                        {perItemTransport > 0 && (
-                          <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Est. Sell</th>
-                        )}
+                        <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Clearance/Unit</th>
+                        <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Shipping/Unit</th>
+                        <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Landed Cost</th>
+                        <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Est. Selling</th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Courier</th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Personal</th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Status</th>
@@ -1307,10 +1399,20 @@ export default function BatchDetailPage() {
                           ? Number(item.priceYuan) / effectiveRate
                           : null
                         const itemQty = item.quantity || 1
-                        const costUsdPerUnit = costUsd != null ? costUsd / itemQty : null
+                        const hasReconciledEconomics = item.landedCost != null
+                        // MBM-300 — once a Container Batch reconciliation (or a
+                        // manual "Recalculate Economics" pass) has run, costUsd
+                        // is already a per-unit figure; only the earlier,
+                        // never-reconciled Yuan-stage rows still store a
+                        // whole-row total that needs dividing by quantity.
+                        const costUsdPerUnit = costUsd != null ? (hasReconciledEconomics ? costUsd : costUsd / itemQty) : null
                         const txFee = costUsdPerUnit != null && batch.transactionFeePct != null ? costUsdPerUnit * (Number(batch.transactionFeePct) / 100) : 0
-                        const costPrice = costUsdPerUnit != null ? costUsdPerUnit + txFee + perItemTransport / itemQty : null
-                        const calcSell = costPrice != null ? costPrice * 1.3 : null
+                        const clearancePerUnit = item.clearanceCostUsd != null ? Number(item.clearanceCostUsd) / (hasReconciledEconomics ? 1 : itemQty) : null
+                        const shippingPerUnit = item.shippingPerUnit != null ? Number(item.shippingPerUnit) : (txFee + perItemTransport / itemQty)
+                        const costPrice = hasReconciledEconomics
+                          ? Number(item.landedCost)
+                          : (costUsdPerUnit != null ? costUsdPerUnit + txFee + perItemTransport / itemQty + (clearancePerUnit ?? 0) : null)
+                        const calcSell = item.estSellingPrice != null ? Number(item.estSellingPrice) : (costPrice != null ? costPrice * 1.3 : null)
                         const isLocked = item.status === 'MOVED_TO_BUSINESS' || item.status === 'MOVED_TO_PERSONAL'
                         const isDupOrder = dupOrderNumbers.has(item.orderNumber)
                         const isDupTracking = item.trackingNumber ? dupTrackingNumbers.has(item.trackingNumber) : false
@@ -1418,13 +1520,25 @@ export default function BatchDetailPage() {
                                 <span className="text-gray-600 dark:text-gray-400">{item.exchangeRate != null ? Number(item.exchangeRate).toFixed(4) : '—'}</span>
                               )}
                             </td>
-                            {perItemTransport > 0 && (
-                              <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
-                                {calcSell != null ? (
+                            <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
+                              {clearancePerUnit != null && clearancePerUnit > 0 ? `$${clearancePerUnit.toFixed(2)}` : '—'}
+                            </td>
+                            <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
+                              {shippingPerUnit != null && shippingPerUnit > 0 ? `$${shippingPerUnit.toFixed(2)}` : '—'}
+                            </td>
+                            <td className="px-3 py-2">
+                              {costPrice != null ? (
+                                <span className="font-semibold text-gray-900 dark:text-white">${costPrice.toFixed(2)}</span>
+                              ) : '—'}
+                            </td>
+                            <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
+                              {calcSell != null ? (
+                                <div className="flex items-center gap-1">
+                                  {item.estMarginPct && <span className="text-[10px] text-gray-400">{item.estMarginPct}</span>}
                                   <span className="text-green-600 dark:text-green-400 font-medium">${calcSell.toFixed(2)}</span>
-                                ) : '—'}
-                              </td>
-                            )}
+                                </div>
+                              ) : '—'}
+                            </td>
                             <td className="px-3 py-2">
                               <CourierBadge status={item.courierStatus} />
                             </td>
@@ -1458,6 +1572,20 @@ export default function BatchDetailPage() {
                                     : 'Personal'}
                                 </span>
                               </div>
+                              {item.status === 'MOVED_TO_BUSINESS' && (item.linkedProductSku || item.linkedProductBarcode) && (
+                                <div className="flex flex-col gap-0.5 mt-1">
+                                  {item.linkedProductSku && (
+                                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 w-fit" title="Assigned SKU">
+                                      SKU {item.linkedProductSku}
+                                    </span>
+                                  )}
+                                  {item.linkedProductBarcode && (
+                                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 w-fit" title="Assigned barcode">
+                                      🏷 {item.linkedProductBarcode}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </td>
                           </tr>
                         )

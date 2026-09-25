@@ -83,9 +83,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
         }
       }
     }
+    // MBM-300 follow-up — once an item has been moved, its SKU/barcode live on
+    // the resulting BusinessProducts row (barcode can also be assigned later,
+    // well after the move, via the normal product editor) — fetch live so
+    // this view always reflects the current assigned values, not just
+    // whatever was true at move time.
+    const movedProductIds = [...new Set(prismaItems.map((i: any) => i.businessProductId).filter(Boolean))] as string[]
+    const linkedProducts = movedProductIds.length > 0
+      ? await (prisma as any).businessProducts.findMany({
+          where: { id: { in: movedProductIds } },
+          select: { id: true, sku: true, barcode: true },
+        })
+      : []
+    const linkedProductMap = new Map(linkedProducts.map((p: any) => [p.id, p]))
+
     const items = prismaItems.map((i: any) => ({
       ...i,
       ...(itemExtras[i.id] ?? { originalQty: null, originalPriceYuan: null, qtyChangeReason: null, manifestQty: null, orderedQty: null }),
+      linkedProductSku: i.businessProductId ? (linkedProductMap.get(i.businessProductId) as any)?.sku ?? null : null,
+      linkedProductBarcode: i.businessProductId ? (linkedProductMap.get(i.businessProductId) as any)?.barcode ?? null : null,
     }))
 
     // Status counts for filter tabs (always count from the full batch)
