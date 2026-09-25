@@ -32,6 +32,10 @@ interface PreviewRow {
   matchedProductName: string | null
   alreadyReconciled: boolean
   alreadyReconciledInBatch: string | null
+  alreadyMovedToBusiness: boolean
+  currentLiveSku: string | null
+  currentLiveBarcode: string | null
+  currentLivePrice: number | null
 }
 
 interface PreviewResponse {
@@ -52,6 +56,7 @@ interface PreviewResponse {
   lineItemCount: number
   matchedCount: number
   duplicateCount: number
+  movedToBusinessCount: number
   rows: PreviewRow[]
 }
 
@@ -134,9 +139,14 @@ export default function ContainerImportPage() {
     if (!batchName.trim()) { toast.error('Batch name is required'); return }
     if (totals.count === 0) { toast.error('Select at least one item to import'); return }
 
+    const pricingOnlyCount = lineRows.filter(r => included[r.rowIndex] && r.alreadyMovedToBusiness).length
+    const pricingOnlyNote = pricingOnlyCount > 0
+      ? ` ${pricingOnlyCount} of these are already live in a business — no duplicate will be created for them, only their selling price/cost/margin will be refreshed.`
+      : ''
+
     const step1 = await confirmDialog({
       title: 'Import this batch?',
-      description: `You're about to reconcile/import ${totals.count} of ${lineRows.length} items into the Warehouse — continue?`,
+      description: `You're about to reconcile/import ${totals.count} of ${lineRows.length} items into the Warehouse — continue?${pricingOnlyNote}`,
       confirmText: 'Continue',
       cancelText: 'Cancel',
     })
@@ -144,7 +154,7 @@ export default function ContainerImportPage() {
 
     const step2 = await confirmDialog({
       title: 'Confirm import',
-      description: `Import batch "${batchName.trim()}" — ${totals.count} items, ${money(totals.landed)} landed cost, ${money(totals.selling)} projected selling price. This cannot be undone. Import now?`,
+      description: `Import batch "${batchName.trim()}" — ${totals.count} items, ${money(totals.landed)} landed cost, ${money(totals.selling)} projected selling price.${pricingOnlyNote} This cannot be undone. Import now?`,
       confirmText: 'Yes, import now',
       cancelText: 'Cancel',
     })
@@ -172,7 +182,8 @@ export default function ContainerImportPage() {
         toast.error(data.error || 'Import failed')
         return
       }
-      toast.push(`Imported: ${data.createdCount} new, ${data.updatedCount} reconciled with existing items`)
+      const pricingMsg = data.pricingUpdatedCount > 0 ? `, ${data.pricingUpdatedCount} price-refreshed on already-live products` : ''
+      toast.push(`Imported: ${data.createdCount} new, ${data.updatedCount} reconciled with existing items${pricingMsg}`)
       router.push(`/warehouse/${data.batchId}`)
     } catch {
       toast.error('Import failed')
@@ -282,6 +293,11 @@ export default function ContainerImportPage() {
                     ⚠ {preview.duplicateCount} item(s) below were already reconciled by an earlier container import — still checked by default (importing again will refresh their economics with this file's numbers). Review the ⚠ badges and uncheck any you don't want to overwrite.
                   </div>
                 )}
+                {preview.movedToBusinessCount > 0 && (
+                  <div className="rounded-lg border border-purple-300 bg-purple-50 dark:bg-purple-900/20 px-3 py-2 text-sm text-purple-800 dark:text-purple-200">
+                    💲 {preview.movedToBusinessCount} item(s) below are already live in a business (SKU/barcode already assigned). No duplicate will be created — importing will only refresh their selling price, cost and margin. Uncheck any you don&apos;t want repriced.
+                  </div>
+                )}
                 <div className="flex items-center gap-3 text-xs">
                   <button onClick={() => toggleAll(true)} className="text-blue-600 hover:underline">Select all</button>
                   <button onClick={() => toggleAll(false)} className="text-gray-500 hover:underline">Skip all</button>
@@ -321,15 +337,23 @@ export default function ContainerImportPage() {
                           <div className="flex flex-wrap items-center gap-1.5">
                             {r.trackingNumber && <span className="text-[10px] text-gray-400 font-mono">TRK {r.trackingNumber}</span>}
                             {r.orderNumber && <span className="text-[10px] text-gray-400 font-mono">ORD {r.orderNumber}{r.parcelSuffix}</span>}
-                            {r.matchedWarehouseItemId && !r.alreadyReconciled && (
+                            {r.matchedWarehouseItemId && !r.alreadyReconciled && !r.alreadyMovedToBusiness && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">🔄 will update existing item</span>
                             )}
                             {!r.matchedWarehouseItemId && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">🆕 new item</span>
                             )}
-                            {r.alreadyReconciled && (
+                            {r.alreadyReconciled && !r.alreadyMovedToBusiness && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300" title={`Already reconciled in batch "${r.alreadyReconciledInBatch}"`}>
                                 ⚠ possible duplicate — already reconciled in &quot;{r.alreadyReconciledInBatch}&quot;
+                              </span>
+                            )}
+                            {r.alreadyMovedToBusiness && (
+                              <span
+                                className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300"
+                                title={`Already live — SKU ${r.currentLiveSku ?? 'n/a'}${r.currentLiveBarcode ? `, barcode ${r.currentLiveBarcode}` : ''}, current price ${money(r.currentLivePrice)}. SKU/barcode stay unchanged; only price + margin refresh.`}
+                              >
+                                💲 already moved — will update price only
                               </span>
                             )}
                           </div>

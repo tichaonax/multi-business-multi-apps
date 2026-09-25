@@ -3,6 +3,7 @@ import { getServerUser } from '@/lib/get-server-user'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
 import { parseContainerBatchXlsx } from '@/lib/warehouse/container-batch-parser'
+import { recordPriceChangeIfDifferent } from '@/lib/inventory/price-history'
 
 /**
  * POST /api/warehouse/container-import/commit
@@ -81,15 +82,29 @@ export async function POST(req: NextRequest) {
     }
 
     // Re-match fresh, server-side — never trust the client's preview snapshot.
+    // Matches BOTH still-IN_WAREHOUSE items (normal reconcile) AND items
+    // already MOVED_TO_BUSINESS — reimporting a corrected file must never
+    // silently create a duplicate product for an order that's already live;
+    // instead it refreshes that product's pricing only (SKU/barcode already
+    // assigned are left untouched).
     const orderNumbers = [...new Set(includedLineItems.map(r => r.orderNumber).filter(Boolean))] as string[]
     const existingItems = orderNumbers.length > 0
       ? await (prisma as any).warehouseItems.findMany({
-          where: { orderNumber: { in: orderNumbers }, status: 'IN_WAREHOUSE' },
-          select: { id: true, orderNumber: true, trackingNumber: true, imageId: true },
+          where: { orderNumber: { in: orderNumbers }, status: { in: ['IN_WAREHOUSE', 'MOVED_TO_BUSINESS'] } },
+          select: { id: true, orderNumber: true, trackingNumber: true, imageId: true, status: true, businessProductId: true },
         })
       : []
     const byOrderNumber = new Map<string, typeof existingItems[0]>()
     for (const it of existingItems) byOrderNumber.set(it.orderNumber, it)
+
+    const movedProductIds = [...new Set(existingItems.filter((i: any) => i.status === 'MOVED_TO_BUSINESS' && i.businessProductId).map((i: any) => i.businessProductId))] as string[]
+    const linkedProducts = movedProductIds.length > 0
+      ? await (prisma as any).businessProducts.findMany({
+          where: { id: { in: movedProductIds } },
+          select: { id: true, businessId: true, name: true, basePrice: true, costPrice: true },
+        })
+      : []
+    const linkedProductMap = new Map(linkedProducts.map((p: any) => [p.id, p]))
 
     const totalLandedCost = includedLineItems.reduce((s, r) => s + (r.landedCost ?? 0) * (r.orderedQty ?? 0), 0)
     const totalSelling = includedLineItems.reduce((s, r) => {
@@ -118,21 +133,14 @@ export async function POST(req: NextRequest) {
 
     let createdCount = 0
     let updatedCount = 0
+    let pricingUpdatedCount = 0
     const containerDate = new Date()
 
     for (const row of includedLineItems) {
       if (!row.orderNumber) continue // schema requires orderNumber — a line item without one can't be persisted
 
-      let imageId: string | null = null
-      const imgData = parsed.imagesByRow.get(row.rowIndex)
-      if (imgData) {
-        const imgRecord = await (prisma as any).images.create({
-          data: { data: imgData.data, mimeType: imgData.mimeType, size: imgData.data.length },
-        })
-        imageId = imgRecord.id
-      }
-
       const matched = byOrderNumber.get(row.orderNumber)
+      const isMovedMatch = matched?.status === 'MOVED_TO_BUSINESS'
 
       // Apply a user override from the review screen, if any — recompute the
       // margin % against this row's own landed cost so it stays accurate.
@@ -144,6 +152,74 @@ export async function POST(req: NextRequest) {
         effectiveMarginPct = row.landedCost && row.landedCost > 0
           ? `${override >= row.landedCost ? '+' : ''}${(((override - row.landedCost) / row.landedCost) * 100).toFixed(1)}%`
           : row.estMarginPct
+      }
+
+      // Already live in a business — never create a duplicate or touch the
+      // SKU/barcode already assigned. Only refresh pricing: the warehouse
+      // record's economics (for audit/history) and the live product's
+      // basePrice/costPrice (what actually matters to the business), with a
+      // proper price-history entry so the change and its reason show up the
+      // same way any other price edit does.
+      if (isMovedMatch && matched) {
+        await (prisma as any).warehouseItems.update({
+          where: { id: matched.id },
+          data: {
+            costUsd: row.unitCost,
+            exchangeRate: parsed.exchangeRateYuanPerUsd,
+            clearanceCostUsd: row.clearancePerUnit,
+            shippingPerUnit: row.shippingPerUnit,
+            landedCost: row.landedCost,
+            estSellingPrice: effectiveSellingPrice,
+            estMarginPct: effectiveMarginPct,
+            matchStatus: row.matchStatus,
+            sourceBatchName: batchName,
+            containerDate,
+          },
+        })
+
+        const linkedProduct: any = matched.businessProductId ? linkedProductMap.get(matched.businessProductId) : null
+        if (linkedProduct && effectiveSellingPrice != null) {
+          const newBasePrice = Math.ceil(effectiveSellingPrice) // same nearest-$1 rounding rule used at move time
+          const newCostPrice = row.landedCost != null ? Number(row.landedCost) : Number(linkedProduct.costPrice ?? 0)
+          const oldBasePrice = Number(linkedProduct.basePrice)
+
+          await (prisma as any).businessProducts.update({
+            where: { id: linkedProduct.id },
+            data: { basePrice: newBasePrice, costPrice: newCostPrice, updatedAt: containerDate },
+          })
+
+          await recordPriceChangeIfDifferent({
+            businessId: linkedProduct.businessId,
+            catalogSource: 'BUSINESS_PRODUCT',
+            productRefId: linkedProduct.id,
+            priceType: 'SELLING',
+            oldPrice: oldBasePrice,
+            newPrice: newBasePrice,
+            changedBy: user.id,
+            changeReason: 'CONTAINER_BATCH_REIMPORT',
+            reason: `Pricing refreshed from container batch re-import "${batchName}" (margin ${effectiveMarginPct ?? 'n/a'})`,
+            productName: linkedProduct.name,
+            changedByName: user.name,
+          })
+        }
+
+        pricingUpdatedCount++
+
+        await prisma.$executeRaw`
+          INSERT INTO warehouse_order_refs ("orderNumber", "trackingNumber", "orderedQty")
+          VALUES (${row.orderNumber}, ${row.trackingNumber ?? ''}, ${row.orderedQty ?? 0})
+          ON CONFLICT ("orderNumber", "trackingNumber") DO NOTHING
+        `
+        continue
+      }
+
+      let imageId: string | null = null
+      const imgData = parsed.imagesByRow.get(row.rowIndex)
+      if (imgData) {
+        const imgRecord = await (prisma as any).images.create({
+          data: { data: imgData.data, mimeType: imgData.mimeType, size: imgData.data.length },
+        })
+        imageId = imgRecord.id
       }
 
       if (matched) {
@@ -217,6 +293,7 @@ export async function POST(req: NextRequest) {
       batchName: batch.batchName,
       createdCount,
       updatedCount,
+      pricingUpdatedCount,
     })
   } catch (error: any) {
     console.error('POST /api/warehouse/container-import/commit error:', error)

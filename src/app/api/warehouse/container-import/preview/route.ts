@@ -48,30 +48,54 @@ export async function POST(req: NextRequest) {
 
     const lineItems = parsed.rows.filter(r => r.isLineItem)
 
-    // Match each line item against an existing, still-IN_WAREHOUSE item by
-    // order # — the stable buyer-side reference across supply-chain stages
-    // (tracking # can differ between the early domestic-courier leg and the
-    // later international-freight leg for the same order).
+    // Match each line item against an existing item by order # — the stable
+    // buyer-side reference across supply-chain stages (tracking # can differ
+    // between the early domestic-courier leg and the later international-
+    // freight leg for the same order). Matches items still IN_WAREHOUSE
+    // (normal reconcile-and-update) AND items already MOVED_TO_BUSINESS —
+    // re-importing a corrected file must never silently create a duplicate
+    // product for an order that's already live; instead it offers to refresh
+    // that product's pricing only (SKU/barcode already assigned stay put).
     const orderNumbers = [...new Set(lineItems.map(r => r.orderNumber).filter(Boolean))] as string[]
     const existingItems = orderNumbers.length > 0
       ? await (prisma as any).warehouseItems.findMany({
-          where: { orderNumber: { in: orderNumbers }, status: 'IN_WAREHOUSE' },
-          select: { id: true, orderNumber: true, landedCost: true, sourceBatchName: true, productName: true },
+          where: { orderNumber: { in: orderNumbers }, status: { in: ['IN_WAREHOUSE', 'MOVED_TO_BUSINESS'] } },
+          select: {
+            id: true, orderNumber: true, landedCost: true, sourceBatchName: true, productName: true,
+            status: true, businessProductId: true,
+          },
         })
       : []
     const byOrderNumber = new Map<string, typeof existingItems[0]>()
     for (const it of existingItems) byOrderNumber.set(it.orderNumber, it)
 
+    const movedProductIds = [...new Set(existingItems.filter((i: any) => i.status === 'MOVED_TO_BUSINESS' && i.businessProductId).map((i: any) => i.businessProductId))] as string[]
+    const linkedProducts = movedProductIds.length > 0
+      ? await (prisma as any).businessProducts.findMany({
+          where: { id: { in: movedProductIds } },
+          select: { id: true, basePrice: true, costPrice: true, sku: true, barcode: true },
+        })
+      : []
+    const linkedProductMap = new Map(linkedProducts.map((p: any) => [p.id, p]))
+
     const previewRows = parsed.rows.map(r => {
       const img = parsed.imagesByRow.get(r.rowIndex)
       const matched = r.orderNumber ? byOrderNumber.get(r.orderNumber) : undefined
+      const isMovedMatch = matched?.status === 'MOVED_TO_BUSINESS'
+      const linkedProduct: any = isMovedMatch && matched?.businessProductId ? linkedProductMap.get(matched.businessProductId) : null
       return {
         ...r,
         imageDataUrl: img ? `data:${img.mimeType};base64,${img.data.toString('base64')}` : null,
         matchedWarehouseItemId: matched?.id ?? null,
         matchedProductName: matched?.productName ?? null,
-        alreadyReconciled: !!matched && matched.landedCost != null,
-        alreadyReconciledInBatch: matched?.landedCost != null ? matched.sourceBatchName : null,
+        alreadyReconciled: !!matched && !isMovedMatch && matched.landedCost != null,
+        alreadyReconciledInBatch: !isMovedMatch && matched?.landedCost != null ? matched.sourceBatchName : null,
+        // Already live in a business — reimporting must only refresh pricing,
+        // never create a duplicate or touch the assigned SKU/barcode.
+        alreadyMovedToBusiness: isMovedMatch,
+        currentLiveSku: linkedProduct?.sku ?? null,
+        currentLiveBarcode: linkedProduct?.barcode ?? null,
+        currentLivePrice: linkedProduct?.basePrice != null ? Number(linkedProduct.basePrice) : null,
       }
     })
 
@@ -97,6 +121,7 @@ export async function POST(req: NextRequest) {
       lineItemCount: lineItems.length,
       matchedCount: previewRows.filter(r => r.matchedWarehouseItemId).length,
       duplicateCount: previewRows.filter(r => r.alreadyReconciled).length,
+      movedToBusinessCount: previewRows.filter(r => r.alreadyMovedToBusiness).length,
       rows: previewRows,
     })
   } catch (error: any) {
