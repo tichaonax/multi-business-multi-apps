@@ -66,8 +66,8 @@ export async function POST(req: NextRequest) {
 
     const batchNameOverride = formData.get('batchName') as string | null
     const notes = formData.get('notes') as string | null
-    const pickedUpFromHarare = formData.get('pickedUpFromHarare') === 'true'
-    const transportCostHarare = parseDecimal(formData.get('transportCostHarare'))
+    const pickedUpAtCollectionPoint = formData.get('pickedUpAtCollectionPoint') === 'true'
+    const collectionTransportCost = parseDecimal(formData.get('collectionTransportCost'))
     const transactionFeePct = parseDecimal(formData.get('transactionFeePct'))
 
     // Read file bytes
@@ -311,8 +311,8 @@ export async function POST(req: NextRequest) {
         totalYuanCost,
         totalUsdCost,
         collectionFee,
-        pickedUpFromHarare,
-        transportCostHarare,
+        pickedUpAtCollectionPoint,
+        collectionTransportCost,
         transactionFeePct,
         fileHash,
         originalFileName: file.name,

@@ -8025,8 +8025,8 @@ model WarehouseBatches {
   totalYuanCost       Decimal?         @db.Decimal(14, 2)
   totalUsdCost        Decimal?         @db.Decimal(14, 2)
   collectionFee       String?
-  pickedUpFromHarare  Boolean          @default(false)
-  transportCostHarare Decimal?         @db.Decimal(10, 2)
+  pickedUpAtCollectionPoint Boolean    @default(false)
+  collectionTransportCost   Decimal?   @db.Decimal(10, 2)
   transactionFeePct   Decimal?         @db.Decimal(5, 2)
   fileHash            String           @unique
   originalFileName    String

@@ -154,8 +154,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
 
     // Transport cost per item (eligible = IN_WAREHOUSE only)
     const inWarehouseCount = countsMap['IN_WAREHOUSE'] || 0
-    const perItemTransport = (batch.pickedUpFromHarare && batch.transportCostHarare && inWarehouseCount > 0)
-      ? Number(batch.transportCostHarare) / inWarehouseCount
+    const perItemTransport = (batch.pickedUpAtCollectionPoint && batch.collectionTransportCost && inWarehouseCount > 0)
+      ? Number(batch.collectionTransportCost) / inWarehouseCount
       : 0
 
     // Duplicate detection: find order numbers / tracking numbers in THIS batch
@@ -223,8 +223,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
         totalYuanCost: batch.totalYuanCost,
         totalUsdCost: batch.totalUsdCost,
         collectionFee: batch.collectionFee,
-        pickedUpFromHarare: batch.pickedUpFromHarare,
-        transportCostHarare: batch.transportCostHarare,
+        pickedUpAtCollectionPoint: batch.pickedUpAtCollectionPoint,
+        collectionTransportCost: batch.collectionTransportCost,
         transactionFeePct: batch.transactionFeePct != null ? Number(batch.transactionFeePct) : null,
         perItemTransport,
         notes: batch.notes,
@@ -260,7 +260,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ba
     const batch = await (prisma as any).warehouseBatches.findUnique({ where: { id: batchId } })
     if (!batch) return NextResponse.json({ error: 'Batch not found' }, { status: 404 })
 
-    const allowedFields = ['pickedUpFromHarare', 'transportCostHarare', 'notes', 'batchName']
+    const allowedFields = ['pickedUpAtCollectionPoint', 'collectionTransportCost', 'notes', 'batchName']
     const updateData: any = {}
     for (const field of allowedFields) {
       if (field in body) updateData[field] = body[field]

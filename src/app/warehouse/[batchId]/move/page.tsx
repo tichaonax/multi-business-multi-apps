@@ -18,8 +18,8 @@ import { CategoryOptionGroups } from '@/lib/category-grouping'
 interface BatchInfo {
   id: string
   batchName: string
-  pickedUpFromHarare: boolean
-  transportCostHarare: number | null
+  pickedUpAtCollectionPoint: boolean
+  collectionTransportCost: number | null
   transactionFeePct: number | null
   perItemTransport: number
 }

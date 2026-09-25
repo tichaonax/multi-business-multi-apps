@@ -57,8 +57,8 @@ export async function GET(req: NextRequest) {
       totalYuanCost: b.totalYuanCost,
       totalUsdCost: b.totalUsdCost,
       collectionFee: b.collectionFee,
-      pickedUpFromHarare: b.pickedUpFromHarare,
-      transportCostHarare: b.transportCostHarare,
+      pickedUpAtCollectionPoint: b.pickedUpAtCollectionPoint,
+      collectionTransportCost: b.collectionTransportCost,
       notes: b.notes,
       originalFileName: b.originalFileName,
     }))

@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
         ],
         status: 'IN_WAREHOUSE',
       },
-      include: { warehouse_batches: { select: { batchName: true, transportCostHarare: true, pickedUpFromHarare: true } } }
+      include: { warehouse_batches: { select: { batchName: true, collectionTransportCost: true, pickedUpAtCollectionPoint: true } } }
     })
 
     if (!item) {
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
           shortName: { contains: q, mode: 'insensitive' },
           status: 'IN_WAREHOUSE',
         },
-        include: { warehouse_batches: { select: { batchName: true, transportCostHarare: true, pickedUpFromHarare: true } } }
+        include: { warehouse_batches: { select: { batchName: true, collectionTransportCost: true, pickedUpAtCollectionPoint: true } } }
       })
     }
 

@@ -32,8 +32,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
 
     // Compute per-item transport cost
     const inWarehouseCount = await (prisma as any).warehouseItems.count({ where: { batchId, status: 'IN_WAREHOUSE' } })
-    const perItemTransport = (batch.pickedUpFromHarare && batch.transportCostHarare && inWarehouseCount > 0)
-      ? Number(batch.transportCostHarare) / inWarehouseCount
+    const perItemTransport = (batch.pickedUpAtCollectionPoint && batch.collectionTransportCost && inWarehouseCount > 0)
+      ? Number(batch.collectionTransportCost) / inWarehouseCount
       : 0
 
     const itemIds = itemMoves.map((m: any) => m.itemId)

@@ -23,8 +23,8 @@ export default function WarehouseImportPage() {
   const [file, setFile] = useState<File | null>(null)
   const [batchName, setBatchName] = useState('')
   const [notes, setNotes] = useState('')
-  const [pickedUpFromHarare, setPickedUpFromHarare] = useState(false)
-  const [transportCostHarare, setTransportCostHarare] = useState('')
+  const [pickedUpAtCollectionPoint, setPickedUpFromHarare] = useState(false)
+  const [collectionTransportCost, setTransportCostHarare] = useState('')
   const [transactionFeePct, setTransactionFeePct] = useState('')
   const [importing, setImporting] = useState(false)
 
@@ -48,7 +48,7 @@ export default function WarehouseImportPage() {
   async function doImport(confirmOverlap = false) {
     if (submittingRef.current) return
     if (!file) { toast.error('Please select a file'); return }
-    if (pickedUpFromHarare && !transportCostHarare) {
+    if (pickedUpAtCollectionPoint && !collectionTransportCost) {
       toast.error('Please enter the transport cost for Harare pickup')
       return
     }
@@ -60,8 +60,8 @@ export default function WarehouseImportPage() {
       fd.append('file', file)
       if (batchName) fd.append('batchName', batchName)
       if (notes) fd.append('notes', notes)
-      fd.append('pickedUpFromHarare', String(pickedUpFromHarare))
-      if (pickedUpFromHarare && transportCostHarare) fd.append('transportCostHarare', transportCostHarare)
+      fd.append('pickedUpAtCollectionPoint', String(pickedUpAtCollectionPoint))
+      if (pickedUpAtCollectionPoint && collectionTransportCost) fd.append('collectionTransportCost', collectionTransportCost)
       if (transactionFeePct) fd.append('transactionFeePct', transactionFeePct)
       if (confirmOverlap) fd.append('confirmOverlap', 'true')
 
@@ -211,17 +211,17 @@ export default function WarehouseImportPage() {
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setPickedUpFromHarare(!pickedUpFromHarare)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${pickedUpFromHarare ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-600'}`}
+                  onClick={() => setPickedUpFromHarare(!pickedUpAtCollectionPoint)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${pickedUpAtCollectionPoint ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-600'}`}
                 >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${pickedUpFromHarare ? 'translate-x-6' : 'translate-x-1'}`} />
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${pickedUpAtCollectionPoint ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Picked up from Harare (add transport cost)
                 </span>
               </div>
 
-              {pickedUpFromHarare && (
+              {pickedUpAtCollectionPoint && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Transport Cost (US$) *
@@ -230,7 +230,7 @@ export default function WarehouseImportPage() {
                     type="number"
                     min="0"
                     step="0.01"
-                    value={transportCostHarare}
+                    value={collectionTransportCost}
                     onChange={e => setTransportCostHarare(e.target.value)}
                     placeholder="0.00"
                     className="w-48 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"

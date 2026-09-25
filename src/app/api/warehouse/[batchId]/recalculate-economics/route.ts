@@ -36,8 +36,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
     if (!batch) return NextResponse.json({ error: 'Batch not found' }, { status: 404 })
 
     const inWarehouseCount = await (prisma as any).warehouseItems.count({ where: { batchId, status: 'IN_WAREHOUSE' } })
-    const perItemTransport = (batch.pickedUpFromHarare && batch.transportCostHarare && inWarehouseCount > 0)
-      ? Number(batch.transportCostHarare) / inWarehouseCount
+    const perItemTransport = (batch.pickedUpAtCollectionPoint && batch.collectionTransportCost && inWarehouseCount > 0)
+      ? Number(batch.collectionTransportCost) / inWarehouseCount
       : 0
     const transactionFeePct = batch.transactionFeePct != null ? Number(batch.transactionFeePct) : null
 

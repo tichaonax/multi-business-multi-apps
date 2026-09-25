@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useToastContext } from '@/components/ui/toast'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 interface BatchDetail {
   id: string
@@ -19,8 +20,8 @@ interface BatchDetail {
   totalYuanCost: number | null
   totalUsdCost: number | null
   collectionFee: string | null
-  pickedUpFromHarare: boolean
-  transportCostHarare: number | null
+  pickedUpAtCollectionPoint: boolean
+  collectionTransportCost: number | null
   transactionFeePct: number | null
   perItemTransport: number
   notes: string | null
@@ -73,6 +74,7 @@ interface WarehouseItem {
   linkedProductSku: string | null
   linkedProductBarcode: string | null
   linkedProductBusinessId: string | null
+  linkedProductBusinessType: string | null
 }
 
 interface LockInfo {
@@ -441,7 +443,7 @@ function ManifestQtyCell({ item, onSave, locked }: ManifestQtyCellProps) {
 // Scan mode panel — persistent scan-to-resolve panel
 interface ScanResult {
   item: WarehouseItem
-  batch: { batchName: string; transportCostHarare: number | null; pickedUpFromHarare: boolean }
+  batch: { batchName: string; collectionTransportCost: number | null; pickedUpAtCollectionPoint: boolean }
 }
 
 function ScanPanel({ batchId, onItemResolved }: { batchId: string; onItemResolved: () => void }) {
@@ -595,6 +597,7 @@ export default function BatchDetailPage() {
   const { batchId } = useParams() as { batchId: string }
   const router = useRouter()
   const toast = useToastContext()
+  const { currentBusinessId, switchBusiness } = useBusinessPermissionsContext()
   const [batch, setBatch] = useState<BatchDetail | null>(null)
   const [items, setItems] = useState<WarehouseItem[]>([])
   // Accumulates every item ever seen across pages (keyed by id) so a
@@ -762,6 +765,18 @@ export default function BatchDetailPage() {
     } catch {
       toast.error('Save failed')
     }
+  }
+
+  // Open a moved item in Edit Item, switching the active business first if
+  // it's not already the one this product actually lives in (editing 404s
+  // otherwise), and preserving a way back to this exact batch page.
+  async function openInEditItem(item: WarehouseItem) {
+    if (!item.businessProductId || !item.linkedProductBusinessType) return
+    const href = `/${item.linkedProductBusinessType}/inventory?productId=${encodeURIComponent(item.businessProductId)}&returnTo=${encodeURIComponent(`/warehouse/${batchId}`)}`
+    if (item.linkedProductBusinessId && item.linkedProductBusinessId !== currentBusinessId) {
+      try { await switchBusiness(item.linkedProductBusinessId) } catch { toast.error('Could not switch to that business'); return }
+    }
+    router.push(href)
   }
 
   async function togglePersonal(item: WarehouseItem) {
@@ -1061,13 +1076,13 @@ export default function BatchDetailPage() {
               </div>
 
               {/* Cost adjustments banner */}
-              {(batch.pickedUpFromHarare && batch.transportCostHarare != null) || batch.transactionFeePct != null ? (
+              {(batch.pickedUpAtCollectionPoint && batch.collectionTransportCost != null) || batch.transactionFeePct != null ? (
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-3 text-sm flex flex-wrap gap-4">
-                  {batch.pickedUpFromHarare && batch.transportCostHarare != null && (
+                  {batch.pickedUpAtCollectionPoint && batch.collectionTransportCost != null && (
                     <span>
                       <span className="font-medium text-amber-800 dark:text-amber-300">Transport: </span>
                       <span className="text-amber-700 dark:text-amber-400">
-                        ${Number(batch.transportCostHarare).toFixed(2)} ÷ {statusCounts['IN_WAREHOUSE'] || 0} items
+                        ${Number(batch.collectionTransportCost).toFixed(2)} ÷ {statusCounts['IN_WAREHOUSE'] || 0} items
                         {perItemTransport > 0 && <> = <strong>${perItemTransport.toFixed(2)}/item</strong></>}
                       </span>
                     </span>
@@ -1535,6 +1550,15 @@ export default function BatchDetailPage() {
                                 locked={isLocked}
                                 onSave={patchItem}
                               />
+                              {item.status === 'MOVED_TO_BUSINESS' && item.businessProductId && (
+                                <button
+                                  onClick={() => openInEditItem(item)}
+                                  className="block text-[10px] text-blue-600 dark:text-blue-400 hover:underline mt-0.5"
+                                  title="Open in Edit Item"
+                                >
+                                  ↗ Edit Item
+                                </button>
+                              )}
                               {item.sourceBatchId != null && (
                                 <div className="flex items-center gap-1 mt-1 flex-wrap">
                                   <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${item.sourceBatchStatus === 'CLOSED' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>

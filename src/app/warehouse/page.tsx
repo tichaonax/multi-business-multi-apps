@@ -20,8 +20,8 @@ interface BatchSummary {
   movedCount: number
   totalYuanCost: number | null
   totalUsdCost: number | null
-  transportCostHarare: number | null
-  pickedUpFromHarare: boolean
+  collectionTransportCost: number | null
+  pickedUpAtCollectionPoint: boolean
   notes: string | null
   originalFileName: string
   movedPotentialValue: number
@@ -310,7 +310,7 @@ export default function WarehousePage() {
                             )}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">
-                            {batch.pickedUpFromHarare ? formatUsd(batch.transportCostHarare) : '—'}
+                            {batch.pickedUpAtCollectionPoint ? formatUsd(batch.collectionTransportCost) : '—'}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <StatusBadge status={batch.status} />
