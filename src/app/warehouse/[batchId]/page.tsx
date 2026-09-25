@@ -6,7 +6,7 @@ import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useToastContext } from '@/components/ui/toast'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
@@ -85,6 +85,7 @@ interface LockInfo {
 }
 
 type FilterTab = 'ALL' | 'IN_WAREHOUSE' | 'PERSONAL' | 'MOVED_TO_BUSINESS' | 'MOVED_TO_PERSONAL'
+const VALID_TABS: FilterTab[] = ['ALL', 'IN_WAREHOUSE', 'PERSONAL', 'MOVED_TO_BUSINESS', 'MOVED_TO_PERSONAL']
 
 const TABS: { key: FilterTab; label: string }[] = [
   { key: 'ALL', label: 'All' },
@@ -596,6 +597,7 @@ function ScanPanel({ batchId, onItemResolved }: { batchId: string; onItemResolve
 export default function BatchDetailPage() {
   const { batchId } = useParams() as { batchId: string }
   const router = useRouter()
+  const searchParams = useSearchParams()
   const toast = useToastContext()
   const { currentBusinessId, switchBusiness } = useBusinessPermissionsContext()
   const [batch, setBatch] = useState<BatchDetail | null>(null)
@@ -607,7 +609,13 @@ export default function BatchDetailPage() {
   const [itemCache, setItemCache] = useState<Map<string, WarehouseItem>>(new Map())
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<FilterTab>('ALL')
+  // Restore the tab the user was on before clicking through to Edit Item —
+  // otherwise returning here always reset to "All" instead of e.g. "In
+  // Business", losing their place in a long batch.
+  const [tab, setTab] = useState<FilterTab>(() => {
+    const t = searchParams.get('tab')
+    return t && (VALID_TABS as string[]).includes(t) ? (t as FilterTab) : 'ALL'
+  })
   const [manifestFilter, setManifestFilter] = useState<'ALL' | 'ZERO' | 'RECEIVED'>('ALL')
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
@@ -675,6 +683,13 @@ export default function BatchDetailPage() {
   }, [searchInput])
 
   useEffect(() => { setPage(1) }, [tab, search])
+
+  // Clean the one-time ?tab= restoration param out of the URL once consumed,
+  // so it doesn't linger if the user manually switches tabs afterward.
+  useEffect(() => {
+    if (searchParams.get('tab')) router.replace(`/warehouse/${batchId}`, { scroll: false })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   useEffect(() => { setManifestFilter('ALL') }, [tab])
 
   useEffect(() => {
@@ -772,7 +787,9 @@ export default function BatchDetailPage() {
   // otherwise), and preserving a way back to this exact batch page.
   async function openInEditItem(item: WarehouseItem) {
     if (!item.businessProductId || !item.linkedProductBusinessType) return
-    const href = `/${item.linkedProductBusinessType}/inventory?productId=${encodeURIComponent(item.businessProductId)}&returnTo=${encodeURIComponent(`/warehouse/${batchId}`)}`
+    // Carry the current tab back so returning here doesn't reset to "All".
+    const returnTo = `/warehouse/${batchId}${tab !== 'ALL' ? `?tab=${tab}` : ''}`
+    const href = `/${item.linkedProductBusinessType}/inventory?productId=${encodeURIComponent(item.businessProductId)}&returnTo=${encodeURIComponent(returnTo)}`
     if (item.linkedProductBusinessId && item.linkedProductBusinessId !== currentBusinessId) {
       try { await switchBusiness(item.linkedProductBusinessId) } catch { toast.error('Could not switch to that business'); return }
     }

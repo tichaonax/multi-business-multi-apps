@@ -338,6 +338,15 @@ export default function MoveWizardPage() {
   const [departments, setDepartments] = useState<Category[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [subCategories, setSubCategories] = useState<Category[]>([])
+  // Which ids in `subCategories` are real InventorySubcategories rows (need
+  // their own `subcategoryId` field) vs. nested BusinessCategories rows
+  // (their id IS the leaf `categoryId` — there's no separate subcategory
+  // concept for those). Moving a domain-business item picked the wrong one
+  // as the leaf and silently dropped the real subcategory, so Edit Item
+  // later showed "No subcategory" and failed to save (the standard edit
+  // route 400s on a subcategoryId that doesn't resolve to a real
+  // InventorySubcategories row).
+  const [inventorySubcategoryIds, setInventorySubcategoryIds] = useState<Set<string>>(new Set())
   const [allCats, setAllCats] = useState<Category[]>([])
 
   // ── Markup ───────────────────────────────────────────────────────────────────
@@ -488,10 +497,12 @@ export default function MoveWizardPage() {
   useEffect(() => {
     if (!selectedBusinessId || !selectedBusinessType) {
       setDomainList([]); setDepartments([]); setCategories([]); setSubCategories([]); setAllCats([])
+      setInventorySubcategoryIds(new Set())
       return
     }
     // Clear stale data from previous business immediately, before fetch completes
     setAllCats([]); setSubCategories([])
+    setInventorySubcategoryIds(new Set())
     Promise.all([
       fetch(`/api/universal/categories?businessId=${selectedBusinessId}&businessType=${selectedBusinessType}`, { credentials: 'include' }).then(r => r.json()),
       fetch(`/api/inventory/domains?businessType=${selectedBusinessType}`, { credentials: 'include' }).then(r => r.json()).catch(() => ({ domains: [] })),
@@ -524,6 +535,7 @@ export default function MoveWizardPage() {
               }))
               const existingIds = new Set(invSubs.map(s => s.id))
               setSubCategories([...invSubs, ...parentBasedSubs.filter(s => !existingIds.has(s.id))])
+              setInventorySubcategoryIds(existingIds)
             })
             .catch(() => setSubCategories(parentBasedSubs))
         } else {
@@ -756,13 +768,35 @@ export default function MoveWizardPage() {
     updateRow(idx, { subCategoryId: s.subCategoryId })
   }
 
+  // Resolves a row's Domain/Category/Subcategory picks into the two
+  // separate fields BusinessProducts actually has: `categoryId` (a
+  // BusinessCategories row) and `subcategoryId` (an InventorySubcategories
+  // row — only when the subcategory pick genuinely is one; a domain business
+  // can also nest plain BusinessCategories under a category, e.g. clothing's
+  // "Tops > T-Shirts", in which case that nested row IS the leaf categoryId
+  // and there's no separate subcategoryId). Previously only ever sent one
+  // combined "leaf" id as categoryId, silently dropping the real
+  // subcategory whenever one existed — Edit Item then showed "No
+  // subcategory" and failed to save.
+  function resolveCategoryFields(row: MoveRow): { categoryId: string | null; subcategoryId: string | null } {
+    const subCatIsBusinessCat = row.subCategoryId ? subCategories.some(s => s.id === row.subCategoryId) : false
+    if (departments.length > 0) {
+      const subIsInventorySubcategory = !!row.subCategoryId && inventorySubcategoryIds.has(row.subCategoryId)
+      return subIsInventorySubcategory
+        ? { categoryId: row.categoryId || null, subcategoryId: row.subCategoryId }
+        : { categoryId: row.subCategoryId || row.categoryId || null, subcategoryId: null }
+    }
+    return subCatIsBusinessCat
+      ? { categoryId: row.subCategoryId, subcategoryId: null }
+      : { categoryId: row.categoryId || null, subcategoryId: null }
+  }
+
   async function handleMoveRow(idx: number) {
     const row = rows[idx]
     const effBizId = row.itemBusinessId || selectedBusinessId
     const effBiz = businesses.find(b => b.businessId === effBizId)
     if (!effBizId || !effBiz) { toast.error('Select a target business for this item'); return }
-    const subCatIsBusinessCat = row.subCategoryId ? subCategories.some(s => s.id === row.subCategoryId) : false
-    const leafCategoryId = departments.length > 0 ? row.categoryId : (subCatIsBusinessCat ? row.subCategoryId : row.categoryId)
+    const { categoryId: leafCategoryId, subcategoryId } = resolveCategoryFields(row)
     if (!leafCategoryId) { toast.error('Select a category for this item'); return }
     const sellPrice = parseFloat(row.sellingPrice)
     if (!sellPrice || sellPrice <= 0) { toast.error('Set a selling price > 0'); return }
@@ -776,7 +810,7 @@ export default function MoveWizardPage() {
         body: JSON.stringify({
           businessId: effBizId,
           businessType: effBiz.businessType,
-          items: [{ itemId: row.item.id, sellingPrice: sellPrice, barcode: row.barcode || undefined, categoryId: leafCategoryId }],
+          items: [{ itemId: row.item.id, sellingPrice: sellPrice, barcode: row.barcode || undefined, categoryId: leafCategoryId, subcategoryId }],
         }),
       })
       const data = await res.json()
@@ -830,18 +864,21 @@ export default function MoveWizardPage() {
         groups.get(effBizId)!.rows.push(r)
       }
 
-      const useDomainCat = departments.length > 0
       const allMovedIds = new Set<string>()
       const moveResultByItemId = new Map<string, { sku: string; productId: string; businessId: string; businessType: string; barcode?: string; sellingPrice?: number }>()
       let anyError = false
 
       for (const [, group] of groups) {
-        const items = group.rows.map(r => ({
-          itemId: r.item.id,
-          sellingPrice: parseFloat(r.sellingPrice),
-          barcode: r.barcode || undefined,
-          categoryId: useDomainCat ? r.categoryId : (subCategories.some(s => s.id === r.subCategoryId) ? r.subCategoryId : r.categoryId),
-        }))
+        const items = group.rows.map(r => {
+          const { categoryId, subcategoryId } = resolveCategoryFields(r)
+          return {
+            itemId: r.item.id,
+            sellingPrice: parseFloat(r.sellingPrice),
+            barcode: r.barcode || undefined,
+            categoryId,
+            subcategoryId,
+          }
+        })
         const res = await fetch(`/api/warehouse/${batchId}/move`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

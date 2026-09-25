@@ -36,6 +36,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
       ? Number(batch.collectionTransportCost) / inWarehouseCount
       : 0
 
+    // Validate subcategoryIds up front (same rule the standard product-edit
+    // route enforces) — a subcategory pick that doesn't resolve to a real
+    // InventorySubcategories row is silently dropped rather than persisted,
+    // since that would otherwise 400 later when the product is edited.
+    const candidateSubcategoryIds = [...new Set(itemMoves.map((m: any) => m.subcategoryId).filter(Boolean))] as string[]
+    const validSubcategories = candidateSubcategoryIds.length > 0
+      ? await (prisma as any).inventorySubcategories.findMany({ where: { id: { in: candidateSubcategoryIds } }, select: { id: true } })
+      : []
+    const validSubcategoryIds = new Set(validSubcategories.map((s: any) => s.id))
+
     const itemIds = itemMoves.map((m: any) => m.itemId)
     const warehouseItems = await (prisma as any).warehouseItems.findMany({
       where: { id: { in: itemIds }, batchId, status: 'IN_WAREHOUSE' },
@@ -101,6 +111,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
       if (!move) continue
 
       const itemCategoryId = move.categoryId || globalCategoryId
+      const itemSubcategoryId = move.subcategoryId && validSubcategoryIds.has(move.subcategoryId) ? move.subcategoryId : null
       // Use manifestQty (received qty) for stock — this is what physically arrived
       const qty = manifestMap[warehouseItem.id] ?? warehouseItem.quantity ?? 1
       // MBM-300 — a Container Batch reconciliation already gives an exact,
@@ -143,6 +154,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
             businessId,
             businessType,
             categoryId: itemCategoryId,
+            subcategoryId: itemSubcategoryId,
             name: productName,
             description,
             sku,
