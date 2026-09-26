@@ -31,13 +31,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
     const batch = await (prisma as any).warehouseBatches.findUnique({ where: { id: batchId } })
     if (!batch) return NextResponse.json({ error: 'Batch not found' }, { status: 404 })
 
-    // Groups every item moved together in this one request so a "Move
-    // Sessions" view can later show exactly what was moved together, not
-    // just each item's own movedAt. A bulk "Move Selected" spanning several
-    // target businesses makes one request per business, so each business's
-    // items form their own session -- consistent with everything else here
-    // (categories, SKUs) already being scoped per target business.
-    const moveSessionId = randomUUID()
+    // Groups every item moved together into one "session" for the Move
+    // Sessions view. A session isn't just "this one API call" -- moving 10
+    // items one row at a time makes 10 separate calls, and those should
+    // still land in one session if done in one sitting. So: reuse the most
+    // recent session for this same (batch, target business) if its last
+    // move was within the last 30 minutes; otherwise start a fresh one. A
+    // bulk "Move Selected" spanning several target businesses makes one
+    // request per business, so each business's items still form their own
+    // session -- consistent with everything else here (categories, SKUs)
+    // already being scoped per target business.
+    const SESSION_GAP_MS = 30 * 60 * 1000
+    const recentSessionRows: any[] = await prisma.$queryRaw`
+      SELECT wi."moveSessionId" as "sessionId"
+      FROM warehouse_items wi
+      JOIN business_products bp ON bp.id = wi."businessProductId"
+      WHERE wi."batchId" = ${batchId}
+        AND bp."businessId" = ${businessId}
+        AND wi."moveSessionId" IS NOT NULL
+        AND wi."movedAt" >= ${new Date(Date.now() - SESSION_GAP_MS)}
+      ORDER BY wi."movedAt" DESC
+      LIMIT 1
+    `
+    const moveSessionId = recentSessionRows[0]?.sessionId ?? randomUUID()
 
     // Compute per-item transport cost
     const inWarehouseCount = await (prisma as any).warehouseItems.count({ where: { batchId, status: 'IN_WAREHOUSE' } })

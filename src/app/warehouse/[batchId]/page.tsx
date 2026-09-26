@@ -1153,6 +1153,99 @@ export default function BatchDetailPage() {
             )}
           </div>
 
+          {/* Move Sessions — every group of items moved together in one
+              "Move to Business" action, most recent first, so a completed
+              move is never a dead end once you navigate away from it. Kept
+              near the top (not buried below a long, paginated item list) so
+              it's actually visible without scrolling past everything else. */}
+          {moveSessions.length > 0 && (
+            <div className="bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 rounded-lg overflow-hidden">
+              <button
+                onClick={() => setSessionsPanelOpen(v => !v)}
+                className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/20 transition-colors"
+              >
+                <span>Move Sessions ({moveSessions.length})</span>
+                <svg className={`w-4 h-4 transition-transform ${sessionsPanelOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {sessionsPanelOpen && (
+                <div className="px-4 pb-4 space-y-1.5 max-h-64 overflow-y-auto">
+                  {moveSessions.map(session => (
+                    <button
+                      key={session.sessionId}
+                      onClick={() => router.push(`/warehouse/${batchId}/move?sessionId=${session.sessionId}`)}
+                      className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs bg-white dark:bg-gray-800 border border-emerald-100 dark:border-emerald-800 hover:border-emerald-400 dark:hover:border-emerald-500 transition-colors text-left"
+                    >
+                      <span className="text-gray-700 dark:text-gray-300">
+                        {session.movedAt ? new Date(session.movedAt).toLocaleString() : 'Unknown time'}
+                        {session.businessName && <span className="text-gray-400 dark:text-gray-500"> · {session.businessName}</span>}
+                      </span>
+                      <span className="shrink-0 px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-medium">
+                        {session.itemCount} item{session.itemCount !== 1 ? 's' : ''} →
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Personal items collapsible panel */}
+          {(statusCounts['PERSONAL'] || 0) > 0 && (
+            <div className="bg-purple-50 dark:bg-purple-900/10 border border-purple-200 dark:border-purple-800 rounded-lg overflow-hidden">
+              <button
+                onClick={() => setPersonalPanelOpen(v => !v)}
+                className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-purple-800 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/20 transition-colors"
+              >
+                <span>Personal Items ({statusCounts['PERSONAL']} flagged)</span>
+                <svg className={`w-4 h-4 transition-transform ${personalPanelOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {personalPanelOpen && (
+                <div className="px-4 pb-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-purple-700 dark:text-purple-400">
+                      {personalItems.filter(i => i.status === 'IN_WAREHOUSE').length} of {personalItems.length} still in warehouse (not yet moved)
+                    </span>
+                    {personalItems.filter(i => i.status === 'IN_WAREHOUSE').length > 0 && (
+                      <button
+                        onClick={moveAllPersonalItems}
+                        disabled={movingAllPersonal}
+                        className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-medium hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                      >
+                        {movingAllPersonal ? 'Moving…' : `Move all ${personalItems.filter(i => i.status === 'IN_WAREHOUSE').length} to Personal`}
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-1 max-h-64 overflow-y-auto">
+                    {personalItems.map(item => (
+                      <div key={item.id} className="flex items-center gap-3 py-1.5 text-xs">
+                        <ItemImage imageId={item.imageId} name={item.shortName || item.productName} />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-900 dark:text-white truncate">
+                            {item.shortName || item.productName.slice(0, 60)}
+                          </div>
+                          <div className="text-gray-500 font-mono">{item.orderNumber}</div>
+                        </div>
+                        <span className={`px-1.5 py-0.5 rounded text-xs ${
+                          item.status === 'IN_WAREHOUSE' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                          : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                        }`}>
+                          {item.status === 'IN_WAREHOUSE' ? 'Flagged' : 'Moved'}
+                        </span>
+                        {item.costUsd != null && (
+                          <span className="text-gray-600 dark:text-gray-400">${Number(item.costUsd).toFixed(2)}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Toolbar — sticky so "Move to Business" stays reachable on a long item list */}
           <div className="sticky top-14 sm:top-16 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm px-4 py-3 flex items-center gap-3 flex-wrap">
             {selected.size > 0 && (
@@ -1815,96 +1908,6 @@ export default function BatchDetailPage() {
             )}
           </div>
 
-          {/* Move Sessions — every group of items moved together in one
-              "Move to Business" action, most recent first, so a completed
-              move is never a dead end once you navigate away from it. */}
-          {moveSessions.length > 0 && (
-            <div className="bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 rounded-lg overflow-hidden">
-              <button
-                onClick={() => setSessionsPanelOpen(v => !v)}
-                className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/20 transition-colors"
-              >
-                <span>Move Sessions ({moveSessions.length})</span>
-                <svg className={`w-4 h-4 transition-transform ${sessionsPanelOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {sessionsPanelOpen && (
-                <div className="px-4 pb-4 space-y-1.5 max-h-64 overflow-y-auto">
-                  {moveSessions.map(session => (
-                    <button
-                      key={session.sessionId}
-                      onClick={() => router.push(`/warehouse/${batchId}/move?sessionId=${session.sessionId}`)}
-                      className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs bg-white dark:bg-gray-800 border border-emerald-100 dark:border-emerald-800 hover:border-emerald-400 dark:hover:border-emerald-500 transition-colors text-left"
-                    >
-                      <span className="text-gray-700 dark:text-gray-300">
-                        {session.movedAt ? new Date(session.movedAt).toLocaleString() : 'Unknown time'}
-                        {session.businessName && <span className="text-gray-400 dark:text-gray-500"> · {session.businessName}</span>}
-                      </span>
-                      <span className="shrink-0 px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-medium">
-                        {session.itemCount} item{session.itemCount !== 1 ? 's' : ''} →
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Personal items collapsible panel */}
-          {(statusCounts['PERSONAL'] || 0) > 0 && (
-            <div className="bg-purple-50 dark:bg-purple-900/10 border border-purple-200 dark:border-purple-800 rounded-lg overflow-hidden">
-              <button
-                onClick={() => setPersonalPanelOpen(v => !v)}
-                className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-purple-800 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/20 transition-colors"
-              >
-                <span>Personal Items ({statusCounts['PERSONAL']} flagged)</span>
-                <svg className={`w-4 h-4 transition-transform ${personalPanelOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {personalPanelOpen && (
-                <div className="px-4 pb-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-purple-700 dark:text-purple-400">
-                      {personalItems.filter(i => i.status === 'IN_WAREHOUSE').length} of {personalItems.length} still in warehouse (not yet moved)
-                    </span>
-                    {personalItems.filter(i => i.status === 'IN_WAREHOUSE').length > 0 && (
-                      <button
-                        onClick={moveAllPersonalItems}
-                        disabled={movingAllPersonal}
-                        className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-medium hover:bg-purple-700 disabled:opacity-50 transition-colors"
-                      >
-                        {movingAllPersonal ? 'Moving…' : `Move all ${personalItems.filter(i => i.status === 'IN_WAREHOUSE').length} to Personal`}
-                      </button>
-                    )}
-                  </div>
-                  <div className="space-y-1 max-h-64 overflow-y-auto">
-                    {personalItems.map(item => (
-                      <div key={item.id} className="flex items-center gap-3 py-1.5 text-xs">
-                        <ItemImage imageId={item.imageId} name={item.shortName || item.productName} />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-gray-900 dark:text-white truncate">
-                            {item.shortName || item.productName.slice(0, 60)}
-                          </div>
-                          <div className="text-gray-500 font-mono">{item.orderNumber}</div>
-                        </div>
-                        <span className={`px-1.5 py-0.5 rounded text-xs ${
-                          item.status === 'IN_WAREHOUSE' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                          : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-                        }`}>
-                          {item.status === 'IN_WAREHOUSE' ? 'Flagged' : 'Moved'}
-                        </span>
-                        {item.costUsd != null && (
-                          <span className="text-gray-600 dark:text-gray-400">${Number(item.costUsd).toFixed(2)}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </ContentLayout>
     </ProtectedRoute>
