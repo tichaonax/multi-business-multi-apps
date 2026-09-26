@@ -28,6 +28,16 @@ const fs = require('fs')
 
 const ROOT_DIR = path.join(__dirname, '..')
 
+// Load env vars once, up front, before anything (Prisma included) needs
+// DATABASE_URL. Without this, checkDatabaseExists()'s Prisma-based check
+// below has no DATABASE_URL to read and fails all 3 retries every single
+// time it's run standalone (e.g. `node scripts/setup-after-pull.js` without
+// the shell having already exported it) -- not a flaky/transient failure,
+// a guaranteed one -- before falling through to its own pg-based fallback,
+// which only worked because IT already loaded these files itself.
+require('dotenv').config({ path: path.join(ROOT_DIR, '.env.local') })
+require('dotenv').config({ path: path.join(ROOT_DIR, '.env') })
+
 function log(message, type = 'INFO') {
   const colors = {
     INFO: '\x1b[36m',    // Cyan
@@ -120,10 +130,7 @@ function clearPrismaRequireCache() {
  */
 async function checkDatabaseWithPg() {
   try {
-    // Load dotenv to ensure DATABASE_URL is available
-    require('dotenv').config({ path: path.join(ROOT_DIR, '.env.local') })
-    require('dotenv').config({ path: path.join(ROOT_DIR, '.env') })
-
+    // dotenv is already loaded at module load time (top of file)
     const databaseUrl = process.env.DATABASE_URL
     if (!databaseUrl) {
       log('  DATABASE_URL not found', 'WARN')

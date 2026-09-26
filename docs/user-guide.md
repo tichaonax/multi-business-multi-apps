@@ -10930,9 +10930,9 @@ Tick **Show Test Data** to temporarily reveal those items at the POS for this bu
 
 ---
 
-## 50. Warehouse Import
+## 50. Warehouse Import & Move Wizard
 
-The Warehouse module is a staging layer that sits between supplier orders and your business inventory. You import an Excel spreadsheet from your supplier (or buying agent), review the items, then move them into business inventory or record them as personal expenses.
+The Warehouse module is a staging layer that sits between supplier orders and your business inventory. You import an Excel spreadsheet from your supplier (or buying agent), optionally reconcile it against a post-clearance Container Batch report, review the items, then move them into business inventory or record them as personal expenses.
 
 ### Who Can Use It
 
@@ -10968,7 +10968,7 @@ Navigate to **Warehouse → Import Batch**.
 | Excel File (.xlsx) | Drag-and-drop or browse. Only `.xlsx` files accepted. |
 | Batch Name | Auto-filled from the filename (e.g. `batch_29 — 2026-05-25`). Edit if needed. |
 | Notes | Optional notes about this batch. |
-| Picked up from Harare | Toggle if you collected the goods in Harare. Enter the transport cost (US$) — it will be divided equally across all items. |
+| Picked up at collection point | Toggle if you collected the goods yourself rather than having them delivered. Enter the transport cost (US$) — it will be divided equally across all items. |
 
 **Duplicate file detection:** The system checks a SHA-256 hash of the file. If you upload the same file twice, you'll see an error with the name of the existing batch.
 
@@ -11009,6 +11009,27 @@ Navigate to **Warehouse → Import Batch**.
 When these columns are present the system reads the total clearance cost once per source batch and allocates it **pro-rata by Yuan cost** across all items in that batch. Items in OPEN batches receive $0 clearance allocation until the batch is closed and re-imported.
 
 Sub-parcels (`_p2`, `_p3`, …) are automatically merged into the primary row (`_p1`), with their tracking numbers stored alongside.
+
+---
+
+### Container Batch Import — Reconciling Post-Clearance Costs
+
+After your goods clear customs, your supplier or agent may issue a "Container Batch" report with the true landed cost per item, an estimated selling price, and its own tracking/order number references. Navigate to **Warehouse → Container Batch Import** to reconcile this against what's already in the Warehouse.
+
+1. Upload the Container Batch `.xlsx` file and click **Preview →**.
+2. The system matches each row to an existing warehouse item **by order number and tracking number** and shows a status badge per row:
+
+   | Badge | Meaning |
+   |-------|---------|
+   | 🆕 new item | No matching warehouse item found — this will be imported as a new row. |
+   | 🔄 will update existing item | Matches an item still `IN_WAREHOUSE` — its landed cost, estimated selling price, and shipping-per-unit will be refreshed from this file. |
+   | 💲 already moved — will update price only | The matched item has already been moved to business inventory. SKU and barcode are left untouched; only the price and margin are refreshed on the live product (hover the badge for the current SKU/barcode/price). |
+   | ⚠ possible duplicate — already reconciled | This exact tracking/order combination was already reconciled in a previous Container Batch import (shown by name) — check before including it again. |
+
+3. Untick any rows you don't want to apply (or use **Select all** / **Skip all**). You can override the estimated selling price per row before confirming.
+4. Confirm the import. The batch name, exchange rate, and item counts read from the file header are shown at the top of the review screen for a quick sanity check.
+
+This is what makes the system "self-correct" when you reconcile the same shipment twice — instead of creating duplicate stock, it recognizes an item is already tracked and simply refreshes its numbers.
 
 ---
 
@@ -11131,20 +11152,27 @@ The warehouse item status changes to **MOVED_TO_BUSINESS**.
 
 ### Classification Suggestion
 
-Each item card in the move wizard has a **🏷 Suggest** button, located in the classification row next to the Barcode field. Clicking it analyses the product name and suggests the best-matching inventory categories from **all business types** — not just the destination business.
+Each item card in the move wizard has a **🏷 Suggest** button, located in the classification row next to the Barcode field. Clicking it analyses the product name and suggests the best-matching Domain → Category → Sub-category combinations, scoped strictly to the **target business** for that row (its per-item business override, or the global Target Business if none is set).
 
 **How it works:**
-1. The product name is split into tokens (words / numbers), common English words ("for", "with", "and"…) are removed.
-2. Each token is matched against all domain names, category names, and sub-category names in the system, including both singular and plural forms (e.g. "screws" matches "M6 screw").
-3. Results are ranked by score and shown in a searchable list. The search box inside the popup lets you type to filter — there is no cap on results.
+1. The product name is split into whole words (numbers included); common English filler words ("for", "with", "and"…) are removed.
+2. Each word is matched as a **whole word** — not a substring — against the target business's own domain, category, and sub-category names, including singular/plural forms in both directions (e.g. "screws" matches "M6 screw", and "shirt" matches a category named "Shirts").
+3. Results are ranked by score and shown in a searchable list, including a small thumbnail of the item so you can confirm it's suggesting for the right product without looking away. The search box inside the popup lets you type to filter — there is no cap on results.
+
+**A thumbnail is shown next to "Based on:"** at the top of the popup so you can visually confirm which item the suggestions are for, especially useful when several rows have similar product names.
+
+**If a Domain is already picked** for that row, Suggest only offers Category/Sub-category combinations that actually belong to that domain — it will not suggest something from a domain you've already ruled out.
 
 **Applying a suggestion:**
-- Click any row in the popup — the Domain, Category, and Sub-category dropdowns for that item are filled automatically.
-- If the matched domain belongs to a different business type than the destination (e.g. hardware sub-category while the destination is a clothing business), the classification is still applied — the dropdowns will show the cross-domain values correctly.
+- Click any row in the popup — the Domain, Category, and Sub-category dropdowns for that item are filled automatically, and are always guaranteed to belong to the row's own target business (a suggestion can never assign a category from a different business — doing so used to fail the move with a database error; it's now prevented at the source).
+
+**"Group" categories** (e.g. "Phones And Mobile Accessories") are organizational headers, not real products — Suggest (and the manual dropdowns) show them as the **Category**, with their real, specific items appearing as **Sub-category** options once picked. This gives a proper 3-level Domain → Category → Sub-category picker for these kinds of departments, instead of dumping dozens of specific items directly into the Category list.
 
 **When no suggestions appear:**
 - The product name has too few recognisable keywords — edit the **Short Name** on the batch page to use plain English terms before clicking 🏷 Suggest.
-- The sub-category may not exist yet — add it under **Inventory → Categories** first.
+- The category truly doesn't exist yet for this business — the popup offers a **"+ Create new category"** link right there so you don't have to leave the wizard (see [Creating a Category or Sub-category On the Fly](#creating-a-category-or-sub-category-on-the-fly) below).
+
+**"⚠ re-pick category for this business" warning:** if a row's Category/Domain shows this red badge, the values currently selected don't match the row's target business (most often left over from switching the row's business after already picking a category). Re-select Domain/Category for that row before moving it.
 
 ---
 
@@ -11159,6 +11187,27 @@ By default, all items in the move wizard go to the **global target business** se
 - The dropdown is portal-rendered and scrolls with fixed positioning — it is never clipped by the table.
 
 When you click **Move X Items to Business**, items are grouped by their effective business (row override or global fallback) and a single API call is made per business group.
+
+---
+
+### Creating a Category or Sub-category On the Fly
+
+If nothing in the Category or Sub-category dropdown fits, you don't need to leave the move wizard:
+
+- **+ Category** (next to the Category dropdown) opens the full category editor — set a name, emoji, optional Domain, and optional Parent Category. When a Domain is already selected for the row, the Parent Category list is scoped to that domain's own categories, so you can nest the new category under something that already makes sense (e.g. put a new "Boys" category under an existing "Kids" category) instead of seeing every category across the whole business.
+- **+ Sub-cat** (next to the Sub-category dropdown, enabled once a Category is chosen) opens a lightweight inline form — just a name and an optional emoji — for quickly adding a specific item under the selected category.
+
+Either way, the new category/sub-category is created for the row's **target business only**, immediately selected on that row, and available for every other row in the same wizard session without needing to refresh.
+
+---
+
+### Domain → Category → Subcategory for "Grouped" Categories
+
+Some categories (mostly in general-merchandise domains like Electronics, Home & Kitchen, or Bags & Luggage) are organized as a **group**: a broad heading (e.g. "Phones And Mobile Accessories") containing many specific items (Screen Protectors, Power Bank, Charger Cable Adapters, …), where each specific item can belong to a different domain than its siblings.
+
+When you pick one of these as the **Category**, the **Sub-category** dropdown fills with its real, specific items — filtered to whichever Domain is currently selected on the row, since siblings under the same group can span multiple domains. Picking a Sub-category here is what actually determines the item's final classification; the group itself is never saved as the product's category.
+
+This same Domain → Category → Subcategory breadcrumb is shown consistently everywhere the item's classification is displayed afterward — the batch item list, the move wizard's "already moved" rows, and the standard Edit Item screen — so what you picked here is exactly what you'll see later.
 
 ---
 
@@ -11206,6 +11255,46 @@ node scripts/reverse-warehouse-move.js <batchId> --barcode 183212005
 
 ---
 
+### After the Move — Tracking Live Price Changes
+
+Once an item is moved to business inventory, both the batch item list and the move wizard's "already moved" rows show its **live current selling price** pulled straight from the product record — so if someone edits the price later from Edit Item, you see the up-to-date number here too, not the stale price it was moved at.
+
+If the price has ever been changed since the move, the **original selling price** (the price it was actually moved at) is shown alongside the current one, with the reason for the change and when it happened available on hover. If the price was never touched after the move, only the current price is shown.
+
+---
+
+### Barcode Scan & Assign (After Moving)
+
+A barcode from the supplier spreadsheet is assigned automatically when an item is moved, if one was present. For items that didn't come with one, or need a different one, both the batch item list and the move wizard offer a quick **📷 Scan Barcode** action on any already-moved row:
+
+1. Click **Scan Barcode** on the item row.
+2. Scan the barcode (or type it) and press Enter, or click the ✓ button.
+
+The barcode is written to the product's actual barcode registry — the same one the POS scanner checks — so it's scannable at checkout immediately, not just displayed as text on the item. If a barcode is already assigned and isn't scanning correctly at POS, use the 🔄 button next to it to re-save and re-sync it to the registry.
+
+---
+
+### Opening a Moved Item in Edit Item
+
+Once an item shows **Moved**, click **↗ Edit Item** under its name to open it directly in the standard inventory editor. If the item was moved to a different business than the one you currently have active, the system switches your active business automatically first, so the link always works regardless of which business you're currently viewing.
+
+Closing Edit Item returns you to exactly where you were — the same batch, the same status tab, and the same scroll position, rather than dropping you back at the top of the warehouse list.
+
+---
+
+### Move Sessions — Reviewing What Was Moved Together
+
+Every time you move one or more items to a business — whether one row at a time with **Move →** or several at once with **Move selected** — those items are grouped into a **Move Session**. This gives you a way to look back at exactly what was moved in a particular sitting, long after the fact.
+
+**Where to find it:**
+- On the batch detail page, a **Move Sessions** panel (green, near the top of the page) lists every past session for that batch, most recent first, with the date/time, target business, item count, and the **expected total selling price** for everything in that session (current selling price × quantity, summed). Click a session to open it.
+- Clicking a session takes you into the move wizard filtered to just that session's items — the exact same screen you saw right after moving them, including the Domain → Category → Subcategory breadcrumb for each item.
+- From inside the move wizard, a session switcher is always available in the same banner — pick a different session from the dropdown, or choose **Show all items** to go back to the full list, without ever needing to return to the batch page first.
+
+**How sessions are grouped:** moves done within 30 minutes of each other, for the same batch and the same target business, are treated as one session — so working through a batch one row at a time still lands in a single session instead of creating one per click. A longer gap (or switching target business) starts a new session.
+
+---
+
 ### Step 4 — Move to Personal Expenses
 
 Items that are personal purchases (not business stock) can be recorded as personal expenses.
@@ -11249,7 +11338,7 @@ A locked reference shows a 🔒 badge on every item row that contains it. Locked
 
 The Warehouse home page has a **search box** that filters the batch list in real time by batch name or original filename. Type any part of the name to narrow the list.
 
-It also shows four summary cards:
+It also shows summary cards:
 
 | Card | Meaning |
 |------|---------|
@@ -11257,8 +11346,11 @@ It also shows four summary cards:
 | In Warehouse | Items still sitting in staging |
 | Moved to Business | Items added to business inventory |
 | Moved to Personal | Items recorded as personal expenses |
+| Potential Value (Moved) | The combined current selling price of everything ever moved to business inventory, at today's prices — a quick read on how much revenue this warehouse pipeline has fed into your stores. The same figure also appears as a column on each batch row, scoped to that batch. |
 
 Each batch row shows a progress bar indicating what fraction of items have been moved out of the warehouse.
+
+Within a batch's item list, **every status tab is sorted by most recently added or updated first** — so anything you just moved, edited, or scanned a barcode onto surfaces at the top instead of requiring a scroll to find it.
 
 ---
 
