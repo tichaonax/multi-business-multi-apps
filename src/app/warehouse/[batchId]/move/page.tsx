@@ -138,18 +138,31 @@ interface MoveRow {
   movedSku?: string        // assigned by the server at move time — shown once status is 'moved'
 }
 
-// ── Suggestion algorithm (ported from bulk-stock-panel) ───────────────────────
-
+// ── Suggestion algorithm ────────────────────────────────────────────────────
+// Searches the COMPLETE, always-fully-loaded flat category list (`allCats`,
+// straight from the categories API response, every level, every business
+// category regardless of domain/group tier) instead of the tier-derived
+// `departments`/`categories`/`subCategories` state. That derived state
+// assumes a specific 2-3 level shape (domain-category, or
+// group-category/child) which held up against local test data but is too
+// fragile against however deep or unusually-organized a real production
+// category tree turns out to be -- if that derivation comes up short for
+// any reason, Suggest silently has nothing to search, which is exactly what
+// "no matches on literally everything" looks like. Operating on the raw,
+// unfiltered list removes that dependency entirely: any category (at any
+// depth) is a candidate leaf, its domain is resolved by walking up its own
+// parent chain (however many hops that takes), and a "group" ancestor is
+// only ever used to know which id to actually save (never as a leaf itself).
 function suggestClassification(
   productName: string,
-  departments: Category[],
-  categories: Category[],
-  subCategories: Category[],
+  allCats: Category[],
+  realSubcategories: Category[],
   domainList: Domain[],
+  restrictToDomainId?: string,
 ): SuggestItem[] {
   const STOP_WORDS = new Set(['for', 'and', 'the', 'with', 'of', 'in', 'to', 'a', 'an', 'by', 'at', 'on', 'or', 'its', 'as'])
   const tokens = productName.toLowerCase().split(/[\s,./\\-]+/).filter(t => t.length >= 2 && !STOP_WORDS.has(t))
-  if (tokens.length === 0 || subCategories.length === 0) return []
+  if (tokens.length === 0 || allCats.length === 0) return []
 
   function countMatches(text: string): number {
     // Whole-word matching against text's own tokens -- plain substring
@@ -167,49 +180,86 @@ function suggestClassification(
     }).length
   }
 
-  const scored: SuggestItem[] = []
-  for (const sub of subCategories) {
-    const cat = categories.find(c => c.id === sub.parentId)
-    if (!cat) continue
+  const catById = new Map(allCats.map(c => [c.id, c]))
+  const groupIds = new Set(allCats.filter(isGroupCategory).map(c => c.id))
 
-    let domainId = '', domainName = '', domainEmoji = ''
-    if (domainList.length > 0) {
-      // Prefer the CATEGORY's own domainId when it has one -- Domain and
-      // Category must always agree, since Domain is really just a display of
-      // which domain the suggested Category belongs to. Only fall back to
-      // the leaf's own domainId when the category has none, i.e. it's a
-      // "group" (e.g. "Lighting And Smart Electronics" -> "Led Lamps").
-      // Some seed data has a plain (non-group) category whose child carries
-      // a DIFFERENT domainId than the category itself (e.g. "Appliances"
-      // under Sale with a child tagged Electronics) -- preferring cat.domainId
-      // keeps the suggested Domain/Category self-consistent so it doesn't
-      // immediately trip the "re-pick category" foreign-category warning.
-      const dom = domainList.find(d => d.id === (cat.domainId || sub.domainId))
-      if (dom) { domainId = dom.id; domainName = dom.name; domainEmoji = dom.emoji }
-    } else {
-      const dept = departments.find(d => d.id === cat.parentId)
-      if (dept) { domainId = dept.id; domainName = dept.name; domainEmoji = dept.emoji }
+  // Walks up as many parentId hops as it takes to find a domainId, instead
+  // of assuming domain is always exactly one hop away.
+  function resolveDomainId(cat: Category): string | null {
+    let current: Category | undefined = cat
+    const seen = new Set<string>()
+    while (current) {
+      if (current.domainId) return current.domainId
+      if (!current.parentId || seen.has(current.id)) return null
+      seen.add(current.id)
+      current = catById.get(current.parentId)
     }
+    return null
+  }
 
+  function resolveDomain(cat: Category): Domain | undefined {
+    const id = resolveDomainId(cat)
+    return id ? domainList.find(d => d.id === id) : undefined
+  }
+
+  const scored: SuggestItem[] = []
+
+  // Every non-group category (any depth) is a candidate leaf on its own.
+  for (const cat of allCats) {
+    if (isGroupCategory(cat)) continue
+    const dom = resolveDomain(cat)
+    if (restrictToDomainId && dom?.id !== restrictToDomainId) continue
+    const parent = cat.parentId ? catById.get(cat.parentId) : undefined
+    const parentIsGroup = !!(parent && groupIds.has(parent.id))
+    const ownScore = countMatches(cat.name) * 3
+    const parentScore = parent ? countMatches(parent.name) * 2 : 0
+    const domScore = dom ? countMatches(dom.name) * 1 : 0
+    const total = ownScore + parentScore + domScore
+    if (total === 0) continue
+
+    scored.push(parentIsGroup
+      ? {
+          domainId: dom?.id ?? '', domainName: dom?.name ?? '', domainEmoji: dom?.emoji ?? '',
+          categoryId: parent!.id, categoryName: parent!.name, categoryEmoji: parent!.emoji ?? '',
+          subCategoryId: cat.id, subCategoryName: cat.name, subCategoryEmoji: cat.emoji ?? '',
+          score: total,
+        }
+      : {
+          domainId: dom?.id ?? '', domainName: dom?.name ?? '', domainEmoji: dom?.emoji ?? '',
+          categoryId: cat.id, categoryName: cat.name, categoryEmoji: cat.emoji ?? '',
+          subCategoryId: '', subCategoryName: '', subCategoryEmoji: '',
+          score: total,
+        })
+  }
+
+  // Real InventorySubcategories rows are a separate table -- not part of
+  // allCats -- so they're searched as their own candidate leaves, nested
+  // under whichever category in allCats they actually belong to.
+  for (const sub of realSubcategories) {
+    const cat = sub.parentId ? catById.get(sub.parentId) : undefined
+    if (!cat) continue
+    const dom = resolveDomain(cat)
+    if (restrictToDomainId && dom?.id !== restrictToDomainId) continue
     const subScore = countMatches(sub.name) * 3
     const catScore = countMatches(cat.name) * 2
-    const domScore = domainName ? countMatches(domainName) * 1 : 0
+    const domScore = dom ? countMatches(dom.name) * 1 : 0
     const total = subScore + catScore + domScore
     if (total === 0) continue
 
     scored.push({
-      domainId, domainName, domainEmoji,
+      domainId: dom?.id ?? '', domainName: dom?.name ?? '', domainEmoji: dom?.emoji ?? '',
       categoryId: cat.id, categoryName: cat.name, categoryEmoji: cat.emoji ?? '',
       subCategoryId: sub.id, subCategoryName: sub.name, subCategoryEmoji: sub.emoji ?? '',
       score: total,
     })
   }
 
-  scored.sort((a, b) => b.score - a.score || a.subCategoryName.localeCompare(b.subCategoryName))
+  scored.sort((a, b) => b.score - a.score || a.categoryName.localeCompare(b.categoryName))
   const seen = new Set<string>()
   return scored.filter(s => {
-    if (seen.has(s.subCategoryId)) return false
-    seen.add(s.subCategoryId)
+    const key = `${s.categoryId}|${s.subCategoryId}`
+    if (seen.has(key)) return false
+    seen.add(key)
     return true
   })
 }
@@ -922,28 +972,19 @@ export default function MoveWizardPage() {
     openSuggestBtnRef.current = e.currentTarget
     const rect = e.currentTarget.getBoundingClientRect()
     const name = row.item.productName || row.item.shortName
-    // If the row already has a domain picked, further restrict the
-    // candidate pool to that domain's own categories/subcategories — same
-    // filtering the Domain/Category dropdowns already apply (see filteredCats
-    // below), so Suggest never offers a match from an unrelated domain the
+    // Real InventorySubcategories rows aren't part of allCats (separate
+    // table) -- pull just those out of subCategories via the id set that
+    // already distinguishes them from nested BusinessCategories entries.
+    const realSubcategories = subCategories.filter(c => inventorySubcategoryIds.has(c.id))
+    // If the row already has a domain picked, restrict suggestions to that
+    // domain so Suggest never offers a match from an unrelated domain the
     // user has already ruled out by picking this one.
-    const scopedCategories = row.domainId
-      ? (domainList.length > 0
-          ? categories.filter(c => c.domainId === row.domainId)
-          : departments.length > 0
-            ? categories.filter(c => c.parentId === row.domainId)
-            : categories)
-      : categories
-    const scopedCategoryIds = new Set(scopedCategories.map(c => c.id))
-    const scopedSubCategories = row.domainId
-      ? subCategories.filter(c => !!c.parentId && scopedCategoryIds.has(c.parentId))
-      : subCategories
     const suggestions = suggestClassification(
       name,
-      hasDomains ? departments : [],
-      scopedCategories,
-      scopedSubCategories,
+      allCats,
+      realSubcategories,
       hasDomains ? domainList : [],
+      row.domainId || undefined,
     )
     setSuggestions(suggestions)
     setShowAllSuggestions(false)
