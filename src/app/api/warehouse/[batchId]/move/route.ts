@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomUUID } from 'crypto'
 import { getServerUser } from '@/lib/get-server-user'
 import { prisma } from '@/lib/prisma'
 import { recalcAndAutoLock } from '@/lib/warehouse-auto-lock'
@@ -30,6 +31,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
     const batch = await (prisma as any).warehouseBatches.findUnique({ where: { id: batchId } })
     if (!batch) return NextResponse.json({ error: 'Batch not found' }, { status: 404 })
 
+    // Groups every item moved together in this one request so a "Move
+    // Sessions" view can later show exactly what was moved together, not
+    // just each item's own movedAt. A bulk "Move Selected" spanning several
+    // target businesses makes one request per business, so each business's
+    // items form their own session -- consistent with everything else here
+    // (categories, SKUs) already being scoped per target business.
+    const moveSessionId = randomUUID()
+
     // Compute per-item transport cost
     const inWarehouseCount = await (prisma as any).warehouseItems.count({ where: { batchId, status: 'IN_WAREHOUSE' } })
     const perItemTransport = (batch.pickedUpAtCollectionPoint && batch.collectionTransportCost && inWarehouseCount > 0)
@@ -45,6 +54,42 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
       ? await (prisma as any).inventorySubcategories.findMany({ where: { id: { in: candidateSubcategoryIds } }, select: { id: true } })
       : []
     const validSubcategoryIds = new Set(validSubcategories.map((s: any) => s.id))
+
+    // Validate categoryIds belong to THIS business (or are shared/template
+    // categories with no businessId, matching this businessType). "Suggest"
+    // on the Move page draws from a business-agnostic category list (it has
+    // to, since a batch can target different businesses per row) — accepting
+    // its pick at face value without this check let a category belonging to
+    // a DIFFERENT business through, which crashed the create with a raw FK
+    // violation instead of a usable error.
+    const candidateCategoryIds = [...new Set(itemMoves.map((m: any) => m.categoryId || globalCategoryId).filter(Boolean))] as string[]
+    const validCategories = candidateCategoryIds.length > 0
+      ? await (prisma as any).businessCategories.findMany({
+          where: { id: { in: candidateCategoryIds }, businessType, OR: [{ businessId }, { businessId: null }] },
+          select: { id: true, attributes: true },
+        })
+      : []
+    // "Group" categories (attributes.isGroup, e.g. "Phones And Mobile
+    // Accessories") are organizational/display-only -- they have no domain
+    // of their own and were never meant to be a product's real leaf
+    // category. The Move page's picker treats them as a Category tier node
+    // specifically so their real children can be picked as the Subcategory,
+    // but if a row's category is left on the group itself (no subcategory
+    // drilled into), reject it here rather than persist an unusable leaf.
+    const groupCategoryIds = new Set(validCategories.filter((c: any) => c.attributes?.isGroup === true).map((c: any) => c.id))
+    const validCategoryIds = new Set(validCategories.map((c: any) => c.id))
+    const invalidCategoryItem = itemMoves.find((m: any) => !validCategoryIds.has(m.categoryId || globalCategoryId))
+    if (invalidCategoryItem) {
+      return NextResponse.json({
+        error: 'One or more selected categories don\'t belong to this business — re-select the category/subcategory for the affected item(s) and try again.'
+      }, { status: 400 })
+    }
+    const unresolvedGroupItem = itemMoves.find((m: any) => groupCategoryIds.has(m.categoryId || globalCategoryId))
+    if (unresolvedGroupItem) {
+      return NextResponse.json({
+        error: 'One or more items are still set to a category group (e.g. "Phones And Mobile Accessories") — pick the specific item underneath it, not the group itself.'
+      }, { status: 400 })
+    }
 
     const itemIds = itemMoves.map((m: any) => m.itemId)
     const warehouseItems = await (prisma as any).warehouseItems.findMany({
@@ -239,6 +284,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
             businessProductId: product.id,
             movedAt,
             movedBy: user.id,
+            moveSessionId,
             updatedAt: movedAt,
           }
         })
@@ -256,6 +302,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
       success: true,
       movedCount: results.length,
       items: results,
+      moveSessionId,
     })
   } catch (error: any) {
     console.error('POST /api/warehouse/[batchId]/move error:', error)

@@ -89,15 +89,27 @@ export async function GET(
             { displayOrder: 'asc' },
             { name: 'asc' }
           ]
-        },
-        _count: {
-          select: {
-            business_products: true
-          }
         }
       },
       orderBy: { name: 'asc' }
     })
+
+    // A nested category (e.g. "Boyfriend Jeans" under "Girls Pants") has no
+    // domainId of its own by design -- domain lives on its top-level parent.
+    // Without resolving that here, Edit Item shows a blank Domain for any
+    // product whose leaf categoryId is one of these nested categories.
+    const catById = new Map(businessCategories.map(c => [c.id, c]))
+    function resolveDomainId(cat: typeof businessCategories[number]): string | null {
+      let current: typeof cat | undefined = cat
+      const seen = new Set<string>()
+      while (current) {
+        if (current.domainId) return current.domainId
+        if (!current.parentId || seen.has(current.id)) return null
+        seen.add(current.id)
+        current = catById.get(current.parentId)
+      }
+      return null
+    }
 
     // Transform to match expected interface
     const categories = businessCategories.map(cat => ({
@@ -109,10 +121,17 @@ export async function GET(
       emoji: cat.emoji || '📦', // Use database emoji, fallback to default
       icon: cat.emoji || '📦', // Legacy field for backward compatibility
       color: cat.color || 'gray', // Use database color, fallback to default
-      domainId: cat.domainId || null,
+      domainId: resolveDomainId(cat),
+      parentId: cat.parentId,
+      // "Group" categories (attributes.isGroup, e.g. "Phones And Mobile
+      // Accessories") are organizational/display-only -- see warehouse
+      // move/page.tsx's isGroupCategory for the full explanation. Exposed
+      // here so Edit Item can offer the same group-as-Category /
+      // children-as-Subcategory picker instead of flattening every child
+      // into the Category list.
+      isGroup: !!(cat.attributes && (cat.attributes as any).isGroup === true),
       sortOrder: 1, // Could be added to database schema
       isActive: cat.isActive,
-      itemCount: cat._count.business_products,
       subcategories: cat.inventory_subcategories.map(sub => ({
         id: sub.id,
         name: sub.name,
@@ -128,8 +147,7 @@ export async function GET(
       categories,
       summary: {
         total: categories.length,
-        active: categories.filter(cat => cat.isActive).length,
-        totalItems: categories.reduce((sum, cat) => sum + cat.itemCount, 0)
+        active: categories.filter(cat => cat.isActive).length
       }
     })
 

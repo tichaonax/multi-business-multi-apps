@@ -207,6 +207,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   const [quickCreateTargetRowId, setQuickCreateTargetRowId] = useState<string | null>(null)
   const [showQuickCreate, setShowQuickCreate] = useState(false)
   const [quickCreateName, setQuickCreateName] = useState('')
+  const [quickCreateEmoji, setQuickCreateEmoji] = useState('')
   const [quickCreateLoading, setQuickCreateLoading] = useState(false)
   const [quickCreateError, setQuickCreateError] = useState('')
 
@@ -1053,6 +1054,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
   const openQuickCreate = (rowId: string) => {
     setQuickCreateTargetRowId(rowId)
     setQuickCreateName('')
+    setQuickCreateEmoji('')
     setQuickCreateError('')
     setShowQuickCreate(true)
   }
@@ -1099,6 +1101,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
           businessId,
           businessType,
           name: quickCreateName.trim(),
+          emoji: quickCreateEmoji.trim() || undefined,
           ...(parentId ? { parentId } : {}),
         }),
       })
@@ -1119,6 +1122,7 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
       setAllSubCategories(prev => [...prev, newCat])
       updateRow(quickCreateTargetRowId, { subCategoryId: newCat.id })
       setQuickCreateName('')
+      setQuickCreateEmoji('')
       setShowQuickCreate(false)
       setQuickCreateTargetRowId(null)
     } finally {
@@ -1921,15 +1925,26 @@ export function BulkStockPanel({ businessId, businessName, businessType, onClose
               {parentCatName && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Under category: <span className="font-medium text-indigo-600 dark:text-indigo-400">{parentCatName}</span></p>
               )}
-              <input
-                autoFocus
-                type="text"
-                placeholder="Name"
-                value={quickCreateName}
-                onChange={e => { setQuickCreateName(e.target.value); setQuickCreateError('') }}
-                onKeyDown={e => { if (e.key === 'Enter') handleQuickCreate() }}
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500 mb-2"
-              />
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  placeholder="🏷"
+                  value={quickCreateEmoji}
+                  onChange={e => setQuickCreateEmoji(e.target.value)}
+                  maxLength={4}
+                  title="Emoji (optional)"
+                  className="w-14 px-2 py-2 text-center text-lg border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500"
+                />
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Name"
+                  value={quickCreateName}
+                  onChange={e => { setQuickCreateName(e.target.value); setQuickCreateError('') }}
+                  onKeyDown={e => { if (e.key === 'Enter') handleQuickCreate() }}
+                  className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
               {quickCreateError && (
                 <p className="text-xs text-red-600 dark:text-red-400 mb-3">{quickCreateError}</p>
               )}
@@ -2038,13 +2053,27 @@ function BulkRowEditor({ row, rowNumber, domains, departments, allCategories, al
     // Client-side keyword search — all data is already in memory, scoped to this business
     const tokens = q.toLowerCase().split(/[\s,./\\-]+/).filter(t => t.length >= 2)
     function countMatches(text: string): number {
-      const lower = text.toLowerCase()
-      return tokens.filter(t => lower.includes(t)).length
+      // Whole-word matching -- plain substring matching let a token like
+      // "end" (from "High-end") false-positive match inside an unrelated
+      // word like "boyfr-END", surfacing nonsense suggestions.
+      const words = text.toLowerCase().split(/[\s,./\\-]+/).filter(Boolean)
+      return tokens.filter(t => {
+        if (words.includes(t)) return true
+        if (t.length > 3 && t.endsWith('s') && words.includes(t.slice(0, -1))) return true
+        return words.some(w => w.length > 3 && w.endsWith('s') && w.slice(0, -1) === t)
+      }).length
     }
+
+    // If a domain is already selected for this row, restrict candidates to
+    // that domain's own categories -- otherwise Suggest can surface a match
+    // that belongs to a domain the user has already ruled out.
+    const scopedCategories = row.departmentId
+      ? allCategories.filter(c => (c.domainId ?? c.parentId) === row.departmentId)
+      : allCategories
 
     const scored: SuggestItem[] = []
     for (const sub of allSubCategories) {
-      const cat = allCategories.find(c => c.id === sub.parentId)
+      const cat = scopedCategories.find(c => c.id === sub.parentId)
       if (!cat) continue
       const domain = departments.find(d => d.id === (cat.domainId ?? cat.parentId))
 

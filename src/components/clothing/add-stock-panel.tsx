@@ -136,11 +136,25 @@ export function AddStockPanel({ businessId, onClose, initialTab = 'bale', hideTa
     if (q.length < 2) return
     const tokens = q.toLowerCase().split(/[\s,./\\-]+/).filter(t => t.length >= 2)
     const countMatches = (text: string) => {
-      const lower = text.toLowerCase()
-      return tokens.filter(t => lower.includes(t)).length
+      // Whole-word matching -- plain substring matching let a token like
+      // "end" (from "High-end") false-positive match inside an unrelated
+      // word like "boyfr-END", surfacing nonsense suggestions.
+      const words = text.toLowerCase().split(/[\s,./\\-]+/).filter(Boolean)
+      return tokens.filter(t => {
+        if (words.includes(t)) return true
+        if (t.length > 3 && t.endsWith('s') && words.includes(t.slice(0, -1))) return true
+        return words.some(w => w.length > 3 && w.endsWith('s') && w.slice(0, -1) === t)
+      }).length
     }
+    // If a department/domain is already selected, restrict candidates to it
+    // -- otherwise Suggest can surface a match from a domain already ruled
+    // out. Mirrors the same domainId/parentId check used elsewhere in this
+    // file (see the category-filtering logic below).
+    const candidateCategories = productDepartmentId
+      ? allCategories.filter(cat => cat.domainId === productDepartmentId || cat.parentId === productDepartmentId)
+      : allCategories
     const scored: SuggestItem[] = []
-    for (const cat of allCategories) {
+    for (const cat of candidateCategories) {
       const domain = domains.find(d => d.id === cat.domainId)
       const catScore = countMatches(cat.name) * 2
       const domScore = domain ? countMatches(domain.name) * 1 : 0

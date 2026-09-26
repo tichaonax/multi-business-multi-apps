@@ -75,6 +75,15 @@ interface WarehouseItem {
   linkedProductBarcode: string | null
   linkedProductBusinessId: string | null
   linkedProductBusinessType: string | null
+  // Domain -> Category -> Subcategory as captured at move time, resolved the
+  // same way Edit Item displays it (a "group" category's leaf child shows
+  // as Category=<group>/Subcategory=<leaf>).
+  linkedProductDomainName: string | null
+  linkedProductDomainEmoji: string | null
+  linkedProductCategoryName: string | null
+  linkedProductCategoryEmoji: string | null
+  linkedProductSubcategoryName: string | null
+  linkedProductSubcategoryEmoji: string | null
 }
 
 interface LockInfo {
@@ -82,6 +91,14 @@ interface LockInfo {
   autoLocked: boolean
   importedQty: number
   originalQty: number | null
+}
+
+interface MoveSession {
+  sessionId: string
+  itemCount: number
+  movedAt: string | null
+  businessId: string | null
+  businessName: string | null
 }
 
 type FilterTab = 'ALL' | 'IN_WAREHOUSE' | 'PERSONAL' | 'MOVED_TO_BUSINESS' | 'MOVED_TO_PERSONAL'
@@ -625,6 +642,8 @@ export default function BatchDetailPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [showMoved, setShowMoved] = useState(false)
   const [movedToBusinessUsdCost, setMovedToBusinessUsdCost] = useState<number | null>(null)
+  const [moveSessions, setMoveSessions] = useState<MoveSession[]>([])
+  const [sessionsPanelOpen, setSessionsPanelOpen] = useState(false)
   const [dupOrderNumbers, setDupOrderNumbers] = useState<Set<string>>(new Set())
   const [dupTrackingNumbers, setDupTrackingNumbers] = useState<Set<string>>(new Set())
   const [orderLockMap, setOrderLockMap] = useState<Record<string, LockInfo>>({})
@@ -729,6 +748,7 @@ export default function BatchDetailPage() {
         setItems(data.items || [])
         setStatusCounts(data.statusCounts || {})
         setMovedToBusinessUsdCost(data.movedToBusinessUsdCost ?? null)
+        setMoveSessions(data.moveSessions ?? [])
         setDupOrderNumbers(new Set(data.duplicateOrderNumbers ?? []))
         setDupTrackingNumbers(new Set(data.duplicateTrackingNumbers ?? []))
         setOrderLockMap(data.orderLockMap ?? {})
@@ -1501,16 +1521,16 @@ export default function BatchDetailPage() {
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Order #</th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Qty</th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Manifest Qty</th>
-                        <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">¥ Price</th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Cost $</th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Rate</th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Clearance/Unit</th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Shipping/Unit</th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Landed Cost</th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Est. Selling</th>
+                        <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">¥ Price</th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Courier</th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Personal</th>
-                        <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -1576,6 +1596,23 @@ export default function BatchDetailPage() {
                                   ↗ Edit Item
                                 </button>
                               )}
+                              {item.status === 'MOVED_TO_BUSINESS' && item.linkedProductCategoryName && (
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate flex items-center gap-1 flex-wrap" title={[item.linkedProductDomainName, item.linkedProductCategoryName, item.linkedProductSubcategoryName].filter(Boolean).join(' > ')}>
+                                  {item.linkedProductDomainName && (
+                                    <>
+                                      <span>{item.linkedProductDomainEmoji || '📦'} {item.linkedProductDomainName}</span>
+                                      <span className="text-gray-400 dark:text-gray-500 font-bold">&gt;</span>
+                                    </>
+                                  )}
+                                  <span>{item.linkedProductCategoryEmoji || '📦'} {item.linkedProductCategoryName}</span>
+                                  {item.linkedProductSubcategoryName && (
+                                    <>
+                                      <span className="text-gray-400 dark:text-gray-500 font-bold">&gt;</span>
+                                      <span>{item.linkedProductSubcategoryEmoji || '📦'} {item.linkedProductSubcategoryName}</span>
+                                    </>
+                                  )}
+                                </div>
+                              )}
                               {item.sourceBatchId != null && (
                                 <div className="flex items-center gap-1 mt-1 flex-wrap">
                                   <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${item.sourceBatchStatus === 'CLOSED' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>
@@ -1624,21 +1661,6 @@ export default function BatchDetailPage() {
                             <td className="px-3 py-2">
                               <ManifestQtyCell item={item} onSave={patchItem} locked={isLocked} />
                             </td>
-                            <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
-                              {/* Stacked: show original above if qty was changed */}
-                              {item.originalPriceYuan != null ? (
-                                <div className="flex flex-col gap-0.5">
-                                  <span className="text-[10px] text-gray-400 dark:text-gray-500 font-mono leading-none">
-                                    orig: ¥{Number(item.originalPriceYuan).toFixed(2)}
-                                  </span>
-                                  <span className="text-xs font-mono text-gray-800 dark:text-gray-200 leading-none">
-                                    {item.priceYuan != null ? `¥${Number(item.priceYuan).toFixed(2)}` : '—'}
-                                  </span>
-                                </div>
-                              ) : (
-                                item.priceYuan != null ? `¥${Number(item.priceYuan).toFixed(2)}` : '—'
-                              )}
-                            </td>
                             <td className="px-3 py-2">
                               {item.status === 'IN_WAREHOUSE' ? (
                                 <EditableCell value={costUsd} itemId={item.id} field="costUsd" onSave={patchItem} suggestedValue={suggestedCost} />
@@ -1671,22 +1693,6 @@ export default function BatchDetailPage() {
                                   <span className="text-green-600 dark:text-green-400 font-medium">${calcSell.toFixed(2)}</span>
                                 </div>
                               ) : '—'}
-                            </td>
-                            <td className="px-3 py-2">
-                              <CourierBadge status={item.courierStatus} />
-                            </td>
-                            <td className="px-3 py-2 text-center">
-                              {item.status === 'IN_WAREHOUSE' ? (
-                                <button
-                                  onClick={() => togglePersonal(item)}
-                                  title={item.isPersonal ? 'Personal — click to unmark' : 'Business — click to mark personal'}
-                                  className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${item.isPersonal ? 'bg-purple-500' : 'bg-gray-300 dark:bg-gray-600'}`}
-                                >
-                                  <span className={`block w-3 h-3 rounded-full bg-white transition-transform ${item.isPersonal ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                                </button>
-                              ) : (
-                                item.isPersonal ? <span className="text-purple-500 font-medium">P</span> : <span className="text-gray-400">—</span>
-                              )}
                             </td>
                             <td className="px-3 py-2">
                               <div className="flex items-center gap-1">
@@ -1756,6 +1762,37 @@ export default function BatchDetailPage() {
                                 </div>
                               )}
                             </td>
+                            <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
+                              {/* Stacked: show original above if qty was changed */}
+                              {item.originalPriceYuan != null ? (
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="text-[10px] text-gray-400 dark:text-gray-500 font-mono leading-none">
+                                    orig: ¥{Number(item.originalPriceYuan).toFixed(2)}
+                                  </span>
+                                  <span className="text-xs font-mono text-gray-800 dark:text-gray-200 leading-none">
+                                    {item.priceYuan != null ? `¥${Number(item.priceYuan).toFixed(2)}` : '—'}
+                                  </span>
+                                </div>
+                              ) : (
+                                item.priceYuan != null ? `¥${Number(item.priceYuan).toFixed(2)}` : '—'
+                              )}
+                            </td>
+                            <td className="px-3 py-2">
+                              <CourierBadge status={item.courierStatus} />
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              {item.status === 'IN_WAREHOUSE' ? (
+                                <button
+                                  onClick={() => togglePersonal(item)}
+                                  title={item.isPersonal ? 'Personal — click to unmark' : 'Business — click to mark personal'}
+                                  className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${item.isPersonal ? 'bg-purple-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                                >
+                                  <span className={`block w-3 h-3 rounded-full bg-white transition-transform ${item.isPersonal ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                                </button>
+                              ) : (
+                                item.isPersonal ? <span className="text-purple-500 font-medium">P</span> : <span className="text-gray-400">—</span>
+                              )}
+                            </td>
                           </tr>
                         )
                       })}
@@ -1777,6 +1814,42 @@ export default function BatchDetailPage() {
               </>
             )}
           </div>
+
+          {/* Move Sessions — every group of items moved together in one
+              "Move to Business" action, most recent first, so a completed
+              move is never a dead end once you navigate away from it. */}
+          {moveSessions.length > 0 && (
+            <div className="bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 rounded-lg overflow-hidden">
+              <button
+                onClick={() => setSessionsPanelOpen(v => !v)}
+                className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/20 transition-colors"
+              >
+                <span>Move Sessions ({moveSessions.length})</span>
+                <svg className={`w-4 h-4 transition-transform ${sessionsPanelOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {sessionsPanelOpen && (
+                <div className="px-4 pb-4 space-y-1.5 max-h-64 overflow-y-auto">
+                  {moveSessions.map(session => (
+                    <button
+                      key={session.sessionId}
+                      onClick={() => router.push(`/warehouse/${batchId}/move?sessionId=${session.sessionId}`)}
+                      className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs bg-white dark:bg-gray-800 border border-emerald-100 dark:border-emerald-800 hover:border-emerald-400 dark:hover:border-emerald-500 transition-colors text-left"
+                    >
+                      <span className="text-gray-700 dark:text-gray-300">
+                        {session.movedAt ? new Date(session.movedAt).toLocaleString() : 'Unknown time'}
+                        {session.businessName && <span className="text-gray-400 dark:text-gray-500"> · {session.businessName}</span>}
+                      </span>
+                      <span className="shrink-0 px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-medium">
+                        {session.itemCount} item{session.itemCount !== 1 ? 's' : ''} →
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Personal items collapsible panel */}
           {(statusCounts['PERSONAL'] || 0) > 0 && (

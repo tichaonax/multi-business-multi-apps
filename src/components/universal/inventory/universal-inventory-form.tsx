@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { SupplierSelector } from '@/components/suppliers/supplier-selector'
 import { LocationSelector } from '@/components/locations/location-selector'
 import { InventorySubcategoryEditor } from '@/components/inventory/inventory-subcategory-editor'
+import { InventoryCategoryEditor } from '@/components/inventory/inventory-category-editor'
 import { BarcodeManager, ProductBarcode } from '@/components/universal/barcode-manager'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { CollapsibleSection } from '@/components/ui/collapsible-section'
@@ -27,6 +28,12 @@ interface InventorySubcategory {
   name: string
   emoji?: string
   displayOrder: number
+  // Only present when this "subcategory" option is actually a group's
+  // domain-tagged leaf child (e.g. "Led Lamps" under "Lighting And Smart
+  // Electronics") rather than a real InventorySubcategories row -- used to
+  // filter to the currently selected domain, since siblings under the same
+  // group can legitimately belong to different domains.
+  domainId?: string | null
 }
 
 interface UniversalInventoryItem {
@@ -308,6 +315,14 @@ export function UniversalInventoryForm({
     emoji?: string
     color?: string
     domainId?: string | null
+    parentId?: string | null
+    // "Group" category (attributes.isGroup, e.g. "Phones And Mobile
+    // Accessories") -- organizational/display-only, never itself a valid
+    // leaf categoryId. Presented as a selectable Category like any other,
+    // but its `subcategories` here are its domain-tagged BusinessCategories
+    // children (not real InventorySubcategories rows) -- picking one sets
+    // formData.categoryId to that child directly. See fetchCategories.
+    isGroup?: boolean
     subcategories?: InventorySubcategory[]
   }>>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('')
@@ -323,6 +338,7 @@ export function UniversalInventoryForm({
   // while it loads, rather than looking like the save silently did nothing.
   const [loadedImageUrl, setLoadedImageUrl] = useState<string | null>(null)
   const [showSubcategoryEditor, setShowSubcategoryEditor] = useState(false)
+  const [showCategoryEditor, setShowCategoryEditor] = useState(false)
   const [printOnSave, setPrintOnSave] = useState(false)
   const [showLabelPreview, setShowLabelPreview] = useState(false)
   const [savedItemForLabel, setSavedItemForLabel] = useState<UniversalInventoryItem | null>(null)
@@ -709,13 +725,32 @@ export function UniversalInventoryForm({
   useEffect(() => {
     const categoryId = formData.categoryId
     if (categoryId && categories.length > 0) {
-      setSelectedCategory(categoryId)
       const category = categories.find(c => c.id === categoryId)
-      if (category?.subcategories) {
-        setAvailableSubcategories(category.subcategories)
-      }
-      if (category?.domainId) {
-        setSelectedDomainId(category.domainId)
+      if (category) {
+        setSelectedCategory(categoryId)
+        if (category.subcategories) {
+          setAvailableSubcategories(category.subcategories)
+        }
+        if (category.domainId) {
+          setSelectedDomainId(category.domainId)
+        }
+      } else {
+        // The saved leaf is a group's child (e.g. "Led Lamps") -- not a flat
+        // entry here. Show its parent group as the selected Category, seed
+        // Subcategory options from that group's children, and resolve
+        // Domain from the LEAF's own domainId (a group never has one) --
+        // without this, Domain stays blank and, since the Subcategory
+        // options are themselves domain-filtered, the real leaf then gets
+        // filtered out of its own dropdown too, showing "No subcategory".
+        const parentGroup = categories.find(c => c.isGroup && c.subcategories?.some(s => s.id === categoryId))
+        if (parentGroup) {
+          setSelectedCategory(parentGroup.id)
+          setAvailableSubcategories(parentGroup.subcategories || [])
+          const leafDomainId = parentGroup.subcategories?.find(s => s.id === categoryId)?.domainId
+          if (leafDomainId && !selectedDomainId) {
+            setSelectedDomainId(leafDomainId)
+          }
+        }
       }
     }
   }, [categories, formData.categoryId])
@@ -741,14 +776,42 @@ export function UniversalInventoryForm({
       const response = await fetch(`/api/inventory/${businessId}/categories`)
       if (response.ok) {
         const data = await response.json()
-        const fetchedCategories = data.categories?.map((cat: any) => ({
-          id: cat.id,
-          name: cat.name,
-          emoji: cat.emoji || cat.icon || '📦',
-          color: cat.color || 'gray',
-          domainId: cat.domainId || null,
-          subcategories: cat.subcategories || []
-        })) || []
+        const raw: any[] = data.categories || []
+        // "Group" categories (e.g. "Phones And Mobile Accessories") are
+        // organizational/display-only -- promote them to a selectable
+        // Category in their own right (own name + emoji), and demote their
+        // domain-tagged children out of the flat Category list, presenting
+        // them as Subcategory options instead. Mirrors the same handling in
+        // warehouse move/page.tsx (isGroupCategory) so a product saved
+        // through either screen displays identically here.
+        const groupIds = new Set(raw.filter(c => c.isGroup).map(c => c.id))
+        const plainCategories = raw
+          .filter(c => !c.isGroup && !(c.parentId && groupIds.has(c.parentId)))
+          .map((cat: any) => ({
+            id: cat.id,
+            name: cat.name,
+            emoji: cat.emoji || cat.icon || '📦',
+            color: cat.color || 'gray',
+            domainId: cat.domainId || null,
+            parentId: cat.parentId || null,
+            isGroup: false,
+            subcategories: cat.subcategories || []
+          }))
+        const groupCategories = raw
+          .filter(c => c.isGroup)
+          .map((g: any) => ({
+            id: g.id,
+            name: g.name,
+            emoji: g.emoji || g.icon || '📦',
+            color: g.color || 'gray',
+            domainId: null,
+            parentId: g.parentId || null,
+            isGroup: true,
+            subcategories: raw
+              .filter((c: any) => c.parentId === g.id)
+              .map((c: any) => ({ id: c.id, name: c.name, emoji: c.emoji, displayOrder: 0, domainId: c.domainId || null }))
+          }))
+        const fetchedCategories = [...plainCategories, ...groupCategories]
 
         setCategories(fetchedCategories)
 
@@ -757,12 +820,29 @@ export function UniversalInventoryForm({
         const catId = item?.categoryId || selectedCategory
         if (catId) {
           const cat = fetchedCategories.find((c: any) => c.id === catId)
-          // Pre-select domain from the item's category
-          if (cat?.domainId && !selectedDomainId) {
-            setSelectedDomainId(cat.domainId)
-          }
-          if (cat?.subcategories) {
-            setAvailableSubcategories(cat.subcategories)
+          if (cat) {
+            // Pre-select domain from the item's category
+            if (cat.domainId && !selectedDomainId) {
+              setSelectedDomainId(cat.domainId)
+            }
+            if (cat.subcategories) {
+              setAvailableSubcategories(cat.subcategories)
+            }
+          } else {
+            // The saved leaf is itself a group's child (e.g. "Led Lamps") --
+            // no longer a flat entry in fetchedCategories. Resolve its
+            // domain directly (leaves always carry their own) and seed the
+            // Subcategory list from its parent group.
+            const rawLeaf = raw.find((c: any) => c.id === catId)
+            const parentGroup = rawLeaf?.parentId
+              ? fetchedCategories.find((c) => c.id === rawLeaf.parentId && c.isGroup)
+              : null
+            if (parentGroup) {
+              if (rawLeaf.domainId && !selectedDomainId) {
+                setSelectedDomainId(rawLeaf.domainId)
+              }
+              setAvailableSubcategories(parentGroup.subcategories || [])
+            }
           }
         }
       }
@@ -820,17 +900,23 @@ export function UniversalInventoryForm({
 
   const handleCategoryChange = (categoryId: string) => {
     markDirty()
-    // Update form data with new category
-    setFormData(prev => ({
-      ...prev,
-      categoryId,
-      subcategoryId: prev.categoryId !== categoryId ? '' : prev.subcategoryId // Only reset subcategory when category actually changes
-    }))
-
-    // Update selected category and available subcategories
-    setSelectedCategory(categoryId)
     const category = categories.find(c => c.id === categoryId)
+    setSelectedCategory(categoryId)
     setAvailableSubcategories(category?.subcategories || [])
+
+    if (category?.isGroup) {
+      // A group (e.g. "Phones And Mobile Accessories") is never itself a
+      // valid leaf categoryId -- clear it and wait for a real child to be
+      // picked in the Subcategory dropdown, which sets formData.categoryId
+      // directly (see the Subcategory onChange handler below).
+      setFormData(prev => ({ ...prev, categoryId: '', subcategoryId: '' }))
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        categoryId,
+        subcategoryId: prev.categoryId !== categoryId ? '' : prev.subcategoryId // Only reset subcategory when category actually changes
+      }))
+    }
 
     // Clear errors
     if (errors.categoryId) {
@@ -846,16 +932,41 @@ export function UniversalInventoryForm({
     if (q.length < 2) return
     const tokens = q.toLowerCase().split(/[\s,./\\-]+/).filter(t => t.length >= 2)
     function countMatches(text: string): number {
-      const lower = text.toLowerCase()
-      return tokens.filter(t => lower.includes(t)).length
+      // Whole-word matching -- plain substring matching let a token like
+      // "end" (from "High-end") false-positive match inside an unrelated
+      // word like "boyfr-END", surfacing nonsense suggestions.
+      const words = text.toLowerCase().split(/[\s,./\\-]+/).filter(Boolean)
+      return tokens.filter(t => {
+        if (words.includes(t)) return true
+        if (t.length > 3 && t.endsWith('s') && words.includes(t.slice(0, -1))) return true
+        return words.some(w => w.length > 3 && w.endsWith('s') && w.slice(0, -1) === t)
+      }).length
     }
+    // If a domain is already selected, restrict candidates to that domain's
+    // own categories — otherwise Suggest can surface a match that belongs to
+    // a domain the user has already ruled out by picking a different one.
+    // A "group" category (e.g. "Phones And Mobile Accessories") carries no
+    // domainId of its own, so it only counts as a candidate when at least
+    // one of its children belongs to the selected domain.
+    const candidateCategories = selectedDomainId
+      ? categories.filter(cat =>
+          cat.domainId === selectedDomainId ||
+          (cat.isGroup && (cat.subcategories || []).some(s => s.domainId === selectedDomainId))
+        )
+      : categories
     const scored: SuggestItem[] = []
-    for (const cat of categories) {
-      const domain = domains.find(d => d.id === cat.domainId)
+    for (const cat of candidateCategories) {
       const catScore = countMatches(cat.name) * 2
-      const domScore = domain ? countMatches(domain.name) * 1 : 0
       if (cat.subcategories && cat.subcategories.length > 0) {
         for (const sub of cat.subcategories) {
+          // Prefer the CATEGORY's own domainId when it has one, so Domain and
+          // Category always agree -- only fall back to the leaf's domainId
+          // when the category has none (a "group"). Some seed data has a
+          // plain (non-group) category whose child carries a DIFFERENT
+          // domainId than the category itself; preferring cat.domainId keeps
+          // the suggestion self-consistent instead of contradicting itself.
+          const domain = domains.find(d => d.id === (cat.domainId || sub.domainId))
+          const domScore = domain ? countMatches(domain.name) * 1 : 0
           const subScore = countMatches(sub.name) * 3
           const total = subScore + catScore + domScore
           if (total === 0) continue
@@ -867,6 +978,8 @@ export function UniversalInventoryForm({
           })
         }
       } else {
+        const domain = domains.find(d => d.id === cat.domainId)
+        const domScore = domain ? countMatches(domain.name) * 1 : 0
         const total = catScore + domScore
         if (total === 0) continue
         scored.push({
@@ -899,7 +1012,14 @@ export function UniversalInventoryForm({
     setSelectedCategory(s.categoryId)
     const cat = categories.find(c => c.id === s.categoryId)
     setAvailableSubcategories(cat?.subcategories || [])
-    setFormData(prev => ({ ...prev, categoryId: s.categoryId, subcategoryId: s.subcategoryId || '' }))
+    if (cat?.isGroup) {
+      // The suggested "category" is a group -- its real leaf is the
+      // suggested child (subcategoryId), which becomes the actual
+      // categoryId (a group id is never valid to save).
+      setFormData(prev => ({ ...prev, categoryId: s.subcategoryId || '', subcategoryId: '' }))
+    } else {
+      setFormData(prev => ({ ...prev, categoryId: s.categoryId, subcategoryId: s.subcategoryId || '' }))
+    }
     setErrors(prev => ({ ...prev, categoryId: '', domainId: '' }))
   }
 
@@ -916,6 +1036,14 @@ export function UniversalInventoryForm({
     }
     
     setShowSubcategoryEditor(false)
+  }
+
+  const handleCategoryCreated = async (createdCategory?: any) => {
+    setShowCategoryEditor(false)
+    await fetchCategories()
+    if (createdCategory?.id) {
+      handleCategoryChange(createdCategory.id)
+    }
   }
 
 
@@ -1574,6 +1702,13 @@ export function UniversalInventoryForm({
     )
   }
 
+  const isSelectedCategoryAGroup = categories.find(c => c.id === selectedCategory)?.isGroup === true
+  // formData.categoryId is always the true leaf, which for a group's child
+  // (e.g. "Led Lamps") no longer has its own flat entry in `categories` --
+  // fall back to searching each group's children for display purposes.
+  const selectedLeafCategoryName = categories.find(c => c.id === formData.categoryId)?.name
+    ?? categories.flatMap(c => c.subcategories || []).find(s => s.id === formData.categoryId)?.name
+
   // support rendering either as a modal (default) or inline panel
   const panel = (
     <div className={`relative text-gray-900 dark:text-gray-100${renderMode === 'modal' ? ' bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-[1600px] w-full max-h-[90vh] overflow-auto' : ''}`}>
@@ -1727,9 +1862,16 @@ export function UniversalInventoryForm({
                   value={selectedDomainId}
                   onChange={(id) => {
                     setSelectedDomainId(id || '')
-                    // Reset category if it doesn't belong to the new domain
-                    const cat = categories.find(c => c.id === formData.categoryId)
-                    if (cat && cat.domainId && cat.domainId !== id) {
+                    // Reset category if it doesn't belong to the new domain.
+                    // A group has no domainId of its own -- only reset it if
+                    // none of its children belong to the new domain either.
+                    const cat = categories.find(c => c.id === selectedCategory)
+                    const categoryStillValid = cat && (
+                      cat.isGroup
+                        ? (cat.subcategories || []).some(s => s.domainId === id)
+                        : cat.domainId === id
+                    )
+                    if (cat && !categoryStillValid) {
                       handleCategoryChange('')
                     }
                     if (errors.domainId) setErrors(prev => ({ ...prev, domainId: '' }))
@@ -1747,17 +1889,33 @@ export function UniversalInventoryForm({
                   a screen-centered dialog far from where it's relevant. */}
               <div className="col-span-2 xl:col-span-3 grid grid-cols-2 gap-3 relative">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Category *</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Category *</label>
+                    {permissions?.canCreateInventoryCategories && (
+                      <button
+                        type="button"
+                        onClick={() => setShowCategoryEditor(true)}
+                        className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                      >
+                        + New
+                      </button>
+                    )}
+                  </div>
                   <SearchableSelect
                     options={categories
-                      .filter(cat => !selectedDomainId || cat.domainId === selectedDomainId || cat.id === formData.categoryId)
+                      .filter(cat =>
+                        !selectedDomainId ||
+                        cat.domainId === selectedDomainId ||
+                        cat.id === selectedCategory ||
+                        (cat.isGroup && (cat.subcategories || []).some(s => s.domainId === selectedDomainId))
+                      )
                       .map(cat => ({
                         id: cat.id,
                         name: cat.name,
                         emoji: cat.emoji,
                         color: cat.color
                       }))}
-                    value={formData.categoryId || ''}
+                    value={selectedCategory || formData.categoryId || ''}
                     onChange={handleCategoryChange}
                     placeholder={selectedDomainId ? 'Select category...' : 'Select a domain first...'}
                     searchPlaceholder="Search categories..."
@@ -1769,7 +1927,7 @@ export function UniversalInventoryForm({
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">Subcategory</label>
-                    {selectedCategory && permissions?.canCreateInventorySubcategories && (
+                    {selectedCategory && !isSelectedCategoryAGroup && permissions?.canCreateInventorySubcategories && (
                       <button
                         type="button"
                         onClick={() => setShowSubcategoryEditor(true)}
@@ -1780,19 +1938,31 @@ export function UniversalInventoryForm({
                     )}
                   </div>
                   <SearchableSelect
-                    options={availableSubcategories.map(sub => ({
-                      id: sub.id,
-                      name: sub.name,
-                      emoji: sub.emoji
-                    }))}
-                    value={formData.subcategoryId || ''}
-                    onChange={(id) => handleInputChange('subcategoryId', id || null)}
+                    options={availableSubcategories
+                      .filter(sub => !sub.domainId || sub.domainId === selectedDomainId)
+                      .map(sub => ({
+                        id: sub.id,
+                        name: sub.name,
+                        emoji: sub.emoji
+                      }))}
+                    value={(isSelectedCategoryAGroup ? formData.categoryId : formData.subcategoryId) || ''}
+                    onChange={(id) => {
+                      if (isSelectedCategoryAGroup) {
+                        // The group itself is never a valid leaf -- picking
+                        // one of its children here IS the real categoryId.
+                        markDirty()
+                        setFormData(prev => ({ ...prev, categoryId: id || '', subcategoryId: '' }))
+                        if (errors.categoryId) setErrors(prev => ({ ...prev, categoryId: '' }))
+                      } else {
+                        handleInputChange('subcategoryId', id || null)
+                      }
+                    }}
                     placeholder="No subcategory"
                     searchPlaceholder="Search subcategories..."
                     disabled={!selectedCategory}
                     loading={!categoriesLoaded}
                     emptyMessage={selectedCategory && availableSubcategories.length === 0
-                      ? 'No subcategories. Click "+ New" to add one.'
+                      ? (isSelectedCategoryAGroup ? 'No items under this category' : 'No subcategories. Click "+ New" to add one.')
                       : 'Select a category first'}
                   />
                 </div>
@@ -1821,7 +1991,16 @@ export function UniversalInventoryForm({
                         Based on: <span className="font-medium text-primary">&quot;{formData.name.trim()}&quot;</span>
                       </p>
                       {suggestions.length === 0 ? (
-                        <p className="text-sm text-secondary py-4 text-center">No matches found — please select manually.</p>
+                        <div className="py-4 text-center">
+                          <p className="text-sm text-secondary mb-2">No matches found — select manually, or:</p>
+                          {permissions?.canCreateInventoryCategories && (
+                            <button
+                              type="button"
+                              onClick={() => { setSuggestOpen(false); setShowCategoryEditor(true) }}
+                              className="text-xs px-2 py-1 rounded border border-blue-300 text-blue-600 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                            >+ Create new category</button>
+                          )}
+                        </div>
                       ) : (
                         <>
                           <ul className="space-y-2 max-h-64 overflow-y-auto">
@@ -1987,7 +2166,7 @@ export function UniversalInventoryForm({
               <div className="xl:col-span-2">
                 <SKUGenerator
                   businessId={businessId}
-                  categoryName={categories.find(cat => cat.id === formData.categoryId)?.name}
+                  categoryName={selectedLeafCategoryName}
                   value={formData.sku}
                   onChange={(sku) => handleInputChange('sku', sku)}
                   onModeChange={(manual) => setIsManualSku(manual)}
@@ -2587,6 +2766,17 @@ export function UniversalInventoryForm({
           />
         )}
 
+        {/* Category Editor Modal */}
+        <InventoryCategoryEditor
+          category={null}
+          businessId={businessId}
+          businessType={businessType}
+          initialDomainId={selectedDomainId || undefined}
+          isOpen={showCategoryEditor}
+          onSuccess={handleCategoryCreated}
+          onCancel={() => setShowCategoryEditor(false)}
+        />
+
         {/* Label Preview Modal */}
         {savedItemForLabel && (
           <LabelPreview
@@ -2641,6 +2831,16 @@ export function UniversalInventoryForm({
         />
       )}
 
+      {/* Category Editor Modal */}
+      <InventoryCategoryEditor
+        category={null}
+        businessId={businessId}
+        businessType={businessType}
+        initialDomainId={selectedDomainId || undefined}
+        isOpen={showCategoryEditor}
+        onSuccess={handleCategoryCreated}
+        onCancel={() => setShowCategoryEditor(false)}
+      />
 
       {/* Label Preview Modal */}
       {savedItemForLabel && (

@@ -60,10 +60,14 @@ export function InventoryCategoryEditor({
     }
   }, [isOpen, businessType]);
 
-  // Load top-level categories as parent-category candidates. Any existing
-  // root category can be a parent (not just the ones tagged isGroup) -- that
-  // tag only hides organizational groups from leaf-category pickers
-  // elsewhere, it isn't a restriction on what can hold children.
+  // Parent-category candidates. When a domain is selected, "Category" tier
+  // for a domain-based business type is defined by having that domainId set
+  // directly (not by being parent-less -- e.g. "Girls Pants" is itself nested
+  // under another category yet is still the right nesting point for a new
+  // sub-category), so scope to siblings in the same domain -- otherwise this
+  // picker offers root categories from unrelated domains, which is exactly
+  // the "why is this even here" confusion a domain-scoped create should avoid.
+  // With no domain (non-domain business types), fall back to true roots.
   useEffect(() => {
     async function fetchParentOptions() {
       try {
@@ -74,10 +78,20 @@ export function InventoryCategoryEditor({
         if (!response.ok) throw new Error('Failed to fetch categories');
 
         const data = await response.json();
-        const roots = (data.categories || []).filter(
-          (c: InventoryCategory) => !c.parentId && c.id !== category?.id
+        // /api/inventory/categories intentionally shows every real business's
+        // categories side-by-side (demo isolation only, not per-business
+        // isolation -- see that route's ONE-WAY isolation comments), so it
+        // must be narrowed here to this business's own categories (plus
+        // shared businessId=null templates). Otherwise this picker would let
+        // a category get nested under a different business's category entirely.
+        const ownCategories = (data.categories || []).filter(
+          (c: InventoryCategory) =>
+            c.id !== category?.id && (c.businessId === businessId || c.businessId == null)
         );
-        setParentOptions(roots);
+        const candidates = selectedDomainId
+          ? ownCategories.filter((c: InventoryCategory) => c.domainId === selectedDomainId)
+          : ownCategories.filter((c: InventoryCategory) => !c.parentId);
+        setParentOptions(candidates);
       } catch (err) {
         console.error('Error fetching parent category options:', err);
       } finally {
@@ -88,7 +102,7 @@ export function InventoryCategoryEditor({
     if (isOpen) {
       fetchParentOptions();
     }
-  }, [isOpen, businessId, businessType, category?.id]);
+  }, [isOpen, businessId, businessType, category?.id, selectedDomainId]);
 
   // Initialize form with category data (edit mode) or defaults (create mode)
   // Must depend on isOpen so re-opening with the same initialDomainId still reinitializes
@@ -226,7 +240,7 @@ export function InventoryCategoryEditor({
                 <select
                   id="category-domain"
                   value={selectedDomainId}
-                  onChange={(e) => setSelectedDomainId(e.target.value)}
+                  onChange={(e) => { setSelectedDomainId(e.target.value); setSelectedParentId('') }}
                   disabled={loading || loadingDomains}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
                 >
@@ -251,7 +265,7 @@ export function InventoryCategoryEditor({
                   disabled={loading || loadingParents}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
                 >
-                  <option value="">No parent (top-level category)</option>
+                  <option value="">{selectedDomainId ? 'No parent — a top-level category in this department' : 'No parent (top-level category)'}</option>
                   {parentOptions.map((parent) => (
                     <option key={parent.id} value={parent.id}>
                       {parent.emoji} {parent.name}
@@ -259,7 +273,9 @@ export function InventoryCategoryEditor({
                   ))}
                 </select>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Group this category under an existing top-level category, e.g. "Tops" or "Bottoms".
+                  {selectedDomainId
+                    ? 'Optional — nest this under an existing category in the same department, e.g. put "Boyfriend Jeans" under "Girls Pants". Leave blank for a standalone category directly under the department.'
+                    : 'Group this category under an existing top-level category, e.g. "Tops" or "Bottoms".'}
                 </p>
               </div>
 

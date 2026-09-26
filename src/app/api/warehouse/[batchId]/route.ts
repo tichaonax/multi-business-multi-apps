@@ -42,7 +42,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
     const [prismaItems, totalItems] = await Promise.all([
       (prisma as any).warehouseItems.findMany({
         where,
-        orderBy: [{ rowNumber: 'asc' }, { createdAt: 'asc' }],
+        // Most recently added/updated first in every status tab -- moving,
+        // editing, or scanning a barcode onto an item all bump updatedAt, so
+        // whatever was just touched surfaces at the top instead of requiring
+        // a scroll back to find it.
+        orderBy: [{ updatedAt: 'desc' }],
         skip,
         take: limit,
       }),
@@ -92,10 +96,73 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
     const linkedProducts = movedProductIds.length > 0
       ? await (prisma as any).businessProducts.findMany({
           where: { id: { in: movedProductIds } },
-          select: { id: true, sku: true, barcode: true, businessId: true, businessType: true, basePrice: true },
+          select: { id: true, sku: true, barcode: true, businessId: true, businessType: true, basePrice: true, categoryId: true },
         })
       : []
     const linkedProductMap = new Map(linkedProducts.map((p: any) => [p.id, p]))
+
+    // Domain -> Category -> Subcategory breadcrumb for each linked product's
+    // leaf categoryId, so the batch view can show the same classification
+    // the Move page captured without opening Edit Item. Mirrors the exact
+    // "group" semantics used there and in universal-inventory-form.tsx: a
+    // leaf whose immediate parent is a "group" category (attributes.isGroup,
+    // e.g. "Phones And Mobile Accessories") displays as
+    // Category=<group>/Subcategory=<leaf>; a plain leaf (no group parent)
+    // displays as Category=<leaf> with no subcategory, matching what Edit
+    // Item shows for that same product.
+    const leafCategoryIds = [...new Set(linkedProducts.map((p: any) => p.categoryId).filter(Boolean))] as string[]
+    const categoryBreadcrumbMap = new Map<string, {
+      domainName: string | null; domainEmoji: string | null
+      categoryName: string; categoryEmoji: string
+      subcategoryName: string | null; subcategoryEmoji: string | null
+    }>()
+    if (leafCategoryIds.length > 0) {
+      // Gather the leaf plus ancestor levels (leaf -> group/parent -> that
+      // parent's own parent, if any) needed to resolve domain + group name.
+      const byId = new Map<string, any>()
+      let toFetch = new Set<string>(leafCategoryIds)
+      for (let depth = 0; depth < 3 && toFetch.size > 0; depth++) {
+        const rows = await (prisma as any).businessCategories.findMany({
+          where: { id: { in: [...toFetch] } },
+          include: { domain: true },
+        })
+        const nextToFetch = new Set<string>()
+        for (const r of rows) {
+          byId.set(r.id, r)
+          if (r.parentId && !byId.has(r.parentId)) nextToFetch.add(r.parentId)
+        }
+        toFetch = nextToFetch
+      }
+      const resolveDomain = (cat: any): any => {
+        let current = cat
+        const seen = new Set<string>()
+        while (current) {
+          if (current.domain) return current.domain
+          if (!current.parentId || seen.has(current.id)) return null
+          seen.add(current.id)
+          current = byId.get(current.parentId)
+        }
+        return null
+      }
+      for (const leafId of leafCategoryIds) {
+        const leaf = byId.get(leafId)
+        if (!leaf) continue
+        const parent = leaf.parentId ? byId.get(leaf.parentId) : null
+        const parentIsGroup = !!(parent?.attributes && parent.attributes.isGroup === true)
+        const domain = resolveDomain(leaf)
+        categoryBreadcrumbMap.set(leafId, parentIsGroup
+          ? {
+              domainName: domain?.name ?? null, domainEmoji: domain?.emoji ?? null,
+              categoryName: parent.name, categoryEmoji: parent.emoji || '📦',
+              subcategoryName: leaf.name, subcategoryEmoji: leaf.emoji || null,
+            }
+          : {
+              domainName: domain?.name ?? null, domainEmoji: domain?.emoji ?? null,
+              categoryName: leaf.name, categoryEmoji: leaf.emoji || '📦',
+              subcategoryName: null, subcategoryEmoji: null,
+            })
+      }
+    }
 
     // The price the item was actually moved at is never overwritten in place
     // — the FIRST (oldest) SELLING history row's oldPrice is exactly that
@@ -119,6 +186,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
     const items = prismaItems.map((i: any) => {
       const linked: any = i.businessProductId ? linkedProductMap.get(i.businessProductId) : null
       const priceHistory = i.businessProductId ? priceHistoryByProduct.get(i.businessProductId) : null
+      const breadcrumb = linked?.categoryId ? categoryBreadcrumbMap.get(linked.categoryId) : null
       return {
         ...i,
         ...(itemExtras[i.id] ?? { originalQty: null, originalPriceYuan: null, qtyChangeReason: null, manifestQty: null, orderedQty: null }),
@@ -132,6 +200,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
         linkedProductOriginalPrice: priceHistory ? Number(priceHistory.original.oldPrice) : null,
         linkedProductPriceChangeReason: priceHistory ? (priceHistory.latest.reason || priceHistory.latest.changeReason) : null,
         linkedProductPriceChangedAt: priceHistory ? priceHistory.latest.createdAt : null,
+        linkedProductDomainName: breadcrumb?.domainName ?? null,
+        linkedProductDomainEmoji: breadcrumb?.domainEmoji ?? null,
+        linkedProductCategoryName: breadcrumb?.categoryName ?? null,
+        linkedProductCategoryEmoji: breadcrumb?.categoryEmoji ?? null,
+        linkedProductSubcategoryName: breadcrumb?.subcategoryName ?? null,
+        linkedProductSubcategoryEmoji: breadcrumb?.subcategoryEmoji ?? null,
       }
     })
 
@@ -151,6 +225,32 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
     const countsMap: Record<string, number> = { PERSONAL: personalCount }
     for (const s of statusCounts) countsMap[s.status] = s._count.id
     const movedToBusinessUsdCost = movedCostAgg._sum.costUsd != null ? Number(movedCostAgg._sum.costUsd) : null
+
+    // Move Sessions — every item moved together in one "Move to Business"
+    // action, most recent first, so the batch page can offer a way back into
+    // that exact set of items (which the Move page itself already renders,
+    // filtered to a sessionId, since it loads status=ALL regardless).
+    const sessionRows: any[] = await prisma.$queryRaw`
+      SELECT
+        wi."moveSessionId" as "sessionId",
+        COUNT(*)::int as "itemCount",
+        MAX(wi."movedAt") as "movedAt",
+        MAX(bp."businessId") as "businessId",
+        MAX(b.name) as "businessName"
+      FROM warehouse_items wi
+      LEFT JOIN business_products bp ON bp.id = wi."businessProductId"
+      LEFT JOIN businesses b ON b.id = bp."businessId"
+      WHERE wi."batchId" = ${batchId} AND wi."moveSessionId" IS NOT NULL
+      GROUP BY wi."moveSessionId"
+      ORDER BY MAX(wi."movedAt") DESC
+    `
+    const moveSessions = sessionRows.map(s => ({
+      sessionId: s.sessionId,
+      itemCount: s.itemCount,
+      movedAt: s.movedAt,
+      businessId: s.businessId,
+      businessName: s.businessName,
+    }))
 
     // Transport cost per item (eligible = IN_WAREHOUSE only)
     const inWarehouseCount = countsMap['IN_WAREHOUSE'] || 0
@@ -237,6 +337,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
       duplicateTrackingNumbers,
       orderLockMap,
       trackingLockMap,
+      moveSessions,
       pagination: { page, limit, total: totalItems, pages: Math.ceil(totalItems / limit) },
     })
   } catch (error: any) {

@@ -10,6 +10,7 @@ const CreateCategorySchema = z.object({
   description: z.string().optional(),
   parentId: z.string().optional(),
   domainId: z.string().optional(),
+  emoji: z.string().max(8).optional(),
   displayOrder: z.number().int().min(0).default(0),
   businessType: z.string().min(1),
   attributes: z.record(z.string(), z.unknown()).optional()
@@ -176,12 +177,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify parent category exists if specified
+    // Verify parent category exists if specified. Most seeded/template
+    // categories are shared (businessId: null) rather than owned by any one
+    // business -- requiring an exact businessId match here rejected picking
+    // any shared category as a parent even though it's a perfectly valid,
+    // selectable option everywhere else in the app (dropdowns, Suggest,
+    // the Move route's own category validation all treat businessId: null
+    // as valid). That mismatch is what produced "Parent category not found"
+    // for a category the user could see and had just selected.
     if (validatedData.parentId) {
       const parentCategory = await prisma.businessCategories.findFirst({
         where: {
           id: validatedData.parentId,
-          businessId: validatedData.businessId
+          businessType: validatedData.businessType,
+          OR: [
+            { businessId: validatedData.businessId },
+            { businessId: null },
+          ],
         }
       })
 

@@ -12,6 +12,7 @@ import { useToastContext } from '@/components/ui/toast'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { PricingCalculator } from '@/components/inventory/pricing-calculator'
 import { CategoryOptionGroups } from '@/lib/category-grouping'
+import { InventoryCategoryEditor } from '@/components/inventory/inventory-category-editor'
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -42,6 +43,10 @@ interface WarehouseItem {
   imageId: string | null
   isPersonal: boolean
   status: string
+  // Groups every item moved together in one "Move to Business" action —
+  // used to filter the list down to a single past session (see the
+  // "Move Sessions" panel on the batch detail page and ?sessionId= below).
+  moveSessionId: string | null
   // Set once this item has been moved — live values from the linked
   // BusinessProducts row, so a barcode assigned well after the move still
   // shows up here.
@@ -58,6 +63,17 @@ interface WarehouseItem {
   linkedProductOriginalPrice: number | null
   linkedProductPriceChangeReason: string | null
   linkedProductPriceChangedAt: string | null
+  // Domain -> Category -> Subcategory exactly as it was actually saved
+  // (resolved server-side the same way Edit Item shows it) -- NOT the same
+  // as this row's own domainId/categoryId/subCategoryId fields, which are
+  // reset to '' for an already-moved row (see the row-building effect) and
+  // reflect the pre-save UI picks anyway, not the true persisted leaf.
+  linkedProductDomainName: string | null
+  linkedProductDomainEmoji: string | null
+  linkedProductCategoryName: string | null
+  linkedProductCategoryEmoji: string | null
+  linkedProductSubcategoryName: string | null
+  linkedProductSubcategoryEmoji: string | null
 }
 
 interface Business {
@@ -73,12 +89,22 @@ interface Category {
   parentId: string | null
   domainId: string | null
   parent?: { id: string; name: string } | null
+  attributes?: { isGroup?: boolean } | null
 }
 
 interface Domain {
   id: string
   name: string
   emoji: string
+}
+
+// A "group" category (attributes.isGroup) is an organizational/display-only
+// node -- never itself the leaf categoryId a product is saved with. Its
+// domain-tagged children are the real leaves; the group is just a name+emoji
+// used to present them as a pickable Category, with the children demoted to
+// the Subcategory tier (see loadCategories / filteredCats / filteredSubs).
+function isGroupCategory(c: Category): boolean {
+  return !!(c.attributes && c.attributes.isGroup === true)
 }
 
 interface SuggestItem {
@@ -117,11 +143,17 @@ function suggestClassification(
   if (tokens.length === 0 || subCategories.length === 0) return []
 
   function countMatches(text: string): number {
-    const lower = text.toLowerCase()
+    // Whole-word matching against text's own tokens -- plain substring
+    // matching (text.includes(t)) let a token like "end" (from "High-end")
+    // false-positive match inside an unrelated word like "boyfr-END",
+    // surfacing e.g. "Boyfriend Jeans" as a suggestion for a handbag.
+    const words = text.toLowerCase().split(/[\s,./\\-]+/).filter(Boolean)
     return tokens.filter(t => {
-      if (lower.includes(t)) return true
+      if (words.includes(t)) return true
       // Also match singular form: "screws"→"screw", "nails"→"nail", "walls"→"wall"
-      if (t.length > 3 && t.endsWith('s') && lower.includes(t.slice(0, -1))) return true
+      if (t.length > 3 && t.endsWith('s') && words.includes(t.slice(0, -1))) return true
+      // ...and the reverse: category word is plural, product token is singular
+      if (words.some(w => w.length > 3 && w.endsWith('s') && w.slice(0, -1) === t)) return true
       return false
     }).length
   }
@@ -133,7 +165,17 @@ function suggestClassification(
 
     let domainId = '', domainName = '', domainEmoji = ''
     if (domainList.length > 0) {
-      const dom = domainList.find(d => d.id === cat.domainId)
+      // Prefer the CATEGORY's own domainId when it has one -- Domain and
+      // Category must always agree, since Domain is really just a display of
+      // which domain the suggested Category belongs to. Only fall back to
+      // the leaf's own domainId when the category has none, i.e. it's a
+      // "group" (e.g. "Lighting And Smart Electronics" -> "Led Lamps").
+      // Some seed data has a plain (non-group) category whose child carries
+      // a DIFFERENT domainId than the category itself (e.g. "Appliances"
+      // under Sale with a child tagged Electronics) -- preferring cat.domainId
+      // keeps the suggested Domain/Category self-consistent so it doesn't
+      // immediately trip the "re-pick category" foreign-category warning.
+      const dom = domainList.find(d => d.id === (cat.domainId || sub.domainId))
       if (dom) { domainId = dom.id; domainName = dom.name; domainEmoji = dom.emoji }
     } else {
       const dept = departments.find(d => d.id === cat.parentId)
@@ -321,6 +363,11 @@ export default function MoveWizardPage() {
   const scanItemId = searchParams.get('itemId')
   const scanBarcode = searchParams.get('barcode')
   const preselectedIdsRaw = searchParams.get('ids') || ''
+  // Reopens a past "Move to Business" action from the batch detail page's
+  // Move Sessions panel — filters the list down to exactly the items moved
+  // together in that one session, so it's never a dead end once you
+  // navigate away from the page you saw right after moving.
+  const sessionIdParam = searchParams.get('sessionId')
 
   // ── Core state ───────────────────────────────────────────────────────────────
   const [batch, setBatch] = useState<BatchInfo | null>(null)
@@ -348,6 +395,15 @@ export default function MoveWizardPage() {
   // InventorySubcategories row).
   const [inventorySubcategoryIds, setInventorySubcategoryIds] = useState<Set<string>>(new Set())
   const [allCats, setAllCats] = useState<Category[]>([])
+
+  // ── Create category / sub-category on the fly (mirrors bulk-stock-panel's
+  // established "+ New Category" / "+ New Sub-category" pattern) ───────────
+  const [categoryEditorRowIdx, setCategoryEditorRowIdx] = useState<number | null>(null)
+  const [quickCreateRowIdx, setQuickCreateRowIdx] = useState<number | null>(null)
+  const [quickCreateName, setQuickCreateName] = useState('')
+  const [quickCreateEmoji, setQuickCreateEmoji] = useState('')
+  const [quickCreateError, setQuickCreateError] = useState('')
+  const [quickCreateLoading, setQuickCreateLoading] = useState(false)
 
   // ── Markup ───────────────────────────────────────────────────────────────────
   const [markupPct, setMarkupPct] = useState(() =>
@@ -417,13 +473,16 @@ export default function MoveWizardPage() {
         const idSet = new Set(decodeURIComponent(preselectedIdsRaw).split(',').filter(Boolean))
         eligible = eligible.filter((i: WarehouseItem) => idSet.has(i.id))
       }
+      if (sessionIdParam) {
+        eligible = eligible.filter((i: WarehouseItem) => i.moveSessionId === sessionIdParam)
+      }
       setAllItems(eligible)
     } catch {
       toast.error('Failed to load batch')
     } finally {
       setLoading(false)
     }
-  }, [batchId, preselectedIdsRaw])
+  }, [batchId, preselectedIdsRaw, sessionIdParam])
 
   // ── Load businesses ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -494,7 +553,12 @@ export default function MoveWizardPage() {
   }, [])
 
   // ── Load categories + domains when business changes ───────────────────────────
-  useEffect(() => {
+  // Extracted to a callable function (not just an effect body) so that
+  // creating a new category/subcategory on the fly (see openCategoryEditor /
+  // handleQuickCreate below) can re-run the exact same derivation instead of
+  // trying to splice a new row into whichever of the several derived state
+  // shapes (domain-based vs plain 3-level nesting) happens to be active.
+  const loadCategories = useCallback(async () => {
     if (!selectedBusinessId || !selectedBusinessType) {
       setDomainList([]); setDepartments([]); setCategories([]); setSubCategories([]); setAllCats([])
       setInventorySubcategoryIds(new Set())
@@ -503,10 +567,18 @@ export default function MoveWizardPage() {
     // Clear stale data from previous business immediately, before fetch completes
     setAllCats([]); setSubCategories([])
     setInventorySubcategoryIds(new Set())
-    Promise.all([
-      fetch(`/api/universal/categories?businessId=${selectedBusinessId}&businessType=${selectedBusinessType}`, { credentials: 'include' }).then(r => r.json()),
-      fetch(`/api/inventory/domains?businessType=${selectedBusinessType}`, { credentials: 'include' }).then(r => r.json()).catch(() => ({ domains: [] })),
-    ]).then(([catData, domainData]) => {
+    try {
+      const [catData, domainData] = await Promise.all([
+        // includeGroups=true -- without it, "organizational group" categories
+        // (attributes.isGroup, e.g. "Phones And Mobile Accessories") are
+        // excluded server-side and only their domain-tagged children come
+        // back, which is why those children used to get flattened straight
+        // into the Category tier with no way to pick the group first. The
+        // API was already built to support a tree-style UI that wants groups
+        // as real, selectable nodes -- this just opts into that.
+        fetch(`/api/universal/categories?businessId=${selectedBusinessId}&businessType=${selectedBusinessType}&includeGroups=true`, { credentials: 'include' }).then(r => r.json()),
+        fetch(`/api/inventory/domains?businessType=${selectedBusinessType}`, { credentials: 'include' }).then(r => r.json()).catch(() => ({ domains: [] })),
+      ])
       const cats: Category[] = Array.isArray(catData) ? catData : (catData.data ?? catData.categories ?? [])
       const doms: Domain[] = domainData.domains ?? []
       setDomainList(doms)
@@ -522,22 +594,34 @@ export default function MoveWizardPage() {
         // every clothing category. domainId is what actually marks a
         // domain-level category here; parentId is now used for grouping, not
         // domain membership.
-        const domainCats = cats.filter(c => !!c.domainId)
-        setCategories(domainCats)
-        const catIds = domainCats.map(c => c.id).join(',')
-        const parentBasedSubs = cats.filter(c => c.parentId != null && domainCats.some(dc => dc.id === c.parentId))
+        //
+        // Group categories (isGroup) are a separate, third shape: the GROUP
+        // itself carries no domainId (it's cosmetic/organizational by the
+        // app's own convention), while each of its children carries its own
+        // domainId directly and can belong to a DIFFERENT domain than its
+        // siblings. So a group is promoted to Category tier in its own
+        // right (shown once, using its own name/emoji), and its
+        // domain-tagged children are demoted out of the flat Category list
+        // and into the Subcategory tier instead -- selectable only once
+        // their group is picked, and filtered to the domain in view.
+        const groupIds = new Set(cats.filter(isGroupCategory).map(c => c.id))
+        const domainCats = cats.filter(c => !!c.domainId && !isGroupCategory(c) && !(c.parentId && groupIds.has(c.parentId)))
+        const groupCats = cats.filter(isGroupCategory)
+        setCategories([...domainCats, ...groupCats])
+        const catIds = [...domainCats, ...groupCats].map(c => c.id).join(',')
+        const parentBasedSubs = cats.filter(c => c.parentId != null && (domainCats.some(dc => dc.id === c.parentId) || groupIds.has(c.parentId)))
         if (catIds) {
-          fetch(`/api/inventory/subcategories?categoryIds=${catIds}`, { credentials: 'include' })
-            .then(r => r.json())
-            .then((d: any) => {
-              const invSubs: Category[] = (d.subcategories ?? []).map((s: any) => ({
-                id: s.id, name: s.name, emoji: s.emoji || '', parentId: s.categoryId, domainId: null,
-              }))
-              const existingIds = new Set(invSubs.map(s => s.id))
-              setSubCategories([...invSubs, ...parentBasedSubs.filter(s => !existingIds.has(s.id))])
-              setInventorySubcategoryIds(existingIds)
-            })
-            .catch(() => setSubCategories(parentBasedSubs))
+          try {
+            const d = await fetch(`/api/inventory/subcategories?categoryIds=${catIds}`, { credentials: 'include' }).then(r => r.json())
+            const invSubs: Category[] = (d.subcategories ?? []).map((s: any) => ({
+              id: s.id, name: s.name, emoji: s.emoji || '', parentId: s.categoryId, domainId: null,
+            }))
+            const existingIds = new Set(invSubs.map(s => s.id))
+            setSubCategories([...invSubs, ...parentBasedSubs.filter(s => !existingIds.has(s.id))])
+            setInventorySubcategoryIds(existingIds)
+          } catch {
+            setSubCategories(parentBasedSubs)
+          }
         } else {
           setSubCategories([])
         }
@@ -553,8 +637,10 @@ export default function MoveWizardPage() {
           setDepartments([]); setCategories(level1); setSubCategories([])
         }
       }
-    }).catch(() => {})
+    } catch {}
   }, [selectedBusinessId, selectedBusinessType])
+
+  useEffect(() => { loadCategories() }, [loadCategories])
 
   // ── Build rows when items or batch changes ────────────────────────────────────
   useEffect(() => {
@@ -648,6 +734,84 @@ export default function MoveWizardPage() {
     setRows(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r))
   }
 
+  // ── Create category / sub-category on the fly ──────────────────────────────
+  // Only offered while the row's effective business matches the main Target
+  // Business — same restriction as Suggest (see handleSuggest below): the
+  // categories/subCategories state is only ever loaded for selectedBusinessId,
+  // so a category created for a different per-row business wouldn't resolve
+  // correctly in this row's own dropdown afterward.
+  function openCategoryEditor(idx: number) {
+    const row = rows[idx]
+    const effBizId = row.itemBusinessId || selectedBusinessId
+    if (effBizId !== selectedBusinessId) {
+      toast.error('Creating a category only works for the main Target Business right now — set this item\'s business there first.')
+      return
+    }
+    setCategoryEditorRowIdx(idx)
+  }
+
+  async function handleCategoryEditorSuccess(newCat?: any) {
+    const idx = categoryEditorRowIdx
+    setCategoryEditorRowIdx(null)
+    await loadCategories()
+    if (newCat?.id && idx !== null) {
+      updateRow(idx, { categoryId: newCat.id, subCategoryId: '' })
+    }
+  }
+
+  function openQuickCreate(idx: number) {
+    const row = rows[idx]
+    const effBizId = row.itemBusinessId || selectedBusinessId
+    if (effBizId !== selectedBusinessId) {
+      toast.error('Creating a sub-category only works for the main Target Business right now — set this item\'s business there first.')
+      return
+    }
+    if (!row.categoryId) return
+    setQuickCreateRowIdx(idx)
+    setQuickCreateName('')
+    setQuickCreateEmoji('')
+    setQuickCreateError('')
+  }
+
+  // Lightweight nested-category "sub-category" create — mirrors
+  // bulk-stock-panel.tsx's handleQuickCreate exactly (a real InventorySubcategories
+  // row isn't needed here; a BusinessCategories row nested under the chosen
+  // category via parentId is what resolveCategoryFields() already treats as
+  // a valid leaf sub-category for a non-InventorySubcategories id).
+  async function handleQuickCreate() {
+    if (!quickCreateName.trim() || quickCreateRowIdx === null) return
+    const idx = quickCreateRowIdx
+    const row = rows[idx]
+    setQuickCreateLoading(true)
+    try {
+      const res = await fetch('/api/universal/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessId: selectedBusinessId,
+          businessType: selectedBusinessType,
+          name: quickCreateName.trim(),
+          parentId: row.categoryId,
+          emoji: quickCreateEmoji.trim() || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || (!data.success && !data.data?.id)) {
+        setQuickCreateError(data.error || 'Failed to create sub-category')
+        return
+      }
+      await loadCategories()
+      updateRow(idx, { subCategoryId: data.data?.id || data.id })
+      setQuickCreateRowIdx(null)
+      setQuickCreateName('')
+      setQuickCreateEmoji('')
+    } catch {
+      setQuickCreateError('Failed to create sub-category')
+    } finally {
+      setQuickCreateLoading(false)
+    }
+  }
+
   // Copy classification from the row immediately above — for a run of
   // near-identical items (same product, split across many order/tracking
   // numbers), this avoids re-running "Suggest" for every single row.
@@ -730,30 +894,65 @@ export default function MoveWizardPage() {
 
   function handleSuggest(idx: number, e: React.MouseEvent<HTMLButtonElement>) {
     const row = rows[idx]
-    if (!(row.itemBusinessId || selectedBusinessId)) { toast.error('Select a target business first'); return }
+    const effBizId = row.itemBusinessId || selectedBusinessId
+    if (!effBizId) { toast.error('Select a target business first'); return }
+    // Suggest must only ever offer categories that actually belong to the
+    // business this item is going into — `categories`/`subCategories`/
+    // `departments` are already fetched scoped to `selectedBusinessId` for
+    // the dropdowns, so reuse that exact pool instead of the old
+    // business-agnostic suggestAllCats/suggestAllSubs/suggestDomains lists,
+    // which could (and did) hand back a category belonging to a different
+    // business entirely, failing the move with a foreign-key error.
+    if (effBizId !== selectedBusinessId) {
+      toast.error('Suggest only works for the main Target Business right now — set this item\'s business there, or pick its category manually.')
+      return
+    }
     if (suggestRowIdx === idx) { setSuggestRowIdx(null); return }
     openSuggestBtnRef.current = e.currentTarget
     const rect = e.currentTarget.getBoundingClientRect()
     const name = row.item.productName || row.item.shortName
+    // If the row already has a domain picked, further restrict the
+    // candidate pool to that domain's own categories/subcategories — same
+    // filtering the Domain/Category dropdowns already apply (see filteredCats
+    // below), so Suggest never offers a match from an unrelated domain the
+    // user has already ruled out by picking this one.
+    const scopedCategories = row.domainId
+      ? (domainList.length > 0
+          ? categories.filter(c => c.domainId === row.domainId)
+          : departments.length > 0
+            ? categories.filter(c => c.parentId === row.domainId)
+            : categories)
+      : categories
+    const scopedCategoryIds = new Set(scopedCategories.map(c => c.id))
+    const scopedSubCategories = row.domainId
+      ? subCategories.filter(c => !!c.parentId && scopedCategoryIds.has(c.parentId))
+      : subCategories
     const suggestions = suggestClassification(
       name,
-      suggestDomains.map(d => ({ id: d.id, name: d.name, emoji: d.emoji, parentId: null, domainId: null })),
-      suggestAllCats,
-      suggestAllSubs,
-      suggestDomains,
+      hasDomains ? departments : [],
+      scopedCategories,
+      scopedSubCategories,
+      hasDomains ? domainList : [],
     )
     setSuggestions(suggestions)
     setShowAllSuggestions(false)
     setSuggestSearch('')
     const OVERHEAD = 180 // header + product name section height estimate
+    // Cap how tall the popover is allowed to grow -- it was previously
+    // sized to consume ALL remaining space above the button when flipped
+    // up, which for a row near the bottom of a long page meant a very tall
+    // box whose top edge landed near the top of the viewport, far from the
+    // button that opened it. The list already scrolls internally past a
+    // handful of items, so there's no need to maximize height here.
+    const MAX_LIST_HEIGHT = 320
     const spaceBelow = window.innerHeight - rect.bottom - 8
     const spaceAbove = rect.top - 8
     const flipUp = spaceBelow < OVERHEAD + 120
     const listMaxHeight = flipUp
-      ? Math.max(120, spaceAbove - OVERHEAD)
-      : Math.max(120, spaceBelow - OVERHEAD)
+      ? Math.max(120, Math.min(MAX_LIST_HEIGHT, spaceAbove - OVERHEAD))
+      : Math.max(120, Math.min(MAX_LIST_HEIGHT, spaceBelow - OVERHEAD))
     const top = flipUp
-      ? Math.max(8, rect.top - Math.min(listMaxHeight + OVERHEAD, spaceAbove) - 4)
+      ? Math.max(8, rect.top - (listMaxHeight + OVERHEAD) - 4)
       : rect.bottom + 4
     setPopoverPos({ top, left: Math.max(8, rect.left - 120), listMaxHeight })
     setSuggestRowIdx(idx)
@@ -791,6 +990,23 @@ export default function MoveWizardPage() {
       : { categoryId: row.categoryId || null, subcategoryId: null }
   }
 
+  // The Domain/Category/Subcategory breadcrumb for a row that was JUST
+  // moved in this session -- built from the exact same picks the row's own
+  // dropdowns show (row.domainId/categoryId/subCategoryId aren't reset by a
+  // successful move), so it's available immediately instead of only after a
+  // full page reload (when the server-resolved linkedProduct* fields take
+  // over instead — see the row-building effect above).
+  function classificationBreadcrumb(row: MoveRow) {
+    const dept = departments.find(d => d.id === row.domainId)
+    const cat = categories.find(c => c.id === row.categoryId)
+    const sub = subCategories.find(c => c.id === row.subCategoryId)
+    return {
+      domainName: dept?.name ?? null, domainEmoji: dept?.emoji ?? null,
+      categoryName: cat?.name ?? null, categoryEmoji: cat?.emoji ?? null,
+      subcategoryName: sub?.name ?? null, subcategoryEmoji: sub?.emoji ?? null,
+    }
+  }
+
   async function handleMoveRow(idx: number) {
     const row = rows[idx]
     const effBizId = row.itemBusinessId || selectedBusinessId
@@ -817,6 +1033,7 @@ export default function MoveWizardPage() {
       if (!res.ok) { updateRow(idx, { status: 'error', errorMessage: data.error || 'Move failed' }); return }
       const productId = data.items?.[0]?.productId
       const finalSellingPrice = data.items?.[0]?.sellingPrice
+      const breadcrumb = classificationBreadcrumb(row)
       setRows(prev => prev.map((r, i) => i === idx ? {
         ...r,
         status: 'moved',
@@ -831,6 +1048,12 @@ export default function MoveWizardPage() {
           linkedProductBusinessId: effBizId,
           linkedProductBusinessType: effBiz.businessType,
           linkedProductBarcode: row.barcode || r.item.linkedProductBarcode,
+          linkedProductDomainName: breadcrumb.domainName,
+          linkedProductDomainEmoji: breadcrumb.domainEmoji,
+          linkedProductCategoryName: breadcrumb.categoryName,
+          linkedProductCategoryEmoji: breadcrumb.categoryEmoji,
+          linkedProductSubcategoryName: breadcrumb.subcategoryName,
+          linkedProductSubcategoryEmoji: breadcrumb.subcategoryEmoji,
         },
       } : r))
       toast.push(`${(row.item.shortName || row.item.productName).slice(0, 30)} moved to inventory`)
@@ -910,21 +1133,27 @@ export default function MoveWizardPage() {
       setRows(prev => prev.map(r => {
         if (r.status !== 'moving') return r
         const result = moveResultByItemId.get(r.item.id)
-        return result
-          ? {
-              ...r,
-              status: 'moved',
-              movedSku: result.sku,
-              sellingPrice: result.sellingPrice != null ? Number(result.sellingPrice).toFixed(2) : r.sellingPrice,
-              item: {
-                ...r.item,
-                businessProductId: result.productId ?? r.item.businessProductId,
-                linkedProductBusinessId: result.businessId,
-                linkedProductBusinessType: result.businessType,
-                linkedProductBarcode: result.barcode || r.item.linkedProductBarcode,
-              },
-            }
-          : { ...r, status: anyError ? r.status : 'error', errorMessage: 'Not moved' }
+        if (!result) return { ...r, status: anyError ? r.status : 'error', errorMessage: 'Not moved' }
+        const breadcrumb = classificationBreadcrumb(r)
+        return {
+          ...r,
+          status: 'moved',
+          movedSku: result.sku,
+          sellingPrice: result.sellingPrice != null ? Number(result.sellingPrice).toFixed(2) : r.sellingPrice,
+          item: {
+            ...r.item,
+            businessProductId: result.productId ?? r.item.businessProductId,
+            linkedProductBusinessId: result.businessId,
+            linkedProductBusinessType: result.businessType,
+            linkedProductBarcode: result.barcode || r.item.linkedProductBarcode,
+            linkedProductDomainName: breadcrumb.domainName,
+            linkedProductDomainEmoji: breadcrumb.domainEmoji,
+            linkedProductCategoryName: breadcrumb.categoryName,
+            linkedProductCategoryEmoji: breadcrumb.categoryEmoji,
+            linkedProductSubcategoryName: breadcrumb.subcategoryName,
+            linkedProductSubcategoryEmoji: breadcrumb.subcategoryEmoji,
+          },
+        }
       }))
       if (allMovedIds.size > 0) toast.push(`${allMovedIds.size} item(s) moved to inventory`)
     } catch {
@@ -947,10 +1176,19 @@ export default function MoveWizardPage() {
   const hasDomains = departments.length > 0
   const movedCount = rows.filter(r => r.status === 'moved').length
   const pendingSelected = rows.filter(r => r.selected && r.status === 'pending')
+  // A row whose Category is still set to a "group" (e.g. "Phones And Mobile
+  // Accessories") with nothing picked underneath it -- the group itself is
+  // never a valid leaf categoryId, so this needs the same attention as
+  // having no category at all (see isGroupCategory above).
+  const rowStuckOnGroup = (r: MoveRow) => {
+    if (r.subCategoryId) return false
+    const cat = categories.find(c => c.id === r.categoryId)
+    return !!cat && isGroupCategory(cat)
+  }
   const batchBtnDisabled = batchMoving || pendingSelected.length === 0 ||
-    pendingSelected.some(r => (!r.itemBusinessId && !selectedBusinessId) || (!r.subCategoryId && !r.categoryId) || !r.sellingPrice || parseFloat(r.sellingPrice) <= 0)
-  const needsClassificationCount = pendingSelected.filter(r => !r.categoryId && !r.subCategoryId).length
-  const firstNeedsClassificationIdx = rows.findIndex(r => r.selected && r.status === 'pending' && !r.categoryId && !r.subCategoryId)
+    pendingSelected.some(r => (!r.itemBusinessId && !selectedBusinessId) || (!r.subCategoryId && !r.categoryId) || rowStuckOnGroup(r) || !r.sellingPrice || parseFloat(r.sellingPrice) <= 0)
+  const needsClassificationCount = pendingSelected.filter(r => (!r.categoryId && !r.subCategoryId) || rowStuckOnGroup(r)).length
+  const firstNeedsClassificationIdx = rows.findIndex(r => r.selected && r.status === 'pending' && ((!r.categoryId && !r.subCategoryId) || rowStuckOnGroup(r)))
 
   function jumpToFirstMissingClassification() {
     if (firstNeedsClassificationIdx === -1) return
@@ -979,6 +1217,13 @@ export default function MoveWizardPage() {
               </span>
             )}
           </div>
+
+          {sessionIdParam && (
+            <div className="flex items-center justify-between gap-3 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg text-sm text-emerald-800 dark:text-emerald-300">
+              <span>Viewing a past Move Session — showing only the {allItems.length} item{allItems.length !== 1 ? 's' : ''} moved together in that action.</span>
+              <Link href={`/warehouse/${batchId}/move`} className="shrink-0 font-medium underline hover:no-underline">Show all items</Link>
+            </div>
+          )}
 
           {/* Floating search + primary actions — sticky so a large batch never
               hides "Move selected" below a long scroll. */}
@@ -1130,12 +1375,22 @@ export default function MoveWizardPage() {
                   const isError = row.status === 'error'
 
                   const filteredCats = row.domainId && domainList.length > 0
-                    ? categories.filter(c => c.domainId === row.domainId)
+                    ? categories.filter(c =>
+                        c.domainId === row.domainId ||
+                        (isGroupCategory(c) && subCategories.some(s => s.parentId === c.id && s.domainId === row.domainId))
+                      )
                     : row.domainId && departments.length > 0
                       ? categories.filter(c => c.parentId === row.domainId)
                       : categories
+                  // A subcategory with no domainId of its own (the normal nested
+                  // case, e.g. "Boyfriend Jeans" under "Girls Pants") is always
+                  // valid once its parent category is picked; one that DOES carry
+                  // its own domainId (a group's child, e.g. "Screen Protectors"
+                  // under "Phones And Mobile Accessories") only belongs here when
+                  // it matches the domain currently in view, since siblings can
+                  // legitimately span different domains.
                   const filteredSubs = row.categoryId
-                    ? subCategories.filter(c => c.parentId === row.categoryId)
+                    ? subCategories.filter(c => c.parentId === row.categoryId && (!c.domainId || c.domainId === row.domainId))
                     : subCategories
 
                   const extraDomain = row.domainId && !departments.find(d => d.id === row.domainId)
@@ -1154,7 +1409,14 @@ export default function MoveWizardPage() {
                   // Selected but still missing a category — exactly what
                   // blocks "Move selected" from being enabled; highlight it
                   // so it doesn't take scanning every row's dropdowns to find.
-                  const needsClassification = !isMoved && row.selected && !row.categoryId && !row.subCategoryId
+                  const needsClassification = !isMoved && row.selected && ((!row.categoryId && !row.subCategoryId) || rowStuckOnGroup(row))
+                  // A category/domain picked via Suggest (or copied from
+                  // another row) that isn't in THIS business's own category
+                  // list — it may belong to a different business entirely,
+                  // which fails the move with a foreign-key error. Flag it so
+                  // the user re-picks a real option for this business instead
+                  // of trusting what's already shown in the dropdown.
+                  const categoryMayBeForeign = !isMoved && row.selected && !!(extraCat || extraDomain)
 
                   const cardBg = isMoved
                     ? 'bg-emerald-50 dark:bg-emerald-900/10'
@@ -1162,11 +1424,19 @@ export default function MoveWizardPage() {
                     : isMoving ? 'opacity-60'
                     : !row.selected ? 'opacity-50'
                     : needsClassification ? 'bg-amber-50 dark:bg-amber-900/10 ring-1 ring-inset ring-amber-300 dark:ring-amber-700'
+                    : categoryMayBeForeign ? 'bg-red-50 dark:bg-red-900/10 ring-1 ring-inset ring-red-300 dark:ring-red-700'
                     : ''
 
                   const selectCls = 'flex-1 min-w-0 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 disabled:opacity-50'
+                  // Solid backgrounds only — a native <select>'s popup list can't
+                  // render a translucent (/NN opacity) background as a flat
+                  // color, so on some devices (confirmed: Android) it falls back
+                  // to a washed-out, low-contrast blend that's unreadable. Same
+                  // class of bug as the opaque-overlay rule for popovers.
                   const classificationSelectCls = needsClassification
-                    ? 'flex-1 min-w-0 px-2 py-1.5 border-2 border-amber-400 dark:border-amber-600 rounded-lg text-xs bg-amber-50 dark:bg-amber-900/20 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 disabled:opacity-50'
+                    ? 'flex-1 min-w-0 px-2 py-1.5 border-2 border-amber-400 dark:border-amber-600 rounded-lg text-xs bg-amber-50 dark:bg-amber-950 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 disabled:opacity-50'
+                    : categoryMayBeForeign
+                    ? 'flex-1 min-w-0 px-2 py-1.5 border-2 border-red-400 dark:border-red-600 rounded-lg text-xs bg-red-50 dark:bg-red-950 text-gray-900 dark:text-white focus:ring-1 focus:ring-blue-500 disabled:opacity-50'
                     : selectCls
 
                   return (
@@ -1325,7 +1595,7 @@ export default function MoveWizardPage() {
                             ) : (
                               <button
                                 onClick={() => handleMoveRow(idx)}
-                                disabled={isMoving || (!row.itemBusinessId && !selectedBusinessId) || (!row.subCategoryId && !row.categoryId) || !row.sellingPrice || parseFloat(row.sellingPrice) <= 0}
+                                disabled={isMoving || (!row.itemBusinessId && !selectedBusinessId) || (!row.subCategoryId && !row.categoryId) || rowStuckOnGroup(row) || !row.sellingPrice || parseFloat(row.sellingPrice) <= 0}
                                 className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap font-medium"
                               >
                                 {isMoving ? '…' : 'Move →'}
@@ -1393,10 +1663,32 @@ export default function MoveWizardPage() {
                             </span>
                           ) : null}
 
+                          {isMoved && row.item.linkedProductCategoryName && (
+                            // row.domainId/categoryId/subCategoryId are reset to
+                            // '' for an already-moved row (see the row-building
+                            // effect) and reflect pre-save UI picks anyway, not
+                            // the true saved leaf -- use the same server-resolved
+                            // breadcrumb the batch detail page shows instead, so
+                            // this always matches what Edit Item actually has.
+                            <div className="flex items-center gap-1 flex-wrap text-xs text-gray-500 dark:text-gray-400" title={[row.item.linkedProductDomainName, row.item.linkedProductCategoryName, row.item.linkedProductSubcategoryName].filter(Boolean).join(' > ')}>
+                              {row.item.linkedProductDomainName && (
+                                <>
+                                  <span>{row.item.linkedProductDomainEmoji || '📦'} {row.item.linkedProductDomainName}</span>
+                                  <span className="text-gray-400 dark:text-gray-500 font-bold">&gt;</span>
+                                </>
+                              )}
+                              <span>{row.item.linkedProductCategoryEmoji || '📦'} {row.item.linkedProductCategoryName}</span>
+                              {row.item.linkedProductSubcategoryName && (
+                                <>
+                                  <span className="text-gray-400 dark:text-gray-500 font-bold">&gt;</span>
+                                  <span>{row.item.linkedProductSubcategoryEmoji || '📦'} {row.item.linkedProductSubcategoryName}</span>
+                                </>
+                              )}
+                            </div>
+                          )}
+
                           {hasDomains && (
-                            isMoved ? (
-                              <span className="text-xs text-gray-500">{(departments.find(d => d.id === row.domainId) ?? extraDomain)?.name || '—'}</span>
-                            ) : (
+                            isMoved ? null : (
                               <select
                                 value={row.domainId}
                                 disabled={isMoving}
@@ -1412,9 +1704,7 @@ export default function MoveWizardPage() {
                             )
                           )}
 
-                          {isMoved ? (
-                            <span className="text-xs text-gray-500">{(categories.find(c => c.id === row.categoryId) ?? extraCat)?.name || '—'}</span>
-                          ) : (
+                          {isMoved ? null : (
                             <select
                               value={row.categoryId}
                               disabled={(hasDomains && !row.domainId) || (categories.length === 0 && !extraCat) || isMoving}
@@ -1430,9 +1720,17 @@ export default function MoveWizardPage() {
                             </select>
                           )}
 
-                          {isMoved ? (
-                            <span className="text-xs text-gray-500">{(subCategories.find(c => c.id === row.subCategoryId) ?? extraSub)?.name || '—'}</span>
-                          ) : (
+                          {!isMoved && (hasDomains ? !!row.domainId : true) && (
+                            <button
+                              type="button"
+                              title="Create a new category for this business"
+                              onClick={() => openCategoryEditor(idx)}
+                              disabled={isMoving}
+                              className="shrink-0 px-2 py-1.5 rounded-lg text-xs font-medium border bg-gray-50 border-gray-200 text-gray-500 hover:bg-blue-50 hover:text-blue-600 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-400 disabled:opacity-40"
+                            >+ Category</button>
+                          )}
+
+                          {isMoved ? null : (
                             <select
                               value={row.subCategoryId}
                               disabled={!row.categoryId || (filteredSubs.length === 0 && !extraSub) || isMoving}
@@ -1445,6 +1743,16 @@ export default function MoveWizardPage() {
                                 <option key={c.id} value={c.id}>{c.emoji ? `${c.emoji} ` : ''}{c.name}</option>
                               ))}
                             </select>
+                          )}
+
+                          {!isMoved && (
+                            <button
+                              type="button"
+                              title={!row.categoryId ? 'Select a category first' : 'Create a new sub-category for this business'}
+                              onClick={() => openQuickCreate(idx)}
+                              disabled={!row.categoryId || isMoving}
+                              className="shrink-0 px-2 py-1.5 rounded-lg text-xs font-medium border bg-gray-50 border-gray-200 text-gray-500 hover:bg-blue-50 hover:text-blue-600 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-400 disabled:opacity-40 disabled:cursor-not-allowed"
+                            >+ Sub-cat</button>
                           )}
 
                           {!isMoved && suggestAllSubs.length > 0 && (
@@ -1477,6 +1785,13 @@ export default function MoveWizardPage() {
                               title={`Apply this category to ${matchingUnclassifiedCount} other unclassified item(s) with the same product name`}
                               className="shrink-0 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors border bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-700"
                             >⇊ Apply to {matchingUnclassifiedCount} matching</button>
+                          )}
+
+                          {categoryMayBeForeign && (
+                            <span
+                              className="shrink-0 px-2 py-1.5 rounded-lg text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300"
+                              title="This category/domain isn't in the target business's own list — it came from Suggest and may belong to a different business. Re-pick it from the dropdown to avoid a failed move."
+                            >⚠ re-pick category for this business</span>
                           )}
 
                           {isMoved ? (
@@ -1550,11 +1865,21 @@ export default function MoveWizardPage() {
               <button type="button" onClick={() => setSuggestRowIdx(null)} className="text-gray-400 hover:text-gray-600 text-base leading-none">×</button>
             </div>
             <div className="px-3 pt-2">
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                Based on: <span className="font-medium text-gray-700 dark:text-gray-200">
-                  &ldquo;{rows[suggestRowIdx]?.item.productName || ''}&rdquo;
-                </span>
-              </p>
+              <div className="flex items-start gap-2 mb-2">
+                {rows[suggestRowIdx]?.item.imageId && (
+                  <img
+                    src={`/api/images/${rows[suggestRowIdx]?.item.imageId}`}
+                    alt=""
+                    className="w-10 h-10 shrink-0 rounded object-cover border border-gray-200 dark:border-gray-600"
+                    onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                  />
+                )}
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Based on: <span className="font-medium text-gray-700 dark:text-gray-200">
+                    &ldquo;{rows[suggestRowIdx]?.item.productName || ''}&rdquo;
+                  </span>
+                </p>
+              </div>
               {suggestions.length > 5 && (
                 <input
                   type="text"
@@ -1576,7 +1901,14 @@ export default function MoveWizardPage() {
                     )
                   : showAllSuggestions ? suggestions : suggestions.slice(0, 5)
                 return suggestions.length === 0 ? (
-                <p className="text-xs text-gray-500 py-2 text-center">No matches found — select manually.</p>
+                <div className="text-center py-2">
+                  <p className="text-xs text-gray-500 mb-2">No matches found — select manually, or:</p>
+                  <button
+                    type="button"
+                    onClick={() => { const idx = suggestRowIdx; setSuggestRowIdx(null); if (idx !== null) openCategoryEditor(idx) }}
+                    className="text-xs px-2 py-1 rounded border border-blue-300 text-blue-600 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                  >+ Create new category</button>
+                </div>
               ) : (
                 <>
                   <ul className="space-y-1">
@@ -1619,6 +1951,67 @@ export default function MoveWizardPage() {
             </div>
           </div>
         )}
+
+        {/* Standard category creation modal — same InventoryCategoryEditor used
+            by bulk-stock-panel.tsx, scoped to the Target Business */}
+        <InventoryCategoryEditor
+          category={null}
+          businessId={selectedBusinessId}
+          businessType={selectedBusinessType}
+          initialDomainId={categoryEditorRowIdx !== null ? (rows[categoryEditorRowIdx]?.domainId || undefined) : undefined}
+          isOpen={categoryEditorRowIdx !== null}
+          onSuccess={handleCategoryEditorSuccess}
+          onCancel={() => setCategoryEditorRowIdx(null)}
+        />
+
+        {/* Quick-create sub-category modal (nested BusinessCategories row) */}
+        {quickCreateRowIdx !== null && (() => {
+          const qcRow = rows[quickCreateRowIdx]
+          const parentCatName = qcRow?.categoryId ? (categories.find(c => c.id === qcRow.categoryId)?.name || '') : ''
+          return (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">New Sub-category</h3>
+                {parentCatName && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Under category: <span className="font-medium text-indigo-600 dark:text-indigo-400">{parentCatName}</span></p>
+                )}
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    placeholder="🏷"
+                    value={quickCreateEmoji}
+                    onChange={e => setQuickCreateEmoji(e.target.value)}
+                    maxLength={4}
+                    title="Emoji (optional)"
+                    className="w-14 px-2 py-2 text-center text-lg border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="Name"
+                    value={quickCreateName}
+                    onChange={e => { setQuickCreateName(e.target.value); setQuickCreateError('') }}
+                    onKeyDown={e => { if (e.key === 'Enter') handleQuickCreate() }}
+                    className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                {quickCreateError && (
+                  <p className="text-xs text-red-600 dark:text-red-400 mb-3">{quickCreateError}</p>
+                )}
+                <div className="flex justify-end gap-2 mt-2">
+                  <button onClick={() => setQuickCreateRowIdx(null)}
+                    className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg">
+                    Cancel
+                  </button>
+                  <button onClick={handleQuickCreate} disabled={quickCreateLoading || !quickCreateName.trim()}
+                    className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium">
+                    {quickCreateLoading ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
       </ContentLayout>
     </ProtectedRoute>

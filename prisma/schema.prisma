@@ -8100,6 +8100,10 @@ model WarehouseItems {
   personalExpenseId         String?
   movedAt                   DateTime?
   movedBy                   String?
+  // Groups every item moved together in a single "Move to Business" action
+  // (Move Selected, or a single-row Move) so a later "Move Sessions" view can
+  // show exactly what was moved together, not just each item's own movedAt.
+  moveSessionId             String?
   notes                     String?
   createdAt                 DateTime         @default(now())
   updatedAt                 DateTime         @default(now()) @updatedAt
@@ -8111,6 +8115,7 @@ model WarehouseItems {
   @@index([orderNumber])
   @@index([status])
   @@index([trackingNumber, orderNumber])
+  @@index([moveSessionId])
   @@map("warehouse_items")
 }
 
