@@ -289,7 +289,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         price: item.price,
         variant: item.attributes?.size && item.attributes?.color
           ? `${item.attributes.size} - ${item.attributes.color}`
-          : item.attributes?.size || item.attributes?.color || ''
+          : item.attributes?.size || item.attributes?.color || '',
+        imageUrl: item.imageUrl || undefined
       })),
       subtotal,
       tax,
