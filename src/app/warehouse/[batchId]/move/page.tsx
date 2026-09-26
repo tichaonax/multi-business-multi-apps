@@ -88,6 +88,7 @@ interface MoveSession {
   movedAt: string | null
   businessId: string | null
   businessName: string | null
+  expectedSellingTotal: number | null
 }
 
 interface Category {
@@ -1246,7 +1247,7 @@ export default function MoveWizardPage() {
                 <option value="">Show all items</option>
                 {moveSessions.map(s => (
                   <option key={s.sessionId} value={s.sessionId}>
-                    {s.movedAt ? new Date(s.movedAt).toLocaleString() : 'Unknown time'} · {s.itemCount} item{s.itemCount !== 1 ? 's' : ''}{s.businessName ? ` · ${s.businessName}` : ''}
+                    {s.movedAt ? new Date(s.movedAt).toLocaleString() : 'Unknown time'} · {s.itemCount} item{s.itemCount !== 1 ? 's' : ''}{s.businessName ? ` · ${s.businessName}` : ''}{s.expectedSellingTotal != null ? ` · $${s.expectedSellingTotal.toFixed(2)}` : ''}
                   </option>
                 ))}
               </select>

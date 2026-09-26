@@ -236,7 +236,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
         COUNT(*)::int as "itemCount",
         MAX(wi."movedAt") as "movedAt",
         MAX(bp."businessId") as "businessId",
-        MAX(b.name) as "businessName"
+        MAX(b.name) as "businessName",
+        SUM(bp."basePrice" * COALESCE(wi."manifestQty", wi."quantity", 1)) as "expectedSellingTotal"
       FROM warehouse_items wi
       LEFT JOIN business_products bp ON bp.id = wi."businessProductId"
       LEFT JOIN businesses b ON b.id = bp."businessId"
@@ -250,6 +251,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
       movedAt: s.movedAt,
       businessId: s.businessId,
       businessName: s.businessName,
+      // Expected revenue if every unit in this session sells at its current
+      // selling price (basePrice) -- basePrice is per-unit, so multiplied by
+      // each item's manifestQty (falling back to quantity, then 1).
+      expectedSellingTotal: s.expectedSellingTotal != null ? Number(s.expectedSellingTotal) : null,
     }))
 
     // Transport cost per item (eligible = IN_WAREHOUSE only)

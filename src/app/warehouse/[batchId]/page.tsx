@@ -99,6 +99,7 @@ interface MoveSession {
   movedAt: string | null
   businessId: string | null
   businessName: string | null
+  expectedSellingTotal: number | null
 }
 
 type FilterTab = 'ALL' | 'IN_WAREHOUSE' | 'PERSONAL' | 'MOVED_TO_BUSINESS' | 'MOVED_TO_PERSONAL'
@@ -1181,8 +1182,15 @@ export default function BatchDetailPage() {
                         {session.movedAt ? new Date(session.movedAt).toLocaleString() : 'Unknown time'}
                         {session.businessName && <span className="text-gray-400 dark:text-gray-500"> · {session.businessName}</span>}
                       </span>
-                      <span className="shrink-0 px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-medium">
-                        {session.itemCount} item{session.itemCount !== 1 ? 's' : ''} →
+                      <span className="shrink-0 flex items-center gap-2">
+                        {session.expectedSellingTotal != null && (
+                          <span className="px-2 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium" title="Expected total selling price at current prices">
+                            ${session.expectedSellingTotal.toFixed(2)}
+                          </span>
+                        )}
+                        <span className="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-medium">
+                          {session.itemCount} item{session.itemCount !== 1 ? 's' : ''} →
+                        </span>
                       </span>
                     </button>
                   ))}
