@@ -82,6 +82,14 @@ interface Business {
   businessType: string
 }
 
+interface MoveSession {
+  sessionId: string
+  itemCount: number
+  movedAt: string | null
+  businessId: string | null
+  businessName: string | null
+}
+
 interface Category {
   id: string
   name: string
@@ -372,6 +380,7 @@ export default function MoveWizardPage() {
   // ── Core state ───────────────────────────────────────────────────────────────
   const [batch, setBatch] = useState<BatchInfo | null>(null)
   const [allItems, setAllItems] = useState<WarehouseItem[]>([])
+  const [moveSessions, setMoveSessions] = useState<MoveSession[]>([])
   const [rows, setRows] = useState<MoveRow[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -477,6 +486,7 @@ export default function MoveWizardPage() {
         eligible = eligible.filter((i: WarehouseItem) => i.moveSessionId === sessionIdParam)
       }
       setAllItems(eligible)
+      setMoveSessions(data.moveSessions ?? [])
     } catch {
       toast.error('Failed to load batch')
     } finally {
@@ -1218,10 +1228,28 @@ export default function MoveWizardPage() {
             )}
           </div>
 
-          {sessionIdParam && (
-            <div className="flex items-center justify-between gap-3 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg text-sm text-emerald-800 dark:text-emerald-300">
-              <span>Viewing a past Move Session — showing only the {allItems.length} item{allItems.length !== 1 ? 's' : ''} moved together in that action.</span>
-              <Link href={`/warehouse/${batchId}/move`} className="shrink-0 font-medium underline hover:no-underline">Show all items</Link>
+          {/* Session switcher — always shown (not just while filtered) so
+              moving between sessions never requires going back to the batch
+              page first; jumping between them is one click from here. */}
+          {moveSessions.length > 0 && (
+            <div className="flex items-center gap-3 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg text-sm text-emerald-800 dark:text-emerald-300 flex-wrap">
+              <span className="font-medium">
+                {sessionIdParam
+                  ? `Viewing a past Move Session — showing only the ${allItems.length} item${allItems.length !== 1 ? 's' : ''} moved together in that action.`
+                  : `${moveSessions.length} past Move Session${moveSessions.length !== 1 ? 's' : ''} for this batch.`}
+              </span>
+              <select
+                value={sessionIdParam || ''}
+                onChange={e => router.push(e.target.value ? `/warehouse/${batchId}/move?sessionId=${e.target.value}` : `/warehouse/${batchId}/move`)}
+                className="ml-auto px-2 py-1.5 text-xs border border-emerald-300 dark:border-emerald-700 rounded-lg bg-white dark:bg-gray-800 text-emerald-800 dark:text-emerald-300 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+              >
+                <option value="">Show all items</option>
+                {moveSessions.map(s => (
+                  <option key={s.sessionId} value={s.sessionId}>
+                    {s.movedAt ? new Date(s.movedAt).toLocaleString() : 'Unknown time'} · {s.itemCount} item{s.itemCount !== 1 ? 's' : ''}{s.businessName ? ` · ${s.businessName}` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 
