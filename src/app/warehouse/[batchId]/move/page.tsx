@@ -1989,15 +1989,17 @@ export default function MoveWizardPage() {
                           onClick={() => applySuggestion(suggestRowIdx, s)}
                           className="w-full text-left px-2 py-2 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                         >
-                          {(s.domainName || s.categoryName) && (
+                          {(s.domainName || (s.subCategoryName && s.categoryName)) && (
                             <div className="text-[10px] text-gray-500 dark:text-gray-400 mb-0.5">
                               {s.domainEmoji && `${s.domainEmoji} `}{s.domainName}
-                              {s.domainName && s.categoryName ? ' › ' : ''}
-                              {s.categoryEmoji && `${s.categoryEmoji} `}{s.categoryName}
+                              {s.domainName && s.subCategoryName && s.categoryName ? ' › ' : ''}
+                              {s.subCategoryName && <>{s.categoryEmoji && `${s.categoryEmoji} `}{s.categoryName}</>}
                             </div>
                           )}
                           <div className="text-xs font-medium text-gray-900 dark:text-white">
-                            {s.subCategoryEmoji && `${s.subCategoryEmoji} `}{s.subCategoryName}
+                            {s.subCategoryName
+                              ? <>{s.subCategoryEmoji && `${s.subCategoryEmoji} `}{s.subCategoryName}</>
+                              : <>{s.categoryEmoji && `${s.categoryEmoji} `}{s.categoryName}</>}
                           </div>
                         </button>
                       </li>
