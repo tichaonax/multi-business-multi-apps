@@ -202,6 +202,29 @@ function suggestClassification(
     return id ? domainList.find(d => d.id === id) : undefined
   }
 
+  // A category counts as "tier-1" (a Category, not a Subcategory) either by
+  // the isGroup convention or simply by carrying its own domainId directly
+  // -- clothing nests real subcategories under a plain domain-tagged
+  // category (e.g. "Underwear & Lingerie" domain-category -> "Sexy
+  // underwear & costumes" subcategory) with no isGroup involved at all, so
+  // restricting the tier-1 test to isGroup alone (as an earlier version of
+  // this function did) missed that shape entirely and suggested the
+  // subcategory's PARENT as if it were the final pick, one level too
+  // shallow.
+  function isCategoryTier(c: Category): boolean {
+    return !!c.domainId || groupIds.has(c.id)
+  }
+  // Which tier-1 categories have at least one real (non-group) child --
+  // those children are searched individually below and are always a more
+  // specific match than their bare parent, so the parent itself is only
+  // offered as its own candidate when it has no children to be more
+  // specific than (e.g. a domain/category combo with no subcategory tier
+  // at all, same as picking "Sub-cat N/A" manually).
+  const hasChildCategory = new Set<string>()
+  for (const c of allCats) {
+    if (c.parentId && !isGroupCategory(c)) hasChildCategory.add(c.parentId)
+  }
+
   const scored: SuggestItem[] = []
 
   // Every non-group category (any depth) is a candidate leaf on its own.
@@ -210,26 +233,36 @@ function suggestClassification(
     const dom = resolveDomain(cat)
     if (restrictToDomainId && dom?.id !== restrictToDomainId) continue
     const parent = cat.parentId ? catById.get(cat.parentId) : undefined
-    const parentIsGroup = !!(parent && groupIds.has(parent.id))
-    const ownScore = countMatches(cat.name) * 3
-    const parentScore = parent ? countMatches(parent.name) * 2 : 0
-    const domScore = dom ? countMatches(dom.name) * 1 : 0
-    const total = ownScore + parentScore + domScore
-    if (total === 0) continue
+    const parentIsCategoryTier = !!(parent && isCategoryTier(parent))
 
-    scored.push(parentIsGroup
-      ? {
-          domainId: dom?.id ?? '', domainName: dom?.name ?? '', domainEmoji: dom?.emoji ?? '',
-          categoryId: parent!.id, categoryName: parent!.name, categoryEmoji: parent!.emoji ?? '',
-          subCategoryId: cat.id, subCategoryName: cat.name, subCategoryEmoji: cat.emoji ?? '',
-          score: total,
-        }
-      : {
-          domainId: dom?.id ?? '', domainName: dom?.name ?? '', domainEmoji: dom?.emoji ?? '',
-          categoryId: cat.id, categoryName: cat.name, categoryEmoji: cat.emoji ?? '',
-          subCategoryId: '', subCategoryName: '', subCategoryEmoji: '',
-          score: total,
-        })
+    if (parentIsCategoryTier) {
+      const ownScore = countMatches(cat.name) * 3
+      const parentScore = countMatches(parent!.name) * 2
+      const domScore = dom ? countMatches(dom.name) * 1 : 0
+      const total = ownScore + parentScore + domScore
+      if (total === 0) continue
+      scored.push({
+        domainId: dom?.id ?? '', domainName: dom?.name ?? '', domainEmoji: dom?.emoji ?? '',
+        categoryId: parent!.id, categoryName: parent!.name, categoryEmoji: parent!.emoji ?? '',
+        subCategoryId: cat.id, subCategoryName: cat.name, subCategoryEmoji: cat.emoji ?? '',
+        score: total,
+      })
+    } else {
+      // Only a candidate leaf in its own right when it has no more-specific
+      // children -- otherwise it's just context and its children (above)
+      // are the real candidates.
+      if (hasChildCategory.has(cat.id)) continue
+      const ownScore = countMatches(cat.name) * 3
+      const domScore = dom ? countMatches(dom.name) * 1 : 0
+      const total = ownScore + domScore
+      if (total === 0) continue
+      scored.push({
+        domainId: dom?.id ?? '', domainName: dom?.name ?? '', domainEmoji: dom?.emoji ?? '',
+        categoryId: cat.id, categoryName: cat.name, categoryEmoji: cat.emoji ?? '',
+        subCategoryId: '', subCategoryName: '', subCategoryEmoji: '',
+        score: total,
+      })
+    }
   }
 
   // Real InventorySubcategories rows are a separate table -- not part of
@@ -474,6 +507,15 @@ export default function MoveWizardPage() {
   const [suggestDomains, setSuggestDomains] = useState<Domain[]>([])
   const [suggestAllCats, setSuggestAllCats] = useState<Category[]>([])
   const [suggestAllSubs, setSuggestAllSubs] = useState<Category[]>([])
+  // Whether loadCategories() has actually finished for the currently
+  // selected business -- gates the "Suggest" button separately from
+  // suggestAllSubs.length > 0 above, which only reflects the fast,
+  // business-agnostic "all domains globally" preload and says nothing about
+  // whether THIS business's own (potentially slow) category/domain fetch is
+  // done. Clicking Suggest before that finishes searched an empty allCats
+  // and always came back "No matches found", which looked identical to a
+  // real matching bug.
+  const [categoriesReady, setCategoriesReady] = useState(false)
 
   // ── Suggest popover ───────────────────────────────────────────────────────────
   const [suggestRowIdx, setSuggestRowIdx] = useState<number | null>(null)
@@ -623,11 +665,13 @@ export default function MoveWizardPage() {
     if (!selectedBusinessId || !selectedBusinessType) {
       setDomainList([]); setDepartments([]); setCategories([]); setSubCategories([]); setAllCats([])
       setInventorySubcategoryIds(new Set())
+      setCategoriesReady(false)
       return
     }
     // Clear stale data from previous business immediately, before fetch completes
     setAllCats([]); setSubCategories([])
     setInventorySubcategoryIds(new Set())
+    setCategoriesReady(false)
     try {
       const [catData, domainData] = await Promise.all([
         // includeGroups=true -- without it, "organizational group" categories
@@ -698,7 +742,10 @@ export default function MoveWizardPage() {
           setDepartments([]); setCategories(level1); setSubCategories([])
         }
       }
-    } catch {}
+    } catch {
+    } finally {
+      setCategoriesReady(true)
+    }
   }, [selectedBusinessId, selectedBusinessType])
 
   useEffect(() => { loadCategories() }, [loadCategories])
@@ -957,6 +1004,7 @@ export default function MoveWizardPage() {
     const row = rows[idx]
     const effBizId = row.itemBusinessId || selectedBusinessId
     if (!effBizId) { toast.error('Select a target business first'); return }
+    if (!categoriesReady) { toast.error('Still loading categories — please wait a moment and try again'); return }
     // Suggest must only ever offer categories that actually belong to the
     // business this item is going into — `categories`/`subCategories`/
     // `departments` are already fetched scoped to `selectedBusinessId` for
@@ -1829,8 +1877,8 @@ export default function MoveWizardPage() {
                             <button
                               type="button"
                               onClick={e => handleSuggest(idx, e)}
-                              disabled={!effBizId}
-                              title={!effBizId ? 'Select a target business first' : 'Suggest category from product name'}
+                              disabled={!effBizId || !categoriesReady}
+                              title={!effBizId ? 'Select a target business first' : !categoriesReady ? 'Still loading categories — please wait' : 'Suggest category from product name'}
                               className={`shrink-0 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors border disabled:opacity-40 disabled:cursor-not-allowed ${
                                 suggestRowIdx === idx
                                   ? 'bg-amber-100 border-amber-400 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
