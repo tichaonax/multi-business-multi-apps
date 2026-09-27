@@ -1098,7 +1098,7 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
 
           return (
             <div className="p-4 bg-green-50 border border-green-200 rounded-lg dark:bg-green-950 dark:border-green-800">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
                 <div className="flex items-center gap-2 flex-wrap">
                   <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
                   <h4 className="font-medium text-green-900 dark:text-green-100">
@@ -1204,7 +1204,7 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
                 <p className="text-sm text-green-700 dark:text-green-300">
                   {restoreFile.name} ({(restoreFile.size / 1024).toFixed(1)} KB)
                 </p>
-                <div className="flex justify-center gap-2 mt-4">
+                <div className="flex flex-wrap justify-center gap-2 mt-4">
                   <Button
                     variant="outline"
                     onClick={() => fileInputRef.current?.click()}
@@ -1483,7 +1483,7 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
 
           return (
             <div className="p-4 bg-green-50 border border-green-200 rounded-lg dark:bg-green-950 dark:border-green-800">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
                 <div className="flex items-center gap-2 flex-wrap">
                   <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
                   <h4 className="font-medium text-green-900 dark:text-green-100">
