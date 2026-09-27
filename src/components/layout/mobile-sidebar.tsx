@@ -424,6 +424,10 @@ export function MobileSidebar() {
                 <Link href="/personal" className={sectionLinkClass} onClick={close}>💰 Personal Finances</Link>
               )}
 
+              {(isAdmin || hasBusinessPermission('canAccessWarehouse')) && (
+                <Link href="/warehouse" className={sectionLinkClass} onClick={close}>🏭 Warehouse</Link>
+              )}
+
               {(hasBusinessPermission('canAccessPayroll') || hasBusinessPermission('canManagePayroll') || isAdmin) && (
                 <Link href="/payroll" className={sectionLinkClass} onClick={close}>🧾 Payroll</Link>
               )}

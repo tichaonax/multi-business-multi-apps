@@ -335,7 +335,11 @@ export function AccountList({
       )}
 
       {/* Filters */}
-      <div className="sticky top-14 sm:top-16 z-40 bg-background py-2 -mx-4 px-4 sm:-mx-6 sm:px-6 shadow-sm border-b border-border flex flex-col sm:flex-row gap-2 sm:gap-4">
+      {/* Negative margin must match ContentLayout's own px-2 sm:px-0 padding
+          exactly -- it previously assumed px-4/px-6, overshooting the real
+          page edges and forcing the whole page wider than the viewport on
+          mobile (every row's right edge got clipped as a result). */}
+      <div className="sticky top-14 sm:top-16 z-40 bg-background py-2 -mx-2 px-2 sm:mx-0 sm:px-0 shadow-sm border-b border-border flex flex-col sm:flex-row gap-2 sm:gap-4">
         <div className="flex-1">
           <input
             type="text"

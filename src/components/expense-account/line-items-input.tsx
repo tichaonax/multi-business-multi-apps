@@ -116,8 +116,11 @@ export function LineItemsInput({ domainId, value, onChange, totalAmount }: LineI
 
       {/* Input area — always shown; domainId only controls the category dropdown */}
       <div className="space-y-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-        {/* Row 1: emoji + name + amount + add */}
-        <div className="flex gap-2 items-start">
+        {/* Row 1: emoji + name (own row on mobile so the category dropdown
+            has real width to render in), amount + add wrap to a second row
+            on narrow screens instead of squeezing the name field to nothing */}
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-start">
+        <div className="flex gap-2 items-start flex-1 min-w-0">
           {/* Emoji — auto-suggested as name is typed */}
           <input
             type="text"
@@ -192,8 +195,10 @@ export function LineItemsInput({ domainId, value, onChange, totalAmount }: LineI
               </div>
             )}
           </div>
+        </div>
 
-          {/* Amount */}
+          {/* Amount + Add — own row on mobile, inline with the rest on sm+ */}
+          <div className="flex gap-2 items-start">
           <input
             type="number"
             value={amount}
@@ -202,7 +207,7 @@ export function LineItemsInput({ domainId, value, onChange, totalAmount }: LineI
             placeholder="0.00"
             min="0"
             step="0.01"
-            className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 flex-shrink-0"
+            className="flex-1 sm:w-24 sm:flex-none px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500"
           />
 
           {/* Add button */}
@@ -214,6 +219,7 @@ export function LineItemsInput({ domainId, value, onChange, totalAmount }: LineI
           >
             Add
           </button>
+          </div>
         </div>
 
         {/* Row 2: optional description */}
