@@ -75,6 +75,16 @@ interface WarehouseItem {
   linkedProductBarcode: string | null
   linkedProductBusinessId: string | null
   linkedProductBusinessType: string | null
+  // Bulk-stock conversion — true once the linked product has been converted
+  // to individual sellable units; the cost/stock figures below are then
+  // real per-unit values, distinct from this item's own historical
+  // warehouse-side economics (costUsd, landedCost, etc. above), which
+  // always keep showing whatever was true at move time.
+  linkedProductIsBulkStock: boolean
+  linkedProductUnitsPerPack: number | null
+  linkedProductBulkPackCost: number | null
+  linkedProductCurrentCost: number | null
+  linkedProductCurrentStock: number | null
   // Domain -> Category -> Subcategory as captured at move time, resolved the
   // same way Edit Item displays it (a "group" category's leaf child shows
   // as Category=<group>/Subcategory=<leaf>).
@@ -1669,7 +1679,7 @@ export default function BatchDetailPage() {
                             type="checkbox"
                             checked={allSelectableSelected}
                             onChange={toggleSelectAll}
-                            className="rounded"
+                            className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
                           />
                         </th>
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider w-24">Img</th>
@@ -1702,7 +1712,7 @@ export default function BatchDetailPage() {
                                 disabled={isLocked || (!isLocked && item.status === 'IN_WAREHOUSE' && (item.manifestQty == null || item.manifestQty === 0))}
                                 onChange={() => toggleSelect(item.id)}
                                 title={(!isLocked && item.status === 'IN_WAREHOUSE' && (item.manifestQty == null || item.manifestQty === 0)) ? 'Set Manifest Qty before selecting' : undefined}
-                                className="rounded disabled:opacity-30 disabled:cursor-not-allowed"
+                                className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 disabled:opacity-30 disabled:cursor-not-allowed"
                               />
                             </td>
                             <td className="px-2 py-2 align-top w-24 min-w-[5rem]">
@@ -1842,6 +1852,19 @@ export default function BatchDetailPage() {
                               </div>
                               {item.status === 'MOVED_TO_BUSINESS' && (
                                 <div className="flex flex-col gap-0.5 mt-1 items-start">
+                                  {item.linkedProductIsBulkStock && (
+                                    <span
+                                      className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 w-fit"
+                                      title={`Converted to bulk stock — ${item.linkedProductUnitsPerPack ?? '?'} individual units per packet (original packet cost: ${item.linkedProductBulkPackCost != null ? `$${item.linkedProductBulkPackCost.toFixed(2)}` : 'n/a'})`}
+                                    >
+                                      🔄 Bulk ({item.linkedProductUnitsPerPack ?? '?'}/pack)
+                                    </span>
+                                  )}
+                                  {item.linkedProductIsBulkStock && (item.linkedProductCurrentCost != null || item.linkedProductCurrentStock != null) && (
+                                    <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300 w-fit" title="Current per-unit cost/stock, after conversion — separate from this row's own warehouse-side economics above, which still show the original packet-level figures">
+                                      Now: {item.linkedProductCurrentCost != null ? `$${item.linkedProductCurrentCost.toFixed(2)}/unit` : ''}{item.linkedProductCurrentCost != null && item.linkedProductCurrentStock != null ? ' · ' : ''}{item.linkedProductCurrentStock != null ? `${item.linkedProductCurrentStock} in stock` : ''}
+                                    </span>
+                                  )}
                                   {item.linkedProductSku && (
                                     <span className="text-sm font-mono px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 w-fit" title="Assigned SKU">
                                       SKU {item.linkedProductSku}
@@ -1949,9 +1972,13 @@ export default function BatchDetailPage() {
                             disabled={isLocked || (!isLocked && item.status === 'IN_WAREHOUSE' && (item.manifestQty == null || item.manifestQty === 0))}
                             onChange={() => toggleSelect(item.id)}
                             title={(!isLocked && item.status === 'IN_WAREHOUSE' && (item.manifestQty == null || item.manifestQty === 0)) ? 'Set Manifest Qty before selecting' : undefined}
-                            className="rounded disabled:opacity-30 disabled:cursor-not-allowed mt-1 flex-shrink-0"
+                            className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 disabled:opacity-30 disabled:cursor-not-allowed mt-1 flex-shrink-0"
                           />
-                          <div className="w-16 flex-shrink-0">
+                          {/* ItemImage renders at a fixed w-20 h-20 (80px)
+                              with its own min-w-[5rem] — a narrower wrapper
+                              here just gets overflowed/overlapped by it, so
+                              this must match rather than try to shrink it. */}
+                          <div className="w-20 flex-shrink-0">
                             <ItemImage imageId={item.imageId} name={item.shortName || item.productName} />
                           </div>
                           <div className="flex-1 min-w-0">
@@ -2091,6 +2118,26 @@ export default function BatchDetailPage() {
                             <CourierBadge status={item.courierStatus} />
                           </div>
                         </div>
+
+                        {/* Bulk-stock conversion indicator — original
+                            warehouse-side economics above are left exactly
+                            as they were at move time; this is the linked
+                            product's real, current per-unit picture. */}
+                        {item.status === 'MOVED_TO_BUSINESS' && item.linkedProductIsBulkStock && (
+                          <div className="flex flex-wrap gap-1">
+                            <span
+                              className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                              title={`Converted to bulk stock — ${item.linkedProductUnitsPerPack ?? '?'} individual units per packet (original packet cost: ${item.linkedProductBulkPackCost != null ? `$${item.linkedProductBulkPackCost.toFixed(2)}` : 'n/a'})`}
+                            >
+                              🔄 Bulk ({item.linkedProductUnitsPerPack ?? '?'}/pack)
+                            </span>
+                            {(item.linkedProductCurrentCost != null || item.linkedProductCurrentStock != null) && (
+                              <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                                Now: {item.linkedProductCurrentCost != null ? `$${item.linkedProductCurrentCost.toFixed(2)}/unit` : ''}{item.linkedProductCurrentCost != null && item.linkedProductCurrentStock != null ? ' · ' : ''}{item.linkedProductCurrentStock != null ? `${item.linkedProductCurrentStock} in stock` : ''}
+                              </span>
+                            )}
+                          </div>
+                        )}
 
                         {/* Status + SKU/barcode + Personal toggle */}
                         <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-gray-100 dark:border-gray-700">

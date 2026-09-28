@@ -96,7 +96,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
     const linkedProducts = movedProductIds.length > 0
       ? await (prisma as any).businessProducts.findMany({
           where: { id: { in: movedProductIds } },
-          select: { id: true, sku: true, barcode: true, businessId: true, businessType: true, basePrice: true, categoryId: true },
+          select: {
+            id: true, sku: true, barcode: true, businessId: true, businessType: true, basePrice: true, categoryId: true,
+            costPrice: true, isBulkStock: true, unitsPerPack: true, bulkPackCost: true,
+            product_variants: { select: { stockQuantity: true }, take: 1 },
+          },
         })
       : []
     const linkedProductMap = new Map(linkedProducts.map((p: any) => [p.id, p]))
@@ -195,6 +199,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
         linkedProductBusinessId: linked?.businessId ?? null,
         linkedProductBusinessType: linked?.businessType ?? null,
         linkedProductCurrentPrice: linked?.basePrice != null ? Number(linked.basePrice) : null,
+        // Bulk-stock conversion — when true, cost/price/stock below are real
+        // individual-unit values (not the packet-level figures this item's
+        // own warehouse-side economics above still show), so the UI can
+        // flag it and keep both sets of numbers visible rather than one
+        // silently overwriting the other.
+        linkedProductIsBulkStock: linked?.isBulkStock ?? false,
+        linkedProductUnitsPerPack: linked?.unitsPerPack ?? null,
+        linkedProductBulkPackCost: linked?.bulkPackCost != null ? Number(linked.bulkPackCost) : null,
+        linkedProductCurrentCost: linked?.costPrice != null ? Number(linked.costPrice) : null,
+        linkedProductCurrentStock: linked?.product_variants?.[0]?.stockQuantity ?? null,
         // null unless the price has actually been edited since the move —
         // no history row exists yet for a product whose price never changed.
         linkedProductOriginalPrice: priceHistory ? Number(priceHistory.original.oldPrice) : null,
