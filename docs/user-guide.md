@@ -232,6 +232,8 @@
     - [Linked Products — Viewing, Selling & Editing Price](#linked-products--viewing-selling--editing-price)
     - [Tag Vocabulary, Product Tags & Tag Search](#tag-vocabulary-product-tags--tag-search)
     - [Permissions](#permissions-16)
+67. [Bulk/Case Cost Entry — Bulk Stocking & Stock Take](#67-bulkcase-cost-entry--bulk-stocking--stock-take)
+68. [Clothing POS — Return & Exchange](#68-clothing-pos--return--exchange)
 
 ---
 
@@ -11047,6 +11049,8 @@ Open a batch from the **Warehouse** list to see the item grid.
 | MOVED TO BUSINESS | Items already added to a business's inventory |
 | MOVED TO PERSONAL | Items recorded as personal expenses |
 
+> **On a phone**, these show as a single dropdown instead of a row of tabs — same 5 options, same counts, just easier to reach one-handed.
+
 #### Manifest Qty filter pills
 
 Below the status tabs, three pills let you sub-filter by received quantity:
@@ -11147,6 +11151,29 @@ For each item moved, the system creates:
 The warehouse item status changes to **MOVED_TO_BUSINESS**.
 
 **Cost price shown:** The unit cost reflects `costUsd per unit + transaction fee + transport per unit + clearance per unit`. All four components are shown separately in the cost breakdown line so you know exactly what margin you are working with. Clearance is only non-zero when the source batch is CLOSED and a clearance cost was present in the Excel file.
+
+---
+
+### Bulk-Stock Conversion — Packets vs. Individual Units
+
+Sometimes what was recorded as "1 unit" in the spreadsheet is really a packet containing several separate sellable items — e.g. a pack of 5 pairs of socks, costed and counted as one row, but actually five individual items once it reaches the shelf. Bulk-Stock Conversion turns that packet-level record into the true individual-unit picture — quantity, cost, and selling price all recalculated together — without you doing the math by hand.
+
+**Example:** 2 packets, $4.85 cost per packet, 5 items per packet, listed at $9.00/packet → after conversion: **10 individual units**, **$0.97 cost/unit**, **$1.80 selling price/unit** (editable). Total inventory cost stays the same ($9.70) — only how it's counted and priced changes.
+
+**At Move to Business time** — check **"This is bulk stock"** on the item card, enter **Items per packet**, and optionally override the individual selling price (it defaults to the packet price ÷ items per packet). A live preview shows the resulting unit count and price before you move it. The product is created already at the converted, individual-unit numbers — there's no separate conversion step afterward.
+
+**After it's already been stocked** — open the item in **Edit Item**. If it hasn't been converted yet, an amber **"This item is actually bulk stock — convert to individual units?"** box lets you enter the items-per-packet and preview the same before/after numbers, then confirm. This is a **one-way conversion**: quantity, cost, and price for that item can never contain a mixture of packet and individual-unit values.
+
+**If some of the packets have already been sold before you convert:** the conversion always uses whatever is *currently* on hand, not the original received quantity — e.g. converting after 1 of 2 packets already sold turns the remaining 1 into 5 individual units, not 10. Nothing about the already-completed sale is changed retroactively.
+
+**Correcting a mistake:** if you entered the wrong items-per-packet, Edit Item lets you correct it — but **only while nothing has been sold or otherwise moved since the original conversion**. The moment any other stock activity happens on that item, the conversion becomes permanent and the correction option disappears.
+
+**Once converted, it stays converted everywhere:**
+- The Edit Item cost box that recorded the original packet size/cost becomes read-only, showing the permanent record.
+- The batch detail page (both the item table and, on mobile, the item cards) shows a **🔄 Bulk (N/pack)** badge plus a **"Now: $X/unit · Y in stock"** line with the live current per-unit cost and stock — alongside, not replacing, that item's own original warehouse-side cost figures (Cost $, Landed Cost, Est. Selling), which continue to show exactly what was true at move time.
+- Move Sessions and the Warehouse home page's "Potential Value" totals automatically account for the conversion factor, so they stay accurate whether the item was converted at move time or later.
+
+**A later batch for the same product:** if a new warehouse batch's item matches an existing, already-converted product (by barcode, or by exact product name if no barcode match is found), the system **tops up that product's stock automatically** instead of creating a duplicate — using the existing product's own bulk classification and items-per-packet, and blending the incoming cost into a weighted-average unit cost. Any bulk setting you entered on that new row is ignored in this case, since the existing product's classification always wins. If the item genuinely doesn't match anything existing, it's created as a new product and you classify it independently.
 
 ---
 
@@ -14031,3 +14058,42 @@ This closes the same "bulk cost error" gap described in §66 at the point where 
 - Either way, once a row has a recorded case cost, it shows a small **"24×$6.70/case"** caption under the Cost field, and margin/price warnings appear right there if the price you're choosing would land outside the policy range (the same 10%–90% band §66 checks).
 
 **Existing stock is flagged automatically.** When Stock Take loads your current inventory (or you resume a saved draft), any item that already has a recorded case cost shows that same "N×$X.XX/case" caption right away — so you can see at a glance which items are already tracked as bulk purchases before you touch anything.
+
+> **Not the same as Bulk-Stock Conversion (§50):** this feature only *corrects a cost figure* — it never touches stock quantity, and can be freely re-edited at any time. If the item was actually received as sellable packets (e.g. a pack of 5 that should become 5 separate units in stock, not just 1 with a corrected cost), you want [Bulk-Stock Conversion](#bulk-stock-conversion--packets-vs-individual-units) instead — a one-way conversion that recalculates quantity, cost, *and* price together.
+
+---
+
+## 68. Clothing POS — Return & Exchange
+
+**Where:** Clothing Advanced POS → **Sale / Return / Exchange** tabs at the top of the register.
+
+Both workflows look up the customer's **original sale**, so you're always refunding/exchanging real, specific items that were actually sold — not a free-text guess.
+
+### Processing a Return
+
+1. Switch to the **Return** tab.
+2. **Search for the original sale** — by order number, receipt number, or customer name (the order number is printed on every receipt, e.g. `CLO-20260927-0001`).
+3. **Pick the order** from the results — its real line items load (product, quantity sold, unit price).
+4. **Check the item(s)** being returned and adjust the quantity if only some of what was bought is coming back (capped at what was actually sold).
+5. **Select a return reason**.
+6. Click **Get Manager Approval & Process Return** — a manager must approve every return, at any amount, by entering their own manager code (or badge scan) on the approval screen that opens. This is a real check against actual manager accounts, not a shared PIN.
+7. Once approved, the return is processed immediately: the customer's payment is refunded, the returned stock goes back into inventory, and the original sale is updated to reflect the return.
+
+> **Outside the 2-day window?** A notice appears if the original sale is more than 2 days old, as a reminder of store policy — it does not block anything by itself, since every return already requires manager approval regardless of age. The manager approving it is exercising that discretion.
+
+### Processing an Exchange
+
+An exchange is a return (for the old item) combined with a new sale (for the replacement item), settled as a single net payment.
+
+1. Switch to the **Exchange** tab.
+2. Search for and select the original order, then check the item(s) being exchanged away — exactly like a Return.
+3. Click **Get Manager Approval** and have a manager approve it.
+4. Once approved, add the **replacement item(s)** to the cart using the normal product grid/search — this works exactly like a regular sale.
+5. The cart total automatically shows the exchange credit applied (the value of the returned item(s), subtracted like a coupon) — so **you only ever charge or refund the customer the net difference**, not the full price of the new item.
+6. Click **Process Exchange** and complete payment as normal. Once the new sale succeeds, the return side is processed automatically in the background.
+
+### Notes
+
+- Return/Exchange only work against the POS's current **Target Business** — if the sale you're looking up belongs to a different business, switch to that business first.
+- Stock is correctly returned to inventory regardless of how the original item was sold (a regular product, a clothing bale, a custom bulk item, or a scanned inventory item).
+- If, in an exchange, the new sale succeeds but the return side fails for some reason (e.g. a connection error), you'll see a message telling you to process the return separately from the Orders page — the completed sale is never lost or silently rolled back.
