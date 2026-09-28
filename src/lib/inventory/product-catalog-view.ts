@@ -52,6 +52,7 @@ export interface ProductRecord {
    * inferred from costPrice — null means "not recorded", not "same as cost". */
   unitsPerPack: number | null
   bulkPackCost: number | null
+  isBulkStock: boolean
   quantityOnHand: number
   reorderLevel: number
   isActive: boolean
@@ -127,6 +128,7 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
             basePrice: true,
             unitsPerPack: true,
             bulkPackCost: true,
+            isBulkStock: true,
             isSoldByWeight: true,
             isActive: true,
             isAvailable: true,
@@ -168,6 +170,7 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
         sellingPrice: true,
         unitsPerPack: true,
         bulkPackCost: true,
+        isBulkStock: true,
         stockQuantity: true,
         reorderLevel: true,
         isActive: true,
@@ -217,6 +220,7 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
       sellingPrice,
       unitsPerPack: bp.unitsPerPack ?? null,
       bulkPackCost: bp.bulkPackCost ? parseFloat(bp.bulkPackCost.toString()) : null,
+      isBulkStock: (bp as any).isBulkStock ?? false,
       quantityOnHand: v.stockQuantity ?? 0,
       reorderLevel: v.reorderLevel ?? 0,
       isActive: v.isActive && bp.isActive,
@@ -260,6 +264,7 @@ export async function getUnifiedProducts(params: GetUnifiedProductsParams): Prom
       sellingPrice,
       unitsPerPack: item.unitsPerPack ?? null,
       bulkPackCost: item.bulkPackCost ? parseFloat(item.bulkPackCost.toString()) : null,
+      isBulkStock: (item as any).isBulkStock ?? false,
       quantityOnHand: item.stockQuantity ?? 0,
       reorderLevel: item.reorderLevel ?? 0,
       isActive: item.isActive,

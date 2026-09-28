@@ -271,6 +271,12 @@ model BusinessProducts {
   // were one unit's cost.
   unitsPerPack                Int?
   bulkPackCost                Decimal?                   @db.Decimal(10, 2)
+  // Bulk-stock conversion — once true, this item's stockQuantity/costPrice/
+  // basePrice are real individual-sellable-unit values (not packet values),
+  // unitsPerPack/bulkPackCost above become a permanent historical record of
+  // the packet economics, and conversion is NOT reversible.
+  isBulkStock                 Boolean                    @default(false)
+  bulkConvertedAt             DateTime?
   isActive                    Boolean                    @default(true)
   businessType                String
   attributes                  Json?
@@ -5088,6 +5094,10 @@ model BarcodeInventoryItems {
   // the system derive it correctly when this item was bought as a case/pack.
   unitsPerPack             Int?
   bulkPackCost             Decimal?                 @db.Decimal(10, 2)
+  // Bulk-stock conversion — see BusinessProducts.isBulkStock for the concept;
+  // same permanent, one-way conversion applies to this catalog too.
+  isBulkStock              Boolean                  @default(false)
+  bulkConvertedAt          DateTime?
   // MBM-297 follow-up — expense classification carried over from
   // CustomBulkProducts (absorbed into this catalog). Plain columns, no FK
   // relation, resolved client-side via /api/expense-categories/*, same as
@@ -8073,6 +8083,16 @@ model WarehouseItems {
   invoiceName               String?
   containerDate             DateTime?        @db.Date
   manifestQty               Int?
+  // Bulk-stock conversion sync — when this item's linked product is (or
+  // becomes) bulk-stocked, this records the conversion factor so anything
+  // computing a value/total from manifestQty x linked product price stays
+  // correct (manifestQty stays the original PACKET count forever — this is
+  // what turns it into true individual-sellable-unit count). Set at Move
+  // time if converted then; backfilled onto every WarehouseItems row
+  // sharing the same businessProductId if conversion happens later via
+  // Edit Item, so the batch stays in sync regardless of which entry point
+  // was used.
+  itemsPerPacket             Int?
   variantSpec               String?
   imageId                   String?
   originalQty               Int?

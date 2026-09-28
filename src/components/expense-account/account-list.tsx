@@ -401,7 +401,16 @@ export function AccountList({
               <div
                     key={account.id}
                     onClick={() => handleAccountClick(account)}
-                    className={`card px-3 sm:px-6 py-3 sm:py-4 hover:shadow-md transition-shadow cursor-pointer ${account.isSibling ? 'bg-gradient-to-r from-purple-50/50 dark:from-purple-900/10 border-l-4 border-purple-300 dark:border-purple-700' : ''}`}
+                    // min-w-0: a grid item (this card, inside the plain
+                    // `grid gap-4` list wrapper) defaults to min-width: auto,
+                    // meaning it refuses to shrink below its own content's
+                    // unwrapped min-content width -- e.g. the "Balance:
+                    // Threshold: Status:" row or action-button row could
+                    // hold the whole grid (and page) wider than the mobile
+                    // viewport even though every row inside already has
+                    // flex-wrap, since flex-wrap only rewraps once the box
+                    // itself is forced narrow, which never happened here.
+                    className={`card px-3 sm:px-6 py-3 sm:py-4 hover:shadow-md transition-shadow cursor-pointer min-w-0 ${account.isSibling ? 'bg-gradient-to-r from-purple-50/50 dark:from-purple-900/10 border-l-4 border-purple-300 dark:border-purple-700' : ''}`}
                   >
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                   {/* Left: Account info */}

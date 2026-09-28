@@ -237,7 +237,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
         MAX(wi."movedAt") as "movedAt",
         MAX(bp."businessId") as "businessId",
         MAX(b.name) as "businessName",
-        SUM(bp."basePrice" * COALESCE(wi."manifestQty", wi."quantity", 1)) as "expectedSellingTotal"
+        SUM(bp."basePrice" * COALESCE(wi."manifestQty", wi."quantity", 1) * COALESCE(wi."itemsPerPacket", 1)) as "expectedSellingTotal"
       FROM warehouse_items wi
       LEFT JOIN business_products bp ON bp.id = wi."businessProductId"
       LEFT JOIN businesses b ON b.id = bp."businessId"

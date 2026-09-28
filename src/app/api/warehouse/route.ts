@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
     // the grand total for the summary card.
     const movedItems = await (prisma as any).warehouseItems.findMany({
       where: { status: 'MOVED_TO_BUSINESS', businessProductId: { not: null } },
-      select: { batchId: true, businessProductId: true, manifestQty: true, quantity: true },
+      select: { batchId: true, businessProductId: true, manifestQty: true, quantity: true, itemsPerPacket: true },
     })
     const movedProductIds = [...new Set(movedItems.map((i: any) => i.businessProductId))] as string[]
     const movedProducts = movedProductIds.length > 0
@@ -92,7 +92,9 @@ export async function GET(req: NextRequest) {
     let movedToBusinessPotentialValue = 0
     for (const i of movedItems) {
       const price = (priceByProductId.get(i.businessProductId) as number) ?? 0
-      const qty = i.manifestQty ?? i.quantity ?? 1
+      // manifestQty is always the original PACKET count — multiply back out
+      // by the conversion factor (if any) for the true individual-unit count.
+      const qty = (i.manifestQty ?? i.quantity ?? 1) * (i.itemsPerPacket ?? 1)
       const value = price * qty
       potentialValueByBatch[i.batchId] = (potentialValueByBatch[i.batchId] || 0) + value
       movedToBusinessPotentialValue += value

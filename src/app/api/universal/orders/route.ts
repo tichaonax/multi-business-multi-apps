@@ -84,7 +84,13 @@ const UpdateOrderSchema = z.object({
     orderItemId: z.string().min(1),
     quantity: z.number().int().min(1)
   })).optional(),
-  refundReason: z.string().optional()
+  refundReason: z.string().optional(),
+  // A manager id already verified via the manager-override flow (POS
+  // register return/exchange, approved through ManagerOverrideModal) — lets
+  // a cashier session process a refund without themselves holding the
+  // business-owner/business-manager role, mirroring the trust model already
+  // used by POST /api/orders/[orderId]/cancel.
+  managerOverrideId: z.string().optional()
 })
 
 // Generate order number based on business type
@@ -1184,7 +1190,7 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const validatedData = UpdateOrderSchema.parse(body)
 
-    const { id, refundItems, refundReason, ...updateData } = validatedData
+    const { id, refundItems, refundReason, managerOverrideId, ...updateData } = validatedData
 
     // Verify order exists
     const existingOrder = await prisma.businessOrders.findUnique({
@@ -1199,11 +1205,37 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Check if user has permission to manage orders in this business
+    // Check if user has permission to manage orders in this business —
+    // OR a manager-override was already verified (POS register return/
+    // exchange: the logged-in session may just be a cashier, approved by a
+    // real manager via ManagerOverrideModal). Re-verified here rather than
+    // trusted blindly, since this endpoint's default caller (back-office
+    // Orders page) is a manager's own session already.
     const isAdmin = isSystemAdmin(user)
     if (!isAdmin) {
       const userRole = getUserRoleInBusiness(user, existingOrder.businessId)
-      if (!userRole || !['business-owner', 'business-manager'].includes(userRole)) {
+      const hasDirectRole = !!userRole && ['business-owner', 'business-manager'].includes(userRole)
+      let overrideIsValidManager = false
+      if (!hasDirectRole && managerOverrideId) {
+        const overrideUser = await prisma.users.findUnique({
+          where: { id: managerOverrideId },
+          select: { id: true, isActive: true, role: true },
+        })
+        if (overrideUser?.isActive && overrideUser.role === 'admin') {
+          overrideIsValidManager = true
+        } else if (overrideUser?.isActive) {
+          const overrideMembership = await prisma.businessMemberships.findFirst({
+            where: {
+              userId: managerOverrideId,
+              businessId: existingOrder.businessId,
+              isActive: true,
+              role: { in: ['business-owner', 'business-manager'] },
+            },
+          })
+          overrideIsValidManager = !!overrideMembership
+        }
+      }
+      if (!hasDirectRole && !overrideIsValidManager) {
         return NextResponse.json(
           { error: 'Insufficient permissions to manage orders' },
           { status: 403 }
@@ -1346,18 +1378,57 @@ export async function PUT(request: NextRequest) {
           console.log(`Debited $${refundAmount} from business ${existingOrder.businessId} for refund`)
         }
 
-        // Restore stock for refunded items
+        // Restore stock for refunded items — carries the full order item
+        // (not just productVariantId) since bale/custom-bulk/inventory-item
+        // sales are keyed off attributes.baleId/customBulkId/inventoryItemId,
+        // not productVariantId (mirrors the decrement branches in POST above).
         const itemsToRestore = isPartialRefund
           ? refundItems.map(ri => {
               const oi = existingOrder.business_order_items.find(i => i.id === ri.orderItemId)
-              return oi ? { productVariantId: oi.productVariantId, quantity: ri.quantity } : null
-            }).filter(Boolean) as { productVariantId: string; quantity: number }[]
-          : existingOrder.business_order_items.map(i => ({ productVariantId: i.productVariantId, quantity: i.quantity }))
+              return oi ? { ...oi, quantity: ri.quantity } : null
+            }).filter(Boolean) as (typeof existingOrder.business_order_items[number])[]
+          : existingOrder.business_order_items
 
         await prisma.$transaction(async (tx) => {
           for (const item of itemsToRestore) {
-            if (!item.productVariantId) continue // Skip virtual items (services)
+            const attrs = (item.attributes as any) || {}
             try {
+              if (attrs.baleId) {
+                if (!attrs.isBOGOFree) {
+                  await tx.clothingBales.update({
+                    where: { id: attrs.baleId },
+                    data: { remainingCount: { increment: item.quantity } },
+                  })
+                }
+                continue
+              }
+              if (attrs.customBulkId) {
+                await tx.customBulkProducts.update({
+                  where: { id: attrs.customBulkId },
+                  data: { remainingCount: { increment: item.quantity } },
+                })
+                continue
+              }
+              if (attrs.isInventoryItem && attrs.inventoryItemId) {
+                await tx.barcodeInventoryItems.update({
+                  where: { id: attrs.inventoryItemId },
+                  data: { stockQuantity: { increment: item.quantity } },
+                })
+                await tx.businessStockMovements.create({
+                  data: {
+                    businessId: existingOrder.businessId,
+                    barcodeInventoryItemId: attrs.inventoryItemId,
+                    movementType: 'RETURN_IN',
+                    quantity: item.quantity,
+                    reference: existingOrder.orderNumber,
+                    reason: refundReason || 'Order refund',
+                    businessType: existingOrder.businessType,
+                    attributes: { orderId: existingOrder.id, refund: true },
+                  },
+                })
+                continue
+              }
+              if (!item.productVariantId) continue // Skip virtual items (services)
               await tx.productVariants.update({
                 where: { id: item.productVariantId },
                 data: { stockQuantity: { increment: item.quantity } }
@@ -1375,7 +1446,7 @@ export async function PUT(request: NextRequest) {
                 }
               })
             } catch (stockErr) {
-              console.warn(`Failed to restore stock for variant ${item.productVariantId}:`, stockErr)
+              console.warn(`Failed to restore stock for order item ${item.id}:`, stockErr)
             }
           }
         })

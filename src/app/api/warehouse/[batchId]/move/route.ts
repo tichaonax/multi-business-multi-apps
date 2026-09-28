@@ -165,7 +165,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
     }
 
     const movedAt = new Date()
-    const results: Array<{ itemId: string; productId: string; sku: string; sellingPrice: number }> = []
+    const results: Array<{ itemId: string; productId: string; sku: string; sellingPrice: number; matched: boolean; action: 'created' | 'topped_up' }> = []
 
     for (const warehouseItem of warehouseItems) {
       const move = itemMoves.find((m: any) => m.itemId === warehouseItem.id)
@@ -173,26 +173,45 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
 
       const itemCategoryId = move.categoryId || globalCategoryId
       const itemSubcategoryId = move.subcategoryId && validSubcategoryIds.has(move.subcategoryId) ? move.subcategoryId : null
-      // Use manifestQty (received qty) for stock — this is what physically arrived
-      const qty = manifestMap[warehouseItem.id] ?? warehouseItem.quantity ?? 1
+      // Use manifestQty (received qty) for stock — this is what physically arrived.
+      // When bulk info is provided, this is the PACKET count; the individual
+      // sellable-unit count is derived below (packetQty * itemsPerPacket).
+      const packetQty = manifestMap[warehouseItem.id] ?? warehouseItem.quantity ?? 1
       // MBM-300 — a Container Batch reconciliation already gives an exact,
       // fully-loaded per-unit landed cost (unit + clearance + shipping),
       // which is strictly more accurate than this pro-rata estimate. Prefer
       // it when present; fall back to the original estimate for items that
-      // only ever went through the early Yuan-stage import.
-      let costPrice: number
+      // only ever went through the early Yuan-stage import. This is the
+      // PACKET-level cost when bulk info is provided.
+      let packetCostPrice: number
       if (warehouseItem.landedCost != null) {
-        costPrice = Number(warehouseItem.landedCost)
+        packetCostPrice = Number(warehouseItem.landedCost)
       } else {
-        const costUsdPerUnit = Number(warehouseItem.costUsd || 0) / qty
-        const transportPerUnit = perItemTransport / qty
+        const costUsdPerUnit = Number(warehouseItem.costUsd || 0) / packetQty
+        const transportPerUnit = perItemTransport / packetQty
         const txFeePerUnit = batch.transactionFeePct ? costUsdPerUnit * (Number(batch.transactionFeePct) / 100) : 0
-        costPrice = costUsdPerUnit + transportPerUnit + txFeePerUnit
+        packetCostPrice = costUsdPerUnit + transportPerUnit + txFeePerUnit
       }
-      const rawSellingPrice = Number(move.sellingPrice) || Number(warehouseItem.estSellingPrice) || costPrice
+      const rawPacketSellingPrice = Number(move.sellingPrice) || Number(warehouseItem.estSellingPrice) || packetCostPrice
       // Round UP to the nearest $1.00 at the moment a price becomes real
       // (i.e. right as the SKU is assigned) — e.g. 55.19 -> 56.00, 55.70 -> 56.00.
-      const sellingPrice = Math.ceil(rawSellingPrice)
+      // Applies to the PACKET price the user actually entered/reviewed; the
+      // derived individual-unit price below is NOT further rounded, since
+      // rounding e.g. $1.80/unit up to $2 would be a large, unintended hike.
+      const packetSellingPrice = Math.ceil(rawPacketSellingPrice)
+
+      // Bulk-stock conversion — NOT the same thing as an existing item's own
+      // bulk classification, which always wins if this row matches one (see
+      // the match step below). This is only used when creating a new item.
+      const isBulk = !!move.isBulkStock && Number.isFinite(Number(move.itemsPerPacket)) && Number(move.itemsPerPacket) > 1
+      const itemsPerPacket = isBulk ? Math.floor(Number(move.itemsPerPacket)) : null
+      const newItemQty = isBulk ? packetQty * itemsPerPacket! : packetQty
+      const newItemCostPrice = isBulk ? Math.round((packetCostPrice / itemsPerPacket!) * 100) / 100 : packetCostPrice
+      const newItemSellingPrice = isBulk
+        ? (move.unitSellingPrice != null && Number(move.unitSellingPrice) > 0
+            ? Number(move.unitSellingPrice)
+            : Math.round((packetSellingPrice / itemsPerPacket!) * 100) / 100)
+        : packetSellingPrice
 
       // SKU: unique short code derived from item id
       const sku = `WH-${warehouseItem.id.slice(0, 10).toUpperCase()}`
@@ -209,7 +228,113 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
       const description = descriptionParts.join(' · ')
 
       await (prisma as any).$transaction(async (tx: any) => {
-        // Create product
+        // Item matching — no automatic matching existed anywhere for this
+        // catalog before; barcode first, case-insensitive exact name as
+        // fallback (same priority order the OTHER catalog's bulk-add-stock
+        // route already uses). When matched, the EXISTING product's own
+        // bulk classification always wins (Required Workflow #5) — this
+        // row's own isBulkStock/itemsPerPacket input, if any, is ignored.
+        let existingProduct: any = null
+        let existingVariant: any = null
+        if (move.barcode) {
+          const existingBarcode = await tx.productBarcodes.findFirst({ where: { code: move.barcode, businessId } })
+          if (existingBarcode) {
+            existingProduct = await tx.businessProducts.findUnique({ where: { id: existingBarcode.productId } })
+            existingVariant = existingBarcode.variantId
+              ? await tx.productVariants.findUnique({ where: { id: existingBarcode.variantId } })
+              : await tx.productVariants.findFirst({ where: { productId: existingBarcode.productId, isActive: true } })
+          }
+        }
+        if (!existingProduct) {
+          existingProduct = await tx.businessProducts.findFirst({
+            where: { businessId, name: { equals: productName, mode: 'insensitive' }, isActive: true },
+          })
+          if (existingProduct) {
+            existingVariant = await tx.productVariants.findFirst({ where: { productId: existingProduct.id, isActive: true } })
+          }
+        }
+
+        if (existingProduct && existingVariant) {
+          // Top up — never create a duplicate product for the same physical item.
+          const existingIsBulk = existingProduct.isBulkStock === true
+          const existingUnitsPerPack = existingProduct.unitsPerPack ?? null
+          const incomingQty = existingIsBulk && existingUnitsPerPack ? packetQty * existingUnitsPerPack : packetQty
+          const incomingCostPerUnit = existingIsBulk && existingUnitsPerPack
+            ? Math.round((packetCostPrice / existingUnitsPerPack) * 100) / 100
+            : packetCostPrice
+          const existingStockQty = Number(existingVariant.stockQuantity || 0)
+          const existingCostPerUnit = existingProduct.costPrice != null ? Number(existingProduct.costPrice) : incomingCostPerUnit
+          // Weighted-average cost, same formula already used by
+          // bulk-top-up-form.tsx for the other catalog.
+          const blendedCostPerUnit = existingStockQty + incomingQty > 0
+            ? Math.round(((existingStockQty * existingCostPerUnit + incomingQty * incomingCostPerUnit) / (existingStockQty + incomingQty)) * 100) / 100
+            : incomingCostPerUnit
+          const topUpSellingPrice = existingIsBulk && existingUnitsPerPack
+            ? (move.unitSellingPrice != null && Number(move.unitSellingPrice) > 0 ? Number(move.unitSellingPrice) : Math.round((packetSellingPrice / existingUnitsPerPack) * 100) / 100)
+            : packetSellingPrice
+
+          await tx.productVariants.update({
+            where: { id: existingVariant.id },
+            data: { stockQuantity: { increment: incomingQty }, price: topUpSellingPrice, updatedAt: movedAt },
+          })
+          await tx.businessProducts.update({
+            where: { id: existingProduct.id },
+            data: { costPrice: blendedCostPerUnit, basePrice: topUpSellingPrice, updatedAt: movedAt },
+          })
+          await tx.businessStockMovements.create({
+            data: {
+              businessId,
+              businessType,
+              businessProductId: existingProduct.id,
+              productVariantId: existingVariant.id,
+              movementType: 'PURCHASE_RECEIVED',
+              quantity: incomingQty,
+              unitCost: incomingCostPerUnit > 0 ? incomingCostPerUnit : null,
+              reference: warehouseItem.id,
+              reason: `Warehouse import — ${batch.batchName} (matched existing item)`,
+            }
+          })
+          // Add a secondary barcode if this row supplied one the existing
+          // product doesn't already have (matched by name, not barcode).
+          if (move.barcode) {
+            const alreadyLinked = await tx.productBarcodes.findFirst({ where: { code: move.barcode, businessId } })
+            if (!alreadyLinked) {
+              await tx.productBarcodes.create({
+                data: {
+                  productId: existingProduct.id,
+                  variantId: existingVariant.id,
+                  businessId,
+                  code: move.barcode,
+                  type: 'CODE128',
+                  isPrimary: false,
+                  isActive: true,
+                }
+              })
+            }
+          }
+
+          await tx.warehouseItems.update({
+            where: { id: warehouseItem.id },
+            data: {
+              status: 'MOVED_TO_BUSINESS',
+              businessProductId: existingProduct.id,
+              movedAt,
+              movedBy: user.id,
+              moveSessionId,
+              // Sync note: this row's own manifestQty is a packet count when
+              // the matched product is bulk — record the conversion factor
+              // so anything totalling manifestQty x price stays correct.
+              itemsPerPacket: existingIsBulk && existingUnitsPerPack ? existingUnitsPerPack : null,
+              updatedAt: movedAt,
+            }
+          })
+
+          results.push({ itemId: warehouseItem.id, productId: existingProduct.id, sku: existingProduct.sku || sku, sellingPrice: topUpSellingPrice, matched: true, action: 'topped_up' })
+          return
+        }
+
+        // No match — create a new product, applying this row's own bulk
+        // settings (if any).
         const product = await tx.businessProducts.create({
           data: {
             businessId,
@@ -220,13 +345,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
             description,
             sku,
             barcode: move.barcode || null,
-            basePrice: sellingPrice,
-            costPrice: costPrice > 0 ? costPrice : null,
+            basePrice: newItemSellingPrice,
+            costPrice: newItemCostPrice > 0 ? newItemCostPrice : null,
             productType: 'PHYSICAL',
             condition: 'NEW',
             isActive: true,
             isAvailable: true,
             isInventoryTracked: true,
+            isBulkStock: isBulk,
+            unitsPerPack: isBulk ? itemsPerPacket : null,
+            bulkPackCost: isBulk ? packetCostPrice : null,
+            bulkConvertedAt: isBulk ? movedAt : null,
             updatedAt: movedAt,
           }
         })
@@ -238,8 +367,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
             name: 'Default',
             sku: `${sku}-V1`,
             barcode: move.barcode || null,
-            price: sellingPrice,
-            stockQuantity: qty,
+            price: newItemSellingPrice,
+            stockQuantity: newItemQty,
             reorderLevel: 0,
             isActive: true,
             isAvailable: true,
@@ -247,7 +376,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
           }
         })
 
-        // Stock movement IN
+        // Stock movement IN — already at the converted (individual-unit)
+        // quantity/cost when bulk, so there's exactly one movement, never a
+        // separate "convert after create" step.
         await tx.businessStockMovements.create({
           data: {
             businessId,
@@ -255,8 +386,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
             businessProductId: product.id,
             productVariantId: variant.id,
             movementType: 'PURCHASE_RECEIVED',
-            quantity: qty,
-            unitCost: costPrice > 0 ? costPrice : null,
+            quantity: newItemQty,
+            unitCost: newItemCostPrice > 0 ? newItemCostPrice : null,
             reference: warehouseItem.id,
             reason: `Warehouse import — ${batch.batchName}`,
           }
@@ -301,11 +432,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ bat
             movedAt,
             movedBy: user.id,
             moveSessionId,
+            itemsPerPacket: isBulk ? itemsPerPacket : null,
             updatedAt: movedAt,
           }
         })
 
-        results.push({ itemId: warehouseItem.id, productId: product.id, sku, sellingPrice })
+        results.push({ itemId: warehouseItem.id, productId: product.id, sku, sellingPrice: newItemSellingPrice, matched: false, action: 'created' })
       })
     }
 

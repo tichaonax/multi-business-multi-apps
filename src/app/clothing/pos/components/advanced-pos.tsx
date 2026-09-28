@@ -157,6 +157,27 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   const [completedOrderId, setCompletedOrderId] = useState<string | null>(null)
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelTarget, setCancelTarget] = useState<CancelOrderSummary | null>(null)
+
+  // Return / Exchange — real order lookup + line-item picker, replacing the
+  // old stub whose "Original Order ID" input was never read and whose
+  // reason dropdown fired handleReturn('ORD-123', ...) with a hardcoded
+  // fake order id and a fake $25 cart line regardless of what was typed.
+  interface ReturnOrderItem { id: string; name: string; quantity: number; unitPrice: number; totalPrice: number }
+  interface ReturnOrder { id: string; orderNumber: string; totalAmount: number; paymentMethod: string; createdAt: string; status: string; items: ReturnOrderItem[] }
+  const [returnSearchQuery, setReturnSearchQuery] = useState('')
+  const [returnSearchResults, setReturnSearchResults] = useState<any[]>([])
+  const [returnSearchLoading, setReturnSearchLoading] = useState(false)
+  const [selectedReturnOrder, setSelectedReturnOrder] = useState<ReturnOrder | null>(null)
+  const [returnOrderLoading, setReturnOrderLoading] = useState(false)
+  const [returnLineSelections, setReturnLineSelections] = useState<Record<string, { selected: boolean; qty: number }>>({})
+  const [returnReason, setReturnReason] = useState('')
+  const [returnSubmitting, setReturnSubmitting] = useState(false)
+  const [showReturnManagerModal, setShowReturnManagerModal] = useState(false)
+  const [returnManagerTarget, setReturnManagerTarget] = useState<CancelOrderSummary | null>(null)
+  // Exchange only: manager approval for the return side, obtained BEFORE the
+  // cashier adds replacement items and pays — the new sale's own payment
+  // step reuses the existing (unmodified) checkout flow.
+  const [exchangeApproval, setExchangeApproval] = useState<{ managerId: string; managerName: string } | null>(null)
   const [defaultPrinter, setDefaultPrinter] = useState<{ id: string; name: string } | null>(null)
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'CASH' | 'CARD' | 'STORE_CREDIT' | 'GIFT_CARD' | 'ECOCASH'>('CASH')
   const [ecocashTxCode, setEcocashTxCode] = useState('')
@@ -1051,7 +1072,10 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         quantity: quantity || 1,
         attributes: variant.attributes,
         imageUrl: (product as any).imageUrl || null,
-        isReturn: mode === 'return'
+        // Return no longer routes through the cart at all (see the real
+        // order-lookup + refund flow below) — Sale/Exchange both add
+        // normal, non-return line items.
+        isReturn: false
       }
       newCart = [...cart, newItem]
     }
@@ -1142,7 +1166,10 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
         imageUrl: product.imageUrl || product.images?.[0]?.imageUrl || product.images?.[0]?.url || null,
         product,
         variant,
-        isReturn: mode === 'return'
+        // Return no longer routes through the cart at all (see the real
+        // order-lookup + refund flow below) — Sale/Exchange both add
+        // normal, non-return line items.
+        isReturn: false
       }
       newCart = [...currentCart, newItem]
     }
@@ -1438,20 +1465,148 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     })()
   }, [searchParams, autoAddProcessed, router])
 
-  const handleReturn = (originalOrderId: string, reason: string) => {
-    // In a real implementation, this would fetch the original order
-    // and add items to cart with return flag
-    const returnItem: CartItem = {
-      id: Date.now().toString(),
-      productId: 'return_prod',
-      name: 'Return Item',
-      sku: 'RETURN-001',
-      price: -25.00, // Negative for return
-      quantity: 1,
-      isReturn: true,
-      returnReason: reason
+  // Debounced order lookup for Return/Exchange — searches by order number,
+  // receipt #, customer name, or item name (see /api/universal/receipts/search).
+  useEffect(() => {
+    if (mode === 'sale') return
+    const q = returnSearchQuery.trim()
+    if (q.length < 2) { setReturnSearchResults([]); return }
+    const timer = setTimeout(async () => {
+      setReturnSearchLoading(true)
+      try {
+        const res = await fetch(`/api/universal/receipts/search?businessId=${businessId}&query=${encodeURIComponent(q)}&limit=15`, { credentials: 'include' })
+        const data = await res.json()
+        setReturnSearchResults(data.orders || [])
+      } catch {
+        setReturnSearchResults([])
+      } finally {
+        setReturnSearchLoading(false)
+      }
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [returnSearchQuery, mode, businessId])
+
+  async function selectReturnOrder(orderId: string) {
+    setReturnOrderLoading(true)
+    setSelectedReturnOrder(null)
+    setReturnLineSelections({})
+    try {
+      const res = await fetch(`/api/universal/receipts/${orderId}`, { credentials: 'include' })
+      const data = await res.json()
+      if (!res.ok || !data.success) { toast.error(data.error || 'Could not load that order'); return }
+      setSelectedReturnOrder({
+        id: data.order.id,
+        orderNumber: data.order.orderNumber,
+        totalAmount: Number(data.order.totalAmount),
+        paymentMethod: data.order.paymentMethod || 'CASH',
+        createdAt: data.order.createdAt,
+        status: data.order.status,
+        items: (data.receipt.items || []).map((it: any) => ({
+          id: it.id, name: it.name, quantity: it.quantity, unitPrice: it.unitPrice, totalPrice: it.totalPrice,
+        })),
+      })
+      setReturnSearchResults([])
+      setReturnSearchQuery('')
+    } catch {
+      toast.error('Could not load that order')
+    } finally {
+      setReturnOrderLoading(false)
     }
-    setCart([...cart, returnItem])
+  }
+
+  function toggleReturnLine(itemId: string, maxQty: number) {
+    setReturnLineSelections(prev => {
+      if (prev[itemId]?.selected) {
+        const next = { ...prev }
+        delete next[itemId]
+        return next
+      }
+      return { ...prev, [itemId]: { selected: true, qty: maxQty } }
+    })
+  }
+
+  function setReturnLineQty(itemId: string, qty: number, maxQty: number) {
+    setReturnLineSelections(prev => ({ ...prev, [itemId]: { selected: true, qty: Math.max(1, Math.min(qty, maxQty)) } }))
+  }
+
+  function getSelectedReturnItems() {
+    if (!selectedReturnOrder) return [] as { orderItemId: string; quantity: number; unitPrice: number }[]
+    return selectedReturnOrder.items
+      .filter(it => returnLineSelections[it.id]?.selected)
+      .map(it => ({ orderItemId: it.id, quantity: returnLineSelections[it.id].qty, unitPrice: it.unitPrice }))
+  }
+
+  function getReturnCreditTotal() {
+    return getSelectedReturnItems().reduce((sum, it) => sum + it.unitPrice * it.quantity, 0)
+  }
+
+  // Days-old notice only — every return/exchange requires manager approval
+  // regardless of age, so this is informational (2-day policy), not a gate.
+  function returnOrderDaysOld(): number | null {
+    if (!selectedReturnOrder) return null
+    const ms = Date.now() - new Date(selectedReturnOrder.createdAt).getTime()
+    return Math.floor(ms / (1000 * 60 * 60 * 24))
+  }
+
+  function openReturnManagerApproval() {
+    if (!selectedReturnOrder) { toast.error('Select the original order first'); return }
+    if (selectedReturnOrder.status !== 'COMPLETED') { toast.error('This order cannot be returned — it is not a completed sale'); return }
+    const selected = getSelectedReturnItems()
+    if (selected.length === 0) { toast.error('Select at least one item to return'); return }
+    if (mode === 'return' && !returnReason.trim()) { toast.error('Select a return reason'); return }
+    setReturnManagerTarget({
+      orderId: selectedReturnOrder.id,
+      orderNumber: selectedReturnOrder.orderNumber,
+      totalAmount: getReturnCreditTotal(),
+      paymentMethod: selectedReturnOrder.paymentMethod,
+      createdAt: selectedReturnOrder.createdAt,
+    })
+    setShowReturnManagerModal(true)
+  }
+
+  // Whether the selected lines cover every item/quantity on the order — a
+  // TRUE full return must omit refundItems entirely (see PUT /api/universal/orders:
+  // passing refundItems at all, even covering 100%, takes the "partial" branch,
+  // which keeps the order COMPLETED instead of marking it REFUNDED).
+  function isFullReturn(selected: { orderItemId: string; quantity: number }[]) {
+    if (!selectedReturnOrder) return false
+    return selected.length === selectedReturnOrder.items.length &&
+      selected.every(s => {
+        const orig = selectedReturnOrder!.items.find(i => i.id === s.orderItemId)
+        return !!orig && s.quantity === orig.quantity
+      })
+  }
+
+  async function submitReturnRefund(managerId: string, reason: string) {
+    if (!selectedReturnOrder) return
+    setReturnSubmitting(true)
+    try {
+      const selected = getSelectedReturnItems()
+      const full = isFullReturn(selected)
+      const res = await fetch('/api/universal/orders', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          id: selectedReturnOrder.id,
+          status: 'REFUNDED',
+          ...(full ? {} : { refundItems: selected.map(s => ({ orderItemId: s.orderItemId, quantity: s.quantity })) }),
+          refundReason: reason,
+          managerOverrideId: managerId,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) { toast.error(data.error || 'Failed to process return'); return }
+      toast.push(`Return processed — ${formatCurrency(getReturnCreditTotal())} refunded`)
+      setSelectedReturnOrder(null)
+      setReturnLineSelections({})
+      setReturnReason('')
+      setMode('sale')
+    } catch {
+      toast.error('Connection error — please try again')
+    } finally {
+      setReturnSubmitting(false)
+    }
   }
 
   // How many items are free for a BOGO cart item
@@ -1500,17 +1655,22 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
     // Subtract any coupon applied via the mini-cart
     const couponDiscount = appliedCoupon?.discountAmount || 0
-    return Math.max(0, baseTotal - couponDiscount)
+    // Exchange: the value of the item(s) being returned is credited against
+    // the new item(s) in the same cart, same mechanism as a coupon discount.
+    const exchangeCredit = mode === 'exchange' ? getReturnCreditTotal() : 0
+    return Math.max(0, baseTotal - couponDiscount - exchangeCredit)
   }
 
   const requiresSupervisorOverride = () => {
-    // Check various conditions that require supervisor override
+    // Check various conditions that require supervisor override for a Sale.
+    // Return/Exchange approval is handled separately, always, via the real
+    // ManagerOverrideModal (see openReturnManagerApproval) — not this
+    // hardcoded-PIN mechanism.
     const hasLargeDiscount = cart.some(item => item.discount && (item.discount / item.price) > 0.20)
-    const hasReturn = cart.some(item => item.isReturn)
     const totalAmount = Math.abs(calculateTotal())
     const isLargeTransaction = totalAmount > 500
 
-    return hasLargeDiscount || (hasReturn && totalAmount > 100) || isLargeTransaction
+    return hasLargeDiscount || isLargeTransaction
   }
 
   const processPayment = async () => {
@@ -1620,6 +1780,39 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'Failed to process order')
+      }
+
+      // Exchange: the new sale just succeeded — now fire the return-side
+      // refund for the old item(s), sequential rather than atomic (see
+      // plan Decision #3). A failure here doesn't lose the sale; it's
+      // surfaced so staff can process the return separately from Orders.
+      if (mode === 'exchange' && exchangeApproval && selectedReturnOrder) {
+        try {
+          const selected = getSelectedReturnItems()
+          const full = isFullReturn(selected)
+          const refundRes = await fetch('/api/universal/orders', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              id: selectedReturnOrder.id,
+              status: 'REFUNDED',
+              ...(full ? {} : { refundItems: selected.map(s => ({ orderItemId: s.orderItemId, quantity: s.quantity })) }),
+              refundReason: `Exchanged for order ${result.data.orderNumber}`,
+              managerOverrideId: exchangeApproval.managerId,
+            }),
+          })
+          const refundData = await refundRes.json()
+          if (!refundRes.ok || !refundData.success) {
+            toast.error(`New sale completed, but the return side failed (${refundData.error || 'unknown error'}) — process it manually from Orders.`)
+          }
+        } catch {
+          toast.error('New sale completed, but the return side failed to process — process it manually from Orders.')
+        }
+        setSelectedReturnOrder(null)
+        setReturnLineSelections({})
+        setReturnReason('')
+        setExchangeApproval(null)
       }
 
       // Create receipt data — matching restaurant POS pattern
@@ -1912,7 +2105,17 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 <button
                   type="button"
                   key={modeOption}
-                  onClick={() => setMode(modeOption)}
+                  onClick={() => {
+                    setMode(modeOption)
+                    // Switching modes drops any in-progress return/exchange
+                    // lookup so a stale selection can't leak into the wrong flow.
+                    setSelectedReturnOrder(null)
+                    setReturnLineSelections({})
+                    setReturnReason('')
+                    setReturnSearchQuery('')
+                    setReturnSearchResults([])
+                    setExchangeApproval(null)
+                  }}
                   className={`px-3 py-1.5 text-xs font-medium rounded capitalize ${
                     mode === modeOption ? 'bg-white shadow-sm' : 'hover:bg-white/50'
                   }`}
@@ -2656,26 +2859,139 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           />
         )}
 
-        {/* Return Processing */}
-        {mode === 'return' && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <h3 className="font-semibold text-red-900 mb-4">Process Return</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <input
-                type="text"
-                placeholder="Original Order ID or Receipt #"
-                className="px-3 py-2 border border-red-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-              />
-              <select
-                onChange={(e) => e.target.value && handleReturn('ORD-123', e.target.value)}
-                className="px-3 py-2 border border-red-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-              >
-                <option value="">Select return reason</option>
-                {getReturnReasons().map((reason) => (
-                  <option key={reason} value={reason}>{reason}</option>
-                ))}
-              </select>
-            </div>
+        {/* Return / Exchange — real order lookup + line-item picker.
+            Return: this panel is self-contained (its own confirm button;
+            nothing goes through the cart). Exchange: pick what's coming
+            back here, then add replacement item(s) via the normal product
+            grid below and check out as usual — the credit is applied
+            automatically (see calculateTotal). */}
+        {(mode === 'return' || mode === 'exchange') && (
+          <div className={`rounded-lg p-4 border ${mode === 'return' ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'}`}>
+            <h3 className={`font-semibold mb-3 ${mode === 'return' ? 'text-red-900' : 'text-blue-900'}`}>
+              {mode === 'return' ? 'Process Return' : 'Step 1 — Select item(s) to exchange'}
+            </h3>
+
+            {!selectedReturnOrder ? (
+              <div className="relative">
+                <input
+                  type="text"
+                  value={returnSearchQuery}
+                  onChange={(e) => setReturnSearchQuery(e.target.value)}
+                  placeholder="Search by order #, receipt #, or customer name…"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {returnSearchLoading && (
+                  <div className="text-xs text-gray-500 mt-1">Searching…</div>
+                )}
+                {returnSearchResults.length > 0 && (
+                  <div className="mt-2 border border-gray-200 dark:border-gray-600 rounded-lg divide-y divide-gray-100 dark:divide-gray-700 max-h-64 overflow-y-auto bg-white dark:bg-gray-800">
+                    {returnSearchResults.map((o) => (
+                      <button
+                        type="button"
+                        key={o.id}
+                        onClick={() => selectReturnOrder(o.id)}
+                        disabled={returnOrderLoading}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+                      >
+                        <div className="flex justify-between font-medium">
+                          <span>{o.orderNumber}</span>
+                          <span>{formatCurrency(Number(o.totalAmount))}</span>
+                        </div>
+                        <div className="text-xs text-gray-500 flex justify-between">
+                          <span>{o.customerName} · {o.paymentMethod}</span>
+                          <span>{new Date(o.createdAt).toLocaleDateString()} · {o.status}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {!returnSearchLoading && returnSearchQuery.trim().length >= 2 && returnSearchResults.length === 0 && (
+                  <div className="text-xs text-gray-500 mt-1">No matching orders found</div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-medium">
+                    Order {selectedReturnOrder.orderNumber} · {formatCurrency(selectedReturnOrder.totalAmount)} · {selectedReturnOrder.paymentMethod}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedReturnOrder(null); setReturnLineSelections({}) }}
+                    className="text-xs text-blue-600 hover:underline"
+                  >
+                    Change order
+                  </button>
+                </div>
+
+                {returnOrderDaysOld() !== null && returnOrderDaysOld()! > 2 && (
+                  <div className="text-xs bg-yellow-50 border border-yellow-200 text-yellow-800 rounded px-2 py-1">
+                    ⚠️ This order is {returnOrderDaysOld()} days old — outside the standard 2-day return window. Proceeding requires manager discretion (manager approval is required below either way).
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  {selectedReturnOrder.items.map((it) => {
+                    const sel = returnLineSelections[it.id]
+                    return (
+                      <div key={it.id} className="flex items-center gap-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5">
+                        <input
+                          type="checkbox"
+                          checked={!!sel?.selected}
+                          onChange={() => toggleReturnLine(it.id, it.quantity)}
+                        />
+                        <div className="flex-1 min-w-0 truncate">{it.name}</div>
+                        <div className="text-xs text-gray-500 flex-shrink-0">sold {it.quantity} @ {formatCurrency(it.unitPrice)}</div>
+                        {sel?.selected && (
+                          <input
+                            type="number"
+                            min={1}
+                            max={it.quantity}
+                            value={sel.qty}
+                            onChange={(e) => setReturnLineQty(it.id, parseInt(e.target.value) || 1, it.quantity)}
+                            className="w-16 px-1 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-sm flex-shrink-0"
+                          />
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {getSelectedReturnItems().length > 0 && (
+                  <div className="text-sm font-medium">
+                    {mode === 'return' ? 'Refund total: ' : 'Exchange credit: '}{formatCurrency(getReturnCreditTotal())}
+                  </div>
+                )}
+
+                {mode === 'return' && (
+                  <select
+                    value={returnReason}
+                    onChange={(e) => setReturnReason(e.target.value)}
+                    className="w-full px-3 py-2 border border-red-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
+                  >
+                    <option value="">Select return reason</option>
+                    {getReturnReasons().map((reason) => (
+                      <option key={reason} value={reason}>{reason}</option>
+                    ))}
+                  </select>
+                )}
+
+                {mode === 'exchange' && exchangeApproval ? (
+                  <div className="text-sm bg-green-50 border border-green-200 text-green-800 rounded px-2 py-1.5">
+                    ✓ Approved by {exchangeApproval.managerName} — add replacement item(s) below, then check out.
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={openReturnManagerApproval}
+                    disabled={returnSubmitting}
+                    className={`w-full py-2.5 rounded-lg font-semibold text-white disabled:opacity-50 ${mode === 'return' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                  >
+                    {returnSubmitting ? 'Processing…' : mode === 'return' ? 'Get Manager Approval & Process Return' : 'Get Manager Approval'}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -2846,6 +3162,12 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                   <span className="text-sm font-medium">-{formatCurrency(appliedCoupon.discountAmount)}</span>
                 </div>
               )}
+              {mode === 'exchange' && getReturnCreditTotal() > 0 && (
+                <div className="flex justify-between items-center text-blue-700 dark:text-blue-400">
+                  <span className="text-sm font-medium">🔄 Exchange credit ({selectedReturnOrder?.orderNumber}):</span>
+                  <span className="text-sm font-medium">-{formatCurrency(getReturnCreditTotal())}</span>
+                </div>
+              )}
               <div className="flex justify-between font-bold text-lg border-t pt-2">
                 <span>Total:</span>
                 <span>{formatCurrency(calculateTotal())}</span>
@@ -2867,11 +3189,14 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
             <button
               type="button"
-              onClick={() => { setEcocashTxCode(''); setCashTendered(''); setShowPaymentModal(true) }}
+              onClick={() => {
+                if (mode === 'exchange' && !exchangeApproval) { toast.error('Get manager approval for the return side first'); return }
+                setEcocashTxCode(''); setCashTendered(''); setShowPaymentModal(true)
+              }}
               disabled={cart.length === 0}
               className="w-full mt-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed text-lg"
             >
-              {mode === 'return' ? 'Process Return' : 'Proceed to Payment'}
+              {mode === 'exchange' ? 'Process Exchange' : 'Proceed to Payment'}
             </button>
           </div>
         ) : null}
@@ -3215,6 +3540,25 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
             } catch { toast.error('Connection error — please try again') }
           }}
           onAborted={() => setShowCancelModal(false)}
+        />
+      )}
+
+      {/* Manager approval for Return/Exchange — real verification (see plan
+          decision), not the hardcoded-PIN "Supervisor Override" popup. */}
+      {showReturnManagerModal && returnManagerTarget && (
+        <ManagerOverrideModal
+          order={returnManagerTarget}
+          businessId={businessId}
+          onApproved={async (managerId, managerName, _finalRefundAmount, staffReason) => {
+            setShowReturnManagerModal(false)
+            if (mode === 'return') {
+              await submitReturnRefund(managerId, staffReason || returnReason)
+            } else {
+              setExchangeApproval({ managerId, managerName })
+              toast.push(`Approved by ${managerName} — add replacement item(s) and check out`)
+            }
+          }}
+          onAborted={() => setShowReturnManagerModal(false)}
         />
       )}
 

@@ -56,6 +56,12 @@ interface UniversalInventoryItem {
   // whole case cost as if it were one unit's cost.
   unitsPerPack?: number | null
   bulkPackCost?: number | null
+  // Bulk-stock conversion — once true, currentStock/costPrice/sellPrice are
+  // real individual-unit values. Permanent as soon as anything else touches
+  // stock afterward; canRedoBulkConversion (server-computed) says whether a
+  // packet-size correction is still allowed (nothing has moved yet).
+  isBulkStock?: boolean
+  canRedoBulkConversion?: boolean
   // MBM-297 follow-up — expense classification, carried over from the Bulk
   // Products registration flow (CustomBulkProducts). Only ever set on
   // BarcodeInventoryItems-backed items (id prefixed 'inv_') — the section
@@ -294,6 +300,7 @@ export function UniversalInventoryForm({
     sellPrice: 0,
     unitsPerPack: null,
     bulkPackCost: null,
+    isBulkStock: false,
     expenseDomainId: null,
     expenseCategoryId: null,
     expenseSubcategoryId: null,
@@ -618,6 +625,14 @@ export function UniversalInventoryForm({
   const [isDirty, setIsDirty] = useState(false)
   const markDirty = () => setIsDirty(true)
 
+  // Bulk-stock conversion — a real, one-way unit conversion (not the
+  // freely-editable "Bulk pack cost" box above/below, which only ever
+  // corrects a reported cost figure). Separate state, separate action,
+  // separate endpoint — see bulk-stock-conversion/route.ts.
+  const [bulkConvertItemsPerPacket, setBulkConvertItemsPerPacket] = useState('')
+  const [bulkConvertUnitPrice, setBulkConvertUnitPrice] = useState('')
+  const [bulkConverting, setBulkConverting] = useState(false)
+
   // Printing hooks
   const { canPrintInventoryLabels } = usePrinterPermissions()
   const { monitorJob, notifyJobQueued } = usePrintJobMonitor()
@@ -891,6 +906,98 @@ export function UniversalInventoryForm({
       }
     }))
     markDirty()
+  }
+
+  // Bulk-stock conversion — persists immediately (like the Adjust Stock
+  // button), not staged for the outer Update button, since it's a distinct,
+  // one-way action with its own confirmation, not a regular field edit.
+  async function handleBulkStockConvert() {
+    if (!item?.id) return
+    const n = parseInt(bulkConvertItemsPerPacket, 10)
+    if (!Number.isFinite(n) || n < 2) {
+      await alert({ title: 'Enter items per packet', description: 'Items per packet must be a whole number of 2 or more.' })
+      return
+    }
+    const overridePrice = bulkConvertUnitPrice.trim() ? parseFloat(bulkConvertUnitPrice) : null
+    const isRedo = !!formData.isBulkStock
+    const currentStock = formData.currentStock || 0
+    const currentCost = formData.costPrice || 0
+    const currentSell = formData.sellPrice || 0
+    // On a redo, currentStock/costPrice are already-converted per-unit
+    // figures from the FIRST conversion — reconstruct the pre-conversion
+    // packet count/cost (safe: only reachable when canRedoBulkConversion
+    // proved nothing has moved since) instead of dividing them again.
+    const oldUnitsPerPack = isRedo && formData.unitsPerPack ? formData.unitsPerPack : 1
+    const packetQty = isRedo ? Math.round(currentStock / oldUnitsPerPack) : currentStock
+    const packetCost = isRedo ? (formData.bulkPackCost ?? currentCost) : currentCost
+    const newStock = packetQty * n
+    const newCost = packetCost > 0 ? Math.round((packetCost / n) * 100) / 100 : null
+    const defaultUnitPrice = isRedo ? currentSell : (currentSell > 0 ? Math.round((currentSell / n) * 100) / 100 : null)
+    const newSell = overridePrice ?? defaultUnitPrice ?? 0
+
+    const proceed = await confirmDialog({
+      title: isRedo ? '⚠️ Correct Bulk Conversion' : '⚠️ Convert to Bulk Stock',
+      description: (
+        <div className="space-y-2 text-sm">
+          <p>
+            {isRedo
+              ? <>Correcting the packet size is only possible because nothing has sold or moved since the original conversion. Once you save, this becomes permanent again.</>
+              : <>This is a <strong>one-way</strong> conversion — it cannot be reversed once saved.</>}
+          </p>
+          <div className="grid grid-cols-3 gap-2 text-xs bg-gray-50 dark:bg-gray-800 rounded-lg p-2.5">
+            <div />
+            <div className="font-medium text-gray-500">Before</div>
+            <div className="font-medium text-gray-500">After</div>
+            <div className="text-gray-500">Stock</div>
+            <div>{currentStock}</div>
+            <div className="font-semibold text-green-600 dark:text-green-400">{newStock}</div>
+            <div className="text-gray-500">Unit cost</div>
+            <div>${currentCost.toFixed(2)}</div>
+            <div className="font-semibold text-green-600 dark:text-green-400">${(newCost ?? 0).toFixed(2)}</div>
+            <div className="text-gray-500">Unit price</div>
+            <div>${currentSell.toFixed(2)}</div>
+            <div className="font-semibold text-green-600 dark:text-green-400">${newSell.toFixed(2)}</div>
+          </div>
+        </div>
+      ),
+      confirmText: isRedo ? 'Correct' : 'Convert',
+      cancelText: 'Cancel',
+    })
+    if (!proceed) return
+
+    setBulkConverting(true)
+    try {
+      const res = await fetch(`/api/inventory/${businessId}/items/${item.id}/bulk-stock-conversion`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemsPerPacket: n, unitSellingPrice: overridePrice || undefined }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        await alert({ title: 'Conversion failed', description: data.error || 'Failed to convert item' })
+        return
+      }
+      setFormData(prev => ({
+        ...prev,
+        currentStock: data.stockQuantity ?? newStock,
+        costPrice: data.costPrice ?? newCost ?? prev.costPrice,
+        sellPrice: data.sellingPrice ?? newSell,
+        unitsPerPack: n,
+        bulkPackCost: packetCost > 0 ? packetCost : null,
+        isBulkStock: true,
+        // A fresh conversion (first-time or just-corrected) has, by
+        // definition, had zero movements since itself — still correctable
+        // until something else touches stock.
+        canRedoBulkConversion: true,
+      }))
+      setBulkConvertItemsPerPacket('')
+      setBulkConvertUnitPrice('')
+      onSilentUpdate?.()
+    } catch {
+      await alert({ title: 'Conversion failed', description: 'Network error occurred' })
+    } finally {
+      setBulkConverting(false)
+    }
   }
 
   const handleBarcodesChange = (updated: ProductBarcode[]) => {
@@ -2295,10 +2402,16 @@ export function UniversalInventoryForm({
               {/* Bulk pack cost (MBM-297) — optional. When this item was bought as
                   a case/pack, record the real case cost + units per pack here so
                   Cost Price above can be derived correctly instead of the whole
-                  case cost being saved as if it were one unit's cost. */}
+                  case cost being saved as if it were one unit's cost.
+                  Once bulk-stock conversion (below) has run, this becomes a
+                  read-only historical record — editing it further would let
+                  the "permanent, one-way" conversion quietly drift, so the
+                  inputs lock instead. */}
               {!effectiveWeightMode && (
               <div className="col-span-2 xl:col-span-3 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3">
-                <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Bulk pack cost (optional) — bought as a case/pack?</p>
+                <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {formData.isBulkStock ? 'Bulk pack cost (converted — permanent record)' : 'Bulk pack cost (optional) — bought as a case/pack?'}
+                </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Units per pack</label>
@@ -2308,7 +2421,8 @@ export function UniversalInventoryForm({
                       min="1"
                       value={formData.unitsPerPack ?? ''}
                       onChange={(e) => handleInputChange('unitsPerPack', e.target.value === '' ? null : parseInt(e.target.value))}
-                      className="input-field"
+                      readOnly={formData.isBulkStock}
+                      className={`input-field ${formData.isBulkStock ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed' : ''}`}
                       placeholder="e.g. 24"
                     />
                   </div>
@@ -2320,7 +2434,8 @@ export function UniversalInventoryForm({
                       min="0"
                       value={formData.bulkPackCost ?? ''}
                       onChange={(e) => handleInputChange('bulkPackCost', e.target.value === '' ? null : parseFloat(e.target.value))}
-                      className="input-field"
+                      readOnly={formData.isBulkStock}
+                      className={`input-field ${formData.isBulkStock ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed' : ''}`}
                       placeholder="e.g. 6.70"
                     />
                   </div>
@@ -2328,17 +2443,103 @@ export function UniversalInventoryForm({
                 {formData.unitsPerPack != null && formData.unitsPerPack > 0 && formData.bulkPackCost != null && formData.bulkPackCost > 0 && (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                     → ${(formData.bulkPackCost / formData.unitsPerPack).toFixed(2)}/unit
-                    {' '}
-                    <button
-                      type="button"
-                      onClick={() => handleInputChange('costPrice', Math.round((formData.bulkPackCost! / formData.unitsPerPack!) * 100) / 100)}
-                      className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
-                    >
-                      Use as Cost Price
-                    </button>
+                    {!formData.isBulkStock && (
+                      <>
+                        {' '}
+                        <button
+                          type="button"
+                          onClick={() => handleInputChange('costPrice', Math.round((formData.bulkPackCost! / formData.unitsPerPack!) * 100) / 100)}
+                          className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                        >
+                          Use as Cost Price
+                        </button>
+                      </>
+                    )}
                   </p>
                 )}
               </div>
+              )}
+
+              {/* Bulk-stock conversion — a real unit conversion, deliberately
+                  separate from the cost-only box above. Only offered in edit
+                  mode (needs a saved item + real current stock/price). Shown
+                  either pre-conversion, or post-conversion as a correction
+                  while canRedoBulkConversion (nothing has sold/moved yet). */}
+              {!effectiveWeightMode && mode === 'edit' && item?.id && (!formData.isBulkStock || formData.canRedoBulkConversion) && (() => {
+                const isRedo = !!formData.isBulkStock
+                // Reconstruct the pre-conversion packet baseline for preview
+                // math on a redo — currentStock/costPrice are already the
+                // FIRST conversion's per-unit results, not packet values.
+                const oldUnitsPerPack = isRedo && formData.unitsPerPack ? formData.unitsPerPack : 1
+                const packetQty = isRedo ? Math.round((formData.currentStock || 0) / oldUnitsPerPack) : (formData.currentStock || 0)
+                const packetCost = isRedo ? (formData.bulkPackCost ?? formData.costPrice) : formData.costPrice
+                return (
+                <div className="col-span-2 xl:col-span-3 border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/10 rounded-lg p-3">
+                  <p className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-1">
+                    {isRedo ? 'Correct the packet size?' : 'This item is actually bulk stock — convert to individual units?'}
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mb-2">
+                    {isRedo
+                      ? `Still correctable because nothing has sold or moved since converting (currently ${oldUnitsPerPack}/pack). Once saved, this is permanent again.`
+                      : <>Each current unit ({formData.currentStock}) is really a packet of several sellable items. This is a one-way conversion — it cannot be undone.</>}
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Items per packet</label>
+                      <input
+                        type="number"
+                        step="1"
+                        min="2"
+                        value={bulkConvertItemsPerPacket}
+                        onChange={(e) => setBulkConvertItemsPerPacket(e.target.value)}
+                        className="input-field"
+                        placeholder={isRedo ? String(oldUnitsPerPack) : 'e.g. 5'}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Individual unit price (optional)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={bulkConvertUnitPrice}
+                        onChange={(e) => setBulkConvertUnitPrice(e.target.value)}
+                        className="input-field"
+                        placeholder={isRedo ? `defaults to current $${formData.sellPrice.toFixed(2)}` : (() => {
+                          const n = parseInt(bulkConvertItemsPerPacket, 10)
+                          return n >= 2 && formData.sellPrice > 0 ? `defaults to $${(Math.round((formData.sellPrice / n) * 100) / 100).toFixed(2)}` : 'defaults to price ÷ items'
+                        })()}
+                      />
+                    </div>
+                  </div>
+                  {(() => {
+                    const n = parseInt(bulkConvertItemsPerPacket, 10)
+                    if (!Number.isFinite(n) || n < 2) return null
+                    const newStock = packetQty * n
+                    const newCost = packetCost > 0 ? Math.round((packetCost / n) * 100) / 100 : null
+                    const overridePrice = bulkConvertUnitPrice.trim() ? parseFloat(bulkConvertUnitPrice) : null
+                    const newPrice = overridePrice ?? (isRedo ? formData.sellPrice : (formData.sellPrice > 0 ? Math.round((formData.sellPrice / n) * 100) / 100 : null))
+                    return (
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
+                        → {newStock} individual units{newCost != null ? ` @ $${newCost.toFixed(2)} cost` : ''}{newPrice != null ? ` / $${newPrice.toFixed(2)} price` : ''}
+                      </p>
+                    )
+                  })()}
+                  <button
+                    type="button"
+                    onClick={handleBulkStockConvert}
+                    disabled={bulkConverting || !bulkConvertItemsPerPacket}
+                    className="mt-2 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg"
+                  >
+                    {bulkConverting ? (isRedo ? 'Correcting…' : 'Converting…') : (isRedo ? 'Correct Packet Size' : 'Convert to Bulk Stock')}
+                  </button>
+                </div>
+                )
+              })()}
+              {formData.isBulkStock && !formData.canRedoBulkConversion && (
+                <div className="col-span-2 xl:col-span-3 text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 rounded-lg p-2.5">
+                  ✓ Converted to individual sellable units — stock, cost, and price above are now real per-unit values. This cannot be reversed.
+                </div>
               )}
 
               {/* Sell Price — hidden for weight-based items. MBM-299:

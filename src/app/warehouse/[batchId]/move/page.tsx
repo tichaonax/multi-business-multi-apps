@@ -136,6 +136,12 @@ interface MoveRow {
   status: 'pending' | 'moving' | 'moved' | 'error'
   errorMessage?: string
   movedSku?: string        // assigned by the server at move time — shown once status is 'moved'
+  // Bulk-stock conversion — this row's recorded unit is actually a packet
+  // containing several sellable items. Ignored server-side if this item
+  // matches an existing product (that product's own classification wins).
+  isBulkStock: boolean
+  itemsPerPacket: string
+  unitSellingPrice: string  // optional override of sellingPrice/itemsPerPacket
 }
 
 // ── Suggestion algorithm ────────────────────────────────────────────────────
@@ -778,6 +784,7 @@ export default function MoveWizardPage() {
           itemBusinessId: saved.itemBusinessId || '',
           status: 'moved',
           movedSku: item.linkedProductSku ?? undefined,
+          isBulkStock: false, itemsPerPacket: '', unitSellingPrice: '',
         }
       }
       const costUsd = item.costUsd != null ? Number(item.costUsd) : 0
@@ -803,6 +810,9 @@ export default function MoveWizardPage() {
         itemBusinessId: existing?.itemBusinessId || saved.itemBusinessId || '',
         status: existing?.status || 'pending',
         errorMessage: existing?.errorMessage,
+        isBulkStock: existing?.isBulkStock ?? saved.isBulkStock ?? false,
+        itemsPerPacket: existing?.itemsPerPacket ?? saved.itemsPerPacket ?? '',
+        unitSellingPrice: existing?.unitSellingPrice ?? saved.unitSellingPrice ?? '',
       }
     }))
   }, [allItems, batch]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -821,6 +831,9 @@ export default function MoveWizardPage() {
         transportOverride: r.transportOverride,
         itemBusinessId: r.itemBusinessId,
         selected: r.selected,
+        isBulkStock: r.isBulkStock,
+        itemsPerPacket: r.itemsPerPacket,
+        unitSellingPrice: r.unitSellingPrice,
       }
     })
     try { sessionStorage.setItem(`wh-move-rows-${batchId}`, JSON.stringify(toSave)) } catch {}
@@ -1116,6 +1129,9 @@ export default function MoveWizardPage() {
     if (!leafCategoryId) { toast.error('Select a category for this item'); return }
     const sellPrice = parseFloat(row.sellingPrice)
     if (!sellPrice || sellPrice <= 0) { toast.error('Set a selling price > 0'); return }
+    if (row.isBulkStock && (!row.itemsPerPacket || parseInt(row.itemsPerPacket, 10) < 2)) {
+      toast.error('Enter items per packet (2 or more) for this bulk item'); return
+    }
 
     updateRow(idx, { status: 'moving', errorMessage: undefined })
     try {
@@ -1126,7 +1142,12 @@ export default function MoveWizardPage() {
         body: JSON.stringify({
           businessId: effBizId,
           businessType: effBiz.businessType,
-          items: [{ itemId: row.item.id, sellingPrice: sellPrice, barcode: row.barcode || undefined, categoryId: leafCategoryId, subcategoryId }],
+          items: [{
+            itemId: row.item.id, sellingPrice: sellPrice, barcode: row.barcode || undefined, categoryId: leafCategoryId, subcategoryId,
+            isBulkStock: row.isBulkStock || undefined,
+            itemsPerPacket: row.isBulkStock && row.itemsPerPacket ? parseInt(row.itemsPerPacket, 10) : undefined,
+            unitSellingPrice: row.isBulkStock && row.unitSellingPrice ? parseFloat(row.unitSellingPrice) : undefined,
+          }],
         }),
       })
       const data = await res.json()
@@ -1173,6 +1194,8 @@ export default function MoveWizardPage() {
     if (missingCat) { toast.error('All selected items need a category'); return }
     const missingPrice = pendingSelected.find(r => !r.sellingPrice || parseFloat(r.sellingPrice) <= 0)
     if (missingPrice) { toast.error('All selected items need a selling price > 0'); return }
+    const missingPacketSize = pendingSelected.find(r => r.isBulkStock && (!r.itemsPerPacket || parseInt(r.itemsPerPacket, 10) < 2))
+    if (missingPacketSize) { toast.error('One or more bulk items need items-per-packet (2 or more) set'); return }
 
     setBatchMoving(true)
     setRows(prev => prev.map(r => r.selected && r.status === 'pending' ? { ...r, status: 'moving' } : r))
@@ -1200,6 +1223,9 @@ export default function MoveWizardPage() {
             barcode: r.barcode || undefined,
             categoryId,
             subcategoryId,
+            isBulkStock: r.isBulkStock || undefined,
+            itemsPerPacket: r.isBulkStock && r.itemsPerPacket ? parseInt(r.itemsPerPacket, 10) : undefined,
+            unitSellingPrice: r.isBulkStock && r.unitSellingPrice ? parseFloat(r.unitSellingPrice) : undefined,
           }
         })
         const res = await fetch(`/api/warehouse/${batchId}/move`, {
@@ -1286,7 +1312,8 @@ export default function MoveWizardPage() {
     return !!cat && isGroupCategory(cat)
   }
   const batchBtnDisabled = batchMoving || pendingSelected.length === 0 ||
-    pendingSelected.some(r => (!r.itemBusinessId && !selectedBusinessId) || (!r.subCategoryId && !r.categoryId) || rowStuckOnGroup(r) || !r.sellingPrice || parseFloat(r.sellingPrice) <= 0)
+    pendingSelected.some(r => (!r.itemBusinessId && !selectedBusinessId) || (!r.subCategoryId && !r.categoryId) || rowStuckOnGroup(r) || !r.sellingPrice || parseFloat(r.sellingPrice) <= 0 ||
+      (r.isBulkStock && (!r.itemsPerPacket || parseInt(r.itemsPerPacket, 10) < 2)))
   const needsClassificationCount = pendingSelected.filter(r => (!r.categoryId && !r.subCategoryId) || rowStuckOnGroup(r)).length
   const firstNeedsClassificationIdx = rows.findIndex(r => r.selected && r.status === 'pending' && ((!r.categoryId && !r.subCategoryId) || rowStuckOnGroup(r)))
 
@@ -1925,6 +1952,62 @@ export default function MoveWizardPage() {
                             />
                           )}
                         </div>
+
+                        {/* Bulk-stock conversion — this row's recorded unit is
+                            actually a packet containing several sellable
+                            items. Ignored server-side if this barcode/name
+                            matches an existing product (that product's own
+                            classification wins instead). */}
+                        {!isMoved && (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <label className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 shrink-0">
+                              <input
+                                type="checkbox"
+                                checked={row.isBulkStock}
+                                disabled={isMoving}
+                                onChange={e => updateRow(idx, { isBulkStock: e.target.checked })}
+                              />
+                              This is bulk stock (each unit is a packet of several items)
+                            </label>
+                            {row.isBulkStock && (
+                              <>
+                                <input
+                                  type="number"
+                                  min={2}
+                                  step={1}
+                                  placeholder="Items/packet"
+                                  value={row.itemsPerPacket}
+                                  disabled={isMoving}
+                                  onChange={e => updateRow(idx, { itemsPerPacket: e.target.value })}
+                                  className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                />
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={0.01}
+                                  placeholder="Unit price (optional)"
+                                  value={row.unitSellingPrice}
+                                  disabled={isMoving}
+                                  onChange={e => updateRow(idx, { unitSellingPrice: e.target.value })}
+                                  className="w-36 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                  title="Defaults to packet selling price ÷ items per packet — override if the individual price should be different"
+                                />
+                                {(() => {
+                                  const n = parseInt(row.itemsPerPacket, 10)
+                                  const packetQty = row.item.manifestQty ?? row.item.quantity ?? 1
+                                  const packetPrice = parseFloat(row.sellingPrice)
+                                  if (!n || n < 2) return <span className="text-xs text-amber-600 dark:text-amber-400">Enter items per packet</span>
+                                  const unitPrice = row.unitSellingPrice ? parseFloat(row.unitSellingPrice) : (isNaN(packetPrice) ? null : Math.round((packetPrice / n) * 100) / 100)
+                                  return (
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                      → {packetQty * n} individual units{unitPrice != null ? ` @ $${unitPrice.toFixed(2)}/unit` : ''}
+                                    </span>
+                                  )
+                                })()}
+                              </>
+                            )}
+                          </div>
+                        )}
 
                         {/* Pricing calculator (inline, no separate row) */}
                         {openCalcIdx === idx && (

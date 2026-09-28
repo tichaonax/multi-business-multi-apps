@@ -36,6 +36,15 @@ export async function GET(
         return NextResponse.json({ error: 'Inventory item not found' }, { status: 404 })
       }
       const barcodeItemOpenPromotions = await getOpenPromotions(businessId)
+      // Bulk conversion may still be corrected (packet size was mis-entered)
+      // as long as nothing has moved this stock since — the moment anything
+      // else touches it, the conversion is permanent (see bulk-stock-conversion route).
+      const barcodeConvertedAt = (item as any).bulkConvertedAt as Date | null
+      const canRedoBulkConversion = (item as any).isBulkStock
+        ? (barcodeConvertedAt
+            ? (await prisma.businessStockMovements.count({ where: { barcodeInventoryItemId: rawId, createdAt: { gt: barcodeConvertedAt } } })) === 0
+            : false)
+        : false
       return NextResponse.json({
         success: true,
         data: {
@@ -60,6 +69,8 @@ export async function GET(
           sellPrice: parseFloat(item.sellingPrice?.toString() || '0'),
           unitsPerPack: (item as any).unitsPerPack ?? null,
           bulkPackCost: (item as any).bulkPackCost ? parseFloat((item as any).bulkPackCost.toString()) : null,
+          isBulkStock: (item as any).isBulkStock ?? false,
+          canRedoBulkConversion,
           expenseDomainId: (item as any).expenseDomainId ?? null,
           expenseCategoryId: (item as any).expenseCategoryId ?? null,
           expenseSubcategoryId: (item as any).expenseSubcategoryId ?? null,
@@ -129,6 +140,15 @@ export async function GET(
 
     const productOpenPromotions = await getOpenPromotions(businessId)
 
+    // See the inv_ branch above for why this is gated on "nothing has moved
+    // since conversion" rather than being freely re-editable.
+    const productConvertedAt = (product as any).bulkConvertedAt as Date | null
+    const canRedoBulkConversion = (product as any).isBulkStock
+      ? (productConvertedAt
+          ? (await prisma.businessStockMovements.count({ where: { businessProductId: product.id, createdAt: { gt: productConvertedAt } } })) === 0
+          : false)
+      : false
+
     return NextResponse.json({
       success: true,
       data: {
@@ -151,6 +171,8 @@ export async function GET(
         sellPrice: parseFloat(product.basePrice?.toString() || '0'),
         unitsPerPack: (product as any).unitsPerPack ?? null,
         bulkPackCost: (product as any).bulkPackCost ? parseFloat((product as any).bulkPackCost.toString()) : null,
+        isBulkStock: (product as any).isBulkStock ?? false,
+        canRedoBulkConversion,
         supplier: product.business_suppliers?.name || '',
         supplierId: product.supplierId || null,
         location: product.business_locations?.name || '',

@@ -260,7 +260,7 @@ export default function WarehousePage() {
                 </Link>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
@@ -339,6 +339,59 @@ export default function WarehousePage() {
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+            {!(loading || batches.length === 0) && (
+              <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-700">
+                {batches.filter(b => !searchInput || b.batchName.toLowerCase().includes(searchInput.toLowerCase()) || b.originalFileName.toLowerCase().includes(searchInput.toLowerCase())).map(batch => {
+                  const progress = batch.itemCount > 0 ? Math.round((batch.movedCount / batch.itemCount) * 100) : 0
+                  return (
+                    <div key={batch.id} className="p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="font-medium text-gray-900 dark:text-white truncate">{batch.batchName}</div>
+                          <div className="text-xs text-gray-400 truncate" title={batch.originalFileName}>{batch.originalFileName}</div>
+                        </div>
+                        <StatusBadge status={batch.status} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                          <div className="h-full bg-green-500 rounded-full" style={{ width: `${progress}%` }} />
+                        </div>
+                        <span className="text-xs text-gray-500 flex-shrink-0">{batch.movedCount}/{batch.itemCount}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                        <div><span className="text-gray-400">Imported:</span> <span className="text-gray-600 dark:text-gray-300">{new Date(batch.importedAt).toLocaleDateString()}</span></div>
+                        <div><span className="text-gray-400">Items:</span> <span className="text-gray-900 dark:text-white font-medium">{batch.itemCount}</span></div>
+                        <div><span className="text-gray-400">USD Total:</span> <span className="text-gray-600 dark:text-gray-300">{formatUsd(batch.totalUsdCost)}</span></div>
+                        <div>
+                          <span className="text-gray-400">Potential Value:</span>{' '}
+                          {batch.movedPotentialValue > 0 ? (
+                            <span className="font-medium text-emerald-600 dark:text-emerald-400">{formatUsd(batch.movedPotentialValue)}</span>
+                          ) : <span className="text-gray-400">—</span>}
+                        </div>
+                        <div><span className="text-gray-400">Transport:</span> <span className="text-gray-600 dark:text-gray-300">{batch.pickedUpAtCollectionPoint ? formatUsd(batch.collectionTransportCost) : '—'}</span></div>
+                      </div>
+                      <div className="flex items-center gap-2 pt-1">
+                        <Link
+                          href={`/warehouse/${batch.id}`}
+                          className="px-3 py-1 text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 rounded-md transition-colors font-medium"
+                        >
+                          View
+                        </Link>
+                        {batch.status === 'ACTIVE' && batch.movedCount === 0 && (
+                          <button
+                            onClick={() => handleDelete(batch)}
+                            disabled={deletingId === batch.id}
+                            className="px-3 py-1 text-xs bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 rounded-md transition-colors font-medium disabled:opacity-50"
+                          >
+                            {deletingId === batch.id ? 'Deleting…' : 'Delete'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>

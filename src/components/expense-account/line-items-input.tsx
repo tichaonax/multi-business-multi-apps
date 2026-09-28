@@ -34,6 +34,7 @@ export function LineItemsInput({ domainId, value, onChange, totalAmount }: LineI
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const emojiPickerRef = useRef<HTMLDivElement>(null)
   const emojiUserEdited = useRef(false)
 
   useEffect(() => {
@@ -49,8 +50,11 @@ export function LineItemsInput({ domainId, value, onChange, totalAmount }: LineI
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
-          searchRef.current && !searchRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      const insideDropdown = !!dropdownRef.current?.contains(target)
+      const insideSearch = !!searchRef.current?.contains(target)
+      const insideEmojiPicker = !!emojiPickerRef.current?.contains(target)
+      if (!insideDropdown && !insideSearch && !insideEmojiPicker) {
         setShowDropdown(false)
         setShowEmojiPicker(false)
       }
@@ -139,7 +143,15 @@ export function LineItemsInput({ domainId, value, onChange, totalAmount }: LineI
               value={search}
               onChange={e => { emojiUserEdited.current = false; setSearch(e.target.value); setShowDropdown(true) }}
               onFocus={() => { if (domainId) setShowDropdown(true) }}
-              onBlur={() => setTimeout(() => { setShowDropdown(false); setShowEmojiPicker(false) }, 150)}
+              // Only closes the name-search dropdown, never the emoji
+              // picker — the emoji picker has its own search input, so
+              // opening/using it always blurs this field first, and this
+              // used to unconditionally close the picker 150ms later
+              // regardless of what the user had just done (the "Browse
+              // more emojis" button opening it, or clicking inside it).
+              // The outside-click handler above (now aware of the picker's
+              // own ref) is what actually dismisses it.
+              onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
               placeholder="Item name..."
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
@@ -179,7 +191,7 @@ export function LineItemsInput({ domainId, value, onChange, totalAmount }: LineI
               </div>
             )}
             {showEmojiPicker && (
-              <div className="absolute left-0 top-full mt-1 z-50 w-72 bg-white dark:bg-gray-800 border border-blue-300 dark:border-blue-700 rounded-lg shadow-xl">
+              <div ref={emojiPickerRef} className="absolute left-0 top-full mt-1 z-50 w-72 bg-white dark:bg-gray-800 border border-blue-300 dark:border-blue-700 rounded-lg shadow-xl">
                 <div className="flex items-center justify-between px-3 pt-2 pb-1 border-b border-gray-100 dark:border-gray-700">
                   <span className="text-xs font-medium text-gray-500">Emoji search — "{search}"</span>
                   <button type="button" onMouseDown={() => setShowEmojiPicker(false)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>

@@ -60,6 +60,9 @@ export async function POST(
     if (isBarcodeItem) {
       const existing = await prisma.barcodeInventoryItems.findFirst({ where: { id: rawId, businessId } })
       if (!existing) return NextResponse.json({ error: 'Item not found' }, { status: 404 })
+      if ((existing as any).isBulkStock) {
+        return NextResponse.json({ error: 'This item has already been converted to bulk stock — pack size is now permanent' }, { status: 400 })
+      }
 
       const oldCostPrice = existing.costPrice ? parseFloat(existing.costPrice.toString()) : null
       const existingBulkPackCost = existing.bulkPackCost ? parseFloat(existing.bulkPackCost.toString()) : null
@@ -115,6 +118,9 @@ export async function POST(
 
     const existing = await prisma.businessProducts.findFirst({ where: { id: rawId, businessId } })
     if (!existing) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
+    if ((existing as any).isBulkStock) {
+      return NextResponse.json({ error: 'This item has already been converted to bulk stock — pack size is now permanent' }, { status: 400 })
+    }
 
     const oldCostPrice = existing.costPrice ? parseFloat(existing.costPrice.toString()) : null
     const existingBulkPackCost = existing.bulkPackCost ? parseFloat(existing.bulkPackCost.toString()) : null

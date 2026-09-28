@@ -280,7 +280,7 @@ export default function ReferenceLockPage() {
               <div className="p-8 text-center text-gray-500">No lock records found. Import a batch to create them automatically.</div>
             ) : (
               <>
-                <div className="overflow-x-auto">
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
@@ -358,6 +358,60 @@ export default function ReferenceLockPage() {
                       })}
                     </tbody>
                   </table>
+                </div>
+
+                <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-700">
+                  {locks.map(lock => {
+                    const progress = lock.originalQty != null && lock.originalQty > 0
+                      ? Math.min(100, Math.round((lock.importedQty / lock.originalQty) * 100))
+                      : null
+                    return (
+                      <div key={lock.id} className={`p-3 space-y-2 ${lock.isLocked ? 'bg-red-50/40 dark:bg-red-900/10' : ''}`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${lock.referenceType === 'ORDER' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400'}`}>
+                              {lock.referenceType}
+                            </span>
+                            <div className="font-mono text-sm text-gray-800 dark:text-gray-200 truncate mt-1" title={lock.referenceValue}>{lock.referenceValue}</div>
+                            {lock.lockReason && (
+                              <div className="text-xs text-gray-400 italic truncate" title={lock.lockReason}>{lock.lockReason}</div>
+                            )}
+                          </div>
+                          <StatusChip lock={lock} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                          <div>
+                            <span className="text-gray-400">Expected:</span>{' '}
+                            <OriginalQtyCell lock={lock} onSave={updateOriginalQty} />
+                          </div>
+                          <div>
+                            <span className="text-gray-400">Received:</span>{' '}
+                            <span className="text-gray-700 dark:text-gray-300">{lock.importedQty > 0 ? lock.importedQty : 0}</span>
+                          </div>
+                        </div>
+                        {progress != null && (
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                              <div className={`h-full rounded-full ${progress >= 100 ? 'bg-green-500' : 'bg-blue-500'}`} style={{ width: `${progress}%` }} />
+                            </div>
+                            <span className="text-xs text-gray-500 whitespace-nowrap">{progress}%</span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-xs text-gray-500">{new Date(lock.updatedAt).toLocaleDateString()}</span>
+                          <button
+                            onClick={() => toggleLock(lock)}
+                            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${lock.isLocked
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
+                              : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50'
+                            }`}
+                          >
+                            {lock.isLocked ? '🔓 Unlock' : '🔒 Lock'}
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
 
                 {/* Pagination */}

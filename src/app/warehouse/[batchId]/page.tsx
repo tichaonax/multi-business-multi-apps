@@ -1049,6 +1049,40 @@ export default function BatchDetailPage() {
     )
   }
 
+  // Per-item economics + flags — extracted so the desktop table and the
+  // mobile card layout (below) compute identical numbers from one place
+  // instead of two copies of this logic silently drifting apart.
+  function computeItemEconomics(item: WarehouseItem) {
+    const costUsd = item.costUsd != null ? Number(item.costUsd) : null
+    // Row rate takes priority over bulk rate from toolbar
+    const effectiveRate = item.exchangeRate != null ? Number(item.exchangeRate) : (bulkRate ? parseFloat(bulkRate) : null)
+    // Suggested cost = total priceYuan / rate (only when cost not yet set)
+    const suggestedCost = (costUsd == null && item.priceYuan != null && effectiveRate != null && effectiveRate > 0)
+      ? Number(item.priceYuan) / effectiveRate
+      : null
+    const itemQty = item.quantity || 1
+    const hasReconciledEconomics = item.landedCost != null
+    // MBM-300 — once a Container Batch reconciliation (or a manual
+    // "Recalculate Economics" pass) has run, costUsd is already a
+    // per-unit figure; only the earlier, never-reconciled Yuan-stage
+    // rows still store a whole-row total that needs dividing by quantity.
+    const costUsdPerUnit = costUsd != null ? (hasReconciledEconomics ? costUsd : costUsd / itemQty) : null
+    const txFee = costUsdPerUnit != null && batch!.transactionFeePct != null ? costUsdPerUnit * (Number(batch!.transactionFeePct) / 100) : 0
+    const clearancePerUnit = item.clearanceCostUsd != null ? Number(item.clearanceCostUsd) / (hasReconciledEconomics ? 1 : itemQty) : null
+    const shippingPerUnit = item.shippingPerUnit != null ? Number(item.shippingPerUnit) : (txFee + perItemTransport / itemQty)
+    const costPrice = hasReconciledEconomics
+      ? Number(item.landedCost)
+      : (costUsdPerUnit != null ? costUsdPerUnit + txFee + perItemTransport / itemQty + (clearancePerUnit ?? 0) : null)
+    const calcSell = item.estSellingPrice != null ? Number(item.estSellingPrice) : (costPrice != null ? costPrice * 1.3 : null)
+    const isLocked = item.status === 'MOVED_TO_BUSINESS' || item.status === 'MOVED_TO_PERSONAL'
+    const isDupOrder = dupOrderNumbers.has(item.orderNumber)
+    const isDupTracking = item.trackingNumber ? dupTrackingNumbers.has(item.trackingNumber) : false
+    const hasDup = isDupOrder || isDupTracking
+    const orderLock = orderLockMap[item.orderNumber]
+    const refIsLocked = orderLock?.isLocked ?? false
+    return { costUsd, effectiveRate, suggestedCost, itemQty, hasReconciledEconomics, costUsdPerUnit, txFee, clearancePerUnit, shippingPerUnit, costPrice, calcSell, isLocked, isDupOrder, isDupTracking, hasDup, orderLock, refIsLocked }
+  }
+
   return (
     <ProtectedRoute>
       <ContentLayout title={batch?.batchName || 'Batch Detail'}>
@@ -1493,7 +1527,28 @@ export default function BatchDetailPage() {
           )}
 
           {/* Filter tabs + moved-to-business summary */}
-          <div className="flex items-center gap-1 border-b border-gray-200 dark:border-gray-700">
+          {/* Mobile: a plain row of tabs had no wrap/scroll, so later tabs
+              (In Business, Moved Personal) were silently pushed off-screen
+              — a dropdown can't run out of room the same way. */}
+          <div className="md:hidden pb-2">
+            <select
+              value={tab}
+              onChange={e => setTab(e.target.value as FilterTab)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            >
+              {TABS.map(t => {
+                const count = t.key === 'ALL'
+                  ? Object.values(statusCounts).reduce((a, b) => a + b, 0)
+                  : statusCounts[t.key] || 0
+                return (
+                  <option key={t.key} value={t.key}>
+                    {t.label}{count > 0 ? ` (${count})` : ''}
+                  </option>
+                )
+              })}
+            </select>
+          </div>
+          <div className="hidden md:flex items-center gap-1 border-b border-gray-200 dark:border-gray-700">
             {TABS.map(t => {
               const count = t.key === 'ALL'
                 ? Object.values(statusCounts).reduce((a, b) => a + b, 0)
@@ -1605,7 +1660,7 @@ export default function BatchDetailPage() {
                     </div>
                   </div>
                 )}
-                <div className="overflow-x-auto overflow-y-auto" style={{ maxHeight: 'calc(100vh - 28rem)', minHeight: '16rem' }}>
+                <div className="hidden md:block overflow-x-auto overflow-y-auto" style={{ maxHeight: 'calc(100vh - 28rem)', minHeight: '16rem' }}>
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 z-10">
                       <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
@@ -1636,34 +1691,7 @@ export default function BatchDetailPage() {
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                       {displayItems.map(item => {
-                        const costUsd = item.costUsd != null ? Number(item.costUsd) : null
-                        // Row rate takes priority over bulk rate from toolbar
-                        const effectiveRate = item.exchangeRate != null ? Number(item.exchangeRate) : (bulkRate ? parseFloat(bulkRate) : null)
-                        // Suggested cost = total priceYuan / rate (only when cost not yet set)
-                        const suggestedCost = (costUsd == null && item.priceYuan != null && effectiveRate != null && effectiveRate > 0)
-                          ? Number(item.priceYuan) / effectiveRate
-                          : null
-                        const itemQty = item.quantity || 1
-                        const hasReconciledEconomics = item.landedCost != null
-                        // MBM-300 — once a Container Batch reconciliation (or a
-                        // manual "Recalculate Economics" pass) has run, costUsd
-                        // is already a per-unit figure; only the earlier,
-                        // never-reconciled Yuan-stage rows still store a
-                        // whole-row total that needs dividing by quantity.
-                        const costUsdPerUnit = costUsd != null ? (hasReconciledEconomics ? costUsd : costUsd / itemQty) : null
-                        const txFee = costUsdPerUnit != null && batch.transactionFeePct != null ? costUsdPerUnit * (Number(batch.transactionFeePct) / 100) : 0
-                        const clearancePerUnit = item.clearanceCostUsd != null ? Number(item.clearanceCostUsd) / (hasReconciledEconomics ? 1 : itemQty) : null
-                        const shippingPerUnit = item.shippingPerUnit != null ? Number(item.shippingPerUnit) : (txFee + perItemTransport / itemQty)
-                        const costPrice = hasReconciledEconomics
-                          ? Number(item.landedCost)
-                          : (costUsdPerUnit != null ? costUsdPerUnit + txFee + perItemTransport / itemQty + (clearancePerUnit ?? 0) : null)
-                        const calcSell = item.estSellingPrice != null ? Number(item.estSellingPrice) : (costPrice != null ? costPrice * 1.3 : null)
-                        const isLocked = item.status === 'MOVED_TO_BUSINESS' || item.status === 'MOVED_TO_PERSONAL'
-                        const isDupOrder = dupOrderNumbers.has(item.orderNumber)
-                        const isDupTracking = item.trackingNumber ? dupTrackingNumbers.has(item.trackingNumber) : false
-                        const hasDup = isDupOrder || isDupTracking
-                        const orderLock = orderLockMap[item.orderNumber]
-                        const refIsLocked = orderLock?.isLocked ?? false
+                        const { costUsd, suggestedCost, clearancePerUnit, shippingPerUnit, costPrice, calcSell, isLocked, hasDup, isDupOrder, isDupTracking, orderLock, refIsLocked } = computeItemEconomics(item)
 
                         return (
                           <tr key={item.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${item.status === 'MOVED_TO_BUSINESS' ? 'bg-emerald-50/60 dark:bg-emerald-900/10 opacity-80' : ''} ${item.isPersonal && !isLocked ? 'bg-purple-50 dark:bg-purple-900/20' : ''} ${selected.has(item.id) ? 'bg-blue-100 dark:bg-blue-900' : ''}`}>
@@ -1899,6 +1927,250 @@ export default function BatchDetailPage() {
                       })}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Mobile card layout — same computeItemEconomics values and
+                    same shared cell components as the desktop table above,
+                    just reflowed into stacked cards instead of a table wide
+                    enough to require horizontal scrolling. */}
+                <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-700">
+                  {displayItems.map(item => {
+                    const { costUsd, suggestedCost, clearancePerUnit, shippingPerUnit, costPrice, calcSell, isLocked, hasDup, isDupOrder, isDupTracking, orderLock, refIsLocked } = computeItemEconomics(item)
+                    return (
+                      <div
+                        key={item.id}
+                        className={`p-3 space-y-2 ${item.status === 'MOVED_TO_BUSINESS' ? 'bg-emerald-50/60 dark:bg-emerald-900/10 opacity-80' : ''} ${item.isPersonal && !isLocked ? 'bg-purple-50 dark:bg-purple-900/20' : ''} ${selected.has(item.id) ? 'bg-blue-100 dark:bg-blue-900' : ''}`}
+                      >
+                        {/* Image, name, badges */}
+                        <div className="flex gap-2">
+                          <input
+                            type="checkbox"
+                            checked={selected.has(item.id)}
+                            disabled={isLocked || (!isLocked && item.status === 'IN_WAREHOUSE' && (item.manifestQty == null || item.manifestQty === 0))}
+                            onChange={() => toggleSelect(item.id)}
+                            title={(!isLocked && item.status === 'IN_WAREHOUSE' && (item.manifestQty == null || item.manifestQty === 0)) ? 'Set Manifest Qty before selecting' : undefined}
+                            className="rounded disabled:opacity-30 disabled:cursor-not-allowed mt-1 flex-shrink-0"
+                          />
+                          <div className="w-16 flex-shrink-0">
+                            <ItemImage imageId={item.imageId} name={item.shortName || item.productName} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <ShortNameCell
+                              shortName={item.shortName}
+                              productName={item.productName}
+                              itemId={item.id}
+                              locked={isLocked}
+                              onSave={patchItem}
+                            />
+                            {item.status === 'MOVED_TO_BUSINESS' && item.businessProductId && (
+                              <button
+                                onClick={() => openInEditItem(item)}
+                                className="block text-[10px] text-blue-600 dark:text-blue-400 hover:underline mt-0.5"
+                                title="Open in Edit Item"
+                              >
+                                ↗ Edit Item
+                              </button>
+                            )}
+                            {item.status === 'MOVED_TO_BUSINESS' && item.linkedProductCategoryName && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1 flex-wrap">
+                                {item.linkedProductDomainName && (
+                                  <>
+                                    <span>{item.linkedProductDomainEmoji || '📦'} {item.linkedProductDomainName}</span>
+                                    <span className="text-gray-400 dark:text-gray-500 font-bold">&gt;</span>
+                                  </>
+                                )}
+                                <span>{item.linkedProductCategoryEmoji || '📦'} {item.linkedProductCategoryName}</span>
+                                {item.linkedProductSubcategoryName && (
+                                  <>
+                                    <span className="text-gray-400 dark:text-gray-500 font-bold">&gt;</span>
+                                    <span>{item.linkedProductSubcategoryEmoji || '📦'} {item.linkedProductSubcategoryName}</span>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                            {item.sourceBatchId != null && (
+                              <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${item.sourceBatchStatus === 'CLOSED' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>
+                                  Batch #{item.sourceBatchId}{item.sourceBatchStatus === 'CLOSED' ? ' 🔒' : ''}
+                                </span>
+                                {item.clearanceCostUsd != null && Number(item.clearanceCostUsd) > 0 && (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400">
+                                    +${Number(item.clearanceCostUsd).toFixed(2)} clr
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Order # + dup/lock/received badges */}
+                        <div className="text-xs font-mono text-gray-600 dark:text-gray-400">
+                          <span>{item.orderNumber}</span>
+                          <div className="flex flex-wrap gap-0.5 mt-0.5">
+                            {hasDup && (
+                              <span
+                                title={`Also appears in another batch${isDupOrder ? ` (order #${item.orderNumber})` : ''}${isDupTracking ? ` (tracking ${item.trackingNumber})` : ''} — informational only`}
+                                className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+                              >
+                                ⚠ also in another batch
+                              </span>
+                            )}
+                            {refIsLocked && (
+                              <span
+                                title={orderLock?.autoLocked ? 'Auto-locked: all ordered qty received' : 'Manually locked — cannot be imported again'}
+                                className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
+                              >
+                                🔒 locked
+                              </span>
+                            )}
+                            {!refIsLocked && orderLock && orderLock.originalQty != null && (
+                              <span
+                                title={`${orderLock.importedQty} of ${orderLock.originalQty} units received`}
+                                className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                              >
+                                {orderLock.importedQty}/{orderLock.originalQty} rcvd
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Economics grid */}
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                          <div>
+                            <div className="text-gray-400 dark:text-gray-500 text-[10px] uppercase">Qty / Manifest</div>
+                            <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
+                              <span className="font-mono">{item.quantity ?? '—'}</span>
+                              <span>/</span>
+                              <ManifestQtyCell item={item} onSave={patchItem} locked={isLocked} />
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-gray-400 dark:text-gray-500 text-[10px] uppercase">Cost $ / Rate</div>
+                            <div className="flex items-center gap-1">
+                              {item.status === 'IN_WAREHOUSE' ? (
+                                <EditableCell value={costUsd} itemId={item.id} field="costUsd" onSave={patchItem} suggestedValue={suggestedCost} />
+                              ) : (
+                                <span className="text-gray-600 dark:text-gray-400">{costUsd != null ? `$${costUsd.toFixed(2)}` : '—'}</span>
+                              )}
+                              <span>/</span>
+                              {item.status === 'IN_WAREHOUSE' ? (
+                                <EditableCell value={item.exchangeRate != null ? Number(item.exchangeRate) : null} itemId={item.id} field="exchangeRate" onSave={patchItem} />
+                              ) : (
+                                <span className="text-gray-600 dark:text-gray-400">{item.exchangeRate != null ? Number(item.exchangeRate).toFixed(4) : '—'}</span>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-gray-400 dark:text-gray-500 text-[10px] uppercase">Clearance / Shipping per unit</div>
+                            <div className="text-gray-600 dark:text-gray-400">
+                              {clearancePerUnit != null && clearancePerUnit > 0 ? `$${clearancePerUnit.toFixed(2)}` : '—'} / {shippingPerUnit != null && shippingPerUnit > 0 ? `$${shippingPerUnit.toFixed(2)}` : '—'}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-gray-400 dark:text-gray-500 text-[10px] uppercase">Landed Cost / Est. Selling</div>
+                            <div className="flex items-center gap-1">
+                              {costPrice != null ? <span className="font-semibold text-gray-900 dark:text-white">${costPrice.toFixed(2)}</span> : '—'}
+                              <span>/</span>
+                              {calcSell != null ? (
+                                <span className="text-green-600 dark:text-green-400 font-medium">${calcSell.toFixed(2)}</span>
+                              ) : '—'}
+                              {item.estMarginPct && <span className="text-[10px] text-gray-400">{item.estMarginPct}</span>}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-gray-400 dark:text-gray-500 text-[10px] uppercase">¥ Price</div>
+                            <div className="text-gray-600 dark:text-gray-400">
+                              {item.originalPriceYuan != null && (
+                                <span className="text-[10px] text-gray-400 dark:text-gray-500 font-mono mr-1">orig: ¥{Number(item.originalPriceYuan).toFixed(2)}</span>
+                              )}
+                              {item.priceYuan != null ? `¥${Number(item.priceYuan).toFixed(2)}` : '—'}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-gray-400 dark:text-gray-500 text-[10px] uppercase">Courier</div>
+                            <CourierBadge status={item.courierStatus} />
+                          </div>
+                        </div>
+
+                        {/* Status + SKU/barcode + Personal toggle */}
+                        <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-gray-100 dark:border-gray-700">
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {isLocked && (
+                              <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                            <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                              item.status === 'IN_WAREHOUSE' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                              : item.status === 'MOVED_TO_BUSINESS' ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                              : 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                            }`}>
+                              {item.status === 'IN_WAREHOUSE' ? 'Warehouse' : item.status === 'MOVED_TO_BUSINESS' ? 'Business' : 'Personal'}
+                            </span>
+                            {item.status === 'MOVED_TO_BUSINESS' && item.linkedProductSku && (
+                              <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                SKU {item.linkedProductSku}
+                              </span>
+                            )}
+                            {item.status === 'MOVED_TO_BUSINESS' && (
+                              item.linkedProductBarcode ? (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400">
+                                    🏷 {item.linkedProductBarcode}
+                                  </span>
+                                  <button
+                                    onClick={() => { setBarcodeAssignItemId(item.id); setBarcodeAssignValue(item.linkedProductBarcode || '') }}
+                                    title="Not scanning at POS? Re-save it to fix the registry"
+                                    className="text-xs text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400"
+                                  >🔄</button>
+                                </div>
+                              ) : barcodeAssignItemId === item.id ? (
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    autoFocus
+                                    type="text"
+                                    value={barcodeAssignValue}
+                                    onChange={e => setBarcodeAssignValue(e.target.value)}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter') submitAssignBarcode(item)
+                                      if (e.key === 'Escape') { setBarcodeAssignItemId(null); setBarcodeAssignValue('') }
+                                    }}
+                                    placeholder="Scan or type barcode"
+                                    className="w-28 px-1.5 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                                  />
+                                  <button
+                                    onClick={() => submitAssignBarcode(item)}
+                                    disabled={assigningBarcode}
+                                    className="text-xs px-1.5 py-0.5 rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                                  >✓</button>
+                                  <button
+                                    onClick={() => { setBarcodeAssignItemId(null); setBarcodeAssignValue('') }}
+                                    className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                  >✕</button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => { setBarcodeAssignItemId(item.id); setBarcodeAssignValue('') }}
+                                  className="text-xs px-1.5 py-0.5 rounded border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400"
+                                >📷 Scan Barcode</button>
+                              )
+                            )}
+                          </div>
+                          {item.status === 'IN_WAREHOUSE' ? (
+                            <button
+                              onClick={() => togglePersonal(item)}
+                              title={item.isPersonal ? 'Personal — click to unmark' : 'Business — click to mark personal'}
+                              className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors flex-shrink-0 ${item.isPersonal ? 'bg-purple-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                            >
+                              <span className={`block w-3 h-3 rounded-full bg-white transition-transform ${item.isPersonal ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                            </button>
+                          ) : item.isPersonal ? (
+                            <span className="text-purple-500 font-medium text-xs">Personal</span>
+                          ) : null}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
 
                 {/* Pagination */}
