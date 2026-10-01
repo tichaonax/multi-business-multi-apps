@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ContentLayout } from '@/components/layout/content-layout'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useToastContext } from '@/components/ui/toast'
@@ -1699,12 +1699,20 @@ export default function BatchDetailPage() {
                         <th className="px-3 py-3 text-left text-gray-500 uppercase tracking-wider">Personal</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    <tbody>
                       {displayItems.map(item => {
                         const { costUsd, suggestedCost, clearancePerUnit, shippingPerUnit, costPrice, calcSell, isLocked, hasDup, isDupOrder, isDupTracking, orderLock, refIsLocked } = computeItemEconomics(item)
 
+                        const rowBg = `${item.status === 'MOVED_TO_BUSINESS' ? 'bg-emerald-50/60 dark:bg-emerald-900/10 opacity-80' : ''} ${item.isPersonal && !isLocked ? 'bg-purple-50 dark:bg-purple-900/20' : ''} ${selected.has(item.id) ? 'bg-blue-100 dark:bg-blue-900' : ''}`
+                        // Whether the second, full-width "metadata" row below
+                        // this one has anything to show at all.
+                        const hasMetaRow = item.status === 'MOVED_TO_BUSINESS' && (
+                          item.linkedProductIsBulkStock || item.linkedProductSku || item.linkedProductBarcode || barcodeAssignItemId === item.id
+                        )
+
                         return (
-                          <tr key={item.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${item.status === 'MOVED_TO_BUSINESS' ? 'bg-emerald-50/60 dark:bg-emerald-900/10 opacity-80' : ''} ${item.isPersonal && !isLocked ? 'bg-purple-50 dark:bg-purple-900/20' : ''} ${selected.has(item.id) ? 'bg-blue-100 dark:bg-blue-900' : ''}`}>
+                          <Fragment key={item.id}>
+                          <tr className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${rowBg} ${hasMetaRow ? '' : 'border-b border-gray-100 dark:border-gray-700'}`}>
                             <td className="px-3 py-2">
                               <input
                                 type="checkbox"
@@ -1833,7 +1841,11 @@ export default function BatchDetailPage() {
                                 </div>
                               ) : '—'}
                             </td>
-                            <td className="px-3 py-2">
+                            {/* Just the core status badge here — everything
+                                else (bulk/now/SKU/barcode) moved to its own
+                                full-width row below (see next <tr>), which
+                                is what was squeezing this narrow column. */}
+                            <td className="px-3 py-2 align-top">
                               <div className="flex items-center gap-1">
                                 {isLocked && (
                                   <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -1850,69 +1862,6 @@ export default function BatchDetailPage() {
                                     : 'Personal'}
                                 </span>
                               </div>
-                              {item.status === 'MOVED_TO_BUSINESS' && (
-                                <div className="flex flex-col gap-0.5 mt-1 items-start">
-                                  {item.linkedProductIsBulkStock && (
-                                    <span
-                                      className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 w-fit"
-                                      title={`Converted to bulk stock — ${item.linkedProductUnitsPerPack ?? '?'} individual units per packet (original packet cost: ${item.linkedProductBulkPackCost != null ? `$${item.linkedProductBulkPackCost.toFixed(2)}` : 'n/a'})`}
-                                    >
-                                      🔄 Bulk ({item.linkedProductUnitsPerPack ?? '?'}/pack)
-                                    </span>
-                                  )}
-                                  {item.linkedProductIsBulkStock && (item.linkedProductCurrentCost != null || item.linkedProductCurrentStock != null) && (
-                                    <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300 w-fit" title="Current per-unit cost/stock, after conversion — separate from this row's own warehouse-side economics above, which still show the original packet-level figures">
-                                      Now: {item.linkedProductCurrentCost != null ? `$${item.linkedProductCurrentCost.toFixed(2)}/unit` : ''}{item.linkedProductCurrentCost != null && item.linkedProductCurrentStock != null ? ' · ' : ''}{item.linkedProductCurrentStock != null ? `${item.linkedProductCurrentStock} in stock` : ''}
-                                    </span>
-                                  )}
-                                  {item.linkedProductSku && (
-                                    <span className="text-sm font-mono px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 w-fit" title="Assigned SKU">
-                                      SKU {item.linkedProductSku}
-                                    </span>
-                                  )}
-                                  {item.linkedProductBarcode ? (
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-sm font-mono px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 w-fit" title="Assigned barcode">
-                                        🏷 {item.linkedProductBarcode}
-                                      </span>
-                                      <button
-                                        onClick={() => { setBarcodeAssignItemId(item.id); setBarcodeAssignValue(item.linkedProductBarcode || '') }}
-                                        title="Not scanning at POS? Re-save it to fix the registry"
-                                        className="text-xs text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400"
-                                      >🔄</button>
-                                    </div>
-                                  ) : barcodeAssignItemId === item.id ? (
-                                    <div className="flex items-center gap-1">
-                                      <input
-                                        autoFocus
-                                        type="text"
-                                        value={barcodeAssignValue}
-                                        onChange={e => setBarcodeAssignValue(e.target.value)}
-                                        onKeyDown={e => {
-                                          if (e.key === 'Enter') submitAssignBarcode(item)
-                                          if (e.key === 'Escape') { setBarcodeAssignItemId(null); setBarcodeAssignValue('') }
-                                        }}
-                                        placeholder="Scan or type barcode"
-                                        className="w-28 px-1.5 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                                      />
-                                      <button
-                                        onClick={() => submitAssignBarcode(item)}
-                                        disabled={assigningBarcode}
-                                        className="text-xs px-1.5 py-0.5 rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
-                                      >✓</button>
-                                      <button
-                                        onClick={() => { setBarcodeAssignItemId(null); setBarcodeAssignValue('') }}
-                                        className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                                      >✕</button>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      onClick={() => { setBarcodeAssignItemId(item.id); setBarcodeAssignValue('') }}
-                                      className="text-xs px-1.5 py-0.5 rounded border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400"
-                                    >📷 Scan Barcode</button>
-                                  )}
-                                </div>
-                              )}
                             </td>
                             <td className="px-3 py-2 text-gray-600 dark:text-gray-400">
                               {/* Stacked: show original above if qty was changed */}
@@ -1946,6 +1895,84 @@ export default function BatchDetailPage() {
                               )}
                             </td>
                           </tr>
+                          {hasMetaRow && (
+                            <tr className={`${rowBg} border-b border-gray-100 dark:border-gray-700`}>
+                              {/* Empty under Checkbox + Img so the metadata
+                                  strip lines up under the product name, not
+                                  the image/checkbox. */}
+                              <td colSpan={2} className="p-0" />
+                              {/* Spans Short Name through Est. Selling —
+                                  stops there deliberately so it never
+                                  overlaps/shifts the Selling Price column or
+                                  anything to its right (Status/¥Price/
+                                  Courier/Personal), which keep their own
+                                  cells in the row above. */}
+                              <td colSpan={10} className="px-3 pb-2 pt-0 align-top">
+                                <div className="flex items-center flex-wrap gap-1.5 text-xs font-medium tracking-wide">
+                                  {item.linkedProductIsBulkStock && (
+                                    <span
+                                      className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 whitespace-nowrap"
+                                      title={`Converted to bulk stock — ${item.linkedProductUnitsPerPack ?? '?'} individual units per packet (original packet cost: ${item.linkedProductBulkPackCost != null ? `$${item.linkedProductBulkPackCost.toFixed(2)}` : 'n/a'})`}
+                                    >
+                                      🔄 Bulk ({item.linkedProductUnitsPerPack ?? '?'}/pack)
+                                    </span>
+                                  )}
+                                  {item.linkedProductIsBulkStock && (item.linkedProductCurrentCost != null || item.linkedProductCurrentStock != null) && (
+                                    <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300 whitespace-nowrap" title="Current per-unit cost/stock, after conversion — separate from this row's own warehouse-side economics above, which still show the original packet-level figures">
+                                      Now: {item.linkedProductCurrentCost != null ? `$${item.linkedProductCurrentCost.toFixed(2)}/unit` : ''}{item.linkedProductCurrentCost != null && item.linkedProductCurrentStock != null ? ' · ' : ''}{item.linkedProductCurrentStock != null ? `${item.linkedProductCurrentStock} in stock` : ''}
+                                    </span>
+                                  )}
+                                  {item.linkedProductSku && (
+                                    <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-mono truncate max-w-[220px]" title={`Assigned SKU: ${item.linkedProductSku}`}>
+                                      SKU {item.linkedProductSku}
+                                    </span>
+                                  )}
+                                  {item.linkedProductBarcode ? (
+                                    <span className="inline-flex items-center gap-1">
+                                      <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 font-mono truncate max-w-[220px]" title={`Assigned barcode: ${item.linkedProductBarcode}`}>
+                                        🏷 {item.linkedProductBarcode}
+                                      </span>
+                                      <button
+                                        onClick={() => { setBarcodeAssignItemId(item.id); setBarcodeAssignValue(item.linkedProductBarcode || '') }}
+                                        title="Not scanning at POS? Re-save it to fix the registry"
+                                        className="text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 font-normal tracking-normal"
+                                      >🔄</button>
+                                    </span>
+                                  ) : barcodeAssignItemId === item.id ? (
+                                    <span className="inline-flex items-center gap-1 font-normal tracking-normal">
+                                      <input
+                                        autoFocus
+                                        type="text"
+                                        value={barcodeAssignValue}
+                                        onChange={e => setBarcodeAssignValue(e.target.value)}
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter') submitAssignBarcode(item)
+                                          if (e.key === 'Escape') { setBarcodeAssignItemId(null); setBarcodeAssignValue('') }
+                                        }}
+                                        placeholder="Scan or type barcode"
+                                        className="w-28 px-1.5 py-0.5 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                                      />
+                                      <button
+                                        onClick={() => submitAssignBarcode(item)}
+                                        disabled={assigningBarcode}
+                                        className="px-1.5 py-0.5 rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                                      >✓</button>
+                                      <button
+                                        onClick={() => { setBarcodeAssignItemId(null); setBarcodeAssignValue('') }}
+                                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                      >✕</button>
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={() => { setBarcodeAssignItemId(item.id); setBarcodeAssignValue('') }}
+                                      className="px-1.5 py-0.5 rounded border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 font-normal tracking-normal whitespace-nowrap"
+                                    >📷 Scan Barcode</button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          </Fragment>
                         )
                       })}
                     </tbody>

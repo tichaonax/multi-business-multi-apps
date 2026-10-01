@@ -2050,7 +2050,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                   currentBalance={Number(account.balance)}
                 />
 
-                <TransactionHistory accountId={accountId} canEditPayments={canEditPayments} isAdmin={isSystemAdmin} refreshKey={paymentRefreshKey} businessId={account.businessId || currentBusiness?.businessId} businessName={currentBusiness?.businessName ?? ''} onRepeatPayment={!isRestrictedUser ? (id) => { setRepeatPaymentId(id); setShowQuickPaymentModal(true) } : undefined} />
+                <TransactionHistory accountId={accountId} canEditPayments={canEditPayments} isAdmin={isSystemAdmin} refreshKey={paymentRefreshKey} businessId={account.businessId || currentBusiness?.businessId} businessName={currentBusiness?.businessName ?? ''} onRepeatPayment={!isRestrictedUser ? (id) => { setRepeatPaymentId(id); setShowQuickPaymentModal(true) } : undefined} onDataChanged={() => { refreshBalanceSilent(); setPaymentRefreshKey(k => k + 1) }} />
               </div>
             )}
 
@@ -2079,7 +2079,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                 <div className="lg:col-span-3">
                   <PaymentForm
                     accountId={accountId}
-                    businessId={account.businessId || currentBusiness?.id}
+                    businessId={account.businessId || currentBusiness?.businessId}
                     currentBalance={Number(account.balance)}
                     onSuccess={handlePaymentSuccess}
                     onAddFunds={() => setActiveTab('deposits')}

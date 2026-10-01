@@ -1,5 +1,12 @@
 // Learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom'
+import { TextEncoder, TextDecoder } from 'util'
+
+// jsdom doesn't provide these globally; several components pull in jspdf
+// (via its PNG decoder) which needs them just to be imported, even when a
+// test never calls the PDF-generating code path.
+if (typeof global.TextEncoder === 'undefined') global.TextEncoder = TextEncoder
+if (typeof global.TextDecoder === 'undefined') global.TextDecoder = TextDecoder
 
 // Mock BroadcastChannel if not available in test environment
 if (typeof BroadcastChannel === 'undefined') {
