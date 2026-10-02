@@ -2330,6 +2330,20 @@ export function UniversalInventoryForm({
                           if (adjustment !== null) {
                             const adjustmentAmount = parseInt(adjustment)
                             const newStock = formData.currentStock + adjustmentAmount
+                            // Optional — a cancelled/blank reason still lets the
+                            // adjustment through, it just goes unexplained in
+                            // the audit trail (reason is only enforced for
+                            // price changes, not stock counts).
+                            const stockChangeReason = item?.id
+                              ? await prompt({
+                                  title: 'Reason (optional)',
+                                  description: `Why is stock changing by ${adjustmentAmount > 0 ? '+' : ''}${adjustmentAmount}? e.g. "stock take correction", "damaged goods".`,
+                                  placeholder: 'Reason for this adjustment',
+                                  inputType: 'text',
+                                  confirmText: 'Save Adjustment',
+                                  cancelText: 'Skip reason',
+                                })
+                              : null
                             // Persist immediately (previously this only staged
                             // `_stockAdjustment` in local state, which was
                             // silently lost if the modal was closed without
@@ -2340,7 +2354,7 @@ export function UniversalInventoryForm({
                                 const res = await fetch(`/api/inventory/${businessId}/items/${item.id}`, {
                                   method: 'PUT',
                                   headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ _stockAdjustment: adjustmentAmount }),
+                                  body: JSON.stringify({ _stockAdjustment: adjustmentAmount, stockChangeReason: stockChangeReason || undefined }),
                                 })
                                 if (!res.ok) {
                                   const data = await res.json().catch(() => ({}))

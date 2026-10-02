@@ -53,6 +53,13 @@ interface UniversalInventoryItem {
     promoPrice: number
     originalPrice: number
   } | null
+  // Most recent price/stock edit audit entry for this item, if any.
+  lastChange?: {
+    type: 'PRICE' | 'STOCK' | 'PRICE_AND_STOCK'
+    at: string
+    byName: string | null
+    reason: string | null
+  } | null
   barcodes?: Array<{
     id: string
     code: string
@@ -119,6 +126,30 @@ function describePromoBadge(promo: NonNullable<UniversalInventoryItem['promo']>)
   const end = new Date(promo.endAt).toLocaleString()
   const verb = promo.status === 'SCHEDULED' ? 'Scheduled' : 'Active'
   return `${verb} promotion (${discountLabel}): $${promo.originalPrice.toFixed(2)} → $${promo.promoPrice.toFixed(2)}\n${start} to ${end}`
+}
+
+function formatRelativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime()
+  const minutes = Math.floor(diffMs / 60000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days}d ago`
+  return new Date(iso).toLocaleDateString()
+}
+
+function describeLastChangeBadge(lastChange: NonNullable<UniversalInventoryItem['lastChange']>): { icon: string; label: string; title: string } {
+  const icon = lastChange.type === 'PRICE' ? '💲' : lastChange.type === 'STOCK' ? '📦' : '✏️'
+  const what = lastChange.type === 'PRICE' ? 'Price changed' : lastChange.type === 'STOCK' ? 'Stock adjusted' : 'Price & stock changed'
+  const who = lastChange.byName || 'someone'
+  const when = new Date(lastChange.at).toLocaleString()
+  return {
+    icon,
+    label: `${what} ${formatRelativeTime(lastChange.at)} by ${who}`,
+    title: `${what} by ${who} on ${when}${lastChange.reason ? ` — ${lastChange.reason}` : ''}`,
+  }
 }
 
 export function UniversalInventoryGrid({
@@ -1076,7 +1107,7 @@ export function UniversalInventoryGrid({
                           >
                             {item.name}
                           </span>
-                          {(item.isProductTemplate || (!item.isProductTemplate && convertedIds.has(item.id)) || item.isInventoryTracked || item.isExpiryDiscount || item.promo || businessSummary) && (
+                          {(item.isProductTemplate || (!item.isProductTemplate && convertedIds.has(item.id)) || item.isInventoryTracked || item.isExpiryDiscount || item.promo || item.lastChange || businessSummary) && (
                             <div className="flex items-center gap-2 flex-wrap mt-1">
                               {item.isProductTemplate && (
                                 <span
@@ -1102,6 +1133,17 @@ export function UniversalInventoryGrid({
                                   📦 POS tracked
                                 </span>
                               )}
+                              {item.lastChange && (() => {
+                                const badge = describeLastChangeBadge(item.lastChange)
+                                return (
+                                  <span
+                                    title={badge.title}
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 whitespace-nowrap"
+                                  >
+                                    {badge.icon} {badge.label}
+                                  </span>
+                                )
+                              })()}
                               {businessSummary && (
                                 <span className="text-xs text-gray-500">
                                   {businessSummary}

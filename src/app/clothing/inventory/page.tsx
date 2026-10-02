@@ -2195,6 +2195,21 @@ function ClothingInventoryContent() {
                           <div className="text-sm text-gray-500 dark:text-gray-400">Location</div>
                           <div className="font-medium text-gray-900 dark:text-gray-100">{selectedItem.location || 'Not specified'}</div>
                         </div>
+                        {selectedItem.lastChange && (
+                          <div className="col-span-2">
+                            <div className="text-sm text-gray-500 dark:text-gray-400">Last Modified</div>
+                            <div className="font-medium text-gray-900 dark:text-gray-100">
+                              {selectedItem.lastChange.type === 'PRICE' ? '💲 Price changed'
+                                : selectedItem.lastChange.type === 'STOCK' ? '📦 Stock adjusted'
+                                : '✏️ Price & stock changed'}
+                              {' '}by {selectedItem.lastChange.byName || 'someone'}
+                              <span className="text-sm text-gray-500 dark:text-gray-400 font-normal"> · {new Date(selectedItem.lastChange.at).toLocaleString()}</span>
+                            </div>
+                            {selectedItem.lastChange.reason && (
+                              <div className="text-sm text-gray-500 dark:text-gray-400 italic mt-0.5">"{selectedItem.lastChange.reason}"</div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 

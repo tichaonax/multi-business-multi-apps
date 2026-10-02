@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto'
 import { generateSKU } from '@/lib/sku-generator'
 import { getServerUser } from '@/lib/get-server-user'
 import { getOpenPromotions, describeOpenPromotion, type OpenPromotionInfo } from '@/lib/promotions/resolve-active-promotions'
+import { getLatestInventoryChanges } from '@/lib/inventory/last-change'
 
 interface UniversalInventoryItem {
   id: string
@@ -443,8 +444,20 @@ export async function GET(
     const paginatedItems = visibleItems.slice(startIndex, endIndex)
     const totalFiltered = visibleItems.length
 
+    // Attach "who/when/what last changed" — only for the current page, not
+    // the whole (up to 2000-row) filtered set, since this is purely display.
+    const rawIdsOnPage = paginatedItems.map((item: any) =>
+      typeof item.id === 'string' && item.id.startsWith('inv_') ? item.id.slice(4) : item.id
+    )
+    const lastChanges = await getLatestInventoryChanges(rawIdsOnPage)
+    const itemsWithLastChange = paginatedItems.map((item: any) => {
+      const rawId = typeof item.id === 'string' && item.id.startsWith('inv_') ? item.id.slice(4) : item.id
+      const lastChange = lastChanges.get(rawId)
+      return lastChange ? { ...item, lastChange } : item
+    })
+
     return NextResponse.json({
-      items: paginatedItems,
+      items: itemsWithLastChange,
       pagination: {
         page,
         limit,

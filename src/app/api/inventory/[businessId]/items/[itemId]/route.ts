@@ -293,9 +293,12 @@ export async function PUT(
       }
 
       // Handle stock adjustment for barcodeInventoryItems
+      const stockChangeReason = typeof body.stockChangeReason === 'string' ? body.stockChangeReason.trim() : ''
+      let barcodeStockAdjustQty = 0
       if (body._stockAdjustment && body._stockAdjustment !== 0) {
         const adjustQty = parseInt(body._stockAdjustment)
         if (!isNaN(adjustQty)) {
+          barcodeStockAdjustQty = adjustQty
           updateData.stockQuantity = (existing.stockQuantity || 0) + adjustQty
         }
       }
@@ -314,6 +317,34 @@ export async function PUT(
 
       // Fire low-stock notification (non-blocking)
       checkAndNotifyLowStockForBarcodeItem(rawId, businessId)
+
+      if (barcodeStockAdjustQty !== 0) {
+        // Wrapped so a failure here never blocks the stock update itself.
+        try {
+          await prisma.businessStockMovements.create({
+            data: {
+              businessId,
+              barcodeInventoryItemId: rawId,
+              businessType: (updated as any).business?.type || 'grocery',
+              quantity: barcodeStockAdjustQty,
+              movementType: 'ADJUSTMENT',
+              reason: stockChangeReason || `Stock adjustment: ${barcodeStockAdjustQty > 0 ? '+' : ''}${barcodeStockAdjustQty} units`,
+            },
+          })
+        } catch (movementErr) {
+          console.error('[Stock Adjust] Failed to create movement record (stock was still updated):', movementErr)
+        }
+        await createAuditLog({
+          userId: user.id,
+          action: 'PRODUCT_STOCK_ADJUSTED',
+          entityType: 'Product',
+          entityId: rawId,
+          oldValues: { stockQuantity: existing.stockQuantity },
+          newValues: { stockQuantity: updated.stockQuantity },
+          metadata: { sourceTable: 'BARCODE_ITEM', businessId, productName: existing.name, reason: stockChangeReason || null },
+          businessId,
+        })
+      }
 
       if (updateData.sellingPrice !== undefined && Number(updateData.sellingPrice) !== Number(existing.sellingPrice)) {
         await createAuditLog({
@@ -587,6 +618,7 @@ export async function PUT(
     }
 
     // Handle stock adjustment if provided
+    const productStockChangeReason = typeof body.stockChangeReason === 'string' ? body.stockChangeReason.trim() : ''
     if (body._stockAdjustment && body._stockAdjustment !== 0) {
       const adjustQty = parseInt(body._stockAdjustment)
       if (!isNaN(adjustQty)) {
@@ -629,12 +661,22 @@ export async function PUT(
               businessType: updatedProduct.businessType,
               quantity: adjustQty,
               movementType: 'ADJUSTMENT',
-              reason: `Stock adjustment: ${adjustQty > 0 ? '+' : ''}${adjustQty} units`
+              reason: productStockChangeReason || `Stock adjustment: ${adjustQty > 0 ? '+' : ''}${adjustQty} units`
             }
           })
         } catch (movementErr) {
           console.error('[Stock Adjust] Failed to create movement record (stock was still updated):', movementErr)
         }
+        await createAuditLog({
+          userId: user.id,
+          action: 'PRODUCT_STOCK_ADJUSTED',
+          entityType: 'Product',
+          entityId: itemId,
+          oldValues: { stockQuantity: variant.stockQuantity },
+          newValues: { stockQuantity: newStockQuantity },
+          metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId, productName: existingProduct.name, reason: productStockChangeReason || null },
+          businessId,
+        })
 
         // Fire low-stock notification if adjustment reduced stock (non-blocking)
         if (adjustQty < 0) {
