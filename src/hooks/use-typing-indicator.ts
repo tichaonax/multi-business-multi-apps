@@ -13,13 +13,16 @@ const TYPING_EXPIRE_MS = 4000        // receiver-side fallback if a stop-typing 
  * Sender side — call notifyTyping() from the composer's onChange, and
  * notifyStopTyping() right after a successful send (or when the draft is
  * cleared). Internally throttled so every keystroke doesn't hit the socket.
+ *
+ * Who receives this is resolved server-side from actual room membership
+ * (not a client-supplied recipient list) — see socket-server.ts — so there's
+ * nothing to pass here beyond which room it's for.
  */
 export function useTypingEmitter(
   socket: Socket | null,
   roomId: string | null,
   currentUserId: string | undefined,
   currentUserName: string | null | undefined,
-  participantIds?: string[], // other participants to relay to — required for a DM/group, unused for General
 ) {
   const lastEmitRef = useRef(0)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -29,8 +32,8 @@ export function useTypingEmitter(
     if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null }
     if (!isTypingRef.current || !socket || !currentUserId) { isTypingRef.current = false; return }
     isTypingRef.current = false
-    socket.emit('chat:stop-typing', { roomId, userId: currentUserId, participantIds })
-  }, [socket, roomId, currentUserId, participantIds])
+    socket.emit('chat:stop-typing', { roomId, userId: currentUserId })
+  }, [socket, roomId, currentUserId])
 
   const notifyTyping = useCallback(() => {
     if (!socket || !currentUserId) return
@@ -38,18 +41,18 @@ export function useTypingEmitter(
     if (!isTypingRef.current || now - lastEmitRef.current > TYPING_EMIT_THROTTLE_MS) {
       isTypingRef.current = true
       lastEmitRef.current = now
-      socket.emit('chat:typing', { roomId, userId: currentUserId, userName: currentUserName || 'Someone', participantIds })
+      socket.emit('chat:typing', { roomId, userId: currentUserId, userName: currentUserName || 'Someone' })
     }
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
     idleTimerRef.current = setTimeout(notifyStopTyping, TYPING_STOP_IDLE_MS)
-  }, [socket, roomId, currentUserId, currentUserName, participantIds, notifyStopTyping])
+  }, [socket, roomId, currentUserId, currentUserName, notifyStopTyping])
 
   // Best-effort — if the socket was never connected this is a silent no-op,
   // left to the receiver-side expiry timer to clean up instead.
   useEffect(() => () => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
     if (isTypingRef.current && socket && currentUserId) {
-      socket.emit('chat:stop-typing', { roomId, userId: currentUserId, participantIds })
+      socket.emit('chat:stop-typing', { roomId, userId: currentUserId })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

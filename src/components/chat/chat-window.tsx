@@ -83,10 +83,6 @@ interface ChatWindowProps {
   roomPhotoUrl?: string | null
   currentUserId: string
   currentUserName?: string | null
-  // Other participants' ids (self excluded) — from the parent's already-
-  // loaded room list, so typing indicators work for a direct room too
-  // without waiting on this component's own lazy (group-only) member fetch.
-  otherParticipantIds: string[]
   socket: Socket | null
   onClose: () => void
   rightOffset: number
@@ -104,7 +100,7 @@ interface ChatWindowProps {
  * floating-chat.tsx), each tracking its own messages/composer/threads, so
  * switching between DMs/groups never loses what you were doing in another.
  */
-export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUserId, currentUserName, otherParticipantIds, socket, onClose, rightOffset, isMobile = false, customPosition, onPositionChange, onMessageSent }: ChatWindowProps) {
+export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUserId, currentUserName, socket, onClose, rightOffset, isMobile = false, customPosition, onPositionChange, onMessageSent }: ChatWindowProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [sending, setSending] = useState(false)
@@ -367,7 +363,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
 
   const typingByRoom = useTypingTracker(socket, currentUserId)
   const typingUsers = typingByRoom[roomId] ?? []
-  const { notifyTyping, notifyStopTyping } = useTypingEmitter(socket, roomId, currentUserId, currentUserName, otherParticipantIds)
+  const { notifyTyping, notifyStopTyping } = useTypingEmitter(socket, roomId, currentUserId, currentUserName)
 
   const mentionCandidates = members.filter(m =>
     m.id !== currentUserId &&

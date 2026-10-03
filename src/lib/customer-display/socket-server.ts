@@ -7,6 +7,7 @@
 
 import { Server as SocketIOServer } from 'socket.io'
 import { Server as HTTPServer } from 'http'
+import { prisma } from '@/lib/prisma'
 
 // Use global to share the instance across Next.js webpack bundles and the custom server ts-node process
 const g = global as typeof globalThis & { __socketio?: SocketIOServer }
@@ -101,22 +102,35 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
     })
 
     // Chat typing indicators — ephemeral, not persisted. General broadcasts
-    // to the shared room; a DM/group relies on the client supplying who
-    // else is in that conversation (same trust level already extended to
-    // cart-update's client-supplied room above — low-stakes, not persisted).
-    socket.on('chat:typing', (data: { roomId: string | null; userId: string; userName: string; participantIds?: string[] }) => {
+    // to the shared room; for a DM/group the audience is looked up from the
+    // database (current ChatParticipants rows), not trusted from the client
+    // — so a user can never receive a typing indicator for a conversation
+    // they aren't actually in, even if a client sent a wrong/stale room id.
+    socket.on('chat:typing', (data: { roomId: string | null; userId: string; userName: string }) => {
       if (!data.roomId) {
         socket.to('chat:general').emit('chat:typing', data)
-      } else if (data.participantIds) {
-        for (const uid of data.participantIds) io.to(`user:${uid}`).emit('chat:typing', data)
+        return
       }
+      prisma.chatParticipants.findMany({ where: { roomId: data.roomId }, select: { userId: true } })
+        .then(rows => {
+          for (const row of rows) {
+            if (row.userId && row.userId !== data.userId) io.to(`user:${row.userId}`).emit('chat:typing', data)
+          }
+        })
+        .catch(err => console.error('[Socket.io] chat:typing lookup error:', err))
     })
-    socket.on('chat:stop-typing', (data: { roomId: string | null; userId: string; participantIds?: string[] }) => {
+    socket.on('chat:stop-typing', (data: { roomId: string | null; userId: string }) => {
       if (!data.roomId) {
         socket.to('chat:general').emit('chat:stop-typing', data)
-      } else if (data.participantIds) {
-        for (const uid of data.participantIds) io.to(`user:${uid}`).emit('chat:stop-typing', data)
+        return
       }
+      prisma.chatParticipants.findMany({ where: { roomId: data.roomId }, select: { userId: true } })
+        .then(rows => {
+          for (const row of rows) {
+            if (row.userId && row.userId !== data.userId) io.to(`user:${row.userId}`).emit('chat:stop-typing', data)
+          }
+        })
+        .catch(err => console.error('[Socket.io] chat:stop-typing lookup error:', err))
     })
 
     // Return list of currently online user IDs by inspecting live room membership

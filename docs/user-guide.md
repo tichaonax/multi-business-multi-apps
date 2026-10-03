@@ -7050,6 +7050,17 @@ Any top-level message can have a thread of replies attached to it. Threads keep 
 
 ---
 
+### Typing Indicators
+
+You can see when someone else is composing a reply, so you know a message is on its way:
+
+- **Inside a conversation** — "*Name* is typing…" appears just above the message box in Team Chat and in any open Direct Message or Group window. If more than one person is typing, it shows "*Name* and *Name* are typing…", or "*Name* and N others are typing…" for a bigger group.
+- **In the conversations list** — a conversation's row temporarily shows the typing indicator in place of its last-message preview, even if you don't have that conversation open as a window, so you know where to look.
+
+The indicator clears itself a few seconds after the other person stops typing or sends their message — there's nothing you need to do.
+
+---
+
 ### Real-Time Updates & Notifications
 
 - Messages, replies, and group membership changes are delivered using **WebSockets** — they appear instantly without refreshing, even if you're on a different page (that's when a Direct Message or Group auto-opens the chat panel for you).
@@ -7078,12 +7089,12 @@ Any top-level message can have a thread of replies attached to it. Threads keep 
 | @-mention flagging ("important", up to 2 people, groups) | ✅ Yes |
 | Threaded replies | ✅ Yes |
 | Reply to sender only (Team Chat) | ✅ Yes |
+| Typing indicators | ✅ Yes |
 | Profile photos on avatars | ✅ Yes |
 | Notification sound (configurable) | ✅ Yes |
 | Real-time delivery via WebSocket | ✅ Yes |
 | File or image attachments | Not yet |
 | Read receipts | Not yet |
-| Typing indicators | Not yet |
 | Message editing | Not yet — delete and re-send |
 
 ---

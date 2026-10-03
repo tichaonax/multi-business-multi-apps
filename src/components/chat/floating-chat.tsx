@@ -1405,7 +1405,6 @@ export function FloatingChat() {
           roomPhotoUrl={room.type === 'direct' ? room.participants[0]?.photoUrl : null}
           currentUserId={currentUserId || ''}
           currentUserName={currentUserName}
-          otherParticipantIds={room.participants.map(p => p.id)}
           socket={socketRef.current}
           onClose={() => closeConversationWindow(roomId)}
           rightOffset={rightOffset}
