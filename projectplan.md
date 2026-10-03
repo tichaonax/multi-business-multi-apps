@@ -10,6 +10,7 @@ All detailed project plans live in `ai-contexts/project-plans/`.
 
 | ID | Title | File | Status |
 |----|-------|------|--------|
+| MBM-301 | Chat: persistent, selectable conversations (DMs & groups) instead of ad-hoc per-message recipients | [view](ai-contexts/project-plans/review/projectplan-MBM-301-chat-conversations-2026-10-03.md) | 🟢 BUILT — migration applied, typechecked clean vs. baseline, not yet live-browser-verified |
 | NOTKT | Bulk-Stock Conversion (Move to Business + Edit Item) — convert N packets into N×itemsPerPacket individual sellable units, cost/price divided, quantity-aware for partially-consumed stock, one-way, plus full automatic item-matching for Warehouse Move | [view](ai-contexts/project-plans/review/projectplan-NOTKT-bulk-stock-conversion-2026-09-28.md) | 🟢 BUILT — typechecked clean vs. baseline, awaiting `npx prisma generate` (locally blocked by a DLL lock) and live browser verification |
 | NOTKT | Implement real Return & Exchange in Clothing Advanced POS (currently a non-functional stub) | [view](ai-contexts/project-plans/review/projectplan-NOTKT-clothing-pos-return-exchange-2026-09-27.md) | 🟢 BUILT — typechecked clean vs. baseline, awaiting live browser verification (branch: uncommitted on `main`) |
 | MBM-300 | Batch Inventory Import (Container/Shipment Batches) — Excel-sourced, tracking#/order# aware, consolidated into existing Warehouse system | [view](ai-contexts/project-plans/review/projectplan-MBM-300-batch-inventory-import-2026-09-25.md) | 🟢 BUILT — awaiting user testing (branch `feature/batch-inventory-import`) |
