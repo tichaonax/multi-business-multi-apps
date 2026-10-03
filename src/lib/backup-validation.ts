@@ -362,7 +362,10 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'employeeLeaveRequests',       // employeeId FK, no direct businessId
   'employeeLeaveBalance',        // employeeId FK, no direct businessId
   'employeeAbsences',            // backed up globally, not scoped by business
-  // Chat (MBM-210)
+  // Chat (MBM-210, extended MBM-301 for DM/group rooms)
+  'chatRooms',                   // no businessId column — General + cross-business DMs/groups
+  'chatMessages',                // roomId FK, no businessId column
+  'chatParticipants',            // roomId + userId FK, no businessId column
   'chatMessageRecipients',       // messageId + userId FK, no businessId column
   // AYLI Combo child tables — no businessId (linked via comboId)
   'asYouLikeItComboSizes',       // comboId FK, no businessId field

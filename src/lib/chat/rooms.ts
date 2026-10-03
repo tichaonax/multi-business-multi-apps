@@ -65,3 +65,43 @@ export async function createGroupRoom(creatorId: string, name: string, memberIds
     },
   })
 }
+
+/** Shape a raw DB message into the API payload — shared by the messages and
+ * group-membership routes so a system message (e.g. "added X to the group")
+ * comes back in exactly the same shape as a normal one. */
+export function shapeMessage(m: any, replyCount = 0) {
+  const emp = m.users?.employees
+  const firstName: string = emp?.firstName ?? ''
+  const lastName: string = emp?.lastName ?? ''
+  const initials = (firstName.charAt(0) + lastName.charAt(0)).toUpperCase() || (m.users?.name ?? '?').charAt(0).toUpperCase()
+  return {
+    id: m.id,
+    roomId: m.roomId ?? null,
+    userId: m.userId,
+    userName: m.users?.name ?? 'Unknown',
+    userPhotoUrl: emp?.profilePhotoUrl ?? null,
+    userInitials: initials,
+    // A system message (e.g. membership changes) has no sender — the client
+    // renders these as a centered event line instead of a chat bubble.
+    isSystem: m.userId === null,
+    message: m.message,
+    createdAt: m.createdAt.toISOString(),
+    deletedAt: m.deletedAt?.toISOString() ?? null,
+    parentId: m.parentId ?? null,
+    replyScope: m.replyScope ?? null,
+    replyCount,
+    recipients: (m.chat_message_recipients ?? []).map((r: any) => ({
+      id: r.users?.id ?? r.userId,
+      name: r.users?.name ?? 'Unknown',
+    })),
+  }
+}
+
+/** Posts a system/event message (e.g. "Alice added Bob to the group") into a
+ * room and returns the shaped payload, ready to persist history and emit. */
+export async function postSystemMessage(roomId: string, text: string) {
+  const created = await prisma.chatMessages.create({
+    data: { roomId, userId: null, message: text },
+  })
+  return shapeMessage(created, 0)
+}

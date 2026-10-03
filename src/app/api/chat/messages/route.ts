@@ -3,33 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { emitToRoom, emitToUsers } from '@/lib/customer-display/socket-server'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
-import { getGeneralRoom } from '@/lib/chat/rooms'
-
-/** Shape a raw DB message into the API payload */
-function shapeMessage(m: any, replyCount = 0) {
-  const emp = m.users?.employees
-  const firstName: string = emp?.firstName ?? ''
-  const lastName: string = emp?.lastName ?? ''
-  const initials = (firstName.charAt(0) + lastName.charAt(0)).toUpperCase() || (m.users?.name ?? '?').charAt(0).toUpperCase()
-  return {
-    id: m.id,
-    roomId: m.roomId ?? null,
-    userId: m.userId,
-    userName: m.users?.name ?? 'Unknown',
-    userPhotoUrl: emp?.profilePhotoUrl ?? null,
-    userInitials: initials,
-    message: m.message,
-    createdAt: m.createdAt.toISOString(),
-    deletedAt: m.deletedAt?.toISOString() ?? null,
-    parentId: m.parentId ?? null,
-    replyScope: m.replyScope ?? null,
-    replyCount,
-    recipients: (m.chat_message_recipients ?? []).map((r: any) => ({
-      id: r.users?.id ?? r.userId,
-      name: r.users?.name ?? 'Unknown',
-    })),
-  }
-}
+import { getGeneralRoom, shapeMessage } from '@/lib/chat/rooms'
 
 /** GET /api/chat/messages?roomId=... — fetch last 100 messages visible to the current user. Omit roomId for the General/Team room (default, unchanged). */
 export async function GET(request: NextRequest) {
@@ -116,6 +90,10 @@ export async function POST(request: NextRequest) {
     const parentId: string | null = body?.parentId ?? null
     const replyScope: 'OWNER' | 'ALL' | null = body?.replyScope ?? null
     const requestedRoomId: string | null = typeof body?.roomId === 'string' ? body.roomId : null
+    // @-flagged "important" recipients (group chats) — max 2, see chat-window.tsx
+    const requestedMentionIds: string[] = Array.isArray(body?.mentionIds)
+      ? body.mentionIds.filter((id: unknown) => typeof id === 'string')
+      : []
 
     const generalRoom = await getGeneralRoom()
     const isGeneral = !requestedRoomId || requestedRoomId === generalRoom.id
@@ -135,22 +113,56 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Parent message not found' }, { status: 404 })
         }
       }
+      // Only current participants other than the sender can be flagged, capped at 2.
+      const mentionIds = requestedMentionIds
+        .filter(id => id !== user.id && participantIds.includes(id))
+        .slice(0, 2)
 
       const created = await prisma.chatMessages.create({
         data: { roomId: requestedRoomId, userId: user.id, message, parentId },
         include: { users: { select: { name: true, employees: { select: { firstName: true, lastName: true, profilePhotoUrl: true } } } } },
       })
 
-      const payload = shapeMessage(created, 0)
+      if (mentionIds.length > 0) {
+        await prisma.chatMessageRecipients.createMany({
+          data: mentionIds.map(uid => ({ messageId: created.id, userId: uid })),
+          skipDuplicates: true,
+        })
+      }
+
+      const full = mentionIds.length > 0
+        ? await prisma.chatMessages.findUnique({
+            where: { id: created.id },
+            include: {
+              users: { select: { name: true, employees: { select: { firstName: true, lastName: true, profilePhotoUrl: true } } } },
+              chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
+            },
+          })
+        : created
+
+      const payload = shapeMessage(full, 0)
       try { emitToUsers(participantIds, 'chat:message', payload) } catch { /* non-critical */ }
       try {
         const recipientsOnly = participantIds.filter(id => id !== user.id)
-        if (recipientsOnly.length > 0) {
+        const flaggedSet = new Set(mentionIds)
+        const flagged = recipientsOnly.filter(id => flaggedSet.has(id))
+        const everyoneElse = recipientsOnly.filter(id => !flaggedSet.has(id))
+        const snippet = payload.message.length > 80 ? payload.message.slice(0, 80) + '…' : payload.message
+        if (flagged.length > 0) {
           await emitNotification({
-            userIds: recipientsOnly,
+            userIds: flagged,
+            type: 'CHAT_MESSAGE',
+            title: `🚩 Important — ${payload.userName}`,
+            message: snippet,
+            linkUrl: '/chat',
+          })
+        }
+        if (everyoneElse.length > 0) {
+          await emitNotification({
+            userIds: everyoneElse,
             type: 'CHAT_MESSAGE',
             title: `💬 ${payload.userName}`,
-            message: payload.message.length > 80 ? payload.message.slice(0, 80) + '…' : payload.message,
+            message: snippet,
             linkUrl: '/chat',
           })
         }

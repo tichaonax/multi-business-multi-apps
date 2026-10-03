@@ -8,10 +8,12 @@ interface Recipient { id: string; name: string }
 interface Message {
   id: string
   roomId: string | null
-  userId: string
+  userId: string | null
   userName: string
   userPhotoUrl?: string | null
   userInitials?: string
+  // A system/event message (e.g. "X added Y to the group") has no sender.
+  isSystem?: boolean
   message: string
   createdAt: string
   deletedAt: string | null
@@ -47,6 +49,28 @@ function getUserColor(userId: string) {
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+// Each open satellite window gets its own header colour (deterministic from
+// roomId, so a given conversation always looks the same) — distinct from
+// the hub's indigo, so several open at once are easy to tell apart at a glance.
+const WINDOW_THEMES = [
+  'bg-blue-600',
+  'bg-emerald-600',
+  'bg-rose-600',
+  'bg-amber-600',
+  'bg-fuchsia-600',
+  'bg-cyan-600',
+  'bg-lime-600',
+  'bg-orange-600',
+]
+function getWindowTheme(roomId: string) {
+  let hash = 0
+  for (let i = 0; i < roomId.length; i++) {
+    hash = ((hash << 5) - hash) + roomId.charCodeAt(i)
+    hash |= 0
+  }
+  return WINDOW_THEMES[Math.abs(hash) % WINDOW_THEMES.length]
 }
 
 interface Member { id: string; name: string; photoUrl: string | null }
@@ -88,6 +112,39 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
   const [addMemberCandidates, setAddMemberCandidates] = useState<Member[]>([])
   const [addingMemberId, setAddingMemberId] = useState<string | null>(null)
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null)
+
+  // @-mention "flag as important" — typing "@" to start a message opens a
+  // picker of other group members (self excluded); up to 2 can be flagged.
+  const [mentionedUsers, setMentionedUsers] = useState<Member[]>([])
+  const [showMentionPicker, setShowMentionPicker] = useState(false)
+  const [mentionFilter, setMentionFilter] = useState('')
+
+  // Draggable — unlike the (fixed) hub, satellite windows can be moved out
+  // of the way. Offset from the computed cascade position (rightOffset/72).
+  const [drag, setDrag] = useState({ dx: 0, dy: 0 })
+  const dragRef = useRef<{ startMouseX: number; startMouseY: number; startDx: number; startDy: number } | null>(null)
+
+  const onHeaderMouseDown = useCallback((e: React.MouseEvent) => {
+    dragRef.current = { startMouseX: e.clientX, startMouseY: e.clientY, startDx: drag.dx, startDy: drag.dy }
+    e.preventDefault()
+  }, [drag])
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!dragRef.current) return
+      const { startMouseX, startMouseY, startDx, startDy } = dragRef.current
+      const newDx = startDx - (e.clientX - startMouseX)
+      const newDy = startDy - (e.clientY - startMouseY)
+      setDrag({ dx: newDx, dy: newDy })
+    }
+    const onMouseUp = () => { dragRef.current = null }
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [])
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -157,6 +214,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
     try {
       const body: any = { message: text, roomId }
       if (replyingTo) body.parentId = replyingTo.id
+      if (mentionedUsers.length > 0) body.mentionIds = mentionedUsers.map(u => u.id)
       const res = await fetch('/api/chat/messages', {
         method: 'POST',
         credentials: 'include',
@@ -179,6 +237,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
         onMessageSent({ text: saved.message, at: saved.createdAt })
       }
       setReplyingTo(null)
+      setMentionedUsers([])
     } catch {
       setNewMessage(text)
     } finally {
@@ -212,13 +271,9 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
   }
 
   // ── Group members ─────────────────────────────────────────────────────
-  const toggleMembers = () => {
-    if (roomType !== 'group') return
-    if (showMembers) { setShowMembers(false); return }
-    setShowMembers(true)
-    setShowAddMember(false)
-    setLoadingMembers(true)
-    fetch(`/api/chat/rooms/${roomId}`, { credentials: 'include' })
+  const loadMembers = useCallback((showLoading: boolean) => {
+    if (showLoading) setLoadingMembers(true)
+    return fetch(`/api/chat/rooms/${roomId}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then((data: { createdBy: string | null; participants: Member[] } | null) => {
         if (!data) return
@@ -226,7 +281,23 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
         setMembers(data.participants)
       })
       .catch(() => {})
-      .finally(() => setLoadingMembers(false))
+      .finally(() => { if (showLoading) setLoadingMembers(false) })
+  }, [roomId])
+
+  // Prefetch silently so the @-mention picker (below) has the member list
+  // ready the instant someone starts typing "@", not only once they open
+  // the members panel.
+  useEffect(() => {
+    if (roomType === 'group') loadMembers(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomType, roomId])
+
+  const toggleMembers = () => {
+    if (roomType !== 'group') return
+    if (showMembers) { setShowMembers(false); return }
+    setShowMembers(true)
+    setShowAddMember(false)
+    loadMembers(true)
   }
 
   const isCreator = createdBy !== null && createdBy === currentUserId
@@ -275,9 +346,44 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
     (!addMemberSearch.trim() || u.name.toLowerCase().includes(addMemberSearch.trim().toLowerCase()))
   )
 
+  const mentionCandidates = members.filter(m =>
+    m.id !== currentUserId &&
+    !mentionedUsers.some(u => u.id === m.id) &&
+    (!mentionFilter || m.name.toLowerCase().includes(mentionFilter.toLowerCase()))
+  )
+
+  const handleComposerChange = (val: string) => {
+    setNewMessage(val)
+    if (roomType === 'group' && mentionedUsers.length < 2 && val.startsWith('@')) {
+      setMentionFilter(val.slice(1))
+      setShowMentionPicker(true)
+    } else {
+      setShowMentionPicker(false)
+    }
+  }
+
+  const selectMention = (m: Member) => {
+    setMentionedUsers(prev => [...prev, m])
+    setNewMessage('')
+    setShowMentionPicker(false)
+    setMentionFilter('')
+    inputRef.current?.focus()
+  }
+
   const renderMessage = (msg: Message, isReply = false) => {
+    if (msg.isSystem) {
+      return (
+        <div key={msg.id} className="flex items-center justify-center my-2">
+          <span className="text-[10px] text-secondary bg-gray-100 dark:bg-gray-800 rounded-full px-2.5 py-1 text-center">
+            🔔 {msg.message}
+          </span>
+        </div>
+      )
+    }
+
     const isOwn = msg.userId === currentUserId
-    const color = isOwn ? null : getUserColor(msg.userId)
+    const color = isOwn ? null : getUserColor(msg.userId ?? msg.id)
+    const isFlagged = msg.recipients.length > 0
     const myLatestId = [...messages].reverse().find(m => m.userId === currentUserId)?.id
     const isLatestOwn = isOwn && msg.id === myLatestId && !isReply
     const isHovered = hoveredMsgId === msg.id
@@ -297,15 +403,27 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
           )}
         </div>
         <div className={`max-w-[78%] flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
-          {!isOwn && (
-            <span className={`text-[9px] font-semibold ml-1 mb-0.5 ${color!.name}`}>{msg.userName}</span>
-          )}
+          <div className={`flex items-center gap-1.5 mb-0.5 ${isOwn ? 'flex-row-reverse' : ''}`}>
+            {!isOwn && (
+              <span className={`text-[9px] font-semibold ml-1 ${color!.name}`}>{msg.userName}</span>
+            )}
+            {isFlagged && (
+              <span
+                className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-700"
+                title={`Flagged important for: ${msg.recipients.map(r => r.name).join(', ')}`}
+              >
+                🚩 Important
+              </span>
+            )}
+          </div>
           <div className={`px-2.5 py-1 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap break-words ${
             msg.deletedAt
               ? 'bg-gray-100 dark:bg-gray-800 text-secondary italic border border-dashed border-gray-300 dark:border-gray-600'
-              : isOwn
-                ? 'bg-indigo-600 text-white rounded-tr-sm'
-                : `bg-white dark:bg-gray-800 text-primary border border-border border-l-4 ${color!.border} rounded-tl-sm shadow-sm`
+              : isFlagged
+                ? `${isOwn ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-gray-800 text-primary'} border-2 border-amber-400 dark:border-amber-500 ${isOwn ? 'rounded-tr-sm' : 'rounded-tl-sm'} shadow-sm`
+                : isOwn
+                  ? 'bg-indigo-600 text-white rounded-tr-sm'
+                  : `bg-white dark:bg-gray-800 text-primary border border-border border-l-4 ${color!.border} rounded-tl-sm shadow-sm`
           }`}>
             {msg.deletedAt ? '🚫 This message was deleted' : msg.message}
           </div>
@@ -337,12 +455,15 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
 
   return (
     <div
-      style={{ position: 'fixed', right: rightOffset, bottom: 72, width: WINDOW_W, height: WINDOW_H, zIndex: 9990 }}
+      style={{ position: 'fixed', right: rightOffset + drag.dx, bottom: 72 + drag.dy, width: WINDOW_W, height: WINDOW_H, zIndex: 9990 }}
       className="flex flex-col rounded-2xl shadow-2xl border border-border bg-white dark:bg-gray-900 overflow-hidden"
     >
-      <div className="flex items-center justify-between px-3 py-2.5 bg-indigo-600 text-white shrink-0">
+      <div
+        onMouseDown={onHeaderMouseDown}
+        className={`flex items-center justify-between px-3 py-2.5 text-white shrink-0 cursor-grab active:cursor-grabbing select-none ${getWindowTheme(roomId)}`}
+      >
         {roomType === 'group' ? (
-          <button type="button" onClick={toggleMembers} className="flex items-center gap-1.5 min-w-0 hover:bg-white/10 rounded-lg px-1 -mx-1 py-0.5 transition-colors" title="View group members">
+          <button type="button" onMouseDown={e => e.stopPropagation()} onClick={toggleMembers} className="flex items-center gap-1.5 min-w-0 hover:bg-white/10 rounded-lg px-1 -mx-1 py-0.5 transition-colors" title="View group members">
             <span className="text-sm shrink-0">👥</span>
             <span className="font-semibold text-xs truncate">{roomName}</span>
             <svg className="w-3 h-3 shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -361,7 +482,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
             <span className="font-semibold text-xs truncate">{roomName}</span>
           </div>
         )}
-        <button type="button" onClick={onClose} className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors shrink-0" title="Close">
+        <button type="button" onMouseDown={e => e.stopPropagation()} onClick={onClose} className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors shrink-0" title="Close">
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -377,7 +498,46 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
         <div ref={bottomRef} />
       </div>
 
-      <div className="border-t border-border bg-white dark:bg-gray-900 px-2.5 py-2.5 shrink-0 space-y-1.5">
+      <div className="relative border-t border-border bg-white dark:bg-gray-900 px-2.5 py-2.5 shrink-0 space-y-1.5">
+        {/* @-mention picker — opens when the message starts with "@" */}
+        {showMentionPicker && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setShowMentionPicker(false)} />
+            <div className="absolute bottom-full left-2.5 right-2.5 mb-1 z-20 bg-white dark:bg-gray-800 border border-border rounded-lg shadow-lg max-h-40 overflow-y-auto">
+              <p className="text-[10px] text-secondary px-2.5 pt-1.5 pb-1">Flag as important for (max 2)</p>
+              {mentionCandidates.length === 0 ? (
+                <p className="text-[11px] text-secondary px-2.5 pb-2">No matching member</p>
+              ) : mentionCandidates.map(m => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => selectMention(m)}
+                  className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                >
+                  <span className={`w-5 h-5 rounded-full shrink-0 relative overflow-hidden flex items-center justify-center text-white text-[9px] font-bold ${getUserColor(m.id).avatar}`}>
+                    {m.name.charAt(0).toUpperCase()}
+                    {m.photoUrl && (
+                      <img src={m.photoUrl} alt={m.name} className="absolute inset-0 w-full h-full object-cover"
+                        onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                    )}
+                  </span>
+                  <span className="truncate text-primary">{m.name}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        {mentionedUsers.length > 0 && (
+          <div className="flex items-center gap-1 flex-wrap">
+            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium shrink-0">🚩 Flag for:</span>
+            {mentionedUsers.map(u => (
+              <span key={u.id} className="flex items-center gap-1 text-[11px] bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-700">
+                {u.name}
+                <button type="button" onClick={() => setMentionedUsers(prev => prev.filter(x => x.id !== u.id))} className="hover:text-red-500">✕</button>
+              </span>
+            ))}
+          </div>
+        )}
         {replyingTo && (
           <div className="flex items-center gap-2 text-[11px] bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-700 rounded-lg px-2.5 py-1">
             <span className="text-indigo-600 dark:text-indigo-400 flex-1 truncate">↩ Replying to <strong>{replyingTo.userName}</strong></span>
@@ -390,9 +550,9 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
             rows={1}
             autoComplete="off"
             value={newMessage}
-            onChange={e => setNewMessage(e.target.value)}
+            onChange={e => handleComposerChange(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
-            placeholder={replyingTo ? `Reply to ${replyingTo.userName}…` : 'Type a message…'}
+            placeholder={replyingTo ? `Reply to ${replyingTo.userName}…` : roomType === 'group' ? 'Type a message… ("@" to flag someone)' : 'Type a message…'}
             className="flex-1 px-3 py-1.5 rounded-2xl border border-border bg-gray-50 dark:bg-gray-800 resize-none leading-snug
               text-primary text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             style={{ maxHeight: MAX_INPUT_HEIGHT, overflowY: 'auto' }}

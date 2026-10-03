@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
-import { emitToUser } from '@/lib/customer-display/socket-server'
+import { emitToUser, emitToUsers } from '@/lib/customer-display/socket-server'
+import { postSystemMessage } from '@/lib/chat/rooms'
 
 /** DELETE /api/chat/rooms/[roomId]/participants/[userId] — remove a member from a group (creator only). */
 export async function DELETE(
@@ -20,12 +21,23 @@ export async function DELETE(
     if (room.createdBy !== user.id) return NextResponse.json({ error: 'Only the group creator can remove members' }, { status: 403 })
     if (userId === room.createdBy) return NextResponse.json({ error: 'The group creator cannot be removed' }, { status: 400 })
 
+    const removedUser = await prisma.users.findUnique({ where: { id: userId }, select: { name: true } })
+
     await prisma.chatParticipants.deleteMany({ where: { roomId, userId } })
 
     // So a removed member's open window closes immediately instead of just
     // silently failing on their next action — membership is what the
     // messages/replies endpoints already gate visibility on.
     try { emitToUser(userId, 'chat:room-removed', { roomId }) } catch { /* non-critical */ }
+
+    // Event message for whoever's left — the removed member no longer has
+    // access to the room, so they're deliberately not sent this.
+    try {
+      const notice = await postSystemMessage(roomId, `${user.name ?? 'Someone'} removed ${removedUser?.name ?? 'a member'} from the group`)
+      const remaining = await prisma.chatParticipants.findMany({ where: { roomId } })
+      const remainingIds = remaining.map(p => p.userId).filter((id): id is string => !!id)
+      emitToUsers(remainingIds, 'chat:message', notice)
+    } catch { /* non-critical */ }
 
     return NextResponse.json({ success: true })
   } catch (err) {

@@ -6,16 +6,28 @@ import { usePathname } from 'next/navigation'
 import { io, Socket } from 'socket.io-client'
 import { setChatBadge } from '@/lib/chat-badge'
 import { ChatWindow } from '@/components/chat/chat-window'
+import { playChatNotificationSound } from '@/lib/chat-sound'
+import {
+  type ChatSettings,
+  DEFAULT_CHAT_SETTINGS,
+  MIN_OPEN_WINDOWS,
+  MAX_OPEN_WINDOWS_CAP,
+  clampMaxOpenWindows,
+  loadChatSettings,
+  saveChatSettings,
+} from '@/lib/chat-settings'
 
 interface Recipient { id: string; name: string }
 
 interface Message {
   id: string
   roomId: string | null
-  userId: string
+  userId: string | null
   userName: string
   userPhotoUrl?: string | null
   userInitials?: string
+  // A system/event message (e.g. "X added Y to the group") has no sender.
+  isSystem?: boolean
   message: string
   createdAt: string
   deletedAt: string | null
@@ -131,10 +143,12 @@ export function FloatingChat() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
 
-  // Drag offset from the CSS bottom-right anchor (right: 24, bottom: 72)
-  const [drag, setDrag] = useState({ dx: 0, dy: 0 })
-  const dragRef = useRef<{ startMouseX: number; startMouseY: number; startDx: number; startDy: number } | null>(null)
+  // Personal chat preferences — notification sound, max open satellite windows
+  const [chatSettings, setChatSettings] = useState<ChatSettings>(DEFAULT_CHAT_SETTINGS)
+  const [showChatSettings, setShowChatSettings] = useState(false)
 
+  // The hub stays put (right: 24, bottom: 72) — it's the one fixed anchor;
+  // satellite ChatWindows are the ones that can be dragged out of the way.
   const socketRef = useRef<Socket | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -147,6 +161,14 @@ export function FloatingChat() {
   useEffect(() => { viewRef.current = view }, [view])
   const openWindowsRef = useRef<string[]>([])
   useEffect(() => { openWindowsRef.current = openWindows }, [openWindows])
+  // So the eviction-on-open-overflow logic can read each room's last-message
+  // time without needing `rooms` in openConversationWindow's own deps.
+  const roomsRef = useRef<RoomSummary[]>([])
+  useEffect(() => { roomsRef.current = rooms }, [rooms])
+  // Read inside the socket handler (sound) and openConversationWindow (max
+  // window cap) without either needing chatSettings in their own deps.
+  const chatSettingsRef = useRef<ChatSettings>(DEFAULT_CHAT_SETTINGS)
+  useEffect(() => { chatSettingsRef.current = chatSettings }, [chatSettings])
   // Resolved once from the server so incoming socket messages can tell a
   // General/Team message apart from a DM/group one by roomId alone.
   const generalRoomIdRef = useRef<string | null>(null)
@@ -207,18 +229,26 @@ export function FloatingChat() {
       .finally(() => setLoadingRooms(false))
   }, [status])
 
-  // MBM-301 — at most this many satellite DM/group windows are shown at
-  // once; opening one more evicts the longest-untouched (oldest) window
-  // rather than letting them run off the edge of the screen.
-  const MAX_OPEN_WINDOWS = 3
-
   // Open (or re-focus) a DM/group as its own satellite window, clearing its
   // unread badge. Re-opening an already-open one just brings it to front.
+  // Capped by the user's own maxOpenWindows setting (see chat-settings.ts).
   const openConversationWindow = useCallback((roomId: string) => {
     setOpenWindows(prev => {
       const without = prev.filter(id => id !== roomId)
       const next = [...without, roomId]
-      return next.length > MAX_OPEN_WINDOWS ? next.slice(next.length - MAX_OPEN_WINDOWS) : next
+      if (next.length <= chatSettingsRef.current.maxOpenWindows) return next
+
+      // Evict by oldest last-received message among the OTHER open windows
+      // (never the one just opened) — an empty/no-message conversation
+      // counts as the oldest possible, since '' sorts before any ISO date.
+      const candidates = next.filter(id => id !== roomId)
+      let oldestId = candidates[0]
+      let oldestAt = roomsRef.current.find(r => r.id === oldestId)?.lastMessage?.at ?? ''
+      for (const id of candidates.slice(1)) {
+        const at = roomsRef.current.find(r => r.id === id)?.lastMessage?.at ?? ''
+        if (at < oldestAt) { oldestId = id; oldestAt = at }
+      }
+      return next.filter(id => id !== oldestId)
     })
     setRooms(prev => prev.map(r => r.id === roomId ? { ...r, unreadCount: 0 } : r))
     fetch(`/api/chat/rooms/${roomId}/read`, { method: 'POST', credentials: 'include' }).catch(() => {})
@@ -227,6 +257,33 @@ export function FloatingChat() {
   const closeConversationWindow = useCallback((roomId: string) => {
     setOpenWindows(prev => prev.filter(id => id !== roomId))
   }, [])
+
+  // Load this user's chat preferences once known, and persist on change.
+  useEffect(() => {
+    if (!currentUserId) return
+    setChatSettings(loadChatSettings(currentUserId))
+  }, [currentUserId])
+
+  useEffect(() => {
+    if (!currentUserId) return
+    saveChatSettings(currentUserId, chatSettings)
+  }, [currentUserId, chatSettings])
+
+  // If the user just lowered their max below how many are currently open,
+  // trim down immediately rather than waiting for the next one to be opened
+  // — same oldest-last-message eviction, repeated until back within budget.
+  useEffect(() => {
+    if (openWindows.length <= chatSettings.maxOpenWindows) return
+    setOpenWindows(prev => {
+      if (prev.length <= chatSettings.maxOpenWindows) return prev
+      const sorted = [...prev].sort((a, b) => {
+        const at = roomsRef.current.find(r => r.id === a)?.lastMessage?.at ?? ''
+        const bt = roomsRef.current.find(r => r.id === b)?.lastMessage?.at ?? ''
+        return at.localeCompare(bt) // oldest first
+      })
+      return sorted.slice(sorted.length - chatSettings.maxOpenWindows)
+    })
+  }, [chatSettings.maxOpenWindows, openWindows.length])
 
   // MBM-301 — switch the hub panel to show General/Team (roomId === null),
   // or open a DM/group as a satellite window alongside it (roomId set).
@@ -301,6 +358,14 @@ export function FloatingChat() {
       // to the payload — treat those as General too.
       const isGeneralMsg = !msg.roomId || msg.roomId === generalRoomIdRef.current
       const targetRoomId = isGeneralMsg ? null : msg.roomId
+
+      // One chime per incoming message from someone else — regardless of
+      // which conversation it's for, since you might be looking at a
+      // different one (or the list). Membership-change system messages
+      // don't count as "a message received" for this.
+      if (msg.userId !== currentUserId && !msg.isSystem && chatSettingsRef.current.soundEnabled) {
+        playChatNotificationSound()
+      }
 
       if (!isGeneralMsg) {
         // DM/group messages are owned by their own satellite ChatWindow,
@@ -477,30 +542,6 @@ export function FloatingChat() {
     return () => clearTimeout(t)
   }, [listSearch])
 
-  // ── Drag ──────────────────────────────────────────────────────────────────
-  const onHeaderMouseDown = useCallback((e: React.MouseEvent) => {
-    dragRef.current = { startMouseX: e.clientX, startMouseY: e.clientY, startDx: drag.dx, startDy: drag.dy }
-    e.preventDefault()
-  }, [drag])
-
-  useEffect(() => {
-    const onMouseMove = (e: MouseEvent) => {
-      if (!dragRef.current) return
-      const { startMouseX, startMouseY, startDx, startDy } = dragRef.current
-      // Moving mouse right → panel moves right → right anchor decreases → dx decreases
-      const newDx = startDx - (e.clientX - startMouseX)
-      // Moving mouse down → panel moves down → bottom anchor decreases → dy decreases
-      const newDy = startDy - (e.clientY - startMouseY)
-      setDrag({ dx: newDx, dy: newDy })
-    }
-    const onMouseUp = () => { dragRef.current = null }
-    document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseup', onMouseUp)
-    return () => {
-      document.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseup', onMouseUp)
-    }
-  }, [])
 
   // ── Load all users when the "New chat" picker opens ──────────────────────
   useEffect(() => {
@@ -672,8 +713,17 @@ export function FloatingChat() {
 
   /** Render a single message bubble (used for both top-level and thread replies) */
   const renderMessage = (msg: Message, isReply = false) => {
+    if (msg.isSystem) {
+      return (
+        <div key={msg.id} className="flex items-center justify-center mb-2">
+          <span className="text-[10px] text-secondary bg-gray-100 dark:bg-gray-800 rounded-full px-2.5 py-1 text-center">
+            🔔 {msg.message}
+          </span>
+        </div>
+      )
+    }
     const isOwn = msg.userId === currentUserId
-    const color = isOwn ? null : getUserColor(msg.userId)
+    const color = isOwn ? null : getUserColor(msg.userId ?? msg.id)
     const isPrivate = msg.recipients.length > 0
     const myLatestId = [...messages].reverse().find(m => m.userId === currentUserId)?.id
     const isLatestOwn = isOwn && msg.id === myLatestId && !isReply
@@ -853,13 +903,12 @@ export function FloatingChat() {
   return (
     <>
     <div
-      style={{ position: 'fixed', right: 24 + drag.dx, bottom: 72 + drag.dy, width: PANEL_W, height: PANEL_H, zIndex: 9999 }}
+      style={{ position: 'fixed', right: 24, bottom: 72, width: PANEL_W, height: PANEL_H, zIndex: 9999 }}
       className="flex flex-col rounded-2xl shadow-2xl border border-border bg-white dark:bg-gray-900 overflow-hidden"
     >
-      {/* Draggable header */}
+      {/* Header — fixed in place; this is the one window that doesn't move */}
       <div
-        onMouseDown={onHeaderMouseDown}
-        className="flex items-center justify-between px-4 py-3 bg-indigo-600 text-white cursor-grab active:cursor-grabbing select-none shrink-0"
+        className="flex items-center justify-between px-4 py-3 bg-indigo-600 text-white select-none shrink-0"
       >
         <div className="flex items-center gap-2 min-w-0">
           {view === 'team' && (
@@ -936,6 +985,18 @@ export function FloatingChat() {
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onMouseDown={e => e.stopPropagation()}
+            onClick={() => setShowChatSettings(true)}
+            className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
+            title="Chat settings"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           </button>
           <button
@@ -1231,6 +1292,56 @@ export function FloatingChat() {
           </div>
         </div>
       )}
+
+      {/* Chat settings overlay — reachable from either the list or an open conversation */}
+      {showChatSettings && (
+        <div className="absolute inset-0 z-30 flex flex-col bg-white dark:bg-gray-900">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+            <span className="font-semibold text-sm text-primary">Chat settings</span>
+            <button type="button" onClick={() => setShowChatSettings(false)} className="text-secondary hover:text-primary text-lg leading-none" title="Close">×</button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium text-primary">🔊 Notification sound</div>
+                <div className="text-xs text-secondary mt-0.5">Play a chime when a new message arrives</div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={chatSettings.soundEnabled}
+                onClick={() => setChatSettings(prev => ({ ...prev, soundEnabled: !prev.soundEnabled }))}
+                className={`relative w-10 h-6 rounded-full shrink-0 transition-colors ${chatSettings.soundEnabled ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+              >
+                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${chatSettings.soundEnabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
+
+            <div>
+              <div className="text-sm font-medium text-primary">🪟 Max open chat windows</div>
+              <div className="text-xs text-secondary mt-0.5 mb-2">
+                How many DM/group windows can be open at once (up to {MAX_OPEN_WINDOWS_CAP}) — opening one more closes whichever's gone longest without a new message.
+              </div>
+              <div className="flex items-center gap-2">
+                {Array.from({ length: MAX_OPEN_WINDOWS_CAP - MIN_OPEN_WINDOWS + 1 }, (_, i) => i + MIN_OPEN_WINDOWS).map(n => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setChatSettings(prev => ({ ...prev, maxOpenWindows: clampMaxOpenWindows(n) }))}
+                    className={`w-8 h-8 rounded-lg text-sm font-semibold border transition-colors ${
+                      chatSettings.maxOpenWindows === n
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'text-primary border-border hover:bg-gray-50 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </div>
 
@@ -1241,7 +1352,7 @@ export function FloatingChat() {
       const room = rooms.find(r => r.id === roomId)
       if (!room) return null
       const indexFromHub = openWindows.length - 1 - i
-      const rightOffset = 24 + drag.dx + PANEL_W + 12 + indexFromHub * (300 + 12)
+      const rightOffset = 24 + PANEL_W + 12 + indexFromHub * (300 + 12)
       return (
         <ChatWindow
           key={roomId}

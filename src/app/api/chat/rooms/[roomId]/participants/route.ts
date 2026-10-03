@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
-import { emitToUser } from '@/lib/customer-display/socket-server'
+import { emitToUser, emitToUsers } from '@/lib/customer-display/socket-server'
+import { postSystemMessage } from '@/lib/chat/rooms'
 
 /** POST /api/chat/rooms/[roomId]/participants — add a member to a group (creator only). Body: { userId }. */
 export async function POST(
@@ -25,10 +26,22 @@ export async function POST(
     const existing = await prisma.chatParticipants.findFirst({ where: { roomId, userId } })
     if (existing) return NextResponse.json({ success: true }) // already a member — no-op
 
+    const newMember = await prisma.users.findUnique({ where: { id: userId }, select: { name: true } })
+
     await prisma.chatParticipants.create({ data: { roomId, userId } })
 
     // So they see the group immediately rather than waiting for a refresh.
     try { emitToUser(userId, 'chat:room-added', { roomId }) } catch { /* non-critical */ }
+
+    // Welcome/event message in the group's own history — visible to the new
+    // member the moment they open it (full history, not just from here on),
+    // and live for anyone with the window already open.
+    try {
+      const welcome = await postSystemMessage(roomId, `${user.name ?? 'Someone'} added ${newMember?.name ?? 'a new member'} to the group`)
+      const allParticipants = await prisma.chatParticipants.findMany({ where: { roomId } })
+      const allIds = allParticipants.map(p => p.userId).filter((id): id is string => !!id)
+      emitToUsers(allIds, 'chat:message', welcome)
+    } catch { /* non-critical */ }
 
     return NextResponse.json({ success: true })
   } catch (err) {
