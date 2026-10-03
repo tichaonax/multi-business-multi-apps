@@ -121,22 +121,30 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
   const [mentionFilter, setMentionFilter] = useState('')
 
   // Draggable — unlike the (fixed) hub, satellite windows can be moved out
-  // of the way. Offset from the computed cascade position (rightOffset/72).
-  const [drag, setDrag] = useState({ dx: 0, dy: 0 })
-  const dragRef = useRef<{ startMouseX: number; startMouseY: number; startDx: number; startDy: number } | null>(null)
+  // of the way. Stored as an ABSOLUTE right/bottom position (not an offset
+  // from the cascade slot): rightOffset is recomputed by the parent every
+  // time a window opens/closes (it depends on this window's index among
+  // openWindows), so an offset-from-cascade would silently "jump" a window
+  // the moment a sibling window opened or closed. Once the user has dragged
+  // a window, it ignores rightOffset entirely and stays exactly where they
+  // put it, regardless of how many other windows open or close afterward.
+  const [customPosition, setCustomPosition] = useState<{ right: number; bottom: number } | null>(null)
+  const dragRef = useRef<{ startMouseX: number; startMouseY: number; startRight: number; startBottom: number } | null>(null)
 
   const onHeaderMouseDown = useCallback((e: React.MouseEvent) => {
-    dragRef.current = { startMouseX: e.clientX, startMouseY: e.clientY, startDx: drag.dx, startDy: drag.dy }
+    const startRight = customPosition ? customPosition.right : rightOffset
+    const startBottom = customPosition ? customPosition.bottom : 72
+    dragRef.current = { startMouseX: e.clientX, startMouseY: e.clientY, startRight, startBottom }
     e.preventDefault()
-  }, [drag])
+  }, [customPosition, rightOffset])
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
       if (!dragRef.current) return
-      const { startMouseX, startMouseY, startDx, startDy } = dragRef.current
-      const newDx = startDx - (e.clientX - startMouseX)
-      const newDy = startDy - (e.clientY - startMouseY)
-      setDrag({ dx: newDx, dy: newDy })
+      const { startMouseX, startMouseY, startRight, startBottom } = dragRef.current
+      const newRight = startRight - (e.clientX - startMouseX)
+      const newBottom = startBottom - (e.clientY - startMouseY)
+      setCustomPosition({ right: newRight, bottom: newBottom })
     }
     const onMouseUp = () => { dragRef.current = null }
     document.addEventListener('mousemove', onMouseMove)
@@ -484,7 +492,14 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
   // fixed-width desktop box, and skip dragging (nowhere useful to put it).
   const windowStyle: React.CSSProperties = isMobile
     ? { position: 'fixed', left: 12, right: 12, bottom: 12, height: '70vh', zIndex: 9990 }
-    : { position: 'fixed', right: rightOffset + drag.dx, bottom: 72 + drag.dy, width: WINDOW_W, height: WINDOW_H, zIndex: 9990 }
+    : {
+        position: 'fixed',
+        right: customPosition ? customPosition.right : rightOffset,
+        bottom: customPosition ? customPosition.bottom : 72,
+        width: WINDOW_W,
+        height: WINDOW_H,
+        zIndex: 9990,
+      }
 
   return (
     <div
