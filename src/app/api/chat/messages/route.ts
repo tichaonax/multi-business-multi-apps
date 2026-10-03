@@ -3,21 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { emitToRoom, emitToUsers } from '@/lib/customer-display/socket-server'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
-
-const GENERAL_ROOM_NAME = 'General'
-
-/** Get or create the single general chat room */
-async function getGeneralRoom() {
-  let room = await prisma.chatRooms.findFirst({
-    where: { name: GENERAL_ROOM_NAME, type: 'group' },
-  })
-  if (!room) {
-    room = await prisma.chatRooms.create({
-      data: { name: GENERAL_ROOM_NAME, type: 'group' },
-    })
-  }
-  return room
-}
+import { getGeneralRoom } from '@/lib/chat/rooms'
 
 /** Shape a raw DB message into the API payload */
 function shapeMessage(m: any, replyCount = 0) {
@@ -27,6 +13,7 @@ function shapeMessage(m: any, replyCount = 0) {
   const initials = (firstName.charAt(0) + lastName.charAt(0)).toUpperCase() || (m.users?.name ?? '?').charAt(0).toUpperCase()
   return {
     id: m.id,
+    roomId: m.roomId ?? null,
     userId: m.userId,
     userName: m.users?.name ?? 'Unknown',
     userPhotoUrl: emp?.profilePhotoUrl ?? null,
@@ -44,35 +31,61 @@ function shapeMessage(m: any, replyCount = 0) {
   }
 }
 
-/** GET /api/chat/messages — fetch last 100 messages visible to the current user */
-export async function GET() {
+/** GET /api/chat/messages?roomId=... — fetch last 100 messages visible to the current user. Omit roomId for the General/Team room (default, unchanged). */
+export async function GET(request: NextRequest) {
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const room = await getGeneralRoom()
+    const requestedRoomId = request.nextUrl.searchParams.get('roomId')
+    const generalRoom = await getGeneralRoom()
+    const isGeneral = !requestedRoomId || requestedRoomId === generalRoom.id
 
-    // Prune messages older than 7 days (fire-and-forget)
-    const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-    prisma.chatMessages.deleteMany({ where: { roomId: room.id, createdAt: { lt: cutoff } } }).catch(() => {})
+    if (isGeneral) {
+      // Prune messages older than 7 days (fire-and-forget) — only the
+      // General feed accumulates unbounded broadcast traffic like this.
+      const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      prisma.chatMessages.deleteMany({ where: { roomId: generalRoom.id, createdAt: { lt: cutoff } } }).catch(() => {})
 
-    // Fetch top-level messages (no parentId) the current user can see:
-    //  - message has no recipients (public), OR
-    //  - user is the sender, OR
-    //  - user is listed as a recipient
+      // Fetch top-level messages (no parentId) the current user can see:
+      //  - message has no recipients (public), OR
+      //  - user is the sender, OR
+      //  - user is listed as a recipient
+      const messages = await prisma.chatMessages.findMany({
+        where: {
+          roomId: generalRoom.id,
+          parentId: null,
+          OR: [
+            // Public broadcast: no recipient rows exist
+            { chat_message_recipients: { none: {} } },
+            // Sender always sees their own messages
+            { userId: user.id },
+            // Explicitly listed as recipient
+            { chat_message_recipients: { some: { userId: user.id } } },
+          ],
+        },
+        orderBy: { createdAt: 'asc' },
+        take: 100,
+        include: {
+          users: { select: { name: true, employees: { select: { firstName: true, lastName: true, profilePhotoUrl: true } } } },
+          chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
+          replies: { where: { deletedAt: null }, select: { id: true } },
+        },
+      })
+
+      return NextResponse.json(messages.map(m => shapeMessage(m, m.replies.length)))
+    }
+
+    // DM/group room — membership itself is the audience, so every top-level
+    // message in the room is visible to every participant, no recipient
+    // filtering needed.
+    const membership = await prisma.chatParticipants.findFirst({
+      where: { roomId: requestedRoomId, userId: user.id },
+    })
+    if (!membership) return NextResponse.json({ error: 'Not a participant of this conversation' }, { status: 403 })
+
     const messages = await prisma.chatMessages.findMany({
-      where: {
-        roomId: room.id,
-        parentId: null,
-        OR: [
-          // Public broadcast: no recipient rows exist
-          { chat_message_recipients: { none: {} } },
-          // Sender always sees their own messages
-          { userId: user.id },
-          // Explicitly listed as recipient
-          { chat_message_recipients: { some: { userId: user.id } } },
-        ],
-      },
+      where: { roomId: requestedRoomId, parentId: null },
       orderBy: { createdAt: 'asc' },
       take: 100,
       include: {
@@ -102,8 +115,51 @@ export async function POST(request: NextRequest) {
     const recipientIds: string[] = Array.isArray(body?.recipientIds) ? body.recipientIds : []
     const parentId: string | null = body?.parentId ?? null
     const replyScope: 'OWNER' | 'ALL' | null = body?.replyScope ?? null
+    const requestedRoomId: string | null = typeof body?.roomId === 'string' ? body.roomId : null
 
-    const room = await getGeneralRoom()
+    const generalRoom = await getGeneralRoom()
+    const isGeneral = !requestedRoomId || requestedRoomId === generalRoom.id
+
+    if (!isGeneral) {
+      // DM/group room — membership is the audience, so there's no per-message
+      // recipient set to compute; a reply just threads under parentId with
+      // no OWNER/ALL distinction (everyone in the room already sees it all).
+      const participants = await prisma.chatParticipants.findMany({ where: { roomId: requestedRoomId } })
+      const participantIds = participants.map(p => p.userId).filter((id): id is string => !!id)
+      if (!participantIds.includes(user.id)) {
+        return NextResponse.json({ error: 'Not a participant of this conversation' }, { status: 403 })
+      }
+      if (parentId) {
+        const parent = await prisma.chatMessages.findUnique({ where: { id: parentId } })
+        if (!parent || parent.roomId !== requestedRoomId) {
+          return NextResponse.json({ error: 'Parent message not found' }, { status: 404 })
+        }
+      }
+
+      const created = await prisma.chatMessages.create({
+        data: { roomId: requestedRoomId, userId: user.id, message, parentId },
+        include: { users: { select: { name: true, employees: { select: { firstName: true, lastName: true, profilePhotoUrl: true } } } } },
+      })
+
+      const payload = shapeMessage(created, 0)
+      try { emitToUsers(participantIds, 'chat:message', payload) } catch { /* non-critical */ }
+      try {
+        const recipientsOnly = participantIds.filter(id => id !== user.id)
+        if (recipientsOnly.length > 0) {
+          await emitNotification({
+            userIds: recipientsOnly,
+            type: 'CHAT_MESSAGE',
+            title: `💬 ${payload.userName}`,
+            message: payload.message.length > 80 ? payload.message.slice(0, 80) + '…' : payload.message,
+            linkUrl: '/chat',
+          })
+        }
+      } catch { /* non-critical */ }
+
+      return NextResponse.json(payload, { status: 201 })
+    }
+
+    const room = generalRoom
 
     // Validate parent when replying
     let resolvedRecipientIds = recipientIds
@@ -116,7 +172,12 @@ export async function POST(request: NextRequest) {
         where: { id: parentId },
         include: { chat_message_recipients: { select: { userId: true } } },
       })
-      if (!parent) return NextResponse.json({ error: 'Parent message not found' }, { status: 404 })
+      if (!parent || parent.roomId !== room.id) {
+        // Guards against a DM/group thread's id being replied to through the
+        // General path, which would otherwise create an 'ALL'-scope reply
+        // (broadcast to everyone) referencing a private conversation.
+        return NextResponse.json({ error: 'Parent message not found' }, { status: 404 })
+      }
 
       if (replyScope === 'OWNER') {
         // Reply only goes to the thread owner

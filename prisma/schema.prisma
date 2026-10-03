@@ -792,6 +792,9 @@ model ChatParticipants {
   joinedAt   DateTime   @default(now())
   roomId     String?
   userId     String?
+  // MBM-301 — when this participant last read the room; drives their
+  // per-conversation unread badge (messages newer than this, not their own).
+  lastReadAt DateTime?
   chat_rooms ChatRooms? @relation(fields: [roomId], references: [id], onDelete: Cascade)
   users      Users?     @relation(fields: [userId], references: [id])
 

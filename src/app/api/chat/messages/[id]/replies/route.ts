@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
+import { getGeneralRoom } from '@/lib/chat/rooms'
 
 /** GET /api/chat/messages/[id]/replies — fetch all replies to a message */
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
@@ -8,15 +9,32 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    const parent = await prisma.chatMessages.findUnique({ where: { id: params.id }, select: { roomId: true } })
+    if (!parent) return NextResponse.json({ error: 'Parent message not found' }, { status: 404 })
+
+    const generalRoom = await getGeneralRoom()
+    const isGeneral = !parent.roomId || parent.roomId === generalRoom.id
+
+    // DM/group thread — membership (not per-reply recipients, which don't
+    // exist for room-scoped messages) is what gates visibility here.
+    if (!isGeneral) {
+      const membership = await prisma.chatParticipants.findFirst({
+        where: { roomId: parent.roomId, userId: user.id },
+      })
+      if (!membership) return NextResponse.json({ error: 'Not a participant of this conversation' }, { status: 403 })
+    }
+
     const replies = await prisma.chatMessages.findMany({
-      where: {
-        parentId: params.id,
-        OR: [
-          { chat_message_recipients: { none: {} } },
-          { userId: user.id },
-          { chat_message_recipients: { some: { userId: user.id } } },
-        ],
-      },
+      where: isGeneral
+        ? {
+            parentId: params.id,
+            OR: [
+              { chat_message_recipients: { none: {} } },
+              { userId: user.id },
+              { chat_message_recipients: { some: { userId: user.id } } },
+            ],
+          }
+        : { parentId: params.id },
       orderBy: { createdAt: 'asc' },
       include: {
         users: { select: { name: true, employees: { select: { firstName: true, lastName: true, profilePhotoUrl: true } } } },
@@ -31,6 +49,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       const initials = (firstName.charAt(0) + lastName.charAt(0)).toUpperCase() || ((m.users as any)?.name ?? '?').charAt(0).toUpperCase()
       return {
         id: m.id,
+        roomId: m.roomId ?? null,
         userId: m.userId,
         userName: (m.users as any)?.name ?? 'Unknown',
         userPhotoUrl: (emp?.profilePhotoUrl ?? null) as string | null,
