@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { usePathname } from 'next/navigation'
 import { io, Socket } from 'socket.io-client'
 import { setChatBadge } from '@/lib/chat-badge'
+import { ChatWindow } from '@/components/chat/chat-window'
 
 interface Recipient { id: string; name: string }
 
@@ -24,17 +25,27 @@ interface Message {
   recipients: Recipient[]
 }
 
-interface UserOption { id: string; name: string; online?: boolean }
+interface UserOption { id: string; name: string; online?: boolean; photoUrl?: string | null }
 
 // MBM-301 — a persistent DM/group conversation, distinct from the single
-// General/Team room (which stays represented by activeRoomId === null).
+// General/Team room, which lives in the hub panel itself. DM/group
+// conversations instead open as independent satellite ChatWindows (see
+// openWindows below) so several can be open side by side.
 interface RoomSummary {
   id: string
   type: 'direct' | 'group'
   name: string
-  participants: { id: string; name: string }[]
+  participants: { id: string; name: string; photoUrl: string | null }[]
   lastMessage: { text: string; at: string; isOwn: boolean } | null
   unreadCount: number
+}
+
+interface SearchResult {
+  roomId: string | null
+  roomName: string
+  messageId: string
+  snippet: string
+  createdAt: string
 }
 
 const PANEL_W = 360
@@ -65,6 +76,19 @@ function getUserColor(userId: string) {
   return PALETTE[Math.abs(hash) % PALETTE.length]
 }
 
+// Keeps the conversation list ordered most-recent-first after a LOCAL
+// lastMessage update (sending/receiving) — the server already returns it
+// sorted, but a plain setRooms(prev => prev.map(...)) preserves array order,
+// so without this a just-active conversation wouldn't jump back to the top
+// until the next full refetch.
+function sortRoomsByRecency(rooms: RoomSummary[]): RoomSummary[] {
+  return [...rooms].sort((a, b) => {
+    const at = a.lastMessage?.at ?? ''
+    const bt = b.lastMessage?.at ?? ''
+    return bt.localeCompare(at)
+  })
+}
+
 export function FloatingChat() {
   const { data: session, status } = useSession()
   const pathname = usePathname()
@@ -87,17 +111,25 @@ export function FloatingChat() {
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null)
   const [showOnlineTooltip, setShowOnlineTooltip] = useState(false)
 
-  // MBM-301 — persistent conversations (DMs/groups) alongside General/Team.
-  // activeRoomId === null means "General/Team" — today's only conversation.
-  const [view, setView] = useState<'list' | 'conversation'>('conversation')
-  const [activeRoomId, setActiveRoomId] = useState<string | null>(null)
+  // MBM-301 — the hub panel itself only ever shows the conversation list or
+  // Team/General. Every DM/group opens as its own satellite ChatWindow
+  // (openWindows, a list of room ids) rendered alongside the hub, so several
+  // can be open — and told apart — at once instead of replacing each other.
+  const [view, setView] = useState<'list' | 'team'>('team')
   const [rooms, setRooms] = useState<RoomSummary[]>([])
+  const [openWindows, setOpenWindows] = useState<string[]>([])
   const [loadingRooms, setLoadingRooms] = useState(false)
   const [showNewChat, setShowNewChat] = useState(false)
   const [newChatSearch, setNewChatSearch] = useState('')
   const [newChatSelectedIds, setNewChatSelectedIds] = useState<string[]>([])
   const [newChatGroupName, setNewChatGroupName] = useState('')
   const [creatingRoom, setCreatingRoom] = useState(false)
+  const [showOnlineList, setShowOnlineList] = useState(false)
+
+  // Conversation-list search — instant by room name, debounced by message content
+  const [listSearch, setListSearch] = useState('')
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [searching, setSearching] = useState(false)
 
   // Drag offset from the CSS bottom-right anchor (right: 24, bottom: 72)
   const [drag, setDrag] = useState({ dx: 0, dy: 0 })
@@ -110,11 +142,11 @@ export function FloatingChat() {
   useEffect(() => { isOpenRef.current = isOpen }, [isOpen])
   // The socket message handler below is registered once (on connect) — these
   // mirror fast-changing state into refs so it always reads the CURRENT
-  // active room/view instead of whatever was current when it was registered.
-  const activeRoomIdRef = useRef<string | null>(null)
-  useEffect(() => { activeRoomIdRef.current = activeRoomId }, [activeRoomId])
-  const viewRef = useRef<'list' | 'conversation'>(view)
+  // view/open-windows instead of whatever was current when it was registered.
+  const viewRef = useRef<'list' | 'team'>(view)
   useEffect(() => { viewRef.current = view }, [view])
+  const openWindowsRef = useRef<string[]>([])
+  useEffect(() => { openWindowsRef.current = openWindows }, [openWindows])
   // Resolved once from the server so incoming socket messages can tell a
   // General/Team message apart from a DM/group one by roomId alone.
   const generalRoomIdRef = useRef<string | null>(null)
@@ -175,23 +207,42 @@ export function FloatingChat() {
       .finally(() => setLoadingRooms(false))
   }, [status])
 
-  // MBM-301 — switch the panel into a conversation (null = General/Team),
-  // loading its history and clearing its unread badge.
+  // MBM-301 — at most this many satellite DM/group windows are shown at
+  // once; opening one more evicts the longest-untouched (oldest) window
+  // rather than letting them run off the edge of the screen.
+  const MAX_OPEN_WINDOWS = 3
+
+  // Open (or re-focus) a DM/group as its own satellite window, clearing its
+  // unread badge. Re-opening an already-open one just brings it to front.
+  const openConversationWindow = useCallback((roomId: string) => {
+    setOpenWindows(prev => {
+      const without = prev.filter(id => id !== roomId)
+      const next = [...without, roomId]
+      return next.length > MAX_OPEN_WINDOWS ? next.slice(next.length - MAX_OPEN_WINDOWS) : next
+    })
+    setRooms(prev => prev.map(r => r.id === roomId ? { ...r, unreadCount: 0 } : r))
+    fetch(`/api/chat/rooms/${roomId}/read`, { method: 'POST', credentials: 'include' }).catch(() => {})
+  }, [])
+
+  const closeConversationWindow = useCallback((roomId: string) => {
+    setOpenWindows(prev => prev.filter(id => id !== roomId))
+  }, [])
+
+  // MBM-301 — switch the hub panel to show General/Team (roomId === null),
+  // or open a DM/group as a satellite window alongside it (roomId set).
   const switchRoom = useCallback((roomId: string | null) => {
-    setActiveRoomId(roomId)
-    setView('conversation')
+    if (roomId) {
+      openConversationWindow(roomId)
+      return
+    }
+    setView('team')
     setExpandedThreads({})
     setReplyingTo(null)
     setReplyScope('ALL')
-    loadMessages(roomId).then((data: Message[]) => { setMessages(data || []); setTimeout(scrollToBottom, 50) })
-    if (roomId) {
-      setRooms(prev => prev.map(r => r.id === roomId ? { ...r, unreadCount: 0 } : r))
-      fetch(`/api/chat/rooms/${roomId}/read`, { method: 'POST', credentials: 'include' }).catch(() => {})
-    } else {
-      setUnread(0)
-      setUnreadDirect(0)
-    }
-  }, [loadMessages, scrollToBottom])
+    loadMessages(null).then((data: Message[]) => { setMessages(data || []); setTimeout(scrollToBottom, 50) })
+    setUnread(0)
+    setUnreadDirect(0)
+  }, [loadMessages, scrollToBottom, openConversationWindow])
 
   // Fetch message history and seed unread counts from messages received since last open
   useEffect(() => {
@@ -250,26 +301,57 @@ export function FloatingChat() {
       // to the payload — treat those as General too.
       const isGeneralMsg = !msg.roomId || msg.roomId === generalRoomIdRef.current
       const targetRoomId = isGeneralMsg ? null : msg.roomId
-      const isActiveRoom = viewRef.current === 'conversation' && activeRoomIdRef.current === targetRoomId
+
+      if (!isGeneralMsg) {
+        // DM/group messages are owned by their own satellite ChatWindow,
+        // which has its own socket listener for its own roomId — the hub
+        // only keeps the conversation-list preview/unread fresh and
+        // auto-opens a window when the panel was minimized.
+        if (!msg.parentId) {
+          setRooms(prev => {
+            const idx = prev.findIndex(r => r.id === targetRoomId)
+            if (idx === -1) return prev // unknown (brand-new) room — backfilled below
+            const next = [...prev]
+            next[idx] = { ...next[idx], lastMessage: { text: msg.message, at: msg.createdAt, isOwn: msg.userId === currentUserId } }
+            return sortRoomsByRecency(next)
+          })
+        }
+        if (msg.userId === currentUserId) return // never badge our own message
+
+        if (!isOpenRef.current) {
+          cancelAutoClose()
+          switchRoom(targetRoomId) // opens straight into it as a satellite window
+          loadRooms()
+          setIsOpen(true)
+          autoCloseTimerRef.current = setTimeout(() => {
+            autoCloseTimerRef.current = null
+            setIsOpen(false)
+          }, 5000)
+        } else if (!openWindowsRef.current.includes(targetRoomId!)) {
+          setRooms(prev => {
+            if (prev.some(r => r.id === targetRoomId)) {
+              return prev.map(r => r.id === targetRoomId ? { ...r, unreadCount: r.unreadCount + 1 } : r)
+            }
+            loadRooms() // brand-new conversation — not in the list yet
+            return prev
+          })
+        }
+        return
+      }
+
+      // General/Team — rendered inside the hub itself.
+      const isTeamOpen = viewRef.current === 'team'
 
       if (msg.parentId) {
-        // In General, a thread reply is only "for me" if I'm a listed
-        // recipient (today's behaviour). In a DM/group, every member is
-        // always the audience, so it's "for me" whenever that room is open.
-        const isDirectedAtMe = msg.userId !== currentUserId && (
-          isGeneralMsg
-            ? (msg.recipients.length > 0 && msg.recipients.some(r => r.id === currentUserId))
-            : isActiveRoom
-        )
+        const isDirectedAtMe = msg.userId !== currentUserId &&
+          msg.recipients.length > 0 && msg.recipients.some(r => r.id === currentUserId)
 
         setExpandedThreads(prev => {
           if (prev[msg.parentId!]) {
-            // Thread already open — append the reply
             const already = prev[msg.parentId!].some(m => m.id === msg.id)
             if (already) return prev
             return { ...prev, [msg.parentId!]: [...prev[msg.parentId!], msg] }
           }
-          // Auto-expand thread when a targeted reply arrives for me
           if (isDirectedAtMe) return { ...prev, [msg.parentId!]: [msg] }
           return prev
         })
@@ -279,7 +361,7 @@ export function FloatingChat() {
         if (isDirectedAtMe) {
           setTimeout(scrollToBottom, 100)
           if (!isOpenRef.current) {
-            if (isGeneralMsg) setUnreadDirect(u => u + 1)
+            setUnreadDirect(u => u + 1)
             cancelAutoClose()
             setIsOpen(true)
             autoCloseTimerRef.current = setTimeout(() => {
@@ -291,60 +373,45 @@ export function FloatingChat() {
         return
       }
 
-      // Top-level message
-      if (isActiveRoom) {
+      if (isTeamOpen) {
         setMessages(prev => {
           if (prev.some(m => m.id === msg.id)) return prev
           return [...prev, msg]
         })
         setTimeout(scrollToBottom, 50)
-      } else if (!isGeneralMsg) {
-        // Not looking at this room right now — keep its list preview fresh.
-        setRooms(prev => {
-          const idx = prev.findIndex(r => r.id === targetRoomId)
-          if (idx === -1) return prev // unknown (brand-new) room — refetched below
-          const next = [...prev]
-          next[idx] = { ...next[idx], lastMessage: { text: msg.message, at: msg.createdAt, isOwn: msg.userId === currentUserId } }
-          return next
-        })
       }
 
       if (msg.userId === currentUserId) return // never badge our own message
 
       if (!isOpenRef.current) {
         cancelAutoClose()
-        if (isGeneralMsg) {
-          const isDirect = msg.recipients.length > 0 && msg.recipients.some(r => r.id === currentUserId)
-          if (isDirect) setUnreadDirect(u => u + 1); else setUnread(u => u + 1)
-        } else {
-          // Auto-open straight into the conversation this message belongs to.
-          switchRoom(targetRoomId)
-          loadRooms() // backfills a brand-new conversation into the list
-        }
+        const isDirect = msg.recipients.length > 0 && msg.recipients.some(r => r.id === currentUserId)
+        if (isDirect) setUnreadDirect(u => u + 1); else setUnread(u => u + 1)
         setIsOpen(true)
         autoCloseTimerRef.current = setTimeout(() => {
           autoCloseTimerRef.current = null
           setIsOpen(false)
         }, 5000)
-      } else if (!isActiveRoom) {
-        // Panel is open but on a different conversation (or the list) — just badge it.
-        if (isGeneralMsg) {
-          const isDirect = msg.recipients.length > 0 && msg.recipients.some(r => r.id === currentUserId)
-          if (isDirect) setUnreadDirect(u => u + 1); else setUnread(u => u + 1)
-        } else {
-          setRooms(prev => {
-            if (prev.some(r => r.id === targetRoomId)) {
-              return prev.map(r => r.id === targetRoomId ? { ...r, unreadCount: r.unreadCount + 1 } : r)
-            }
-            loadRooms() // brand-new conversation — not in the list yet
-            return prev
-          })
-        }
+      } else if (!isTeamOpen) {
+        const isDirect = msg.recipients.length > 0 && msg.recipients.some(r => r.id === currentUserId)
+        if (isDirect) setUnreadDirect(u => u + 1); else setUnread(u => u + 1)
       }
     })
 
     socket.on('chat:message:deleted', ({ id }: { id: string }) => {
       setMessages(prev => prev.map(m => m.id === id ? { ...m, deletedAt: new Date().toISOString() } : m))
+    })
+
+    // Removed from a group — its window (if open) closes and it drops out
+    // of the list, same as if it never existed for this user.
+    socket.on('chat:room-removed', ({ roomId }: { roomId: string }) => {
+      setOpenWindows(prev => prev.filter(id => id !== roomId))
+      setRooms(prev => prev.filter(r => r.id !== roomId))
+    })
+
+    // Added to a new/existing group — pick it up into the list.
+    socket.on('chat:room-added', () => {
+      loadRooms()
     })
 
     // Presence events — live updates when users come online/offline
@@ -367,8 +434,8 @@ export function FloatingChat() {
   useEffect(() => {
     if (isOpen) {
       loadRooms()
-      if (view === 'conversation') {
-        loadMessages(activeRoomId).then((data: Message[]) => { setMessages(data || []); setTimeout(scrollToBottom, 50) })
+      if (view === 'team') {
+        loadMessages(null).then((data: Message[]) => { setMessages(data || []); setTimeout(scrollToBottom, 50) })
       }
       fetch('/api/notifications/read-all?type=CHAT_MESSAGE', { method: 'PUT', credentials: 'include' }).catch(() => {})
       setTimeout(() => { scrollToBottom(); inputRef.current?.focus() }, 100)
@@ -392,6 +459,23 @@ export function FloatingChat() {
     window.addEventListener('chat:open', openManually)
     return () => window.removeEventListener('chat:open', openManually)
   }, []) // openManually is stable (useCallback with no deps)
+
+  // Debounced message-content search — conversation-name matching is instant
+  // (filtered client-side from `rooms`), this covers "find the chat where
+  // someone said X" instead.
+  useEffect(() => {
+    const q = listSearch.trim()
+    if (q.length < 2) { setSearchResults([]); setSearching(false); return }
+    setSearching(true)
+    const t = setTimeout(() => {
+      fetch(`/api/chat/search?q=${encodeURIComponent(q)}`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : [])
+        .then((data: SearchResult[]) => setSearchResults(data))
+        .catch(() => setSearchResults([]))
+        .finally(() => setSearching(false))
+    }, 300)
+    return () => clearTimeout(t)
+  }, [listSearch])
 
   // ── Drag ──────────────────────────────────────────────────────────────────
   const onHeaderMouseDown = useCallback((e: React.MouseEvent) => {
@@ -466,6 +550,28 @@ export function FloatingChat() {
     }
   }
 
+  // Quick-start a DM directly from the "N online" list — same find-or-create
+  // as startNewChat, without going through the multi-select picker.
+  const startDirectChat = async (userId: string) => {
+    if (creatingRoom) return
+    setCreatingRoom(true)
+    try {
+      const res = await fetch('/api/chat/rooms', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userIds: [userId] }),
+      })
+      if (!res.ok) return
+      const created: { id: string } = await res.json()
+      setShowOnlineList(false)
+      await loadRooms()
+      switchRoom(created.id)
+    } catch { /* non-critical */ } finally {
+      setCreatingRoom(false)
+    }
+  }
+
   const cancelReply = () => {
     setReplyingTo(null)
     setReplyScope('ALL')
@@ -489,7 +595,9 @@ export function FloatingChat() {
     }
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // ── Helpers ─────────────────────────────────────────────────────────────
+  // The hub's own composer is always General/Team now — DM/group rooms send
+  // through their own satellite ChatWindow's identical-in-spirit sendMessage.
   const sendMessage = async () => {
     const text = newMessage.trim()
     if (!text || sending) return
@@ -497,11 +605,9 @@ export function FloatingChat() {
     setNewMessage('')
     try {
       const body: any = { message: text }
-      if (activeRoomId) body.roomId = activeRoomId
       if (replyingTo) {
         body.parentId = replyingTo.id
-        // DM/group rooms have no OWNER/ALL distinction — every member already sees everything.
-        if (!activeRoomId) body.replyScope = replyScope
+        body.replyScope = replyScope
       }
       const res = await fetch('/api/chat/messages', {
         method: 'POST',
@@ -529,11 +635,6 @@ export function FloatingChat() {
         } else {
           setMessages(prev => prev.some(m => m.id === saved.id) ? prev : [...prev, saved])
           setTimeout(scrollToBottom, 50)
-          if (activeRoomId) {
-            setRooms(prev => prev.map(r => r.id === activeRoomId
-              ? { ...r, lastMessage: { text: saved.message, at: saved.createdAt, isOwn: true } }
-              : r))
-          }
         }
       }
       setReplyingTo(null)
@@ -609,7 +710,7 @@ export function FloatingChat() {
               </span>
             )}
           </div>
-          <div className={`px-3 py-1.5 rounded-2xl text-xs leading-relaxed ${
+          <div className={`px-3 py-1.5 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap break-words ${
             msg.deletedAt
               ? 'bg-gray-100 dark:bg-gray-800 text-secondary italic border border-dashed border-gray-300 dark:border-gray-600'
               : isOwn
@@ -671,10 +772,19 @@ export function FloatingChat() {
   if (pathname?.startsWith('/customer-display')) return null
   if (status !== 'authenticated') return null
 
-  const activeRoom = activeRoomId ? rooms.find(r => r.id === activeRoomId) : null
   const roomsUnreadTotal = rooms.reduce((sum, r) => sum + r.unreadCount, 0)
   const filteredNewChatUsers = allUsers.filter(u =>
     !newChatSearch.trim() || u.name.toLowerCase().includes(newChatSearch.trim().toLowerCase())
+  )
+
+  // Conversation-list search: instant name match + debounced content match
+  const nameQuery = listSearch.trim().toLowerCase()
+  const teamMatchesName = !nameQuery || 'team chat'.includes(nameQuery)
+  const filteredRooms = nameQuery ? rooms.filter(r => r.name.toLowerCase().includes(nameQuery)) : rooms
+  const filteredRoomIds = new Set(filteredRooms.map(r => r.id))
+  // Don't show a message-content hit for a conversation already listed above by name match.
+  const contentOnlyResults = searchResults.filter(r =>
+    r.roomId ? !filteredRoomIds.has(r.roomId) : !teamMatchesName
   )
 
   // ── Minimized bubble ───────────────────────────────────────────────────────
@@ -741,6 +851,7 @@ export function FloatingChat() {
 
   // ── Full panel ─────────────────────────────────────────────────────────────
   return (
+    <>
     <div
       style={{ position: 'fixed', right: 24 + drag.dx, bottom: 72 + drag.dy, width: PANEL_W, height: PANEL_H, zIndex: 9999 }}
       className="flex flex-col rounded-2xl shadow-2xl border border-border bg-white dark:bg-gray-900 overflow-hidden"
@@ -751,7 +862,7 @@ export function FloatingChat() {
         className="flex items-center justify-between px-4 py-3 bg-indigo-600 text-white cursor-grab active:cursor-grabbing select-none shrink-0"
       >
         <div className="flex items-center gap-2 min-w-0">
-          {view === 'conversation' && (
+          {view === 'team' && (
             <button
               type="button"
               onMouseDown={e => e.stopPropagation()}
@@ -769,34 +880,64 @@ export function FloatingChat() {
               d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>
           <span className="font-semibold text-sm truncate">
-            {view === 'list' ? 'Chats' : activeRoom ? activeRoom.name : 'Team Chat'}
+            {view === 'list' ? 'Chats' : 'Team Chat'}
           </span>
-          {view === 'conversation' && (
+          {view === 'team' && (
             <span className={`w-2 h-2 rounded-full shrink-0 ${connected ? 'bg-green-400' : 'bg-gray-400'}`} title={connected ? 'Live' : 'Connecting…'} />
           )}
-          {view === 'conversation' && !activeRoomId && (
-            <span
-              className="text-[10px] text-white/70 font-medium cursor-default shrink-0"
-              title={allUsers.filter(u => u.online).length === 0 ? 'No one else is online' : `${allUsers.filter(u => u.online).length} user(s) online`}
-            >
-              {allUsers.filter(u => u.online).length} online
-            </span>
+          {view === 'team' && (
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onMouseDown={e => e.stopPropagation()}
+                onClick={() => setShowOnlineList(s => !s)}
+                className="text-[10px] text-white/70 hover:text-white font-medium underline decoration-dotted underline-offset-2"
+                title="Who's online — click to message someone directly"
+              >
+                {allUsers.filter(u => u.online).length} online
+              </button>
+              {showOnlineList && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowOnlineList(false)} />
+                  <div className="absolute top-full left-0 mt-1 z-20 bg-white dark:bg-gray-800 border border-border rounded-lg shadow-lg w-48 max-h-56 overflow-y-auto text-left">
+                    {allUsers.filter(u => u.online).length === 0 ? (
+                      <p className="text-[11px] text-secondary px-3 py-2">No one else is online right now</p>
+                    ) : allUsers.filter(u => u.online).map(u => (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => startDirectChat(u.id)}
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                      >
+                        <span className={`w-5 h-5 rounded-full shrink-0 relative overflow-hidden flex items-center justify-center text-white text-[9px] font-bold ${getUserColor(u.id).avatar}`}>
+                          {u.name.charAt(0).toUpperCase()}
+                          {u.photoUrl && (
+                            <img src={u.photoUrl} alt={u.name} className="absolute inset-0 w-full h-full object-cover"
+                              onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                          )}
+                          <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-400 border border-white dark:border-gray-800" />
+                        </span>
+                        <span className="truncate text-primary">{u.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          {view === 'list' && (
-            <button
-              type="button"
-              onMouseDown={e => e.stopPropagation()}
-              onClick={() => setShowNewChat(true)}
-              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
-              title="New chat"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-            </button>
-          )}
+          <button
+            type="button"
+            onMouseDown={e => e.stopPropagation()}
+            onClick={() => setShowNewChat(true)}
+            className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
+            title="New chat — message a person or group"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
           <button
             type="button"
             onMouseDown={e => e.stopPropagation()}
@@ -811,50 +952,74 @@ export function FloatingChat() {
         </div>
       </div>
 
+      <div className="relative flex-1 min-h-0 flex flex-col">
       {view === 'list' ? (
-        <div className="relative flex-1 min-h-0">
-          {/* Conversation list */}
           <div className="h-full overflow-y-auto px-2 py-2 bg-gray-50 dark:bg-gray-950">
-            {/* Team — pinned, always present */}
-            <button
-              type="button"
-              onClick={() => switchRoom(null)}
-              className="w-full flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-white dark:hover:bg-gray-800 transition-colors text-left"
-            >
-              <div className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            {/* Search — by conversation name instantly, by message content (debounced) */}
+            <div className="px-1 pb-2 sticky top-0 bg-gray-50 dark:bg-gray-950 z-10">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={listSearch}
+                  onChange={e => setListSearch(e.target.value)}
+                  placeholder="Search chats or messages…"
+                  className="w-full text-sm pl-8 pr-7 py-2 rounded-lg border border-border bg-white dark:bg-gray-800 text-primary focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <svg className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
                 </svg>
+                {listSearch && (
+                  <button type="button" onClick={() => setListSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-secondary hover:text-primary text-sm" title="Clear">✕</button>
+                )}
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="font-semibold text-sm text-primary truncate">Team Chat</div>
-                <div className="text-xs text-secondary truncate">{allUsers.filter(u => u.online).length} online</div>
-              </div>
-              {(unread + unreadDirect) > 0 && (
-                <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">
-                  {(unread + unreadDirect) > 9 ? '9+' : unread + unreadDirect}
-                </span>
-              )}
-            </button>
+            </div>
+
+            {/* Team — pinned, always present (hidden only while actively searching by name and it doesn't match) */}
+            {teamMatchesName && (
+              <button
+                type="button"
+                onClick={() => switchRoom(null)}
+                className="w-full flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-white dark:hover:bg-gray-800 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-sm text-primary truncate">Team Chat</div>
+                  <div className="text-xs text-secondary truncate">{allUsers.filter(u => u.online).length} online</div>
+                </div>
+                {(unread + unreadDirect) > 0 && (
+                  <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">
+                    {(unread + unreadDirect) > 9 ? '9+' : unread + unreadDirect}
+                  </span>
+                )}
+              </button>
+            )}
 
             {loadingRooms && rooms.length === 0 && (
               <p className="text-center text-xs text-secondary mt-6">Loading…</p>
             )}
-            {!loadingRooms && rooms.length === 0 && (
+            {!loadingRooms && rooms.length === 0 && !listSearch && (
               <p className="text-center text-xs text-secondary mt-6 px-4">No conversations yet — tap + to start one.</p>
             )}
-            {rooms.map(room => (
+            {filteredRooms.map(room => (
               <button
                 key={room.id}
                 type="button"
                 onClick={() => switchRoom(room.id)}
                 className="w-full flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-white dark:hover:bg-gray-800 transition-colors text-left"
               >
-                <div className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white text-sm font-bold ${
+                <div className={`w-10 h-10 rounded-full shrink-0 relative flex items-center justify-center text-white text-sm font-bold overflow-hidden ${
                   room.type === 'group' ? 'bg-violet-500' : getUserColor(room.participants[0]?.id ?? room.id).avatar
                 }`}>
                   {room.type === 'group' ? '👥' : room.name.charAt(0).toUpperCase()}
+                  {room.type === 'direct' && room.participants[0]?.photoUrl && (
+                    <img src={room.participants[0].photoUrl} alt={room.name} className="absolute inset-0 w-full h-full object-cover"
+                      onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
@@ -872,78 +1037,42 @@ export function FloatingChat() {
                 )}
               </button>
             ))}
-          </div>
 
-          {/* New chat overlay */}
-          {showNewChat && (
-            <div className="absolute inset-0 z-30 flex flex-col bg-white dark:bg-gray-900">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
-                <span className="font-semibold text-sm text-primary">New chat</span>
-                <button type="button" onClick={closeNewChat} className="text-secondary hover:text-primary text-lg leading-none" title="Close">×</button>
-              </div>
-              <div className="px-4 pt-3 shrink-0">
-                <input
-                  type="text"
-                  autoFocus
-                  value={newChatSearch}
-                  onChange={e => setNewChatSearch(e.target.value)}
-                  placeholder="Search people…"
-                  className="w-full text-sm px-3 py-2 rounded-lg border border-border bg-gray-50 dark:bg-gray-800 text-primary focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              {newChatSelectedIds.length > 0 && (
-                <div className="px-4 pt-2 flex flex-wrap gap-1 shrink-0">
-                  {newChatSelectedIds.map(id => {
-                    const u = allUsers.find(u => u.id === id)
-                    return (
-                      <span key={id} className="flex items-center gap-1 text-[11px] bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-700">
-                        {u?.name ?? '…'}
-                        <button type="button" onClick={() => toggleNewChatUser(id)} className="hover:text-red-500">✕</button>
-                      </span>
-                    )
-                  })}
+            {/* Message-content matches — a chat whose name didn't match, but something said in it did */}
+            {listSearch.trim().length >= 2 && (
+              <>
+                <div className="flex items-center gap-2 mt-3 mb-1 px-1">
+                  <div className="flex-1 h-px bg-border" />
+                  <span className="text-[10px] text-secondary font-medium uppercase tracking-wide">
+                    {searching ? 'Searching messages…' : `Messages (${contentOnlyResults.length})`}
+                  </span>
+                  <div className="flex-1 h-px bg-border" />
                 </div>
-              )}
-              <div className="flex-1 overflow-y-auto px-2 py-2">
-                {filteredNewChatUsers.length === 0 ? (
-                  <p className="text-center text-xs text-secondary mt-4">{allUsers.length === 0 ? 'Loading…' : 'No users found'}</p>
-                ) : filteredNewChatUsers.map(u => (
+                {!searching && contentOnlyResults.length === 0 && (
+                  <p className="text-center text-xs text-secondary py-2 px-4">No messages match "{listSearch.trim()}"</p>
+                )}
+                {contentOnlyResults.map(result => (
                   <button
-                    key={u.id}
+                    key={result.messageId}
                     type="button"
-                    onClick={() => toggleNewChatUser(u.id)}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg flex items-center gap-2"
+                    onClick={() => switchRoom(result.roomId)}
+                    className="w-full flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-white dark:hover:bg-gray-800 transition-colors text-left"
                   >
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${u.online ? 'bg-green-400' : 'bg-gray-400'}`} />
-                    <span className="truncate flex-1 text-primary">{u.name}</span>
-                    {newChatSelectedIds.includes(u.id) && <span className="text-indigo-600 shrink-0">✓</span>}
+                    <div className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center bg-gray-300 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm">
+                      💬
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-sm text-primary truncate">{result.roomName}</span>
+                        <span className="text-[10px] text-secondary shrink-0">{formatTime(result.createdAt)}</span>
+                      </div>
+                      <div className="text-xs text-secondary truncate">{result.snippet}</div>
+                    </div>
                   </button>
                 ))}
-              </div>
-              {newChatSelectedIds.length > 1 && (
-                <div className="px-4 pt-1 shrink-0">
-                  <input
-                    type="text"
-                    value={newChatGroupName}
-                    onChange={e => setNewChatGroupName(e.target.value)}
-                    placeholder="Group name"
-                    className="w-full text-sm px-3 py-2 rounded-lg border border-border bg-gray-50 dark:bg-gray-800 text-primary focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              )}
-              <div className="p-4 shrink-0">
-                <button
-                  type="button"
-                  onClick={startNewChat}
-                  disabled={creatingRoom || newChatSelectedIds.length === 0 || (newChatSelectedIds.length > 1 && !newChatGroupName.trim())}
-                  className="w-full py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-medium transition-colors"
-                >
-                  {creatingRoom ? 'Starting…' : newChatSelectedIds.length > 1 ? 'Create Group' : 'Start Chat'}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+              </>
+            )}
+          </div>
       ) : (
       <>
       {/* Messages */}
@@ -973,26 +1102,23 @@ export function FloatingChat() {
               ↩ Replying to <strong>{replyingTo.userName}</strong>
             </span>
             <div className="flex items-center gap-1 shrink-0">
-              {/* OWNER/ALL only applies in General — a DM/group's whole
-                  membership is already the audience for every reply. */}
-              {!activeRoomId && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setReplyScope('OWNER')}
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors ${replyScope === 'OWNER' ? 'bg-indigo-600 text-white border-indigo-600' : 'text-indigo-600 border-indigo-300 hover:bg-indigo-50'}`}
-                  >
-                    Reply to sender
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setReplyScope('ALL')}
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors ${replyScope === 'ALL' ? 'bg-indigo-600 text-white border-indigo-600' : 'text-indigo-600 border-indigo-300 hover:bg-indigo-50'}`}
-                  >
-                    Reply to all
-                  </button>
-                </>
-              )}
+              {/* The hub's own composer is always General/Team — DM/group
+                  replies thread inside their own ChatWindow, which has no
+                  OWNER/ALL distinction since the whole room is the audience. */}
+              <button
+                type="button"
+                onClick={() => setReplyScope('OWNER')}
+                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors ${replyScope === 'OWNER' ? 'bg-indigo-600 text-white border-indigo-600' : 'text-indigo-600 border-indigo-300 hover:bg-indigo-50'}`}
+              >
+                Reply to sender
+              </button>
+              <button
+                type="button"
+                onClick={() => setReplyScope('ALL')}
+                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors ${replyScope === 'ALL' ? 'bg-indigo-600 text-white border-indigo-600' : 'text-indigo-600 border-indigo-300 hover:bg-indigo-50'}`}
+              >
+                Reply to all
+              </button>
               <button type="button" onClick={cancelReply} className="text-secondary hover:text-primary ml-1" title="Cancel reply">✕</button>
             </div>
           </div>
@@ -1027,6 +1153,112 @@ export function FloatingChat() {
       </div>
       </>
       )}
+
+      {/* New chat overlay — reachable from either the list or an open conversation */}
+      {showNewChat && (
+        <div className="absolute inset-0 z-30 flex flex-col bg-white dark:bg-gray-900">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+            <span className="font-semibold text-sm text-primary">New chat</span>
+            <button type="button" onClick={closeNewChat} className="text-secondary hover:text-primary text-lg leading-none" title="Close">×</button>
+          </div>
+          <div className="px-4 pt-3 shrink-0">
+            <input
+              type="text"
+              autoFocus
+              value={newChatSearch}
+              onChange={e => setNewChatSearch(e.target.value)}
+              placeholder="Search people…"
+              className="w-full text-sm px-3 py-2 rounded-lg border border-border bg-gray-50 dark:bg-gray-800 text-primary focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          {newChatSelectedIds.length > 0 && (
+            <div className="px-4 pt-2 flex flex-wrap gap-1 shrink-0">
+              {newChatSelectedIds.map(id => {
+                const u = allUsers.find(u => u.id === id)
+                return (
+                  <span key={id} className="flex items-center gap-1 text-[11px] bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-700">
+                    {u?.name ?? '…'}
+                    <button type="button" onClick={() => toggleNewChatUser(id)} className="hover:text-red-500">✕</button>
+                  </span>
+                )
+              })}
+            </div>
+          )}
+          <div className="flex-1 overflow-y-auto px-2 py-2">
+            {filteredNewChatUsers.length === 0 ? (
+              <p className="text-center text-xs text-secondary mt-4">{allUsers.length === 0 ? 'Loading…' : 'No users found'}</p>
+            ) : filteredNewChatUsers.map(u => (
+              <button
+                key={u.id}
+                type="button"
+                onClick={() => toggleNewChatUser(u.id)}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg flex items-center gap-2"
+              >
+                <span className={`w-6 h-6 rounded-full shrink-0 relative overflow-hidden flex items-center justify-center text-white text-[10px] font-bold ${getUserColor(u.id).avatar}`}>
+                  {u.name.charAt(0).toUpperCase()}
+                  {u.photoUrl && (
+                    <img src={u.photoUrl} alt={u.name} className="absolute inset-0 w-full h-full object-cover"
+                      onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                  )}
+                  <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-white dark:border-gray-800 ${u.online ? 'bg-green-400' : 'bg-gray-400'}`} />
+                </span>
+                <span className="truncate flex-1 text-primary">{u.name}</span>
+                {u.online && <span className="text-[10px] text-green-500 shrink-0 mr-1">online</span>}
+                {newChatSelectedIds.includes(u.id) && <span className="text-indigo-600 shrink-0">✓</span>}
+              </button>
+            ))}
+          </div>
+          {newChatSelectedIds.length > 1 && (
+            <div className="px-4 pt-1 shrink-0">
+              <input
+                type="text"
+                value={newChatGroupName}
+                onChange={e => setNewChatGroupName(e.target.value)}
+                placeholder="Group name"
+                className="w-full text-sm px-3 py-2 rounded-lg border border-border bg-gray-50 dark:bg-gray-800 text-primary focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          )}
+          <div className="p-4 shrink-0">
+            <button
+              type="button"
+              onClick={startNewChat}
+              disabled={creatingRoom || newChatSelectedIds.length === 0 || (newChatSelectedIds.length > 1 && !newChatGroupName.trim())}
+              className="w-full py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-medium transition-colors"
+            >
+              {creatingRoom ? 'Starting…' : newChatSelectedIds.length > 1 ? 'Create Group' : 'Start Chat'}
+            </button>
+          </div>
+        </div>
+      )}
+      </div>
     </div>
+
+    {/* Satellite windows — one per open DM/group, cascading left of the hub
+        so several conversations can be open and told apart at once. Most
+        recently opened/focused sits closest to the hub. */}
+    {openWindows.map((roomId, i) => {
+      const room = rooms.find(r => r.id === roomId)
+      if (!room) return null
+      const indexFromHub = openWindows.length - 1 - i
+      const rightOffset = 24 + drag.dx + PANEL_W + 12 + indexFromHub * (300 + 12)
+      return (
+        <ChatWindow
+          key={roomId}
+          roomId={roomId}
+          roomName={room.name}
+          roomType={room.type}
+          roomPhotoUrl={room.type === 'direct' ? room.participants[0]?.photoUrl : null}
+          currentUserId={currentUserId || ''}
+          socket={socketRef.current}
+          onClose={() => closeConversationWindow(roomId)}
+          rightOffset={rightOffset}
+          onMessageSent={(preview) => {
+            setRooms(prev => sortRoomsByRecency(prev.map(r => r.id === roomId ? { ...r, lastMessage: { ...preview, isOwn: true } } : r)))
+          }}
+        />
+      )
+    })}
+    </>
   )
 }
