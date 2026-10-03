@@ -100,6 +100,25 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
       }
     })
 
+    // Chat typing indicators — ephemeral, not persisted. General broadcasts
+    // to the shared room; a DM/group relies on the client supplying who
+    // else is in that conversation (same trust level already extended to
+    // cart-update's client-supplied room above — low-stakes, not persisted).
+    socket.on('chat:typing', (data: { roomId: string | null; userId: string; userName: string; participantIds?: string[] }) => {
+      if (!data.roomId) {
+        socket.to('chat:general').emit('chat:typing', data)
+      } else if (data.participantIds) {
+        for (const uid of data.participantIds) io.to(`user:${uid}`).emit('chat:typing', data)
+      }
+    })
+    socket.on('chat:stop-typing', (data: { roomId: string | null; userId: string; participantIds?: string[] }) => {
+      if (!data.roomId) {
+        socket.to('chat:general').emit('chat:stop-typing', data)
+      } else if (data.participantIds) {
+        for (const uid of data.participantIds) io.to(`user:${uid}`).emit('chat:stop-typing', data)
+      }
+    })
+
     // Return list of currently online user IDs by inspecting live room membership
     socket.on('chat:get-online-users', () => {
       const rooms = io.sockets.adapter.rooms

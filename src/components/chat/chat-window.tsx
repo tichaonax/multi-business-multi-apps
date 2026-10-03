@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { Socket } from 'socket.io-client'
+import { useTypingEmitter, useTypingTracker, formatTypingLabel } from '@/hooks/use-typing-indicator'
 
 interface Recipient { id: string; name: string }
 
@@ -81,6 +82,11 @@ interface ChatWindowProps {
   roomType: 'direct' | 'group'
   roomPhotoUrl?: string | null
   currentUserId: string
+  currentUserName?: string | null
+  // Other participants' ids (self excluded) — from the parent's already-
+  // loaded room list, so typing indicators work for a direct room too
+  // without waiting on this component's own lazy (group-only) member fetch.
+  otherParticipantIds: string[]
   socket: Socket | null
   onClose: () => void
   rightOffset: number
@@ -98,7 +104,7 @@ interface ChatWindowProps {
  * floating-chat.tsx), each tracking its own messages/composer/threads, so
  * switching between DMs/groups never loses what you were doing in another.
  */
-export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUserId, socket, onClose, rightOffset, isMobile = false, customPosition, onPositionChange, onMessageSent }: ChatWindowProps) {
+export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUserId, currentUserName, otherParticipantIds, socket, onClose, rightOffset, isMobile = false, customPosition, onPositionChange, onMessageSent }: ChatWindowProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [sending, setSending] = useState(false)
@@ -223,6 +229,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
     if (!text || sending) return
     setSending(true)
     setNewMessage('')
+    notifyStopTyping()
     try {
       const body: any = { message: text, roomId }
       if (replyingTo) body.parentId = replyingTo.id
@@ -358,6 +365,10 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
     (!addMemberSearch.trim() || u.name.toLowerCase().includes(addMemberSearch.trim().toLowerCase()))
   )
 
+  const typingByRoom = useTypingTracker(socket, currentUserId)
+  const typingUsers = typingByRoom[roomId] ?? []
+  const { notifyTyping, notifyStopTyping } = useTypingEmitter(socket, roomId, currentUserId, currentUserName, otherParticipantIds)
+
   const mentionCandidates = members.filter(m =>
     m.id !== currentUserId &&
     !mentionedUsers.some(u => u.id === m.id) &&
@@ -366,6 +377,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
 
   const handleComposerChange = (val: string) => {
     setNewMessage(val)
+    if (val.trim()) notifyTyping(); else notifyStopTyping()
     if (roomType === 'group' && mentionedUsers.length < 2 && val.startsWith('@')) {
       setMentionFilter(val.slice(1))
       setShowMentionPicker(true)
@@ -588,6 +600,10 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
       </div>
 
       <div className="relative border-t border-border bg-white dark:bg-gray-900 px-2.5 py-2.5 shrink-0 space-y-1.5">
+        {/* Typing indicator */}
+        {typingUsers.length > 0 && (
+          <p className="text-[10px] text-secondary italic -mb-1">{formatTypingLabel(typingUsers)}</p>
+        )}
         {/* @-mention picker — opens when the message starts with "@" */}
         {showMentionPicker && (
           <>

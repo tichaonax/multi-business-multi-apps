@@ -7,6 +7,7 @@ import { io, Socket } from 'socket.io-client'
 import { setChatBadge } from '@/lib/chat-badge'
 import { ChatWindow } from '@/components/chat/chat-window'
 import { useIsMobile } from '@/hooks/use-is-mobile'
+import { useTypingEmitter, useTypingTracker, formatTypingLabel } from '@/hooks/use-typing-indicator'
 import { playChatNotificationSound } from '@/lib/chat-sound'
 import {
   type ChatSettings,
@@ -106,6 +107,7 @@ export function FloatingChat() {
   const { data: session, status } = useSession()
   const pathname = usePathname()
   const currentUserId = (session?.user as any)?.id as string | undefined
+  const currentUserName = (session?.user as any)?.name as string | undefined
   // Cascading satellite windows only make sense with room to cascade into —
   // mobile is capped to a single open conversation regardless of the
   // maxOpenWindows preference (that setting is desktop-only in effect).
@@ -184,6 +186,13 @@ export function FloatingChat() {
   // Resolved once from the server so incoming socket messages can tell a
   // General/Team message apart from a DM/group one by roomId alone.
   const generalRoomIdRef = useRef<string | null>(null)
+  // Typing indicators — tracks everyone currently typing, keyed by room
+  // ('general' for Team Chat), for both the conversation list rows and
+  // Team Chat's own view. Each DM/group ChatWindow tracks its own room
+  // independently. The emitter below is for the hub's own Team Chat composer.
+  const typingByRoom = useTypingTracker(socketRef.current, currentUserId)
+  const { notifyTyping: notifyTeamTyping, notifyStopTyping: notifyTeamStopTyping } =
+    useTypingEmitter(socketRef.current, null, currentUserId, currentUserName)
   // Auto-open timer: tracks the scheduled auto-close so we can cancel it on manual open
   const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -664,6 +673,7 @@ export function FloatingChat() {
     if (!text || sending) return
     setSending(true)
     setNewMessage('')
+    notifyTeamStopTyping()
     try {
       const body: any = { message: text }
       if (replyingTo) {
@@ -1070,7 +1080,11 @@ export function FloatingChat() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold text-sm text-primary truncate">Team Chat</div>
-                  <div className="text-xs text-secondary truncate">{allUsers.filter(u => u.online).length} online</div>
+                  <div className="text-xs truncate text-secondary">
+                    {(typingByRoom['general']?.length ?? 0) > 0
+                      ? <span className="italic text-indigo-500 dark:text-indigo-400">{formatTypingLabel(typingByRoom['general'])}</span>
+                      : `${allUsers.filter(u => u.online).length} online`}
+                  </div>
                 </div>
                 {(unread + unreadDirect) > 0 && (
                   <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center">
@@ -1107,8 +1121,10 @@ export function FloatingChat() {
                     <span className="font-semibold text-sm text-primary truncate">{room.name}</span>
                     {room.lastMessage && <span className="text-[10px] text-secondary shrink-0">{formatTime(room.lastMessage.at)}</span>}
                   </div>
-                  <div className="text-xs text-secondary truncate">
-                    {room.lastMessage ? `${room.lastMessage.isOwn ? 'You: ' : ''}${room.lastMessage.text}` : 'No messages yet'}
+                  <div className="text-xs truncate text-secondary">
+                    {(typingByRoom[room.id]?.length ?? 0) > 0
+                      ? <span className="italic text-indigo-500 dark:text-indigo-400">{formatTypingLabel(typingByRoom[room.id])}</span>
+                      : room.lastMessage ? `${room.lastMessage.isOwn ? 'You: ' : ''}${room.lastMessage.text}` : 'No messages yet'}
                   </div>
                 </div>
                 {room.unreadCount > 0 && (
@@ -1176,6 +1192,10 @@ export function FloatingChat() {
 
       {/* Input area */}
       <div className="border-t border-border bg-white dark:bg-gray-900 px-3 py-3 shrink-0 space-y-2">
+        {/* Typing indicator */}
+        {(typingByRoom['general']?.length ?? 0) > 0 && (
+          <p className="text-[11px] text-secondary italic -mb-1">{formatTypingLabel(typingByRoom['general'])}</p>
+        )}
         {/* Reply-to banner */}
         {replyingTo && (
           <div className="flex items-center gap-2 text-xs bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-700 rounded-lg px-3 py-1.5">
@@ -1211,7 +1231,7 @@ export function FloatingChat() {
             rows={1}
             autoComplete="off"
             value={newMessage}
-            onChange={e => setNewMessage(e.target.value)}
+            onChange={e => { setNewMessage(e.target.value); if (e.target.value.trim()) notifyTeamTyping(); else notifyTeamStopTyping() }}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
             placeholder={replyingTo ? `Reply to ${replyingTo.userName}…` : 'Type a message…'}
             className="flex-1 px-4 py-2 rounded-2xl border border-border bg-gray-50 dark:bg-gray-800 resize-none leading-snug
@@ -1384,6 +1404,8 @@ export function FloatingChat() {
           roomType={room.type}
           roomPhotoUrl={room.type === 'direct' ? room.participants[0]?.photoUrl : null}
           currentUserId={currentUserId || ''}
+          currentUserName={currentUserName}
+          otherParticipantIds={room.participants.map(p => p.id)}
           socket={socketRef.current}
           onClose={() => closeConversationWindow(roomId)}
           rightOffset={rightOffset}
