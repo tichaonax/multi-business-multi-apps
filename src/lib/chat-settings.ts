@@ -2,14 +2,19 @@
 // can be open at once) — localStorage only, same pattern as
 // use-page-size-preference.ts, no backend/DB table needed for a UI setting.
 
+export type ChatDefaultView = 'list' | 'team'
+
 export interface ChatSettings {
   soundEnabled: boolean
   maxOpenWindows: number
+  // Which view the hub panel opens to — the conversations list, or
+  // straight into Team Chat.
+  defaultView: ChatDefaultView
 }
 
 export const MIN_OPEN_WINDOWS = 1
 export const MAX_OPEN_WINDOWS_CAP = 5
-export const DEFAULT_CHAT_SETTINGS: ChatSettings = { soundEnabled: true, maxOpenWindows: 4 }
+export const DEFAULT_CHAT_SETTINGS: ChatSettings = { soundEnabled: true, maxOpenWindows: 4, defaultView: 'list' }
 
 function storageKey(userId?: string | null) {
   return userId ? `chat-settings-${userId}` : 'chat-settings'
@@ -28,6 +33,7 @@ export function loadChatSettings(userId?: string | null): ChatSettings {
     return {
       soundEnabled: typeof parsed.soundEnabled === 'boolean' ? parsed.soundEnabled : DEFAULT_CHAT_SETTINGS.soundEnabled,
       maxOpenWindows: clampMaxOpenWindows(parsed.maxOpenWindows),
+      defaultView: parsed.defaultView === 'team' || parsed.defaultView === 'list' ? parsed.defaultView : DEFAULT_CHAT_SETTINGS.defaultView,
     }
   } catch {
     return { ...DEFAULT_CHAT_SETTINGS }

@@ -6957,7 +6957,7 @@ The chat lives in a **floating panel** that you can open without leaving whateve
 - **Mobile:** Tap the chat icon in the mobile menu (the floating bubble itself only shows on wider screens).
 - **Dashboard:** Click the chat shortcut button on the dashboard.
 
-The panel reopens showing whatever you had open last — Team Chat by default the first time.
+Each time you open the panel this way, it opens to the **conversations list** by default — switch it to open straight into **Team Chat** instead from Chat Settings (see below).
 
 ---
 
@@ -7005,6 +7005,7 @@ Click the **⚙ gear icon** in the chat header to open Chat Settings:
 
 | Setting | Default | Notes |
 |---------|---------|-------|
+| 🏠 Default view | **Chats list** | What the panel opens to when you open it — choose **Chats list** or **Team Chat**. |
 | 🔊 Notification sound | **On** | Plays a short chime when a new message arrives from someone else. Turn off if you'd rather rely on the visual badge only. |
 | 🪟 Max open chat windows | **4** | Choose 1–5 (desktop only — mobile is always limited to 1). |
 
@@ -7058,6 +7059,8 @@ You can see when someone else is composing a reply, so you know a message is on 
 - **In the conversations list** — a conversation's row temporarily shows the typing indicator in place of its last-message preview, even if you don't have that conversation open as a window, so you know where to look.
 
 The indicator clears itself a few seconds after the other person stops typing or sends their message — there's nothing you need to do.
+
+> You'll only ever see a typing indicator for a conversation you're actually part of — the same privacy boundary as the messages themselves.
 
 ---
 
