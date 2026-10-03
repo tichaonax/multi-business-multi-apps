@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { io, Socket } from 'socket.io-client'
 import { setChatBadge } from '@/lib/chat-badge'
 import { ChatWindow } from '@/components/chat/chat-window'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 import { playChatNotificationSound } from '@/lib/chat-sound'
 import {
   type ChatSettings,
@@ -105,6 +106,10 @@ export function FloatingChat() {
   const { data: session, status } = useSession()
   const pathname = usePathname()
   const currentUserId = (session?.user as any)?.id as string | undefined
+  // Cascading satellite windows only make sense with room to cascade into —
+  // mobile is capped to a single open conversation regardless of the
+  // maxOpenWindows preference (that setting is desktop-only in effect).
+  const isMobile = useIsMobile()
 
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
@@ -169,6 +174,8 @@ export function FloatingChat() {
   // window cap) without either needing chatSettings in their own deps.
   const chatSettingsRef = useRef<ChatSettings>(DEFAULT_CHAT_SETTINGS)
   useEffect(() => { chatSettingsRef.current = chatSettings }, [chatSettings])
+  const isMobileRef = useRef(false)
+  useEffect(() => { isMobileRef.current = isMobile }, [isMobile])
   // Resolved once from the server so incoming socket messages can tell a
   // General/Team message apart from a DM/group one by roomId alone.
   const generalRoomIdRef = useRef<string | null>(null)
@@ -235,20 +242,26 @@ export function FloatingChat() {
   const openConversationWindow = useCallback((roomId: string) => {
     setOpenWindows(prev => {
       const without = prev.filter(id => id !== roomId)
-      const next = [...without, roomId]
-      if (next.length <= chatSettingsRef.current.maxOpenWindows) return next
+      let next = [...without, roomId]
+      const effectiveMax = isMobileRef.current ? 1 : chatSettingsRef.current.maxOpenWindows
 
       // Evict by oldest last-received message among the OTHER open windows
       // (never the one just opened) — an empty/no-message conversation
       // counts as the oldest possible, since '' sorts before any ISO date.
-      const candidates = next.filter(id => id !== roomId)
-      let oldestId = candidates[0]
-      let oldestAt = roomsRef.current.find(r => r.id === oldestId)?.lastMessage?.at ?? ''
-      for (const id of candidates.slice(1)) {
-        const at = roomsRef.current.find(r => r.id === id)?.lastMessage?.at ?? ''
-        if (at < oldestAt) { oldestId = id; oldestAt = at }
+      // Looped so dropping straight to mobile's cap of 1 from several open
+      // desktop windows closes all of them in one go, not just one.
+      while (next.length > effectiveMax) {
+        const candidates = next.filter(id => id !== roomId)
+        if (candidates.length === 0) break
+        let oldestId = candidates[0]
+        let oldestAt = roomsRef.current.find(r => r.id === oldestId)?.lastMessage?.at ?? ''
+        for (const id of candidates.slice(1)) {
+          const at = roomsRef.current.find(r => r.id === id)?.lastMessage?.at ?? ''
+          if (at < oldestAt) { oldestId = id; oldestAt = at }
+        }
+        next = next.filter(id => id !== oldestId)
       }
-      return next.filter(id => id !== oldestId)
+      return next
     })
     setRooms(prev => prev.map(r => r.id === roomId ? { ...r, unreadCount: 0 } : r))
     fetch(`/api/chat/rooms/${roomId}/read`, { method: 'POST', credentials: 'include' }).catch(() => {})
@@ -269,21 +282,23 @@ export function FloatingChat() {
     saveChatSettings(currentUserId, chatSettings)
   }, [currentUserId, chatSettings])
 
-  // If the user just lowered their max below how many are currently open,
-  // trim down immediately rather than waiting for the next one to be opened
-  // — same oldest-last-message eviction, repeated until back within budget.
+  // If the user just lowered their max (or the viewport just became mobile,
+  // which always caps at 1) below how many are currently open, trim down
+  // immediately rather than waiting for the next one to be opened — same
+  // oldest-last-message eviction, repeated until back within budget.
+  const effectiveMaxOpenWindows = isMobile ? 1 : chatSettings.maxOpenWindows
   useEffect(() => {
-    if (openWindows.length <= chatSettings.maxOpenWindows) return
+    if (openWindows.length <= effectiveMaxOpenWindows) return
     setOpenWindows(prev => {
-      if (prev.length <= chatSettings.maxOpenWindows) return prev
+      if (prev.length <= effectiveMaxOpenWindows) return prev
       const sorted = [...prev].sort((a, b) => {
         const at = roomsRef.current.find(r => r.id === a)?.lastMessage?.at ?? ''
         const bt = roomsRef.current.find(r => r.id === b)?.lastMessage?.at ?? ''
         return at.localeCompare(bt) // oldest first
       })
-      return sorted.slice(sorted.length - chatSettings.maxOpenWindows)
+      return sorted.slice(sorted.length - effectiveMaxOpenWindows)
     })
-  }, [chatSettings.maxOpenWindows, openWindows.length])
+  }, [effectiveMaxOpenWindows, openWindows.length])
 
   // MBM-301 — switch the hub panel to show General/Team (roomId === null),
   // or open a DM/group as a satellite window alongside it (roomId set).
@@ -1317,16 +1332,19 @@ export function FloatingChat() {
               </button>
             </div>
 
-            <div>
+            <div className={isMobile ? 'opacity-50 pointer-events-none' : ''}>
               <div className="text-sm font-medium text-primary">🪟 Max open chat windows</div>
               <div className="text-xs text-secondary mt-0.5 mb-2">
-                How many DM/group windows can be open at once (up to {MAX_OPEN_WINDOWS_CAP}) — opening one more closes whichever's gone longest without a new message.
+                {isMobile
+                  ? 'Mobile is limited to 1 open conversation at a time — this setting applies on desktop.'
+                  : `How many DM/group windows can be open at once (up to ${MAX_OPEN_WINDOWS_CAP}) — opening one more closes whichever's gone longest without a new message.`}
               </div>
               <div className="flex items-center gap-2">
                 {Array.from({ length: MAX_OPEN_WINDOWS_CAP - MIN_OPEN_WINDOWS + 1 }, (_, i) => i + MIN_OPEN_WINDOWS).map(n => (
                   <button
                     key={n}
                     type="button"
+                    disabled={isMobile}
                     onClick={() => setChatSettings(prev => ({ ...prev, maxOpenWindows: clampMaxOpenWindows(n) }))}
                     className={`w-8 h-8 rounded-lg text-sm font-semibold border transition-colors ${
                       chatSettings.maxOpenWindows === n
@@ -1364,6 +1382,7 @@ export function FloatingChat() {
           socket={socketRef.current}
           onClose={() => closeConversationWindow(roomId)}
           rightOffset={rightOffset}
+          isMobile={isMobile}
           onMessageSent={(preview) => {
             setRooms(prev => sortRoomsByRecency(prev.map(r => r.id === roomId ? { ...r, lastMessage: { ...preview, isOwn: true } } : r)))
           }}

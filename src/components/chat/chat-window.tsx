@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { Socket } from 'socket.io-client'
 
 interface Recipient { id: string; name: string }
@@ -84,6 +84,7 @@ interface ChatWindowProps {
   socket: Socket | null
   onClose: () => void
   rightOffset: number
+  isMobile?: boolean
   onMessageSent: (preview: { text: string; at: string }) => void
 }
 
@@ -93,7 +94,7 @@ interface ChatWindowProps {
  * floating-chat.tsx), each tracking its own messages/composer/threads, so
  * switching between DMs/groups never loses what you were doing in another.
  */
-export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUserId, socket, onClose, rightOffset, onMessageSent }: ChatWindowProps) {
+export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUserId, socket, onClose, rightOffset, isMobile = false, onMessageSent }: ChatWindowProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [sending, setSending] = useState(false)
@@ -370,6 +371,31 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
     inputRef.current?.focus()
   }
 
+  // Who's actually engaging — other participants ordered by whoever sent
+  // the most recent message first (derived straight from history, so a new
+  // message naturally bumps its sender back to the front). Self and system
+  // messages never appear; someone who's joined but never spoken doesn't
+  // show here either — only reachable via the full member list.
+  const { recentSenderIds, senderInfoById } = useMemo(() => {
+    const seen = new Set<string>()
+    const order: string[] = []
+    const info = new Map<string, { name: string; photoUrl: string | null; initials: string }>()
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i]
+      if (!m.userId || m.userId === currentUserId || m.isSystem) continue
+      if (!seen.has(m.userId)) {
+        seen.add(m.userId)
+        order.push(m.userId)
+        info.set(m.userId, { name: m.userName, photoUrl: m.userPhotoUrl ?? null, initials: m.userInitials || m.userName.charAt(0).toUpperCase() })
+      }
+    }
+    return { recentSenderIds: order, senderInfoById: info }
+  }, [messages, currentUserId])
+
+  const VISIBLE_PARTICIPANT_ICONS = 3
+  const visibleSenderIds = recentSenderIds.slice(0, VISIBLE_PARTICIPANT_ICONS)
+  const overflowSenderCount = recentSenderIds.length - visibleSenderIds.length
+
   const renderMessage = (msg: Message, isReply = false) => {
     if (msg.isSystem) {
       return (
@@ -453,23 +479,68 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
     )
   }
 
+  // Mobile is always capped to a single open window (see floating-chat.tsx),
+  // so there's nothing to cascade — fill most of the screen instead of the
+  // fixed-width desktop box, and skip dragging (nowhere useful to put it).
+  const windowStyle: React.CSSProperties = isMobile
+    ? { position: 'fixed', left: 12, right: 12, bottom: 12, height: '70vh', zIndex: 9990 }
+    : { position: 'fixed', right: rightOffset + drag.dx, bottom: 72 + drag.dy, width: WINDOW_W, height: WINDOW_H, zIndex: 9990 }
+
   return (
     <div
-      style={{ position: 'fixed', right: rightOffset + drag.dx, bottom: 72 + drag.dy, width: WINDOW_W, height: WINDOW_H, zIndex: 9990 }}
+      style={windowStyle}
       className="flex flex-col rounded-2xl shadow-2xl border border-border bg-white dark:bg-gray-900 overflow-hidden"
     >
       <div
-        onMouseDown={onHeaderMouseDown}
-        className={`flex items-center justify-between px-3 py-2.5 text-white shrink-0 cursor-grab active:cursor-grabbing select-none ${getWindowTheme(roomId)}`}
+        onMouseDown={isMobile ? undefined : onHeaderMouseDown}
+        className={`flex items-center justify-between px-3 py-2.5 text-white shrink-0 select-none ${isMobile ? '' : 'cursor-grab active:cursor-grabbing'} ${getWindowTheme(roomId)}`}
       >
         {roomType === 'group' ? (
-          <button type="button" onMouseDown={e => e.stopPropagation()} onClick={toggleMembers} className="flex items-center gap-1.5 min-w-0 hover:bg-white/10 rounded-lg px-1 -mx-1 py-0.5 transition-colors" title="View group members">
-            <span className="text-sm shrink-0">👥</span>
-            <span className="font-semibold text-xs truncate">{roomName}</span>
-            <svg className="w-3 h-3 shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1 min-w-0 flex-1">
+            <button type="button" onMouseDown={e => e.stopPropagation()} onClick={toggleMembers} className="flex items-center gap-1.5 min-w-0 hover:bg-white/10 rounded-lg px-1 -mx-1 py-0.5 transition-colors shrink-0" title="View group members">
+              <span className="text-sm shrink-0">👥</span>
+              <span className="font-semibold text-xs truncate">{roomName}</span>
+              <svg className="w-3 h-3 shrink-0 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {/* Who's actively chatting — most recent sender first */}
+            {recentSenderIds.length > 0 && (
+              <button
+                type="button"
+                onMouseDown={e => e.stopPropagation()}
+                onClick={toggleMembers}
+                className="flex items-center shrink-0 ml-0.5"
+                title="Recently active — click to view all members"
+              >
+                {visibleSenderIds.map((id, i) => {
+                  const info = senderInfoById.get(id)
+                  if (!info) return null
+                  return (
+                    <span
+                      key={id}
+                      style={{ marginLeft: i === 0 ? 0 : -6, zIndex: VISIBLE_PARTICIPANT_ICONS - i }}
+                      className={`w-5 h-5 rounded-full relative overflow-hidden flex items-center justify-center text-white text-[8px] font-bold border border-white/40 ${getUserColor(id).avatar}`}
+                    >
+                      {info.initials}
+                      {info.photoUrl && (
+                        <img src={info.photoUrl} alt={info.name} className="absolute inset-0 w-full h-full object-cover"
+                          onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                      )}
+                    </span>
+                  )
+                })}
+                {overflowSenderCount > 0 && (
+                  <span
+                    style={{ marginLeft: -6 }}
+                    className="w-5 h-5 rounded-full relative flex items-center justify-center text-white text-[8px] font-bold border border-white/40 bg-black/30"
+                  >
+                    +{overflowSenderCount}
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
         ) : (
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="w-5 h-5 rounded-full shrink-0 relative overflow-hidden flex items-center justify-center bg-white/20 text-[10px] font-bold">
