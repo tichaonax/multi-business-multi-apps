@@ -940,11 +940,20 @@ export function FloatingChat() {
   }
 
   // ── Full panel ─────────────────────────────────────────────────────────────
+  // On mobile there's only room for one window on screen at a time (the
+  // satellite is sized to fill most of the screen — see chat-window.tsx) and
+  // it sits at a lower z-index than the hub, so without this the hub simply
+  // covered it, leaving only a sliver of the composer peeking out underneath
+  // with no way to see or reach the actual messages. Hide the hub's panel
+  // (not unmount it — its socket/rooms state stays alive) while any
+  // satellite is open on mobile; closing it reveals the hub again, showing
+  // the conversations list.
+  const hideHubOnMobile = isMobile && openWindows.length > 0
   return (
     <>
     <div
-      style={{ position: 'fixed', right: 24, bottom: 72, width: PANEL_W, height: PANEL_H, zIndex: 9999 }}
-      className="flex flex-col rounded-2xl shadow-2xl border border-border bg-white dark:bg-gray-900 overflow-hidden"
+      style={{ position: 'fixed', right: 24, bottom: 72, width: PANEL_W, height: PANEL_H, zIndex: 9999, display: hideHubOnMobile ? 'none' : 'flex' }}
+      className="flex-col rounded-2xl shadow-2xl border border-border bg-white dark:bg-gray-900 overflow-hidden"
     >
       {/* Header — fixed in place; this is the one window that doesn't move */}
       <div

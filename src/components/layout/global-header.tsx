@@ -453,13 +453,13 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                 crowding the business dropdown that sits in the right-side
                 cluster on narrow phones (justify-between leaves little room
                 between the two clusters otherwise). */}
-            <div className="flex items-center gap-0.5 shrink-0">
+            <div className="flex items-center gap-0 shrink-0">
               {/* Mobile menu trigger — lives in the persistent header row so it
                   never overlaps page content (see MobileSidebar's open-event
                   listener for why it moved here from a fixed-position button). */}
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent('mobile-menu:open'))}
-                className="lg:hidden shrink-0 p-2 -ml-2 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                className="lg:hidden shrink-0 p-2 -ml-2 -mr-1 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 aria-label="Open menu"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
