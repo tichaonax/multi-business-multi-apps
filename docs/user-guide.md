@@ -6939,9 +6939,13 @@ Click **Lock Allocation**. The report is locked, Cash Bucket INFLOW and OUTFLOW 
 
 ### What is Team Chat?
 
-Team Chat is a built-in **company-wide messaging tool** that lets all staff communicate in real time — no need for WhatsApp groups or external apps. It is always available from any screen in the system.
+Team Chat is a built-in **company-wide messaging tool** — no need for WhatsApp groups or external apps. It covers three kinds of conversation, all from the same panel:
 
-There is one shared room: **General**. All users with a system account can see and post here. You can also send **private messages** to one or more specific people, and have **threaded reply conversations** within any message.
+- **Team Chat (General)** — one shared, company-wide room everyone with a system account can see and post in.
+- **Direct Messages** — a persistent, private 1:1 conversation with one other person.
+- **Groups** — a persistent, private conversation with several people you choose, with a name.
+
+Direct Messages and Groups are real, ongoing conversations you can return to any time — not a one-off tag on a single message.
 
 ---
 
@@ -6950,52 +6954,70 @@ There is one shared room: **General**. All users with a system account can see a
 The chat lives in a **floating panel** that you can open without leaving whatever page you are on:
 
 - **Sidebar:** Click the **💬 Chat** button in the left navigation bar.
-- **Mobile:** Tap the chat icon in the mobile menu.
+- **Mobile:** Tap the chat icon in the mobile menu (the floating bubble itself only shows on wider screens).
 - **Dashboard:** Click the chat shortcut button on the dashboard.
 
-The panel opens as a draggable window — move it to any corner of the screen so it does not cover your work.
+The panel reopens showing whatever you had open last — Team Chat by default the first time.
 
 ---
 
-### Sending a Message
+### The Conversations List
 
-**Broadcasting to everyone (default):**
-1. Open the chat panel.
-2. Type your message in the input field at the bottom.
-3. Press **Enter** or click **Send**.
+Click the **⌄ back arrow** at the top-left of the chat header to see your conversations:
 
-Your message appears immediately for all connected users.
+- **Team Chat** is pinned at the top, with its own unread badge and online count.
+- Below it, your **Direct Messages and Groups**, most recently active first — each row shows a snippet of the last message and its own unread badge.
+- **Search** at the top of the list: type a name to instantly filter the list, or type a phrase to also search message content — matching conversations appear below with a short snippet of the matching message; click one to open it.
+
+Click **Team Chat** or any conversation row to open it.
 
 ---
 
-### Sending a Private Message
+### Starting a Direct Message or Group
 
-You can target a message to one or more specific people. Only those recipients (and you) will see it — no one else.
+1. Click **+** at the top-right of the chat header (works from the conversations list or from any open conversation).
+2. Search for people and click to select them — a checkmark shows who's picked.
+3. **One person selected:** click **Start Chat** — this opens your existing Direct Message with them if you already have one, or starts a new one.
+4. **Two or more people selected:** a **Group name** field appears — name the group and click **Create Group**.
 
-1. In the input area, click **@ Add**.
-2. A search box appears. Type part of a person's name and select them from the list.
-3. Their name appears as a **chip** above the input field.
-4. Add more people if needed. Click **✕** on a chip to remove them.
-5. Type your message and send.
+> Only **active staff members** appear in the people list — terminated or deactivated employees are automatically excluded.
 
-> **Note:** Only **active staff members** appear in the recipient list. Terminated or deactivated employees are automatically excluded.
+#### Online Presence
 
-Private messages are marked with a **🔒 Private** badge so the recipients clearly know it is not a broadcast.
+- In **Team Chat**, click the **"N online"** label in the header to see who's currently connected, and click any name to start a Direct Message with them.
+- Wherever people are listed (new chat picker, member lists), a small dot shows 🟢 online or ⚫ offline, updating live.
+- Anywhere a person's photo is set in their profile, it's shown instead of their initials — in messages, member lists, and the people picker.
 
-To return to a normal broadcast, click **Clear** next to the recipient chips.
+---
 
-#### Online Presence Indicators
+### Multiple Chat Windows at Once (Desktop)
 
-When the recipient picker is open, each person in the list shows a small presence dot next to their name:
+Opening a Direct Message or Group doesn't take over your screen — it opens as its own small window next to the main panel, so you can keep several conversations visible side by side:
 
-| Dot colour | Meaning |
-|------------|---------|
-| 🟢 Green | Currently connected to the system |
-| ⚫ Grey | Offline or not currently logged in |
+- Each window gets its own colour so open conversations are easy to tell apart at a glance.
+- Up to **4 windows** can be open at once by default. Opening one more automatically closes whichever open conversation has gone longest without a new message — it isn't lost, just reachable again from the conversations list.
+- **Drag** any window by its header to move it out of your way; once moved, it stays exactly where you put it, even as other windows open and close. Team Chat itself is the one window that doesn't move.
+- **Mobile / narrow screens:** only **one** conversation window is open at a time, sized to fill most of the screen — there's no room to show several side by side.
 
-An **online** label also appears to the right of any user who is active. The presence updates in real time — if someone signs in or closes the browser while the picker is open, their dot changes automatically.
+#### Chat Settings
 
-> **Tip:** Sending a private message to an online user means they will see it immediately. Offline users will see it the next time they open the system.
+Click the **⚙ gear icon** in the chat header to open Chat Settings:
+
+| Setting | Default | Notes |
+|---------|---------|-------|
+| 🔊 Notification sound | **On** | Plays a short chime when a new message arrives from someone else. Turn off if you'd rather rely on the visual badge only. |
+| 🪟 Max open chat windows | **4** | Choose 1–5 (desktop only — mobile is always limited to 1). |
+
+---
+
+### Group Chats
+
+- **Who's in it:** click the group's name in its window header to open the member list.
+- **Recently active:** next to the group name, small avatars show who's actually been chatting — most recent sender first — so you can see real engagement at a glance. You're never shown here, and a member who's joined but never spoken doesn't appear inline either (only in the full member list via the dropdown).
+- **Managing members (group creator only):** from the member list, the person who created the group can:
+  - **Remove** a member — they lose access immediately, including to a window they already had open, and can no longer see the conversation or its history.
+  - **+ Add member** — search for someone and add them. They get the group's **full message history** right away, not just messages from when they joined, and an announcement line appears in the conversation for everyone ("Alice added Bob to the group") so the change is visible to the whole group.
+- **Flagging a message as important:** in a group, start your message with **@** to open a picker of the other members — choose up to **2** people to flag. Flagged messages get a highlighted border and a **🚩 Important** badge, and those recipients get a stronger notification than a normal message.
 
 ---
 
@@ -7005,68 +7027,42 @@ Any top-level message can have a thread of replies attached to it. Threads keep 
 
 **Starting a reply:**
 1. Hover over the message you want to reply to — a **↩ Reply** button appears.
-2. Click **↩ Reply**.
-3. A banner appears above the input field showing who you are replying to and two scope buttons:
+2. Click **↩ Reply**, type your reply, and send.
+3. **In Team Chat only**, a reply also has two scope buttons in the banner above the input:
 
    | Button | What it does |
    |--------|-------------|
-   | **Reply to sender** | Your reply goes only to the person who wrote the original message |
+   | **Reply to sender** | Your reply goes only to the person who wrote the original message (marked **🔒 Private**) |
    | **Reply to all** | Your reply is visible to everyone who could see the original message |
 
-4. Choose the scope, type your reply, and send.
-5. To cancel the reply and return to normal, click **✕** in the banner.
+   In a Direct Message or Group, a reply is always visible to the whole conversation — everyone there already sees everything, so there's no separate scope to choose.
+4. To cancel a reply and return to a normal message, click **✕** in the banner.
 
 **Viewing replies:**
-- After a message receives replies, a **▼ N replies** link appears below it.
-- Click the link to expand the thread inline. Replies are indented under the original message.
-- Click **▲ Hide replies** to collapse the thread.
+- After a message receives replies, a **▼ N replies** link appears below it. Click to expand the thread inline (replies are indented underneath), click **▲ Hide replies** to collapse it again.
 
 ---
 
-### Real-Time Updates
+### Composing a Message
 
-Messages and replies are delivered using **WebSockets** — they appear instantly without refreshing. Private messages arrive via your personal notification channel, so you receive them even if you are on a different page.
-
----
-
-### Unread Message Badge
-
-When the chat panel is closed and a new message arrives:
-- A **red badge** appears on the chat button showing the number of unread messages.
-- The badge shows `9+` if there are more than nine unread messages.
-- The count clears as soon as you open the panel.
-- You also receive a **🔔 bell notification** in the notification panel — private messages are labelled *(private)* so you can spot them at a glance.
+- The message box **grows as you type** past one line — up to about 5 lines, then it scrolls — instead of scrolling the text sideways, so you can see (and fix) the whole message, including blank lines, before sending.
+- **Enter** sends the message; **Shift+Enter** adds a new line.
 
 ---
 
-### Message History
+### Real-Time Updates & Notifications
 
-When you open chat, the last **100 messages** you can see are loaded automatically. Messages are grouped by date:
-
-```
-── Monday, 10 March 2026 ──────────────────────
-  09:14  Alice       Good morning everyone
-  09:16  Bob         Morning! Till 3 is open
-  09:45  Manager     All staff meeting at 14:00
-                     ▼ 3 replies
-── Tuesday, 11 March 2026 ─────────────────────
-  08:55  Alice  🔒 Private    Running 5 mins late
-```
-
-> Messages older than **7 days** are automatically deleted. Chat is intended for day-to-day communication — it is not a permanent record store.
+- Messages, replies, and group membership changes are delivered using **WebSockets** — they appear instantly without refreshing, even if you're on a different page (that's when a Direct Message or Group auto-opens the chat panel for you).
+- A **chime** plays for a new message from someone else, unless you've turned it off in Chat Settings.
+- When the chat panel is closed, unread badges build up — Team Chat and your Direct Messages/Groups are counted separately — and you also get a **🔔 bell notification** (private/group ones are marked so you can spot them at a glance).
 
 ---
 
-### Deleting a Message
+### Message History & Deletion
 
-You can delete your **own most recent** message:
-1. Hover over the message.
-2. Click the **Delete** button that appears.
-3. The message is replaced with: *🚫 This message was deleted.*
-
-The placeholder is visible to everyone who could see the original — only its content is removed.
-
-> Only the message author can delete a message. You cannot delete other people's messages.
+- **Team Chat** keeps the last 100 visible messages and automatically prunes anything older than **7 days** — it's for day-to-day coordination, not a permanent record.
+- **Direct Messages and Groups are not auto-pruned** — their full history stays available for as long as you're a participant.
+- You can delete your **own most recent** message (replaced with *🚫 This message was deleted* for everyone who saw it) — you can't delete anyone else's.
 
 ---
 
@@ -7074,27 +7070,31 @@ The placeholder is visible to everyone who could see the original — only its c
 
 | Feature | Available? |
 |---------|-----------|
-| Broadcast to all users | ✅ Yes |
-| Private messages (targeted recipients) | ✅ Yes |
+| Team Chat (company-wide broadcast) | ✅ Yes |
+| Persistent Direct Messages & Groups | ✅ Yes |
+| Multiple chat windows open at once (desktop) | ✅ Yes — up to 5, configurable |
+| Conversation search (by name and message content) | ✅ Yes |
+| Group member management (add/remove, creator only) | ✅ Yes |
+| @-mention flagging ("important", up to 2 people, groups) | ✅ Yes |
 | Threaded replies | ✅ Yes |
-| Reply to sender only | ✅ Yes |
+| Reply to sender only (Team Chat) | ✅ Yes |
+| Profile photos on avatars | ✅ Yes |
+| Notification sound (configurable) | ✅ Yes |
 | Real-time delivery via WebSocket | ✅ Yes |
-| 🔒 Private badge on targeted messages | ✅ Yes |
 | File or image attachments | Not yet |
-| Per-business channels | Not yet |
 | Read receipts | Not yet |
 | Typing indicators | Not yet |
-| Message search | Not yet |
 | Message editing | Not yet — delete and re-send |
 
 ---
 
 ### Chat Tips
 
-- **Use private messages for sensitive coordination** — e.g. alerting a specific manager about a till discrepancy without broadcasting it to all staff.
-- **Use threads to keep replies organised** — if a broadcast message needs follow-up, reply in the thread rather than sending a new top-level message.
-- **Keep sensitive financial information out of general chat** — general messages are visible to all users. Use Expense Account notes or payroll records for financial records.
-- **Use broadcast for quick coordination** — shift handovers, daily briefings, closing reminders, stock alerts.
+- **Start a Direct Message or Group for anything ongoing** — it stays in your conversations list, so you're not re-picking recipients every time the way a one-off tagged message used to work.
+- **Use @-flagging sparingly** — it's meant to cut through a busy group for something genuinely time-sensitive, not every message.
+- **Use threads to keep replies organised** — if a Team Chat message needs follow-up, reply in the thread rather than sending a new top-level message.
+- **Keep sensitive financial information out of Team Chat** — it's visible to every user. Use a Direct Message/Group, or Expense Account notes/payroll records, for anything that shouldn't be company-wide.
+- **On desktop, drag a window somewhere out of the way** rather than closing it if you'll be coming back to it soon — it'll stay put.
 
 ---
 

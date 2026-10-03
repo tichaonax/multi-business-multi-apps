@@ -85,6 +85,10 @@ interface ChatWindowProps {
   onClose: () => void
   rightOffset: number
   isMobile?: boolean
+  // Lifted to the parent (floating-chat.tsx) so a dragged position survives
+  // this component unmounting/remounting when the hub is minimized/restored.
+  customPosition: { right: number; bottom: number } | null
+  onPositionChange: (pos: { right: number; bottom: number }) => void
   onMessageSent: (preview: { text: string; at: string }) => void
 }
 
@@ -94,7 +98,7 @@ interface ChatWindowProps {
  * floating-chat.tsx), each tracking its own messages/composer/threads, so
  * switching between DMs/groups never loses what you were doing in another.
  */
-export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUserId, socket, onClose, rightOffset, isMobile = false, onMessageSent }: ChatWindowProps) {
+export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUserId, socket, onClose, rightOffset, isMobile = false, customPosition, onPositionChange, onMessageSent }: ChatWindowProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [sending, setSending] = useState(false)
@@ -128,7 +132,6 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
   // the moment a sibling window opened or closed. Once the user has dragged
   // a window, it ignores rightOffset entirely and stays exactly where they
   // put it, regardless of how many other windows open or close afterward.
-  const [customPosition, setCustomPosition] = useState<{ right: number; bottom: number } | null>(null)
   const dragRef = useRef<{ startMouseX: number; startMouseY: number; startRight: number; startBottom: number } | null>(null)
 
   const onHeaderMouseDown = useCallback((e: React.MouseEvent) => {
@@ -144,7 +147,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
       const { startMouseX, startMouseY, startRight, startBottom } = dragRef.current
       const newRight = startRight - (e.clientX - startMouseX)
       const newBottom = startBottom - (e.clientY - startMouseY)
-      setCustomPosition({ right: newRight, bottom: newBottom })
+      onPositionChange({ right: newRight, bottom: newBottom })
     }
     const onMouseUp = () => { dragRef.current = null }
     document.addEventListener('mousemove', onMouseMove)
@@ -153,7 +156,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
       document.removeEventListener('mousemove', onMouseMove)
       document.removeEventListener('mouseup', onMouseUp)
     }
-  }, [])
+  }, [onPositionChange])
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)

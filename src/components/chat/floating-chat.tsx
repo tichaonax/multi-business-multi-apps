@@ -135,6 +135,11 @@ export function FloatingChat() {
   const [view, setView] = useState<'list' | 'team'>('team')
   const [rooms, setRooms] = useState<RoomSummary[]>([])
   const [openWindows, setOpenWindows] = useState<string[]>([])
+  // Lifted up from ChatWindow (not kept as that component's own local state)
+  // so a manually-dragged position survives minimizing and restoring the
+  // hub — ChatWindow instances unmount while the hub is minimized (see the
+  // `if (!isOpen)` early return below), which would otherwise wipe it.
+  const [windowPositions, setWindowPositions] = useState<Record<string, { right: number; bottom: number }>>({})
   const [loadingRooms, setLoadingRooms] = useState(false)
   const [showNewChat, setShowNewChat] = useState(false)
   const [newChatSearch, setNewChatSearch] = useState('')
@@ -1383,6 +1388,8 @@ export function FloatingChat() {
           onClose={() => closeConversationWindow(roomId)}
           rightOffset={rightOffset}
           isMobile={isMobile}
+          customPosition={windowPositions[roomId] ?? null}
+          onPositionChange={(pos) => setWindowPositions(prev => ({ ...prev, [roomId]: pos }))}
           onMessageSent={(preview) => {
             setRooms(prev => sortRoomsByRecency(prev.map(r => r.id === roomId ? { ...r, lastMessage: { ...preview, isOwn: true } } : r)))
           }}
