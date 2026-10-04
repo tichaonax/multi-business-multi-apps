@@ -9,6 +9,7 @@ interface User {
   id: string
   name: string
   email: string
+  profilePhotoUrl?: string | null
   role: string
   isActive: boolean
   passwordResetRequired: boolean
@@ -276,23 +277,25 @@ function UserRow({
       onClick: onToggleExpand,
     })
   }
-  if (!user.employee) {
-    if (onCreateEmployee) {
-      rowActions.push({
-        key: 'create-employee',
-        label: 'Create Employee Record',
-        icon: '➕',
-        onClick: () => onCreateEmployee(user.id),
-      })
-    }
-    if (onLinkEmployee) {
-      rowActions.push({
-        key: 'link-employee',
-        label: 'Link Existing Employee',
-        icon: '🔗',
-        onClick: () => onLinkEmployee(user.id, user.name),
-      })
-    }
+  if (!user.employee && onCreateEmployee) {
+    rowActions.push({
+      key: 'create-employee',
+      label: 'Create Employee Record',
+      icon: '➕',
+      onClick: () => onCreateEmployee(user.id),
+    })
+  }
+  // Kept visible (not removed) once linked, so the menu itself shows the
+  // linked state at a glance instead of the action just silently vanishing.
+  if (onLinkEmployee) {
+    rowActions.push({
+      key: 'link-employee',
+      label: user.employee ? `Linked to ${user.employee.employeeNumber}` : 'Link Existing Employee',
+      icon: user.employee ? '✓' : '🔗',
+      disabled: !!user.employee,
+      title: user.employee ? `Already linked to employee ${user.employee.employeeNumber} — unlink from the employee record first to relink.` : undefined,
+      onClick: () => onLinkEmployee(user.id, user.name),
+    })
   }
 
   const initials = user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
@@ -309,8 +312,17 @@ function UserRow({
               {activeMemberships.length > 1 ? '▶' : ''}
             </button>
             <RowActionsMenu actions={rowActions} align="start" />
-            <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-800 flex items-center justify-center shrink-0">
-              <span className="text-blue-600 dark:text-blue-300 font-semibold text-xs">{initials}</span>
+            <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-800 flex items-center justify-center shrink-0 relative overflow-hidden">
+              {user.profilePhotoUrl ? (
+                <img
+                  src={user.profilePhotoUrl}
+                  alt={user.name}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                />
+              ) : (
+                <span className="text-blue-600 dark:text-blue-300 font-semibold text-xs">{initials}</span>
+              )}
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2">

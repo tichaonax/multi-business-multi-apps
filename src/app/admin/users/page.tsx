@@ -22,6 +22,7 @@ interface User {
   id: string
   name: string
   email: string
+  profilePhotoUrl?: string | null
   role: string
   isActive: boolean
   passwordResetRequired: boolean
