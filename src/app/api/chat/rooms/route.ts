@@ -16,7 +16,7 @@ export async function GET() {
           include: {
             chat_participants: {
               include: {
-                users: { select: { id: true, name: true, employees: { select: { profilePhotoUrl: true } } } },
+                users: { select: { id: true, name: true, profilePhotoUrl: true } },
               },
             },
           },
@@ -45,7 +45,7 @@ export async function GET() {
 
       const otherParticipants = room.chat_participants
         .filter(pp => pp.userId !== user.id)
-        .map(pp => ({ id: pp.users?.id ?? pp.userId, name: pp.users?.name ?? 'Unknown', photoUrl: pp.users?.employees?.profilePhotoUrl ?? null }))
+        .map(pp => ({ id: pp.users?.id ?? pp.userId, name: pp.users?.name ?? 'Unknown', photoUrl: pp.users?.profilePhotoUrl ?? null }))
 
       const displayName = room.type === 'direct'
         ? (otherParticipants[0]?.name ?? 'Unknown')

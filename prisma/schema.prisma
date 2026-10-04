@@ -3586,6 +3586,13 @@ model Users {
   email                                                           String                            @unique
   passwordHash                                                    String
   name                                                            String
+  // Structured name + photo, kept in sync with the linked Employees row (if
+  // any) — see link-employee and the Employees/User-profile update routes.
+  // `name` stays the single authoritative display string every existing
+  // reader uses; these are additive and always kept consistent with it.
+  firstName                                                       String?
+  lastName                                                        String?
+  profilePhotoUrl                                                 String?
   role                                                            String                            @default("user")
   permissions                                                     Json                              @default("{}")
   isActive                                                        Boolean                           @default(true)

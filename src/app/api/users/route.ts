@@ -19,13 +19,13 @@ export async function GET(req: NextRequest) {
           ? { name: { contains: search, mode: 'insensitive' } }
           : {}),
       },
-      select: { id: true, name: true, employees: { select: { profilePhotoUrl: true } } },
+      select: { id: true, name: true, profilePhotoUrl: true },
       orderBy: { name: 'asc' },
       take: 30,
     })
 
     // online status is resolved client-side via socket (chat:get-online-users)
-    return NextResponse.json(users.map(u => ({ id: u.id, name: u.name, photoUrl: u.employees?.profilePhotoUrl ?? null })))
+    return NextResponse.json(users.map(u => ({ id: u.id, name: u.name, photoUrl: u.profilePhotoUrl ?? null })))
   } catch (err) {
     console.error('[/api/users]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

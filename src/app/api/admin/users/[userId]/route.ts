@@ -9,6 +9,11 @@ import { getServerUser } from '@/lib/get-server-user'
 interface UserUpdateRequest {
   basicInfo: {
     name: string
+    // Optional structured name + photo — when provided, these drive `name`
+    // and sync to a linked Employee record. Omit to leave name/photo as-is.
+    firstName?: string
+    lastName?: string
+    profilePhotoUrl?: string | null
     email: string
     systemRole: string
     isActive: boolean
@@ -207,6 +212,7 @@ export async function PATCH(
     const existingUser = await prisma.users.findUnique({
       where: { id: userId },
       include: {
+        employees: { select: { id: true } },
         business_memberships: {
           include: {
             businesses: {
@@ -224,15 +230,27 @@ export async function PATCH(
       )
     }
 
+    // Derive structured name fields — prefer explicit firstName/lastName from
+    // the shared identity component; fall back to splitting `name` on the
+    // first space so the structured columns never go stale either way.
+    const derivedFirstName = basicInfo.firstName?.trim() || basicInfo.name.trim().split(' ')[0] || basicInfo.name.trim()
+    const derivedLastName = basicInfo.lastName?.trim() ?? basicInfo.name.trim().split(' ').slice(1).join(' ')
+    const derivedFullName = derivedLastName ? `${derivedFirstName} ${derivedLastName}` : derivedFirstName
+
     // Update user and business memberships with transaction
     const result = await prisma.$transaction(async (tx) => {
       // Build update data
       const updateData: any = {
-        name: basicInfo.name,
+        name: derivedFullName,
+        firstName: derivedFirstName,
+        lastName: derivedLastName || null,
         email: basicInfo.email,
         role: basicInfo.systemRole,
         isActive: basicInfo.isActive,
         permissions: userLevelPermissions || {},
+      }
+      if (basicInfo.profilePhotoUrl !== undefined) {
+        updateData.profilePhotoUrl = basicInfo.profilePhotoUrl || null
       }
 
       // Default business is a cross-business, account-level setting —
@@ -258,6 +276,19 @@ export async function PATCH(
         where: { id: userId },
         data: updateData
       })
+
+      // SYNC: name/photo → linked Employee record, if any
+      if (existingUser.employees) {
+        await tx.employees.update({
+          where: { id: existingUser.employees.id },
+          data: {
+            firstName: derivedFirstName,
+            lastName: derivedLastName || '',
+            fullName: derivedFullName,
+            ...(basicInfo.profilePhotoUrl !== undefined ? { profilePhotoUrl: basicInfo.profilePhotoUrl || null } : {}),
+          }
+        })
+      }
 
       // Get current business memberships
       const currentMemberships = await tx.businessMemberships.findMany({

@@ -14,10 +14,14 @@ import {
   DEFAULT_USER_PERMISSIONS
 } from '@/types/permissions'
 import { ModalPortal } from '@/components/ui/modal-portal'
+import { ProfileIdentityFields } from '@/components/shared/profile-identity-fields'
 
 interface User {
   id: string
   name: string
+  firstName?: string | null
+  lastName?: string | null
+  profilePhotoUrl?: string | null
   email: string
   role: string
   isActive: boolean
@@ -81,6 +85,9 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
   // Basic user info
   const [basicInfo, setBasicInfo] = useState({
     name: user.name,
+    firstName: user.firstName || user.name.split(' ')[0] || '',
+    lastName: user.lastName || user.name.split(' ').slice(1).join(' ') || '',
+    profilePhotoUrl: (user.profilePhotoUrl ?? null) as string | null,
     email: user.email,
     systemRole: user.role,
     isActive: user.isActive,
@@ -243,9 +250,12 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
       console.log('🔄 Updating user:', user.id)
       console.log('📤 Request data:', { basicInfo, userLevelPermissions, businessMemberships: businessMemberships.length })
 
-      // Build request body
+      // Build request body — keep basicInfo.name in sync with firstName/lastName
       const requestBody: any = {
-        basicInfo,
+        basicInfo: {
+          ...basicInfo,
+          name: basicInfo.lastName ? `${basicInfo.firstName} ${basicInfo.lastName}` : basicInfo.firstName,
+        },
         userLevelPermissions,
         businessMemberships
       }
@@ -411,19 +421,23 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
           {/* Basic Information */}
           <div>
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Basic Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  className="input-field"
-                  value={basicInfo.name}
-                  onChange={(e) => setBasicInfo({ ...basicInfo, name: e.target.value })}
-                />
-              </div>
 
+            {/* Name + Profile Photo — shared with the Employee edit page and
+                the user's own "My Profile" page; if this account is linked
+                to an employee record, saving here also updates it. */}
+            <div className="mb-4">
+              <ProfileIdentityFields
+                firstName={basicInfo.firstName}
+                lastName={basicInfo.lastName}
+                onFirstNameChange={(v) => setBasicInfo({ ...basicInfo, firstName: v })}
+                onLastNameChange={(v) => setBasicInfo({ ...basicInfo, lastName: v })}
+                photoUrl={basicInfo.profilePhotoUrl}
+                onPhotoChange={(url) => setBasicInfo({ ...basicInfo, profilePhotoUrl: url })}
+                subtitle={user.employee ? `Linked to employee ${user.employee.employeeNumber}` : undefined}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Email Address

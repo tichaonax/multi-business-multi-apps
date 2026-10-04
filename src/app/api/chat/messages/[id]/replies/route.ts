@@ -37,22 +37,21 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         : { parentId: params.id },
       orderBy: { createdAt: 'asc' },
       include: {
-        users: { select: { name: true, employees: { select: { firstName: true, lastName: true, profilePhotoUrl: true } } } },
+        users: { select: { name: true, firstName: true, lastName: true, profilePhotoUrl: true } },
         chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
       },
     })
 
     const shaped = replies.map(m => {
-      const emp = (m.users as any)?.employees
-      const firstName: string = emp?.firstName ?? ''
-      const lastName: string = emp?.lastName ?? ''
+      const firstName: string = (m.users as any)?.firstName ?? ''
+      const lastName: string = (m.users as any)?.lastName ?? ''
       const initials = (firstName.charAt(0) + lastName.charAt(0)).toUpperCase() || ((m.users as any)?.name ?? '?').charAt(0).toUpperCase()
       return {
         id: m.id,
         roomId: m.roomId ?? null,
         userId: m.userId,
         userName: (m.users as any)?.name ?? 'Unknown',
-        userPhotoUrl: (emp?.profilePhotoUrl ?? null) as string | null,
+        userPhotoUrl: ((m.users as any)?.profilePhotoUrl ?? null) as string | null,
         userInitials: initials,
         message: m.message,
         createdAt: m.createdAt.toISOString(),

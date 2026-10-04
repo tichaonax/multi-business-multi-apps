@@ -541,6 +541,21 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
         }
       })
 
+      // SYNC: Employee name/photo → linked User account, always (not only on
+      // status change) — Employee is the source of truth for these fields
+      // once linked, see ai-contexts/project-plans/review/projectplan-NOTKT-unified-user-employee-identity-2026-10-04.md
+      if (updatedEmployee.users) {
+        await tx.users.update({
+          where: { id: updatedEmployee.users.id },
+          data: {
+            firstName: updatedEmployee.firstName,
+            lastName: updatedEmployee.lastName,
+            name: updatedEmployee.fullName,
+            profilePhotoUrl: updatedEmployee.profilePhotoUrl,
+          }
+        })
+      }
+
       let userSyncAction = null
 
       // Synchronize linked user account if needed

@@ -20,7 +20,7 @@ export async function GET(
       where: { id: roomId },
       include: {
         chat_participants: {
-          include: { users: { select: { id: true, name: true, employees: { select: { profilePhotoUrl: true } } } } },
+          include: { users: { select: { id: true, name: true, profilePhotoUrl: true } } },
         },
       },
     })
@@ -34,7 +34,7 @@ export async function GET(
       participants: room.chat_participants.map(p => ({
         id: p.users?.id ?? p.userId,
         name: p.users?.name ?? 'Unknown',
-        photoUrl: p.users?.employees?.profilePhotoUrl ?? null,
+        photoUrl: p.users?.profilePhotoUrl ?? null,
       })),
     })
   } catch (err) {

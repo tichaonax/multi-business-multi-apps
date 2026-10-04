@@ -13,6 +13,7 @@ import { PolicyAcknowledgmentModal } from '@/components/policies/PolicyAcknowled
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { usePageSizePreference, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 import { useToastContext } from '@/components/ui/toast'
+import { ProfileIdentityFields } from '@/components/shared/profile-identity-fields'
 
 const CATEGORY_LABELS: Record<string, string> = {
   HR: 'HR', SAFETY: 'Safety', IT: 'IT', FINANCE: 'Finance', CODE_OF_CONDUCT: 'Code of Conduct', OTHER: 'Other',
@@ -33,6 +34,10 @@ interface PolicyAck {
 interface UserProfile {
   id: string
   name: string
+  firstName: string | null
+  lastName: string | null
+  profilePhotoUrl: string | null
+  isLinkedToEmployee: boolean
   email: string
   role: string
   isActive: boolean
@@ -80,7 +85,9 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
+    profilePhotoUrl: null as string | null,
     email: ''
   })
   const [success, setSuccess] = useState('')
@@ -123,7 +130,9 @@ export default function ProfilePage() {
         const data = await response.json()
         setProfile(data)
         setFormData({
-          name: data.name,
+          firstName: data.firstName || data.name?.split(' ')[0] || '',
+          lastName: data.lastName || data.name?.split(' ').slice(1).join(' ') || '',
+          profilePhotoUrl: data.profilePhotoUrl || null,
           email: data.email
         })
       } else {
@@ -192,16 +201,21 @@ export default function ProfilePage() {
       const response = await fetch(`/api/user/profile`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          profilePhotoUrl: formData.profilePhotoUrl,
+        })
       })
 
       const data = await response.json()
       if (response.ok) {
         setSuccess('Profile updated successfully')
-        setProfile({ ...profile!, ...formData })
+        const fullName = data.user?.name ?? [formData.firstName, formData.lastName].filter(Boolean).join(' ')
+        setProfile({ ...profile!, name: fullName, firstName: formData.firstName, lastName: formData.lastName, profilePhotoUrl: formData.profilePhotoUrl })
         setEditing(false)
         // Update the session with new name
-        await update({ name: formData.name })
+        await update({ name: fullName })
         setTimeout(() => setSuccess(''), 5000)
       } else {
         setError(data.error || 'Failed to update profile')
@@ -314,24 +328,48 @@ export default function ProfilePage() {
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Full Name
-                </label>
-                {editing ? (
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="input-field"
-                    placeholder="Enter your full name"
-                  />
-                ) : (
-                  <p className="text-gray-900 dark:text-white">{profile.name}</p>
-                )}
-              </div>
+            {/* Name + Profile Photo — shared with the Employee edit page and
+                the Admin "Edit User" modal; if this account is linked to an
+                employee record, saving here also updates that record's name
+                and photo (and vice versa). */}
+            <div className="mb-6">
+              {editing ? (
+                <ProfileIdentityFields
+                  firstName={formData.firstName}
+                  lastName={formData.lastName}
+                  onFirstNameChange={(v) => setFormData(prev => ({ ...prev, firstName: v }))}
+                  onLastNameChange={(v) => setFormData(prev => ({ ...prev, lastName: v }))}
+                  photoUrl={formData.profilePhotoUrl}
+                  onPhotoChange={(url) => setFormData(prev => ({ ...prev, profilePhotoUrl: url }))}
+                  subtitle={profile.isLinkedToEmployee ? 'Linked to an employee record — changes here also update it' : undefined}
+                />
+              ) : (
+                <div className="flex items-center gap-4">
+                  {profile.profilePhotoUrl ? (
+                    <img
+                      src={profile.profilePhotoUrl}
+                      alt="Profile photo"
+                      className="w-16 h-16 rounded-full object-cover border-2 border-gray-300 dark:border-gray-600"
+                      onError={(e) => { (e.target as HTMLImageElement).src = '/expired-photo.svg' }}
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center border-2 border-gray-300 dark:border-gray-600">
+                      <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-lg font-semibold text-gray-900 dark:text-white">{profile.name}</p>
+                    {profile.isLinkedToEmployee && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Linked to an employee record</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Email Address
@@ -356,8 +394,8 @@ export default function ProfilePage() {
                   Account Status
                 </label>
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                  profile.isActive 
-                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+                  profile.isActive
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                     : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                 }`}>
                   {profile.isActive ? 'Active' : 'Inactive'}
@@ -371,7 +409,9 @@ export default function ProfilePage() {
                   onClick={() => {
                     setEditing(false)
                     setFormData({
-                      name: profile.name,
+                      firstName: profile.firstName || profile.name.split(' ')[0] || '',
+                      lastName: profile.lastName || profile.name.split(' ').slice(1).join(' ') || '',
+                      profilePhotoUrl: profile.profilePhotoUrl,
                       email: profile.email
                     })
                   }}

@@ -13,6 +13,7 @@ import { PhoneNumberInput } from '@/components/ui/phone-number-input'
 import { NationalIdInput } from '@/components/ui/national-id-input'
 import { DriverLicenseInput } from '@/components/ui/driver-license-input'
 import { DateInput } from '@/components/ui/date-input'
+import { ProfileIdentityFields } from '@/components/shared/profile-identity-fields'
 
 interface Employee {
   id: string
@@ -67,8 +68,6 @@ export default function EmployeeEditPage() {
   const [initialFormData, setInitialFormData] = useState<Record<string, string>>({})
 
   // Form data
-  const [uploadingPhoto, setUploadingPhoto] = useState(false)
-
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -261,33 +260,6 @@ export default function EmployeeEditPage() {
     }
   }
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    setUploadingPhoto(true)
-    try {
-      const fd = new FormData()
-      fd.append('files', file)
-      // No expiresInDays — profile photos are permanent
-      const res = await fetch('/api/universal/images', { method: 'POST', body: fd })
-      if (res.ok) {
-        const data = await res.json()
-        const url = data.data?.[0]?.url ?? data.url
-        if (url) {
-          setFormData(prev => ({ ...prev, profilePhotoUrl: url }))
-        }
-      } else {
-        setError('Failed to upload photo')
-      }
-    } catch {
-      setError('Failed to upload photo')
-    } finally {
-      setUploadingPhoto(false)
-      e.target.value = '' // reset file input
-    }
-  }
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
 
@@ -467,68 +439,33 @@ export default function EmployeeEditPage() {
               <div>
                 <h3 className="text-lg font-semibold text-primary mb-4">Personal Information</h3>
 
-                {/* Profile Photo */}
-                <div className="flex items-center gap-6 mb-6">
-                  <div className="relative">
-                    {formData.profilePhotoUrl ? (
-                      <img
-                        src={formData.profilePhotoUrl}
-                        alt="Profile photo"
-                        className="w-24 h-24 rounded-full object-cover border-2 border-gray-300 dark:border-gray-600"
-                        onError={(e) => { (e.target as HTMLImageElement).src = '/expired-photo.svg' }}
-                      />
-                    ) : (
-                      <div className="w-24 h-24 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center border-2 border-gray-300 dark:border-gray-600">
-                        <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                      </div>
-                    )}
-                    {uploadingPhoto && (
-                      <div className="absolute inset-0 rounded-full bg-black bg-opacity-50 flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white mb-0.5">
-                      {employee.fullName}
-                    </p>
-                    <p className="text-xs font-mono text-blue-500 dark:text-blue-400 mb-2">{employee.employeeNumber}</p>
-                    <p className="text-xs text-secondary mb-2">JPG, PNG or WEBP. Used for identification.</p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <label className="btn-secondary text-sm cursor-pointer">
-                        {uploadingPhoto ? 'Uploading...' : formData.profilePhotoUrl ? 'Change Photo' : 'Upload Photo'}
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp"
-                          onChange={handlePhotoUpload}
-                          disabled={uploadingPhoto}
-                          className="hidden"
-                        />
-                      </label>
-                      {formData.profilePhotoUrl && (
-                        <button
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, profilePhotoUrl: '' }))}
-                          className="text-xs text-red-500 hover:text-red-700"
-                        >
-                          Remove
-                        </button>
-                      )}
-                      <button
-                        type="submit"
-                        disabled={saving || uploadingPhoto}
-                        className="btn-primary text-sm"
-                      >
-                        {saving ? 'Saving...' : 'Save & Close'}
-                      </button>
-                    </div>
+                {/* Profile Photo + Name — shared with the user's own "My Profile"
+                    page and the Admin "Edit User" modal; if this employee is
+                    linked to a login account, saving here also updates that
+                    account's name/photo (and vice versa). */}
+                <div className="mb-6">
+                  <ProfileIdentityFields
+                    firstName={formData.firstName}
+                    lastName={formData.lastName}
+                    onFirstNameChange={(v) => setFormData(prev => ({ ...prev, firstName: v }))}
+                    onLastNameChange={(v) => setFormData(prev => ({ ...prev, lastName: v }))}
+                    photoUrl={formData.profilePhotoUrl || null}
+                    onPhotoChange={(url) => setFormData(prev => ({ ...prev, profilePhotoUrl: url || '' }))}
+                    subtitle={employee.employeeNumber}
+                  />
+                  <div className="mt-3">
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="btn-primary text-sm"
+                    >
+                      {saving ? 'Saving...' : 'Save & Close'}
+                    </button>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {/* Row 1: Emp# · First · Last */}
+                  {/* Row 1: Emp# · Email · Phone */}
                   <div>
                     <label className="block text-sm font-medium text-secondary mb-2">
                       Employee Number
@@ -540,34 +477,6 @@ export default function EmployeeEditPage() {
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-600 text-primary cursor-not-allowed"
                     />
                     <p className="text-xs text-secondary mt-1">System-generated unique identifier</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-secondary mb-2">
-                      First Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="firstName"
-                      value={formData.firstName}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-secondary mb-2">
-                      Last Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="lastName"
-                      value={formData.lastName}
-                      onChange={handleChange}
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
                   </div>
 
                   {/* Row 2: Email · Phone · Date of Birth */}

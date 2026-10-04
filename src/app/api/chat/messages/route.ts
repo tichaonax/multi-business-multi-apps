@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
         orderBy: { createdAt: 'asc' },
         take: monthRange ? 1000 : 500,
         include: {
-          users: { select: { name: true, employees: { select: { firstName: true, lastName: true, profilePhotoUrl: true } } } },
+          users: { select: { name: true, firstName: true, lastName: true, profilePhotoUrl: true } },
           chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
           replies: { where: { deletedAt: null }, select: { id: true } },
         },
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'asc' },
       take: monthRange ? 1000 : 500,
       include: {
-        users: { select: { name: true, employees: { select: { firstName: true, lastName: true, profilePhotoUrl: true } } } },
+        users: { select: { name: true, firstName: true, lastName: true, profilePhotoUrl: true } },
         chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
         replies: { where: { deletedAt: null }, select: { id: true } },
       },
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
 
       const created = await prisma.chatMessages.create({
         data: { roomId: requestedRoomId, userId: user.id, message, parentId },
-        include: { users: { select: { name: true, employees: { select: { firstName: true, lastName: true, profilePhotoUrl: true } } } } },
+        include: { users: { select: { name: true, firstName: true, lastName: true, profilePhotoUrl: true } } },
       })
 
       if (mentionIds.length > 0) {
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
         ? await prisma.chatMessages.findUnique({
             where: { id: created.id },
             include: {
-              users: { select: { name: true, employees: { select: { firstName: true, lastName: true, profilePhotoUrl: true } } } },
+              users: { select: { name: true, firstName: true, lastName: true, profilePhotoUrl: true } },
               chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
             },
           })
@@ -227,7 +227,7 @@ export async function POST(request: NextRequest) {
         parentId,
         replyScope,
       },
-      include: { users: { select: { name: true, employees: { select: { firstName: true, lastName: true, profilePhotoUrl: true } } } } },
+      include: { users: { select: { name: true, firstName: true, lastName: true, profilePhotoUrl: true } } },
     })
 
     // Persist recipient rows if targeted
@@ -242,7 +242,7 @@ export async function POST(request: NextRequest) {
     const full = await prisma.chatMessages.findUnique({
       where: { id: created.id },
       include: {
-        users: { select: { name: true, employees: { select: { firstName: true, lastName: true, profilePhotoUrl: true } } } },
+        users: { select: { name: true, firstName: true, lastName: true, profilePhotoUrl: true } },
         chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
       },
     })

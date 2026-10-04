@@ -79,16 +79,18 @@ export async function createGroupRoom(creatorId: string, name: string, memberIds
  * group-membership routes so a system message (e.g. "added X to the group")
  * comes back in exactly the same shape as a normal one. */
 export function shapeMessage(m: any, replyCount = 0) {
-  const emp = m.users?.employees
-  const firstName: string = emp?.firstName ?? ''
-  const lastName: string = emp?.lastName ?? ''
+  // Users.firstName/lastName/profilePhotoUrl are kept in sync with a linked
+  // Employee record (if any), so chat reads them straight off Users and
+  // never needs to know whether this sender has an Employee record at all.
+  const firstName: string = m.users?.firstName ?? ''
+  const lastName: string = m.users?.lastName ?? ''
   const initials = (firstName.charAt(0) + lastName.charAt(0)).toUpperCase() || (m.users?.name ?? '?').charAt(0).toUpperCase()
   return {
     id: m.id,
     roomId: m.roomId ?? null,
     userId: m.userId,
     userName: m.users?.name ?? 'Unknown',
-    userPhotoUrl: emp?.profilePhotoUrl ?? null,
+    userPhotoUrl: m.users?.profilePhotoUrl ?? null,
     userInitials: initials,
     // A system message (e.g. membership changes) has no sender — the client
     // renders these as a centered event line instead of a chat bubble.

@@ -6,16 +6,10 @@ export async function GET() {
   try {
     // Get current user session
     const user = await getServerUser()
-    
+
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    // Look up linked employee photo
-    const linkedEmployee = await prisma.employees.findFirst({
-      where: { userId: user.id },
-      select: { profilePhotoUrl: true },
-    })
 
     const dbUser = await prisma.users.findUnique({
       where: { id: user.id
@@ -23,10 +17,14 @@ export async function GET() {
       select: {
         id: true,
         name: true,
+        firstName: true,
+        lastName: true,
+        profilePhotoUrl: true,
         email: true,
         role: true,
         isActive: true,
         createdAt: true,
+        employees: { select: { id: true } },
         business_memberships: {
           select: {
             businessId: true,
@@ -58,6 +56,13 @@ export async function GET() {
     // Transform snake_case to camelCase for frontend
     const responseData = {
       ...user,
+      firstName: dbUser?.firstName ?? null,
+      lastName: dbUser?.lastName ?? null,
+      profilePhotoUrl: dbUser?.profilePhotoUrl ?? null,
+      // Whether this account is linked to an Employee record — the client
+      // uses this to explain why name/photo changes here also show up on
+      // the Employee record (and vice versa) once linked.
+      isLinkedToEmployee: !!dbUser?.employees,
       businessMemberships: (dbUser?.business_memberships ?? []).map((m) => ({
         businessId: m.businessId,
         role: m.role,
@@ -68,7 +73,6 @@ export async function GET() {
           ? { id: m.businesses.id, name: m.businesses.name, type: m.businesses.type }
           : null,
       })),
-      profilePhotoUrl: linkedEmployee?.profilePhotoUrl ?? null,
     }
 
     // Remove the snake_case version
@@ -84,36 +88,58 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   try {
     const user = await getServerUser()
-    
+
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { name, email } = await req.json()
+    const { firstName, lastName, profilePhotoUrl } = await req.json()
 
     // Basic validation
-    if (!name || name.trim().length === 0) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+    if (!firstName || firstName.trim().length === 0) {
+      return NextResponse.json({ error: 'First name is required' }, { status: 400 })
     }
 
-    // For now, only allow name updates. Email changes require admin approval
-    const updatedUser = await prisma.users.update({
-      where: {
-        id: user.id
-      },
-      data: {
-        name: name.trim()
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true
+    const trimmedFirst = firstName.trim()
+    const trimmedLast = (lastName ?? '').trim()
+    const fullName = trimmedLast ? `${trimmedFirst} ${trimmedLast}` : trimmedFirst
+
+    // SYNC: this account's name/photo → linked Employee record, if any —
+    // Employee workflows keep working, but if this user also has an
+    // Employee record, both must show identical data once either is edited.
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedUser = await tx.users.update({
+        where: { id: user.id },
+        data: {
+          firstName: trimmedFirst,
+          lastName: trimmedLast || null,
+          name: fullName,
+          profilePhotoUrl: profilePhotoUrl !== undefined ? (profilePhotoUrl || null) : undefined,
+        },
+        select: {
+          id: true, name: true, email: true, firstName: true, lastName: true, profilePhotoUrl: true,
+          employees: { select: { id: true } },
+        }
+      })
+
+      if (updatedUser.employees) {
+        await tx.employees.update({
+          where: { id: updatedUser.employees.id },
+          data: {
+            firstName: trimmedFirst,
+            lastName: trimmedLast || '',
+            fullName,
+            ...(profilePhotoUrl !== undefined ? { profilePhotoUrl: profilePhotoUrl || null } : {}),
+          }
+        })
       }
+
+      return updatedUser
     })
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       message: 'Profile updated successfully',
-      user: updatedUser
+      user: result
     })
   } catch (error) {
     console.error('Error updating user profile:', error)

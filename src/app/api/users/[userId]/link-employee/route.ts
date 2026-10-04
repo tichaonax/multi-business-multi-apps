@@ -25,14 +25,18 @@ export async function PUT(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
-    const { userId } = await params;
     const { employeeId } = await req.json();
 
     if (!employeeId) {
       return NextResponse.json({ error: 'Employee ID is required' }, { status: 400 });
     }
 
-    // Get user details
+    // Get the TARGET user's details — distinct from `user` above, which is
+    // the admin performing this action. Earlier code here used `user` in
+    // place of `dbUser` throughout this handler (wrong shape — the session
+    // user from getServerUser() has no `employees`/`business_memberships`
+    // fields at all), which crashed on the business-memberships lookup below
+    // and surfaced to the admin as a generic "Failed to link user to employee".
     const dbUser = await prisma.users.findUnique({
       where: { id: userId },
       include: {
@@ -41,12 +45,12 @@ export async function PUT(
       }
     });
 
-    if (!user) {
+    if (!dbUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     // Check if user already linked to an employee
-    if ((user as any).employees) {
+    if (dbUser.employees) {
       return NextResponse.json({
         error: 'User is already linked to an employee'
       }, { status: 400 });
@@ -83,8 +87,22 @@ export async function PUT(
         data: { userId: userId }
       });
 
+      // SYNC: at link time, the Employee's name/photo takes precedence over
+      // whatever this user account already had — same rule the backfill
+      // migration applied to existing mismatched pairs, so a *new* link
+      // can't reintroduce the same mismatch.
+      await tx.users.update({
+        where: { id: userId },
+        data: {
+          firstName: employee.firstName,
+          lastName: employee.lastName,
+          name: employee.fullName,
+          profilePhotoUrl: employee.profilePhotoUrl,
+        }
+      });
+
       // Sync business memberships from employee business assignments
-  const existingMemberships = (user as any).business_memberships.map((m: any) => m.businessId);
+  const existingMemberships = dbUser.business_memberships.map((m: any) => m.businessId);
 
       // Add primary business if not already a member
       if (!existingMemberships.includes(employee.primaryBusinessId)) {
@@ -108,7 +126,7 @@ export async function PUT(
       }
 
       // Add additional business assignments
-      for (const assignment of (employee as any).employeeBusinessAssignments || []) {
+      for (const assignment of employee.employee_business_assignments || []) {
         if (!existingMemberships.includes(assignment.businessId) && 
             assignment.businessId !== employee.primaryBusinessId) {
           await tx.businessMemberships.create({
@@ -140,24 +158,24 @@ export async function PUT(
           resourceId: userId,
           changes: {
             userId: userId,
-            userName: user.name,
-            userEmail: user.email,
+            userName: dbUser.name,
+            userEmail: dbUser.email,
             employeeId: employeeId,
             employeeName: employee.fullName,
             employeeNumber: employee.employeeNumber,
             primaryBusinessId: employee.primaryBusinessId,
-                                  businessAssignments: (employee as any).employeeBusinessAssignments?.map((a: any) => ({
-                                          businessId: a.businessId,
-                                          businessName: (a as any).businesses?.name || null,
-                                          role: a.role
-                                        }))
+            businessAssignments: employee.employee_business_assignments?.map((a: any) => ({
+              businessId: a.businessId,
+              businessName: a.businesses?.name || null,
+              role: a.role
+            }))
           },
           businessId: employee.primaryBusinessId,
           timestamp: new Date(),
         }
       });
 
-      return { user, employee };
+      return { dbUser, employee };
     });
 
     return NextResponse.json({
@@ -165,13 +183,13 @@ export async function PUT(
       message: 'User successfully linked to employee',
       link: {
         userId: userId,
-        userName: user.name,
-        userEmail: user.email,
+        userName: dbUser.name,
+        userEmail: dbUser.email,
         employeeId: employeeId,
         employeeName: employee.fullName,
         employeeNumber: employee.employeeNumber,
         primaryBusiness: (employee as any).businesses?.name || null,
-        additionalBusinesses: ((employee as any).employeeBusinessAssignments || []).length
+        additionalBusinesses: (employee.employee_business_assignments || []).length
       }
     });
 
@@ -202,9 +220,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
-    const { userId } = await params;
-
-    // Get user details
+    // Get the TARGET user's details — distinct from `user` above (the admin
+    // performing this action). See the matching note in PUT above.
     const dbUser = await prisma.users.findUnique({
       where: { id: userId },
         include: {
@@ -218,11 +235,11 @@ export async function DELETE(
         }
     });
 
-    if (!user) {
+    if (!dbUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-      if (!user.employees) {
+      if (!dbUser.employees) {
       return NextResponse.json({
         error: 'User is not linked to any employee'
       }, { status: 400 });
@@ -231,7 +248,7 @@ export async function DELETE(
     const result = await prisma.$transaction(async (tx) => {
       // Unlink user from employee
         await tx.employees.update({
-          where: { id: user.employees!.id },
+          where: { id: dbUser.employees!.id },
         data: { userId: null }
       });
 
@@ -244,17 +261,17 @@ export async function DELETE(
           resourceId: userId,
           changes: {
             userId: userId,
-            userName: user.name,
-            userEmail: user.email,
-              employeeId: user.employees!.id,
-              employeeName: user.employees!.fullName,
-              employeeNumber: user.employees!.employeeNumber,
+            userName: dbUser.name,
+            userEmail: dbUser.email,
+              employeeId: dbUser.employees!.id,
+              employeeName: dbUser.employees!.fullName,
+              employeeNumber: dbUser.employees!.employeeNumber,
           },
           timestamp: new Date(),
         }
       });
 
-        return user.employees!;
+        return dbUser.employees!;
     });
 
     return NextResponse.json({
@@ -262,8 +279,8 @@ export async function DELETE(
       message: 'User successfully unlinked from employee',
       unlink: {
         userId: userId,
-        userName: user.name,
-        userEmail: user.email,
+        userName: dbUser.name,
+        userEmail: dbUser.email,
         employeeId: result.id,
         employeeName: result.fullName,
         employeeNumber: result.employeeNumber,
