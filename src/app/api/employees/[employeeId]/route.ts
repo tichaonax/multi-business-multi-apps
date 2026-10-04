@@ -594,8 +594,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           data: {
             userId: user.id,
             action: 'EMPLOYEE_STATUS_SYNC',
-            resourceType: 'Employee',
-            resourceId: employeeId,
+            entityType: 'Employee',
+            entityId: employeeId,
             changes: {
               employeeId,
               employeeName: updatedEmployee.fullName,
@@ -607,9 +607,9 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
               linkedUserId: updatedEmployee.users.id,
               linkedUserEmail: updatedEmployee.users.email,
               userSyncAction,
-              reason: 'Employee status update'
+              reason: 'Employee status update',
+              businessId: updatedEmployee.primaryBusinessId,
             },
-            businessId: updatedEmployee.primaryBusinessId,
             timestamp: new Date(),
           }
         })
@@ -786,8 +786,8 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
         data: {
           userId: user.id,
           action: 'EMPLOYEE_TERMINATED',
-          resourceType: 'Employee',
-          resourceId: employeeId,
+          entityType: 'Employee',
+          entityId: employeeId,
           changes: {
             employeeId,
             employeeName: inactivatedEmployee.fullName,
@@ -796,9 +796,9 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
             linkedUserId: inactivatedEmployee.users?.id,
             linkedUserEmail: inactivatedEmployee.users?.email,
             userSyncAction,
-            reason: 'Employee termination'
+            reason: 'Employee termination',
+            businessId: inactivatedEmployee.primaryBusinessId,
           },
-          businessId: inactivatedEmployee.primaryBusinessId,
           timestamp: new Date(),
         }
       })

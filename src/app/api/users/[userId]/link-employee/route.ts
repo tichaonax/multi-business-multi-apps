@@ -154,8 +154,8 @@ export async function PUT(
         data: {
           userId: user.id,
           action: 'USER_EMPLOYEE_LINKED',
-          resourceType: 'User',
-          resourceId: userId,
+          entityType: 'User',
+          entityId: userId,
           changes: {
             userId: userId,
             userName: dbUser.name,
@@ -170,7 +170,6 @@ export async function PUT(
               role: a.role
             }))
           },
-          businessId: employee.primaryBusinessId,
           timestamp: new Date(),
         }
       });
@@ -257,8 +256,8 @@ export async function DELETE(
         data: {
           userId: user.id,
           action: 'USER_EMPLOYEE_UNLINKED',
-          resourceType: 'User',
-          resourceId: userId,
+          entityType: 'User',
+          entityId: userId,
           changes: {
             userId: userId,
             userName: dbUser.name,
