@@ -57,6 +57,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         message: m.message,
         createdAt: m.createdAt.toISOString(),
         deletedAt: m.deletedAt?.toISOString() ?? null,
+        editedAt: m.editedAt?.toISOString() ?? null,
+        editCount: (m as any).editCount ?? 0,
         parentId: m.parentId ?? null,
         replyScope: m.replyScope ?? null,
         replyCount: 0,

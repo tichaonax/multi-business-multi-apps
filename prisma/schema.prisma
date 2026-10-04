@@ -761,6 +761,8 @@ model ChatMessages {
   message                 String
   createdAt               DateTime                @default(now())
   deletedAt               DateTime?
+  editedAt                DateTime?
+  editCount               Int                     @default(0)
   roomId                  String?
   userId                  String?
   parentId                String?

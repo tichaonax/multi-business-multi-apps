@@ -8,6 +8,15 @@ import { prisma } from '@/lib/prisma'
 
 export const GENERAL_ROOM_NAME = 'General'
 
+// A message can only be edited by its sender, only while it's still their
+// most recent message in the room, and only within this window of sending.
+export const EDIT_WINDOW_MS = 15 * 60 * 1000
+
+// Default history load shows only the last 30 days — anything older sits
+// behind a collapsed per-month placeholder the user can expand on demand
+// (see /api/chat/messages/months and the ?month= param on the main GET).
+export const DEFAULT_HISTORY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
+
 /** Get or create the single general chat room — unchanged from before MBM-301. */
 export async function getGeneralRoom() {
   let room = await prisma.chatRooms.findFirst({
@@ -87,6 +96,8 @@ export function shapeMessage(m: any, replyCount = 0) {
     message: m.message,
     createdAt: m.createdAt.toISOString(),
     deletedAt: m.deletedAt?.toISOString() ?? null,
+    editedAt: m.editedAt?.toISOString() ?? null,
+    editCount: m.editCount ?? 0,
     parentId: m.parentId ?? null,
     replyScope: m.replyScope ?? null,
     replyCount,

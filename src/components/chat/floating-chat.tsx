@@ -33,6 +33,8 @@ interface Message {
   message: string
   createdAt: string
   deletedAt: string | null
+  editedAt: string | null
+  editCount: number
   parentId: string | null
   replyScope: string | null
   replyCount: number
@@ -68,6 +70,11 @@ const PANEL_H = 500
 // rather than keep shrinking the message list above it.
 const MAX_INPUT_HEIGHT = 120
 const LAST_OPENED_KEY = 'chat_last_opened_at'
+// A message can only be edited by its sender, only while it's still their
+// most recent message in the room, and only within this window of sending
+// — mirrors EDIT_WINDOW_MS in src/lib/chat/rooms.ts (server-enforced; this
+// copy is just for hiding the Edit button once it's clearly expired).
+const EDIT_WINDOW_MS = 15 * 60 * 1000
 
 // Colour palette for other users — deterministic from userId so every client sees the same colours
 const PALETTE = [
@@ -129,6 +136,25 @@ export function FloatingChat() {
   const [loadingThreads, setLoadingThreads] = useState<Record<string, boolean>>({})
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null)
   const [showOnlineTooltip, setShowOnlineTooltip] = useState(false)
+
+  // Editing own last message
+  const [editingMsgId, setEditingMsgId] = useState<string | null>(null)
+  const [editText, setEditText] = useState('')
+  const [editError, setEditError] = useState<string | null>(null)
+  // Ticks every 30s so the Edit button disappears on its own once the
+  // 15-minute window lapses, without needing a new message to re-render.
+  const [editClockTick, setEditClockTick] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setEditClockTick(Date.now()), 30000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Older-than-30-days history — collapsed behind per-month placeholders the
+  // user expands on demand; resets (re-collapses) every time the panel is
+  // reopened, since loadMessages(null) always refetches just the last 30 days.
+  const [olderMonths, setOlderMonths] = useState<{ month: string; count: number }[]>([])
+  const [loadedMonths, setLoadedMonths] = useState<Set<string>>(new Set())
+  const [loadingMonth, setLoadingMonth] = useState<string | null>(null)
 
   // MBM-301 — the hub panel itself only ever shows the conversation list or
   // Team/General. Every DM/group opens as its own satellite ChatWindow
@@ -240,6 +266,32 @@ export function FloatingChat() {
       .catch(() => [])
   }, [])
 
+  // MBM-301 follow-up — list calendar months older than the default 30-day
+  // window that have messages, for the collapsed "older messages" placeholders.
+  const loadOlderMonths = useCallback((roomId: string | null) => {
+    setLoadedMonths(new Set())
+    const qs = roomId ? `?roomId=${encodeURIComponent(roomId)}` : ''
+    fetch(`/api/chat/messages/months${qs}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: { month: string; count: number }[]) => setOlderMonths(data || []))
+      .catch(() => setOlderMonths([]))
+  }, [])
+
+  // Expand one older-month placeholder — fetches that month's messages and
+  // merges them into the already-loaded list.
+  const expandMonth = async (month: string) => {
+    setLoadingMonth(month)
+    try {
+      const data: Message[] = await fetch(`/api/chat/messages?month=${month}`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : [])
+      setMessages(prev => [...data, ...prev].sort((a, b) => a.createdAt.localeCompare(b.createdAt)))
+      setLoadedMonths(prev => new Set(prev).add(month))
+      setTimeout(scrollToBottom, 50)
+    } catch { /* non-critical */ } finally {
+      setLoadingMonth(null)
+    }
+  }
+
   // MBM-301 — fetch the current user's DM/group conversation list.
   const loadRooms = useCallback(() => {
     if (status !== 'authenticated') return Promise.resolve([] as RoomSummary[])
@@ -336,9 +388,10 @@ export function FloatingChat() {
     setReplyingTo(null)
     setReplyScope('ALL')
     loadMessages(null).then((data: Message[]) => { setMessages(data || []); setTimeout(scrollToBottom, 50) })
+    loadOlderMonths(null)
     setUnread(0)
     setUnreadDirect(0)
-  }, [loadMessages, scrollToBottom, openConversationWindow])
+  }, [loadMessages, loadOlderMonths, scrollToBottom, openConversationWindow])
 
   // Fetch message history and seed unread counts from messages received since last open
   useEffect(() => {
@@ -358,8 +411,9 @@ export function FloatingChat() {
         setUnread(fresh.filter(m => m.recipients.length === 0).length)
       })
       .catch(() => {})
+    loadOlderMonths(null)
     loadRooms()
-  }, [status, scrollToBottom, loadRooms])
+  }, [status, scrollToBottom, loadRooms, loadOlderMonths])
 
   // Socket.io connection
   useEffect(() => {
@@ -506,6 +560,10 @@ export function FloatingChat() {
       setMessages(prev => prev.map(m => m.id === id ? { ...m, deletedAt: new Date().toISOString() } : m))
     })
 
+    socket.on('chat:message:edited', (msg: { id: string; message: string; editedAt: string | null; editCount: number }) => {
+      setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, message: msg.message, editedAt: msg.editedAt, editCount: msg.editCount } : m))
+    })
+
     // Removed from a group — its window (if open) closes and it drops out
     // of the list, same as if it never existed for this user.
     socket.on('chat:room-removed', ({ roomId }: { roomId: string }) => {
@@ -540,6 +598,7 @@ export function FloatingChat() {
       loadRooms()
       if (view === 'team') {
         loadMessages(null).then((data: Message[]) => { setMessages(data || []); setTimeout(scrollToBottom, 50) })
+        loadOlderMonths(null)
       }
       fetch('/api/notifications/read-all?type=CHAT_MESSAGE', { method: 'PUT', credentials: 'include' }).catch(() => {})
       setTimeout(() => { scrollToBottom(); inputRef.current?.focus() }, 100)
@@ -736,11 +795,54 @@ export function FloatingChat() {
     } catch { /* non-critical */ }
   }
 
+  const startEdit = (msg: Message) => {
+    setEditingMsgId(msg.id)
+    setEditText(msg.message)
+    setEditError(null)
+  }
+
+  const cancelEdit = () => {
+    setEditingMsgId(null)
+    setEditText('')
+    setEditError(null)
+  }
+
+  const saveEdit = async (id: string) => {
+    const text = editText.trim()
+    if (!text) return
+    setEditError(null)
+    try {
+      const res = await fetch(`/api/chat/messages/${id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        setEditError(data?.error || 'Failed to save edit')
+        return
+      }
+      const saved: Message = await res.json()
+      setMessages(prev => prev.map(m => m.id === id ? { ...m, message: saved.message, editedAt: saved.editedAt, editCount: saved.editCount } : m))
+      setEditingMsgId(null)
+      setEditText('')
+    } catch {
+      setEditError('Failed to save edit')
+    }
+  }
+
   const formatTime = (iso: string) =>
     new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+
+  // 'YYYY-MM' -> "September 2026"
+  const formatMonthLabel = (month: string) => {
+    const [y, m] = month.split('-').map(Number)
+    return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString([], { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  }
 
   type GroupedMessages = { date: string; msgs: Message[] }[]
   const grouped = messages.reduce<GroupedMessages>((acc, msg) => {
@@ -768,6 +870,9 @@ export function FloatingChat() {
     const myLatestId = [...messages].reverse().find(m => m.userId === currentUserId)?.id
     const isLatestOwn = isOwn && msg.id === myLatestId && !isReply
     const isHovered = hoveredMsgId === msg.id
+    const isEditing = editingMsgId === msg.id
+    const withinEditWindow = editClockTick - new Date(msg.createdAt).getTime() < EDIT_WINDOW_MS
+    const canEdit = isLatestOwn && !msg.deletedAt && withinEditWindow
 
     return (
       <div
@@ -800,17 +905,44 @@ export function FloatingChat() {
               </span>
             )}
           </div>
-          <div className={`px-3 py-1.5 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap break-words ${
-            msg.deletedAt
-              ? 'bg-gray-100 dark:bg-gray-800 text-secondary italic border border-dashed border-gray-300 dark:border-gray-600'
-              : isOwn
-                ? 'bg-indigo-600 text-white rounded-tr-sm'
-                : `bg-white dark:bg-gray-800 text-primary border border-border border-l-4 ${color!.border} rounded-tl-sm shadow-sm`
-          }`}>
-            {msg.deletedAt ? '🚫 This message was deleted' : msg.message}
-          </div>
+          {isEditing ? (
+            <div className="w-full">
+              <textarea
+                value={editText}
+                onChange={e => setEditText(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(msg.id) }
+                  if (e.key === 'Escape') cancelEdit()
+                }}
+                autoFocus
+                rows={2}
+                className="w-full px-2.5 py-1.5 rounded-lg text-xs border border-indigo-400 dark:border-indigo-500 bg-white dark:bg-gray-800 text-primary resize-none"
+              />
+              <div className="flex items-center gap-2 mt-1">
+                <button type="button" onClick={() => saveEdit(msg.id)} className="text-[11px] font-medium text-indigo-600 hover:text-indigo-800">Save</button>
+                <button type="button" onClick={cancelEdit} className="text-[11px] font-medium text-secondary hover:text-primary">Cancel</button>
+                {editError && <span className="text-[11px] text-red-500">{editError}</span>}
+              </div>
+            </div>
+          ) : (
+            <div className={`px-3 py-1.5 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap break-words ${
+              msg.deletedAt
+                ? 'bg-gray-100 dark:bg-gray-800 text-secondary italic border border-dashed border-gray-300 dark:border-gray-600'
+                : isOwn
+                  ? 'bg-indigo-600 text-white rounded-tr-sm'
+                  : `bg-white dark:bg-gray-800 text-primary border border-border border-l-4 ${color!.border} rounded-tl-sm shadow-sm`
+            }`}>
+              {msg.deletedAt ? '🚫 This message was deleted' : msg.message}
+            </div>
+          )}
+          {!isEditing && (
           <div className="flex items-center gap-2 mt-1 mx-1">
-            <span className="text-[10px] text-secondary">{formatTime(msg.createdAt)}</span>
+            <span className="text-[10px] text-secondary">
+              {formatTime(msg.createdAt)}
+              {msg.editedAt && !msg.deletedAt && (
+                <span className="italic"> (edited{msg.editCount > 1 ? ` ${msg.editCount}x` : ''})</span>
+              )}
+            </span>
             {/* Reply button — shows on hover, not for deleted or already-reply messages */}
             {!msg.deletedAt && !isReply && isHovered && (
               <button
@@ -820,6 +952,16 @@ export function FloatingChat() {
                 title="Reply in thread"
               >
                 ↩ Reply
+              </button>
+            )}
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => startEdit(msg)}
+                className="flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-600 transition-colors font-medium"
+                title="Edit message (within 15 minutes of sending)"
+              >
+                ✎ Edit
               </button>
             )}
             {isLatestOwn && !msg.deletedAt && (
@@ -837,6 +979,7 @@ export function FloatingChat() {
               </button>
             )}
           </div>
+          )}
           {/* Thread toggle */}
           {!isReply && msg.replyCount > 0 && !msg.deletedAt && (
             <button
@@ -1193,9 +1336,25 @@ export function FloatingChat() {
       <>
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-3 py-3 bg-gray-50 dark:bg-gray-950">
-        {messages.length === 0 && (
+        {messages.length === 0 && olderMonths.length === 0 && (
           <p className="text-center text-xs text-secondary mt-8">No messages yet. Say hello!</p>
         )}
+        {/* Collapsed older-than-30-days history, oldest first — click to load that month's messages */}
+        {olderMonths.filter(m => !loadedMonths.has(m.month)).slice().reverse().map(({ month, count }) => (
+          <button
+            key={month}
+            type="button"
+            onClick={() => expandMonth(month)}
+            disabled={loadingMonth === month}
+            className="w-full flex items-center gap-2 my-2 group"
+          >
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-[10px] text-indigo-500 group-hover:text-indigo-700 font-medium px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
+              {loadingMonth === month ? 'Loading…' : `${formatMonthLabel(month)} (${count}) — click to load`}
+            </span>
+            <div className="flex-1 h-px bg-border" />
+          </button>
+        ))}
         {grouped.map(({ date, msgs }) => (
           <div key={date}>
             <div className="flex items-center gap-2 my-2">

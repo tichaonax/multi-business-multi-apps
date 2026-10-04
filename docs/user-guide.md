@@ -7074,9 +7074,23 @@ The indicator clears itself a few seconds after the other person stops typing or
 
 ### Message History & Deletion
 
-- **Team Chat** keeps the last 100 visible messages and automatically prunes anything older than **7 days** — it's for day-to-day coordination, not a permanent record.
+- **Team Chat** automatically prunes anything older than **7 days** — it's for day-to-day coordination, not a permanent record.
 - **Direct Messages and Groups are not auto-pruned** — their full history stays available for as long as you're a participant.
 - You can delete your **own most recent** message (replaced with *🚫 This message was deleted* for everyone who saw it) — you can't delete anyone else's.
+
+#### Older Messages
+
+Opening a conversation only loads the **last 30 days** of messages right away, so long-running Direct Messages and Groups stay fast to open. Anything older sits behind a collapsed placeholder above the loaded messages, showing the month and how many messages it has (e.g. *"September 2026 (14) — click to load"*) — click it to load that month in place. This is per-session: closing and reopening the conversation collapses older months again, so you're not stuck scrolling past old history every time. (Team Chat never shows this, since it already prunes everything past 7 days.)
+
+#### Editing a Message
+
+You can correct a typo or fix your most recent message without deleting and resending it:
+
+- Only your **single most recent message** in a conversation can be edited — as soon as you (or anyone, in Team Chat/Groups) send another message, the previous one is locked in and the **✎ Edit** option disappears.
+- You have **15 minutes** from when you sent it — after that, editing is no longer available, even if it's still your latest message.
+- Click **✎ Edit** (next to Delete, shown only while it qualifies), change the text, and press **Enter** (or click **Save**) — **Shift+Enter** for a new line, **Esc** or **Cancel** to back out without saving.
+- Edited messages show **(edited)** next to the timestamp, visible to everyone in the conversation — editing more than once shows a count, e.g. **(edited 3x)**, so nobody is misled about a message having changed after they read it.
+- Thread replies can't be edited — only top-level messages.
 
 ---
 
@@ -7098,7 +7112,8 @@ The indicator clears itself a few seconds after the other person stops typing or
 | Real-time delivery via WebSocket | ✅ Yes |
 | File or image attachments | Not yet |
 | Read receipts | Not yet |
-| Message editing | Not yet — delete and re-send |
+| Message editing | ✅ Yes — own most recent message only, within 15 minutes, shows an edit count |
+| Collapsed older-than-30-days history (per-month, loaded on demand) | ✅ Yes — Direct Messages & Groups |
 
 ---
 

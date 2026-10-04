@@ -18,6 +18,8 @@ interface Message {
   message: string
   createdAt: string
   deletedAt: string | null
+  editedAt: string | null
+  editCount: number
   parentId: string | null
   replyCount: number
   recipients: Recipient[]
@@ -26,6 +28,9 @@ interface Message {
 const WINDOW_W = 300
 const WINDOW_H = 420
 const MAX_INPUT_HEIGHT = 100
+// Mirrors EDIT_WINDOW_MS in src/lib/chat/rooms.ts (server-enforced; this
+// copy is just for hiding the Edit button once it's clearly expired).
+const EDIT_WINDOW_MS = 15 * 60 * 1000
 
 // Same deterministic per-user colour palette as the hub panel, duplicated
 // here rather than shared so this window has no import dependency on it.
@@ -50,6 +55,12 @@ function getUserColor(userId: string) {
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+// 'YYYY-MM' -> "September 2026"
+function formatMonthLabel(month: string) {
+  const [y, m] = month.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString([], { month: 'long', year: 'numeric', timeZone: 'UTC' })
 }
 
 // Each open satellite window gets its own header colour (deterministic from
@@ -108,6 +119,25 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
   const [expandedThreads, setExpandedThreads] = useState<Record<string, Message[]>>({})
   const [loadingThreads, setLoadingThreads] = useState<Record<string, boolean>>({})
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null)
+
+  // Editing own last message
+  const [editingMsgId, setEditingMsgId] = useState<string | null>(null)
+  const [editText, setEditText] = useState('')
+  const [editError, setEditError] = useState<string | null>(null)
+  // Ticks every 30s so the Edit button disappears on its own once the
+  // 15-minute window lapses, without needing a new message to re-render.
+  const [editClockTick, setEditClockTick] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setEditClockTick(Date.now()), 30000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Older-than-30-days history — collapsed behind per-month placeholders,
+  // reset (re-collapsed) every time this window is reopened since it's a
+  // fresh mount (see "Load history + mark read on mount" below).
+  const [olderMonths, setOlderMonths] = useState<{ month: string; count: number }[]>([])
+  const [loadedMonths, setLoadedMonths] = useState<Set<string>>(new Set())
+  const [loadingMonth, setLoadingMonth] = useState<string | null>(null)
 
   // Group membership panel — who's in it, and (creator only) add/remove
   const [showMembers, setShowMembers] = useState(false)
@@ -174,8 +204,28 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
       .then((data: Message[]) => { setMessages(data || []); setTimeout(scrollToBottom, 50) })
       .catch(() => {})
     fetch(`/api/chat/rooms/${roomId}/read`, { method: 'POST', credentials: 'include' }).catch(() => {})
+    setLoadedMonths(new Set())
+    fetch(`/api/chat/messages/months?roomId=${encodeURIComponent(roomId)}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: { month: string; count: number }[]) => setOlderMonths(data || []))
+      .catch(() => setOlderMonths([]))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId])
+
+  // Expand one older-month placeholder — fetches that month's messages and
+  // merges them into the already-loaded list.
+  const expandMonth = async (month: string) => {
+    setLoadingMonth(month)
+    try {
+      const data: Message[] = await fetch(`/api/chat/messages?roomId=${encodeURIComponent(roomId)}&month=${month}`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : [])
+      setMessages(prev => [...data, ...prev].sort((a, b) => a.createdAt.localeCompare(b.createdAt)))
+      setLoadedMonths(prev => new Set(prev).add(month))
+      setTimeout(scrollToBottom, 50)
+    } catch { /* non-critical */ } finally {
+      setLoadingMonth(null)
+    }
+  }
 
   // This window's own slice of the shared socket connection
   useEffect(() => {
@@ -204,11 +254,16 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
     const onDeleted = ({ id }: { id: string }) => {
       setMessages(prev => prev.map(m => m.id === id ? { ...m, deletedAt: new Date().toISOString() } : m))
     }
+    const onEdited = (msg: { id: string; message: string; editedAt: string | null; editCount: number }) => {
+      setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, message: msg.message, editedAt: msg.editedAt, editCount: msg.editCount } : m))
+    }
     socket.on('chat:message', onMessage)
     socket.on('chat:message:deleted', onDeleted)
+    socket.on('chat:message:edited', onEdited)
     return () => {
       socket.off('chat:message', onMessage)
       socket.off('chat:message:deleted', onDeleted)
+      socket.off('chat:message:edited', onEdited)
     }
   }, [socket, roomId, currentUserId, scrollToBottom])
 
@@ -266,6 +321,43 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
       await fetch(`/api/chat/messages/${id}`, { method: 'DELETE', credentials: 'include' })
       setMessages(prev => prev.map(m => m.id === id ? { ...m, deletedAt: new Date().toISOString() } : m))
     } catch { /* non-critical */ }
+  }
+
+  const startEdit = (msg: Message) => {
+    setEditingMsgId(msg.id)
+    setEditText(msg.message)
+    setEditError(null)
+  }
+
+  const cancelEdit = () => {
+    setEditingMsgId(null)
+    setEditText('')
+    setEditError(null)
+  }
+
+  const saveEdit = async (id: string) => {
+    const text = editText.trim()
+    if (!text) return
+    setEditError(null)
+    try {
+      const res = await fetch(`/api/chat/messages/${id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        setEditError(data?.error || 'Failed to save edit')
+        return
+      }
+      const saved: Message = await res.json()
+      setMessages(prev => prev.map(m => m.id === id ? { ...m, message: saved.message, editedAt: saved.editedAt, editCount: saved.editCount } : m))
+      setEditingMsgId(null)
+      setEditText('')
+    } catch {
+      setEditError('Failed to save edit')
+    }
   }
 
   const toggleThread = async (msgId: string) => {
@@ -432,6 +524,9 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
     const myLatestId = [...messages].reverse().find(m => m.userId === currentUserId)?.id
     const isLatestOwn = isOwn && msg.id === myLatestId && !isReply
     const isHovered = hoveredMsgId === msg.id
+    const isEditing = editingMsgId === msg.id
+    const withinEditWindow = editClockTick - new Date(msg.createdAt).getTime() < EDIT_WINDOW_MS
+    const canEdit = isLatestOwn && !msg.deletedAt && withinEditWindow
 
     return (
       <div
@@ -461,27 +556,58 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
               </span>
             )}
           </div>
-          <div className={`px-2.5 py-1 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap break-words ${
-            msg.deletedAt
-              ? 'bg-gray-100 dark:bg-gray-800 text-secondary italic border border-dashed border-gray-300 dark:border-gray-600'
-              : isFlagged
-                ? `${isOwn ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-gray-800 text-primary'} border-2 border-amber-400 dark:border-amber-500 ${isOwn ? 'rounded-tr-sm' : 'rounded-tl-sm'} shadow-sm`
-                : isOwn
-                  ? 'bg-indigo-600 text-white rounded-tr-sm'
-                  : `bg-white dark:bg-gray-800 text-primary border border-border border-l-4 ${color!.border} rounded-tl-sm shadow-sm`
-          }`}>
-            {msg.deletedAt ? '🚫 This message was deleted' : msg.message}
-          </div>
+          {isEditing ? (
+            <div className="w-full">
+              <textarea
+                value={editText}
+                onChange={e => setEditText(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(msg.id) }
+                  if (e.key === 'Escape') cancelEdit()
+                }}
+                autoFocus
+                rows={2}
+                className="w-full px-2 py-1 rounded-lg text-xs border border-indigo-400 dark:border-indigo-500 bg-white dark:bg-gray-800 text-primary resize-none"
+              />
+              <div className="flex items-center gap-2 mt-1">
+                <button type="button" onClick={() => saveEdit(msg.id)} className="text-[10px] font-medium text-indigo-600 hover:text-indigo-800">Save</button>
+                <button type="button" onClick={cancelEdit} className="text-[10px] font-medium text-secondary hover:text-primary">Cancel</button>
+                {editError && <span className="text-[10px] text-red-500">{editError}</span>}
+              </div>
+            </div>
+          ) : (
+            <div className={`px-2.5 py-1 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap break-words ${
+              msg.deletedAt
+                ? 'bg-gray-100 dark:bg-gray-800 text-secondary italic border border-dashed border-gray-300 dark:border-gray-600'
+                : isFlagged
+                  ? `${isOwn ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-gray-800 text-primary'} border-2 border-amber-400 dark:border-amber-500 ${isOwn ? 'rounded-tr-sm' : 'rounded-tl-sm'} shadow-sm`
+                  : isOwn
+                    ? 'bg-indigo-600 text-white rounded-tr-sm'
+                    : `bg-white dark:bg-gray-800 text-primary border border-border border-l-4 ${color!.border} rounded-tl-sm shadow-sm`
+            }`}>
+              {msg.deletedAt ? '🚫 This message was deleted' : msg.message}
+            </div>
+          )}
+          {!isEditing && (
           <div className="flex items-center gap-2 mt-0.5 mx-1">
-            <span className="text-[9px] text-secondary">{formatTime(msg.createdAt)}</span>
+            <span className="text-[9px] text-secondary">
+              {formatTime(msg.createdAt)}
+              {msg.editedAt && !msg.deletedAt && (
+                <span className="italic"> (edited{msg.editCount > 1 ? ` ${msg.editCount}x` : ''})</span>
+              )}
+            </span>
             {!msg.deletedAt && !isReply && isHovered && (
               <button type="button" onClick={() => { setReplyingTo({ id: msg.id, userName: msg.userName }); inputRef.current?.focus() }}
                 className="text-[10px] text-indigo-500 hover:text-indigo-700 font-medium">↩ Reply</button>
+            )}
+            {canEdit && (
+              <button type="button" onClick={() => startEdit(msg)} className="text-[10px] text-indigo-400 hover:text-indigo-600 font-medium">✎ Edit</button>
             )}
             {isLatestOwn && !msg.deletedAt && (
               <button type="button" onClick={() => deleteMessage(msg.id)} className="text-[10px] text-red-400 hover:text-red-600 font-medium">Delete</button>
             )}
           </div>
+          )}
           {!isReply && msg.replyCount > 0 && !msg.deletedAt && (
             <button type="button" onClick={() => toggleThread(msg.id)} className="mt-0.5 mx-1 text-[10px] text-indigo-500 hover:text-indigo-700 font-medium">
               {expandedThreads[msg.id] ? '▲ Hide replies' : `▼ ${msg.replyCount} ${msg.replyCount === 1 ? 'reply' : 'replies'}`}
@@ -588,9 +714,25 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
 
       <div className="relative flex-1 min-h-0 flex flex-col">
       <div className="flex-1 overflow-y-auto px-2.5 py-2.5 bg-gray-50 dark:bg-gray-950">
-        {messages.length === 0 && (
+        {messages.length === 0 && olderMonths.length === 0 && (
           <p className="text-center text-xs text-secondary mt-6">No messages yet. Say hello!</p>
         )}
+        {/* Collapsed older-than-30-days history, oldest first — click to load that month's messages */}
+        {olderMonths.filter(m => !loadedMonths.has(m.month)).slice().reverse().map(({ month, count }) => (
+          <button
+            key={month}
+            type="button"
+            onClick={() => expandMonth(month)}
+            disabled={loadingMonth === month}
+            className="w-full flex items-center gap-2 my-1.5 group"
+          >
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-[9px] text-indigo-500 group-hover:text-indigo-700 font-medium px-1.5 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
+              {loadingMonth === month ? 'Loading…' : `${formatMonthLabel(month)} (${count}) — click to load`}
+            </span>
+            <div className="flex-1 h-px bg-border" />
+          </button>
+        ))}
         {messages.map(msg => renderMessage(msg))}
         <div ref={bottomRef} />
       </div>

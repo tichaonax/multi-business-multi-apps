@@ -3,21 +3,38 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { emitToRoom, emitToUsers } from '@/lib/customer-display/socket-server'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
-import { getGeneralRoom, shapeMessage } from '@/lib/chat/rooms'
+import { getGeneralRoom, shapeMessage, DEFAULT_HISTORY_WINDOW_MS } from '@/lib/chat/rooms'
 
-/** GET /api/chat/messages?roomId=... — fetch last 100 messages visible to the current user. Omit roomId for the General/Team room (default, unchanged). */
+/** Parse a "YYYY-MM" param into [start, end) bounds for that calendar month,
+ * or null if missing/malformed. */
+function parseMonthRange(month: string | null): { gte: Date; lt: Date } | null {
+  if (!month || !/^\d{4}-\d{2}$/.test(month)) return null
+  const [year, m] = month.split('-').map(Number)
+  if (m < 1 || m > 12) return null
+  return { gte: new Date(Date.UTC(year, m - 1, 1)), lt: new Date(Date.UTC(year, m, 1)) }
+}
+
+/** GET /api/chat/messages?roomId=...[&month=YYYY-MM] — fetch messages
+ * visible to the current user. Omit roomId for the General/Team room.
+ * Without `month`, returns only the last 30 days (DEFAULT_HISTORY_WINDOW_MS)
+ * — older history sits behind collapsed per-month placeholders the client
+ * expands on demand via `month`, see /api/chat/messages/months. */
 export async function GET(request: NextRequest) {
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const requestedRoomId = request.nextUrl.searchParams.get('roomId')
+    const monthRange = parseMonthRange(request.nextUrl.searchParams.get('month'))
+    const createdAtFilter = monthRange ?? { gte: new Date(Date.now() - DEFAULT_HISTORY_WINDOW_MS) }
     const generalRoom = await getGeneralRoom()
     const isGeneral = !requestedRoomId || requestedRoomId === generalRoom.id
 
     if (isGeneral) {
       // Prune messages older than 7 days (fire-and-forget) — only the
       // General feed accumulates unbounded broadcast traffic like this.
+      // (This also means General never has a "last month" to page
+      // through — /api/chat/messages/months short-circuits for it.)
       const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
       prisma.chatMessages.deleteMany({ where: { roomId: generalRoom.id, createdAt: { lt: cutoff } } }).catch(() => {})
 
@@ -29,6 +46,7 @@ export async function GET(request: NextRequest) {
         where: {
           roomId: generalRoom.id,
           parentId: null,
+          createdAt: createdAtFilter,
           OR: [
             // Public broadcast: no recipient rows exist
             { chat_message_recipients: { none: {} } },
@@ -39,7 +57,7 @@ export async function GET(request: NextRequest) {
           ],
         },
         orderBy: { createdAt: 'asc' },
-        take: 100,
+        take: monthRange ? 1000 : 500,
         include: {
           users: { select: { name: true, employees: { select: { firstName: true, lastName: true, profilePhotoUrl: true } } } },
           chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
@@ -59,9 +77,9 @@ export async function GET(request: NextRequest) {
     if (!membership) return NextResponse.json({ error: 'Not a participant of this conversation' }, { status: 403 })
 
     const messages = await prisma.chatMessages.findMany({
-      where: { roomId: requestedRoomId, parentId: null },
+      where: { roomId: requestedRoomId, parentId: null, createdAt: createdAtFilter },
       orderBy: { createdAt: 'asc' },
-      take: 100,
+      take: monthRange ? 1000 : 500,
       include: {
         users: { select: { name: true, employees: { select: { firstName: true, lastName: true, profilePhotoUrl: true } } } },
         chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
