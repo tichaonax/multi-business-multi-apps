@@ -234,6 +234,8 @@
     - [Permissions](#permissions-16)
 67. [Bulk/Case Cost Entry — Bulk Stocking & Stock Take](#67-bulkcase-cost-entry--bulk-stocking--stock-take)
 68. [Clothing POS — Return & Exchange](#68-clothing-pos--return--exchange)
+69. [POS Sales Comparison Report — Today vs Yesterday vs 2 Days Ago](#69-pos-sales-comparison-report--today-vs-yesterday-vs-2-days-ago)
+70. [Linked Profile — Name & Photo Shared Between Your Login and Employee Record](#70-linked-profile--name--photo-shared-between-your-login-and-employee-record)
 
 ---
 
@@ -2058,6 +2060,8 @@ Neither screen can see across to the other on its own — each only knows about 
 1. Click **🔗 Link Existing User** (from the employee side) or **🔗 Link Existing Employee** (from the Admin → Users side).
 2. The search box is pre-filled with the person's first name, so a likely match usually shows up immediately with nothing typed — you can still edit the search if you need to narrow it down (e.g. by email) or the name doesn't match exactly.
 3. Select the correct match from the list and confirm. This only connects the two records — it does **not** create a new login, and does **not** change any business access the account already has. If the employee's own record lists a business they're not yet a member of, that access is added; anything they already have is left alone.
+
+> **Name & photo:** once linked, the employee record's name and photo become the shared values for both — see [§70 Linked Profile](#70-linked-profile--name--photo-shared-between-your-login-and-employee-record) for how they stay in sync going forward.
 
 > **Why some accounts don't appear in this list:** the search only shows real, active system users — people who are either a system admin or an active member of at least one business. Accounts that exist for an unrelated reason (for example, an outside contractor's own portal login, which has no business membership of its own) are deliberately left out, since linking one of those to an employee record wouldn't be correct.
 
@@ -14126,3 +14130,43 @@ An exchange is a return (for the old item) combined with a new sale (for the rep
 - Return/Exchange only work against the POS's current **Target Business** — if the sale you're looking up belongs to a different business, switch to that business first.
 - Stock is correctly returned to inventory regardless of how the original item was sold (a regular product, a clothing bale, a custom bulk item, or a scanned inventory item).
 - If, in an exchange, the new sale succeeds but the return side fails for some reason (e.g. a connection error), you'll see a message telling you to process the return separately from the Orders page — the completed sale is never lost or silently rolled back.
+
+---
+
+## 69. POS Sales Comparison Report — Today vs Yesterday vs 2 Days Ago
+
+**Where:** Grocery, Hardware, and Clothing POS → the **Today's Sales** panel.
+
+Beyond the usual daily summary, you can open a full report comparing today's trading against the last two days, directly from the same panel — no need to leave the POS screen.
+
+- **Click the Total Sales amount** to open a detailed **single-day report** for today — summary totals, an hourly sales chart, payment method breakdown, top categories, and top salespeople.
+- **Click the Orders count** to jump straight to the **Superimposition** view — a line chart overlaying today, yesterday, and 2 days ago by hour (in different colours, with a legend), so you can see at a glance how the shape of today's trading compares to recent days.
+- Inside the report, four buttons — **Today**, **Yesterday**, **2 Days Ago**, **📊 Superimposition** — switch between the single-day report for any of the three days and the overlay chart. A day with no data yet (e.g. a brand-new business) shows its button greyed out.
+- The Superimposition chart can toggle between **Sales ($)** and **Orders** as the plotted metric.
+
+> This report draws on data already loaded for the Today's Sales panel's own "vs yesterday" comparisons, so opening it doesn't trigger extra loading for Today/Yesterday/2 Days Ago — only the Superimposition's underlying chart data is computed on open.
+
+---
+
+## 70. Linked Profile — Name & Photo Shared Between Your Login and Employee Record
+
+If your system login (user account) is linked to an Employee record, your **name and profile photo are kept in sync** between the two — update either one and the other updates automatically, so you (and everyone who sees your name/photo — Team Chat, the people picker, Admin user lists) never see two different versions of who you are.
+
+**Where you can edit your name/photo:**
+- **Your own profile** — click your avatar → **Profile Settings** — update your name and upload a photo there if you're not an employee, or want to change it from this side.
+- **Employee record edit page** (HR/managers) — the same name + photo fields appear at the top of the Edit Employee form.
+- **Admin → Users → Edit User** (system admins) — the same fields appear in the Basic Information section.
+
+Whichever one you edit, if that account is linked to an employee record, the change is pushed to the other side immediately — there's nothing extra to do to keep them matching.
+
+> If you're **not** linked to an employee record (e.g. a system admin with no HR record), your name and photo are entirely your own — editing them only affects your login, since there's no employee record to sync with.
+
+### Linking an Existing User to an Employee Record
+
+If someone already has both a login and an employee record, but they were never connected (so a photo set on one side never showed up on the other), a system admin can link them from **Admin → Users**:
+
+1. Open the **⋮** menu on the user's row and choose **Link Existing Employee** (only offered while the user isn't already linked — once linked, this entry stays in the menu but shows disabled as **"Linked to EMP000XXX"**, so the linked state is visible at a glance).
+2. Search for and select the matching employee, then confirm.
+3. The employee's name and photo immediately become the shared values for both records (the employee record is treated as the source of truth if the two had different names/photos beforehand).
+
+The same linking can also be started from the employee's own page (**System Account** card → **Link Existing User**).
