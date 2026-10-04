@@ -236,7 +236,7 @@ export function FundPayrollFromAccountsModal({
 
         {/* Balance summary */}
         <div className="px-6 pt-4 flex-shrink-0">
-          <div className="grid grid-cols-4 gap-3 text-sm">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
               <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">🏦 In Account</p>
               <p className="font-bold text-blue-800 dark:text-blue-200">${currentPayrollBalance.toFixed(2)}</p>

@@ -379,7 +379,7 @@ export function BatchPaymentModal({
               )}
 
               {/* Summary */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                   <p className="text-sm text-blue-600 dark:text-blue-400">Eligible for Payment</p>
                   <p className="text-2xl font-bold text-blue-900 dark:text-blue-300">{eligibleEntries.length}</p>

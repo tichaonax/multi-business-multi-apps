@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { formatDate } from '@/lib/date-format'
+import { ModalPortal } from '@/components/ui/modal-portal'
 import type { DailySalesData } from './daily-sales-widget'
 
 type ReportView = 'today' | 'yesterday' | 'dayBefore' | 'comparison'
@@ -180,6 +181,7 @@ export function SalesComparisonReportModal({
   const comparisonData = view === 'comparison' ? buildComparisonData(dailySales, yesterdaySales, dayBeforeYesterdaySales) : []
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
       <div
         className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto"
@@ -313,5 +315,6 @@ export function SalesComparisonReportModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   )
 }

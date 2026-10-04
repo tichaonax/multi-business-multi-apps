@@ -827,7 +827,7 @@ function ZimraRemittancePanel({
         {remittance ? (
           <>
             {/* P2 figures */}
-            <div className="grid grid-cols-5 gap-3 mb-3 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-3 text-xs">
               {/* Total Remuneration — read only */}
               <div className="text-center">
                 <div className="text-gray-500 dark:text-gray-400 mb-1">Total Remuneration</div>

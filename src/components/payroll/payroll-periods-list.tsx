@@ -180,7 +180,7 @@ export function PayrollPeriodsList({ businessId, onSelectPeriod, refreshKey }: P
                     </div>
                   )}
 
-                  <div className="grid grid-cols-4 gap-4 text-sm">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
                       <span className="text-secondary">Employees:</span>
                       <span className="ml-2 font-medium text-primary">{period.totalEmployees}</span>

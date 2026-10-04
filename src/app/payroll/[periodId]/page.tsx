@@ -1469,7 +1469,7 @@ export default function PayrollPeriodDetailPage() {
       )}
 
       {/* Period Summary - use same computeEntryTotals as table rows so cards always match */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="card">
           <p className="text-sm text-secondary">Employees</p>
           <p className="text-2xl font-bold text-primary">{period.payroll_entries.length}</p>
@@ -1542,7 +1542,11 @@ export default function PayrollPeriodDetailPage() {
                   {canEditEntry && ['draft', 'in_progress'].includes(period.status) && (
                     <th className="px-3 py-2 text-center text-xs font-medium text-secondary uppercase">Actions</th>
                   )}
-                  <th className="px-3 py-2 text-left text-xs font-medium text-blue-400 dark:text-blue-500 uppercase whitespace-nowrap border-l border-border">↩ Name</th>
+                  {/* Pinned to the right edge of the horizontal scroll so whoever
+                      this row belongs to stays visible while scrolling through
+                      the rest of the columns — bg-background keeps it opaque so
+                      scrolled content doesn't show through underneath it. */}
+                  <th className="sticky right-0 z-10 bg-muted px-3 py-2 text-left text-xs font-medium text-blue-400 dark:text-blue-500 uppercase whitespace-nowrap border-l border-border">↩ Name</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -1771,13 +1775,19 @@ export default function PayrollPeriodDetailPage() {
                         </button>
                       </td>
                     )}
-                    <td className="relative px-3 py-2 text-sm text-blue-500 dark:text-blue-400 whitespace-nowrap border-l border-border cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>
-                      {entry.employeeName || `${(entry as any).employeeLastName || ''} ${(entry as any).employeeFirstName || ''}`.trim()}
-                      {entry.employeeTin && (
-                        <span className="absolute left-3 top-full mt-0.5 text-[10px] font-mono text-gray-400 dark:text-gray-500 leading-none whitespace-nowrap pointer-events-none">
-                          TIN: {entry.employeeTin}
-                        </span>
-                      )}
+                    <td className="sticky right-0 z-10 bg-background px-3 py-2 text-sm text-blue-500 dark:text-blue-400 whitespace-nowrap border-l border-border cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>
+                      {/* Anchored to this inline-block (single text line) rather than
+                          the <td> itself, so it sits right under the name regardless
+                          of how tall the row gets from other columns, and never
+                          affects row height since it's taken out of flow. */}
+                      <span className="relative inline-block">
+                        {entry.employeeName || `${(entry as any).employeeLastName || ''} ${(entry as any).employeeFirstName || ''}`.trim()}
+                        {entry.employeeTin && (
+                          <span className="absolute left-0 top-full mt-0.5 text-[10px] font-mono text-gray-400 dark:text-gray-500 leading-none whitespace-nowrap pointer-events-none">
+                            TIN: {entry.employeeTin}
+                          </span>
+                        )}
+                      </span>
                     </td>
                   </tr>
                   )
