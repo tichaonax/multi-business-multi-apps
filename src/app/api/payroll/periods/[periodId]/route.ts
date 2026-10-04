@@ -182,6 +182,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
                 hireDate: true,
                 terminationDate: true,
                 email: true,
+                tin: true,
                 job_titles: { select: { title: true } },
                 primaryBusinessId: true
               }
@@ -292,6 +293,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         employeeFirstName: (entry as any).employees?.firstName || null,
         employeeLastName: (entry as any).employees?.lastName || null,
         employeeFullName: (entry as any).employees?.fullName || (entry as any).employeeName || null,
+        employeeTin: (entry as any).employees?.tin || null,
         employeeDateOfBirth: (entry as any).employees?.dateOfBirth || (entry as any).dateOfBirth || null,
         employeeHireDate: (entry as any).employees?.hireDate || (entry as any).hireDate || null,
         employeeTerminationDate: (entry as any).employees?.terminationDate || (entry as any).terminationDate || null

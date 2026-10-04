@@ -93,6 +93,7 @@ interface PayrollEntry {
   employeeLastName?: string | null
   employeeDateOfBirth?: string | null
   employeeHireDate?: string | null
+  employeeTin?: string | null
   zimraPaye?: number | null
   zimraNssa?: number | null
   zimraAidsLevy?: number | null
@@ -1770,8 +1771,13 @@ export default function PayrollPeriodDetailPage() {
                         </button>
                       </td>
                     )}
-                    <td className="px-3 py-2 text-sm text-blue-500 dark:text-blue-400 whitespace-nowrap border-l border-border cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>
+                    <td className="relative px-3 py-2 text-sm text-blue-500 dark:text-blue-400 whitespace-nowrap border-l border-border cursor-pointer" onClick={() => setSelectedEntryId(entry.id)}>
                       {entry.employeeName || `${(entry as any).employeeLastName || ''} ${(entry as any).employeeFirstName || ''}`.trim()}
+                      {entry.employeeTin && (
+                        <span className="absolute left-3 top-full mt-0.5 text-[10px] font-mono text-gray-400 dark:text-gray-500 leading-none whitespace-nowrap pointer-events-none">
+                          TIN: {entry.employeeTin}
+                        </span>
+                      )}
                     </td>
                   </tr>
                   )

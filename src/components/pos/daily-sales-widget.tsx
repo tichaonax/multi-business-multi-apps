@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { formatDate } from '@/lib/date-format'
 import Link from 'next/link'
+import { SalesComparisonReportModal } from './sales-comparison-report-modal'
 
-interface DailySalesData {
+export interface DailySalesData {
   businessDay: {
     date: string
     start: string
@@ -62,6 +63,7 @@ export function DailySalesWidget({ dailySales, yesterdaySales, dayBeforeYesterda
   const [closeBooksError, setCloseBooksError] = useState<string | null>(null)
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
   const [payrollResult, setPayrollResult] = useState<{ amount: number; skipped: boolean; reason: string; targetAmount: number } | null>(null)
+  const [reportView, setReportView] = useState<null | 'today' | 'yesterday' | 'dayBefore' | 'comparison'>(null)
 
   if (!dailySales) {
     return null
@@ -105,7 +107,12 @@ export function DailySalesWidget({ dailySales, yesterdaySales, dayBeforeYesterda
       {!showDetails && (
         <div className="space-y-2">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm">
+            <button
+              type="button"
+              onClick={() => setReportView('today')}
+              title="View today's sales report"
+              className="text-left bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm hover:ring-2 hover:ring-green-400 transition-shadow cursor-pointer"
+            >
               <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Sales</div>
               <div className="text-xl font-bold text-green-600 dark:text-green-400">
                 ${summary.totalSales.toFixed(2)}
@@ -132,8 +139,13 @@ export function DailySalesWidget({ dailySales, yesterdaySales, dayBeforeYesterda
                   </div>
                 )
               })()}
-            </div>
-            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm">
+            </button>
+            <button
+              type="button"
+              onClick={() => setReportView('comparison')}
+              title="Compare orders over time (today vs yesterday vs 2 days ago)"
+              className="text-left bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm hover:ring-2 hover:ring-blue-400 transition-shadow cursor-pointer"
+            >
               <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Orders</div>
               <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
                 {summary.totalOrders}
@@ -156,7 +168,7 @@ export function DailySalesWidget({ dailySales, yesterdaySales, dayBeforeYesterda
                   </div>
                 )
               })()}
-            </div>
+            </button>
             <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm">
               <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Avg Order</div>
               <div className="text-xl font-bold text-purple-600 dark:text-purple-400">
@@ -519,6 +531,16 @@ export function DailySalesWidget({ dailySales, yesterdaySales, dayBeforeYesterda
           </div>
         </div>
       )}
+
+      <SalesComparisonReportModal
+        isOpen={reportView !== null}
+        onClose={() => setReportView(null)}
+        initialView={reportView || 'today'}
+        dailySales={dailySales}
+        yesterdaySales={yesterdaySales}
+        dayBeforeYesterdaySales={dayBeforeYesterdaySales}
+        businessType={businessType}
+      />
     </div>
   )
 }

@@ -235,6 +235,11 @@ export function PayrollEntryDetailModal({
   const { data: session } = useSession()
   const { hasPermission } = useBusinessPermissionsContext()
   const modalContentRef = useRef<HTMLDivElement>(null)
+  // Tracks whether the initial load has completed so the subsequent
+  // background reloads triggered during init() (sync-absences, sync-leave,
+  // sync-clock-in) don't re-show the full-page loading skeleton and cause
+  // the modal to visibly flash between the skeleton and the loaded form.
+  const hasLoadedOnceRef = useRef(false)
 
   const [formData, setFormData] = useState({
     workDays: 0,
@@ -410,7 +415,10 @@ export function PayrollEntryDetailModal({
   const loadEntry = async () => {
     let loadedData: any = null
     try {
-      setLoading(true)
+      // Only show the full-page skeleton on the first load — later calls in
+      // the same open (sync-absences/leave/clock-in refreshes) should update
+      // the already-visible form in place, not hide it again.
+      if (!hasLoadedOnceRef.current) setLoading(true)
       const response = await fetch(`/api/payroll/entries/${entryId}`)
       if (response.ok) {
         const data = await response.json()
@@ -758,6 +766,7 @@ export function PayrollEntryDetailModal({
       console.error('Failed to load entry:', error)
     } finally {
       setLoading(false)
+      hasLoadedOnceRef.current = true
     }
     return loadedData
   }
