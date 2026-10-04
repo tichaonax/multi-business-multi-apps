@@ -3,7 +3,7 @@
 
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, type ReactNode } from 'react'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { useSession } from 'next-auth/react'
 import { useRouter, useParams } from 'next/navigation'
@@ -117,6 +117,16 @@ export default function PayrollPeriodDetailPage() {
   const [generatingZimra, setGeneratingZimra] = useState(false)
   const [exportingZimraFile, setExportingZimraFile] = useState(false)
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
+  // Mobile collapsible entry cards — which employees are expanded. Desktop
+  // keeps the existing wide table (with a sticky Name column) untouched.
+  const [expandedEntryIds, setExpandedEntryIds] = useState<Set<string>>(new Set())
+  const toggleEntryExpanded = (id: string) => {
+    setExpandedEntryIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
   const [showPreview, setShowPreview] = useState(false)
   const [includePastPeriods, setIncludePastPeriods] = useState(false)
   const [notification, setNotification] = useState<{
@@ -1502,7 +1512,255 @@ export default function PayrollPeriodDetailPage() {
         {period.payroll_entries.length === 0 ? (
           <p className="text-secondary text-center py-12">No employees added to this payroll period yet</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Mobile: collapsible per-employee cards, vertical scroll only —
+              no horizontal scrolling through dozens of columns. Desktop
+              keeps the full wide table below (hidden here). */}
+          <div className="sm:hidden divide-y divide-border">
+            {period.payroll_entries.map((entry) => {
+              const adjs = (entry as any).payrollAdjustments || []
+              const hasPendingOT = adjs.some((a: any) =>
+                a.isClockInAdjustment && a.status === 'pending' && (a.adjustmentType || a.type) !== 'clock_in_deduction'
+              )
+              const hasPendingTardiness = adjs.some((a: any) =>
+                a.isClockInAdjustment && a.status === 'pending' && (a.adjustmentType || a.type) === 'clock_in_deduction'
+              )
+              const empId = (entry as any).employeeId || ''
+              const hasPendingPerDiem = (perDiemPendingMap[empId] ?? 0) > 0
+              const needsAction = hasPendingOT || hasPendingTardiness || hasPendingPerDiem
+              const isComplete = adjs.length > 0 && !needsAction
+              const borderClass = needsAction
+                ? 'border-l-4 border-orange-400 bg-orange-50 dark:bg-orange-900/20'
+                : isComplete
+                ? 'border-l-4 border-green-500 bg-green-50 dark:bg-green-900/10'
+                : ''
+              const name = entry.employeeName || `${(entry as any).employeeLastName || ''} ${(entry as any).employeeFirstName || ''}`.trim()
+              const isExpanded = expandedEntryIds.has(entry.id)
+
+              // Same OT 1.5x / 2.0x formulas as the desktop table's columns —
+              // kept local here rather than refactoring the existing (working)
+              // desktop cells, to avoid any risk to live payroll figures.
+              const hourlyRate = (() => {
+                let r = Number((entry as any).hourlyRate || 0)
+                if (!r) { const b = Number(entry.baseSalary || 0); r = b > 0 ? (b * 12) / (6 * 9 * 52) : 0 }
+                return r
+              })()
+              const stdHours = Number((entry as any).standardOvertimeHours || 0)
+              const dblHours = Number((entry as any).doubleTimeOvertimeHours || 0)
+              const ot15 = (() => {
+                const stored = Number((entry as any).standardOvertimePay || 0)
+                const manualPay = stored > 0 ? stored : Math.round(stdHours * hourlyRate * 1.5 * 100) / 100
+                const clockInOT = adjs.reduce((s: number, a: any) => {
+                  if (!a.isClockInAdjustment || a.status === 'pending') return s
+                  const t = String(a.adjustmentType || a.type || '').toLowerCase()
+                  if (t !== 'overtime_credit' && t !== 'overtime') return s
+                  return s + Math.abs(Number(a.storedAmount ?? a.amount ?? 0))
+                }, 0)
+                return manualPay + clockInOT
+              })()
+              const ot2 = (() => {
+                const stored = Number((entry as any).doubleOvertimePay || 0)
+                return stored > 0 ? stored : Math.round(dblHours * hourlyRate * 2.0 * 100) / 100
+              })()
+              const adjustments = (() => {
+                const clockInOTTypes = new Set(['overtime_credit', 'overtime'])
+                let additions = 0
+                if (Array.isArray(adjs) && adjs.length > 0) {
+                  additions = adjs.reduce((s: number, a: any) => {
+                    if (a.isClockInAdjustment && a.status === 'pending') return s
+                    if (a.isClockInAdjustment && clockInOTTypes.has(String(a.adjustmentType || a.type || '').toLowerCase())) return s
+                    const amt = Number((a.storedAmount !== undefined && a.storedAmount !== null) ? a.storedAmount : (a.amount ?? 0))
+                    const isAdd = typeof a.isAddition === 'boolean' ? a.isAddition : amt >= 0
+                    return s + (isAdd ? Math.abs(amt) : 0)
+                  }, 0)
+                } else {
+                  additions = Number((entry as any).adjustmentsTotal || 0)
+                }
+                return additions
+              })()
+              const basicSalary = Number((entry as any).contractSnapshot?.basicSalary
+                ?? (entry as any).contract?.pdfGenerationData?.basicSalary
+                ?? (entry as any).contract?.baseSalary
+                ?? Number(entry.baseSalary || 0))
+              const earnedSalary = Math.max(0, Number(entry.baseSalary || 0) - resolveAbsenceDeduction(entry) - Number((entry as any).clockInDeductionAmount || 0))
+              const totals = computeEntryTotals(entry)
+              const absenceAmt = resolveAbsenceDeduction(entry) + Number((entry as any).clockInDeductionAmount || 0)
+              const perDiemTotal = perDiemMap[empId] ?? 0
+              const perDiemPending = perDiemPendingMap[empId] ?? 0
+              const contractualBasicSalary = basicSalary
+              const perDiem = perDiemMap[empId] ?? Number((entry as any).perDiem || 0)
+              const taxableGross = Math.max(0, totals.grossInclBenefits - perDiem)
+              const statutory = previewPaye(taxableGross, contractualBasicSalary)
+              const displayNssa = (entry as any).zimraNssa != null ? Number((entry as any).zimraNssa) : statutory.nssa
+              const displayPaye = (entry as any).zimraPaye != null ? Number((entry as any).zimraPaye) : statutory.paye
+              const displayAidsLevy = (entry as any).zimraAidsLevy != null ? Number((entry as any).zimraAidsLevy) : statutory.aidsLevy
+              const hasZimra = (entry as any).zimraPaye != null || (entry as any).zimraNssa != null || (entry as any).zimraAidsLevy != null
+              const netTakeHome = Math.max(0, totals.grossInclBenefits - displayNssa - displayPaye - displayAidsLevy - totals.totalDeductions)
+              const jobTitle = (entry as any).employees?.job_titles?.title
+                || (entry as any).contract?.pdfGenerationData?.jobTitle
+                || entry.employee?.jobTitles?.title
+                || ''
+              const dateEngaged = (entry as any).employeeHireDate ? new Date((entry as any).employeeHireDate).toLocaleDateString() : (entry.hireDate ? new Date(entry.hireDate).toLocaleDateString() : '')
+              const dateDismissed = entry.terminationDate ? new Date(entry.terminationDate).toLocaleDateString() : ''
+              const dob = (entry as any).employeeDateOfBirth ? new Date((entry as any).employeeDateOfBirth).toLocaleDateString() : (entry.dateOfBirth ? new Date(entry.dateOfBirth).toLocaleDateString() : '')
+
+              // Note: deliberately not `value || '-'` — several fields here are
+              // legitimately 0 (e.g. Work Days, OT hours' derived $ amounts),
+              // which `||` would incorrectly blank out to '-'.
+              const Field = ({ label, value, className = '' }: { label: string; value: ReactNode; className?: string }) => (
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</p>
+                  <p className={`text-gray-700 dark:text-gray-300 ${className}`}>{value === '' || value === null || value === undefined ? '-' : value}</p>
+                </div>
+              )
+
+              return (
+                <div key={entry.id} className={borderClass}>
+                  {/* Collapsed header — important minimal info only */}
+                  <button
+                    type="button"
+                    onClick={() => toggleEntryExpanded(entry.id)}
+                    className="w-full flex items-center justify-between gap-2 p-3 text-left"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`text-secondary shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span className="font-medium text-primary truncate">{name}</span>
+                          {hasPendingTardiness && <span className="px-1.5 py-0.5 rounded text-[10px] bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 font-semibold shrink-0">⚠ Late</span>}
+                          {hasPendingOT && <span className="px-1.5 py-0.5 rounded text-[10px] bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 font-semibold shrink-0">⚠ OT</span>}
+                          {isComplete && <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 font-semibold shrink-0">✓ Done</span>}
+                        </div>
+                        <p className="text-xs text-secondary">{(entry as any).employeeNumber || ''}</p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Net Pay</p>
+                      <p className="font-bold text-green-700 dark:text-green-300">{formatCurrency(netTakeHome)}</p>
+                    </div>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="px-3 pb-3 space-y-4">
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                        <Field label="Company" value={makeShortCompanyLabel((entry as any).primaryBusiness?.name || (entry as any).employee?.primaryBusiness?.name)} />
+                        <Field label="ID Number" value={entry.nationalId} />
+                        <Field label="Date of Birth" value={dob} />
+                        <Field label="Job Title" value={jobTitle} />
+                        <Field
+                          label="Contract Period"
+                          value={formatContractDateRange(entry) ? (
+                            <span className="flex items-center gap-1 flex-wrap">
+                              {formatContractDateRange(entry)}
+                              {entry.isProrated && <span className="text-[9px] bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 px-1 py-0.5 rounded font-medium">PRO</span>}
+                            </span>
+                          ) : null}
+                        />
+                        <Field label="Date Engaged" value={dateEngaged} />
+                        <Field label="Date Dismissed" value={dateDismissed} />
+                      </div>
+
+                      <div>
+                        <h4 className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 font-semibold mb-1.5">Attendance</h4>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                          <Field label="Work Days" value={entry.workDays} />
+                          <Field label="Sick Total" value={(entry as any).cumulativeSickDays ?? (entry as any).sickDays ?? 0} />
+                          <Field label="Leave Total" value={(entry as any).cumulativeLeaveDays ?? (entry as any).leaveDays ?? 0} />
+                          <Field label="Absence Total" value={Number((entry as any).absenceDaysFromRecords ?? (entry as any).absenceDays ?? 0)} />
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 font-semibold mb-1.5">Pay Components</h4>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                          <Field label="Basic Salary" value={formatCurrency(basicSalary)} />
+                          <Field label="Earned Salary ★" value={formatCurrency(earnedSalary)} className="text-amber-600 dark:text-amber-400 font-semibold" />
+                          <Field label="Commission" value={formatCurrency(Number(entry.commission || 0))} />
+                          <Field label="OT (1.5x)" value={formatCurrency(ot15)} />
+                          <Field label="OT (2.0x)" value={formatCurrency(ot2)} />
+                          <Field label="Adjustments" value={adjustments ? `+${formatCurrency(adjustments)}` : formatCurrency(0)} />
+                          {getUniqueBenefits().map(benefit => {
+                            const merged = (entry as any).mergedBenefits || []
+                            const mb = merged.find((m: any) => {
+                              const id = m?.benefitType?.id || m?.benefitTypeId || m?.key || String(m?.benefitTypeId || '')
+                              return String(id) === String(benefit.benefitTypeId)
+                            })
+                            const contractVal = entry.contract?.pdfGenerationData?.benefits?.find((cb: any) => String(cb.benefitTypeId || cb.name) === String(benefit.benefitTypeId))
+                            const entryBenefit = entry.payroll_entry_benefits?.find(b => b.benefitTypeId === benefit.benefitTypeId && b.isActive)
+                            const amount = mb?.amount ?? contractVal?.amount ?? entryBenefit?.amount
+                            if (typeof amount !== 'number') return null
+                            return (
+                              <Field
+                                key={benefit.benefitTypeId}
+                                label={benefit.benefitName}
+                                value={benefit.isDeduction ? `-${formatCurrency(amount)}` : formatCurrency(amount)}
+                                className={benefit.isDeduction ? 'text-red-600 dark:text-red-400 font-medium' : ''}
+                              />
+                            )
+                          })}
+                          <Field
+                            label="Per Diem"
+                            value={perDiemTotal > 0 ? (
+                              <span className="flex items-center gap-1 flex-wrap">
+                                <span className="text-blue-600 dark:text-blue-400">{formatCurrency(perDiemTotal)}</span>
+                                {perDiemPending > 0 ? (
+                                  <span className="px-1 py-0.5 rounded text-[9px] bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 font-semibold">⚠ Pending</span>
+                                ) : (
+                                  <span className="px-1 py-0.5 rounded text-[9px] bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 font-semibold">✓ Approved</span>
+                                )}
+                              </span>
+                            ) : null}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 font-semibold mb-1.5">Totals</h4>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                          <Field label="Absence (unearned)" value={absenceAmt && absenceAmt !== 0 ? `-${formatCurrency(Math.abs(absenceAmt))}` : formatCurrency(0)} className="text-red-600 dark:text-red-400" />
+                          <Field label="Deductions" value={formatCurrency(totals.totalDeductions)} className="text-red-600 dark:text-red-400" />
+                          <Field label="Gross Pay" value={formatCurrency(totals.grossInclBenefits)} className="text-green-600 dark:text-green-400 font-medium" />
+                          <Field label="NSSA (Est)" value={formatCurrency(displayNssa)} className="text-amber-600 dark:text-amber-400" />
+                          <Field
+                            label="PAYE (Est)"
+                            value={<span className="flex items-center gap-1">{formatCurrency(displayPaye)}{hasZimra && <span className="text-[9px] font-bold text-white bg-amber-500 rounded px-1">Z</span>}</span>}
+                            className="text-amber-600 dark:text-amber-400"
+                          />
+                          <Field label="Levy (Est)" value={formatCurrency(displayAidsLevy)} className="text-amber-600 dark:text-amber-400" />
+                          <Field label="Net Pay" value={formatCurrency(netTakeHome)} className="text-green-700 dark:text-green-300 font-bold" />
+                        </div>
+                      </div>
+
+                      {entry.employeeTin && (
+                        <p className="text-[10px] font-mono text-gray-400 dark:text-gray-500">TIN: {entry.employeeTin}</p>
+                      )}
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedEntryId(entry.id)}
+                          className="px-3 py-1.5 text-xs font-medium text-blue-600 border border-blue-300 dark:border-blue-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                        >
+                          Open Full Entry
+                        </button>
+                        {canEditEntry && ['draft', 'in_progress'].includes(period.status) && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteEntry(entry.id)}
+                            className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="hidden sm:block overflow-x-auto">
             <table className="min-w-full divide-y divide-border">
               <thead className="bg-muted">
                 <tr>
@@ -1795,6 +2053,7 @@ export default function PayrollPeriodDetailPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 

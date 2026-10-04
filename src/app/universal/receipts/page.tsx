@@ -33,6 +33,8 @@ interface ReceiptListItem {
   rewardCouponCode: string | null
   mealProgram?: boolean
   hasCombo?: boolean
+  // Most-expensive-first (server-sorted) — see /api/universal/receipts/search
+  items?: Array<{ name: string; quantity: number; totalPrice: number }>
   businessType: string
   paymentMethod: string | null
   status: string
@@ -53,10 +55,15 @@ function toISODate(d: Date) {
   return d.toISOString().split('T')[0]
 }
 
+// Default view is the last 2 days (today + yesterday) rather than the
+// business's whole history — most lookups are for a recent sale, and
+// "All time" / any other range is always one click away via the standard
+// DateRangeSelector header above the table.
 function defaultDateRange(): DateRange {
   const end = new Date()
   const start = new Date()
-  start.setDate(start.getDate() - 30)
+  start.setDate(start.getDate() - 1)
+  start.setHours(0, 0, 0, 0)
   return { start, end }
 }
 
@@ -87,14 +94,27 @@ function ReceiptHistoryPageContent() {
   const [cancelBusinessId, setCancelBusinessId] = useState<string>('')
   const [cancelError, setCancelError] = useState<string | null>(null)
   const [cancelLoading, setCancelLoading] = useState<string | null>(null) // receiptId being loaded
-  const [dateFrom, setDateFrom] = useState('')       // ISO yyyy-mm-dd for API — '' while allTime
-  const [dateTo, setDateTo] = useState('')         // ISO yyyy-mm-dd for API — '' while allTime
-  const [allTime, setAllTime] = useState(true)
+  // ISO yyyy-mm-dd for API — '' means allTime. Initialized to the last-2-days
+  // default (see defaultDateRange above) rather than empty, so the very
+  // first load is already scoped instead of fetching the business's entire
+  // receipt history.
+  const [dateFrom, setDateFrom] = useState(() => toISODate(defaultDateRange().start))
+  const [dateTo, setDateTo] = useState(() => toISODate(defaultDateRange().end))
+  const [allTime, setAllTime] = useState(false)
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange())
   const [filterResetKey, setFilterResetKey] = useState(0)
   const { useServerTime } = useTimeDisplay()
   const { hasPermissionInBusiness, isSystemAdmin } = useBusinessPermissionsContext()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // Mobile receipt cards — which ones have their "+N more items" expanded
+  const [expandedItemsIds, setExpandedItemsIds] = useState<Set<string>>(new Set())
+  const toggleItemsExpanded = (id: string) => {
+    setExpandedItemsIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
   const [selectAllFilterActive, setSelectAllFilterActive] = useState(false)
   const [reassignTarget, setReassignTarget] = useState<{ orderIds?: string[]; filter?: { query?: string; startDate?: string; endDate?: string }; count: number } | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
@@ -589,6 +609,42 @@ function ReceiptHistoryPageContent() {
                     </div>
                   </div>
 
+                  {/* Items — most expensive first (server-sorted). Shows the
+                      top 2 inline; anything beyond that sits behind a
+                      dotted "+N more" toggle so the card doesn't grow
+                      unbounded for large receipts. */}
+                  {receipt.items && receipt.items.length > 0 && (() => {
+                    const VISIBLE = 2
+                    const visible = receipt.items.slice(0, VISIBLE)
+                    const rest = receipt.items.slice(VISIBLE)
+                    const isExpanded = expandedItemsIds.has(receipt.id)
+                    const ItemRow = ({ item }: { item: { name: string; quantity: number; totalPrice: number } }) => (
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="text-gray-600 dark:text-gray-300 truncate">
+                          {item.name} <span className="text-gray-400 dark:text-gray-500">×{item.quantity}</span>
+                        </span>
+                        <span className="text-gray-700 dark:text-gray-300 shrink-0">{formatCurrency(item.totalPrice)}</span>
+                      </div>
+                    )
+                    return (
+                      <div className="space-y-1 pt-1 border-t border-dashed border-gray-200 dark:border-gray-700">
+                        {visible.map((item, i) => <ItemRow key={i} item={item} />)}
+                        {rest.length > 0 && (
+                          <>
+                            {isExpanded && rest.map((item, i) => <ItemRow key={`rest-${i}`} item={item} />)}
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); toggleItemsExpanded(receipt.id) }}
+                              className="text-xs text-blue-600 dark:text-blue-400 border border-dashed border-blue-300 dark:border-blue-700 rounded px-2 py-0.5 mt-0.5"
+                            >
+                              {isExpanded ? '▲ Show less' : `⋯ +${rest.length} more item${rest.length === 1 ? '' : 's'}`}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )
+                  })()}
+
                   {(receipt.cancellationOutcome || (receipt.status === 'COMPLETED' && isSameDayOrder(receipt.createdAt)) || canReassign) && (
                     <div className="flex items-center gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
                       {receipt.cancellationOutcome === 'CANCELLED' ? (
@@ -622,14 +678,27 @@ function ReceiptHistoryPageContent() {
               ))}
             </div>
 
-            {/* overflow-y-visible is required, not decorative: overflow-x-auto
-                alone forces the CSS "axis-coupling" rule to compute overflow-y
-                as auto too, which silently makes THIS div the sticky
-                containing block for the <thead> below instead of the window —
-                the thead then sticks at the wrong point and visually lands on
-                top of whatever row happens to be there. */}
-            <div className="hidden sm:block overflow-x-auto overflow-y-visible">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            {/* No overflow-x-auto here on purpose. An explicit overflow-y-visible
+                was tried to decouple it from overflow-x-auto's axis-coupling
+                (the CSS rule that silently forces computed overflow-y to
+                'auto' whenever overflow-x isn't 'visible'), but that rule
+                triggers off the COMPUTED value, not whether overflow-y was
+                explicitly declared — so overflow-y: visible still gets
+                forced to auto, this div still becomes the sticky containing
+                block instead of the window, and the <thead> below still
+                sticks at the wrong point mid-list instead of the top. The
+                desktop columns already fit without horizontal scrolling
+                (mobile has its own card list above, sm:hidden), so the fix
+                is to not set overflow-x here at all — if a very narrow
+                desktop window ever does need it, the page itself scrolls
+                horizontally, which doesn't break sticky (that's a Y-axis
+                concern). */}
+            <div className="hidden sm:block">
+            {/* border-separate (not the default border-collapse from Tailwind's
+                preflight) — border-collapse breaks paint/stacking order for a
+                sticky <thead>, letting scrolled-past rows render visually
+                above it despite its opaque bg-* class. */}
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 border-separate border-spacing-0">
               <thead
                 className="bg-gray-50 dark:bg-gray-900 sticky z-10 top-[calc(3.5rem+var(--filters-h,0px))] sm:top-[calc(4rem+var(--filters-h,0px))]"
                 style={{ ['--filters-h' as any]: `${filtersHeight}px` }}

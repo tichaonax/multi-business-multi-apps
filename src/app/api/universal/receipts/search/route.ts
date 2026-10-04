@@ -118,7 +118,15 @@ export async function GET(request: NextRequest) {
         },
         business_order_items: {
           select: {
+            quantity: true,
+            totalPrice: true,
             attributes: true,
+            product_variants: {
+              select: {
+                name: true,
+                business_products: { select: { name: true } },
+              },
+            },
           },
         },
       },
@@ -201,6 +209,18 @@ export async function GET(request: NextRequest) {
         rewardCouponCode: (order.attributes as any)?.rewardCouponCode || null,
         mealProgram: (order.attributes as any)?.mealProgram === true,
         hasCombo: order.business_order_items.some(item => !!(item.attributes as any)?.isCombo),
+        // Most-expensive-first so the mobile card can show the top few
+        // items inline without a round trip — see ReceiptHistoryPage.
+        items: order.business_order_items
+          .map(item => ({
+            name: item.product_variants?.business_products?.name
+              || item.product_variants?.name
+              || (item.attributes as any)?.productName
+              || 'Item',
+            quantity: item.quantity,
+            totalPrice: Number(item.totalPrice),
+          }))
+          .sort((a, b) => b.totalPrice - a.totalPrice),
         businessType: order.businessType,
         paymentMethod: order.paymentMethod,
         status: order.status,

@@ -35,14 +35,37 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Search across all accessible businesses
+    // Search across all accessible businesses — mirrors the same-business
+    // search's query logic (receipt #, customer, salesperson, notes, and
+    // purchased item/product names), not just orderNumber/customerId/amount,
+    // so a query that only matches on a product name (e.g. "zambezi") can
+    // still be found here when it's a fallback for the main search coming
+    // back empty in the currently-selected business.
+    const asNumber = parseFloat(query)
     const orders = await prisma.businessOrders.findMany({
       where: {
         businessId: { in: businessIds },
         OR: [
           { orderNumber: { contains: query, mode: 'insensitive' } },
           { customerId: { contains: query, mode: 'insensitive' } },
-          { totalAmount: { equals: parseFloat(query) || undefined } },
+          { notes: { contains: query, mode: 'insensitive' } },
+          { business_customers: { name: { contains: query, mode: 'insensitive' } } },
+          { employees: { fullName: { contains: query, mode: 'insensitive' } } },
+          { attributes: { path: ['employeeName'], string_contains: query } },
+          { attributes: { path: ['soldByName'], string_contains: query } },
+          { attributes: { path: ['participantName'], string_contains: query } },
+          {
+            business_order_items: {
+              some: {
+                OR: [
+                  { product_variants: { name: { contains: query, mode: 'insensitive' } } },
+                  { product_variants: { business_products: { name: { contains: query, mode: 'insensitive' } } } },
+                  { attributes: { path: ['productName'], string_contains: query } },
+                ],
+              },
+            },
+          },
+          ...(isNaN(asNumber) ? [] : [{ totalAmount: { equals: asNumber } }]),
         ],
       },
       select: {
@@ -55,6 +78,7 @@ export async function GET(request: NextRequest) {
         status: true,
         createdAt: true,
         businessId: true,
+        attributes: true,
         businesses: {
           select: {
             id: true,
@@ -65,6 +89,11 @@ export async function GET(request: NextRequest) {
         business_customers: {
           select: {
             name: true,
+          },
+        },
+        employees: {
+          select: {
+            fullName: true,
           },
         },
       },
@@ -92,6 +121,10 @@ export async function GET(request: NextRequest) {
         orderNumber: order.orderNumber,
         customerId: order.customerId,
         customerName: order.business_customers?.name || (order.attributes as any)?.participantName || 'Walk-in Customer',
+        salespersonName: order.employees?.fullName
+          || (order.attributes as any)?.employeeName
+          || (order.attributes as any)?.soldByName
+          || null,
         totalAmount: order.totalAmount,
         businessType: order.businessType,
         paymentMethod: order.paymentMethod,
