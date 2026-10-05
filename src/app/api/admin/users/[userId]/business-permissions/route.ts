@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { BusinessPermissions } from '@/types/permissions'
 import { isSystemAdmin, SessionUser, hasPermission } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
+import { createAuditLog } from '@/lib/audit'
 
 interface BusinessPermissionUpdateRequest {
   businessId: string
@@ -202,6 +203,29 @@ export async function PATCH(
 
     const businessName = existingMembership.businesses?.name || existingMembership.businessId
     console.log('Permissions updated successfully for:', businessName)
+
+    // Diff only the keys that actually changed — the full permissions object
+    // has 60+ boolean flags, most of which are untouched by any given edit.
+    const oldPermissions = (existingMembership.permissions as Record<string, unknown>) || {}
+    const changedOld: Record<string, unknown> = {}
+    const changedNew: Record<string, unknown> = {}
+    for (const [key, newVal] of Object.entries(sanitizedPermissions)) {
+      if (oldPermissions[key] !== newVal) {
+        changedOld[key] = oldPermissions[key] ?? false
+        changedNew[key] = newVal
+      }
+    }
+    if (Object.keys(changedNew).length > 0) {
+      await createAuditLog({
+        userId: user.id,
+        action: 'PERMISSION_CHANGED',
+        entityType: 'BusinessMembership',
+        entityId: updatedMembership.id,
+        oldValues: changedOld,
+        newValues: changedNew,
+        metadata: { businessId, businessName, targetUserId: userId },
+      }).catch(err => console.error('[business-permissions PATCH] audit log error (non-blocking):', err))
+    }
 
     return NextResponse.json({
       success: true,

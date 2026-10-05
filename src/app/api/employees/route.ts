@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client'
 import { randomBytes, randomUUID } from 'crypto'
 import { buildEmployeeQueryFilter, canUserPerformEmployeeAction } from '@/lib/employee-access-control'
 import { getServerUser } from '@/lib/get-server-user'
+import { createAuditLog } from '@/lib/audit'
 
 export async function GET(req: NextRequest) {
   try {
@@ -559,6 +560,22 @@ export async function POST(req: NextRequest) {
 
       return newEmployee
     })
+
+    await createAuditLog({
+      userId: user.id,
+      action: 'EMPLOYEE_HIRED',
+      entityType: 'Employee',
+      entityId: result.id,
+      newValues: {
+        fullName: result.fullName,
+        employeeNumber: result.employeeNumber,
+        email: result.email,
+        jobTitle: (result as any).job_titles?.title ?? null,
+        businessName: (result as any).businesses?.name ?? null,
+        hireDate: (result as any).hireDate ?? null,
+      },
+      metadata: { businessId: primaryBusinessId },
+    }).catch(err => console.error('[employees POST] audit log error (non-blocking):', err))
 
     return NextResponse.json({
       message: 'Employee created successfully',

@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client'
 import { randomUUID } from 'crypto'
 import { hasPermission } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
+import { createAuditLog } from '@/lib/audit'
 
 interface RouteParams {
   params: Promise<{ employeeId: string }>
@@ -233,6 +234,25 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
       return await tx.employeeContracts.create({ data: contractCreateData })
     })
+
+    if (!isSeedRequest) {
+      await createAuditLog({
+        userId: user.id,
+        action: 'CONTRACT_SIGNED',
+        entityType: 'Contract',
+        entityId: contract.id,
+        newValues: {
+          contractNumber: contract.contractNumber,
+          baseSalary: normalizedBaseSalary,
+          startDate: contract.startDate,
+          status: contract.status,
+          employeeId,
+          employeeName: (employee as any)?.fullName,
+          employeeNumber: (employee as any)?.employeeNumber,
+        },
+        metadata: { businessId: primaryBusinessId },
+      }).catch(err => console.error('[contracts POST] audit log error (non-blocking):', err))
+    }
 
 
     // Sync schedule fields from contract to employee's clock-in settings

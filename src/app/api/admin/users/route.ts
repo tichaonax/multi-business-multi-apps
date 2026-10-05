@@ -7,6 +7,7 @@ import { BUSINESS_PERMISSION_PRESETS } from '@/types/permissions';
 import { isSystemAdmin } from '@/lib/permission-utils';
 import { randomBytes } from 'crypto';
 import { getServerUser } from '@/lib/get-server-user'
+import { createAuditLog } from '@/lib/audit'
 
 export async function GET() {
   try {
@@ -359,6 +360,23 @@ export async function POST(req: NextRequest) {
 
       return { newUser, memberships };
     });
+
+    await createAuditLog({
+      userId: user.id,
+      action: 'USER_CREATED',
+      entityType: 'User',
+      entityId: result.newUser.id,
+      newValues: {
+        name: result.newUser.name,
+        email: result.newUser.email,
+        systemRole,
+        role,
+        linkedEmployeeId: employeeToLink?.id ?? null,
+        linkedEmployeeName: employeeToLink?.fullName ?? null,
+        businessCount: result.memberships.length,
+        businessIds: result.memberships.map(m => m.businessId),
+      },
+    }).catch(err => console.error('[admin/users POST] audit log error (non-blocking):', err))
 
     // TODO: Send email invitation if sendInvite is true
     // For now, just return the temporary password

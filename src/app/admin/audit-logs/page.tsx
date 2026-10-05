@@ -37,6 +37,7 @@ interface AuditLog {
   oldValues: any;
   newValues: any;
   changes: any;
+  details: any;
   // Prisma relation field is `users` (plural, matching the schema relation
   // name), not `user` — the UI previously referenced `log.user` here, which
   // is always undefined, so the user name/email never actually rendered.
@@ -64,13 +65,29 @@ interface AuditStatistics {
   }>;
 }
 
-function formatDetailValue(value: unknown): string {
+function formatDetailValue(value: unknown, depth = 0): string {
   if (value === null || value === undefined) return '—';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '—';
+    return value.map(v => formatDetailValue(v, depth + 1)).join(', ');
+  }
   if (typeof value === 'object') {
-    // {from, to} shape from generateChangeLog, or a nested object — print compactly
     const obj = value as Record<string, unknown>;
-    if ('from' in obj && 'to' in obj) return `${formatDetailValue(obj.from)} → ${formatDetailValue(obj.to)}`;
+    // {from, to} shape from generateChangeLog
+    if ('from' in obj && 'to' in obj && Object.keys(obj).length === 2) {
+      return `${formatDetailValue(obj.from, depth + 1)} → ${formatDetailValue(obj.to, depth + 1)}`;
+    }
+    // {before, after} shape used by several routes' `details` payloads
+    if ('before' in obj && 'after' in obj && Object.keys(obj).length === 2) {
+      return `${formatDetailValue(obj.before, depth + 1)} → ${formatDetailValue(obj.after, depth + 1)}`;
+    }
+    // One level of plain-object nesting renders as readable key:value pairs
+    // instead of a raw JSON blob; deeper nesting falls back to JSON so this
+    // can't recurse forever on an unexpected shape.
+    if (depth < 2) {
+      return Object.entries(obj).map(([k, v]) => `${humanizeKey(k)}: ${formatDetailValue(v, depth + 1)}`).join(', ');
+    }
     return JSON.stringify(value);
   }
   // ISO date strings render friendlier as a locale date/time
@@ -83,6 +100,111 @@ function formatDetailValue(value: unknown): string {
 
 function humanizeKey(key: string): string {
   return key.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim();
+}
+
+const NAME_FIELD_CANDIDATES = [
+  'businessName', 'productName', 'employeeName', 'userName', 'contractorName',
+  'accountName', 'itemName', 'name', 'accountNumber', 'contractNumber', 'orderNumber',
+];
+
+// Best-effort "what is this entry actually about" lookup across whichever
+// payload column(s) happen to hold it — used by the fallback summary and by
+// specific-action summaries that just need a display name, not a full diff.
+function findDisplayName(log: AuditLog): string | null {
+  for (const bag of [log.metadata, log.newValues, log.oldValues, log.details, log.changes]) {
+    if (!bag || typeof bag !== 'object') continue;
+    for (const key of NAME_FIELD_CANDIDATES) {
+      if (typeof bag[key] === 'string' && bag[key]) return bag[key];
+    }
+  }
+  return null;
+}
+
+function money(n: unknown): string {
+  const num = Number(n);
+  return isNaN(num) ? String(n) : `$${num.toFixed(2)}`;
+}
+
+// One-line human summary per row, replacing the old "Entity ID: 1bfc19..."
+// display with something a reviewer can actually act on. Falls back to a
+// generic name-based line (or nothing) for any action not covered here yet —
+// degrades gracefully as more call sites get wired up with richer payloads.
+function summarizeAuditLog(log: AuditLog): string | null {
+  const m = log.metadata || {};
+  const nv = log.newValues || {};
+  const ov = log.oldValues || {};
+
+  switch (log.action) {
+    case 'PRODUCT_PRICE_UPDATED': {
+      const name = m.productName || findDisplayName(log) || 'item';
+      const id = m.barcode || m.sku ? ` (${[m.barcode, m.sku].filter(Boolean).join(' / ')})` : '';
+      if ('price' in ov && 'price' in nv) return `${name}${id}: ${money(ov.price)} → ${money(nv.price)}`;
+      return `Price updated — ${name}${id}`;
+    }
+    case 'PRODUCT_STOCK_ADJUSTED': {
+      const name = m.productName || findDisplayName(log) || 'item';
+      if ('stockQuantity' in ov && 'stockQuantity' in nv) return `${name}: stock ${ov.stockQuantity} → ${nv.stockQuantity}`;
+      return `Stock adjusted — ${name}`;
+    }
+    case 'PRODUCT_ZEROED_OUT':
+      return `Zeroed out — ${m.itemName || findDisplayName(log) || 'item'}`;
+    case 'BUSINESS_CREATED':
+      return `Created business "${m.businessName || nv.businessName || findDisplayName(log) || ''}"`.trim();
+    case 'BUSINESS_UPDATED':
+      return `Updated business "${m.businessName || findDisplayName(log) || ''}"`.trim();
+    case 'BUSINESS_REACTIVATED':
+      return `Reactivated business "${m.businessName || findDisplayName(log) || ''}"`.trim();
+    case 'BUSINESS_DEACTIVATED':
+      return `Deactivated business "${m.businessName || findDisplayName(log) || ''}"`.trim();
+    case 'BUSINESS_HARD_DELETED':
+      return `Permanently deleted business "${m.businessName || findDisplayName(log) || ''}"`.trim();
+    case 'USER_CREATED':
+      return `Created user ${nv.name || m.name || ''}${nv.email ? ` (${nv.email})` : ''}`.trim();
+    case 'USER_DEACTIVATED':
+      return `Deactivated user ${findDisplayName(log) || ''}`.trim();
+    case 'USER_REACTIVATED':
+      return `Reactivated user ${findDisplayName(log) || ''}`.trim();
+    case 'USER_EMPLOYEE_LINKED':
+      return `Linked ${m.userName || ''} ↔ ${m.employeeName || ''}`.trim();
+    case 'USER_EMPLOYEE_UNLINKED':
+      return `Unlinked ${m.userName || ''} ↔ ${m.employeeName || ''}`.trim();
+    case 'EMPLOYEE_HIRED':
+      return `Hired ${m.fullName || m.employeeName || findDisplayName(log) || ''}`.trim();
+    case 'EMPLOYEE_TERMINATED':
+      return `Terminated ${m.employeeName || findDisplayName(log) || ''}`.trim();
+    case 'EMPLOYEE_STATUS_SYNC':
+      return `${m.employeeName || ''}: ${m.oldStatus || ''} → ${m.newStatus || ''}`.trim();
+    case 'CONTRACT_SIGNED':
+      return `Signed contract ${m.contractNumber || ''} — ${m.employeeName || ''}`.trim();
+    case 'CONTRACT_APPROVED':
+      return `Approved contract ${m.contractNumber || ''} — ${m.employeeName || ''}`.trim();
+    case 'CONTRACT_TERMINATED':
+      return `Terminated contract — ${m.employeeName || ''}`.trim();
+    case 'ROLE_CHANGED':
+      return `${findDisplayName(log) || 'User'}: role ${ov.role || ''} → ${nv.role || ''}`.trim();
+    case 'PERMISSION_CHANGED':
+      return `Permissions changed — ${m.businessName || findDisplayName(log) || ''}`.trim();
+    case 'RECEIPT_DELETED':
+      return `Deleted receipt (${money(ov.amount)}) — ${ov.payeeName || 'no payee'}${m.reason ? `: "${m.reason}"` : ''}`;
+    case 'RECEIPT_AMENDED':
+      return `Amended receipt — ${m.paymentId ? `payment ${String(m.paymentId).slice(0, 8)}…` : ''}`;
+    case 'PAYMENT_REVERSED':
+      return `Reversed payment (${money(ov.amount)})${m.reason ? `: "${m.reason}"` : ''}`;
+    case 'EXPENSE_ACCOUNT_BALANCE_ADJUSTED':
+    case 'BUSINESS_ACCOUNT_BALANCE_ADJUSTED':
+    case 'PAYROLL_ACCOUNT_BALANCE_ADJUSTED':
+    case 'CASH_BOX_BALANCE_ADJUSTED': {
+      const label = m.accountName || m.businessName || findDisplayName(log) || 'account';
+      if ('balance' in ov && 'balance' in nv) return `${label}: ${money(ov.balance)} → ${money(nv.balance)}`;
+      return `Balance adjusted — ${label}`;
+    }
+    case 'EXPENSE_ACCOUNT_TRANSFER':
+      return `Transferred ${money(nv.amount)}: ${nv.sourceAccountName || ''} → ${nv.destinationAccountName || ''}`;
+    default: {
+      const name = findDisplayName(log);
+      return name ? name : null;
+    }
+  }
 }
 
 function DetailBlock({ title, data }: { title: string; data: Record<string, unknown> }) {
@@ -122,6 +244,9 @@ export default function AuditLogsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange());
   const [allTime, setAllTime] = useState(false);
+  const [businesses, setBusinesses] = useState<{ id: string; name: string }[]>([]);
+  const [selectedBusinessId, setSelectedBusinessId] = useState('');
+  const [includeSeedActivity, setIncludeSeedActivity] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -134,7 +259,15 @@ export default function AuditLogsPage() {
       fetchAuditLogs();
       fetchStatistics();
     }
-  }, [session, page, searchTerm, selectedAction, selectedEntityType, dateRange, allTime]);
+  }, [session, page, searchTerm, selectedAction, selectedEntityType, dateRange, allTime, selectedBusinessId, includeSeedActivity]);
+
+  useEffect(() => {
+    if (session?.user?.role !== 'admin') return;
+    fetch('/api/businesses')
+      .then(r => r.json())
+      .then(data => setBusinesses((data.businesses || []).map((b: any) => ({ id: b.id, name: b.name }))))
+      .catch(() => {});
+  }, [session]);
 
   const fetchAuditLogs = async () => {
     try {
@@ -145,6 +278,8 @@ export default function AuditLogsPage() {
         ...(selectedAction && { action: selectedAction }),
         ...(selectedEntityType && { entityType: selectedEntityType }),
         ...(!allTime && { startDate: dateRange.start.toISOString(), endDate: dateRange.end.toISOString() }),
+        ...(selectedBusinessId && { businessId: selectedBusinessId }),
+        ...(includeSeedActivity && { includeSeedGenerated: 'true' }),
       });
 
       const response = await fetch(`/api/audit?${params}`);
@@ -290,9 +425,10 @@ export default function AuditLogsPage() {
           </div>
         )}
 
-        {/* Floating search bar — stays visible while scrolling through logs */}
-        <div className="sticky top-16 z-20 mb-6">
-          <Card className="p-4 shadow-md">
+        {/* Floating search bar + filters — both stay visible while scrolling
+            through logs, stacked in one sticky wrapper so they move together. */}
+        <div className="sticky top-16 z-20 mb-6 space-y-4">
+        <Card className="p-4 shadow-md">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
@@ -303,10 +439,9 @@ export default function AuditLogsPage() {
               />
             </div>
           </Card>
-        </div>
 
         {/* Filters */}
-        <Card className="p-6 mb-6 space-y-4">
+        <Card className="p-6 space-y-4 shadow-md">
           <DateRangeSelector
             value={dateRange}
             onChange={setDateRange}
@@ -336,6 +471,28 @@ export default function AuditLogsPage() {
               <option value="RECEIPT_DELETED">Receipt Deleted</option>
               <option value="RECEIPT_OVER_LIMIT_OVERRIDE">Receipt Over-Limit Override</option>
               <option value="PAYMENT_REVERSED">Payment Reversed</option>
+              <option value="USER_CREATED">User Created</option>
+              <option value="USER_DEACTIVATED">User Deactivated</option>
+              <option value="USER_REACTIVATED">User Reactivated</option>
+              <option value="USER_EMPLOYEE_LINKED">User-Employee Linked</option>
+              <option value="USER_EMPLOYEE_UNLINKED">User-Employee Unlinked</option>
+              <option value="EMPLOYEE_HIRED">Employee Hired</option>
+              <option value="EMPLOYEE_TERMINATED">Employee Terminated</option>
+              <option value="EMPLOYEE_STATUS_SYNC">Employee Status Sync</option>
+              <option value="CONTRACT_SIGNED">Contract Signed</option>
+              <option value="CONTRACT_APPROVED">Contract Approved</option>
+              <option value="CONTRACT_TERMINATED">Contract Terminated</option>
+              <option value="CONTRACT_BENEFIT_ADDED">Contract Benefit Added</option>
+              <option value="CONTRACT_BENEFIT_REMOVED">Contract Benefit Removed</option>
+              <option value="ROLE_CHANGED">Role Changed</option>
+              <option value="BUSINESS_CREATED">Business Created</option>
+              <option value="BUSINESS_UPDATED">Business Updated</option>
+              <option value="BUSINESS_REACTIVATED">Business Reactivated</option>
+              <option value="BUSINESS_DEACTIVATED">Business Deactivated</option>
+              <option value="BUSINESS_HARD_DELETED">Business Hard-Deleted</option>
+              <option value="PRODUCT_PRICE_UPDATED">Product Price Updated</option>
+              <option value="PRODUCT_STOCK_ADJUSTED">Product Stock Adjusted</option>
+              <option value="PRODUCT_ZEROED_OUT">Product Zeroed Out</option>
             </select>
 
             <select
@@ -355,8 +512,30 @@ export default function AuditLogsPage() {
               <option value="ExpensePaymentReceipt">Expense Payment Receipt</option>
               <option value="ExpenseAccount">Expense Account</option>
             </select>
+
+            <select
+              value={selectedBusinessId}
+              onChange={(e) => setSelectedBusinessId(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600"
+            >
+              <option value="">All Businesses</option>
+              {businesses.map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
           </div>
+
+          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={includeSeedActivity}
+              onChange={(e) => setIncludeSeedActivity(e.target.checked)}
+              className="rounded border-gray-300 dark:border-gray-600"
+            />
+            Include seed/demo activity (hidden by default)
+          </label>
         </Card>
+        </div>
 
         {/* Audit Logs Table */}
         <Card className="p-6">
@@ -387,8 +566,10 @@ export default function AuditLogsPage() {
             <div className="space-y-4">
               {logs.map((log) => {
                 const isExpanded = expandedId === log.id;
-                const reason = log.metadata?.reason;
-                const hasDetail = log.oldValues || log.newValues || log.changes || (log.metadata && Object.keys(log.metadata).some(k => !['ipAddress', 'userAgent', 'hash'].includes(k)));
+                const reason = log.metadata?.reason || log.details?.reason;
+                const summary = summarizeAuditLog(log);
+                const hasDetail = log.oldValues || log.newValues || log.changes || log.details ||
+                  (log.metadata && Object.keys(log.metadata).some(k => !['ipAddress', 'userAgent', 'hash'].includes(k)));
                 return (
                   <div key={log.id} className="border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
                     <button
@@ -412,7 +593,12 @@ export default function AuditLogsPage() {
                               <span className="text-xs text-amber-600 dark:text-amber-400 truncate max-w-xs">— "{reason}"</span>
                             )}
                           </div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {summary && (
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                              {summary}
+                            </p>
+                          )}
+                          <p className={summary ? 'text-xs text-gray-500 dark:text-gray-400' : 'text-sm font-medium text-gray-900 dark:text-gray-100'}>
                             {log.users?.name} ({log.users?.email})
                           </p>
                           <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -421,7 +607,7 @@ export default function AuditLogsPage() {
                         </div>
                       </div>
                       <div className="flex-shrink-0 text-right">
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <p className="text-xs text-gray-400">
                           Entity ID: {log.entityId.substring(0, 8)}...
                         </p>
                         {log.metadata?.ipAddress && (
@@ -447,6 +633,15 @@ export default function AuditLogsPage() {
                         )}
                         {log.newValues && Object.keys(log.newValues).length > 0 && (
                           <DetailBlock title="New Values" data={log.newValues} />
+                        )}
+                        {log.changes && Object.keys(log.changes).length > 0 && (
+                          <DetailBlock title="Changes" data={log.changes} />
+                        )}
+                        {log.details && Object.keys(log.details).filter(k => k !== 'reason').length > 0 && (
+                          <DetailBlock
+                            title="Details"
+                            data={Object.fromEntries(Object.entries(log.details).filter(([k]) => k !== 'reason'))}
+                          />
                         )}
                         {log.metadata && Object.keys(log.metadata).filter(k => !['ipAddress', 'userAgent', 'hash', 'reason'].includes(k)).length > 0 && (
                           <DetailBlock

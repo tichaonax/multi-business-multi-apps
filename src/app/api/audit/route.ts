@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
   const businessId = searchParams.get('businessId') || undefined
   const startDateStr = searchParams.get('startDate')
   const endDateStr = searchParams.get('endDate')
+  const includeSeedGenerated = searchParams.get('includeSeedGenerated') === 'true'
 
   try {
     const result = await getAuditLogs({
@@ -31,6 +32,7 @@ export async function GET(req: NextRequest) {
       endDate: endDateStr ? new Date(endDateStr) : undefined,
       page,
       limit,
+      includeSeedGenerated,
     })
 
     return NextResponse.json(result)

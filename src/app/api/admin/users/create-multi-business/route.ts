@@ -5,6 +5,7 @@ import { BUSINESS_PERMISSION_PRESETS, BusinessPermissions } from '@/types/permis
 
 import { randomBytes } from 'crypto';
 import { getServerUser } from '@/lib/get-server-user'
+import { createAuditLog } from '@/lib/audit'
 interface UserCreationRequest {
   basicInfo: {
     name: string
@@ -160,6 +161,20 @@ export async function POST(req: NextRequest) {
 
       return { user, memberships }
     })
+
+    await createAuditLog({
+      userId: user.id,
+      action: 'USER_CREATED',
+      entityType: 'User',
+      entityId: result.user.id,
+      newValues: {
+        name: result.user.name,
+        email: result.user.email,
+        systemRole: result.user.role,
+        businessCount: result.memberships.length,
+        businesses: result.memberships.map(m => ({ businessId: m.businessId, businessName: m.businesses.name, role: m.role })),
+      },
+    }).catch(err => console.error('[create-multi-business] audit log error (non-blocking):', err))
 
     // TODO: Send email invitation if sendInvite is true
     const response: any = {

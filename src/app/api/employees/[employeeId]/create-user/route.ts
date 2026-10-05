@@ -8,6 +8,7 @@ import { randomBytes, randomUUID } from 'crypto';
 import { hasPermission } from '@/lib/permission-utils';
 import { BUSINESS_PERMISSION_PRESETS } from '@/types/permissions';
 import { getServerUser } from '@/lib/get-server-user'
+import { createAuditLog } from '@/lib/audit'
 
 export async function POST(
   req: NextRequest,
@@ -186,6 +187,23 @@ export async function POST(
 
       return user;
     });
+
+    await createAuditLog({
+      userId: user.id,
+      action: 'USER_CREATED',
+      entityType: 'User',
+      entityId: newUser.id,
+      newValues: {
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+        viaEmployeeLink: true,
+        employeeId,
+        employeeName: (employee as any).fullName,
+        employeeNumber: (employee as any).employeeNumber,
+      },
+      metadata: { businessId: employee.primaryBusinessId },
+    }).catch(err => console.error('[create-user] audit log error (non-blocking):', err))
 
     const response: any = {
       success: true,

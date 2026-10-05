@@ -155,6 +155,11 @@ export async function POST(request: NextRequest) {
             sessions: 'preserved',
           }
         },
+        // Hidden from the audit log by default (admin-logs page's "Include
+        // seed/demo activity" toggle) — a bulk data reset isn't day-to-day
+        // activity a reviewer needs cluttering their view, though the full
+        // before/after counts above remain available when they do look.
+        metadata: { seedGenerated: true },
       });
 
       return {
@@ -261,6 +266,7 @@ export async function POST(request: NextRequest) {
               userEmail: user.email,
             }
           },
+          metadata: { seedGenerated: true },
         });
       }
     } catch (auditError) {

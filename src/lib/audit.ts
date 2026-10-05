@@ -41,7 +41,21 @@ export type AuditAction =
   | 'PRODUCT_STOCK_ADJUSTED'
   | 'PRODUCT_IMAGE_UPDATED'
   | 'PRODUCT_BULK_PACK_CORRECTED'
-  | 'PRODUCT_BULK_STOCK_CONVERTED';
+  | 'PRODUCT_BULK_STOCK_CONVERTED'
+  | 'PRODUCT_ZEROED_OUT'
+  | 'USER_CREATED'
+  | 'USER_DEACTIVATED'
+  | 'USER_REACTIVATED'
+  | 'USER_EMPLOYEE_LINKED'
+  | 'USER_EMPLOYEE_UNLINKED'
+  | 'EMPLOYEE_STATUS_SYNC'
+  | 'CONTRACT_APPROVED'
+  | 'CONTRACT_TERMINATED'
+  | 'CONTRACT_BENEFIT_ADDED'
+  | 'CONTRACT_BENEFIT_REMOVED'
+  | 'BUSINESS_REACTIVATED'
+  | 'BUSINESS_HARD_DELETED'
+  | 'BUSINESS_DEACTIVATED';
 
 export type AuditEntityType =
   | 'User'
@@ -63,7 +77,10 @@ export type AuditEntityType =
   | 'BusinessAccount'
   | 'CashBox'
   | 'ExpensePaymentReceipt'
-  | 'Product';
+  | 'Product'
+  | 'Order'
+  | 'Contract'
+  | 'ReferenceData';
 
 export interface AuditLogEntry {
   userId: string;
@@ -517,6 +534,10 @@ export async function getAuditLogs(options: {
   page?: number;
   limit?: number;
   search?: string;
+  // Seed/demo-data scripts tag their entries with metadata.seedGenerated —
+  // hidden by default so real activity isn't drowned out, shown via an
+  // explicit opt-in (the audit-logs page's "Include seed/demo activity" toggle).
+  includeSeedGenerated?: boolean;
 }) {
   const {
     userId,
@@ -527,22 +548,43 @@ export async function getAuditLogs(options: {
     endDate,
     page = 1,
     limit = 50,
-    search
+    search,
+    includeSeedGenerated = false,
   } = options;
 
   const skip = (page - 1) * limit;
 
   const where: any = {};
+  // Accumulate metadata-path conditions here rather than writing `where.metadata`
+  // directly more than once — businessId and the seed-generated exclusion below
+  // both filter on metadata, and a second direct assignment would silently
+  // clobber the first instead of combining with it.
+  const metadataConditions: any[] = [];
 
   if (userId) where.userId = userId;
   if (entityType) where.entityType = entityType;
   if (action) where.action = action;
 
   if (businessId) {
-    where.metadata = {
-      path: ['businessId'],
-      equals: businessId
-    };
+    // Only matches entries written via createAuditLog()/auditCreate()/etc.,
+    // which always fold businessId into `metadata`. A handful of older call
+    // sites (e.g. the Business Targets routes, pre-audit-overhaul) wrote a
+    // raw prisma.auditLogs.create() with businessId inside `details`
+    // instead — those rows won't match this filter until migrated onto the
+    // typed helpers. Not a bug in this filter; a gap in those call sites.
+    metadataConditions.push({ metadata: { path: ['businessId'], equals: businessId } });
+  }
+
+  if (!includeSeedGenerated) {
+    metadataConditions.push({
+      NOT: { metadata: { path: ['seedGenerated'], equals: true } },
+    });
+  }
+
+  if (metadataConditions.length === 1) {
+    Object.assign(where, metadataConditions[0]);
+  } else if (metadataConditions.length > 1) {
+    where.AND = [...(where.AND ?? []), ...metadataConditions];
   }
 
   if (startDate || endDate) {

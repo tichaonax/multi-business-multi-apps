@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { BUSINESS_PERMISSION_PRESETS } from '@/types/permissions';
 
 import { randomBytes } from 'crypto';
+import { createAuditLog } from '@/lib/audit';
 export async function POST(req: NextRequest) {
   try {
     const { name, email, password, createBusiness, businessName, businessType, businessId } = await req.json();
@@ -120,6 +121,15 @@ export async function POST(req: NextRequest) {
         }
       });
 
+      await createAuditLog({
+        userId: user.id,
+        action: 'USER_CREATED',
+        entityType: 'User',
+        entityId: user.id,
+        newValues: { name: user.name, email: user.email, role: user.role, viaSelfRegistration: true },
+        metadata: { businessId: business.id, businessName: business.name, createdOwnBusiness: true },
+      }).catch(err => console.error('[register] audit log error (non-blocking):', err))
+
       return NextResponse.json({
         success: true,
         message: 'User created successfully with business',
@@ -134,6 +144,15 @@ export async function POST(req: NextRequest) {
         }
       });
     }
+
+    await createAuditLog({
+      userId: user.id,
+      action: 'USER_CREATED',
+      entityType: 'User',
+      entityId: user.id,
+      newValues: { name: user.name, email: user.email, role: user.role, viaSelfRegistration: true },
+      metadata: { businessId: targetBusinessId },
+    }).catch(err => console.error('[register] audit log error (non-blocking):', err))
 
     // User created without business
     return NextResponse.json({

@@ -889,15 +889,13 @@ export async function DELETE(
       }
       await prisma.barcodeInventoryItems.delete({ where: { id: rawId } })
       // Audit log
-      await prisma.auditLogs.create({
-        data: {
-          userId: user.id,
-          action: 'DELETE',
-          entityType: 'BarcodeInventoryItem',
-          entityId: rawId,
-          oldValues: { id: item.id, name: item.name, sku: item.sku, businessId: item.businessId, stockQuantity: item.stockQuantity },
-          metadata: { deletedBy: user.email, businessId },
-        }
+      await createAuditLog({
+        userId: user.id,
+        action: 'DELETE',
+        entityType: 'Product',
+        entityId: rawId,
+        oldValues: { id: item.id, name: item.name, sku: item.sku, barcode: item.barcodeData, businessId: item.businessId, stockQuantity: item.stockQuantity },
+        metadata: { deletedBy: user.email, businessId, sourceTable: 'BARCODE_ITEM' },
       }).catch(err => console.error('Audit log failed:', err))
       return NextResponse.json({ message: 'Inventory item deleted successfully' })
     }
@@ -924,15 +922,13 @@ export async function DELETE(
       await tx.businessProducts.delete({ where: { id: itemId } })
     })
     // Audit log
-    await prisma.auditLogs.create({
-      data: {
-        userId: user.id,
-        action: 'DELETE',
-        entityType: 'BusinessProduct',
-        entityId: itemId,
-        oldValues: { id: product.id, name: product.name, sku: product.sku, businessId: product.businessId },
-        metadata: { deletedBy: user.email, businessId },
-      }
+    await createAuditLog({
+      userId: user.id,
+      action: 'DELETE',
+      entityType: 'Product',
+      entityId: itemId,
+      oldValues: { id: product.id, name: product.name, sku: product.sku, barcode: product.barcode, businessId: product.businessId },
+      metadata: { deletedBy: user.email, businessId, sourceTable: 'BUSINESS_PRODUCT' },
     }).catch(err => console.error('Audit log failed:', err))
 
     return NextResponse.json({

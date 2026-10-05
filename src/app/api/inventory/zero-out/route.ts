@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin, hasPermission, hasUserPermission } from '@/lib/permission-utils'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
+import { createAuditLog } from '@/lib/audit'
 
 /**
  * POST /api/inventory/zero-out
@@ -123,17 +124,15 @@ export async function POST(request: NextRequest) {
 
       await prisma.barcodeInventoryItems.update({ where: { id: rawId }, data: updateData })
 
-      await prisma.auditLogs.create({
-        data: {
-          userId: user.id,
-          action: 'zero_out_inventory',
-          entityType: 'inventory_item',
-          entityId: rawId,
-          oldValues,
-          newValues,
-          metadata: { businessId, itemName: existing.name, itemType: 'barcodeInventoryItem' },
-        },
-      })
+      await createAuditLog({
+        userId: user.id,
+        action: 'PRODUCT_ZEROED_OUT',
+        entityType: 'Product',
+        entityId: rawId,
+        oldValues,
+        newValues,
+        metadata: { businessId, itemName: existing.name, itemType: 'barcodeInventoryItem', barcode: existing.barcodeData, sku: existing.sku },
+      }).catch(err => console.error('[zero-out] audit log error (non-blocking):', err))
 
       // Notify managers and admins (non-blocking)
       notifyManagersAndAdmins({
@@ -177,17 +176,15 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      await prisma.auditLogs.create({
-        data: {
-          userId: user.id,
-          action: 'zero_out_inventory',
-          entityType: 'inventory_item',
-          entityId: rawId,
-          oldValues,
-          newValues,
-          metadata: { businessId, itemName: existing.name, itemType: 'businessProduct' },
-        },
-      })
+      await createAuditLog({
+        userId: user.id,
+        action: 'PRODUCT_ZEROED_OUT',
+        entityType: 'Product',
+        entityId: rawId,
+        oldValues,
+        newValues,
+        metadata: { businessId, itemName: existing.name, itemType: 'businessProduct', barcode: existing.barcode, sku: existing.sku },
+      }).catch(err => console.error('[zero-out] audit log error (non-blocking):', err))
 
       // Notify managers and admins (non-blocking)
       notifyManagersAndAdmins({

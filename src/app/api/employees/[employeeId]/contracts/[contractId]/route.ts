@@ -4,6 +4,7 @@ import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 
 import { randomBytes } from 'crypto';
 import { getServerUser } from '@/lib/get-server-user'
+import { createAuditLog } from '@/lib/audit'
 interface RouteParams {
   params: Promise<{ employeeId: string; contractId: string }>
 }
@@ -303,7 +304,11 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     }
 
     // Update the contract
-    const updatedContract = await prisma.$transaction(async (tx) => {
+    const { contract: updatedContract, terminationInfo } = await prisma.$transaction(async (tx) => {
+      let terminationInfo: {
+        employeeName: string; employeeNumber: string; linkedUserId?: string; linkedUserEmail?: string
+      } | null = null
+
       // Update the contract
       const contract = await tx.employeeContracts.update({
         where: { id: contractId },
@@ -372,32 +377,39 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           data: { isActive: false }
         })
 
-        // Create audit log for contract termination
-        await tx.auditLogs.create({
-          data: {
-            userId: user.id,
-            action: 'CONTRACT_TERMINATED',
-            resourceType: 'EmployeeContract',
-            resourceId: contractId,
-            changes: {
-              contractId,
-              employeeId,
-              employeeName: updatedEmployee.fullName,
-              employeeNumber: updatedEmployee.employeeNumber,
-              terminationReason,
-              notes,
-              userAccountSuspended: !!updatedEmployee.users,
-              linkedUserId: updatedEmployee.users?.id,
-              linkedUserEmail: updatedEmployee.users?.email
-            },
-            businessId: existingContract.primaryBusinessId,
-            timestamp: new Date(),
-          }
-        })
+        // Audit log is written after the transaction commits (see below) —
+        // tx.auditLogs.create() here previously used resourceType/resourceId/
+        // businessId, none of which exist on the AuditLogs model, so this
+        // call threw a Prisma validation error on every contract termination.
+        terminationInfo = {
+          employeeName: updatedEmployee.fullName,
+          employeeNumber: updatedEmployee.employeeNumber,
+          linkedUserId: updatedEmployee.users?.id,
+          linkedUserEmail: updatedEmployee.users?.email,
+        }
       }
 
-      return contract
+      return { contract, terminationInfo }
     })
+
+    if (terminationInfo) {
+      await createAuditLog({
+        userId: user.id,
+        action: 'CONTRACT_TERMINATED',
+        entityType: 'Contract',
+        entityId: contractId,
+        newValues: {
+          employeeName: terminationInfo.employeeName,
+          employeeNumber: terminationInfo.employeeNumber,
+          terminationReason,
+          notes,
+          userAccountSuspended: !!terminationInfo.linkedUserId,
+          linkedUserId: terminationInfo.linkedUserId,
+          linkedUserEmail: terminationInfo.linkedUserEmail,
+        },
+        metadata: { employeeId, businessId: existingContract.primaryBusinessId },
+      }).catch(err => console.error('[contract terminate] audit log error (non-blocking):', err))
+    }
 
     // Map updatedContract to legacy-friendly shape before returning
     const mappedUpdated = {

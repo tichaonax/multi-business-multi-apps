@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
         output: stdout,
         warnings: stderr || null
       },
+      metadata: { seedGenerated: true },
     });
 
     console.log('✅ Reference data seeded successfully');
@@ -97,6 +98,7 @@ export async function POST(request: NextRequest) {
               userEmail: user.email,
             }
           },
+          metadata: { seedGenerated: true },
         });
       }
     } catch (auditError) {

@@ -5,6 +5,7 @@ import { randomBytes } from 'crypto'
 import { hash } from 'bcryptjs'
 import { BUSINESS_PERMISSION_PRESETS, BusinessPermissions, UserLevelPermissions } from '@/types/permissions'
 import { getServerUser } from '@/lib/get-server-user'
+import { createAuditLog } from '@/lib/audit'
 
 interface UserUpdateRequest {
   basicInfo: {
@@ -373,6 +374,19 @@ export async function PATCH(
 
       return { user: updatedUser, memberships: updatedMemberships, warnings }
     })
+
+    if (existingUser.role !== result.user.role) {
+      await createAuditLog({
+        userId: user.id,
+        action: 'ROLE_CHANGED',
+        entityType: 'User',
+        entityId: userId,
+        oldValues: { role: existingUser.role },
+        newValues: { role: result.user.role },
+        metadata: { userName: result.user.name, userEmail: result.user.email },
+      }).catch(err => console.error('[admin/users PATCH] audit log error (non-blocking):', err))
+    }
+
     return NextResponse.json({
       success: true,
       message: `User updated successfully`,

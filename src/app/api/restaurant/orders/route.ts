@@ -1449,7 +1449,7 @@ export async function POST(req: NextRequest) {
 
     // Record audit entry for order creation
     try {
-      await auditCreate({ userId: user.id }, 'Business', newOrder.id, {
+      await auditCreate({ userId: user.id, businessId }, 'Order', newOrder.id, {
         orderNumber,
         total,
         itemCount: items.length,
