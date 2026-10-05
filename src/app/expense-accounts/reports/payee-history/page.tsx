@@ -19,6 +19,8 @@ interface FlatPayee {
   subtitle?: string
 }
 
+interface PersonRef { id: string; name: string; email?: string | null }
+
 interface Payment {
   id: string
   amount: number
@@ -27,13 +29,27 @@ interface Payment {
   notes?: string | null
   receiptNumber?: string | null
   category?: { name: string } | null
-  expenseAccount?: { accountName: string } | null
+  expenseAccount?: { id: string; accountName: string } | null
+  // Who submitted the request vs. who recorded/made the actual payment —
+  // distinct roles, see the Expense Account workflow.
+  createdBy?: PersonRef | null
+  submittedBy?: PersonRef | null
+}
+
+interface AccountBreakdownEntry {
+  accountId: string
+  accountName: string
+  accountNumber: string
+  totalPaid: number
+  paymentCount: number
 }
 
 interface PayeeSummary {
   payee: { id: string; type: string; name: string; notes?: string | null; email?: string | null; phone?: string | null }
   totalPaid: number
   paymentCount: number
+  accountsCount?: number
+  accountBreakdown?: AccountBreakdownEntry[]
   payments: Payment[]
 }
 
@@ -202,6 +218,16 @@ export default function PayeePaymentHistoryPage() {
   const [loadingPayments, setLoadingPayments] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [paymentSearch, setPaymentSearch] = useState('')
+  // Grouped-by-account drill-down (default) vs a flat list of everything
+  const [groupByAccount, setGroupByAccount] = useState(true)
+  const [expandedAccountIds, setExpandedAccountIds] = useState<Set<string>>(new Set())
+  const toggleAccountExpanded = (id: string) => {
+    setExpandedAccountIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/auth/signin')
@@ -216,6 +242,7 @@ export default function PayeePaymentHistoryPage() {
 
   useEffect(() => {
     if (!selectedPayee) { setSummary(null); setPaymentError(null); return }
+    setExpandedAccountIds(new Set())
     loadPayments()
   }, [selectedPayee, dateRange, allTime])
 
@@ -316,19 +343,133 @@ export default function PayeePaymentHistoryPage() {
 
   const payments = summary?.payments || []
 
+  const matchesSearch = (p: Payment, q: string) =>
+    !q ||
+    fmtDate(p.paymentDate).toLowerCase().includes(q) ||
+    p.amount.toFixed(2).includes(q) ||
+    (p.category?.name || '').toLowerCase().includes(q) ||
+    (p.receiptNumber || '').toLowerCase().includes(q) ||
+    (p.expenseAccount?.accountName || '').toLowerCase().includes(q) ||
+    p.status.toLowerCase().includes(q) ||
+    (p.notes || '').toLowerCase().includes(q) ||
+    (p.createdBy?.name || '').toLowerCase().includes(q) ||
+    (p.submittedBy?.name || '').toLowerCase().includes(q)
+
   const filteredPayments = useMemo(() => {
     const q = paymentSearch.trim().toLowerCase()
-    if (!q) return payments
-    return payments.filter(p =>
-      fmtDate(p.paymentDate).toLowerCase().includes(q) ||
-      p.amount.toFixed(2).includes(q) ||
-      (p.category?.name || '').toLowerCase().includes(q) ||
-      (p.receiptNumber || '').toLowerCase().includes(q) ||
-      (p.expenseAccount?.accountName || '').toLowerCase().includes(q) ||
-      p.status.toLowerCase().includes(q) ||
-      (p.notes || '').toLowerCase().includes(q)
-    )
+    return payments.filter(p => matchesSearch(p, q))
   }, [payments, paymentSearch])
+
+  // Grouped-by-account view — reuses the server-computed accountBreakdown
+  // for the summary line (correct even with search applied), and filters
+  // the already-loaded payments client-side per account when expanded.
+  const paymentsForAccount = (accountId: string) => {
+    const q = paymentSearch.trim().toLowerCase()
+    return payments.filter(p => p.expenseAccount?.id === accountId && matchesSearch(p, q))
+  }
+
+  function StatusBadge({ status }: { status: string }) {
+    return (
+      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+        status === 'APPROVED' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+        : status === 'SUBMITTED' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+        : status === 'REJECTED' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+      }`}>
+        {status}
+      </span>
+    )
+  }
+
+  // Shared mobile-card + desktop-table renderer for a given list of
+  // payments — used both for the flat "All Payments" view and for each
+  // expanded account group in the "By Account" drill-down, so the two
+  // views can't drift out of sync with each other.
+  function renderPaymentsList(list: Payment[]) {
+    return (
+      <>
+        {/* Mobile card list (MBM-299 responsive-reports template) */}
+        <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
+          {list.map(p => (
+            <div key={p.id} className="p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-700 dark:text-gray-300 text-sm">{fmtDate(p.paymentDate)}</span>
+                <span className="font-medium text-red-600 dark:text-red-400">{fmt(p.amount)}</span>
+              </div>
+              <div><StatusBadge status={p.status} /></div>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Category</p>
+                  <p className="text-gray-600 dark:text-gray-400">{p.category?.name || <span className="text-gray-300 dark:text-gray-600">—</span>}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Receipt #</p>
+                  <p className="text-gray-500 dark:text-gray-400 font-mono text-xs">{p.receiptNumber || <span className="text-gray-300 dark:text-gray-600">—</span>}</p>
+                </div>
+                {!groupByAccount && (
+                  <div className="col-span-2">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Account</p>
+                    <p className="text-gray-600 dark:text-gray-400 text-xs">{p.expenseAccount?.accountName || '—'}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Submitted By</p>
+                  <p className="text-gray-600 dark:text-gray-400 text-xs">{p.submittedBy?.name || <span className="text-gray-300 dark:text-gray-600">—</span>}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Paid By</p>
+                  <p className="text-gray-600 dark:text-gray-400 text-xs">{p.createdBy?.name || <span className="text-gray-300 dark:text-gray-600">—</span>}</p>
+                </div>
+                {p.notes && (
+                  <div className="col-span-2">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Notes</p>
+                    <p className="text-gray-500 dark:text-gray-400 text-xs">{p.notes}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden sm:block overflow-x-auto">
+          <table className="w-full text-sm border-separate border-spacing-0">
+            <thead className="bg-gray-50 dark:bg-gray-700">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Amount</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Category</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Receipt #</th>
+                {!groupByAccount && (
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Account</th>
+                )}
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Submitted By</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Paid By</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Notes</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              {list.map(p => (
+                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
+                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{fmtDate(p.paymentDate)}</td>
+                  <td className="px-4 py-3 text-right font-medium text-red-600 dark:text-red-400 whitespace-nowrap">{fmt(p.amount)}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{p.category?.name || <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{p.receiptNumber || <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
+                  {!groupByAccount && (
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">{p.expenseAccount?.accountName || '—'}</td>
+                  )}
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">{p.submittedBy?.name || <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">{p.createdBy?.name || <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
+                  <td className="px-4 py-3 text-center"><StatusBadge status={p.status} /></td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs max-w-xs truncate">{p.notes || <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </>
+    )
+  }
 
   return (
     <ContentLayout title="Payee Payment History" subtitle="Full payment history for any recipient in the system">
@@ -432,9 +573,25 @@ export default function PayeePaymentHistoryPage() {
                     type="text"
                     value={paymentSearch}
                     onChange={e => setPaymentSearch(e.target.value)}
-                    placeholder="Search by date, amount, category, receipt #, account, status, notes…"
+                    placeholder="Search by date, amount, category, receipt #, account, submitted/paid by, status, notes…"
                     className="w-full px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
+                )}
+                {payments.length > 0 && (summary?.accountBreakdown?.length ?? 0) > 1 && (
+                  <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-xs font-medium w-fit">
+                    <button
+                      onClick={() => setGroupByAccount(true)}
+                      className={`px-3 py-1.5 transition-colors ${groupByAccount ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400'}`}
+                    >
+                      By Account ({summary?.accountsCount ?? summary?.accountBreakdown?.length ?? 0})
+                    </button>
+                    <button
+                      onClick={() => setGroupByAccount(false)}
+                      className={`px-3 py-1.5 transition-colors ${!groupByAccount ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400'}`}
+                    >
+                      All Payments
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -445,94 +602,55 @@ export default function PayeePaymentHistoryPage() {
                     <p className="text-xs">Try enabling <span className="font-semibold">All Time</span> above to see all historical payments.</p>
                   )}
                 </div>
+              ) : groupByAccount && (summary?.accountBreakdown?.length ?? 0) > 0 ? (
+                // By-account drill-down — collapsed by default, showing each
+                // account's total and count (server-computed, so correct
+                // even while a search is narrowing what's shown if expanded).
+                <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {summary!.accountBreakdown!.map(acc => {
+                    const isExpanded = expandedAccountIds.has(acc.accountId)
+                    const accPayments = paymentsForAccount(acc.accountId)
+                    return (
+                      <div key={acc.accountId}>
+                        <button
+                          type="button"
+                          onClick={() => toggleAccountExpanded(acc.accountId)}
+                          className="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700/40"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`text-gray-400 shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{acc.accountName}</p>
+                              <p className="text-xs text-gray-400 dark:text-gray-500 font-mono">{acc.accountNumber}</p>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-sm font-semibold text-red-600 dark:text-red-400">{fmt(acc.totalPaid)}</p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500">{acc.paymentCount} payment{acc.paymentCount !== 1 ? 's' : ''}</p>
+                          </div>
+                        </button>
+                        {isExpanded && (
+                          accPayments.length === 0 ? (
+                            <div className="px-4 pb-4 text-xs text-gray-400 dark:text-gray-500">
+                              No payments match &ldquo;{paymentSearch}&rdquo; in this account.
+                            </div>
+                          ) : (
+                            <div className="pb-2 bg-gray-50/50 dark:bg-gray-900/30">
+                              {renderPaymentsList(accPayments)}
+                            </div>
+                          )
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               ) : filteredPayments.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-gray-400 dark:text-gray-500 text-sm space-y-1">
                   <p>No payments match <span className="font-semibold">&ldquo;{paymentSearch}&rdquo;</span>.</p>
                   <button onClick={() => setPaymentSearch('')} className="text-xs text-blue-500 hover:underline">Clear search</button>
                 </div>
               ) : (
-                <>
-                {/* Mobile card list (MBM-299 responsive-reports template —
-                    see src/app/inventory/reports/pricing-exceptions/page.tsx) */}
-                <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
-                  {filteredPayments.map(p => (
-                    <div key={p.id} className="p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-700 dark:text-gray-300 text-sm">{fmtDate(p.paymentDate)}</span>
-                        <span className="font-medium text-red-600 dark:text-red-400">{fmt(p.amount)}</span>
-                      </div>
-                      <div>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                          p.status === 'APPROVED' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                          : p.status === 'SUBMITTED' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                          : p.status === 'REJECTED' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                          : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
-                        }`}>
-                          {p.status}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-                        <div>
-                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Category</p>
-                          <p className="text-gray-600 dark:text-gray-400">{p.category?.name || <span className="text-gray-300 dark:text-gray-600">—</span>}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Receipt #</p>
-                          <p className="text-gray-500 dark:text-gray-400 font-mono text-xs">{p.receiptNumber || <span className="text-gray-300 dark:text-gray-600">—</span>}</p>
-                        </div>
-                        <div className="col-span-2">
-                          <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Account</p>
-                          <p className="text-gray-600 dark:text-gray-400 text-xs">{p.expenseAccount?.accountName || '—'}</p>
-                        </div>
-                        {p.notes && (
-                          <div className="col-span-2">
-                            <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Notes</p>
-                            <p className="text-gray-500 dark:text-gray-400 text-xs">{p.notes}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="hidden sm:block overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 dark:bg-gray-700">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Amount</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Category</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Receipt #</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Account</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Notes</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                      {filteredPayments.map(p => (
-                        <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
-                          <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{fmtDate(p.paymentDate)}</td>
-                          <td className="px-4 py-3 text-right font-medium text-red-600 dark:text-red-400 whitespace-nowrap">{fmt(p.amount)}</td>
-                          <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{p.category?.name || <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
-                          <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{p.receiptNumber || <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
-                          <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">{p.expenseAccount?.accountName || '—'}</td>
-                          <td className="px-4 py-3 text-center">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                              p.status === 'APPROVED' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                              : p.status === 'SUBMITTED' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                              : p.status === 'REJECTED' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                              : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
-                            }`}>
-                              {p.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs max-w-xs truncate">{p.notes || <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                </>
+                renderPaymentsList(filteredPayments)
               )}
             </div>
           </>

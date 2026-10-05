@@ -10,6 +10,7 @@ import { SupplierEditor } from '@/components/suppliers/supplier-editor'
 import { CreateCategoryModal } from './create-category-modal'
 import { PaymentBatchList } from './payment-batch-list'
 import { getTodayLocalDateString } from '@/lib/date-utils'
+import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface ExpenseCategory {
   id: string
@@ -347,6 +348,21 @@ export function PaymentForm({
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null)
   const restoringEditRef = useRef(false) // Flag to prevent useEffects from wiping values during edit restore
 
+  // Classification suggestion — same "💡 Suggest Classification" feature as
+  // the Quick Payment modal, adapted to this form's field names:
+  // formData.categoryId = ExpenseDomains.id, formData.subcategoryId =
+  // ExpenseCategories.id, formData.subSubcategoryId = ExpenseSubcategories.id.
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  const [suggestLoading, setSuggestLoading] = useState(false)
+  const [suggestions, setSuggestions] = useState<{
+    domainId: string; domainName: string; domainEmoji: string | null
+    categoryId: string; categoryName: string; categoryEmoji: string | null
+    subcategoryId: string; subcategoryName: string; subcategoryEmoji: string | null
+    subSubcategoryId: string | null; subSubcategoryName: string | null; subSubcategoryEmoji: string | null
+    score: number
+    _group: 'targeted' | 'global'
+  }[]>([])
+
   const [formData, setFormData] = useState({
     payee: null as { type: string; id: string; name: string } | null,
     categoryId: '',
@@ -568,6 +584,64 @@ export function PaymentForm({
     }
   }
 
+  const handleSuggest = async () => {
+    const q = formData.notes.trim()
+    if (q.length < 2) return
+    setSuggestLoading(true)
+    setSuggestions([])
+    setSuggestOpen(true)
+    try {
+      // Bias toward the already-selected domain (or the business-type default
+      // when none picked yet) so a good match in the relevant area surfaces
+      // first, exactly like the Quick Payment modal's targeted+global split.
+      const domainOptions = categories.filter(c => c.isDomainCategory)
+      const derivedDomainId = formData.categoryId && selectedCategory?.isDomainCategory
+        ? formData.categoryId
+        : (defaultCategoryBusinessType
+            ? domainOptions.find(d => d.name === getDefaultDomainName(defaultCategoryBusinessType))?.id ?? null
+            : null)
+
+      if (derivedDomainId) {
+        const [r1, r2] = await Promise.all([
+          fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}&domainId=${encodeURIComponent(derivedDomainId)}`, { credentials: 'include' }),
+          fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}`, { credentials: 'include' }),
+        ])
+        const [d1, d2]: [any, any] = await Promise.all([r1.ok ? r1.json() : {}, r2.ok ? r2.json() : {}])
+        const targeted = (d1.suggestions ?? []).map((s: any) => ({ ...s, _group: 'targeted' as const }))
+        const targetedIds = new Set(targeted.map((s: any) => s.subcategoryId as string))
+        const global = (d2.suggestions ?? [])
+          .filter((s: any) => !targetedIds.has(s.subcategoryId))
+          .map((s: any) => ({ ...s, _group: 'global' as const }))
+        setSuggestions([...targeted, ...global])
+      } else {
+        const res = await fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}`, { credentials: 'include' })
+        if (res.ok) {
+          const data = await res.json()
+          setSuggestions((data.suggestions ?? []).map((s: any) => ({ ...s, _group: 'global' as const })))
+        }
+      }
+    } catch {
+      // Silently fail — user can still pick manually
+    } finally {
+      setSuggestLoading(false)
+    }
+  }
+
+  const applySuggestion = (s: typeof suggestions[0]) => {
+    setSuggestOpen(false)
+    // Suppress the cascading-reset effects (categoryId/subcategoryId change
+    // watchers below) the same way edit-restore already does, so setting
+    // all three levels at once doesn't get wiped back to '' — loadSubcategories/
+    // loadSubSubcategories still run to populate the dropdown options.
+    restoringEditRef.current = true
+    setFormData(prev => ({
+      ...prev,
+      categoryId: s.domainId,
+      subcategoryId: s.categoryId,
+      subSubcategoryId: s.subcategoryId ?? '',
+    }))
+  }
+
   const loadLoans = async () => {
     try {
       setLoadingLoans(true)
@@ -782,6 +856,8 @@ export function PaymentForm({
     setErrors({ payee: '', categoryId: '', amount: '', paymentDate: '' })
     setShowReceiptSection(false)
     setEditingPaymentId(null)
+    setSuggestions([])
+    setSuggestOpen(false)
   }
 
   const handleEditPayment = (payment: BatchPayment) => {
@@ -1405,9 +1481,20 @@ export function PaymentForm({
 
           {/* Notes */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Notes (Optional)
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                Notes (Optional)
+              </label>
+              <button
+                type="button"
+                disabled={formData.notes.trim().length < 2}
+                onClick={handleSuggest}
+                className="text-xs px-2 py-1 rounded border border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Get Domain/Category suggestions based on your notes, to speed up classification"
+              >
+                💡 Suggest Classification
+              </button>
+            </div>
             <textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -1731,6 +1818,81 @@ export function PaymentForm({
           onSave={handleCreateSupplierSuccess}
           onCancel={() => setShowSupplierModal(false)}
         />
+      )}
+
+      {/* Classification Suggestion Modal — same "💡 Suggest Classification"
+          feature as the Quick Payment modal */}
+      {suggestOpen && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
+              <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">💡 Suggested Classifications</h3>
+                <button type="button" onClick={() => setSuggestOpen(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none">&times;</button>
+              </div>
+              <div className="p-4">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                  Based on: <span className="font-medium text-gray-900 dark:text-gray-100">&ldquo;{formData.notes.trim()}&rdquo;</span>
+                </p>
+                {suggestLoading && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">Searching taxonomy…</p>
+                )}
+                {!suggestLoading && suggestions.length === 0 && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">No matches found — please select manually.</p>
+                )}
+                {!suggestLoading && suggestions.length > 0 && (
+                  <div className="space-y-1">
+                    {suggestions.some(s => s._group === 'targeted') && suggestions.some(s => s._group === 'global') && (
+                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 pb-1">In this business</p>
+                    )}
+                    {suggestions.some(s => s._group === 'targeted') && (
+                      <ul className="space-y-2">
+                        {suggestions.filter(s => s._group === 'targeted').map((s, i) => (
+                          <li key={`t-${s.subcategoryId}-${i}`}>
+                            <button type="button" onClick={() => applySuggestion(s)}
+                              className="w-full text-left px-3 py-2.5 rounded-md border border-gray-200 dark:border-gray-700 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                              <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
+                                {s.subSubcategoryId
+                                  ? <>{s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName} › {s.subcategoryEmoji} {s.subcategoryName}</>
+                                  : <>{s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName}</>}
+                              </div>
+                              <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                {s.subSubcategoryId ? <>{s.subSubcategoryEmoji} {s.subSubcategoryName}</> : <>{s.subcategoryEmoji} {s.subcategoryName}</>}
+                              </div>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {suggestions.some(s => s._group === 'targeted') && suggestions.some(s => s._group === 'global') && (
+                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 pt-2 pb-1">Other Categories</p>
+                    )}
+                    {suggestions.some(s => s._group === 'global') && (
+                      <ul className="space-y-2">
+                        {suggestions.filter(s => s._group === 'global').map((s, i) => (
+                          <li key={`g-${s.subcategoryId}-${i}`}>
+                            <button type="button" onClick={() => applySuggestion(s)}
+                              className="w-full text-left px-3 py-2.5 rounded-md border border-gray-200 dark:border-gray-700 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                              <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
+                                {s.subSubcategoryId
+                                  ? <>{s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName} › {s.subcategoryEmoji} {s.subcategoryName}</>
+                                  : <>{s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName}</>}
+                              </div>
+                              <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                {s.subSubcategoryId ? <>{s.subSubcategoryEmoji} {s.subSubcategoryName}</> : <>{s.subcategoryEmoji} {s.subcategoryName}</>}
+                              </div>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
       )}
 
       {/* Create Category Modal */}

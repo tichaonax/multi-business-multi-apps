@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
+import Link from 'next/link'
 import { DateInput } from '@/components/ui/date-input'
 import { EditPaymentModal } from './edit-payment-modal'
 import { EditDepositModal } from './edit-deposit-modal'
@@ -533,6 +534,227 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
 
   const hasActiveFilters = activeQuickFilter !== '30 Days' || typeFilter !== defaultType ||
     sourceTypeFilter !== '' || sortOrder !== defaultSortOrder || minAmount !== '' || maxAmount !== ''
+  // Non-date filters only — used to flag "something else is filtered too"
+  // separately from the date badge, which is now always shown (see below).
+  const hasOtherActiveFilters = typeFilter !== defaultType ||
+    sourceTypeFilter !== '' || sortOrder !== defaultSortOrder || minAmount !== '' || maxAmount !== ''
+
+  // When a free-text search narrows the loaded results down to payments for
+  // a single real payee, surface a shortcut to that payee's full cross-
+  // account history (Payee Payment History report) — the search here is
+  // free-text (it also matches notes, so results may include payments made
+  // *about* this payee rather than *to* them — see the duplicate-looking
+  // "Elisha" case), so this only fires when every PAYMENT result actually
+  // resolves to the exact same registered payee.
+  const singlePayeeMatch = useMemo(() => {
+    if (!search.trim()) return null
+    const resolve = (t: Transaction): { type: string; id: string; name: string } | null => {
+      if (t.payeeEmployee) return { type: 'EMPLOYEE', id: t.payeeEmployee.id, name: t.payeeEmployee.fullName }
+      if (t.payeeUser) return { type: 'USER', id: t.payeeUser.id, name: t.payeeUser.name }
+      if (t.payeePerson) return { type: 'PERSON', id: t.payeePerson.id, name: t.payeePerson.fullName }
+      if (t.payeeBusiness) return { type: 'BUSINESS', id: t.payeeBusiness.id, name: t.payeeBusiness.name }
+      if (t.payeeSupplier) return { type: 'SUPPLIER', id: t.payeeSupplier.id, name: t.payeeSupplier.name }
+      return null
+    }
+    const resolved = transactions
+      .filter(t => t.type === 'PAYMENT' && t.payeeType && t.payeeType !== 'COMBO')
+      .map(resolve)
+      .filter((p): p is { type: string; id: string; name: string } => !!p)
+    if (resolved.length === 0) return null
+    const uniqueKeys = new Set(resolved.map(p => `${p.type}:${p.id}`))
+    if (uniqueKeys.size !== 1) return null
+    return resolved[0]
+  }, [search, transactions])
+
+  // Extracted so the mobile card list (below) can reuse the exact same
+  // actions — Edit/Repeat/Reverse/receipt/project/voucher — instead of
+  // duplicating this ~190-line conditional cluster a second time.
+  const renderTransactionActions = (transaction: Transaction, isDeposit: boolean) => (
+    <>
+      {canEditPayments && !isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO' && !voucherMap[transaction.id] && (isAdmin || isWithin7Days(transaction.createdAt)) && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setEditPaymentId(transaction.id) }}
+          className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-1 py-0.5"
+          title="Edit payment"
+        >
+          Edit
+        </button>
+      )}
+      {onRepeatPayment && !isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO' && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onRepeatPayment(transaction.id) }}
+          className="text-xs text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:underline px-1 py-0.5"
+          title="Create a new payment pre-filled from this one"
+        >
+          Repeat
+        </button>
+      )}
+      {isAdmin && !isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO' && transaction.status !== 'REVERSED' && (
+        <button
+          onClick={(e) => { e.stopPropagation(); handleReversePayment(transaction.id) }}
+          disabled={reversingId === transaction.id}
+          className="text-xs text-red-600 dark:text-red-400 hover:underline px-1 py-0.5 disabled:opacity-50"
+          title="Fully reverse this payment — use for a payment that should never have happened (e.g. a duplicate), not for correcting the amount of a real one"
+        >
+          {reversingId === transaction.id ? '…' : 'Reverse'}
+        </button>
+      )}
+      {canEditPayments && isDeposit && !transaction.isAutoTransfer && transaction.sourceType !== 'ACCOUNT_TRANSFER' && transaction.sourceType !== 'PAYMENT_ADJUSTMENT' && (transaction.sourceType !== 'COMBO_SETTLE' || isAdmin) && (isAdmin || isWithin7Days(transaction.createdAt)) && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setEditDepositId(transaction.id) }}
+          className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-1 py-0.5"
+          title="Edit deposit"
+        >
+          Edit
+        </button>
+      )}
+      {isDeposit && transaction.sourceType === 'PAYMENT_ADJUSTMENT' && transaction.sourcePaymentId && (
+        <a
+          href={`/expense-accounts/${accountId}/payments/${transaction.sourcePaymentId}`}
+          onClick={(e) => e.stopPropagation()}
+          className="text-xs text-gray-400 dark:text-gray-500 hover:underline px-1 py-0.5"
+          title="View source payment"
+        >
+          View payment
+        </a>
+      )}
+      {isDeposit && transaction.batchSubmissionId && (
+        <button
+          onClick={(e) => { e.stopPropagation(); handlePrintVoucher(transaction.batchSubmissionId!) }}
+          className="text-xs text-purple-600 dark:text-purple-400 hover:underline px-1 py-0.5"
+          title="View payment voucher"
+        >
+          PDF
+        </button>
+      )}
+      {/* Receipt badge — appears on all non-auto PAYMENT rows */}
+      {!isDeposit && !transaction.isAutoTransfer && (() => {
+        const info = receiptCountMap[transaction.id]
+        const count = info?.count ?? 0
+        const paymentPayee = transaction.payeeEmployee
+          ? { type: 'EMPLOYEE', id: transaction.payeeEmployee.id, name: transaction.payeeEmployee.fullName }
+          : transaction.payeeUser
+          ? { type: 'USER', id: transaction.payeeUser.id, name: transaction.payeeUser.name }
+          : transaction.payeeBusiness
+          ? { type: 'BUSINESS', id: transaction.payeeBusiness.id, name: transaction.payeeBusiness.name }
+          : transaction.payeePerson
+          ? { type: 'PERSON', id: transaction.payeePerson.id, name: transaction.payeePerson.fullName }
+          : transaction.payeeSupplier
+          ? { type: 'SUPPLIER', id: transaction.payeeSupplier.id, name: transaction.payeeSupplier.name }
+          : null
+
+        if (info?.review) {
+          return (
+            <ReceiptReviewBadge
+              status={info.review.status}
+              total={info.review.total}
+              expected={info.review.expected}
+              daysSincePaid={info.review.daysSincePaid}
+              onClick={() => setReceiptModal({
+                paymentId: transaction.id,
+                paymentAmount: Math.abs(transaction.amount),
+                paymentDescription: transaction.description,
+                paymentPayee,
+                mode: 'view',
+              })}
+            />
+          )
+        }
+
+        return count > 0 ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setReceiptModal({
+                paymentId: transaction.id,
+                paymentAmount: Math.abs(transaction.amount),
+                paymentDescription: transaction.description,
+                paymentPayee,
+                mode: 'view',
+              })
+            }}
+            className="ml-1 inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800/60 font-medium transition-colors"
+            title={`${count} receipt${count !== 1 ? 's' : ''} — click to view`}
+          >
+            🧾 {count}
+          </button>
+        ) : (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setReceiptModal({
+                paymentId: transaction.id,
+                paymentAmount: Math.abs(transaction.amount),
+                paymentDescription: transaction.description,
+                paymentPayee,
+                mode: 'add',
+              })
+            }}
+            className="ml-1 text-sm px-1 py-0.5 rounded text-gray-300 dark:text-gray-600 hover:text-green-500 dark:hover:text-green-400 transition-colors"
+            title="No receipts yet — click to add"
+          >
+            🧾
+          </button>
+        )
+      })()}
+
+      {/* Project badge / assign button */}
+      {!isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO' && projects.length > 0 && (
+        assignTxId === transaction.id ? (
+          <select
+            autoFocus
+            disabled={assigning}
+            value={transaction.projectId || ''}
+            onChange={e => assignProject(transaction.id, e.target.value)}
+            onBlur={() => setAssignTxId(null)}
+            className="ml-1 text-xs border border-indigo-300 dark:border-indigo-600 rounded px-1 py-0.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white max-w-[140px]"
+          >
+            <option value="">— No project —</option>
+            {projects.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        ) : transaction.project ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); setAssignTxId(transaction.id) }}
+            className="ml-1 inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800/60 font-medium transition-colors"
+            title={`Project: ${transaction.project.name} — click to change`}
+          >
+            📁 {transaction.project.name.length > 12 ? transaction.project.name.slice(0, 12) + '…' : transaction.project.name}
+          </button>
+        ) : (
+          <button
+            onClick={(e) => { e.stopPropagation(); setAssignTxId(transaction.id) }}
+            className="ml-1 text-sm px-1 py-0.5 rounded text-gray-300 dark:text-gray-600 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
+            title="Assign to a project"
+          >
+            📁
+          </button>
+        )
+      )}
+
+      {/* Payment Voucher icon — appears on all PAYMENT rows when businessId is provided */}
+      {!isDeposit && !transaction.isAutoTransfer && businessId && (
+        voucherMap[transaction.id] ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); openVoucherModal(transaction) }}
+            className="ml-1 inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 hover:bg-teal-200 dark:hover:bg-teal-800/60 font-medium transition-colors"
+            title={`Voucher issued: ${voucherMap[transaction.id]} — click to view PDF`}
+          >
+            ✅ VCH
+          </button>
+        ) : (
+          <button
+            onClick={(e) => { e.stopPropagation(); openVoucherModal(transaction) }}
+            className="ml-1 text-sm px-1 py-0.5 rounded text-gray-300 dark:text-gray-600 hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
+            title="No voucher yet — click to generate one"
+          >
+            📄
+          </button>
+        )
+      )}
+    </>
+  )
 
   return (
     <>
@@ -582,9 +804,14 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                 : 'text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
             }`}
           >
-            🔎 Filters
-            {hasActiveFilters && (
-              <span className="px-1.5 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-semibold">{activeQuickFilter || 'Custom'}</span>
+            {/* Date range is always shown here — including the default — so
+                the collapsed state always tells you what's applied, matching
+                the DateRangeSelector header used elsewhere in the app. */}
+            <span className="flex items-center gap-1">
+              📅 <span className="px-1.5 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-semibold">{activeQuickFilter || 'Custom'}</span>
+            </span>
+            {hasOtherActiveFilters && (
+              <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0" title="Other filters (type/source/sort/amount) are also active" />
             )}
             <span className="text-[10px]">{filtersOpen ? '▲' : '▼'}</span>
           </button>
@@ -733,6 +960,20 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
         )}
       </div>
 
+      {singlePayeeMatch && (
+        <div className="px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800 flex items-center justify-between gap-2 flex-wrap">
+          <span className="text-xs text-blue-700 dark:text-blue-300">
+            All results are payments to <strong>{singlePayeeMatch.name}</strong>
+          </span>
+          <Link
+            href={`/expense-accounts/reports/payee-history?payeeType=${singlePayeeMatch.type}&payeeId=${singlePayeeMatch.id}&payeeName=${encodeURIComponent(singlePayeeMatch.name)}&allTime=true`}
+            className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+          >
+            View Full Payment History →
+          </Link>
+        </div>
+      )}
+
       {/* Transactions Table */}
       <div className="relative">
         {/* Subtle in-place loading overlay — does not replace the UI */}
@@ -752,7 +993,69 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
             <p className="text-gray-500 dark:text-gray-400">No transactions found</p>
           </div>
         ) : (
-            <table className="w-full">
+          <>
+          {/* Mobile card list (MBM-299 responsive-reports template) — vertical
+              scroll only. Desktop keeps the full table below (hidden here). */}
+          <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
+            {transactions.map((transaction) => {
+              const isDeposit = transaction.type === 'DEPOSIT'
+              return (
+                <div
+                  key={transaction.id}
+                  onClick={() => {
+                    if (!isDeposit && transaction.payeeType === 'COMBO' && transaction.comboRequestId) {
+                      setDetailComboRequestId(transaction.comboRequestId)
+                      return
+                    }
+                    if (isDeposit) setDetailDepositId(transaction.id)
+                    else setDetailPaymentId(transaction.id)
+                  }}
+                  className="p-3 space-y-1.5 cursor-pointer"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{formatDate(transaction.date)}</span>
+                    <span className={`text-sm font-semibold ${isDeposit ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {isDeposit ? '+' : '-'}{formatCurrency(Math.abs(transaction.amount))}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className={`shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded-full ${
+                        isDeposit ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                      }`}>
+                        {isDeposit ? '📥 Deposit' : '📤 Payment'}
+                      </span>
+                      <span className="text-sm text-gray-900 dark:text-gray-100 truncate">{shortDescription(transaction)}</span>
+                    </div>
+                  </div>
+                  {(transaction.notes || transaction.receiptNumber || transaction.createdBy?.name) && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
+                      {!isDeposit && transaction.notes && <p className="italic truncate">{transaction.notes}</p>}
+                      {transaction.receiptNumber && <p>{transaction.receiptNumber}</p>}
+                      {transaction.createdBy?.name && <p className="text-gray-400 dark:text-gray-500">by {transaction.createdBy.name}</p>}
+                    </div>
+                  )}
+                  {!isDeposit && transaction.payeeType === 'COMBO' && transaction.comboPayees && transaction.comboPayees.length > 0 && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300">
+                        🧾 Combo Request
+                      </span>
+                      {transaction.comboPayees.map((p, i) => <div key={i}>👤 {p.name}</div>)}
+                    </div>
+                  )}
+                  <div
+                    className="flex items-center flex-wrap gap-1 pt-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {renderTransactionActions(transaction, isDeposit)}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="hidden sm:block overflow-x-auto">
+            <table className="w-full border-separate border-spacing-0">
               <thead
                 className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 sticky z-10 top-[calc(3.5rem+1rem+var(--filters-h,0px))] sm:top-[calc(4rem+1rem+var(--filters-h,0px))]"
                 style={{ ['--filters-h' as any]: `${filtersHeight}px` }}
@@ -960,192 +1263,9 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                         {formatCurrency(transaction.balanceAfter)}
                       </td>
 
-                      {/* Action column: Edit (payments) or PDF voucher (batch deposits) */}
+                      {/* Action column: Edit (payments) or PDF voucher (batch deposits) — extracted to renderTransactionActions, shared with the mobile card list below */}
                       <td className="px-2 py-2 sm:py-3 text-right whitespace-nowrap">
-                        {canEditPayments && !isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO' && !voucherMap[transaction.id] && (isAdmin || isWithin7Days(transaction.createdAt)) && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setEditPaymentId(transaction.id) }}
-                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-1 py-0.5"
-                            title="Edit payment"
-                          >
-                            Edit
-                          </button>
-                        )}
-                        {onRepeatPayment && !isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO' && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); onRepeatPayment(transaction.id) }}
-                            className="text-xs text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:underline px-1 py-0.5"
-                            title="Create a new payment pre-filled from this one"
-                          >
-                            Repeat
-                          </button>
-                        )}
-                        {isAdmin && !isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO' && transaction.status !== 'REVERSED' && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleReversePayment(transaction.id) }}
-                            disabled={reversingId === transaction.id}
-                            className="text-xs text-red-600 dark:text-red-400 hover:underline px-1 py-0.5 disabled:opacity-50"
-                            title="Fully reverse this payment — use for a payment that should never have happened (e.g. a duplicate), not for correcting the amount of a real one"
-                          >
-                            {reversingId === transaction.id ? '…' : 'Reverse'}
-                          </button>
-                        )}
-                        {canEditPayments && isDeposit && !transaction.isAutoTransfer && transaction.sourceType !== 'ACCOUNT_TRANSFER' && transaction.sourceType !== 'PAYMENT_ADJUSTMENT' && (transaction.sourceType !== 'COMBO_SETTLE' || isAdmin) && (isAdmin || isWithin7Days(transaction.createdAt)) && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setEditDepositId(transaction.id) }}
-                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-1 py-0.5"
-                            title="Edit deposit"
-                          >
-                            Edit
-                          </button>
-                        )}
-                        {isDeposit && transaction.sourceType === 'PAYMENT_ADJUSTMENT' && transaction.sourcePaymentId && (
-                          <a
-                            href={`/expense-accounts/${accountId}/payments/${transaction.sourcePaymentId}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-xs text-gray-400 dark:text-gray-500 hover:underline px-1 py-0.5"
-                            title="View source payment"
-                          >
-                            View payment
-                          </a>
-                        )}
-                        {isDeposit && transaction.batchSubmissionId && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handlePrintVoucher(transaction.batchSubmissionId!) }}
-                            className="text-xs text-purple-600 dark:text-purple-400 hover:underline px-1 py-0.5"
-                            title="View payment voucher"
-                          >
-                            PDF
-                          </button>
-                        )}
-                        {/* Receipt badge — appears on all non-auto PAYMENT rows */}
-                        {!isDeposit && !transaction.isAutoTransfer && (() => {
-                          const info = receiptCountMap[transaction.id]
-                          const count = info?.count ?? 0
-                          const paymentPayee = transaction.payeeEmployee
-                            ? { type: 'EMPLOYEE', id: transaction.payeeEmployee.id, name: transaction.payeeEmployee.fullName }
-                            : transaction.payeeUser
-                            ? { type: 'USER', id: transaction.payeeUser.id, name: transaction.payeeUser.name }
-                            : transaction.payeeBusiness
-                            ? { type: 'BUSINESS', id: transaction.payeeBusiness.id, name: transaction.payeeBusiness.name }
-                            : transaction.payeePerson
-                            ? { type: 'PERSON', id: transaction.payeePerson.id, name: transaction.payeePerson.fullName }
-                            : transaction.payeeSupplier
-                            ? { type: 'SUPPLIER', id: transaction.payeeSupplier.id, name: transaction.payeeSupplier.name }
-                            : null
-
-                          // MBM-271: payments requiring receipt accountability get the
-                          // color-coded status badge instead of the plain count badge.
-                          if (info?.review) {
-                            return (
-                              <ReceiptReviewBadge
-                                status={info.review.status}
-                                total={info.review.total}
-                                expected={info.review.expected}
-                                daysSincePaid={info.review.daysSincePaid}
-                                onClick={() => setReceiptModal({
-                                  paymentId: transaction.id,
-                                  paymentAmount: Math.abs(transaction.amount),
-                                  paymentDescription: transaction.description,
-                                  paymentPayee,
-                                  mode: 'view',
-                                })}
-                              />
-                            )
-                          }
-
-                          return count > 0 ? (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setReceiptModal({
-                                  paymentId: transaction.id,
-                                  paymentAmount: Math.abs(transaction.amount),
-                                  paymentDescription: transaction.description,
-                                  paymentPayee,
-                                  mode: 'view',
-                                })
-                              }}
-                              className="ml-1 inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800/60 font-medium transition-colors"
-                              title={`${count} receipt${count !== 1 ? 's' : ''} — click to view`}
-                            >
-                              🧾 {count}
-                            </button>
-                          ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setReceiptModal({
-                                  paymentId: transaction.id,
-                                  paymentAmount: Math.abs(transaction.amount),
-                                  paymentDescription: transaction.description,
-                                  paymentPayee,
-                                  mode: 'add',
-                                })
-                              }}
-                              className="ml-1 text-sm px-1 py-0.5 rounded text-gray-300 dark:text-gray-600 hover:text-green-500 dark:hover:text-green-400 transition-colors"
-                              title="No receipts yet — click to add"
-                            >
-                              🧾
-                            </button>
-                          )
-                        })()}
-
-                        {/* Project badge / assign button */}
-                        {!isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO' && projects.length > 0 && (
-                          assignTxId === transaction.id ? (
-                            <select
-                              autoFocus
-                              disabled={assigning}
-                              value={transaction.projectId || ''}
-                              onChange={e => assignProject(transaction.id, e.target.value)}
-                              onBlur={() => setAssignTxId(null)}
-                              className="ml-1 text-xs border border-indigo-300 dark:border-indigo-600 rounded px-1 py-0.5 bg-white dark:bg-gray-700 text-gray-900 dark:text-white max-w-[140px]"
-                            >
-                              <option value="">— No project —</option>
-                              {projects.map(p => (
-                                <option key={p.id} value={p.id}>{p.name}</option>
-                              ))}
-                            </select>
-                          ) : transaction.project ? (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setAssignTxId(transaction.id) }}
-                              className="ml-1 inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-800/60 font-medium transition-colors"
-                              title={`Project: ${transaction.project.name} — click to change`}
-                            >
-                              📁 {transaction.project.name.length > 12 ? transaction.project.name.slice(0, 12) + '…' : transaction.project.name}
-                            </button>
-                          ) : (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setAssignTxId(transaction.id) }}
-                              className="ml-1 text-sm px-1 py-0.5 rounded text-gray-300 dark:text-gray-600 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors"
-                              title="Assign to a project"
-                            >
-                              📁
-                            </button>
-                          )
-                        )}
-
-                        {/* Payment Voucher icon — appears on all PAYMENT rows when businessId is provided */}
-                        {!isDeposit && !transaction.isAutoTransfer && businessId && (
-                          voucherMap[transaction.id] ? (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); openVoucherModal(transaction) }}
-                              className="ml-1 inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 hover:bg-teal-200 dark:hover:bg-teal-800/60 font-medium transition-colors"
-                              title={`Voucher issued: ${voucherMap[transaction.id]} — click to view PDF`}
-                            >
-                              ✅ VCH
-                            </button>
-                          ) : (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); openVoucherModal(transaction) }}
-                              className="ml-1 text-sm px-1 py-0.5 rounded text-gray-300 dark:text-gray-600 hover:text-teal-500 dark:hover:text-teal-400 transition-colors"
-                              title="No voucher yet — click to generate one"
-                            >
-                              📄
-                            </button>
-                          )
-                        )}
+                        {renderTransactionActions(transaction, isDeposit)}
                       </td>
                     </tr>
                   )
@@ -1153,6 +1273,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                 <TableFillerRows count={Math.min(limit, totalTransactions) - transactions.length} colSpan={7} cellClassName="p-3 h-[72px]" />
               </tbody>
             </table>
+          </div>
+          </>
         )}
       </div>
 

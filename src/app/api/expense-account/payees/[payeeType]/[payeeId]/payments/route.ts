@@ -180,6 +180,9 @@ export async function GET(
         creator: {
           select: { id: true, name: true, email: true },
         },
+        submitter: {
+          select: { id: true, name: true, email: true },
+        },
       },
       orderBy: { paymentDate: 'desc' },
       skip: offset,
@@ -223,6 +226,7 @@ export async function GET(
         notes: payment.notes,
         status: payment.status,
         createdBy: payment.creator,
+        submittedBy: payment.submitter,
         createdAt: payment.createdAt.toISOString(),
       })
     })
@@ -287,6 +291,7 @@ export async function GET(
           status: p.status,
           expenseAccount: p.expenseAccount,
           createdBy: p.creator,
+          submittedBy: p.submitter,
           createdAt: p.createdAt.toISOString(),
         })),
         pagination: {
