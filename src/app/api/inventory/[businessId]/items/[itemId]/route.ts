@@ -341,20 +341,45 @@ export async function PUT(
           entityId: rawId,
           oldValues: { stockQuantity: existing.stockQuantity },
           newValues: { stockQuantity: updated.stockQuantity },
-          metadata: { sourceTable: 'BARCODE_ITEM', businessId, productName: existing.name, reason: stockChangeReason || null },
+          metadata: { sourceTable: 'BARCODE_ITEM', businessId, productName: existing.name, sku: existing.sku, barcode: existing.barcodeData, reason: stockChangeReason || null },
           businessId,
         })
       }
 
-      if (updateData.sellingPrice !== undefined && Number(updateData.sellingPrice) !== Number(existing.sellingPrice)) {
+      {
+        const sellingChanged = updateData.sellingPrice !== undefined && Number(updateData.sellingPrice) !== Number(existing.sellingPrice)
+        const costChanged = updateData.costPrice !== undefined && existingCostPrice !== null && Number(updateData.costPrice) !== existingCostPrice
+        if (sellingChanged || costChanged) {
+          const oldValues: Record<string, unknown> = {}
+          const newValues: Record<string, unknown> = {}
+          if (sellingChanged) { oldValues.price = Number(existing.sellingPrice); newValues.price = Number(updateData.sellingPrice) }
+          if (costChanged) { oldValues.costPrice = existingCostPrice; newValues.costPrice = Number(updateData.costPrice) }
+          await createAuditLog({
+            userId: user.id,
+            action: 'PRODUCT_PRICE_UPDATED',
+            entityType: 'Product',
+            entityId: rawId,
+            oldValues,
+            newValues,
+            metadata: { sourceTable: 'BARCODE_ITEM', businessId, productName: existing.name, sku: existing.sku, barcode: existing.barcodeData, reason: priceChangeReason || null },
+            businessId,
+          })
+        }
+      }
+
+      // The barcode/SKU values themselves changing had no audit trail at
+      // all — exactly the gap that made price-change entries elsewhere
+      // unable to show "which item" without a barcode to cross-reference.
+      if ((updateData.barcodeData !== undefined && updateData.barcodeData !== existing.barcodeData) ||
+          (updateData.sku !== undefined && updateData.sku !== existing.sku)) {
         await createAuditLog({
           userId: user.id,
-          action: 'PRODUCT_PRICE_UPDATED',
+          action: 'UPDATE',
           entityType: 'Product',
           entityId: rawId,
-          oldValues: { price: Number(existing.sellingPrice) },
-          newValues: { price: Number(updateData.sellingPrice) },
-          metadata: { sourceTable: 'BARCODE_ITEM', businessId, productName: existing.name, reason: priceChangeReason || null },
+          oldValues: { barcode: existing.barcodeData, sku: existing.sku },
+          newValues: { barcode: updateData.barcodeData ?? existing.barcodeData, sku: updateData.sku ?? existing.sku },
+          metadata: { sourceTable: 'BARCODE_ITEM', businessId, productName: existing.name },
           businessId,
         })
       }
@@ -674,7 +699,7 @@ export async function PUT(
           entityId: itemId,
           oldValues: { stockQuantity: variant.stockQuantity },
           newValues: { stockQuantity: newStockQuantity },
-          metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId, productName: existingProduct.name, reason: productStockChangeReason || null },
+          metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId, productName: existingProduct.name, sku: existingProduct.sku, barcode: existingProduct.barcode, reason: productStockChangeReason || null },
           businessId,
         })
 
@@ -691,18 +716,21 @@ export async function PUT(
     // queries the product_barcodes table, so without this a barcode "saved"
     // through this field was never actually scannable. Skipped when the full
     // `body.barcodes` array is present — that path already handles it below.
+    let barcodeAuditChange: { old: string | null; new: string } | null = null
     if (body.barcode && !(body.barcodes && Array.isArray(body.barcodes))) {
       const existingPrimary = await prisma.productBarcodes.findFirst({
         where: { productId: itemId, isPrimary: true },
       })
       if (existingPrimary) {
         if (existingPrimary.code !== body.barcode) {
+          barcodeAuditChange = { old: existingPrimary.code, new: body.barcode }
           await prisma.productBarcodes.update({
             where: { id: existingPrimary.id },
             data: { code: body.barcode },
           })
         }
       } else {
+        barcodeAuditChange = { old: null, new: body.barcode }
         await prisma.productBarcodes.create({
           data: {
             productId: itemId,
@@ -763,18 +791,41 @@ export async function PUT(
       include: { product_barcodes: true }
     })
 
-    if (updateData.basePrice !== undefined && Number(updateData.basePrice) !== Number(existingProduct.basePrice)) {
+    {
+      const sellingChanged = updateData.basePrice !== undefined && Number(updateData.basePrice) !== Number(existingProduct.basePrice)
+      const costChanged = updateData.costPrice !== undefined && existingProductCostPrice !== null && Number(updateData.costPrice) !== existingProductCostPrice
+      if (sellingChanged || costChanged) {
+        const oldValues: Record<string, unknown> = {}
+        const newValues: Record<string, unknown> = {}
+        if (sellingChanged) { oldValues.price = Number(existingProduct.basePrice); newValues.price = Number(updateData.basePrice) }
+        if (costChanged) { oldValues.costPrice = existingProductCostPrice; newValues.costPrice = Number(updateData.costPrice) }
+        await createAuditLog({
+          userId: user.id,
+          action: 'PRODUCT_PRICE_UPDATED',
+          entityType: 'Product',
+          entityId: itemId,
+          oldValues,
+          newValues,
+          metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId, productName: existingProduct.name, sku: existingProduct.sku, barcode: existingProduct.barcode, reason: productPriceChangeReason || null },
+          businessId,
+        })
+      }
+    }
+
+    // Barcode/SKU values themselves changing had no audit trail at all.
+    if (barcodeAuditChange || (updateData.sku && updateData.sku !== existingProduct.sku)) {
       await createAuditLog({
         userId: user.id,
-        action: 'PRODUCT_PRICE_UPDATED',
+        action: 'UPDATE',
         entityType: 'Product',
         entityId: itemId,
-        oldValues: { price: Number(existingProduct.basePrice) },
-        newValues: { price: Number(updateData.basePrice) },
-        metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId, productName: existingProduct.name, reason: productPriceChangeReason || null },
+        oldValues: { barcode: barcodeAuditChange?.old ?? existingProduct.barcode, sku: existingProduct.sku },
+        newValues: { barcode: barcodeAuditChange?.new ?? existingProduct.barcode, sku: updateData.sku ?? existingProduct.sku },
+        metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId, productName: existingProduct.name },
         businessId,
       })
     }
+
     await Promise.all([
       recordPriceChangeIfDifferent({
         businessId,

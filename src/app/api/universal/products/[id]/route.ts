@@ -367,17 +367,25 @@ export async function PUT(
     // Audit price changes made through this endpoint (Menu Management, Products
     // pages, and POS Quick-Edit all route through here) so every price change is
     // captured server-side, not just the ones a client happens to also log.
-    if (updateData.basePrice !== undefined && Number(updateData.basePrice) !== Number(existingProduct.basePrice)) {
-      await createAuditLog({
-        userId: user.id,
-        action: 'PRODUCT_PRICE_UPDATED',
-        entityType: 'Product',
-        entityId: id,
-        oldValues: { price: Number(existingProduct.basePrice) },
-        newValues: { price: Number(updateData.basePrice) },
-        metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId: existingProduct.businessId, productName: existingProduct.name, reason: priceChangeReason || null },
-        businessId: existingProduct.businessId,
-      })
+    {
+      const sellingChanged = updateData.basePrice !== undefined && Number(updateData.basePrice) !== Number(existingProduct.basePrice)
+      const costChanged = updateData.costPrice !== undefined && existingCostPriceNum !== null && Number(updateData.costPrice) !== existingCostPriceNum
+      if (sellingChanged || costChanged) {
+        const oldValues: Record<string, unknown> = {}
+        const newValues: Record<string, unknown> = {}
+        if (sellingChanged) { oldValues.price = Number(existingProduct.basePrice); newValues.price = Number(updateData.basePrice) }
+        if (costChanged) { oldValues.costPrice = existingCostPriceNum; newValues.costPrice = Number(updateData.costPrice) }
+        await createAuditLog({
+          userId: user.id,
+          action: 'PRODUCT_PRICE_UPDATED',
+          entityType: 'Product',
+          entityId: id,
+          oldValues,
+          newValues,
+          metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId: existingProduct.businessId, productName: existingProduct.name, sku: existingProduct.sku, barcode: existingProduct.barcode, reason: priceChangeReason || null },
+          businessId: existingProduct.businessId,
+        })
+      }
     }
     await Promise.all([
       recordPriceChangeIfDifferent({

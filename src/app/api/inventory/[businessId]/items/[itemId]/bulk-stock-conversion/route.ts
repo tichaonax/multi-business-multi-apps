@@ -129,7 +129,7 @@ export async function POST(
           },
         })
 
-        return { currentStock, currentCostPrice, currentSellingPrice, newStock, newUnitCost, newUnitPrice, name: current.name }
+        return { currentStock, currentCostPrice, currentSellingPrice, newStock, newUnitCost, newUnitPrice, name: current.name, sku: current.sku, barcode: current.barcodeData }
       })
 
       await Promise.all([
@@ -154,7 +154,7 @@ export async function POST(
           entityId: rawId,
           oldValues: { stockQuantity: result.currentStock, costPrice: result.currentCostPrice, sellingPrice: result.currentSellingPrice },
           newValues: { stockQuantity: result.newStock, costPrice: result.newUnitCost, sellingPrice: result.newUnitPrice, itemsPerPacket },
-          metadata: { sourceTable: 'BARCODE_ITEM', businessId, productName: result.name, redo: isRedo },
+          metadata: { sourceTable: 'BARCODE_ITEM', businessId, productName: result.name, sku: result.sku, barcode: result.barcode, redo: isRedo },
           businessId,
         }),
       ])
@@ -247,7 +247,7 @@ export async function POST(
         data: { itemsPerPacket },
       })
 
-      return { currentStock, currentCostPrice, currentSellingPrice, newStock, newUnitCost, newUnitPrice, name: currentProduct.name }
+      return { currentStock, currentCostPrice, currentSellingPrice, newStock, newUnitCost, newUnitPrice, name: currentProduct.name, sku: currentProduct.sku, barcode: currentProduct.barcode }
     })
 
     await Promise.all([
@@ -270,7 +270,7 @@ export async function POST(
         entityId: rawId,
         oldValues: { stockQuantity: result.currentStock, costPrice: result.currentCostPrice, sellingPrice: result.currentSellingPrice },
         newValues: { stockQuantity: result.newStock, costPrice: result.newUnitCost, sellingPrice: result.newUnitPrice, itemsPerPacket },
-        metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId, productName: result.name, redo: isRedo },
+        metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId, productName: result.name, sku: result.sku, barcode: result.barcode, redo: isRedo },
         businessId,
       }),
     ])

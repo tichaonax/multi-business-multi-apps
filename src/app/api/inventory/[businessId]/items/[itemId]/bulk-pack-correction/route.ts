@@ -108,7 +108,7 @@ export async function POST(
           entityId: rawId,
           oldValues: { unitsPerPack: existing.unitsPerPack, costPrice: oldCostPrice },
           newValues: { unitsPerPack, costPrice: correctedUnitCost ?? oldCostPrice },
-          metadata: { sourceTable: 'BARCODE_ITEM', businessId, productName: existing.name, bulkPackCost, source: 'Pricing, Cost & Value Exceptions Report' },
+          metadata: { sourceTable: 'BARCODE_ITEM', businessId, productName: existing.name, sku: existing.sku, barcode: existing.barcodeData, bulkPackCost, source: 'Pricing, Cost & Value Exceptions Report' },
           businessId,
         }),
       ])
@@ -164,7 +164,7 @@ export async function POST(
         entityId: rawId,
         oldValues: { unitsPerPack: existing.unitsPerPack, costPrice: oldCostPrice },
         newValues: { unitsPerPack, costPrice: correctedUnitCost ?? oldCostPrice },
-        metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId, productName: existing.name, bulkPackCost, source: 'Pricing, Cost & Value Exceptions Report' },
+        metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId, productName: existing.name, sku: existing.sku, barcode: existing.barcode, bulkPackCost, source: 'Pricing, Cost & Value Exceptions Report' },
         businessId,
       }),
     ])

@@ -29,7 +29,7 @@ export async function PUT(
     // Check if product exists and is clothing type
     const product = await prisma.businessProducts.findUnique({
       where: { id },
-      select: { id: true, businessId: true, businessType: true, sku: true, name: true, basePrice: true, costPrice: true }
+      select: { id: true, businessId: true, businessType: true, sku: true, barcode: true, name: true, basePrice: true, costPrice: true }
     })
 
     if (!product) {
@@ -107,17 +107,25 @@ export async function PUT(
           })
         : Promise.resolve(),
     ])
-    if (priceEditor && validatedData.basePrice !== null && oldBasePrice !== null && validatedData.basePrice !== oldBasePrice) {
-      await createAuditLog({
-        userId: priceEditor.id,
-        action: 'PRODUCT_PRICE_UPDATED',
-        entityType: 'Product',
-        entityId: id,
-        oldValues: { price: oldBasePrice },
-        newValues: { price: validatedData.basePrice },
-        metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId: product.businessId, productName: product.name, reason: validatedData.priceChangeReason || null },
-        businessId: product.businessId,
-      }).catch(() => {})
+    if (priceEditor) {
+      const sellingChanged = validatedData.basePrice !== null && oldBasePrice !== null && validatedData.basePrice !== oldBasePrice
+      const costChanged = validatedData.costPrice !== undefined && validatedData.costPrice !== null && oldCostPrice !== null && validatedData.costPrice !== oldCostPrice
+      if (sellingChanged || costChanged) {
+        const oldValues: Record<string, unknown> = {}
+        const newValues: Record<string, unknown> = {}
+        if (sellingChanged) { oldValues.price = oldBasePrice; newValues.price = validatedData.basePrice }
+        if (costChanged) { oldValues.costPrice = oldCostPrice; newValues.costPrice = validatedData.costPrice }
+        await createAuditLog({
+          userId: priceEditor.id,
+          action: 'PRODUCT_PRICE_UPDATED',
+          entityType: 'Product',
+          entityId: id,
+          oldValues,
+          newValues,
+          metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId: product.businessId, productName: product.name, sku: product.sku, barcode: product.barcode, reason: validatedData.priceChangeReason || null },
+          businessId: product.businessId,
+        }).catch(() => {})
+      }
     }
 
     return NextResponse.json({
@@ -163,7 +171,7 @@ export async function PATCH(
 
     const existing = await prisma.businessProducts.findUnique({
       where: { id },
-      select: { businessId: true, basePrice: true, name: true },
+      select: { businessId: true, basePrice: true, name: true, sku: true, barcode: true },
     })
     if (!existing) {
       return NextResponse.json({ success: false, error: 'Product not found' }, { status: 404 })
@@ -212,7 +220,7 @@ export async function PATCH(
         entityId: id,
         oldValues: { price: oldBasePriceForPatch },
         newValues: { price: basePrice },
-        metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId: existing.businessId, productName: updatedProduct.name, reason: priceChangeReason || null },
+        metadata: { sourceTable: 'BUSINESS_PRODUCT', businessId: existing.businessId, productName: updatedProduct.name, sku: existing.sku, barcode: existing.barcode, reason: priceChangeReason || null },
         businessId: existing.businessId,
       }).catch(() => {})
     }

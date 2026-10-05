@@ -132,23 +132,31 @@ export async function POST(request: NextRequest) {
                 })
               : Promise.resolve(),
           ]).catch(() => {}) // non-fatal — price history is best-effort, must never block a stock save
-          if (Number(sellingPrice) !== Number(existing.sellingPrice)) {
+          {
             // MBM-296: the user-facing Price Change Report (§63 of the user
             // guide) reads AuditLogs, not product_price_history — this was a
             // pre-existing gap (bulk stock receiving never wrote here) that
             // made the report's "nothing slips through unrecorded" claim
             // untrue for this path. Closing it here alongside the new
             // history table, not replacing it.
-            await createAuditLog({
-              userId: user.id,
-              action: 'PRODUCT_PRICE_UPDATED',
-              entityType: 'Product',
-              entityId: existing.id,
-              oldValues: { price: Number(existing.sellingPrice) },
-              newValues: { price: Number(sellingPrice) },
-              metadata: { sourceTable: 'BARCODE_ITEM', businessId, productName: existing.name, viaBulkStockReceiving: true, reason: priceChangeReason },
-              businessId,
-            }).catch(() => {})
+            const sellingChanged = Number(sellingPrice) !== Number(existing.sellingPrice)
+            const costChanged = costPrice !== undefined && costPrice !== '' && existing.costPrice !== null && Number(costPrice) !== Number(existing.costPrice)
+            if (sellingChanged || costChanged) {
+              const oldValues: Record<string, unknown> = {}
+              const newValues: Record<string, unknown> = {}
+              if (sellingChanged) { oldValues.price = Number(existing.sellingPrice); newValues.price = Number(sellingPrice) }
+              if (costChanged) { oldValues.costPrice = Number(existing.costPrice); newValues.costPrice = Number(costPrice) }
+              await createAuditLog({
+                userId: user.id,
+                action: 'PRODUCT_PRICE_UPDATED',
+                entityType: 'Product',
+                entityId: existing.id,
+                oldValues,
+                newValues,
+                metadata: { sourceTable: 'BARCODE_ITEM', businessId, productName: existing.name, sku: existing.sku, barcode: existing.barcodeData, viaBulkStockReceiving: true, reason: priceChangeReason },
+                businessId,
+              }).catch(() => {})
+            }
           }
           updated++
           results.push({ success: true, itemId: updatedRecord.id, action: 'updated' })
@@ -202,6 +210,26 @@ export async function POST(request: NextRequest) {
               businessType: business?.type ?? 'unknown',
             },
           }).catch(() => {}) // non-fatal
+          // New-item creation previously had no audit entry at all — a
+          // brand-new barcode/SKU/price/stock registration silently bypassed
+          // the audit trail entirely.
+          await createAuditLog({
+            userId: user.id,
+            action: 'CREATE',
+            entityType: 'Product',
+            entityId: record.id,
+            newValues: {
+              name: record.name,
+              sku: record.sku,
+              barcode: record.barcodeData,
+              sellingPrice: Number(sellingPrice),
+              costPrice: costPrice !== undefined && costPrice !== '' ? Number(costPrice) : null,
+              quantity: Number(quantity),
+            },
+            metadata: { sourceTable: 'BARCODE_ITEM', businessId, viaBulkStockReceiving: true },
+            businessId,
+          }).catch(() => {})
+
           created++
           results.push({ success: true, itemId: record.id, action: 'created' })
         }
