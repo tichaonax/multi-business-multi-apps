@@ -1078,13 +1078,19 @@ export function QuickPaymentModal({
 
   const loadSubSubcategories = async (subcategoryId: string) => {
     try {
-      const response = await fetch(`/api/expense-categories/subcategories/${subcategoryId}/sub-subcategories`, {
+      // subcategoryId here is actually an ExpenseCategory.id (per the
+      // formData.subcategoryId = ExpenseCategory.id convention above) —
+      // reuse the domain/category endpoint's categoryId-fallback branch to
+      // fetch its real ExpenseSubcategories, rather than the dedicated
+      // sub-subcategories endpoint, which expects an ExpenseSubcategory.id
+      // and 404s on a category id (silently leaving this dropdown empty).
+      const response = await fetch(`/api/expense-categories/${subcategoryId}/subcategories`, {
         credentials: 'include',
       })
 
       if (response.ok) {
         const data = await response.json()
-        setSubSubcategories(data.subSubcategories || [])
+        setSubSubcategories(data.subcategories || [])
       }
     } catch (error) {
       console.error('Error loading sub-subcategories:', error)

@@ -566,13 +566,19 @@ export function PaymentForm({
 
     try {
       setLoadingSubSubcategories(true)
-      const response = await fetch(`/api/expense-categories/subcategories/${subcategoryId}/sub-subcategories`, {
+      // subcategoryId here is actually an ExpenseCategories.id (per the
+      // formData.subcategoryId = ExpenseCategories.id convention above) —
+      // reuse the domain/category endpoint's categoryId-fallback branch to
+      // fetch its real ExpenseSubcategories, rather than the dedicated
+      // sub-subcategories endpoint, which expects an ExpenseSubcategories.id
+      // and 404s on a category id (silently leaving this dropdown empty).
+      const response = await fetch(`/api/expense-categories/${subcategoryId}/subcategories`, {
         credentials: 'include',
       })
 
       if (response.ok) {
         const data = await response.json()
-        const subSubs = data.subSubcategories || []
+        const subSubs = data.subcategories || []
         subSubs.sort((a: ExpenseSubSubcategory, b: ExpenseSubSubcategory) => a.name.localeCompare(b.name))
         setSubSubcategories(subSubs)
       }
@@ -1314,19 +1320,15 @@ export function PaymentForm({
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Business
                       </label>
-                      <select
+                      <SearchableSelect
                         value={selectedIsDomain ? formData.categoryId : ''}
-                        onChange={(e) => {
-                          setFormData({ ...formData, categoryId: e.target.value, subcategoryId: '', subSubcategoryId: '' })
+                        options={domainOptions.map(d => ({ id: d.id, label: `${d.emoji} ${d.name}` }))}
+                        onChange={(val) => {
+                          setFormData({ ...formData, categoryId: val, subcategoryId: '', subSubcategoryId: '' })
                           setErrors({ ...errors, categoryId: '' })
                         }}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="">— Select business —</option>
-                        {domainOptions.map(d => (
-                          <option key={d.id} value={d.id}>{d.emoji} {d.name}</option>
-                        ))}
-                      </select>
+                        placeholder="— Select business —"
+                      />
                     </div>
 
                     {/* Global Category picker — only shown when no domain selected */}

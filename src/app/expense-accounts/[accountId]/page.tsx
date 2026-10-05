@@ -1202,6 +1202,8 @@ export default function ExpenseAccountDetailPage() {
   const [countsError, setCountsError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState(urlTab || 'overview')
+  const tabScrollRef = useRef<HTMLDivElement>(null)
+  const [tabScroll, setTabScroll] = useState({ canScrollLeft: false, canScrollRight: false })
   const [showDepositModal, setShowDepositModal] = useState(false)
   const [showTransferModal, setShowTransferModal] = useState(false)
   const [showQuickPaymentModal, setShowQuickPaymentModal] = useState(false)
@@ -1254,6 +1256,29 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
       router.push('/auth/signin')
     }
   }, [status, router])
+
+  // Tab nav fade indicators — the tab row intentionally scrolls horizontally
+  // on mobile (more tabs than fit), but with no visual cue it just looks
+  // like text is clipped. Track scroll position so a fade can be shown on
+  // whichever edge(s) still have hidden tabs.
+  useEffect(() => {
+    const el = tabScrollRef.current
+    if (!el) return
+    const update = () => {
+      setTabScroll({
+        canScrollLeft: el.scrollLeft > 2,
+        canScrollRight: el.scrollLeft + el.clientWidth < el.scrollWidth - 2,
+      })
+    }
+    update()
+    el.addEventListener('scroll', update, { passive: true })
+    const resizeObserver = new ResizeObserver(update)
+    resizeObserver.observe(el)
+    return () => {
+      el.removeEventListener('scroll', update)
+      resizeObserver.disconnect()
+    }
+  }, [])
 
   useEffect(() => {
     if (!permissionsLoading && !canAccessExpenseAccount) {
@@ -1774,7 +1799,14 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
             viewport. The tab-nav row below has its own overflow-x-auto for
             horizontal scrolling on mobile, which is unaffected. */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-          <div className="border-b border-gray-200 dark:border-gray-700 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <div className="relative border-b border-gray-200 dark:border-gray-700">
+          {tabScroll.canScrollLeft && (
+            <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-6 z-10 bg-gradient-to-r from-white dark:from-gray-800 to-transparent" />
+          )}
+          {tabScroll.canScrollRight && (
+            <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-6 z-10 bg-gradient-to-l from-white dark:from-gray-800 to-transparent" />
+          )}
+          <div ref={tabScrollRef} className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             {/* w-max (not min-w-0) — a block-level flex nav otherwise stretches
                 to its overflow-x-auto parent's width and shrinks its buttons
                 to fit, clipping the last tab's label instead of scrolling. */}
@@ -1908,6 +1940,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                 Combo Requests
               </button>
             </nav>
+          </div>
           </div>
 
           <div className="p-2 sm:p-3">
