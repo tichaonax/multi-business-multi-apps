@@ -80,6 +80,13 @@ const REPORT_CARDS = [
     description: 'Combo Pay & advance receipts by supplier, person, and expense type — reconciliation status, outstanding balances, spend-by-type breakdown.',
     color: 'green',
   },
+  {
+    href: '/expense-accounts/reports/missing-receipts',
+    emoji: '🚩',
+    title: 'Missing / Partial Receipts',
+    description: 'Worklist of payments with no receipts, or receipts that don\'t cover the full amount, for a given date range — including payments the Receipts Report can\'t show.',
+    color: 'amber',
+  },
 ]
 
 const COLOR_MAP: Record<string, string> = {
