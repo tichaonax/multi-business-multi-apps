@@ -11,6 +11,7 @@ import { ProtectedRoute } from '@/components/auth/protected-route';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
+import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector';
 import {
   Calendar,
   Search,
@@ -100,6 +101,13 @@ function DetailBlock({ title, data }: { title: string; data: Record<string, unkn
   );
 }
 
+function defaultDateRange(): DateRange {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - 30);
+  return { start, end };
+}
+
 export default function AuditLogsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -112,6 +120,8 @@ export default function AuditLogsPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange());
+  const [allTime, setAllTime] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -124,7 +134,7 @@ export default function AuditLogsPage() {
       fetchAuditLogs();
       fetchStatistics();
     }
-  }, [session, page, searchTerm, selectedAction, selectedEntityType]);
+  }, [session, page, searchTerm, selectedAction, selectedEntityType, dateRange, allTime]);
 
   const fetchAuditLogs = async () => {
     try {
@@ -134,6 +144,7 @@ export default function AuditLogsPage() {
         ...(searchTerm && { search: searchTerm }),
         ...(selectedAction && { action: selectedAction }),
         ...(selectedEntityType && { entityType: selectedEntityType }),
+        ...(!allTime && { startDate: dateRange.start.toISOString(), endDate: dateRange.end.toISOString() }),
       });
 
       const response = await fetch(`/api/audit?${params}`);
@@ -279,21 +290,31 @@ export default function AuditLogsPage() {
           </div>
         )}
 
-        {/* Filters */}
-        <Card className="p-6 mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Search logs by user, action, or entity..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+        {/* Floating search bar — stays visible while scrolling through logs */}
+        <div className="sticky top-16 z-20 mb-6">
+          <Card className="p-4 shadow-md">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Search logs by user, action, or entity..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
             </div>
+          </Card>
+        </div>
 
+        {/* Filters */}
+        <Card className="p-6 mb-6 space-y-4">
+          <DateRangeSelector
+            value={dateRange}
+            onChange={setDateRange}
+            showAllTime
+            allTime={allTime}
+            onAllTimeChange={setAllTime}
+          />
+          <div className="flex flex-col md:flex-row gap-4">
             <select
               value={selectedAction}
               onChange={(e) => setSelectedAction(e.target.value)}

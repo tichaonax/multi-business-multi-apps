@@ -17,6 +17,8 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get('search') || undefined
   const userId = searchParams.get('userId') || undefined
   const businessId = searchParams.get('businessId') || undefined
+  const startDateStr = searchParams.get('startDate')
+  const endDateStr = searchParams.get('endDate')
 
   try {
     const result = await getAuditLogs({
@@ -25,6 +27,8 @@ export async function GET(req: NextRequest) {
       search,
       userId,
       businessId,
+      startDate: startDateStr ? new Date(startDateStr) : undefined,
+      endDate: endDateStr ? new Date(endDateStr) : undefined,
       page,
       limit,
     })
