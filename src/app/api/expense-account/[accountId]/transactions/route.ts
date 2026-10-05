@@ -101,6 +101,15 @@ export async function GET(
     }
 
     // Search filters
+    // Whole-dollar amount search — "317" matches $317.00 through $317.99,
+    // ignoring cents (and any cents typed in the search term itself, so
+    // "317.89" matches the same $317.xx range rather than requiring an
+    // exact cents match).
+    const searchAsWholeDollar = /^\d+(\.\d+)?$/.test(search) ? Math.floor(parseFloat(search)) : null
+    const amountSearchClause = searchAsWholeDollar !== null
+      ? [{ amount: { gte: searchAsWholeDollar, lt: searchAsWholeDollar + 1 } }]
+      : []
+
     const depositSearchFilter: any = search
       ? {
           OR: [
@@ -113,6 +122,7 @@ export async function GET(
             { subSource: { name: { contains: search, mode: 'insensitive' } } },
             { fundSourceNote: { contains: search, mode: 'insensitive' } },
             { subSourceNote: { contains: search, mode: 'insensitive' } },
+            ...amountSearchClause,
           ],
         }
       : {}
@@ -132,6 +142,7 @@ export async function GET(
             // single payment-level receiptNumber above
             { expense_payment_receipts: { some: { receiptNumber: { contains: search, mode: 'insensitive' } } } },
             { expense_payment_receipts: { some: { description: { contains: search, mode: 'insensitive' } } } },
+            ...amountSearchClause,
           ],
         }
       : {}

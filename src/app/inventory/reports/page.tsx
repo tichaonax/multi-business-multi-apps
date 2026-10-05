@@ -58,6 +58,12 @@ export default function InventoryReportsIndexPage() {
       href: '/admin/reports/reorder',
       color: 'bg-amber-600 hover:bg-amber-700',
     },
+    {
+      title: '🚚 Stocking & Related Expenses',
+      description: 'What was stocked, what it cost, and what other expenses (transport, tolls, meals) landed in the same window',
+      href: '/inventory/reports/stocking',
+      color: 'bg-teal-600 hover:bg-teal-700',
+    },
   ]
 
   return (

@@ -14,6 +14,7 @@ import { generatePaymentVoucherPdf } from './payment-voucher-pdf'
 import { AddReceiptModal } from './add-receipt-modal'
 import { ViewReceiptsModal } from './view-receipts-modal'
 import { ReceiptReviewBadge } from './receipt-review-badge'
+import { RowActionsMenu, type RowAction } from '@/components/ui/row-actions-menu'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { Pagination } from '@/components/ui/pagination'
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
@@ -602,63 +603,72 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   // Extracted so the mobile card list (below) can reuse the exact same
   // actions — Edit/Repeat/Reverse/receipt/project/voucher — instead of
   // duplicating this ~190-line conditional cluster a second time.
-  const renderTransactionActions = (transaction: Transaction, isDeposit: boolean) => (
+  const renderTransactionActions = (transaction: Transaction, isDeposit: boolean) => {
+    const rowActions: RowAction[] = []
+
+    if (canEditPayments && !isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO' && !voucherMap[transaction.id] && (isAdmin || isWithin7Days(transaction.createdAt))) {
+      rowActions.push({
+        key: 'edit',
+        label: 'Edit',
+        icon: '✏️',
+        title: 'Edit payment',
+        onClick: () => setEditPaymentId(transaction.id),
+      })
+    }
+    if (onRepeatPayment && !isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO') {
+      rowActions.push({
+        key: 'repeat',
+        label: 'Repeat',
+        icon: '🔁',
+        title: 'Create a new payment pre-filled from this one',
+        onClick: () => onRepeatPayment(transaction.id),
+      })
+    }
+    if (isAdmin && !isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO' && transaction.status !== 'REVERSED') {
+      rowActions.push({
+        key: 'reverse',
+        label: reversingId === transaction.id ? 'Reversing…' : 'Reverse',
+        icon: '↩️',
+        title: 'Fully reverse this payment — use for a payment that should never have happened (e.g. a duplicate), not for correcting the amount of a real one',
+        disabled: reversingId === transaction.id,
+        destructive: true,
+        onClick: () => handleReversePayment(transaction.id),
+      })
+    }
+    if (canEditPayments && isDeposit && !transaction.isAutoTransfer && transaction.sourceType !== 'ACCOUNT_TRANSFER' && transaction.sourceType !== 'PAYMENT_ADJUSTMENT' && (transaction.sourceType !== 'COMBO_SETTLE' || isAdmin) && (isAdmin || isWithin7Days(transaction.createdAt))) {
+      rowActions.push({
+        key: 'edit-deposit',
+        label: 'Edit',
+        icon: '✏️',
+        title: 'Edit deposit',
+        onClick: () => setEditDepositId(transaction.id),
+      })
+    }
+    if (isDeposit && transaction.sourceType === 'PAYMENT_ADJUSTMENT' && transaction.sourcePaymentId) {
+      rowActions.push({
+        key: 'view-payment',
+        label: 'View Payment',
+        icon: '🔗',
+        title: 'View source payment',
+        onClick: () => { window.location.href = `/expense-accounts/${accountId}/payments/${transaction.sourcePaymentId}` },
+      })
+    }
+    if (isDeposit && transaction.batchSubmissionId) {
+      rowActions.push({
+        key: 'pdf',
+        label: 'PDF Voucher',
+        icon: '📄',
+        title: 'View payment voucher',
+        onClick: () => handlePrintVoucher(transaction.batchSubmissionId!),
+      })
+    }
+
+    return (
     <>
-      {canEditPayments && !isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO' && !voucherMap[transaction.id] && (isAdmin || isWithin7Days(transaction.createdAt)) && (
-        <button
-          onClick={(e) => { e.stopPropagation(); setEditPaymentId(transaction.id) }}
-          className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-1 py-0.5"
-          title="Edit payment"
-        >
-          Edit
-        </button>
-      )}
-      {onRepeatPayment && !isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO' && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onRepeatPayment(transaction.id) }}
-          className="text-xs text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:underline px-1 py-0.5"
-          title="Create a new payment pre-filled from this one"
-        >
-          Repeat
-        </button>
-      )}
-      {isAdmin && !isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO' && transaction.status !== 'REVERSED' && (
-        <button
-          onClick={(e) => { e.stopPropagation(); handleReversePayment(transaction.id) }}
-          disabled={reversingId === transaction.id}
-          className="text-xs text-red-600 dark:text-red-400 hover:underline px-1 py-0.5 disabled:opacity-50"
-          title="Fully reverse this payment — use for a payment that should never have happened (e.g. a duplicate), not for correcting the amount of a real one"
-        >
-          {reversingId === transaction.id ? '…' : 'Reverse'}
-        </button>
-      )}
-      {canEditPayments && isDeposit && !transaction.isAutoTransfer && transaction.sourceType !== 'ACCOUNT_TRANSFER' && transaction.sourceType !== 'PAYMENT_ADJUSTMENT' && (transaction.sourceType !== 'COMBO_SETTLE' || isAdmin) && (isAdmin || isWithin7Days(transaction.createdAt)) && (
-        <button
-          onClick={(e) => { e.stopPropagation(); setEditDepositId(transaction.id) }}
-          className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-1 py-0.5"
-          title="Edit deposit"
-        >
-          Edit
-        </button>
-      )}
-      {isDeposit && transaction.sourceType === 'PAYMENT_ADJUSTMENT' && transaction.sourcePaymentId && (
-        <a
-          href={`/expense-accounts/${accountId}/payments/${transaction.sourcePaymentId}`}
-          onClick={(e) => e.stopPropagation()}
-          className="text-xs text-gray-400 dark:text-gray-500 hover:underline px-1 py-0.5"
-          title="View source payment"
-        >
-          View payment
-        </a>
-      )}
-      {isDeposit && transaction.batchSubmissionId && (
-        <button
-          onClick={(e) => { e.stopPropagation(); handlePrintVoucher(transaction.batchSubmissionId!) }}
-          className="text-xs text-purple-600 dark:text-purple-400 hover:underline px-1 py-0.5"
-          title="View payment voucher"
-        >
-          PDF
-        </button>
+      {rowActions.length > 0 && (
+        <span onClick={(e) => e.stopPropagation()}>
+          <RowActionsMenu actions={rowActions} />
+        </span>
       )}
       {/* Receipt badge — appears on all non-auto PAYMENT rows */}
       {!isDeposit && !transaction.isAutoTransfer && (() => {
@@ -787,7 +797,8 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
         )
       )}
     </>
-  )
+    )
+  }
 
   return (
     <>
