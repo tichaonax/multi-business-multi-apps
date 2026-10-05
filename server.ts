@@ -16,6 +16,7 @@ import { r710AgentHub } from './src/lib/r710/agent-hub'
 import { workstationAgentHub } from './src/lib/workstation-agents/agent-hub'
 import { startAutoGenerateScheduler } from './src/lib/r710/auto-generate-scheduler'
 import { startBusinessTargetRecalculationScheduler } from './src/lib/business-targets/recalculate-all-targets-scheduler'
+import { startComboRequestExpiryScheduler } from './src/lib/expense-account/combo-request-expiry-scheduler'
 import { startBackgroundJobs } from './src/lib/background-jobs'
 import { join as joinPath } from 'path'
 
@@ -94,6 +95,9 @@ app.prepare().then(() => {
 
   // MBM-288: nightly recalculation of business targets.
   startBusinessTargetRecalculationScheduler()
+
+  // Combo Payment Request 30-day auto-expiry sweep + advance warnings.
+  startComboRequestExpiryScheduler()
 
   // Print-worker health check, WiFi token sanitization, R710/ESP32 client
   // sync — relocated from the removed legacy sync engine (all opt-in, off

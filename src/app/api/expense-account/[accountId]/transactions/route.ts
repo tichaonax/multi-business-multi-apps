@@ -447,6 +447,7 @@ export async function GET(
         type: 'PAYMENT',
         amount: -Number(payment.amount), // Negative for payments (debit)
         date: (payment as any).paidAt || payment.paymentDate, // PAID: use actual paid date; others: use user-entered payment date
+        paymentDate: payment.paymentDate, // original user-entered/requested date — may predate the actual paidAt for requests that sat unpaid before being settled
         description,
         notes: payment.notes ?? null,
         payeeType: payment.payeeType,

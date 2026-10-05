@@ -11,6 +11,7 @@ interface ComboRequest {
   approvedAmount: number | null
   createdBy: string
   submittedAt: string | null
+  expiredAt: string | null
   returnNote: string | null
   returnedByUser: { id: string; name: string } | null
   creator: { id: string; name: string }
@@ -26,6 +27,19 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   SETTLE_REQUESTED:   { label: 'Awaiting Settlement', className: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' },
   SETTLED:            { label: 'Settled',         className: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300' },
   CANCELLED:          { label: 'Cancelled',      className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+  EXPIRED:            { label: '⏰ Expired',     className: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300' },
+}
+
+const EXPIRY_WARNABLE_STATUSES = new Set(['SUBMITTED', 'APPROVED', 'PARTIALLY_APPROVED'])
+
+// Mirrors src/lib/expense-account/combo-request-expiry.ts's daysRemaining —
+// client-side so the list can show a live countdown without extra API calls.
+function daysLeft(req: ComboRequest): number | null {
+  if (!req.submittedAt || !EXPIRY_WARNABLE_STATUSES.has(req.status)) return null
+  const deadline = new Date(req.submittedAt).getTime() + 30 * 24 * 60 * 60 * 1000
+  const msLeft = deadline - Date.now()
+  if (msLeft <= 0) return 0
+  return Math.ceil(msLeft / (24 * 60 * 60 * 1000))
 }
 
 function fmt(n: number) {
@@ -45,6 +59,25 @@ export function ComboRequestsTab({ accountId }: ComboRequestsTabProps) {
   const router = useRouter()
   const [requests, setRequests] = useState<ComboRequest[]>([])
   const [loading, setLoading] = useState(true)
+  const [resubmittingId, setResubmittingId] = useState<string | null>(null)
+
+  const handleResubmit = async (requestId: string) => {
+    setResubmittingId(requestId)
+    try {
+      const res = await fetch(`/api/expense-account/${accountId}/combo-requests/${requestId}/duplicate`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const data = await res.json()
+      if (res.ok && data.newRequestId) {
+        router.push(`/expense-accounts/${accountId}/combo-requests/${data.newRequestId}/edit`)
+      } else {
+        setResubmittingId(null)
+      }
+    } catch {
+      setResubmittingId(null)
+    }
+  }
 
   useEffect(() => {
     fetch(`/api/expense-account/${accountId}/combo-requests`, { credentials: 'include' })
@@ -131,6 +164,7 @@ export function ComboRequestsTab({ accountId }: ComboRequestsTabProps) {
             const badge = isReturned
               ? { label: '↩ Needs Revision', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' }
               : STATUS_BADGE[req.status] ?? { label: req.status, className: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' }
+            const remaining = daysLeft(req)
             return (
               <button
                 key={req.id}
@@ -146,7 +180,17 @@ export function ComboRequestsTab({ accountId }: ComboRequestsTabProps) {
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     {req.creator.name}
                     {req.submittedAt && ` · ${fmtDate(req.submittedAt)}`}
+                    {remaining !== null && (
+                      <span className={remaining <= 2 ? 'text-red-600 dark:text-red-400 font-medium' : remaining <= 7 ? 'text-amber-600 dark:text-amber-400' : ''}>
+                        {' · '}{remaining === 0 ? 'Expires today' : `${remaining} day${remaining === 1 ? '' : 's'} left`}
+                      </span>
+                    )}
                   </p>
+                  {req.status === 'EXPIRED' && req.expiredAt && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Expired {fmtDate(req.expiredAt)} — not paid within 30 days of submission
+                    </p>
+                  )}
                   {isReturned && req.returnNote && (
                     <p className="text-xs text-amber-700 dark:text-amber-400 mt-1 italic line-clamp-2">
                       &ldquo;{req.returnNote}&rdquo;
@@ -174,6 +218,17 @@ export function ComboRequestsTab({ accountId }: ComboRequestsTabProps) {
                   >
                     ✎ Edit
                   </a>
+                )}
+                {req.status === 'EXPIRED' && (
+                  <button
+                    type="button"
+                    disabled={resubmittingId === req.id}
+                    onClick={e => { e.stopPropagation(); handleResubmit(req.id) }}
+                    className="shrink-0 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-700 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-50"
+                    title="Create a new request from this one"
+                  >
+                    {resubmittingId === req.id ? '…' : '↻ Resubmit'}
+                  </button>
                 )}
                 <svg className="w-4 h-4 text-gray-400 dark:text-gray-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

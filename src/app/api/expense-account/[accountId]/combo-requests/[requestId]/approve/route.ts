@@ -4,6 +4,7 @@ import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { updateExpenseAccountBalanceTx } from '@/lib/expense-account-utils'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
+import { isComboRequestExpired, expireComboRequestTx } from '@/lib/expense-account/combo-request-expiry'
 
 export async function POST(
   request: NextRequest,
@@ -39,6 +40,23 @@ export async function POST(
       },
     })
     if (!comboRequest) return NextResponse.json({ error: 'Combo request not found' }, { status: 404 })
+
+    if (isComboRequestExpired(comboRequest)) {
+      const expired = await prisma.$transaction(tx => expireComboRequestTx(tx, comboRequest))
+      try {
+        await emitNotification({
+          userIds: [comboRequest.createdBy],
+          type: 'COMBO_REQUEST_EXPIRED',
+          title: 'Combo Request Expired',
+          message: `"${comboRequest.title}" expired — it wasn't paid within 30 days of submission. Resubmit it to try again.`,
+          linkUrl: `/expense-accounts/${accountId}/combo-requests/${requestId}`,
+        })
+      } catch (notifErr) {
+        console.error('Notification error (non-blocking):', notifErr)
+      }
+      return NextResponse.json({ error: `This request expired on ${expired.expiredAt?.toDateString()} — it was not paid within 30 days of submission and can no longer be approved.` }, { status: 400 })
+    }
+
     if (comboRequest.status !== 'SUBMITTED') {
       return NextResponse.json({ error: 'Only SUBMITTED requests can be approved' }, { status: 400 })
     }

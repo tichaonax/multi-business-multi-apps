@@ -7879,6 +7879,7 @@ enum ComboPaymentRequestStatus {
   CANCELLED
   SETTLE_REQUESTED
   SETTLED
+  EXPIRED
 }
 
 enum ComboPaymentRequestSectionType {
@@ -7904,6 +7905,7 @@ model ComboPaymentRequests {
   approvedAt        DateTime?
   paidAt            DateTime?
   cancelledAt       DateTime?
+  expiredAt         DateTime?
   linkedPaymentId   String?                   @unique @map("linked_payment_id")
   returnNote        String?
   returnedAt        DateTime?

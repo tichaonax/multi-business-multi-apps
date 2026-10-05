@@ -25,6 +25,7 @@ interface Transaction {
   type: 'DEPOSIT' | 'PAYMENT'
   amount: number
   date: string
+  paymentDate?: string | null // original requested date (payments only) — may predate `date` when paidAt was set later
   description: string
   balanceAfter: number
   // Deposit-specific
@@ -85,6 +86,18 @@ interface TransactionHistoryProps {
   businessId?: string
   businessName?: string
   onRepeatPayment?: (paymentId: string) => void
+}
+
+// Resolves a PAYMENT transaction's real registered payee (not the free-text
+// notes it may also match on) — shared by singlePayeeMatch and the "show
+// only these" filter it drives.
+function resolveTransactionPayee(t: Transaction): { type: string; id: string; name: string } | null {
+  if (t.payeeEmployee) return { type: 'EMPLOYEE', id: t.payeeEmployee.id, name: t.payeeEmployee.fullName }
+  if (t.payeeUser) return { type: 'USER', id: t.payeeUser.id, name: t.payeeUser.name }
+  if (t.payeePerson) return { type: 'PERSON', id: t.payeePerson.id, name: t.payeePerson.fullName }
+  if (t.payeeBusiness) return { type: 'BUSINESS', id: t.payeeBusiness.id, name: t.payeeBusiness.name }
+  if (t.payeeSupplier) return { type: 'SUPPLIER', id: t.payeeSupplier.id, name: t.payeeSupplier.name }
+  return null
 }
 
 function localDateStr(d: Date): string {
@@ -449,6 +462,18 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
     })
   }
 
+  // A payment's displayed `date` is when it was actually paid (paidAt), which
+  // can trail the originally-requested paymentDate by a long gap when a
+  // request sat unpaid before being settled — surface that gap so the date
+  // shown isn't mistaken for when the request was made.
+  const paidLateNote = (transaction: Transaction): string | null => {
+    if (!transaction.paymentDate) return null
+    const paid = new Date(transaction.date).getTime()
+    const requested = new Date(transaction.paymentDate).getTime()
+    if (Math.abs(paid - requested) < 24 * 60 * 60 * 1000) return null
+    return `Requested ${formatDate(transaction.paymentDate)}`
+  }
+
   const handleReset = () => {
     const today = new Date()
     const from = new Date(today); from.setDate(from.getDate() - 29)
@@ -539,32 +564,40 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   const hasOtherActiveFilters = typeFilter !== defaultType ||
     sourceTypeFilter !== '' || sortOrder !== defaultSortOrder || minAmount !== '' || maxAmount !== ''
 
-  // When a free-text search narrows the loaded results down to payments for
-  // a single real payee, surface a shortcut to that payee's full cross-
-  // account history (Payee Payment History report) — the search here is
-  // free-text (it also matches notes, so results may include payments made
-  // *about* this payee rather than *to* them — see the duplicate-looking
-  // "Elisha" case), so this only fires when every PAYMENT result actually
-  // resolves to the exact same registered payee.
+  // When a free-text search matches a real registered payee by name, surface
+  // a shortcut to that payee's full cross-account history (Payee Payment
+  // History report). The search here is free-text (it also matches notes),
+  // so results may include payments made *about* this payee rather than *to*
+  // them (e.g. a Combo Request paid to someone else whose notes mention the
+  // searched name) — those are filtered out by requiring the resolved
+  // payee's own name to match the search text, not just by appearing in the
+  // result set, so unrelated noise doesn't prevent (or get confused with)
+  // the real match.
   const singlePayeeMatch = useMemo(() => {
-    if (!search.trim()) return null
-    const resolve = (t: Transaction): { type: string; id: string; name: string } | null => {
-      if (t.payeeEmployee) return { type: 'EMPLOYEE', id: t.payeeEmployee.id, name: t.payeeEmployee.fullName }
-      if (t.payeeUser) return { type: 'USER', id: t.payeeUser.id, name: t.payeeUser.name }
-      if (t.payeePerson) return { type: 'PERSON', id: t.payeePerson.id, name: t.payeePerson.fullName }
-      if (t.payeeBusiness) return { type: 'BUSINESS', id: t.payeeBusiness.id, name: t.payeeBusiness.name }
-      if (t.payeeSupplier) return { type: 'SUPPLIER', id: t.payeeSupplier.id, name: t.payeeSupplier.name }
-      return null
-    }
-    const resolved = transactions
+    const q = search.trim().toLowerCase()
+    if (!q) return null
+    const matches = transactions
       .filter(t => t.type === 'PAYMENT' && t.payeeType && t.payeeType !== 'COMBO')
-      .map(resolve)
-      .filter((p): p is { type: string; id: string; name: string } => !!p)
-    if (resolved.length === 0) return null
-    const uniqueKeys = new Set(resolved.map(p => `${p.type}:${p.id}`))
+      .map(t => ({ t, payee: resolveTransactionPayee(t) }))
+      .filter((x): x is { t: Transaction; payee: { type: string; id: string; name: string } } => !!x.payee)
+      .filter(x => x.payee.name.toLowerCase().includes(q))
+    if (matches.length === 0) return null
+    const uniqueKeys = new Set(matches.map(x => `${x.payee.type}:${x.payee.id}`))
     if (uniqueKeys.size !== 1) return null
-    return resolved[0]
+    const total = matches.reduce((sum, x) => sum + x.t.amount, 0)
+    const transactionIds = new Set(matches.map(x => x.t.id))
+    return { type: matches[0].payee.type, id: matches[0].payee.id, name: matches[0].payee.name, total, transactionIds }
   }, [search, transactions])
+
+  // "Show only these" toggle on the matching-payee banner — lets the user
+  // narrow the visible list down to exactly the matched payee's payments,
+  // since the free-text search above it may still be showing unrelated
+  // results (e.g. Combo Request notes that merely mention the same name).
+  const [payeeOnlyFilter, setPayeeOnlyFilter] = useState(false)
+  useEffect(() => { setPayeeOnlyFilter(false) }, [search])
+  const displayedTransactions = (payeeOnlyFilter && singlePayeeMatch)
+    ? transactions.filter(t => singlePayeeMatch.transactionIds.has(t.id))
+    : transactions
 
   // Extracted so the mobile card list (below) can reuse the exact same
   // actions — Edit/Repeat/Reverse/receipt/project/voucher — instead of
@@ -963,14 +996,23 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
       {singlePayeeMatch && (
         <div className="px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800 flex items-center justify-between gap-2 flex-wrap">
           <span className="text-xs text-blue-700 dark:text-blue-300">
-            All results are payments to <strong>{singlePayeeMatch.name}</strong>
+            Matching payee: <strong>{singlePayeeMatch.name}</strong> — {formatCurrency(singlePayeeMatch.total)}
           </span>
-          <Link
-            href={`/expense-accounts/reports/payee-history?payeeType=${singlePayeeMatch.type}&payeeId=${singlePayeeMatch.id}&payeeName=${encodeURIComponent(singlePayeeMatch.name)}&allTime=true`}
-            className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
-          >
-            View Full Payment History →
-          </Link>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setPayeeOnlyFilter(v => !v)}
+              className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+            >
+              {payeeOnlyFilter ? 'Show all results' : `Show only these (${singlePayeeMatch.transactionIds.size})`}
+            </button>
+            <Link
+              href={`/expense-accounts/reports/payee-history?payeeType=${singlePayeeMatch.type}&payeeId=${singlePayeeMatch.id}&payeeName=${encodeURIComponent(singlePayeeMatch.name)}&allTime=true`}
+              className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+            >
+              View Full Payment History →
+            </Link>
+          </div>
         </div>
       )}
 
@@ -988,16 +1030,18 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
             </div>
           </div>
         )}
-        {transactions.length === 0 ? (
+        {displayedTransactions.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-500 dark:text-gray-400">No transactions found</p>
+            <p className="text-gray-500 dark:text-gray-400">
+              {payeeOnlyFilter ? 'No matching payments in this date range' : 'No transactions found'}
+            </p>
           </div>
         ) : (
           <>
           {/* Mobile card list (MBM-299 responsive-reports template) — vertical
               scroll only. Desktop keeps the full table below (hidden here). */}
           <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700">
-            {transactions.map((transaction) => {
+            {displayedTransactions.map((transaction) => {
               const isDeposit = transaction.type === 'DEPOSIT'
               return (
                 <div
@@ -1013,7 +1057,12 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                   className="p-3 space-y-1.5 cursor-pointer"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{formatDate(transaction.date)}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {formatDate(transaction.date)}
+                      {paidLateNote(transaction) && (
+                        <span className="block text-[10px] text-amber-600 dark:text-amber-400">{paidLateNote(transaction)}</span>
+                      )}
+                    </span>
                     <span className={`text-sm font-semibold ${isDeposit ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                       {isDeposit ? '+' : '-'}{formatCurrency(Math.abs(transaction.amount))}
                     </span>
@@ -1054,7 +1103,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
             })}
           </div>
 
-          <div className="hidden sm:block overflow-x-auto">
+          <div className="hidden sm:block">
             <table className="w-full border-separate border-spacing-0">
               <thead
                 className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 sticky z-10 top-[calc(3.5rem+1rem+var(--filters-h,0px))] sm:top-[calc(4rem+1rem+var(--filters-h,0px))]"
@@ -1085,7 +1134,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {transactions.map((transaction) => {
+                {displayedTransactions.map((transaction) => {
                   const isDeposit = transaction.type === 'DEPOSIT'
 
                   return (
@@ -1106,6 +1155,9 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                     >
                       <td className="px-2 sm:px-4 py-2 sm:py-3 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-gray-100">
                         {formatDate(transaction.date)}
+                        {paidLateNote(transaction) && (
+                          <span className="block text-[10px] text-amber-600 dark:text-amber-400">{paidLateNote(transaction)}</span>
+                        )}
                       </td>
 
                       <td className="px-2 sm:px-4 py-2 sm:py-3 whitespace-nowrap">

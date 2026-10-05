@@ -77,6 +77,7 @@ interface ComboRequest {
   approvedAt: string | null
   paidAt: string | null
   cancelledAt: string | null
+  expiredAt: string | null
   linkedPaymentId: string | null
   creator: { id: string; name: string }
   approver: { id: string; name: string } | null
@@ -108,6 +109,7 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   CANCELLED:          { label: 'Cancelled',         className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
   SETTLE_REQUESTED:   { label: 'Awaiting Settlement', className: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' },
   SETTLED:            { label: 'Settled',           className: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300' },
+  EXPIRED:            { label: '⏰ Expired',        className: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300' },
 }
 
 const SECTION_ICONS: Record<string, string> = {
@@ -158,6 +160,7 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
   const [showSubmitPanel, setShowSubmitPanel] = useState(false)
   const [overrideAmountStr, setOverrideAmountStr] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [resubmitting, setResubmitting] = useState(false)
   const [duplicating, setDuplicating] = useState(false)
   const [showReturnPanel, setShowReturnPanel] = useState(false)
   const [returnNoteInput, setReturnNoteInput] = useState('')
@@ -267,6 +270,23 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
       toast.error('Failed to submit request')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function handleResubmit() {
+    setResubmitting(true)
+    try {
+      const res = await fetch(`/api/expense-account/${accountId}/combo-requests/${requestId}/duplicate`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const data = await res.json()
+      if (!res.ok || !data.newRequestId) { toast.error(data.error || 'Failed to resubmit'); return }
+      router.push(`/expense-accounts/${accountId}/combo-requests/${data.newRequestId}/edit`)
+    } catch {
+      toast.error('Failed to resubmit request')
+    } finally {
+      setResubmitting(false)
     }
   }
 
@@ -420,6 +440,27 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
               ↩ Returned for edits{request.returnedByUser ? ` by ${request.returnedByUser.name}` : ''}
             </p>
             <p className="mt-1 text-yellow-700 dark:text-yellow-400 italic">&ldquo;{request.returnNote}&rdquo;</p>
+          </div>
+        )}
+
+        {/* Expired banner */}
+        {request.status === 'EXPIRED' && (
+          <div className="bg-slate-50 dark:bg-slate-900/20 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-sm">
+            <p className="font-medium text-slate-700 dark:text-slate-300">
+              ⏰ Expired{request.expiredAt ? ` on ${fmtDate(request.expiredAt)}` : ''} — not paid within 30 days of submission
+            </p>
+            <p className="mt-1 text-slate-600 dark:text-slate-400 text-xs">
+              Any funds that were approved for this request have been returned to the account. Resubmit it to try again.
+            </p>
+            {isCreator && (
+              <button
+                onClick={handleResubmit}
+                disabled={resubmitting}
+                className="mt-2 px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 disabled:opacity-50"
+              >
+                {resubmitting ? 'Resubmitting…' : '↻ Resubmit as New Request'}
+              </button>
+            )}
           </div>
         )}
 
