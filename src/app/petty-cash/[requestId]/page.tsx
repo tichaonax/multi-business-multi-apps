@@ -409,9 +409,9 @@ export default function PettyCashDetailPage() {
     if (!subcategoryId) { setSpendSubSubcategories([]); return }
     setLoadingSpendSubSubcats(true)
     try {
-      const r = await fetch(`/api/expense-categories/subcategories/${subcategoryId}/sub-subcategories`, { credentials: 'include' })
+      const r = await fetch(`/api/expense-categories/${subcategoryId}/subcategories`, { credentials: 'include' })
       const j = await r.json()
-      const subs = (j.subSubcategories || []).sort((a: any, b: any) => a.name.localeCompare(b.name))
+      const subs = (j.subcategories || []).sort((a: any, b: any) => a.name.localeCompare(b.name))
       setSpendSubSubcategories(subs)
     } catch { setSpendSubSubcategories([]) }
     finally { setLoadingSpendSubSubcats(false) }

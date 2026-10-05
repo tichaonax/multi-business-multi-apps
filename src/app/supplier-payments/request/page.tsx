@@ -186,10 +186,10 @@ export default function SubmitSupplierPaymentRequestPage() {
             line.amount = item.amount?.toString() || ''
             if (item.categoryId) {
               try {
-                const subRes = await fetch(`/api/expense-categories/subcategories/${item.categoryId}/sub-subcategories`, { credentials: 'include' })
+                const subRes = await fetch(`/api/expense-categories/${item.categoryId}/subcategories`, { credentials: 'include' })
                 if (subRes.ok) {
                   const subJson = await subRes.json()
-                  line.subcategoryItems = (subJson.subSubcategories || []).map((s: any) => ({
+                  line.subcategoryItems = (subJson.subcategories || []).map((s: any) => ({
                     id: s.id, name: s.name, emoji: s.emoji || null,
                   }))
                 }

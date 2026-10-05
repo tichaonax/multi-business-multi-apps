@@ -362,10 +362,13 @@ export default function SmartQuickPaymentModal({
   const loadLevel3 = async (lineId: string, level2Id: string) => {
     updateLine(lineId, { loadingLevel3: true, level3Id: '', level3Items: [] })
     try {
-      const res = await fetch(`/api/expense-categories/subcategories/${level2Id}/sub-subcategories`, { credentials: 'include' })
+      // level2Id may be an ExpenseCategory.id (level1 was a domain) or an
+      // ExpenseSubcategory.id (level1 was itself a global category) — the
+      // domain/category endpoint's 3-tier fallback resolves either correctly.
+      const res = await fetch(`/api/expense-categories/${level2Id}/subcategories`, { credentials: 'include' })
       if (res.ok) {
         const json = await res.json()
-        const items: SelectItem[] = (json.subSubcategories ?? []).map((s: any) => ({
+        const items: SelectItem[] = (json.subcategories ?? []).map((s: any) => ({
           id: s.id, name: s.name, emoji: s.emoji ?? null,
         }))
         updateLine(lineId, { level3Items: items, loadingLevel3: false })

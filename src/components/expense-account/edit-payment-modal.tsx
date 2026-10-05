@@ -637,10 +637,13 @@ export function EditPaymentModal({
       return
     }
     setLoadingSubSub(true)
-    fetch(`/api/expense-categories/subcategories/${subId}/sub-subcategories`, { credentials: 'include' })
+    // subId may be an ExpenseCategory.id (domain path) or an
+    // ExpenseSubcategory.id (global-category path) — the domain/category
+    // endpoint's 3-tier fallback resolves either correctly.
+    fetch(`/api/expense-categories/${subId}/subcategories`, { credentials: 'include' })
       .then(r => r.json())
       .then(data => {
-        const opts = (data.subSubcategories ?? []).map((s: any) => ({
+        const opts = (data.subcategories ?? []).map((s: any) => ({
           id: s.id,
           label: `${s.emoji || '📂'} ${s.name}`,
         }))

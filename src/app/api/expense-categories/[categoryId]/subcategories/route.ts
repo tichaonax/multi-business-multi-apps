@@ -6,8 +6,15 @@ import { getServerUser } from '@/lib/get-server-user'
 
 /**
  * GET /api/expense-categories/[categoryId]/subcategories
- * Fetch categories for a specific domain (categoryId is actually domainId)
- * This is called when a user selects a domain to see its categories
+ * Fetch the next level down for whatever id is passed — callers in
+ * payment-form.tsx / quick-payment-modal.tsx reuse the same "load the next
+ * cascade level" function for an id that may be an ExpenseDomains.id, an
+ * ExpenseCategories.id, or (via the global-category, no-domain path) an
+ * ExpenseSubcategories.id, depending on which picker the user went through.
+ * Three-tier fallback so it's correct no matter which level it actually is:
+ *   1. domainId       → its ExpenseCategories
+ *   2. ExpenseCategory.id    → its ExpenseSubcategories
+ *   3. ExpenseSubcategory.id → its ExpenseSubSubcategories
  *
  * Query params:
  * - includeUserCreated: Include user-created categories (default: true)
@@ -47,7 +54,32 @@ export async function GET(
       });
 
       if (!globalCategory) {
-        return NextResponse.json({ error: 'Category not found' }, { status: 404 });
+        // Second fallback: treat as an ExpenseSubcategory ID — return its
+        // ExpenseSubSubcategories (same "subcategories" response key for
+        // caller compatibility, even though these are one level deeper).
+        const globalSubcategory = await prisma.expenseSubcategories.findUnique({
+          where: { id: categoryId },
+          select: { id: true, name: true },
+        });
+
+        if (!globalSubcategory) {
+          return NextResponse.json({ error: 'Category not found' }, { status: 404 });
+        }
+
+        const subSubcategories = await prisma.expenseSubSubcategories.findMany({
+          where: {
+            subcategoryId: categoryId,
+            ...(includeUserCreated ? {} : { isUserCreated: false }),
+          },
+          select: { id: true, name: true, emoji: true, isUserCreated: true, createdAt: true },
+          orderBy: { name: 'asc' },
+        });
+
+        return NextResponse.json({
+          category: globalSubcategory,
+          subcategories: subSubcategories,
+          count: subSubcategories.length,
+        });
       }
 
       const subcategories = await prisma.expenseSubcategories.findMany({
