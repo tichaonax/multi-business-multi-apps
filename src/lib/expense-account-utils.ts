@@ -698,33 +698,12 @@ export async function getSiblingAccounts(parentAccountId: string) {
  * @param accountId - Either parent or sibling account ID
  */
 export async function getAccountWithSiblings(accountId: string) {
-  // First, find the account
+  // There's no parentAccount/siblingAccounts relation in the schema — just
+  // the plain parentAccountId scalar — so resolve both ends with separate
+  // queries the same way getSiblingAccounts() above does.
   const account = await prisma.expenseAccounts.findUnique({
     where: { id: accountId },
     include: {
-      parentAccount: {
-        include: {
-          siblingAccounts: {
-            include: {
-              creator: {
-                select: { id: true, name: true, email: true },
-              },
-            },
-            orderBy: { siblingNumber: 'asc' },
-          },
-          creator: {
-            select: { id: true, name: true, email: true },
-          },
-        },
-      },
-      siblingAccounts: {
-        include: {
-          creator: {
-            select: { id: true, name: true, email: true },
-          },
-        },
-        orderBy: { siblingNumber: 'asc' },
-      },
       creator: {
         select: { id: true, name: true, email: true },
       },
@@ -735,20 +714,33 @@ export async function getAccountWithSiblings(accountId: string) {
     throw new Error('Account not found')
   }
 
-  // If this is a sibling, return the parent with all siblings
-  if (account.isSibling && account.parentAccount) {
+  // If this is a sibling, resolve the parent and all its siblings.
+  if (account.isSibling && account.parentAccountId) {
+    const parentAccount = await prisma.expenseAccounts.findUnique({
+      where: { id: account.parentAccountId },
+      include: {
+        creator: {
+          select: { id: true, name: true, email: true },
+        },
+      },
+    })
+    if (!parentAccount) {
+      throw new Error('Parent account not found')
+    }
+    const siblings = await getSiblingAccounts(parentAccount.id)
     return {
-      parentAccount: account.parentAccount,
-      siblings: account.parentAccount.siblingAccounts,
+      parentAccount,
+      siblings,
       isSibling: true,
       currentAccount: account,
     }
   }
 
-  // If this is a parent, return it with siblings
+  // If this is a parent, return it with its siblings.
+  const siblings = await getSiblingAccounts(account.id)
   return {
     parentAccount: account,
-    siblings: account.siblingAccounts,
+    siblings,
     isSibling: false,
     currentAccount: account,
   }

@@ -8,6 +8,7 @@
  *   await emitNotification({ userIds: [createdBy], type: 'PAYMENT_APPROVED', ... })
  */
 
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { emitToUser } from '@/lib/customer-display/socket-server'
 
@@ -71,7 +72,7 @@ export async function emitNotification(payload: NotificationPayload): Promise<vo
     const created = await Promise.all(
       userIds.map(userId =>
         prisma.appNotification.create({
-          data: { userId, type, title, message, linkUrl: linkUrl ?? null, metadata: metadata ?? null, expiresAt },
+          data: { userId, type, title, message, linkUrl: linkUrl ?? null, metadata: metadata ?? Prisma.DbNull, expiresAt },
           select: { id: true, userId: true, type: true, title: true, message: true, linkUrl: true, createdAt: true },
         })
       )

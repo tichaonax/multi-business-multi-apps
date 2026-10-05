@@ -324,6 +324,10 @@ export interface CoreBusinessPermissions {
   // Services (Business-level - access Services link in sidebar)
   canViewServices: boolean;
 
+  // Universal POS badges
+  canViewPOSSoldCount: boolean;   // Show "X sold today" badge on POS product cards
+  canViewPOSStockCount: boolean;  // Show "X left" stock remaining badge on POS product cards
+
   // AYLI Pool Item Management (Restaurant)
   canCreateAYLIPoolItems: boolean;
   canDeleteAYLIPoolItems: boolean;
@@ -907,6 +911,8 @@ export const CLOTHING_ASSOCIATE_PERMISSIONS: ClothingPermissions = {
   canViewStockLevels: true,
   canReceiveStock: false,
   canTransferStock: false,
+  canViewPOSSoldCount: false,
+  canViewPOSStockCount: true,
 
   // Sales & Retail - Core POS functions
   canProcessSales: true,
@@ -3378,6 +3384,21 @@ export const DRIVER_PERMISSIONS: UserLevelPermissions = {
   canResetPayrollAcrossBusinesses: false,
   canDeletePayrollAcrossBusinesses: false,
 
+  // Global Payroll Management - No access for drivers
+  canAccessPayroll: false,
+  canManagePayroll: false,
+  canCreatePayrollPeriod: false,
+  canEditPayrollEntry: false,
+  canApprovePayroll: false,
+  canPrintPayrollEntryDetails: false,
+  canEnterPaySlips: false,
+  canReconcilePayroll: false,
+  canViewPayrollReports: false,
+  canManageAdvances: false,
+
+  // Expense Category Management - No access for drivers
+  canCreateExpenseSubcategories: false,
+
   // Inventory Categories - No access
   canCreateInventoryCategories: false,
   canEditInventoryCategories: false,
@@ -3421,6 +3442,10 @@ export const DRIVER_PERMISSIONS: UserLevelPermissions = {
   canZeroOutInventory: false,
   canManageAssets: false,
   canManageExpiryActions: false,
+
+  // Warehouse Staging - No access for drivers
+  canAccessWarehouse: false,
+  canMoveWarehouseToInventory: false,
 };
 
 // Restaurant Associate Permission Preset - Minimal permissions with receipt printing for POS operations
@@ -3470,6 +3495,21 @@ export const RESTAURANT_ASSOCIATE_USER_PERMISSIONS: UserLevelPermissions = {
   canResetPayrollAcrossBusinesses: false,
   canDeletePayrollAcrossBusinesses: false,
 
+  // Global Payroll Management - No access
+  canAccessPayroll: false,
+  canManagePayroll: false,
+  canCreatePayrollPeriod: false,
+  canEditPayrollEntry: false,
+  canApprovePayroll: false,
+  canPrintPayrollEntryDetails: false,
+  canEnterPaySlips: false,
+  canReconcilePayroll: false,
+  canViewPayrollReports: false,
+  canManageAdvances: false,
+
+  // Expense Category Management - No access
+  canCreateExpenseSubcategories: false,
+
   // Inventory Categories - No access
   canCreateInventoryCategories: false,
   canEditInventoryCategories: false,
@@ -3513,6 +3553,10 @@ export const RESTAURANT_ASSOCIATE_USER_PERMISSIONS: UserLevelPermissions = {
   canZeroOutInventory: false,
   canManageAssets: false,
   canManageExpiryActions: false,
+
+  // Warehouse Staging - No access
+  canAccessWarehouse: false,
+  canMoveWarehouseToInventory: false,
 };
 
 // Vehicle Parts Inventory (MBM-268) role presets — layered onto
