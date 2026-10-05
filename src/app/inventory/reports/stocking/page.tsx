@@ -129,10 +129,6 @@ export default function StockingReportPage() {
           landed in the same window. Expenses are correlated by date range only — not a hard link to a specific stocking
           run — use the category filter below to narrow down to the ones that are actually stocking-related.
         </p>
-        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-          ⚠ Only stock received through Inventory&apos;s bulk-add-stock flow is logged with cost history — items
-          registered via the separate &quot;Bulk Products&quot; quick-registration modal are not yet included here.
-        </p>
       </div>
 
       <div className="px-4 md:px-6 pb-4">

@@ -181,11 +181,14 @@ export async function PUT(
 
 /**
  * DELETE /api/expense-account/receipts/[receiptId]
- * The creator (within 7 days) or admin may delete, same as before — now also
- * a cashier for the payment's account, audit-logged as an amendment (MBM-271).
+ * The creator (within 7 days), a cashier for the payment's account, or an
+ * admin may delete. Every deletion requires a reason and is audit-logged
+ * with the full receipt snapshot (MBM-271 / receipt deletion audit trail) —
+ * previously this was only logged when a cashier deleted someone else's
+ * receipt, and with no reason captured at all.
  */
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ receiptId: string }> }
 ) {
   try {
@@ -197,12 +200,24 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    const body = await request.json().catch(() => ({}))
+    const reason: string = body?.reason?.trim() || ''
+    if (!reason) return NextResponse.json({ error: 'A reason is required to delete a receipt' }, { status: 400 })
+
     const { receiptId } = await params
 
     const receipt = await prisma.expensePaymentReceipts.findUnique({
       where: { id: receiptId },
       select: {
-        id: true, createdBy: true, amount: true, receiptDate: true, description: true, expensePaymentId: true,
+        id: true, createdBy: true, amount: true, receiptDate: true, description: true,
+        receiptNumber: true, notes: true, imageId: true, expensePaymentId: true,
+        payeeType: true, payeeName: true,
+        payeePerson: { select: { fullName: true } },
+        payeeBusiness: { select: { name: true } },
+        payeeSupplier: { select: { name: true } },
+        category: { select: { name: true } },
+        subcategory: { select: { name: true } },
+        creator: { select: { name: true, email: true } },
         expensePayment: { select: { expenseAccountId: true, receipt_review: { select: { status: true } } } },
       },
     })
@@ -223,19 +238,34 @@ export async function DELETE(
       return NextResponse.json({ error: 'This receipt has already been approved by the cashier and can no longer be deleted' }, { status: 403 })
     }
 
+    const payeeName =
+      receipt.payeePerson?.fullName ??
+      receipt.payeeBusiness?.name ??
+      receipt.payeeSupplier?.name ??
+      (receipt.payeeType === 'FREEFORM' ? receipt.payeeName : null)
+
     await prisma.expensePaymentReceipts.delete({ where: { id: receiptId } })
 
-    if (isCashier) {
-      await createAuditLog({
-        userId: user.id,
-        action: 'RECEIPT_AMENDED',
-        entityType: 'ExpensePaymentReceipt',
-        entityId: receiptId,
-        oldValues: { amount: Number(receipt.amount), receiptDate: receipt.receiptDate, description: receipt.description },
-        newValues: { deleted: true },
-        metadata: { paymentId: receipt.expensePaymentId },
-      }).catch(err => console.error('[receipts DELETE] audit log error (non-blocking):', err))
-    }
+    await createAuditLog({
+      userId: user.id,
+      action: 'RECEIPT_DELETED',
+      entityType: 'ExpensePaymentReceipt',
+      entityId: receiptId,
+      oldValues: {
+        amount: Number(receipt.amount),
+        receiptDate: receipt.receiptDate,
+        description: receipt.description,
+        receiptNumber: receipt.receiptNumber,
+        notes: receipt.notes,
+        hadAttachment: !!receipt.imageId,
+        payeeType: receipt.payeeType,
+        payeeName,
+        category: receipt.category?.name ?? null,
+        subcategory: receipt.subcategory?.name ?? null,
+        originallyCreatedBy: receipt.creator.name,
+      },
+      metadata: { paymentId: receipt.expensePaymentId, reason, deletedByRole: isAdmin ? 'admin' : isCashier ? 'cashier' : 'owner' },
+    }).catch(err => console.error('[receipts DELETE] audit log error (non-blocking):', err))
 
     return new NextResponse(null, { status: 204 })
   } catch (error) {

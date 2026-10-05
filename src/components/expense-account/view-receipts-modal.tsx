@@ -167,11 +167,16 @@ export function ViewReceiptsModal({
   }
 
   async function handleDelete(receiptId: string) {
+    const reason = window.prompt('Reason for deleting this receipt (required — kept in the audit log):')
+    if (!reason?.trim()) return
+
     setDeletingId(receiptId)
     try {
       const res = await fetch(`/api/expense-account/receipts/${receiptId}`, {
         method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
+        body: JSON.stringify({ reason: reason.trim() }),
       })
       if (res.ok || res.status === 204) {
         await loadReceipts()

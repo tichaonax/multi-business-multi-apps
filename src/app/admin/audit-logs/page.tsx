@@ -33,11 +33,17 @@ interface AuditLog {
   entityId: string;
   timestamp: string;
   metadata: any;
-  user: {
+  oldValues: any;
+  newValues: any;
+  changes: any;
+  // Prisma relation field is `users` (plural, matching the schema relation
+  // name), not `user` — the UI previously referenced `log.user` here, which
+  // is always undefined, so the user name/email never actually rendered.
+  users: {
     id: string;
     name: string;
     email: string;
-  };
+  } | null;
 }
 
 interface AuditStatistics {
@@ -57,6 +63,43 @@ interface AuditStatistics {
   }>;
 }
 
+function formatDetailValue(value: unknown): string {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'object') {
+    // {from, to} shape from generateChangeLog, or a nested object — print compactly
+    const obj = value as Record<string, unknown>;
+    if ('from' in obj && 'to' in obj) return `${formatDetailValue(obj.from)} → ${formatDetailValue(obj.to)}`;
+    return JSON.stringify(value);
+  }
+  // ISO date strings render friendlier as a locale date/time
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) {
+    const d = new Date(value);
+    if (!isNaN(d.getTime())) return d.toLocaleString();
+  }
+  return String(value);
+}
+
+function humanizeKey(key: string): string {
+  return key.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).trim();
+}
+
+function DetailBlock({ title, data }: { title: string; data: Record<string, unknown> }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">{title}</p>
+      <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-sm bg-gray-50 dark:bg-gray-900/40 rounded-md p-3">
+        {Object.entries(data).map(([key, value]) => (
+          <div key={key} className="flex gap-2">
+            <dt className="text-gray-500 dark:text-gray-400 shrink-0">{humanizeKey(key)}:</dt>
+            <dd className="text-gray-900 dark:text-gray-100 break-words">{formatDetailValue(value)}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 export default function AuditLogsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -68,6 +111,7 @@ export default function AuditLogsPage() {
   const [selectedEntityType, setSelectedEntityType] = useState('');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -265,6 +309,12 @@ export default function AuditLogsPage() {
               <option value="DATA_EXPORT">Data Export</option>
               <option value="DATA_IMPORT">Data Import</option>
               <option value="BACKUP_CREATED">Backup Created</option>
+              <option value="RECEIPT_SUBMITTED">Receipt Submitted</option>
+              <option value="RECEIPT_APPROVED">Receipt Approved</option>
+              <option value="RECEIPT_AMENDED">Receipt Amended</option>
+              <option value="RECEIPT_DELETED">Receipt Deleted</option>
+              <option value="RECEIPT_OVER_LIMIT_OVERRIDE">Receipt Over-Limit Override</option>
+              <option value="PAYMENT_REVERSED">Payment Reversed</option>
             </select>
 
             <select
@@ -281,6 +331,8 @@ export default function AuditLogsPage() {
               <option value="DataExport">Data Export</option>
               <option value="DataImport">Data Import</option>
               <option value="Backup">Backup</option>
+              <option value="ExpensePaymentReceipt">Expense Payment Receipt</option>
+              <option value="ExpenseAccount">Expense Account</option>
             </select>
           </div>
         </Card>
@@ -312,44 +364,80 @@ export default function AuditLogsPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {logs.map((log) => (
-                <div
-                  key={log.id}
-                  className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800"
-                >
-                  <div className="flex items-center space-x-4">
-                    <div className="flex-shrink-0">
-                      {getActionIcon(log.action)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <Badge variant={getActionVariant(log.action)}>
-                          {log.action}
-                        </Badge>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                          {log.entityType}
-                        </span>
+              {logs.map((log) => {
+                const isExpanded = expandedId === log.id;
+                const reason = log.metadata?.reason;
+                const hasDetail = log.oldValues || log.newValues || log.changes || (log.metadata && Object.keys(log.metadata).some(k => !['ipAddress', 'userAgent', 'hash'].includes(k)));
+                return (
+                  <div key={log.id} className="border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <button
+                      type="button"
+                      onClick={() => hasDetail && setExpandedId(isExpanded ? null : log.id)}
+                      className={`w-full flex items-center justify-between p-4 text-left ${hasDetail ? 'cursor-pointer' : 'cursor-default'}`}
+                    >
+                      <div className="flex items-center space-x-4">
+                        <div className="flex-shrink-0">
+                          {getActionIcon(log.action)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <Badge variant={getActionVariant(log.action)}>
+                              {log.action}
+                            </Badge>
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              {log.entityType}
+                            </span>
+                            {reason && (
+                              <span className="text-xs text-amber-600 dark:text-amber-400 truncate max-w-xs">— "{reason}"</span>
+                            )}
+                          </div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {log.users?.name} ({log.users?.email})
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            {formatTimestamp(log.timestamp)}
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                        {log.user?.name} ({log.user?.email})
-                      </p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {formatTimestamp(log.timestamp)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex-shrink-0 text-right">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Entity ID: {log.entityId.substring(0, 8)}...
-                    </p>
-                    {log.metadata?.ipAddress && (
-                      <p className="text-xs text-gray-400">
-                        IP: {log.metadata.ipAddress}
-                      </p>
+                      <div className="flex-shrink-0 text-right">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Entity ID: {log.entityId.substring(0, 8)}...
+                        </p>
+                        {log.metadata?.ipAddress && (
+                          <p className="text-xs text-gray-400">
+                            IP: {log.metadata.ipAddress}
+                          </p>
+                        )}
+                        {hasDetail && (
+                          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">{isExpanded ? 'Hide details ▲' : 'Show details ▼'}</p>
+                        )}
+                      </div>
+                    </button>
+                    {isExpanded && (
+                      <div className="px-4 pb-4 pt-0 border-t border-gray-200 dark:border-gray-700 space-y-3">
+                        {reason && (
+                          <div className="pt-3">
+                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Reason</p>
+                            <p className="text-sm text-gray-900 dark:text-gray-100">{reason}</p>
+                          </div>
+                        )}
+                        {log.oldValues && Object.keys(log.oldValues).length > 0 && (
+                          <DetailBlock title={log.action === 'DELETE' || log.action === 'RECEIPT_DELETED' ? 'Details (before deletion)' : 'Previous Values'} data={log.oldValues} />
+                        )}
+                        {log.newValues && Object.keys(log.newValues).length > 0 && (
+                          <DetailBlock title="New Values" data={log.newValues} />
+                        )}
+                        {log.metadata && Object.keys(log.metadata).filter(k => !['ipAddress', 'userAgent', 'hash', 'reason'].includes(k)).length > 0 && (
+                          <DetailBlock
+                            title="Other Metadata"
+                            data={Object.fromEntries(Object.entries(log.metadata).filter(([k]) => !['ipAddress', 'userAgent', 'hash', 'reason'].includes(k)))}
+                          />
+                        )}
+                      </div>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 

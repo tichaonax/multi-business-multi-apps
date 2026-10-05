@@ -55,6 +55,7 @@
 17. [Suppliers & Payees](#17-suppliers--payees)
     - [Attaching Receipts to Expense Payments](#attaching-receipts-to-expense-payments)
     - [Payee Receipt Report](#payee-receipt-report)
+    - [Missing / Partial Receipts Report](#missing--partial-receipts-report)
     - [Payee Payment History Report](#payee-payment-history-report)
 18. [Batch EOD Catch-Up — Manager and Cashier Roles](#18-batch-eod-catch-up--manager-and-cashier-roles)
 19. [Employee Termination Checklist](#employee-termination--full-checklist)
@@ -93,6 +94,7 @@
     - [Requester — Requesting Settlement (Returning Change)](#requester--requesting-settlement-returning-change)
     - [Cashier — Confirming Settlement](#cashier--confirming-settlement)
     - [Cancelling a Request](#cancelling-a-request)
+    - [Auto-Expiry — The 30-Day Deadline](#auto-expiry--the-30-day-deadline)
     - [Status Reference](#status-reference)
 40. [Expense Account — Restricted User Access](#40-expense-account--restricted-user-access)
     - [Granting Access](#granting-access)
@@ -231,6 +233,7 @@
 66. [Pricing, Cost, Value & Performance Intelligence Reports](#66-pricing-cost-value--performance-intelligence-reports)
     - [Linked Products — Viewing, Selling & Editing Price](#linked-products--viewing-selling--editing-price)
     - [Tag Vocabulary, Product Tags & Tag Search](#tag-vocabulary-product-tags--tag-search)
+    - [Stocking & Related Expenses](#stocking--related-expenses)
     - [Permissions](#permissions-16)
 67. [Bulk/Case Cost Entry — Bulk Stocking & Stock Take](#67-bulkcase-cost-entry--bulk-stocking--stock-take)
 68. [Clothing POS — Return & Exchange](#68-clothing-pos--return--exchange)
@@ -6744,6 +6747,25 @@ This gives managers a quick view of total spending with a specific supplier or c
 
 ---
 
+### Missing / Partial Receipts Report
+
+While the Payee Receipt Report above shows you spending for one payee at a time, this report flags payments across the board that still need attention — a worklist, not a spend breakdown.
+
+**Who can use it:** Anyone with expense account report access.
+
+1. Go to **Expense Accounts → Reports**.
+2. Click the **🚩 Missing / Partial Receipts** card.
+
+A payment is flagged if:
+- **⬜ No Receipts** — nothing has been attached yet, or
+- **🟡 Partial** — at least one receipt is attached, but the total doesn't yet cover the full payment amount
+
+Pick a date range (or switch to **All Time**), optionally filter to just one of the two statuses, and search by payee, business, or category. Each row shows the payment amount, how much has been receipted so far, and the outstanding balance. **Click any row** to open the receipts panel directly and add or review receipts for that payment — no need to go hunting for it in Transaction History first.
+
+> **What's deliberately left out:** a payment with receipts already fully submitted and just waiting on a cashier's approval isn't flagged here — see the **Payee Receipt Report** or the payment's own receipt badge for that. Internal transfers and loan movements aren't expenses, so they're excluded entirely, not flagged as missing a receipt.
+
+---
+
 ### Payee Payment History Report
 
 The Payee Payment History report shows every individual payment transaction made to any recipient in the system — employees, persons, suppliers, businesses, or users — for any date range you choose.
@@ -10223,6 +10245,20 @@ The request is marked **CANCELLED**. All cashiers and admins are notified, and i
 
 ---
 
+### Auto-Expiry — The 30-Day Deadline
+
+A combo request that isn't fully paid within **30 days of submission** automatically **expires** — it can no longer be approved or paid, and must be resubmitted as a new request.
+
+- The 30-day clock starts the moment you click **Submit Request**, not when a cashier approves it — approving late eats into the remaining time, it doesn't restart the clock.
+- Once **any** item has been marked paid, the request is no longer eligible to expire — it's left for a cashier or admin to cancel or settle manually instead, since money has already moved.
+- If a request does expire while funds were already approved, the earmarked amount is automatically reversed and returned to the account balance — nothing is lost, it just needs to be requested again.
+- You'll get a warning notification at **7 days** and again at **2 days** before the deadline (sent to cashiers, so there's still time to approve and pay it), and a final notice when it actually expires (sent to you, the requester).
+- An expired request shows a **⏰ Expired** badge in the Combo Requests list, with a **↻ Resubmit** button that creates a new draft copy of it — pre-filled with the same sections and items — so you don't have to re-type everything.
+
+> **Why this exists:** requests that sat approved-but-unpaid for months made it easy to lose track of outstanding funds. The 30-day deadline forces stale requests to either get paid promptly or fall off cleanly, instead of quietly accumulating.
+
+---
+
 ### Status Reference
 
 | Status | What it means |
@@ -10236,6 +10272,7 @@ The request is marked **CANCELLED**. All cashiers and admins are notified, and i
 | **SETTLE REQUESTED** | Requester has notified cashier of remaining change. Awaiting confirmation. |
 | **SETTLED** | Change collected and confirmed. Request fully closed. |
 | **CANCELLED** | Request voided before completion. |
+| **EXPIRED** | Not paid within 30 days of submission. Any approved funds were returned to the account. Must be resubmitted. |
 
 ---
 
@@ -10280,6 +10317,9 @@ The request is marked **CANCELLED**. All cashiers and admins are notified, and i
 **Receipt badge is orange or red and I've already submitted receipts:**
 - Orange means submitted-but-not-yet-approved by a cashier, or still within the first 7 days — this is expected until a cashier clicks **✅ Approve**.
 - Red means it's been more than 7 days since the funds were issued and it's still not approved — the cashier group has been notified, but you can also follow up directly.
+
+**"This request expired" error when approving or marking an item paid:**
+- More than 30 days passed since the request was submitted without it being fully paid. Click **↻ Resubmit** on the expired request to create a new draft copy, then submit it again — see [Auto-Expiry — The 30-Day Deadline](#auto-expiry--the-30-day-deadline) above.
 
 ---
 
@@ -14078,6 +14118,21 @@ By default this page only lists products already low on stock (see §27's Reorde
 - **Min Stock Status** — Below Min / At Min / Above Min, comparing current stock to the recommendation.
 
 This is decision support only — click **min N** in the Stock column (as before) to manually set the actual minimum stock level for any product.
+
+### Stocking & Related Expenses
+
+**Where:** Sidebar → Inventory → 🚚 Stocking & Related Expenses
+
+Answers "what did a restocking run actually cost, all in" — not just the goods, but the transport, tolls, meals, and other expenses that went with it.
+
+Pick a date range and the report shows three tables:
+- **By Product** — every item received in the period, total quantity, and total cost (pulled from real per-receipt stock history, not just today's snapshot, so this stays accurate even after prices have since changed).
+- **Stocking Events** — the same data as a day-by-day log, so you can see exactly what was received on a given date.
+- **Related Expenses** — every other expense-account payment in the same window, with a category filter (there's no single "Transport/Tolls/Meals" category system-wide, so pick the ones that apply, e.g. Transportation) so you can see what else was spent alongside the stocking itself.
+
+Summary cards at the top total items stocked, stocking cost, related expenses (respecting the category filter), and a combined grand total. Each table has its own **Export CSV** button.
+
+> **Expenses are correlated by date range, not a hard link** — the report doesn't know which specific expense belongs to which specific stocking trip, only that they happened in the same window. Use the category filter and your own judgement to narrow down to the ones that are actually stocking-related.
 
 ## 67. Bulk/Case Cost Entry — Bulk Stocking & Stock Take
 
