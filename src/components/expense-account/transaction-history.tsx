@@ -87,6 +87,11 @@ interface TransactionHistoryProps {
   businessId?: string
   businessName?: string
   onRepeatPayment?: (paymentId: string) => void
+  // Deep-link support: when set (e.g. from a reminder notification's
+  // ?openReceiptsForPayment=... link), opens that payment's Receipts modal
+  // directly on mount, independent of whether the row is in the currently
+  // loaded/filtered transaction list.
+  autoOpenReceipt?: { id: string; amount: number; description: string; payee: { type: string; id: string; name: string } | null } | null
 }
 
 // Resolves a PAYMENT transaction's real registered payee (not the free-text
@@ -141,7 +146,7 @@ function shortDescription(transaction: Transaction): string {
   return desc
 }
 
-export function TransactionHistory({ accountId, defaultType = '', defaultSortOrder = 'desc', pageLimit, canEditPayments = false, isAdmin = false, initialStartDate, initialEndDate, refreshKey, onDataChanged, businessId, businessName, onRepeatPayment }: TransactionHistoryProps) {
+export function TransactionHistory({ accountId, defaultType = '', defaultSortOrder = 'desc', pageLimit, canEditPayments = false, isAdmin = false, initialStartDate, initialEndDate, refreshKey, onDataChanged, businessId, businessName, onRepeatPayment, autoOpenReceipt }: TransactionHistoryProps) {
   const { data: session } = useSession()
   const currentUserId = (session?.user as any)?.id as string | undefined
   const currentUserName = session?.user?.name ?? 'Staff'
@@ -168,6 +173,22 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
     paymentPayee: { type: string; id: string; name: string } | null
     mode: 'add' | 'view'
   } | null>(null)
+
+  // Deep-link open — e.g. a reminder notification's ?openReceiptsForPayment=
+  // link. Only fires once per distinct autoOpenReceipt.id so it doesn't
+  // reopen after the user closes it.
+  const autoOpenedIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!autoOpenReceipt || autoOpenedIdRef.current === autoOpenReceipt.id) return
+    autoOpenedIdRef.current = autoOpenReceipt.id
+    setReceiptModal({
+      paymentId: autoOpenReceipt.id,
+      paymentAmount: autoOpenReceipt.amount,
+      paymentDescription: autoOpenReceipt.description,
+      paymentPayee: autoOpenReceipt.payee,
+      mode: 'view',
+    })
+  }, [autoOpenReceipt])
   const [startDate, setStartDate] = useState(() => {
     if (initialStartDate) return initialStartDate
     const d = new Date(); d.setDate(d.getDate() - 29)
