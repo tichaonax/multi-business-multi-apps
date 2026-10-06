@@ -606,7 +606,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   const renderTransactionActions = (transaction: Transaction, isDeposit: boolean) => {
     const rowActions: RowAction[] = []
 
-    if (canEditPayments && !isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO' && !voucherMap[transaction.id] && (isAdmin || isWithin7Days(transaction.createdAt))) {
+    if (canEditPayments && !isDeposit && !transaction.isAutoTransfer && !transaction.comboRequestId && !voucherMap[transaction.id] && (isAdmin || isWithin7Days(transaction.createdAt))) {
       rowActions.push({
         key: 'edit',
         label: 'Edit',
@@ -615,7 +615,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
         onClick: () => setEditPaymentId(transaction.id),
       })
     }
-    if (onRepeatPayment && !isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO') {
+    if (onRepeatPayment && !isDeposit && !transaction.isAutoTransfer && !transaction.comboRequestId) {
       rowActions.push({
         key: 'repeat',
         label: 'Repeat',
@@ -624,7 +624,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
         onClick: () => onRepeatPayment(transaction.id),
       })
     }
-    if (isAdmin && !isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO' && transaction.status !== 'REVERSED') {
+    if (isAdmin && !isDeposit && !transaction.isAutoTransfer && !transaction.comboRequestId && transaction.status !== 'REVERSED') {
       rowActions.push({
         key: 'reverse',
         label: reversingId === transaction.id ? 'Reversing…' : 'Reverse',
@@ -742,7 +742,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
       })()}
 
       {/* Project badge / assign button */}
-      {!isDeposit && !transaction.isAutoTransfer && transaction.payeeType !== 'COMBO' && projects.length > 0 && (
+      {!isDeposit && !transaction.isAutoTransfer && !transaction.comboRequestId && projects.length > 0 && (
         assignTxId === transaction.id ? (
           <select
             autoFocus
@@ -1058,7 +1058,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                 <div
                   key={transaction.id}
                   onClick={() => {
-                    if (!isDeposit && transaction.payeeType === 'COMBO' && transaction.comboRequestId) {
+                    if (!isDeposit && transaction.comboRequestId) {
                       setDetailComboRequestId(transaction.comboRequestId)
                       return
                     }
@@ -1095,7 +1095,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                       {transaction.createdBy?.name && <p className="text-gray-400 dark:text-gray-500">by {transaction.createdBy.name}</p>}
                     </div>
                   )}
-                  {!isDeposit && transaction.payeeType === 'COMBO' && transaction.comboPayees && transaction.comboPayees.length > 0 && (
+                  {!isDeposit && transaction.comboRequestId && transaction.comboPayees && transaction.comboPayees.length > 0 && (
                     <div className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300">
                         🧾 Combo Request
@@ -1153,7 +1153,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                       key={transaction.id}
                       className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                       onClick={() => {
-                        if (!isDeposit && transaction.payeeType === 'COMBO' && transaction.comboRequestId) {
+                        if (!isDeposit && transaction.comboRequestId) {
                           setDetailComboRequestId(transaction.comboRequestId)
                           return
                         }
@@ -1204,7 +1204,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                             </span>
                           </div>
                         )}
-                        {!isDeposit && transaction.payeeType === 'COMBO' && (
+                        {!isDeposit && transaction.comboRequestId && (
                           <div className="mt-0.5 space-y-0.5">
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300">
                               🧾 Combo Request
@@ -1281,7 +1281,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                           <span className="text-xs text-sky-600 dark:text-sky-500 italic">→ Transferred out</span>
                         ) : transaction.isAutoTransfer && transaction.autoTransferSource ? (
                           <span className="font-medium text-sky-700 dark:text-sky-400">↩ {transaction.autoTransferSource}</span>
-                        ) : transaction.payeeType === 'COMBO' && transaction.comboRequester ? (
+                        ) : transaction.comboRequestId && transaction.comboRequester ? (
                           <span className="font-medium text-purple-700 dark:text-purple-400">📎 {transaction.comboRequester.name}</span>
                         ) : transaction.sourceBusiness ? (
                           <span className="font-medium">{transaction.sourceBusiness.name}</span>

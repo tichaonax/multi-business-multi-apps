@@ -207,7 +207,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     bales: Record<string, { soldToday: number; soldYesterday: number; firstSoldTodayAt: string | null }>
     wifi: Record<string, { soldToday: number; soldYesterday: number; firstSoldTodayAt: string | null }>
     products: Record<string, { soldToday: number; soldYesterday: number; firstSoldTodayAt: string | null }>
-  }>({ bales: {}, wifi: {}, products: {} })
+    productYtd: Record<string, { soldYtd: number; valueYtd: number }>
+  }>({ bales: {}, wifi: {}, products: {}, productYtd: {} })
   const [showAddStockPanel, setShowAddStockPanel] = useState(false)
   const [bulkPrintModal, setBulkPrintModal] = useState<{ baleId?: string; qty?: number; templateId?: string } | null>(null)
   const [baleSearch, setBaleSearch] = useState('')
@@ -216,7 +217,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   // race conditions where the background refresh returns stale data before the DB commits.
   const mergePosStats = (
     prev: typeof posStats,
-    apiData: { bales?: Record<string, any>; wifi?: Record<string, any>; products?: Record<string, any> }
+    apiData: { bales?: Record<string, any>; wifi?: Record<string, any>; products?: Record<string, any>; productYtd?: Record<string, any> }
   ) => {
     const merge = (prevMap: Record<string, any>, newMap: Record<string, any>) => {
       const result = { ...newMap }
@@ -241,6 +242,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       bales: merge(prev.bales, apiData.bales || {}),
       wifi: merge(prev.wifi, apiData.wifi || {}),
       products: merge(prev.products, apiData.products || {}),
+      // YTD totals aren't part of the optimistic-update race (checkout doesn't
+      // predict them), so just take whatever the latest refresh returned.
+      productYtd: apiData.productYtd || prev.productYtd,
     }
   }
 
@@ -769,7 +773,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           ])
           if (statsRes.ok) {
             const statsData = await statsRes.json()
-            setPosStats({ bales: statsData.bales || {}, wifi: statsData.wifi || {}, products: statsData.products || {} })
+            setPosStats({ bales: statsData.bales || {}, wifi: statsData.wifi || {}, products: statsData.products || {}, productYtd: statsData.productYtd || {} })
           }
 
           // Load R710 WiFi tokens — shown in dedicated WiFi tab
@@ -1883,6 +1887,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           bales: { ...prev.bales },
           wifi: { ...prev.wifi },
           products: { ...prev.products },
+          productYtd: prev.productYtd,
         }
         for (const item of soldCart) {
           if (item.attributes?.baleId) {
@@ -2380,7 +2385,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                 })
                 const displayProducts = [...pinned, ...sortedUnpinned].slice(0, Math.max(20, pinned.length))
                 return displayProducts.map((product) => (
-                <div key={product.id} className={`relative border rounded-lg p-3 hover:shadow-md transition-shadow ${pinnedProductIds.has(product.id) ? 'border-yellow-400 dark:border-yellow-500' : ''}`}>
+                <div key={product.id} className={`group relative border rounded-lg p-3 hover:shadow-md transition-shadow ${pinnedProductIds.has(product.id) ? 'border-yellow-400 dark:border-yellow-500' : ''}`}>
                   {/* POS Quick-Edit Mode image corner button (MBM-292 Phase 2) —
                       excludes R710 WiFi token pseudo-products, which have no
                       image of their own and are priced via their token config */}
@@ -2421,6 +2426,22 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                           <span>{product.category}</span>
                         </p>
                       )}
+                      {canSeeFinancials && (() => {
+                        const ytd = posStats.productYtd[product.id]
+                        if (!ytd || ytd.soldYtd <= 0) return null
+                        return (
+                          <div className="relative inline-block mt-1">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 whitespace-nowrap cursor-default">
+                              📅 {ytd.soldYtd} sold · ${ytd.valueYtd.toFixed(2)} YTD
+                            </span>
+                            <div className="absolute left-0 top-full mt-1 z-20 hidden group-hover:block w-max max-w-[220px] rounded-md bg-gray-900 dark:bg-black text-white text-xs px-2.5 py-1.5 shadow-lg">
+                              <p className="font-medium">{product.name}</p>
+                              <p className="text-gray-300">Year to date: {ytd.soldYtd} sold</p>
+                              <p className="text-gray-300">Total value: ${ytd.valueYtd.toFixed(2)}</p>
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </div>
                   </div>
                   <div className="space-y-2">

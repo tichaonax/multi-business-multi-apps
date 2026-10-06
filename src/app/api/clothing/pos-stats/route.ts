@@ -27,6 +27,23 @@ function startOfDayInTZ(now: Date, tz: string): Date {
   return new Date(midnightUTC.getTime() + offsetMins * 60 * 1000)
 }
 
+// Returns the UTC timestamp for midnight of Jan 1 of `now`'s local calendar
+// year in `tz` — same offset math as startOfDayInTZ, targeted at Jan 1.
+function startOfYearInTZ(now: Date, tz: string): Date {
+  const localYear = Number(now.toLocaleDateString('sv', { timeZone: tz }).split('-')[0])
+  const midnightUTC = new Date(Date.UTC(localYear, 0, 1))
+
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false
+  }).formatToParts(midnightUTC)
+
+  const h = parseInt(parts.find(p => p.type === 'hour')!.value) % 24
+  const min = parseInt(parts.find(p => p.type === 'minute')!.value)
+  const offsetMins = h <= 12 ? -(h * 60 + min) : (24 * 60 - h * 60 - min)
+
+  return new Date(midnightUTC.getTime() + offsetMins * 60 * 1000)
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getServerUser()
@@ -42,6 +59,7 @@ export async function GET(request: NextRequest) {
     const todayStart    = startOfDayInTZ(now, timezone)
     const todayEnd      = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000 - 1)
     const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000)
+    const yearStart     = startOfYearInTZ(now, timezone)
 
     // ── Bale sold counts (today + yesterday) ─────────────────────────────────
     // Note: DB columns are camelCase (no @map) so raw SQL must use quoted identifiers
@@ -145,7 +163,36 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ bales, wifi, products })
+    // ── Year-to-date sold count + value, per product (aggregated across all
+    // its variants) — powers the Quick Add Products card badge. ────────────
+    const ytdRows = await prisma.$queryRaw<
+      { product_id: string; sold: bigint; value: string }[]
+    >`
+      SELECT
+        pv."productId"                                  AS product_id,
+        SUM(boi.quantity)                               AS sold,
+        SUM(boi."totalPrice")                            AS value
+      FROM business_order_items boi
+      JOIN business_orders bo ON boi."orderId" = bo.id
+      JOIN product_variants pv ON boi."productVariantId" = pv.id
+      WHERE bo."businessId" = ${businessId}
+        AND boi."productVariantId" IS NOT NULL
+        AND (boi.attributes->>'baleId') IS NULL
+        AND boi.attributes->>'wifiToken' IS DISTINCT FROM 'true'
+        AND boi.attributes->>'r710Token' IS DISTINCT FROM 'true'
+        AND COALESCE((boi.attributes->>'isBOGOFree')::boolean, false) = false
+        AND bo."createdAt" >= ${yearStart}
+        AND bo."createdAt" <= ${todayEnd}
+        AND bo.status NOT IN ('CANCELLED', 'REFUNDED')
+      GROUP BY pv."productId"
+    `
+
+    const productYtd: Record<string, { soldYtd: number; valueYtd: number }> = {}
+    for (const row of ytdRows) {
+      productYtd[row.product_id] = { soldYtd: Number(row.sold), valueYtd: Number(row.value) }
+    }
+
+    return NextResponse.json({ bales, wifi, products, productYtd })
   } catch (error) {
     console.error('[clothing/pos-stats] error:', error)
     return NextResponse.json({ error: 'Failed to load stats' }, { status: 500 })

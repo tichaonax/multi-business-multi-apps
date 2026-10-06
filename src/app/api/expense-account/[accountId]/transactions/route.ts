@@ -192,8 +192,16 @@ export async function GET(
                 ...(Object.keys(paymentPersonalFilter).length > 0 ? [paymentPersonalFilter] : []),
                 ...(Object.keys(dateFilter).length > 0 ? [{
                   OR: [
-                    { paidAt: dateFilter },
-                    { paidAt: null, paymentDate: dateFilter },
+                    // Combo-linked payments: the account is debited at approval time
+                    // (close to paymentDate/submittedAt) — paidAt only means "every
+                    // line item has a reconciled receipt", which can trail the real
+                    // transaction by months, so it must never decide which month this
+                    // belongs to. Detected via the actual DB relation (not payeeType —
+                    // a payment's payeeType can be edited later to attach a real payee,
+                    // e.g. "Mr Muchena", even though it started as payeeType: 'COMBO').
+                    { combo_request: { isNot: null }, paymentDate: dateFilter },
+                    { combo_request: null, paidAt: dateFilter },
+                    { combo_request: null, paidAt: null, paymentDate: dateFilter },
                   ],
                 }] : []),
               ],
@@ -457,7 +465,14 @@ export async function GET(
         id: payment.id,
         type: 'PAYMENT',
         amount: -Number(payment.amount), // Negative for payments (debit)
-        date: (payment as any).paidAt || payment.paymentDate, // PAID: use actual paid date; others: use user-entered payment date
+        // Combo-linked: paidAt means "every line item has a reconciled receipt", not
+        // when the money left the account (that happened at approval, close to
+        // paymentDate) — can trail by months, so never use it as the display date.
+        // Detected via comboRequestMap (the real linkedPaymentId relation), not
+        // payeeType — a payment's payeeType can be edited later to attach a real
+        // payee even though it started out as a combo payment.
+        // Everything else: paidAt is the actual disbursement date when set.
+        date: comboRequestMap.has(payment.id) ? payment.paymentDate : ((payment as any).paidAt || payment.paymentDate),
         paymentDate: payment.paymentDate, // original user-entered/requested date — may predate the actual paidAt for requests that sat unpaid before being settled
         description,
         notes: payment.notes ?? null,
@@ -524,8 +539,9 @@ export async function GET(
           expenseAccountId: accountId,
           status: { in: ['PAID', 'SUBMITTED', 'APPROVED'] },
           OR: [
-            { paidAt: { lt: paginatedTransactions[0]?.date || new Date() } },
-            { paidAt: null, paymentDate: { lt: paginatedTransactions[0]?.date || new Date() } },
+            { combo_request: { isNot: null }, paymentDate: { lt: paginatedTransactions[0]?.date || new Date() } },
+            { combo_request: null, paidAt: { lt: paginatedTransactions[0]?.date || new Date() } },
+            { combo_request: null, paidAt: null, paymentDate: { lt: paginatedTransactions[0]?.date || new Date() } },
           ],
         },
         _sum: { amount: true },

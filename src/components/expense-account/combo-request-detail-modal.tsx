@@ -203,7 +203,10 @@ export function ComboRequestDetailModal({
                 {request.approver && (
                   <div className="flex flex-col">
                     <span className="text-xs text-gray-400">Approved by</span>
-                    <span className="text-sm font-medium text-primary">{request.approver.name}</span>
+                    <span className="text-sm font-medium text-primary">
+                      {request.approver.name}
+                      {request.approvedAt && <span className="text-gray-400 font-normal"> · {fmtDate(request.approvedAt)}</span>}
+                    </span>
                   </div>
                 )}
               </div>
