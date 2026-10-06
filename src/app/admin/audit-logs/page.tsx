@@ -200,6 +200,24 @@ function summarizeAuditLog(log: AuditLog): string | null {
     }
     case 'EXPENSE_ACCOUNT_TRANSFER':
       return `Transferred ${money(nv.amount)}: ${nv.sourceAccountName || ''} → ${nv.destinationAccountName || ''}`;
+    case 'CONTRACTOR_LOGIN_PROVISIONED':
+      return `Provisioned contractor login — ${m.contractorName || ''}${nv.email ? ` (${nv.email})` : ''}`.trim();
+    case 'CONTRACTOR_LOGIN_REACTIVATED':
+      return `Reactivated contractor login — ${m.contractorName || ''}`.trim();
+    case 'CONTRACTOR_LOGIN_PASSWORD_RESET':
+      return `Reset contractor login password — ${m.contractorName || ''}`.trim();
+    case 'CONTRACTOR_LOGIN_REVOKED':
+      return `Revoked contractor login — ${m.contractorName || ''}${m.reason ? `: "${m.reason}"` : ''}`.trim();
+    case 'VEHICLE_LICENSE_CREATED':
+      return `Created ${nv.licenseType || 'license'} (${nv.licenseNumber || ''}) — ${m.licensePlate || `${m.make || ''} ${m.model || ''}`.trim()}`.trim();
+    case 'VEHICLE_LICENSE_UPDATED':
+      return `Updated license — ${m.licensePlate || `${m.make || ''} ${m.model || ''}`.trim()}`.trim();
+    case 'VEHICLE_LICENSE_DEACTIVATED':
+      return `Deactivated ${m.licenseType || 'license'} (${m.licenseNumber || ''}) — ${m.licensePlate || `${m.make || ''} ${m.model || ''}`.trim()}`.trim();
+    case 'BACKUP_CREATED':
+      return `Backup created${m.backupType ? ` (${m.backupType})` : ''}${nv.totalRecords != null ? ` — ${nv.totalRecords} records` : ''}`;
+    case 'BACKUP_RESTORED':
+      return `Backup restored — ${nv.recordsProcessed != null ? `${nv.recordsProcessed} records processed` : ''}${nv.success === false ? ' (FAILED)' : ''}`.trim();
     default: {
       const name = findDisplayName(log);
       return name ? name : null;
@@ -465,6 +483,7 @@ export default function AuditLogsPage() {
               <option value="DATA_EXPORT">Data Export</option>
               <option value="DATA_IMPORT">Data Import</option>
               <option value="BACKUP_CREATED">Backup Created</option>
+              <option value="BACKUP_RESTORED">Backup Restored</option>
               <option value="RECEIPT_SUBMITTED">Receipt Submitted</option>
               <option value="RECEIPT_APPROVED">Receipt Approved</option>
               <option value="RECEIPT_AMENDED">Receipt Amended</option>
@@ -493,6 +512,13 @@ export default function AuditLogsPage() {
               <option value="PRODUCT_PRICE_UPDATED">Product Price Updated</option>
               <option value="PRODUCT_STOCK_ADJUSTED">Product Stock Adjusted</option>
               <option value="PRODUCT_ZEROED_OUT">Product Zeroed Out</option>
+              <option value="CONTRACTOR_LOGIN_PROVISIONED">Contractor Login Provisioned</option>
+              <option value="CONTRACTOR_LOGIN_REACTIVATED">Contractor Login Reactivated</option>
+              <option value="CONTRACTOR_LOGIN_PASSWORD_RESET">Contractor Login Password Reset</option>
+              <option value="CONTRACTOR_LOGIN_REVOKED">Contractor Login Revoked</option>
+              <option value="VEHICLE_LICENSE_CREATED">Vehicle License Created</option>
+              <option value="VEHICLE_LICENSE_UPDATED">Vehicle License Updated</option>
+              <option value="VEHICLE_LICENSE_DEACTIVATED">Vehicle License Deactivated</option>
             </select>
 
             <select
@@ -511,6 +537,10 @@ export default function AuditLogsPage() {
               <option value="Backup">Backup</option>
               <option value="ExpensePaymentReceipt">Expense Payment Receipt</option>
               <option value="ExpenseAccount">Expense Account</option>
+              <option value="Product">Product</option>
+              <option value="Order">Order</option>
+              <option value="Contract">Contract</option>
+              <option value="VehicleLicense">Vehicle License</option>
             </select>
 
             <select

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { randomBytes } from 'crypto'
 import { getServerUser } from '@/lib/get-server-user'
+import { createAuditLog } from '@/lib/audit'
 
 const CreateLicenseSchema = z.object({
   vehicleId: z.string().min(1, 'Vehicle ID is required'),
@@ -159,48 +160,48 @@ export async function POST(request: NextRequest) {
           })
         ])
 
-        // Audit deactivation
-        try {
-          await prisma.auditLogs.create({
-            data: {
-              id: crypto.randomUUID(),
-              userId: user.id,
-              action: 'DEACTIVATE',
-              entityType: 'VehicleLicense',
-              entityId: deactivated.id,
-              oldValues: existingLicense as any,
-              newValues: deactivated as any,
-              metadata: undefined,
-              tableName: 'vehicle_licenses',
-              recordId: deactivated.id,
-              details: 'Auto-deactivated expired license to allow replacement'
-            }
-          })
-        } catch (e) {
-          console.error('Failed to write audit log for vehicle license deactivation', e)
+        const vehicleIdentity = {
+          vehicleId: vehicle.id,
+          licensePlate: vehicle.licensePlate,
+          make: vehicle.make,
+          model: vehicle.model,
         }
 
+        // Audit deactivation
+        await createAuditLog({
+          userId: user.id,
+          action: 'VEHICLE_LICENSE_DEACTIVATED',
+          entityType: 'VehicleLicense',
+          entityId: deactivated.id,
+          oldValues: { isActive: true, expiryDate: existingLicense.expiryDate },
+          newValues: { isActive: false },
+          metadata: {
+            ...vehicleIdentity,
+            licenseType: existingLicense.licenseType,
+            licenseNumber: existingLicense.licenseNumber,
+            reason: 'Auto-deactivated: expired license replaced by new one',
+          },
+        }).catch((e) => console.error('Failed to write audit log for vehicle license deactivation', e))
+
         // Audit creation
-        try {
-          const normalizedCreated = { ...created, vehicle: (created as any).vehicles || null }
-          await prisma.auditLogs.create({
-            data: {
-              id: crypto.randomUUID(),
-              userId: user.id,
-              action: 'CREATE',
-              entityType: 'VehicleLicense',
-              entityId: created.id,
-              oldValues: undefined,
-              newValues: normalizedCreated as any,
-              metadata: undefined,
-              tableName: 'vehicle_licenses',
-              recordId: created.id,
-              details: 'Created vehicle license after auto-deactivating expired one'
-            }
-          })
-        } catch (e) {
-          console.error('Failed to write audit log for vehicle license create (post-transaction)', e)
-        }
+        await createAuditLog({
+          userId: user.id,
+          action: 'VEHICLE_LICENSE_CREATED',
+          entityType: 'VehicleLicense',
+          entityId: created.id,
+          newValues: {
+            licenseType: created.licenseType,
+            licenseNumber: created.licenseNumber,
+            issueDate: created.issueDate,
+            expiryDate: created.expiryDate,
+            issuingAuthority: created.issuingAuthority,
+            renewalCost: created.renewalCost,
+          },
+          metadata: {
+            ...vehicleIdentity,
+            reason: 'Created after auto-deactivating expired license',
+          },
+        }).catch((e) => console.error('Failed to write audit log for vehicle license create (post-transaction)', e))
 
         const normalizedLicense = { ...created, vehicle: (created as any).vehicles || null }
         return NextResponse.json({ success: true, data: normalizedLicense, message: 'Vehicle license created successfully' }, { status: 201 })
@@ -228,26 +229,26 @@ export async function POST(request: NextRequest) {
     const normalizedLicense = { ...license, vehicle: (license as any).vehicles || null }
 
     // Audit log for creation
-    try {
-      await prisma.auditLogs.create({
-        data: {
-          id: crypto.randomUUID(),
-          userId: user.id,
-          action: 'CREATE',
-          entityType: 'VehicleLicense',
-          entityId: license.id,
-          // Prisma JSON fields accept undefined rather than null for optional values
-          oldValues: undefined,
-          newValues: normalizedLicense as any,
-          metadata: undefined,
-          tableName: 'vehicle_licenses',
-          recordId: license.id,
-          details: 'Created vehicle license'
-        }
-      })
-    } catch (e) {
-      console.error('Failed to write audit log for vehicle license create', e)
-    }
+    await createAuditLog({
+      userId: user.id,
+      action: 'VEHICLE_LICENSE_CREATED',
+      entityType: 'VehicleLicense',
+      entityId: license.id,
+      newValues: {
+        licenseType: license.licenseType,
+        licenseNumber: license.licenseNumber,
+        issueDate: license.issueDate,
+        expiryDate: license.expiryDate,
+        issuingAuthority: license.issuingAuthority,
+        renewalCost: license.renewalCost,
+      },
+      metadata: {
+        vehicleId: vehicle.id,
+        licensePlate: vehicle.licensePlate,
+        make: vehicle.make,
+        model: vehicle.model,
+      },
+    }).catch((e) => console.error('Failed to write audit log for vehicle license create', e))
 
     return NextResponse.json({ success: true, data: normalizedLicense, message: 'Vehicle license created successfully' }, { status: 201 })
 
@@ -318,26 +319,35 @@ export async function PUT(request: NextRequest) {
 
     const normalizedUpdated = { ...license, vehicle: (license as any).vehicles || null }
 
-    // Audit log for update
-    try {
-      await prisma.auditLogs.create({
-        data: {
-          id: crypto.randomUUID(),
-          userId: user.id,
-          action: 'UPDATE',
-          entityType: 'VehicleLicense',
-          entityId: license.id,
-          oldValues: existingLicense as any,
-          newValues: normalizedUpdated as any,
-          metadata: undefined,
-          tableName: 'vehicle_licenses',
-          recordId: license.id,
-          details: 'Updated vehicle license'
-        }
-      })
-    } catch (e) {
-      console.error('Failed to write audit log for vehicle license update', e)
+    // Audit log for update — only the fields actually submitted, diffed against their prior values
+    const changedOld: Record<string, any> = {}
+    const changedNew: Record<string, any> = {}
+    for (const key of Object.keys(updateData) as (keyof typeof updateData)[]) {
+      const oldVal = (existingLicense as any)[key]
+      const newVal = (license as any)[key]
+      const oldComparable = oldVal instanceof Date ? oldVal.toISOString() : oldVal
+      const newComparable = newVal instanceof Date ? newVal.toISOString() : newVal
+      if (oldComparable !== newComparable) {
+        changedOld[key] = oldVal
+        changedNew[key] = newVal
+      }
     }
+
+    const vehicleInfo = (license as any).vehicles
+    await createAuditLog({
+      userId: user.id,
+      action: 'VEHICLE_LICENSE_UPDATED',
+      entityType: 'VehicleLicense',
+      entityId: license.id,
+      oldValues: changedOld,
+      newValues: changedNew,
+      metadata: {
+        vehicleId: existingLicense.vehicleId,
+        licensePlate: vehicleInfo?.licensePlate,
+        make: vehicleInfo?.make,
+        model: vehicleInfo?.model,
+      },
+    }).catch((e) => console.error('Failed to write audit log for vehicle license update', e))
 
     return NextResponse.json({ success: true, data: normalizedUpdated, message: 'Vehicle license updated successfully' })
 
@@ -405,28 +415,30 @@ export async function DELETE(request: NextRequest) {
     const results = await prisma.$transaction(updates)
     const deactivatedIds = results.map(r => (r as any).id)
 
-    // Audit logs for deactivation
-    try {
-      for (const r of results) {
-        const rec: any = r
-        await prisma.auditLogs.create({
-          data: {
-            id: crypto.randomUUID(),
-            userId: user.id,
-            action: 'DEACTIVATE',
-            entityType: 'VehicleLicense',
-            entityId: rec.id,
-            oldValues: undefined,
-            newValues: { ...rec, isActive: false } as any,
-            metadata: undefined,
-            tableName: 'vehicle_licenses',
-            recordId: rec.id,
-            details: 'Deactivated vehicle license'
-          }
-        })
-      }
-    } catch (e) {
-      console.error('Failed to write audit logs for vehicle license deactivation', e)
+    // Audit logs for deactivation — one entry per license, with vehicle identity
+    const deactivatedVehicle = await prisma.vehicles.findUnique({
+      where: { id: vehicleIds[0] },
+      select: { licensePlate: true, make: true, model: true },
+    })
+    for (const r of results) {
+      const rec: any = r
+      const original = licenses.find(l => l.id === rec.id)
+      await createAuditLog({
+        userId: user.id,
+        action: 'VEHICLE_LICENSE_DEACTIVATED',
+        entityType: 'VehicleLicense',
+        entityId: rec.id,
+        oldValues: { isActive: true },
+        newValues: { isActive: false },
+        metadata: {
+          vehicleId: vehicleIds[0],
+          licensePlate: deactivatedVehicle?.licensePlate,
+          make: deactivatedVehicle?.make,
+          model: deactivatedVehicle?.model,
+          licenseType: original?.licenseType,
+          licenseNumber: original?.licenseNumber,
+        },
+      }).catch((e) => console.error('Failed to write audit log for vehicle license deactivation', e))
     }
 
     return NextResponse.json({ success: true, message: `${deactivatedIds.length} license(s) deactivated successfully`, deactivatedIds })

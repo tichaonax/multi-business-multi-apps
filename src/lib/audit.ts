@@ -62,7 +62,14 @@ export type AuditAction =
   | 'BUSINESS_TARGET_COMMITMENT_CHANGED'
   | 'BUSINESS_TARGET_DAY_ADJUSTED'
   | 'BUSINESS_TARGET_LINE_OVERRIDDEN'
-  | 'BUSINESS_TARGET_OVERRIDDEN';
+  | 'BUSINESS_TARGET_OVERRIDDEN'
+  | 'CONTRACTOR_LOGIN_PROVISIONED'
+  | 'CONTRACTOR_LOGIN_REACTIVATED'
+  | 'CONTRACTOR_LOGIN_PASSWORD_RESET'
+  | 'CONTRACTOR_LOGIN_REVOKED'
+  | 'VEHICLE_LICENSE_CREATED'
+  | 'VEHICLE_LICENSE_UPDATED'
+  | 'VEHICLE_LICENSE_DEACTIVATED';
 
 export type AuditEntityType =
   | 'User'
@@ -90,7 +97,8 @@ export type AuditEntityType =
   | 'ReferenceData'
   | 'BusinessTargetConfig'
   | 'BusinessTargetCommitment'
-  | 'BusinessTargetDayAdjustment';
+  | 'BusinessTargetDayAdjustment'
+  | 'VehicleLicense';
 
 export interface AuditLogEntry {
   userId: string;

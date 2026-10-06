@@ -71,9 +71,13 @@ export async function POST(
 
     await createAuditLog({
       userId: user.id,
-      action: 'CREATE',
+      action: 'CONTRACTOR_LOGIN_PROVISIONED',
       entityType: 'User',
       entityId: newUser.id,
+      newValues: {
+        email: newUser.email,
+        isActive: true,
+      },
       metadata: {
         businessId: contractor.businessId,
         contractorId,

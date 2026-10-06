@@ -58,9 +58,10 @@ export async function POST(
 
     await createAuditLog({
       userId: user.id,
-      action: 'PASSWORD_RESET',
+      action: 'CONTRACTOR_LOGIN_PASSWORD_RESET',
       entityType: 'User',
       entityId: contractor.users.id,
+      newValues: { email: contractor.users.email },
       metadata: {
         businessId: contractor.businessId,
         contractorId: contractor.id,

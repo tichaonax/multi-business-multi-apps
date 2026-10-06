@@ -12,6 +12,7 @@ import { compressBackup, decompressBackup, isGzipped } from '@/lib/backup-compre
 import { parseJSONStream } from '@/lib/backup-stream-parse';
 import { getServerUser } from '@/lib/get-server-user'
 import { isBusinessOwner } from '@/lib/permission-utils'
+import { createAuditLog } from '@/lib/audit'
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -131,6 +132,18 @@ export async function GET(request: NextRequest) {
         console.log('[backup] Streamed backup completed:', {
           progressId, filename, sizeBytes: result.sizeBytes, totalRecords: result.totalRecords
         });
+
+        await createAuditLog({
+          userId: user.id,
+          action: 'BACKUP_CREATED',
+          entityType: 'Backup',
+          entityId: progressId,
+          newValues: { filename, totalRecords: result.totalRecords, sizeBytes: result.sizeBytes },
+          metadata: {
+            backupType, includeDemoData, includeDeviceData, businessId,
+            includeAuditLogs, since, createdBy,
+          },
+        }).catch((err) => console.error('[backup] Failed to write audit log:', err));
       } catch (error: any) {
         console.error('[backup] Streamed backup failed:', error);
         updateProgress(progressId, { model: 'error', errors: [error.message || 'Unknown error'] });
@@ -367,6 +380,27 @@ export async function POST(request: NextRequest) {
           skippedReasons: result.skippedReasons
         });
 
+        await createAuditLog({
+          userId: user.id,
+          action: 'BACKUP_RESTORED',
+          entityType: 'Backup',
+          entityId: progressId,
+          newValues: {
+            recordsProcessed: result.processed,
+            recordsSkipped: result.skippedRecords,
+            errorCount: result.errors,
+            success: result.success,
+          },
+          metadata: {
+            backupVersion: backupData.metadata?.version,
+            backupTimestamp: backupData.metadata?.timestamp,
+            incremental: !!incremental,
+            confirmBaseRestored,
+            modelCounts: result.modelCounts,
+            skippedReasons: result.skippedReasons,
+          },
+        }).catch((err) => console.error('[restore] Failed to write audit log:', err));
+
         return result;
       } catch (error: any) {
         console.error('[restore] Restore job failed:', error);
@@ -374,6 +408,19 @@ export async function POST(request: NextRequest) {
           model: 'error',
           errors: [error.message || 'Unknown error']
         });
+        await createAuditLog({
+          userId: user.id,
+          action: 'BACKUP_RESTORED',
+          entityType: 'Backup',
+          entityId: progressId,
+          newValues: { success: false, error: error.message || 'Unknown error' },
+          metadata: {
+            backupVersion: backupData.metadata?.version,
+            backupTimestamp: backupData.metadata?.timestamp,
+            incremental: !!incremental,
+            confirmBaseRestored,
+          },
+        }).catch((err) => console.error('[restore] Failed to write audit log:', err));
         throw error;
       }
     };

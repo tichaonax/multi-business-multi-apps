@@ -61,9 +61,11 @@ export async function POST(
 
     await createAuditLog({
       userId: user.id,
-      action: 'ACCOUNT_LOCKED',
+      action: 'CONTRACTOR_LOGIN_REVOKED',
       entityType: 'User',
       entityId: contractor.users.id,
+      oldValues: { isActive: true },
+      newValues: { isActive: false, email: contractor.users.email },
       metadata: {
         businessId: contractor.businessId,
         contractorId: contractor.id,
