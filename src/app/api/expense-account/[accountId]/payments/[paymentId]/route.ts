@@ -77,7 +77,7 @@ export async function GET(
           select: { id: true, name: true, type: true, description: true },
         },
         payeeSupplier: {
-          select: { id: true, name: true, phone: true, contactPerson: true, email: true, emoji: true },
+          select: { id: true, name: true, phone: true, contactPerson: true, email: true, emoji: true, supplierType: true, businessId: true },
         },
         category: {
           select: {

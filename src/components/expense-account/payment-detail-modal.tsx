@@ -14,7 +14,7 @@ interface PaymentDetail {
   payeeEmployee: { id: string; fullName: string; phone?: string | null; nationalId?: string | null } | null
   payeePerson: { id: string; fullName: string; phone?: string | null; email?: string | null; nationalId?: string | null; emoji?: string | null; serviceType?: string | null } | null
   payeeBusiness: { id: string; name: string } | null
-  payeeSupplier: { id: string; name: string; phone?: string | null; contactPerson?: string | null; emoji?: string | null } | null
+  payeeSupplier: { id: string; name: string; phone?: string | null; contactPerson?: string | null; emoji?: string | null; supplierType?: string | null; businessId?: string | null } | null
   category: { name: string; emoji: string } | null
   subcategory: { name: string; emoji: string } | null
   notes: string | null
@@ -110,6 +110,7 @@ export function PaymentDetailModal({
   const [editingClassification, setEditingClassification] = useState(false)
   const [editEmoji, setEditEmoji] = useState('')
   const [editServiceType, setEditServiceType] = useState<string | null>(null)
+  const [editSupplierType, setEditSupplierType] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -126,6 +127,7 @@ export function PaymentDetailModal({
     if (!payment) return
     setEditEmoji(payment.payeePerson?.emoji || payment.payeeSupplier?.emoji || '')
     setEditServiceType(payment.payeePerson?.serviceType || null)
+    setEditSupplierType(payment.payeeSupplier?.supplierType || null)
     setEditingClassification(true)
   }
 
@@ -144,16 +146,20 @@ export function PaymentDetailModal({
           ...prev,
           payeePerson: prev.payeePerson ? { ...prev.payeePerson, emoji: editEmoji || undefined, serviceType: editServiceType } : null,
         } : null)
-      } else if (payment.payeeType === 'SUPPLIER' && payment.payeeSupplier && payment.expenseAccountBusinessId) {
-        await fetch(`/api/business/${payment.expenseAccountBusinessId}/suppliers/${payment.payeeSupplier.id}`, {
+      } else if (payment.payeeType === 'SUPPLIER' && payment.payeeSupplier?.businessId) {
+        // Uses the SUPPLIER's own businessId (BusinessSuppliers.businessId),
+        // not the expense account's — a supplier can be classified even when
+        // the expense account paying them isn't tied to any business (e.g. a
+        // personal account paying a business-registered fuel supplier).
+        await fetch(`/api/business/${payment.payeeSupplier.businessId}/suppliers/${payment.payeeSupplier.id}`, {
           method: 'PUT',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ emoji: editEmoji }),
+          body: JSON.stringify({ supplierType: editSupplierType, emoji: editEmoji }),
         })
         setPayment((prev) => prev ? {
           ...prev,
-          payeeSupplier: prev.payeeSupplier ? { ...prev.payeeSupplier, emoji: editEmoji || undefined } : null,
+          payeeSupplier: prev.payeeSupplier ? { ...prev.payeeSupplier, emoji: editEmoji || undefined, supplierType: editSupplierType } : null,
         } : null)
       }
       setEditingClassification(false)
@@ -219,7 +225,7 @@ export function PaymentDetailModal({
                 const manageUrl = resolveManageUrl(payment)
                 const payeeEmoji = payment.payeePerson?.emoji || payment.payeeSupplier?.emoji || null
                 const defaultEmoji = badge?.emoji || '👤'
-                const canEditClassification = payment.payeeType === 'PERSON' || (payment.payeeType === 'SUPPLIER' && !!payment.expenseAccountBusinessId)
+                const canEditClassification = payment.payeeType === 'PERSON' || (payment.payeeType === 'SUPPLIER' && !!payment.payeeSupplier?.businessId)
                 return (
                   <>
                   <div className="flex gap-3">
@@ -288,16 +294,11 @@ export function PaymentDetailModal({
                           onChange={(name, emoji) => { setEditServiceType(name || null); setEditEmoji(emoji) }}
                         />
                       ) : (
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Emoji</label>
-                          <input
-                            type="text"
-                            value={editEmoji}
-                            onChange={(e) => setEditEmoji(e.target.value)}
-                            placeholder="e.g. 🚚"
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-primary focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
-                        </div>
+                        <ServiceCategoryPicker
+                          apiEndpoint="/api/supplier-categories"
+                          value={editSupplierType}
+                          onChange={(name, emoji) => { setEditSupplierType(name || null); setEditEmoji(emoji) }}
+                        />
                       )}
                       <div className="flex gap-2 justify-end">
                         <button
